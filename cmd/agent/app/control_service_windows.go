@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package app
 
@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"syscall"
 	"time"
 	"unsafe"
 
@@ -51,7 +50,7 @@ var restartsvcCommand = &cobra.Command{
 }
 
 var (
-	modadvapi32 = syscall.NewLazyDLL("advapi32.dll")
+	modadvapi32 = windows.NewLazyDLL("advapi32.dll")
 
 	procEnumDependentServices = modadvapi32.NewProc("EnumDependentServicesW")
 )
@@ -206,7 +205,7 @@ func enumDependentServices(h windows.Handle, state enumServiceState) (services [
 		uintptr(unsafe.Pointer(&bufsz)),
 		uintptr(unsafe.Pointer(&count)))
 
-	if err != error(syscall.ERROR_MORE_DATA) {
+	if err != error(windows.ERROR_MORE_DATA) {
 		log.Warnf("Error getting buffer %v", err)
 		return
 	}

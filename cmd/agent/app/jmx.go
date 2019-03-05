@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build jmx
 
@@ -122,16 +122,18 @@ func doJmxListNotCollected(cmd *cobra.Command, args []string) error {
 }
 
 func setupAgent() error {
+	overrides := make(map[string]interface{})
 
+	// let the os assign an available port
+	overrides["cmd_port"] = 0
+
+	config.SetOverrides(overrides)
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
-
-	// let the os assign an available port
-	config.Datadog.Set("cmd_port", 0)
 
 	// start the cmd HTTP server
 	if err := api.StartServer(); err != nil {
@@ -161,7 +163,7 @@ func runJmxCommand(command string) error {
 
 	loadConfigs()
 
-	err = runner.Start()
+	err = runner.Start(false)
 	if err != nil {
 		return err
 	}

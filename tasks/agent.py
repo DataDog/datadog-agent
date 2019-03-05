@@ -13,10 +13,11 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions
+from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
 from .go import deps
+from .docker import pull_base_images
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -24,6 +25,7 @@ AGENT_TAG = "datadog/agent:master"
 DEFAULT_BUILD_TAGS = [
     "apm",
     "consul",
+    "containerd",
     "cpython",
     "cri",
     "docker",
@@ -34,6 +36,7 @@ DEFAULT_BUILD_TAGS = [
     "kubeapiserver",
     "kubelet",
     "log",
+    "netcgo",
     "systemd",
     "process",
     "snmp",
@@ -44,6 +47,7 @@ DEFAULT_BUILD_TAGS = [
 AGENT_CORECHECKS = [
     "cpu",
     "cri",
+    "containerd",
     "docker",
     "file_handle",
     "go_expvar",
@@ -71,7 +75,7 @@ PUPPY_CORECHECKS = [
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, use_embedded_libs=False, development=True, precompile_only=False,
-          skip_assets=False):
+          skip_assets=False, use_venv=False):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -83,7 +87,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
-    ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
+    ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs, use_venv=use_venv)
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
@@ -215,7 +219,7 @@ def system_tests(ctx):
 
 
 @task
-def image_build(ctx, base_dir="omnibus"):
+def image_build(ctx, base_dir="omnibus", skip_tests=False):
     """
     Build the docker image
     """
@@ -229,9 +233,17 @@ def image_build(ctx, base_dir="omnibus"):
         raise Exit(code=1)
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, "Dockerfiles/agent/")
-    ctx.run("docker build -t {} Dockerfiles/agent".format(AGENT_TAG))
-    ctx.run("rm Dockerfiles/agent/datadog-agent*_amd64.deb")
 
+    # Pull base image with content trust enabled
+    pull_base_images(ctx, "Dockerfiles/agent/Dockerfile", signed_pull=True)
+
+    # Build with the testing target
+    if not skip_tests:
+        ctx.run("docker build -t {} --target testing Dockerfiles/agent".format(AGENT_TAG))
+
+    # Build with the release target
+    ctx.run("docker build -t {} --target release Dockerfiles/agent".format(AGENT_TAG))
+    ctx.run("rm Dockerfiles/agent/datadog-agent*_amd64.deb")
 
 @task
 def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
@@ -304,6 +316,7 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             args['populate_s3_cache'] = " --populate-s3-cache "
         if skip_sign:
             env['SKIP_SIGN_MAC'] = 'true'
+        env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True)
         ctx.run(cmd.format(**args), env=env)
 
 
@@ -319,3 +332,15 @@ def clean(ctx):
     # remove the bin/agent folder
     print("Remove agent binary folder")
     ctx.run("rm -rf ./bin/agent")
+
+
+@task
+def version(ctx, url_safe=False, git_sha_length=7):
+    """
+    Get the agent version.
+    url_safe: get the version that is able to be addressed as a url
+    git_sha_length: different versions of git have a different short sha length,
+                    use this to explicitly set the version
+                    (the windows builder and the default ubuntu version have such an incompatibility)
+    """
+    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length))

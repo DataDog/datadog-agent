@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
@@ -62,8 +63,7 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 		if exitCodeInt != 0 {
 			status = metrics.ServiceCheckCritical
 		}
-		tags, err := tagger.Tag(ev.ContainerEntityName(), true)
-		tags = append(tags, d.instance.Tags...)
+		tags, err := tagger.Tag(ev.ContainerEntityName(), collectors.HighCardinality)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", ev.ContainerID, err)
 		}
@@ -82,7 +82,6 @@ func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender aggre
 		if err != nil {
 			log.Warnf("can't submit event: %s", err)
 		} else {
-			ev.Tags = append(ev.Tags, d.instance.Tags...)
 			sender.Event(ev)
 		}
 	}

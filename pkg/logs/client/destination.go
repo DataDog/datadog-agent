@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package client
 
@@ -40,7 +40,7 @@ func (e *FramingError) Error() string {
 
 // Destination is responsible for shipping logs to a remote server over TCP.
 type Destination struct {
-	prefixer            Prefixer
+	prefixer            *prefixer
 	delimiter           Delimiter
 	connManager         *ConnectionManager
 	destinationsContext *DestinationsContext
@@ -52,8 +52,9 @@ type Destination struct {
 
 // NewDestination returns a new destination.
 func NewDestination(endpoint Endpoint, destinationsContext *DestinationsContext) *Destination {
+	prefix := endpoint.APIKey + string(' ')
 	return &Destination{
-		prefixer:            NewAPIKeyPrefixer(endpoint.APIKey, endpoint.Logset),
+		prefixer:            newPrefixer(prefix),
 		delimiter:           NewDelimiter(endpoint.UseProto),
 		connManager:         NewConnectionManager(endpoint),
 		destinationsContext: destinationsContext,
@@ -73,7 +74,7 @@ func (d *Destination) Send(payload []byte) error {
 		}
 	}
 
-	content := d.prefixer.prefix(payload)
+	content := d.prefixer.apply(payload)
 	frame, err := d.delimiter.delimit(content)
 	if err != nil {
 		return NewFramingError(err)

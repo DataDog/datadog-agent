@@ -44,7 +44,7 @@ Besides this token, you need to set the `DD_CLUSTER_AGENT_ENABLED=true` in the m
 <a name="security-premise"></a>
 
 We strongly recommend using a secret to authenticate communication between Agents with the Datadog Cluster Agent.
-You must modify the value of the secret in [the dca-secret.yaml](/manifests/cluster-agent/dca-secret.yaml) then create it:
+You must modify the value of the secret in [the dca-secret.yaml](../../Dockerfiles/manifests/cluster-agent/dca-secret.yaml) then create it:
 
 `kubectl create -f Dockerfiles/manifests/cluster-agent/dca-secret.yaml`
 
@@ -135,11 +135,11 @@ The following environment variables are supported:
 - `DD_KUBERNETES_INFORMERS_RESYNC_PERIOD`: frequency in seconds to query the API Server to resync the local cache. The default is 5 minutes.
 - `DD_KUBERNETES_INFORMERS_RESTCLIENT_TIMEOUT`: timeout in seconds of the client communicating with the API Server. Default is 60 seconds.
 - `DD_METRICS_PORT`: change the port for exposing metrics from the Datadog Cluster Agent. The default is port 5000.
-- `DD_EXTERNAL_METRICS_BATCH_WINDOW`: time waited in seconds to process a batch of metrics from multiple Autoscalers. Default to 10 seconds.
-- `DD_EXTERNAL_METRICS_MAX_AGE`: maximum age in seconds of a datapoint before considering it invalid to be served. Default to 90 seconds.
+- `DD_EXTERNAL_METRICS_PROVIDER_BATCH_WINDOW`: time waited in seconds to process a batch of metrics from multiple Autoscalers. Default to 10 seconds.
+- `DD_EXTERNAL_METRICS_PROVIDER_MAX_AGE`: maximum age in seconds of a datapoint before considering it invalid to be served. Default to 120 seconds.
 - `DD_EXTERNAL_METRICS_AGGREGATOR`: aggregator for the Datadog metrics. Applies to all Autoscalers processed. Chose among [sum/avg/max/min]
-- `DD_EXTERNAL_METRICS_BUCKET_SIZE`: size of the window in seconds used to query metric from Datadog. Default to 300 seconds.
-- `DD_EXTERNAL_METRICS_LOCAL_COPY_REFRESH_RATE`: rate to resync local cache of processed metrics with the global store. Useful when there are several replicas of the Cluster Agent.
+- `DD_EXTERNAL_METRICS_PROVIDER_BUCKET_SIZE`: size of the window in seconds used to query metric from Datadog. Default to 300 seconds.
+- `DD_EXTERNAL_METRICS_PROVIDER_LOCAL_COPY_REFRESH_RATE`: rate to resync local cache of processed metrics with the global store. Useful when there are several replicas of the Cluster Agent.
 
 ## How to build it
 

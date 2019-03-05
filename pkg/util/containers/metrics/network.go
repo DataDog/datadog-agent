@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build linux
 
@@ -35,12 +35,12 @@ func CollectNetworkStats(pid int, networks map[string]string) (ContainerNetStats
 
 	procNetFile := hostProc(strconv.Itoa(int(pid)), "net", "dev")
 	if !pathExists(procNetFile) {
-		log.Debugf("Unable to read %s for pid %s", procNetFile, pid)
+		log.Debugf("Unable to read %s for pid %d", procNetFile, pid)
 		return netStats, nil
 	}
 	lines, err := readLines(procNetFile)
 	if err != nil {
-		log.Debugf("Unable to read %s for pid %s", procNetFile, pid)
+		log.Debugf("Unable to read %s for pid %d", procNetFile, pid)
 		return netStats, nil
 	}
 	if len(lines) < 2 {

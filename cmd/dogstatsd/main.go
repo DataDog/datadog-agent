@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 //go:generate go run ../../pkg/config/render_config.go dogstatsd ../../pkg/config/config_template.yaml ./dist/dogstatsd.yaml
 
@@ -180,14 +180,11 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// container tagging initialisation if origin detection is on
 	if config.Datadog.GetBool("dogstatsd_origin_detection") {
-		err = tagger.Init()
-		if err != nil {
-			log.Criticalf("Unable to start tagging system: %s", err)
-		}
+		tagger.Init()
 	}
 
 	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")
-	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannels())
+	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetBufferedChannels())
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return nil

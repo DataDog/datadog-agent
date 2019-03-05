@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 // +build windows
 
 package main
@@ -10,7 +10,6 @@ import (
 	"flag"
 	"os"
 	"os/exec"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	seelog "github.com/cihub/seelog"
@@ -32,7 +31,7 @@ var (
 	menuitems []menuItem
 	ni        *walk.NotifyIcon
 	launchgui bool
-	eventname = syscall.StringToUTF16Ptr("ddtray-event")
+	eventname = windows.StringToUTF16Ptr("ddtray-event")
 )
 
 func init() {

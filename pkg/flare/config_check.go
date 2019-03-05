@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package flare
 
@@ -19,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// ConfigCheckURL contains the Agent API endpoint URL exposing the loaded checks
-var ConfigCheckURL = fmt.Sprintf("https://localhost:%v/agent/config-check", config.Datadog.GetInt("cmd_port"))
+// configCheckURL contains the Agent API endpoint URL exposing the loaded checks
+var configCheckURL string
 
 // GetConfigCheck dump all loaded configurations to the writer
 func GetConfigCheck(w io.Writer, withDebug bool) error {
@@ -36,13 +36,15 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 		return err
 	}
 
-	r, err := util.DoGet(c, ConfigCheckURL)
+	if configCheckURL == "" {
+		configCheckURL = fmt.Sprintf("https://localhost:%v/agent/config-check", config.Datadog.GetInt("cmd_port"))
+	}
+	r, err := util.DoGet(c, configCheckURL)
 	if err != nil {
 		if r != nil && string(r) != "" {
-			fmt.Fprintln(w, fmt.Sprintf("The agent ran into an error while checking config: %s", string(r)))
-		} else {
-			fmt.Fprintln(w, fmt.Sprintf("Failed to query the agent (running?): %s", err))
+			return fmt.Errorf("the agent ran into an error while checking config: %s", string(r))
 		}
+		return fmt.Errorf("failed to query the agent (running?): %s", err)
 	}
 
 	cr := response.ConfigCheckResponse{}
@@ -74,10 +76,12 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 		}
 		if len(cr.Unresolved) > 0 {
 			fmt.Fprintln(w, fmt.Sprintf("\n=== %s Configs ===", color.YellowString("Unresolved")))
-			for ids, config := range cr.Unresolved {
+			for ids, configs := range cr.Unresolved {
 				fmt.Fprintln(w, fmt.Sprintf("\n%s: %s", color.BlueString("Auto-discovery IDs"), color.YellowString(ids)))
-				fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Template")))
-				fmt.Fprintln(w, config.String())
+				fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Templates")))
+				for _, config := range configs {
+					fmt.Fprintln(w, config.String())
+				}
 			}
 		}
 	}
@@ -85,9 +89,20 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 	return nil
 }
 
+// GetClusterAgentConfigCheck proxies GetConfigCheck overidding the URL
+func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
+	configCheckURL = fmt.Sprintf("https://localhost:%v/config-check", config.Datadog.GetInt("cluster_agent.cmd_port"))
+	return GetConfigCheck(w, withDebug)
+}
+
 // PrintConfig prints a human-readable representation of a configuration
 func PrintConfig(w io.Writer, c integration.Config) {
-	fmt.Fprintln(w, fmt.Sprintf("\n=== %s check ===", color.GreenString(c.Name)))
+	if !c.ClusterCheck {
+		fmt.Fprintln(w, fmt.Sprintf("\n=== %s check ===", color.GreenString(c.Name)))
+	} else {
+		fmt.Fprintln(w, fmt.Sprintf("\n=== %s cluster check ===", color.GreenString(c.Name)))
+	}
+
 	if len(c.Provider) > 0 {
 		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Source"), color.CyanString(c.Provider)))
 	} else {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -36,7 +36,13 @@ func TestSince(t *testing.T) {
 	registry.SetOffset("2008-01-12T01:01:01.000000001Z")
 	since, err = Since(registry, "", service.Before)
 	assert.Nil(t, err)
-	assert.Equal(t, "2008-01-12T01:01:01.000000002Z", since.Format(config.DateFormat))
+	assert.Equal(t, "2008-01-12T01:01:01.000000001Z", since.Format(config.DateFormat))
+
+	// Not properly formated
+	registry.SetOffset("2008-01-12T01:01.000000001Z")
+	since, err = Since(registry, "", service.Before)
+	assert.NotNil(t, err)
+	assert.True(t, since.After(now))
 
 	registry.SetOffset("foo")
 	since, err = Since(registry, "", service.Before)

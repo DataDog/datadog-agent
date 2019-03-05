@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build linux
 
@@ -127,6 +127,20 @@ func (c ContainerCgroup) MemLimit() (uint64, error) {
 	// in which case it represents unlimited, so return 0 here
 	if v > uint64(math.Pow(2, 60)) {
 		v = 0
+	}
+	return v, nil
+}
+
+// FailedMemoryCount returns the number of times this cgroup reached its memory limit, if it exists.
+// If the file does not exist or there is no limit, then this will default to 0
+func (c ContainerCgroup) FailedMemoryCount() (uint64, error) {
+	v, err := c.ParseSingleStat("memory", "memory.failcnt")
+	if os.IsNotExist(err) {
+		log.Debugf("Missing cgroup file: %s",
+			c.cgroupFilePath("memory", "memory.failcnt"))
+		return 0, nil
+	} else if err != nil {
+		return 0, err
 	}
 	return v, nil
 }
@@ -271,6 +285,7 @@ func (c ContainerCgroup) CPULimit() (float64, error) {
 }
 
 // IO returns the disk read and write bytes stats for this cgroup.
+// tested in DiskMappingTestSuite.TestContainerCgroupIO
 // Format:
 //
 // 8:0 Read 49225728
@@ -285,7 +300,12 @@ func (c ContainerCgroup) CPULimit() (float64, error) {
 // 252:0 Total 58945536
 //
 func (c ContainerCgroup) IO() (*CgroupIOStat, error) {
-	ret := &CgroupIOStat{ContainerID: c.ContainerID}
+	ret := &CgroupIOStat{
+		ContainerID:      c.ContainerID,
+		DeviceReadBytes:  make(map[string]uint64),
+		DeviceWriteBytes: make(map[string]uint64),
+	}
+
 	statfile := c.cgroupFilePath("blkio", "blkio.throttle.io_service_bytes")
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
@@ -296,18 +316,38 @@ func (c ContainerCgroup) IO() (*CgroupIOStat, error) {
 	}
 	defer f.Close()
 
+	// Get device id->name mapping
+	var devices map[string]string
+	mapping, err := getDiskDeviceMapping()
+	if err != nil {
+		log.Debugf("Cannot get per-device stats: %s", err)
+		// devices will stay nil, lookups are safe in nil maps
+	} else {
+		devices = mapping.idToName
+	}
+
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		fields := strings.Split(scanner.Text(), " ")
+		if len(fields) < 3 {
+			continue
+		}
+		deviceName := devices[fields[0]]
 		if fields[1] == "Read" {
 			read, err := strconv.ParseUint(fields[2], 10, 64)
 			if err == nil {
-				ret.ReadBytes = read
+				ret.ReadBytes += read
+				if deviceName != "" {
+					ret.DeviceReadBytes[deviceName] = read
+				}
 			}
 		} else if fields[1] == "Write" {
 			write, err := strconv.ParseUint(fields[2], 10, 64)
 			if err == nil {
-				ret.WriteBytes = write
+				ret.WriteBytes += write
+				if deviceName != "" {
+					ret.DeviceWriteBytes[deviceName] = write
+				}
 			}
 		}
 	}

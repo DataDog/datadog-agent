@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package serializer
 
@@ -13,10 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -70,6 +70,16 @@ func initExtraHeaders() {
 	}
 }
 
+// MetricSerializer represents the interface of method needed by the aggregator to serialize its data
+type MetricSerializer interface {
+	SendEvents(e marshaler.Marshaler) error
+	SendServiceChecks(sc marshaler.Marshaler) error
+	SendSeries(series marshaler.StreamJSONMarshaler) error
+	SendSketch(sketches marshaler.Marshaler) error
+	SendMetadata(m marshaler.Marshaler) error
+	SendJSONToV1Intake(data interface{}) error
+}
+
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
 type Serializer struct {
 	Forwarder forwarder.Forwarder
@@ -85,6 +95,7 @@ type Serializer struct {
 	enableServiceChecks  bool
 	enableSketches       bool
 	enableJSONToV1Intake bool
+	enableJSONStream     bool
 }
 
 // NewSerializer returns a new Serializer initialized
@@ -96,6 +107,7 @@ func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
 		enableServiceChecks:  config.Datadog.GetBool("enable_payloads.service_checks"),
 		enableSketches:       config.Datadog.GetBool("enable_payloads.sketches"),
 		enableJSONToV1Intake: config.Datadog.GetBool("enable_payloads.json_to_v1_intake"),
+		enableJSONStream:     jsonstream.Available && config.Datadog.GetBool("enable_stream_payload_serialization"),
 	}
 
 	if !s.enableEvents {
@@ -146,6 +158,11 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 	return payloads, extraHeaders, nil
 }
 
+func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarshaler) (forwarder.Payloads, http.Header, error) {
+	payloads, err := jsonstream.Payloads(payload)
+	return payloads, jsonExtraHeadersWithCompression, err
+}
+
 // SendEvents serializes a list of event and sends the payload to the forwarder
 func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
 	if !s.enableEvents {
@@ -189,7 +206,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 }
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
+func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 	if !s.enableSeries {
 		log.Debug("series payloads are disabled: dropping it")
 		return nil
@@ -197,8 +214,16 @@ func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
 
 	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
-	compress := true
-	seriesPayloads, extraHeaders, err := s.serializePayload(series, compress, useV1API)
+	var seriesPayloads forwarder.Payloads
+	var extraHeaders http.Header
+	var err error
+
+	if useV1API && s.enableJSONStream {
+		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series)
+	} else {
+		seriesPayloads, extraHeaders, err = s.serializePayload(series, true, useV1API)
+	}
+
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
@@ -231,8 +256,12 @@ func (s *Serializer) SendMetadata(m marshaler.Marshaler) error {
 	smallEnough, payload, err := split.CheckSizeAndSerialize(m, false, split.MarshalJSON)
 	if err != nil {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
-	} else if !smallEnough {
-		return fmt.Errorf("metadata payload was too big to send, metadata payloads cannot be split")
+	}
+
+	log.Debugf("Sending host metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
+
+	if !smallEnough {
+		return fmt.Errorf("metadata payload was too big to send (%d bytes), metadata payloads cannot be split", len(payload))
 	}
 
 	if err := s.Forwarder.SubmitV1Intake(forwarder.Payloads{&payload}, jsonExtraHeaders); err != nil {
@@ -240,7 +269,6 @@ func (s *Serializer) SendMetadata(m marshaler.Marshaler) error {
 	}
 
 	log.Infof("Sent host metadata payload, size: %d bytes.", len(payload))
-	log.Debugf("Sent host metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
 	return nil
 }
 

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package app
 
@@ -50,7 +50,9 @@ var statusCmd = &cobra.Command{
 }
 
 func requestStatus() error {
-	fmt.Printf("Getting the status from the agent.\n\n")
+	if !prettyPrintJSON && !jsonStatus {
+		fmt.Printf("Getting the status from the agent.\n\n")
+	}
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true

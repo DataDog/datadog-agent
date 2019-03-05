@@ -18,6 +18,7 @@ from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses
 from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
+from .trace_agent import integration_tests as trace_integration_tests
 from .cluster_agent import integration_tests as dca_integration_tests
 
 PROFILE_COV = "profile.cov"
@@ -29,6 +30,7 @@ DEFAULT_TOOL_TARGETS = [
 
 DEFAULT_TEST_TARGETS = [
     "./pkg",
+    "./cmd",
 ]
 
 
@@ -279,6 +281,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     agent_integration_tests(ctx, install_deps, race, remote_docker)
     dsd_integration_tests(ctx, install_deps, race, remote_docker)
     dca_integration_tests(ctx, install_deps, race, remote_docker)
+    trace_integration_tests(ctx, install_deps, race, remote_docker)
 
 
 @task
@@ -297,18 +300,6 @@ def e2e_tests(ctx, target="gitlab", image=""):
         os.environ["DATADOG_AGENT_IMAGE"] = image
 
     ctx.run("./test/e2e/scripts/setup-instance/00-entrypoint-%s.sh" % target)
-
-
-@task
-def version(ctx, url_safe=False, git_sha_length=7, match=None):
-    """
-    Get the agent version.
-    url_safe: get the version that is able to be addressed as a url
-    git_sha_length: different versions of git have a different short sha length,
-                    use this to explicitly set the version
-                    (the windows builder and the default ubuntu version have such an incompatibility)
-    """
-    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length, match=match))
 
 
 class TestProfiler:

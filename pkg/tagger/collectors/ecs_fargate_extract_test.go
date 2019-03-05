@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -22,7 +22,7 @@ import (
 
 func TestParseECSClusterName(t *testing.T) {
 	cases := map[string]string{
-		"old-cluster-name-09":                                          "old-cluster-name-09",
+		"old-cluster-name-09": "old-cluster-name-09",
 		"arn:aws:ecs:eu-central-1:601427279990:cluster/xvello-fargate": "xvello-fargate",
 	}
 
@@ -33,7 +33,7 @@ func TestParseECSClusterName(t *testing.T) {
 
 func TestParseFargateRegion(t *testing.T) {
 	cases := map[string]string{
-		"old-cluster-name-09":                                           "",
+		"old-cluster-name-09": "",
 		"arn:aws:ecs:eu-central-1:601427279990:cluster/xvello-fargate":  "eu-central-1",
 		"arn:aws:ecs:us-gov-east-1:601427279990:cluster/xvello-fargate": "us-gov-east-1",
 	}
@@ -78,10 +78,12 @@ func TestParseMetadata(t *testing.T) {
 				"ecs_container_name:datadog-agent",
 				"region:eu-central-1",
 			},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
+			},
 			HighCardTags: []string{
 				"container_id:1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
 				"container_name:ecs-redis-datadog-3-datadog-agent-c2a8fffa8ee8d1f6a801",
-				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
 			},
 			DeleteEntity: false,
 		},
@@ -100,10 +102,12 @@ func TestParseMetadata(t *testing.T) {
 				"lowtag:myvalue",
 				"region:eu-central-1",
 			},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
+			},
 			HighCardTags: []string{
 				"container_name:ecs-redis-datadog-3-redis-f6eedfd8b18a8fbe1d00",
 				"hightag:value2",
-				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
 				"container_id:0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
 			},
 			DeleteEntity: false,
@@ -157,10 +161,12 @@ func TestParseMetadataV10(t *testing.T) {
 				"task_version:1",
 				"ecs_container_name:dd-agent",
 			},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
+			},
 			HighCardTags: []string{
 				"container_id:e8d4a9a20a0d931f8f632ec166b3f71a6ff00450aa7e99607f650e586df7d068",
 				"container_name:ecs-redis-datadog-1-dd-agent-8085fa82d1d3ada5a601",
-				"task_arn:arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
 			},
 			DeleteEntity: false,
 		},
@@ -177,10 +183,12 @@ func TestParseMetadataV10(t *testing.T) {
 				"task_version:1",
 				"ecs_container_name:redis",
 			},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
+			},
 			HighCardTags: []string{
 				"container_id:c912d0f0f204360ee90ce67c0d083c3514975f149b854f38a48deac611e82e48",
 				"container_name:ecs-redis-datadog-1-redis-ce99d29f8ce998ed4a00",
-				"task_arn:arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
 			},
 			DeleteEntity: false,
 		},
@@ -197,10 +205,12 @@ func TestParseMetadataV10(t *testing.T) {
 				"task_version:1",
 				"ecs_container_name:~internal~ecs~pause",
 			},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
+			},
 			HighCardTags: []string{
 				"container_id:39e13ccc425e7777187a603fe33f466a18515030707c4063de1dc1b63d14d411",
 				"container_name:ecs-redis-datadog-1-internalecspause-a2df9cefc2938ec19e01",
-				"task_arn:arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
 			},
 			DeleteEntity: false,
 		},

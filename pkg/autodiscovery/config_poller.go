@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package autodiscovery
 
@@ -99,6 +99,8 @@ func (pd *configPoller) poll(ac *AutoConfig) {
 			// Process removed configs first to handle the case where a
 			// container churn would result in the same configuration hash.
 			ac.processRemovedConfigs(removedConfigs)
+			// We can also remove any cached template
+			ac.removeConfigTemplates(removedConfigs)
 
 			for _, config := range newConfigs {
 				config.Provider = pd.provider.String()

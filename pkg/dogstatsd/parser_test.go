@@ -1,19 +1,19 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package dogstatsd
 
 import (
-	// stdlib
+	"errors"
 	"testing"
 
-	// 3p
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
 
 const epsilon = 0.1
@@ -732,4 +732,66 @@ func TestNamespace(t *testing.T) {
 
 	assert.Equal(t, "testNamespace.daemon", parsed.Name)
 	assert.Equal(t, "default-hostname", parsed.Host)
+}
+
+func TestEntityOriginDetectionNoTags(t *testing.T) {
+	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+		if entity == "otherentity" {
+			return []string{"tag:ishouldnothave"}, nil
+		}
+		return []string{}, nil
+	}
+
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", "default-hostname")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
+	require.Equal(t, 2, len(parsed.Tags))
+	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
+	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
+	assert.Equal(t, "my-hostname", parsed.Host)
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}
+
+func TestEntityOriginDetectionTags(t *testing.T) {
+	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+		if entity == "kubernetes_pod://foo" {
+			return []string{"foo:bar", "bar:buz"}, nil
+		}
+		return []string{}, nil
+	}
+
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", "default-hostname")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
+	require.Equal(t, 4, len(parsed.Tags))
+	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
+	assert.Equal(t, "foo:bar", parsed.Tags[1])
+	assert.Equal(t, "bar:buz", parsed.Tags[2])
+	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[3])
+	assert.Equal(t, "my-hostname", parsed.Host)
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}
+
+func TestEntityOriginDetectionTagsError(t *testing.T) {
+	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+		return nil, errors.New("cannot get tags")
+	}
+
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", "default-hostname")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
+	require.Equal(t, 2, len(parsed.Tags))
+	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
+	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
+	assert.Equal(t, "my-hostname", parsed.Host)
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }

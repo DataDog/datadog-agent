@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build windows
 
@@ -15,10 +15,10 @@ import "C"
 
 import (
 	"fmt"
-	"syscall"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/windows"
 )
 
 /*
@@ -65,7 +65,7 @@ func evtNextChannel(h evtEnumHandle) (ch string, err error) {
 		uintptr(bufSize),
 		uintptr(0),                        //no buffer for now, just getting necessary size
 		uintptr(unsafe.Pointer(&bufUsed))) // filled in with necessary buffer size
-	if err != error(syscall.ERROR_INSUFFICIENT_BUFFER) {
+	if err != error(windows.ERROR_INSUFFICIENT_BUFFER) {
 		log.Warnf("Next: %v %v", ret, err)
 		return
 	}

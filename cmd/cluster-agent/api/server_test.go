@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package api
 
@@ -18,7 +18,8 @@ import (
 )
 
 func TestValidateTokenMiddleware(t *testing.T) {
-	config.Datadog.Set("cluster_agent.auth_token", "abc123")
+	mockConfig := config.Mock()
+	mockConfig.Set("cluster_agent.auth_token", "abc123")
 	util.SetDCAAuthToken()
 
 	tests := []struct {

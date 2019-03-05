@@ -49,7 +49,7 @@ func init() {
 }
 
 type Point struct {
-	value     int64
+	value     float64
 	timestamp int64
 	valid     bool
 }
@@ -121,7 +121,7 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 				skippedLastPoint = true
 				continue
 			}
-			point.value = int64(*serie.Points[i][value])                // store the original value
+			point.value = *serie.Points[i][value]                       // store the original value
 			point.timestamp = int64(*serie.Points[i][timestamp] / 1000) // Datadog's API returns timestamps in s
 			point.valid = true
 
@@ -133,7 +133,7 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 			precision := time.Now().Unix() - point.timestamp
 			metricsDelay.WithLabelValues(m).Set(float64(precision))
 
-			log.Debugf("Validated %s | Value:%d at %d after %d/%d buckets", m, point.value, point.timestamp, i+1, len(serie.Points))
+			log.Debugf("Validated %s | Value:%v at %d after %d/%d buckets", m, point.value, point.timestamp, i+1, len(serie.Points))
 			break
 		}
 	}

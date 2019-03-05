@@ -6,6 +6,7 @@
  * [Configuration options][config]
  * [Downgrade][downgrade]
  * [GUI](gui.md)
+ * [Integrations Management][integration]
  * [Missing features][missing-features]
  * [Upgrade][upgrade]
 
@@ -42,7 +43,7 @@ Agent 6 is currently available on these platforms:
 | Ubuntu x86_64 | version 12.04 and above |
 | RedHat/CentOS x86_64 | version 6 and above |
 | SUSE Enterprise Linux x86_64 | version 11 SP4 and above (we do not support SysVinit)|
-| MacOS | 10.10 and above |
+| MacOS | 10.12 and above |
 | Windows Server 64-bit |  2008 R2 and above |
 | Docker | Version 1.12 and higher|
 |Kubernetes | Version 1.3 and higher |
@@ -54,3 +55,4 @@ Agent 6 is currently available on these platforms:
 [missing-features]: missing_features.md
 [upgrade]: upgrade.md
 [secrets]: secrets.md
+[integration]: integration.md

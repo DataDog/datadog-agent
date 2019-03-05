@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build linux
 
@@ -257,7 +257,7 @@ func TestParseCgroupPaths(t *testing.T) {
 		},
 	} {
 		contents := strings.NewReader(strings.Join(tc.contents, "\n"))
-		c, p, err := parseCgroupPaths(contents)
+		c, p, err := parseCgroupPaths(contents, "")
 		assert.NoError(t, err)
 		assert.Equal(t, tc.expectedContainer, c)
 		assert.Equal(t, tc.expectedPaths, p)
@@ -279,10 +279,28 @@ func TestContainerIDFromCgroup(t *testing.T) {
 		// Legacy systems
 		"6:legacy:a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
 	} {
-		c, err := containerIDFromCgroup(tc)
+		c, err := containerIDFromCgroup(tc, "")
 		assert.True(t, err)
 		assert.Equal(t, c, "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419")
 	}
+}
+
+func TestCgroupPrefixFiltering(t *testing.T) {
+	c, ok := containerIDFromCgroup("2:classic:/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419", "")
+	assert.True(t, ok)
+	assert.Equal(t, "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419", c)
+
+	c, ok = containerIDFromCgroup("2:classic:/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419", "/docker/")
+	assert.True(t, ok)
+	assert.Equal(t, "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419", c)
+
+	c, ok = containerIDFromCgroup("5:coreos_7xx:/system.slice/docker-a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope", "")
+	assert.True(t, ok)
+	assert.Equal(t, "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419", c)
+
+	c, ok = containerIDFromCgroup("5:coreos_7xx:/system.slice/docker-a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope", "/docker/")
+	assert.False(t, ok)
+	assert.Equal(t, "", c)
 }
 
 // TestDindContainer is to test if our agent can handle dind container correctly

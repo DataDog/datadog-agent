@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package split
 
@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestSplitPayloadsSeries(t *testing.T) {
@@ -60,6 +62,51 @@ func TestSplitPayloadsSeries(t *testing.T) {
 
 	newLength := len(unrolledSeries)
 	require.Equal(t, originalLength, newLength)
+}
+
+var result forwarder.Payloads
+
+func BenchmarkSplitPayloadsSeries(b *testing.B) {
+	testSeries := metrics.Series{}
+	for i := 0; i < 400000; i++ {
+		point := metrics.Serie{
+			Points: []metrics.Point{
+				{Ts: 12345.0, Value: 1.2 * float64(i)},
+			},
+			MType:    metrics.APIGaugeType,
+			Name:     fmt.Sprintf("test.metrics%d", i),
+			Interval: 1,
+			Host:     "localHost",
+			Tags:     []string{"tag1", "tag2:yes"},
+		}
+		testSeries = append(testSeries, &point)
+	}
+
+	var r forwarder.Payloads
+	for n := 0; n < b.N; n++ {
+		// always record the result of Payloads to prevent
+		// the compiler eliminating the function call.
+		r, _ = Payloads(testSeries, true, MarshalJSON)
+
+	}
+	// ensure we actually had to split
+	if len(r) < 2 {
+		panic(fmt.Sprintf("expecting more than one payload, got %d", len(r)))
+	}
+	// test the compressed size
+	var compressedSize int
+	for _, p := range r {
+		if p == nil {
+			continue
+		}
+		compressedSize += len([]byte(*p))
+	}
+	if compressedSize > 3600000 {
+		panic(fmt.Sprintf("expecting no more than 3.6 MB, got %d", compressedSize))
+	}
+	// always store the result to a package level variable
+	// so the compiler cannot eliminate the Benchmark itself.
+	result = r
 }
 
 func TestSplitPayloadsEvents(t *testing.T) {

@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package legacy
 
 import (
+	"encoding/csv"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -229,15 +230,12 @@ func extractTraceAgentConfig(agentConfig Config, configConverter *config.LegacyC
 
 	// ignored resources
 	if v, ok := agentConfig["trace.ignore.resource"]; ok {
-		var err error
-		r := strings.Split(v, ",")
-		for i := range r {
-			r[i], err = strconv.Unquote(r[i])
-			if err != nil {
-				return err
-			}
+		r, err := splitString(v, ',')
+		if err == nil {
+			configConverter.Set("apm_config.ignore_resources", r)
+		} else {
+			fmt.Println("Ignoring value provided trace.ignore.resource because of parsing error")
 		}
-		configConverter.Set("apm_config.ignore_resources", r)
 	}
 
 	return nil
@@ -436,4 +434,12 @@ func buildHistogramPercentiles(agentConfig Config) []string {
 	}
 
 	return histogramPercentile
+}
+
+func splitString(s string, sep rune) ([]string, error) {
+	r := csv.NewReader(strings.NewReader(s))
+	r.TrimLeadingSpace = true
+	r.LazyQuotes = true
+	r.Comma = sep
+	return r.Read()
 }

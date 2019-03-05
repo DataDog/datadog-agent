@@ -1,11 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package flare
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -14,14 +16,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mholt/archiver"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // CreateDCAArchive packages up the files
@@ -86,9 +88,13 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 	}
 
 	err = zipConfigFiles(tempDir, hostname, confSearchPaths, permsInfos)
-
 	if err != nil {
 		return "", err
+	}
+
+	err = zipClusterAgentConfigCheck(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip config check: %s", err)
 	}
 
 	err = zipExpVar(tempDir, hostname)
@@ -104,6 +110,11 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 	err = zipMetadataMap(tempDir, hostname)
 	if err != nil {
 		return "", err
+	}
+
+	err = zipClusterAgentClusterChecks(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip clustercheck status: %s", err)
 	}
 
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
@@ -189,6 +200,29 @@ func zipMetadataMap(tempDir, hostname string) error {
 	return ioutil.WriteFile(f, sByte, os.ModePerm)
 }
 
+func zipClusterAgentClusterChecks(tempDir, hostname string) error {
+	var b bytes.Buffer
+
+	writer := bufio.NewWriter(&b)
+	GetClusterChecks(writer)
+	writer.Flush()
+
+	f := filepath.Join(tempDir, hostname, "clusterchecks.log")
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	w, err := newRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	_, err = w.Write(b.Bytes())
+	return err
+}
+
 func zipHPAStatus(tempDir, hostname string) error {
 	// Grab the full content of the HPA configmap
 	stats := make(map[string]interface{})
@@ -223,4 +257,14 @@ func zipHPAStatus(tempDir, hostname string) error {
 		return err
 	}
 	return err
+}
+
+func zipClusterAgentConfigCheck(tempDir, hostname string) error {
+	var b bytes.Buffer
+
+	writer := bufio.NewWriter(&b)
+	GetClusterAgentConfigCheck(writer, true)
+	writer.Flush()
+
+	return writeConfigCheck(tempDir, hostname, b.Bytes())
 }

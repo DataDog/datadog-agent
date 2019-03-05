@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package logs
 
@@ -34,6 +34,8 @@ type AgentTestSuite struct {
 }
 
 func (suite *AgentTestSuite) SetupTest() {
+	mockConfig := coreConfig.Mock()
+
 	var err error
 
 	suite.testDir, err = ioutil.TempDir("", "tests")
@@ -54,9 +56,9 @@ func (suite *AgentTestSuite) SetupTest() {
 	}
 	suite.source = config.NewLogSource("", &logConfig)
 
-	coreConfig.Datadog.Set("logs_config.run_path", suite.testDir)
+	mockConfig.Set("logs_config.run_path", suite.testDir)
 	// Shorter grace period for tests.
-	coreConfig.Datadog.Set("logs_config.stop_grace_period", 1)
+	mockConfig.Set("logs_config.stop_grace_period", 1)
 }
 
 func (suite *AgentTestSuite) TearDownTest() {
@@ -76,7 +78,7 @@ func createAgent(endpoints *client.Endpoints) (*Agent, *config.LogSources, *serv
 	services := service.NewServices()
 
 	// setup and start the agent
-	agent = NewAgent(sources, services, endpoints)
+	agent = NewAgent(sources, services, nil, endpoints)
 	return agent, sources, services
 }
 

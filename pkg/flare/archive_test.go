@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package flare
 
@@ -16,6 +16,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
@@ -27,8 +28,9 @@ import (
 
 func TestCreateArchive(t *testing.T) {
 	common.SetupConfig("./test")
-	config.Datadog.Set("confd_path", "./test/confd")
-	config.Datadog.Set("log_file", "./test/logs/agent.log")
+	mockConfig := config.Mock()
+	mockConfig.Set("confd_path", "./test/confd")
+	mockConfig.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := getArchivePath()
 	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
 
@@ -126,7 +128,7 @@ func TestZipConfigCheck(t *testing.T) {
 		w.Write(out)
 	}))
 	defer ts.Close()
-	ConfigCheckURL = ts.URL
+	configCheckURL = ts.URL
 
 	dir, err := ioutil.TempDir("", "TestZipConfigCheck")
 	if err != nil {
@@ -141,4 +143,39 @@ func TestZipConfigCheck(t *testing.T) {
 	}
 
 	assert.NotContains(t, string(content), "MySecurePass")
+}
+
+func TestIncludeConfigFiles(t *testing.T) {
+	assert := assert.New(t)
+
+	common.SetupConfig("./test")
+	zipFilePath := getArchivePath()
+	filePath, err := createArchive(zipFilePath, true, SearchPaths{"": "./test/confd"}, "")
+
+	assert.NoError(err)
+	assert.Equal(zipFilePath, filePath)
+
+	if _, err := os.Stat(zipFilePath); os.IsNotExist(err) {
+		assert.Fail("The Zip File was not created")
+	}
+
+	defer os.Remove(zipFilePath)
+
+	// asserts that test.yaml and test.yml have been included
+	z, err := zip.OpenReader(zipFilePath)
+	assert.NoError(err, "opening the zip shouldn't pop an error")
+
+	yaml, yml := false, false
+	for _, f := range z.File {
+		if strings.HasSuffix(f.Name, "test.yaml") {
+			yaml = true
+		} else if strings.HasSuffix(f.Name, "test.Yml") {
+			yml = true
+		} else if strings.HasSuffix(f.Name, "not_included.conf") {
+			assert.Fail("not_included.conf should not been included into the flare")
+		}
+	}
+
+	assert.True(yml, "test.yml should've been included")
+	assert.True(yaml, "test.yaml should've been included")
 }

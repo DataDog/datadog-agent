@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2018 Datadog, Inc.
+# Copyright 2016-2019 Datadog, Inc.
 
 require "./lib/ostools.rb"
 
@@ -22,10 +22,9 @@ else
   maintainer 'Datadog Packages <package@datadoghq.com>'
 end
 
-build_version do
-  source :git
-  output_format :dd_agent_format
-end
+# build_version is computed by an invoke command/function.
+# We can't call it directly from there, we pass it through the environment instead.
+build_version ENV['PACKAGE_VERSION']
 
 build_iteration 1
 

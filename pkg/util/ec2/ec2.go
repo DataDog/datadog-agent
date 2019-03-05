@@ -1,18 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package ec2
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -49,6 +49,33 @@ func getMetadataItem(endpoint string) (string, error) {
 	return string(all), nil
 }
 
+// GetClusterName returns the name of the cluster containing the current EC2 instance
+func GetClusterName() (string, error) {
+	tags, err := GetTags()
+	if err != nil {
+		return "", fmt.Errorf("unable to retrieve clustername from EC2: %s", err)
+	}
+
+	return extractClusterName(tags)
+}
+
+func extractClusterName(tags []string) (string, error) {
+	var clusterName string
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, "kubernetes.io/cluster/") { // tag key format: kubernetes.io/cluster/clustername"
+			key := strings.Split(tag, ":")[0]
+			clusterName = strings.Split(key, "/")[2] // rely on ec2 tag format to extract clustername
+			break
+		}
+	}
+
+	if clusterName == "" {
+		return "", errors.New("unable to parse cluster name from EC2 tags")
+	}
+
+	return clusterName, nil
+}
+
 func getResponse(url string) (*http.Response, error) {
 	client := http.Client{
 		Timeout: timeout,
@@ -82,12 +109,7 @@ func IsDefaultHostname(hostname string) bool {
 }
 
 // HostnameProvider gets the hostname
-func HostnameProvider(hostName string) (string, error) {
-	_, err := ecs.GetUtil()
-	if err == nil || IsDefaultHostname(hostName) {
-		log.Debug("GetHostname trying EC2 metadata...")
-		return GetInstanceID()
-	}
-
-	return "", fmt.Errorf("not retrieving hostname from AWS: the host is not an ECS instance, and other providers already retrieve non-default hostnames")
+func HostnameProvider() (string, error) {
+	log.Debug("GetHostname trying EC2 metadata...")
+	return GetInstanceID()
 }

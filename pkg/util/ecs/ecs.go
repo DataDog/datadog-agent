@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -88,6 +89,12 @@ func GetUtil() (*Util, error) {
 	return globalUtil, nil
 }
 
+// IsECSInstance returns whether the agent is running in ECS.
+func IsECSInstance() bool {
+	_, err := GetUtil()
+	return err == nil
+}
+
 // init makes an empty Util bootstrap itself.
 func (u *Util) init() error {
 	url, err := detectAgentURL()
@@ -103,7 +110,6 @@ func (u *Util) init() error {
 // It detects it by getting and unmarshalling the metadata API response.
 func IsFargateInstance() bool {
 	var ok, isFargate bool
-
 	if cached, hit := cache.Cache.Get(isFargateInstanceCacheKey); hit {
 		isFargate, ok = cached.(bool)
 		if !ok {
@@ -111,6 +117,16 @@ func IsFargateInstance() bool {
 		} else {
 			return isFargate
 		}
+	}
+
+	// This envvar is set to AWS_ECS_EC2 on classic EC2 instances
+	// Versions 1.0.0 to 1.3.0 (latest at the time) of the Fargate
+	// platform set this envvar.
+	// If Fargate detection were to fail, running a container with
+	// `env` as cmd will allow to check if it is still present.
+	if os.Getenv("AWS_EXECUTION_ENV") != "AWS_ECS_FARGATE" {
+		cacheIsFargateInstance(false)
+		return false
 	}
 
 	client := &http.Client{Timeout: timeout}
@@ -125,7 +141,7 @@ func IsFargateInstance() bool {
 	}
 	var resp TaskMetadata
 	if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
-		fmt.Printf("decode err: %s\n", err)
+		log.Debugf("Error decoding response: %s", err)
 		cacheIsFargateInstance(false)
 		return false
 	}
@@ -194,14 +210,14 @@ func detectAgentURL() (string, error) {
 		// List all interfaces for the ecs-agent container
 		agentURLS, err := getAgentContainerURLS()
 		if err != nil {
-			log.Debugf("could inspect ecs-agent container: ", err)
+			log.Debugf("could inspect ecs-agent container: %s", err)
 		} else {
 			urls = append(urls, agentURLS...)
 		}
 		// Try the default gateway
 		gw, err := docker.DefaultGateway()
 		if err != nil {
-			log.Debugf("could not get docker default gateway: ", err)
+			log.Debugf("could not get docker default gateway: %s", err)
 		}
 		if gw != nil {
 			urls = append(urls, fmt.Sprintf("http://%s:%d/", gw.String(), DefaultAgentPort))
@@ -259,5 +275,13 @@ func getAgentContainerURLS() ([]string, error) {
 			urls = append(urls, fmt.Sprintf("http://%s:%d/", ip, DefaultAgentPort))
 		}
 	}
+
+	// Add the container hostname, as it holds the instance's private IP when ecs-agent
+	// runs in the (default) host network mode. This allows us to connect back to it
+	// from an agent container running in awsvpc mode.
+	if ecsConfig.Config != nil && ecsConfig.Config.Hostname != "" {
+		urls = append(urls, fmt.Sprintf("http://%s:%d/", ecsConfig.Config.Hostname, DefaultAgentPort))
+	}
+
 	return urls, nil
 }

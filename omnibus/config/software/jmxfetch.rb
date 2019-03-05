@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2018 Datadog, Inc.
+# Copyright 2016-2019 Datadog, Inc.
 
 name "jmxfetch"
 
@@ -9,8 +9,8 @@ jmxfetch_version = ENV['JMXFETCH_VERSION']
 jmxfetch_hash = ENV['JMXFETCH_HASH']
 
 if jmxfetch_version.nil? || jmxfetch_version.empty?
-  jmxfetch_version = '0.23.0'
-  jmxfetch_hash = "b11f914388128791821380603a06ade9c95b3bbe02be40ebaa8e4edae53d7695"
+  jmxfetch_version = '0.26.1'
+  jmxfetch_hash = "e25fdb6173ea357d6c161228bba7a4c0b60151c89e1bb094f17850d475e4616e"
 end
 
 default_version jmxfetch_version

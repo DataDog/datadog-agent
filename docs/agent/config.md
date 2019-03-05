@@ -97,6 +97,7 @@ advanced options in the `instance` section:
 that should run less frequently than the default 15 seconds interval
 * `empty_default_hostname`: submit metrics, events and service checks with no
 hostname when set to `true`
+* `tags`: send custom tags in addition to the tags sent by the check.
 
 ## Removed options
 

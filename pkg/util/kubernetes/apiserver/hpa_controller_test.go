@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -96,7 +96,7 @@ func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datado
 
 var maxAge = time.Duration(30 * time.Second)
 
-func makePoints(ts, val int) datadog.DataPoint {
+func makePoints(ts int, val float64) datadog.DataPoint {
 	if ts == 0 {
 		ts = (int(metav1.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000 // use ms
 	}
@@ -140,18 +140,18 @@ func TestAutoscalerController(t *testing.T) {
 		{
 			Metric: &metricName,
 			Points: []datadog.DataPoint{
-				makePoints(1531492452000, 12),
-				makePoints(penTime, 14),
-				makePoints(0, 25),
+				makePoints(1531492452000, 12.01),
+				makePoints(penTime, 14.123),
+				makePoints(0, 25.12),
 			},
 			Scope: makePtr("foo:bar"),
 		},
 		{
 			Metric: &metricName,
 			Points: []datadog.DataPoint{
-				makePoints(1531492452000, 12),
-				makePoints(penTime, 11),
-				makePoints(0, 19),
+				makePoints(1531492452000, 12.34),
+				makePoints(penTime, 1.01),
+				makePoints(0, 0.902),
 			},
 			Scope: makePtr("dcos_version:2.1.9"),
 		},
@@ -216,7 +216,7 @@ func TestAutoscalerController(t *testing.T) {
 		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
 		require.NotZero(t, len(storedExternal))
-		require.Equal(t, storedExternal[0].Value, int64(14))
+		require.Equal(t, storedExternal[0].Value, float64(14.123))
 		require.Equal(t, storedExternal[0].Labels, map[string]string{"foo": "bar"})
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
@@ -267,7 +267,7 @@ func TestAutoscalerController(t *testing.T) {
 		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
 		require.NotZero(t, len(storedExternal))
-		require.Equal(t, storedExternal[0].Value, int64(11))
+		require.Equal(t, storedExternal[0].Value, float64(1.01))
 		require.Equal(t, storedExternal[0].Labels, map[string]string{"dcos_version": "2.1.9"})
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")

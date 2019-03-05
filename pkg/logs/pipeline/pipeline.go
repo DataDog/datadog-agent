@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package pipeline
 
@@ -21,7 +21,7 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
+func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
 	// initialize the main destination
 	main := client.NewDestination(endpoints.Main, destinationsContext)
 
@@ -41,7 +41,7 @@ func NewPipeline(outputChan chan *message.Message, endpoints *client.Endpoints, 
 
 	// initialize the processor
 	encoder := processor.NewEncoder(endpoints.Main.UseProto)
-	processor := processor.New(inputChan, senderChan, encoder)
+	processor := processor.New(inputChan, senderChan, processingRules, encoder)
 
 	return &Pipeline{
 		InputChan: inputChan,

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package config
 
@@ -594,4 +594,23 @@ func TestSanitizeAPIKey(t *testing.T) {
 	config.Set("api_key", " \n  foo   \n")
 	sanitizeAPIKey(config)
 	assert.Equal(t, "foo", config.GetString("api_key"))
+}
+
+// TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
+// key includes the key delimiter. Affects the config package when both secrets and multiple
+// endpoints are configured.
+// Refer to https://github.com/DataDog/viper/pull/2 for more details.
+func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
+	conf := setupConf()
+	conf.SetConfigFile("./tests/datadog_secrets.yaml")
+	// load the configuration
+	err := load(conf, "datadog_secrets.yaml")
+	assert.NoError(t, err)
+
+	expectedKeysPerDomain := map[string][]string{
+		"https://app.datadoghq.com": {"someapikey", "someotherapikey"},
+	}
+	keysPerDomain, err := getMultipleEndpointsWithConfig(conf)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedKeysPerDomain, keysPerDomain)
 }

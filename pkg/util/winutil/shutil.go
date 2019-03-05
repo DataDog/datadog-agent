@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build windows,!novet
 
@@ -11,6 +11,8 @@ import (
 	"C"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 // GUID is representation of the C GUID structure
@@ -40,15 +42,15 @@ var (
 )
 
 var (
-	modShell32               = syscall.NewLazyDLL("Shell32.dll")
-	modOle32                 = syscall.NewLazyDLL("Ole32.dll")
+	modShell32               = windows.NewLazyDLL("Shell32.dll")
+	modOle32                 = windows.NewLazyDLL("Ole32.dll")
 	procSHGetKnownFolderPath = modShell32.NewProc("SHGetKnownFolderPath")
 	procCoTaskMemFree        = modOle32.NewProc("CoTaskMemFree")
 )
 
 // SHGetKnownFolderPath syscall to windows native SHGetKnownFOlderPath
-func SHGetKnownFolderPath(rfid *GUID, dwFlags uint32, hToken syscall.Handle, pszPath *uintptr) (retval error) {
-	r0, _, _ := syscall.Syscall6(procSHGetKnownFolderPath.Addr(), 4, uintptr(unsafe.Pointer(rfid)), uintptr(dwFlags), uintptr(hToken), uintptr(unsafe.Pointer(pszPath)), 0, 0)
+func SHGetKnownFolderPath(rfid *GUID, dwFlags uint32, hToken windows.Handle, pszPath *uintptr) (retval error) {
+	r0, _, _ := procSHGetKnownFolderPath.Call(uintptr(unsafe.Pointer(rfid)), uintptr(dwFlags), uintptr(hToken), uintptr(unsafe.Pointer(pszPath)), 0, 0)
 	if r0 != 0 {
 		retval = syscall.Errno(r0)
 	}
@@ -57,7 +59,7 @@ func SHGetKnownFolderPath(rfid *GUID, dwFlags uint32, hToken syscall.Handle, psz
 
 // CoTaskMemFree free memory returned from SHGetKnownFolderPath
 func CoTaskMemFree(pv uintptr) {
-	syscall.Syscall(procCoTaskMemFree.Addr(), 1, uintptr(pv), 0, 0)
+	procCoTaskMemFree.Call(uintptr(pv), 0, 0)
 	return
 }
 
@@ -69,9 +71,9 @@ func GetProgramDataDir() (path string, err error) {
 	if err == nil {
 		// convert the string
 		defer CoTaskMemFree(retstr)
-		// the path = syscall.UTF16ToString... returns a
+		// the path = windows.UTF16ToString... returns a
 		// go vet: "possible misuse of unsafe.Pointer"
-		path = syscall.UTF16ToString((*[1 << 16]uint16)(unsafe.Pointer(retstr))[:])
+		path = windows.UTF16ToString((*[1 << 16]uint16)(unsafe.Pointer(retstr))[:])
 	}
 	return
 }

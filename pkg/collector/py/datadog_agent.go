@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build cpython
 
@@ -17,11 +17,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -151,6 +150,10 @@ func LogMessage(message *C.char, logLevel C.int) *C.PyObject {
 		log.Info(goMsg)
 	case 10: // DEBUG
 		log.Debug(goMsg)
+	// Custom log level defined in:
+	// https://github.com/DataDog/integrations-core/blob/master/datadog_checks_base/datadog_checks/base/log.py
+	case 7: // TRACE
+		log.Trace(goMsg)
 	default: // unknown log level
 		log.Info(goMsg)
 	}
@@ -183,7 +186,8 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	for i := 1; i < length; i++ {
 		subprocessArgs[i-1] = C.GoString(cmdSlice[i])
 	}
-	cmd := exec.Command(subprocessCmd, subprocessArgs...)
+	ctx, _ := GetSubprocessContextCancel()
+	cmd := exec.CommandContext(ctx, subprocessCmd, subprocessArgs...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

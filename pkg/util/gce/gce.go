@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package gce
 
@@ -62,6 +62,15 @@ func GetHostAlias() (string, error) {
 	return fmt.Sprintf("%s.%s", instanceName, projectID), nil
 }
 
+// GetClusterName returns the name of the cluster containing the current GCE instance
+func GetClusterName() (string, error) {
+	clusterName, err := getResponse(metadataURL + "/instance/attributes/cluster-name")
+	if err != nil {
+		return "", fmt.Errorf("unable to retrieve clustername from GCE: %s", err)
+	}
+	return clusterName, nil
+}
+
 func getResponse(url string) (string, error) {
 	client := http.Client{
 		Timeout: timeout,
@@ -97,6 +106,6 @@ func getResponse(url string) (string, error) {
 }
 
 // HostnameProvider GCE implementation of the HostnameProvider
-func HostnameProvider(hostName string) (string, error) {
+func HostnameProvider() (string, error) {
 	return GetHostname()
 }

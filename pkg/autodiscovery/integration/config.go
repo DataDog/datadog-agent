@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package integration
 
@@ -46,14 +46,17 @@ type Config struct {
 	ADIdentifiers []string     `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
 	Provider      string       `json:"provider"`       // the provider that issued the config
 	Entity        string       `json:"-"`              // the id of the entity (optional)
-	ClusterCheck  bool         `json:"-"`              // cluster-check configuration flag, don't expose in JSON
+	ClusterCheck  bool         `json:"cluster_check"`  // cluster-check configuration flag
 	CreationTime  CreationTime `json:"-"`              // creation time of service
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data
 type CommonInstanceConfig struct {
-	MinCollectionInterval int  `yaml:"min_collection_interval"`
-	EmptyDefaultHostname  bool `yaml:"empty_default_hostname"`
+	MinCollectionInterval int      `yaml:"min_collection_interval"`
+	EmptyDefaultHostname  bool     `yaml:"empty_default_hostname"`
+	Tags                  []string `yaml:"tags"`
+	Name                  string   `yaml:"name"`
+	Namespace             string   `yaml:"namespace"`
 }
 
 // Equal determines whether the passed config is the same
@@ -70,6 +73,9 @@ func (c *Config) String() string {
 	rawConfig := make(map[interface{}]interface{})
 	var initConfig interface{}
 	var instances []interface{}
+	var logsConfig interface{}
+
+	rawConfig["check_name"] = c.Name
 
 	yaml.Unmarshal(c.InitConfig, &initConfig)
 	rawConfig["init_config"] = initConfig
@@ -80,6 +86,9 @@ func (c *Config) String() string {
 		instances = append(instances, instance)
 	}
 	rawConfig["instances"] = instances
+
+	yaml.Unmarshal(c.LogsConfig, &logsConfig)
+	rawConfig["logs_config"] = logsConfig
 
 	buffer, err := yaml.Marshal(&rawConfig)
 	if err != nil {
@@ -152,6 +161,23 @@ func (c *Config) GetTemplateVariablesForInstance(i int) []tmplvar.TemplateVar {
 	return tmplvar.Parse(c.Instances[i])
 }
 
+// GetNameForInstance returns the name from an instance if specified, fallback on namespace
+func (c *Data) GetNameForInstance() string {
+	commonOptions := CommonInstanceConfig{}
+	err := yaml.Unmarshal(*c, &commonOptions)
+	if err != nil {
+		log.Errorf("invalid instance section: %s", err)
+		return ""
+	}
+
+	if commonOptions.Name != "" {
+		return commonOptions.Name
+	}
+
+	// Fallback on `namespace` if we don't find `name`, can be empty
+	return commonOptions.Namespace
+}
+
 // MergeAdditionalTags merges additional tags to possible existing config tags
 func (c *Data) MergeAdditionalTags(tags []string) error {
 	rawConfig := RawMap{}
@@ -180,6 +206,25 @@ func (c *Data) MergeAdditionalTags(tags []string) error {
 		rawConfig["tags"] = append(rawConfig["tags"].([]string), k)
 	}
 	// modify original config
+	out, err := yaml.Marshal(&rawConfig)
+	if err != nil {
+		return err
+	}
+	*c = Data(out)
+
+	return nil
+}
+
+// SetField allows to set an arbitrary field to a given value,
+// overriding the existing value if present
+func (c *Data) SetField(key string, value interface{}) error {
+	rawConfig := RawMap{}
+	err := yaml.Unmarshal(*c, &rawConfig)
+	if err != nil {
+		return err
+	}
+
+	rawConfig[key] = value
 	out, err := yaml.Marshal(&rawConfig)
 	if err != nil {
 		return err

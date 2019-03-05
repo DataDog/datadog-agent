@@ -1,8 +1,8 @@
-##########################################
-# Preparation stage: extract and cleanup #
-##########################################
+############################################
+#  Preparation stage: extract and cleanup  #
+############################################
 
-FROM debian:buster-slim as extract
+FROM debian:buster-slim AS extract
 ARG WITH_JMX
 COPY datadog-agent*_amd64.deb /
 WORKDIR /output
@@ -43,11 +43,11 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
 COPY datadog*.yaml etc/datadog-agent/
 
 
-####################################
-# Actual docker image construction #
-####################################
+######################################
+#  Actual docker image construction  #
+######################################
 
-FROM debian:buster-slim
+FROM debian:buster-slim AS release
 LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ENV DOCKER_DD_AGENT=true \
@@ -73,6 +73,8 @@ RUN if [ -n "$WITH_JMX" ]; then apt-get update \
 RUN apt-get update \
   # CVE-fixing time!
   && apt-get install -y util-linux ncurses-bin ncurses-base libncursesw5:amd64 \
+  # https://security-tracker.debian.org/tracker/CVE-2018-15686
+  && apt-get install -y libudev1 libsystemd0 \
   # https://security-tracker.debian.org/tracker/CVE-2016-2779
   && rm -f /usr/sbin/runuser \
   # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954
@@ -118,3 +120,15 @@ HEALTHCHECK --interval=2m --timeout=5s --retries=2 \
 VOLUME ["/var/run/s6", "/etc/datadog-agent", "/var/log/datadog", "/tmp"]
 
 CMD ["/init"]
+
+
+################################################################
+#  Sanity checks on the image contents                         #
+#  Build the release artifact with "--target release" to skip  #
+################################################################
+
+FROM release AS testing
+ARG WITH_JMX
+
+COPY test_*.py /
+RUN python /test_image_contents.py -v

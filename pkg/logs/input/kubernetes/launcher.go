@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet
 
@@ -9,8 +9,10 @@ package kubernetes
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,6 +24,8 @@ import (
 // The path to the pods log directory.
 const podsDirectoryPath = "/var/log/pods"
 
+var collectAllDisabledError = fmt.Errorf("%s disabled", config.ContainerCollectAll)
+
 // Launcher looks for new and deleted pods to create or delete one logs-source per container.
 type Launcher struct {
 	sources                   *config.LogSources
@@ -32,10 +36,15 @@ type Launcher struct {
 	dockerRemovedServices     chan *service.Service
 	containerdAddedServices   chan *service.Service
 	containerdRemovedServices chan *service.Service
+	collectAll                bool
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(sources *config.LogSources, services *service.Services) (*Launcher, error) {
+func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) (*Launcher, error) {
+	if !isIntegrationAvailable() {
+		return nil, fmt.Errorf("%s not found", podsDirectoryPath)
+	}
+
 	kubeutil, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return nil, err
@@ -45,6 +54,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services) (*Launc
 		sourcesByContainer: make(map[string]*config.LogSource),
 		stopped:            make(chan struct{}),
 		kubeutil:           kubeutil,
+		collectAll:         collectAll,
 	}
 	err = launcher.setup()
 	if err != nil {
@@ -61,14 +71,18 @@ func NewLauncher(sources *config.LogSources, services *service.Services) (*Launc
 	return launcher, nil
 }
 
+func isIntegrationAvailable() bool {
+	if _, err := os.Stat(podsDirectoryPath); err != nil {
+		return false
+	}
+
+	return true
+}
+
 // setup initializes the pod watcher and the tagger.
 func (l *Launcher) setup() error {
-	var err error
 	// initialize the tagger to collect container tags
-	err = tagger.Init()
-	if err != nil {
-		return err
-	}
+	tagger.Init()
 	return nil
 }
 
@@ -126,7 +140,9 @@ func (l *Launcher) addSource(svc *service.Service) {
 	}
 	source, err := l.getSource(pod, container)
 	if err != nil {
-		log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
+		if err != collectAllDisabledError {
+			log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
+		}
 		return
 	}
 
@@ -167,6 +183,9 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		}
 		cfg = configs[0]
 	} else {
+		if !l.collectAll {
+			return nil, collectAllDisabledError
+		}
 		shortImageName, err := l.getShortImageName(container)
 		if err != nil {
 			cfg = &config.LogsConfig{
@@ -186,9 +205,6 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 	cfg.Tags = append(cfg.Tags, l.getTags(container)...)
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid kubernetes annotation: %v", err)
-	}
-	if err := cfg.Compile(); err != nil {
-		return nil, fmt.Errorf("could not compile kubernetes annotation: %v", err)
 	}
 
 	return config.NewLogSource(l.getSourceName(pod, container), cfg), nil
@@ -229,7 +245,7 @@ func (l *Launcher) getPath(pod *kubelet.Pod, container kubelet.ContainerStatus) 
 
 // getTags returns all the tags of the container
 func (l *Launcher) getTags(container kubelet.ContainerStatus) []string {
-	tags, _ := tagger.Tag(container.ID, true)
+	tags, _ := tagger.Tag(container.ID, collectors.HighCardinality)
 	return tags
 }
 

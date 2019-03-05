@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package runner
 
@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -157,6 +158,11 @@ func (r *Runner) Stop() {
 	r.m.Lock()
 	globalDone := make(chan struct{})
 	wg := sync.WaitGroup{}
+
+	// stop all python subprocesses
+	py.TerminateRunningProcesses()
+
+	// stop running checks
 	for _, c := range r.runningChecks {
 		wg.Add(1)
 		go func(c check.Check) {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package clustername
 
@@ -14,17 +14,18 @@ import (
 )
 
 func TestGetClusterName(t *testing.T) {
+	mockConfig := config.Mock()
 	data := newClusterNameData()
 
 	var testClusterName = "Laika"
-	config.Datadog.Set("cluster_name", testClusterName)
-	defer config.Datadog.Set("cluster_name", nil)
+	mockConfig.Set("cluster_name", testClusterName)
+	defer mockConfig.Set("cluster_name", nil)
 
 	assert.Equal(t, testClusterName, getClusterName(data))
 
 	// Test caching and reset
 	var newClusterName = "Youri"
-	config.Datadog.Set("cluster_name", newClusterName)
+	mockConfig.Set("cluster_name", newClusterName)
 	assert.Equal(t, testClusterName, getClusterName(data))
 	freshData := newClusterNameData()
 	assert.Equal(t, newClusterName, getClusterName(freshData))

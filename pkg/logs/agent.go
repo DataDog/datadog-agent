@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package logs
 
@@ -41,7 +41,7 @@ type Agent struct {
 }
 
 // NewAgent returns a new Agent
-func NewAgent(sources *config.LogSources, services *service.Services, endpoints *client.Endpoints) *Agent {
+func NewAgent(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *client.Endpoints) *Agent {
 	health := health.Register("logs-agent")
 
 	// setup the auditor
@@ -51,7 +51,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, endpoints 
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
 
 	// setup the inputs
 	inputs := []restart.Restartable{

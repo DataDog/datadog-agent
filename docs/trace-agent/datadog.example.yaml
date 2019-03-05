@@ -1,0 +1,147 @@
+# This file describes the trace agent specific configuration and its defaults.
+# It does not cover the entirety of configuration available to the Datadog
+# Agent 6. To get an overview of all the options, see:
+# https://github.com/DataDog/datadog-agent/blob/master/pkg/config/config_template.yaml
+#
+# The minimum necessary configuration to run the trace agent is uncommented.
+
+# Your Datadog API key. It can be found here:
+# https://app.datadoghq.com/account/settings
+api_key: 1234
+
+# # The site of the Datadog intake to send data to.
+# # Defaults to 'datadoghq.com', set to 'datadoghq.eu' to send data to the EU site.
+# site: datadoghq.com
+#
+# # The host of the Datadog intake server where the agent will be sending stats.
+# # Overrides the setting from "site".
+# dd_url: https://app.datadog.com
+# 
+# # hostname
+# hostname: localhost
+# 
+# # logging level
+# log_level: info
+# 
+# # Trace agent listening port
+# listen_port: 8126
+# 
+# # Statsd listening port
+# dogstatsd_port: 8125
+# 
+# # Proxy settings
+# proxy:
+#   https: https://my-proxy.com
+#   # Override proxy for this list of entries.
+#   no_proxy:
+#     - https://trace.agent.datadoghq.com
+# 
+# # True to skip SSL validation when connecting through a trusted proxy.
+# skip_ssl_validation: true
+ 
+# APM configuration section:
+apm_config:
+  enabled: true # enable APM
+# 
+#   # Trace intake API. If set, it will override the top level "site" setting.
+#   # Defaults to 'https://trace.agent.<site>'.
+#   apm_dd_url: trace.agent.datadog.com
+#
+#   # The trace agent will also forward traces, stats and services to these endpoints,
+#   # besides the main endpoint.
+#   additional_endpoints:
+#     # Simply specify the list of URLs to forward to along with one or more API keys
+#     # to use for that URL.
+#     https://trace.agent.datadoghq.eu:
+#     - 1234abcd
+#     - 4567efghi
+#     https://trace.agent.other-endpoint.com:
+#     - 890jkl
+# 
+#   # The environment under which traces will be classified in Datadog.
+#   env: pre-prod
+# 
+#   # Extra sample rate to apply to internal samplers.
+#   extra_sample_rate: 1.0
+# 
+#   # Maximum number of traces per second to sample.
+#   max_traces_per_second: 10
+# 
+#   # Maximum number of APM events per second to sample.
+#   max_events_per_second: 200
+#
+#   # Traces having a root span with this resource will be filtered out.
+#   ignore_resources:
+#     - secret/resource
+# 
+#   # The file path where the log will be written to.
+#   log_file: /var/log/datadog.log
+#
+#   # Limits the total number of warnings and errors to 10 for every 10 second interval.
+#   log_throttling: true
+# 
+#   # Defines a set of rules to replace or remove certain services, resources, tags containing
+#   # potentially sensitive information. Simply use the tag name, for services or resources
+#   # use "service.name" or "resource.name".
+#   replace_tags:
+#     # Remove all query parameters from "http.url" tag:
+#     - name: "http.url"
+#       pattern: "\?.*$"
+#       repl: "?"
+# 
+#     # Remove all stack traces:
+#     - name: "error.stack"
+#       pattern: "(?s).*"
+#       repl: "?"
+# 
+#   # The port that the receiver listens on.
+#   receiver_port: 8126
+# 
+#   # If true, the agent will bind to 0.0.0.0 exposing itself to remote traffic.
+#   apm_non_local_traffic: false
+# 
+#   # Maximum memory to allow for the trace agent.
+#   # The agent will be killed if this number is surpassed.
+#   max_memory: 500000000
+# 
+#   # Maximum CPU percentage allowed to be occupied by the trace agent
+#   # The agent will be killed if this number is surpassed.
+#   max_cpu_percent: 50
+#
+#   # Defines obfuscation rules for sensitive data. Disabled by default.
+#   obfuscation:
+#     # ElasticSearch obfuscation rules. Applies to spans of type "elasticsearch".
+#     # More specifically, to the "elasticsearch.body" tag.
+#     elasticsearch:
+#       enabled: true
+#       # Values for the keys listed here will not be obfuscated.
+#       keep_values:
+#         - user_id
+#         - category_id
+#
+#     # MongoDB obfuscation rules. Applies to spans of type "mongodb".
+#     # More specifically, to the "mongodb.query" tag.
+#     mongodb:
+#       enabled: true
+#       # Values for the keys listed here will not be obfuscated.
+#       keep_values:
+#         - uid
+#         - cat_id
+#
+#     # HTTP obfuscation rules for "http.url" tags in spans of type "http".
+#     http:
+#       # If true, query strings in URLs will be obfuscated.
+#       remove_query_string: true
+#       # If true, path segments in URLs containing digits will be replaced by "?"
+#       remove_paths_with_digits: true
+#
+#     # When enabled, stack traces will be removed (replaced by "?").
+#     remove_stack_traces: true
+#
+#     # Obfuscation rules for spans of type "redis". Applies to the "redis.raw_command" tags.
+#     redis:
+#       enabled: true
+#
+#     # Obfuscation rules for spans of type "memcached". Applies to the "memcached.command" tag.
+#     memcached:
+#       enabled: true

@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2018 Datadog, Inc.
+# Copyright 2016-2019 Datadog, Inc.
 
 require './lib/ostools.rb'
 require 'pathname'
@@ -63,6 +63,20 @@ build do
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
 
   copy 'bin', install_dir
+
+
+  block do
+    # defer compilation step in a block to allow getting the project's build version, which is populated
+    # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
+    env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
+    command "invoke trace-agent.build", :env => env
+
+    if windows?
+      copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+    else
+      copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
+    end
+  end
 
   if linux?
     if debian?

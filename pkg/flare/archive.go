@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package flare
 
@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
+	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -41,6 +43,21 @@ const (
 var (
 	pprofURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
 		config.Datadog.GetString("expvar_port"))
+
+	// Match .yaml and .yml to ship configuration files in the flare.
+	cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
+
+	// Match other services api keys
+	// It is a best effort to match the api key field without matching our
+	// own already redacted (we don't want to match: **************************abcde)
+	// Basically we allow many special chars while forbidding *
+	otherAPIKeysRx       = regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]+`)
+	otherAPIKeysReplacer = log.Replacer{
+		Regex: otherAPIKeysRx,
+		ReplFunc: func(b []byte) []byte {
+			return []byte("api_key: ********")
+		},
+	}
 )
 
 // SearchPaths is just an alias for a map of strings
@@ -100,7 +117,7 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 			return "", err
 		}
 
-		w, err := NewRedactingWriter(f, os.ModePerm, true)
+		w, err := newRedactingWriter(f, os.ModePerm, true)
 		if err != nil {
 			return "", err
 		}
@@ -151,6 +168,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	err = zipDiagnose(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip diagnose: %s", err)
+	}
+
+	err = zipSecrets(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip secrets: %s", err)
 	}
 
 	err = zipEnvvars(tempDir, hostname)
@@ -225,7 +247,7 @@ func writeStatusFile(tempDir, hostname string, data []byte) error {
 		return err
 	}
 
-	w, err := NewRedactingWriter(f, os.ModePerm, true)
+	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -283,7 +305,7 @@ func zipExpVar(tempDir, hostname string) error {
 			return err
 		}
 
-		w, err := NewRedactingWriter(f, os.ModePerm, true)
+		w, err := newRedactingWriter(f, os.ModePerm, true)
 		if err != nil {
 			return err
 		}
@@ -310,7 +332,7 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 		return err
 	}
 
-	w, err := NewRedactingWriter(f, os.ModePerm, true)
+	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -339,7 +361,7 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 				return err
 			}
 
-			w, err := NewRedactingWriter(f, os.ModePerm, true)
+			w, err := newRedactingWriter(f, os.ModePerm, true)
 			if err != nil {
 				return err
 			}
@@ -359,6 +381,34 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 	return err
 }
 
+func zipSecrets(tempDir, hostname string) error {
+	var b bytes.Buffer
+
+	writer := bufio.NewWriter(&b)
+	info, err := secrets.GetDebugInfo()
+	if err != nil {
+		fmt.Fprintf(writer, "%s", err)
+	} else {
+		info.Print(writer)
+	}
+	writer.Flush()
+
+	f := filepath.Join(tempDir, hostname, "secrets.log")
+	err = ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	w, err := newRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	_, err = w.Write(b.Bytes())
+	return err
+}
+
 func zipDiagnose(tempDir, hostname string) error {
 	var b bytes.Buffer
 
@@ -372,7 +422,7 @@ func zipDiagnose(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := NewRedactingWriter(f, os.ModePerm, true)
+	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -399,7 +449,7 @@ func writeConfigCheck(tempDir, hostname string, data []byte) error {
 		return err
 	}
 
-	w, err := NewRedactingWriter(f, os.ModePerm, true)
+	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -425,7 +475,7 @@ func zipHealth(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := NewRedactingWriter(f, os.ModePerm, true)
+	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -462,7 +512,7 @@ func zipStackTraces(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := NewRedactingWriter(f, os.ModePerm, true)
+	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -486,8 +536,10 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 				return nil
 			}
 
-			if getFirstSuffix(f.Name()) == ".yaml" || filepath.Ext(f.Name()) == ".yaml" {
+			firstSuffix := getFirstSuffix(f.Name())
+			ext := filepath.Ext(f.Name())
 
+			if cnfFileExtRx.Match([]byte(firstSuffix)) || cnfFileExtRx.Match([]byte(ext)) {
 				baseName := strings.Replace(src, filePath, "", 1)
 				f := filepath.Join(tempDir, hostname, "etc", "confd", prefix, baseName)
 				err := ensureParentDirsExist(f)
@@ -495,7 +547,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 					return err
 				}
 
-				w, err := NewRedactingWriter(f, os.ModePerm, true)
+				w, err := newRedactingWriter(f, os.ModePerm, true)
 				if err != nil {
 					return err
 				}
@@ -520,6 +572,21 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 	}
 
 	return nil
+}
+
+func newRedactingWriter(f string, p os.FileMode, buffered bool) (*RedactingWriter, error) {
+	w, err := NewRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return nil, err
+	}
+
+	// The original RedactingWriter use the log/strip.go implementation
+	// to scrub some credentials.
+	// It doesn't deal with api keys of other services, for example powerDNS
+	// which has an "api_key" field in its YAML configuration.
+	// We add this replacer to scrub even those credentials.
+	w.RegisterReplacer(otherAPIKeysReplacer)
+	return w, nil
 }
 
 func ensureParentDirsExist(p string) error {
