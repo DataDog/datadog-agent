@@ -8,17 +8,16 @@
 package containers
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/containerd/cgroups"
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/namespaces"
+	containerdTypes "github.com/containerd/containerd/api/types"
+	"github.com/containerd/containerd/containers"
 	"github.com/containerd/typeurl"
 	"github.com/gogo/protobuf/types"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -29,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	ddContainers "github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,7 +41,7 @@ type ContainerdCheck struct {
 	core.CheckBase
 	instance *ContainerdConfig
 	sub      *subscriber
-	filters  *containers.Filter
+	filters  *ddContainers.Filter
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
@@ -84,7 +83,7 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data) error {
 	}
 	c.sub.Filters = c.instance.ContainerdFilters
 	// GetSharedFilter should not return a nil instance of *Filter if there is an error during its setup.
-	fil, err := containers.GetSharedFilter()
+	fil, err := ddContainers.GetSharedFilter()
 	if err != nil {
 		return err
 	}
@@ -100,6 +99,7 @@ func (c *ContainerdCheck) Run() error {
 		return err
 	}
 	defer sender.Commit()
+
 	// As we do not rely on a singleton, we ensure connectivity every check run.
 	cu, errHealth := cutil.GetContainerdUtil()
 	if errHealth != nil {
@@ -124,14 +124,12 @@ func (c *ContainerdCheck) Run() error {
 		computeEvents(events, sender, c.filters)
 	}
 
-	nk := namespaces.WithNamespace(context.Background(), ns)
-	computeMetrics(sender, nk, cu, c.filters)
-
+	computeMetrics(sender, cu, c.filters)
 	return nil
 }
 
 // compute events converts Containerd events into Datadog events
-func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *containers.Filter) {
+func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *ddContainers.Filter) {
 	for _, e := range events {
 		split := strings.Split(e.Topic, "/")
 		if len(split) != 3 {
@@ -171,7 +169,7 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *cont
 	}
 }
 
-func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.ContainerdItf, fil *containers.Filter) {
+func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddContainers.Filter) {
 	containers, err := cu.Containers()
 	if err != nil {
 		log.Errorf(err.Error())
@@ -179,16 +177,16 @@ func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.Conta
 	}
 
 	for _, ctn := range containers {
-		if isExcluded(ctn, nk, fil) {
+		info, err := cu.Info(ctn)
+		if err != nil {
+			log.Errorf("Could not retrieve the metadata of the container: %s", ctn.ID()[:12])
 			continue
 		}
-		t, errTask := ctn.Task(nk, nil)
-		if errTask != nil {
-			log.Tracef("Could not retrieve metrics from task %s: %s", ctn.ID()[:12], errTask.Error())
+		if isExcluded(info, fil) {
 			continue
 		}
 
-		tags, err := collectTags(ctn, nk)
+		tags, err := collectTags(info)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", ctn.ID()[:12], err)
 		}
@@ -200,15 +198,16 @@ func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.Conta
 		}
 		tags = append(tags, taggerTags...)
 
-		metrics, err := convertTasktoMetrics(t, nk)
-		if err != nil {
-			log.Errorf("Could not process the metrics from %s: %v", ctn.ID(), err.Error())
+		metricTask, errTask := cu.TaskMetrics(ctn)
+		if errTask != nil {
+			log.Tracef("Could not retrieve metrics from task %s: %s", ctn.ID()[:12], errTask.Error())
 			continue
 		}
 
-		err = computeExtra(sender, ctn, nk, tags)
+		metrics, err := convertTasktoMetrics(metricTask)
 		if err != nil {
-			log.Errorf("Could not process metadata related metrics for %s: %v", ctn.ID()[:12], err.Error())
+			log.Errorf("Could not process the metrics from %s: %v", ctn.ID(), err.Error())
+			continue
 		}
 
 		if metrics.Memory.Size() > 0 {
@@ -226,25 +225,22 @@ func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.Conta
 		if len(metrics.Hugetlb) > 0 {
 			computeHugetlb(sender, metrics.Hugetlb, tags)
 		}
+
+		size, err := cu.ImageSize(ctn)
+		if err != nil {
+			log.Errorf("Could not retrieve the size of the image of %s: %v", ctn.ID(), err.Error())
+			continue
+		}
+		sender.Gauge("containerd.image.size", float64(size), "", tags)
 	}
 }
 
-func isExcluded(ctn containerd.Container, nk context.Context, fil *containers.Filter) bool {
-	im, err := ctn.Image(nk)
-	if err != nil {
-		log.Debugf("Could not get image associated with the container, ignoring: %v", err)
-		return true
-	}
+func isExcluded(ctn containers.Container, fil *ddContainers.Filter) bool {
 	// The container name is not available in Containerd, we only rely on image name based exclusion
-	return fil.IsExcluded("", im.Name())
+	return fil.IsExcluded("", ctn.Image)
 }
 
-func convertTasktoMetrics(task containerd.Task, nsCtx context.Context) (*cgroups.Metrics, error) {
-	metricTask, err := task.Metrics(nsCtx)
-	if err != nil {
-		return nil, err
-	}
-
+func convertTasktoMetrics(metricTask *containerdTypes.Metric) (*cgroups.Metrics, error) {
 	metricAny, err := typeurl.UnmarshalAny(&types.Any{
 		TypeUrl: metricTask.Data.TypeUrl,
 		Value:   metricTask.Data.Value,
@@ -256,48 +252,20 @@ func convertTasktoMetrics(task containerd.Task, nsCtx context.Context) (*cgroups
 	return metricAny.(*cgroups.Metrics), nil
 }
 
-func computeExtra(sender aggregator.Sender, ctn containerd.Container, nsCtx context.Context, tags []string) error {
-	img, err := ctn.Image(nsCtx)
-	if err != nil {
-		return err
-	}
-	size, err := img.Size(nsCtx)
-	if err != nil {
-		return err
-	}
-	sender.Gauge("containerd.image.size", float64(size), "", tags)
-	return nil
-}
-
 // TODO when creating a dedicated collector for the tagger, unify the local tagging logic and the Tagger.
-func collectTags(ctn containerd.Container, nsCtx context.Context) ([]string, error) {
+func collectTags(ctn containers.Container) ([]string, error) {
 	tags := []string{}
 
 	// Container image
-	im, err := ctn.Image(nsCtx)
-	if err != nil {
-		return tags, err
-	}
-	imageName := fmt.Sprintf("image:%s", im.Name())
+	imageName := fmt.Sprintf("image:%s", ctn.Image)
 	tags = append(tags, imageName)
 
 	// Container labels
-	labels, err := ctn.Labels(nsCtx)
-	if err != nil {
-		return tags, err
-	}
-	for k, v := range labels {
+	for k, v := range ctn.Labels {
 		tag := fmt.Sprintf("%s:%s", k, v)
 		tags = append(tags, tag)
 	}
-
-	// Container meta
-	i, err := ctn.Info(nsCtx)
-	if err != nil {
-		return tags, err
-	}
-
-	runt := fmt.Sprintf("runtime:%s", i.Runtime.Name)
+	runt := fmt.Sprintf("runtime:%s", ctn.Runtime.Name)
 	tags = append(tags, runt)
 
 	return tags, nil
