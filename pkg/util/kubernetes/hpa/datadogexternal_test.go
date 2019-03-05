@@ -92,17 +92,17 @@ func TestDatadogExternalQuery(t *testing.T) {
 			[]string{"mymetric{foo:bar,baz:ar}", "mymetric2{foo:baz}", "my.aws.metric{ba:bar}"},
 			map[string]Point{
 				"mymetric{foo:bar,baz:ar}": {
-					value:     42,
+					value:     42.0,
 					valid:     true,
 					timestamp: 300,
 				},
 				"mymetric2{foo:baz}": {
-					value:     70,
+					value:     70.0,
 					valid:     true,
 					timestamp: 110,
 				},
 				"my.aws.metric{ba:bar}": {
-					value:     0,
+					value:     0.0,
 					valid:     false,
 					timestamp: time.Now().Unix(),
 				},
