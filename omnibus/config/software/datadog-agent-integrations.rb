@@ -40,6 +40,7 @@ blacklist = [
   'docker_daemon',
   'kubernetes',
   'ntp',  # provided as a go check by the core agent
+  'cisco_aci' # temporary issues with certificate
 ]
 
 core_constraints_file = 'core_constraints.txt'
