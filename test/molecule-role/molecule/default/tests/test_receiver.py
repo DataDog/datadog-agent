@@ -274,11 +274,9 @@ def test_topology_components(host):
 
         def _component_data(type_name, external_id_prefix, command):
             for message in json_data["messages"]:
-                payload = message["message"]["TopologyElement"]["payload"]
-                if "TopologyComponent" in payload and \
-                    payload["TopologyComponent"]["typeName"] == type_name and \
-                    payload["TopologyComponent"]["externalId"].startswith(external_id_prefix):
-                    component_data = json.loads(payload["TopologyComponent"]["data"])
+                p = message["message"]["TopologyElement"]["payload"]
+                if "TopologyComponent" in p and p["TopologyComponent"]["typeName"] == type_name and p["TopologyComponent"]["externalId"].startswith(external_id_prefix):
+                    component_data = json.loads(p["TopologyComponent"]["data"])
                     if command:
                         if component_data["command"]["args"][0] == command:
                             return component_data
