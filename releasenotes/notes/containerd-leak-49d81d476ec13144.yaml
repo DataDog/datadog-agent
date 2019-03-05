@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Refactor the ContainerdUtil so that each call to the Containerd api has a dedicated timeout.
+    Refactor the ``ContainerdUtil`` so that each call to the ``containerd`` api has a dedicated timeout.
