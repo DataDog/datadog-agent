@@ -209,7 +209,7 @@ func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
 
 	jsonStats, err := common.DSD.GetJSONDebugStats()
 	if err != nil {
-		log.Errorf("Error getting marshalled Dogstatsd stats. Error: %v")
+		log.Errorf("Error getting marshalled Dogstatsd stats: %s", err)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		http.Error(w, string(body), 500)
 		return
