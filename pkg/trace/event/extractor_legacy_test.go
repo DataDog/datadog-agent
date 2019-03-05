@@ -10,7 +10,7 @@ import (
 
 func TestLegacyCases(t *testing.T) {
 	assert := assert.New(t)
-	e := NewLegacyExtractor(map[string]float64{"service1": 1})
+	e := NewLegacyExtractor(map[string]float64{"serviCE1": 1})
 	span := &pb.Span{Service: "SeRvIcE1"}
 	traceutil.SetTopLevel(span, true)
 

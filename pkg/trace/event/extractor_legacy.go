@@ -15,11 +15,14 @@ type legacyExtractor struct {
 }
 
 // NewLegacyExtractor returns an APM event extractor that decides whether to extract APM events from spans following the
-// specified extraction rates for a span's service. The map keys must strictly be lower-cased.
+// specified extraction rates for a span's service.
 func NewLegacyExtractor(rateByService map[string]float64) Extractor {
-	return &legacyExtractor{
-		rateByService: rateByService,
+	// lower-case keys for case insensitive matching (see #3113)
+	rbs := make(map[string]float64, len(rateByService))
+	for k, v := range rateByService {
+		rbs[strings.ToLower(k)] = v
 	}
+	return &legacyExtractor{rateByService: rbs}
 }
 
 // Extract decides to extract an apm event from the provided span if there's an extraction rate configured for that

@@ -19,8 +19,8 @@ func createTestSpans(serviceName string, operationName string) []*pb.Span {
 func TestFixedCases(t *testing.T) {
 	assert := assert.New(t)
 	e := NewFixedRateExtractor(map[string]map[string]float64{
-		"service1": {
-			"op1": 1,
+		"sERvice1": {
+			"OP1": 1,
 			"op2": 0.5,
 		},
 	})
@@ -39,14 +39,14 @@ func TestFixedCases(t *testing.T) {
 
 func TestAnalyzedExtractor(t *testing.T) {
 	config := make(map[string]map[string]float64)
-	config["servicea"] = make(map[string]float64)
-	config["servicea"]["opa"] = 0
+	config["serviceA"] = make(map[string]float64)
+	config["serviceA"]["opA"] = 0
 
-	config["serviceb"] = make(map[string]float64)
-	config["serviceb"]["opb"] = 0.5
+	config["serviceB"] = make(map[string]float64)
+	config["serviceB"]["opB"] = 0.5
 
-	config["servicec"] = make(map[string]float64)
-	config["servicec"]["opc"] = 1
+	config["serviceC"] = make(map[string]float64)
+	config["serviceC"]["opC"] = 1
 
 	tests := []extractorTestCase{
 		// Name: <priority>/(<no match reason>/<extraction rate>)

@@ -15,11 +15,17 @@ type fixedRateExtractor struct {
 
 // NewFixedRateExtractor returns an APM event extractor that decides whether to extract APM events from spans following
 // the provided extraction rates for a span's (service name, operation name) pair.
-// The map keys must strictly be lower-cased, as provided by Viper.
 func NewFixedRateExtractor(rateByServiceAndName map[string]map[string]float64) Extractor {
-	return &fixedRateExtractor{
-		rateByServiceAndName: rateByServiceAndName,
+	// lower-case keys for case insensitive matching (see #3113)
+	rbs := make(map[string]map[string]float64, len(rateByServiceAndName))
+	for service, opRates := range rateByServiceAndName {
+		k := strings.ToLower(service)
+		rbs[k] = make(map[string]float64, len(opRates))
+		for op, rate := range opRates {
+			rbs[k][strings.ToLower(op)] = rate
+		}
 	}
+	return &fixedRateExtractor{rateByServiceAndName: rbs}
 }
 
 // Extract decides to extract an apm event from a span if its service and name have a corresponding extraction rate
