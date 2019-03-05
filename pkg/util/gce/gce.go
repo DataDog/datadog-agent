@@ -40,7 +40,7 @@ type gceProjectMetadata struct {
 
 // GetHostname returns the hostname querying GCE Metadata api
 func GetHostname() (string, error) {
-	hostname, err := getResponse(metadataURL + "/instance/hostname")
+	hostname, err := getResponseWithMaxLength(metadataURL+"/instance/hostname", 255)
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve hostname from GCE: %s", err)
 	}
@@ -49,13 +49,13 @@ func GetHostname() (string, error) {
 
 // GetHostAlias returns the host alias from GCE
 func GetHostAlias() (string, error) {
-	instanceName, err := getResponse(metadataURL + "/instance/hostname")
+	instanceName, err := getResponseWithMaxLength(metadataURL+"/instance/hostname", 255)
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve hostname from GCE: %s", err)
 	}
 	instanceName = strings.SplitN(instanceName, ".", 2)[0]
 
-	projectID, err := getResponse(metadataURL + "/project/project-id")
+	projectID, err := getResponseWithMaxLength(metadataURL+"/project/project-id", 255)
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve project ID from GCE: %s", err)
 	}
@@ -64,11 +64,22 @@ func GetHostAlias() (string, error) {
 
 // GetClusterName returns the name of the cluster containing the current GCE instance
 func GetClusterName() (string, error) {
-	clusterName, err := getResponse(metadataURL + "/instance/attributes/cluster-name")
+	clusterName, err := getResponseWithMaxLength(metadataURL+"/instance/attributes/cluster-name", 255)
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve clustername from GCE: %s", err)
 	}
 	return clusterName, nil
+}
+
+func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {
+	result, err := getResponse(endpoint)
+	if err != nil {
+		return result, err
+	}
+	if len(result) > maxLength {
+		return "", fmt.Errorf("%v gave a response with length > to %v", endpoint, maxLength)
+	}
+	return result, err
 }
 
 func getResponse(url string) (string, error) {

@@ -22,31 +22,19 @@ var (
 
 // GetHostAlias returns the VM ID from the Azure Metadata api
 func GetHostAlias() (string, error) {
-	res, err := getResponse(metadataURL + "/metadata/instance/compute/vmId?api-version=2017-04-02&format=text")
+	res, err := getResponseWithMaxLength(metadataURL+"/metadata/instance/compute/vmId?api-version=2017-04-02&format=text", 255)
 	if err != nil {
 		return "", fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
 	}
 
-	defer res.Body.Close()
-	all, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", fmt.Errorf("error while reading response from azure metadata endpoint: %s", err)
-	}
-
-	return string(all), nil
+	return res, nil
 }
 
 // GetClusterName returns the name of the cluster containing the current VM
 func GetClusterName() (string, error) {
-	res, err := getResponse(metadataURL + "/metadata/instance/compute/resourceGroupName?api-version=2017-08-01&format=text")
+	all, err := getResponse(metadataURL + "/metadata/instance/compute/resourceGroupName?api-version=2017-08-01&format=text")
 	if err != nil {
 		return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
-	}
-
-	defer res.Body.Close()
-	all, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", fmt.Errorf("error while reading response from azure metadata endpoint: %s", err)
 	}
 
 	splitAll := strings.Split(string(all), "_")
@@ -58,25 +46,42 @@ func GetClusterName() (string, error) {
 	return clusterName, nil
 }
 
-func getResponse(url string) (*http.Response, error) {
+func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {
+	result, err := getResponse(endpoint)
+	if err != nil {
+		return result, err
+	}
+	if len(result) > maxLength {
+		return "", fmt.Errorf("%v gave a response with length > to %v", endpoint, maxLength)
+	}
+	return result, err
+}
+
+func getResponse(url string) (string, error) {
 	client := http.Client{
 		Timeout: timeout,
 	}
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	req.Header.Add("Metadata", "true")
 	res, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	if res.StatusCode != 200 {
-		return nil, fmt.Errorf("status code %d trying to GET %s", res.StatusCode, url)
+		return "", fmt.Errorf("status code %d trying to GET %s", res.StatusCode, url)
 	}
 
-	return res, nil
+	defer res.Body.Close()
+	all, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return "", fmt.Errorf("error while reading response from azure metadata endpoint: %s", err)
+	}
+
+	return string(all), nil
 }
