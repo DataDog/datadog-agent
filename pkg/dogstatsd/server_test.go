@@ -346,16 +346,17 @@ func TestExtraTags(t *testing.T) {
 }
 
 func TestDebugStats(t *testing.T) {
-	metricOut := make(chan *metrics.MetricSample)
-	eventOut := make(chan metrics.Event)
-	serviceOut := make(chan metrics.ServiceCheck)
+	metricOut := make(chan []*metrics.MetricSample)
+	eventOut := make(chan []*metrics.Event)
+	serviceOut := make(chan []*metrics.ServiceCheck)
 	s, err := NewServer(metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
-	s.storeMetricsStats([]string{"sometag1:somevalue1", "sometag2:somevalue2"})
+	s.storeMetricsStats("some.metric1")
+	s.storeMetricsStats("some.metric2")
 	time.Sleep(10 * time.Millisecond)
-	s.storeMetricsStats([]string{"sometag1:somevalue1"})
+	s.storeMetricsStats("some.metric1")
 
 	data, err := s.GetJSONDebugStats()
 	require.NoError(t, err, "cannot get debug stats")
@@ -367,23 +368,25 @@ func TestDebugStats(t *testing.T) {
 	require.NoError(t, err, "data is not valid")
 	require.Len(t, stats, 2, "two metrics should have been captured")
 
-	require.True(t, stats["sometag1:somevalue1"].LastSeen.After(stats["sometag2:somevalue2"].LastSeen), "sometag1 should have appeared again after sometag2")
+	require.True(t, stats["some.metric1"].LastSeen.After(stats["some.metric2"].LastSeen), "some.metric1 should have appeared again after sometag2")
 
-	s.storeMetricsStats([]string{"sometag3:somevalue3", "sometag1:somevalue1"})
+	s.storeMetricsStats("some.metric3")
+	time.Sleep(10 * time.Millisecond)
+	s.storeMetricsStats("some.metric1")
 
 	data, _ = s.GetJSONDebugStats()
 	err = json.Unmarshal(data, &stats)
 	require.NoError(t, err, "data is not valid")
 	require.Len(t, stats, 3, "three metrics should have been captured")
 
-	tag1 := stats["sometag1:somevalue1"]
-	tag2 := stats["sometag2:somevalue2"]
-	tag3 := stats["sometag3:somevalue3"]
-	require.True(t, tag1.LastSeen.After(tag2.LastSeen), "sometag1 should have appeared again after sometag2")
-	require.True(t, tag3.LastSeen.After(tag2.LastSeen), "sometag3 should have appeared again after sometag2")
-	require.Equal(t, tag1.LastSeen, tag3.LastSeen, "sometag1 and sometag3 have been sent in the same packet, thus, should have the same last seen")
+	metric1 := stats["some.metric1"]
+	metric2 := stats["some.metric2"]
+	metric3 := stats["some.metric3"]
+	require.True(t, metric1.LastSeen.After(metric2.LastSeen), "some.metric1 should have appeared again after some.metric2")
+	require.True(t, metric1.LastSeen.After(metric3.LastSeen), "some.metric1 should have appeared again after some.metric3")
+	require.True(t, metric3.LastSeen.After(metric2.LastSeen), "some.metric3 should have appeared again after some.metric2")
 
-	require.Equal(t, tag1.Count, uint64(3))
-	require.Equal(t, tag2.Count, uint64(1))
-	require.Equal(t, tag3.Count, uint64(1))
+	require.Equal(t, metric1.Count, uint64(3))
+	require.Equal(t, metric2.Count, uint64(1))
+	require.Equal(t, metric3.Count, uint64(1))
 }
