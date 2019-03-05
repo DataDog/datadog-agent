@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -122,6 +122,32 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 	}
 }
 
+// valuesDiffer returns true if the annotations matching the
+// given prefix are different between map first and second.
+// It also counts the annotation count to catch deletions.
+func valuesDiffer(first, second map[string]string, prefix string) bool {
+	var matchingInFirst int
+	for name, value := range first {
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		if second[name] != value {
+			return true
+		}
+		matchingInFirst++
+	}
+
+	var matchingInSecond int
+	for name := range second {
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		matchingInSecond++
+	}
+
+	return matchingInFirst != matchingInSecond
+}
+
 func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, error) {
 	var configs []integration.Config
 	for _, svc := range services {
@@ -150,32 +176,6 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 	}
 
 	return configs, nil
-}
-
-// valuesDiffer returns true if the annotations matching the
-// given prefix are different between map first and second.
-// It also counts the annotation count to catch deletions.
-func valuesDiffer(first, second map[string]string, prefix string) bool {
-	var matchingInFirst int
-	for name, value := range first {
-		if !strings.HasPrefix(name, prefix) {
-			continue
-		}
-		if second[name] != value {
-			return true
-		}
-		matchingInFirst++
-	}
-
-	var matchingInSecond int
-	for name := range second {
-		if !strings.HasPrefix(name, prefix) {
-			continue
-		}
-		matchingInSecond++
-	}
-
-	return matchingInFirst != matchingInSecond
 }
 
 func init() {
