@@ -274,7 +274,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 					}
 
 					if s.debugMetricsStats {
-						s.storeMetricsStats(sample.Tags)
+						s.storeMetricsStats(sample.Name)
 					}
 
 					if len(extraTags) > 0 {
@@ -310,16 +310,14 @@ func (s *Server) Stop() {
 	s.Started = false
 }
 
-func (s *Server) storeMetricsStats(tags []string) {
+func (s *Server) storeMetricsStats(name string) {
 	now := time.Now()
 	s.statsLock.Lock()
 	defer s.statsLock.Unlock()
-	for _, tag := range tags {
-		ms := s.metricsStats[tag]
-		ms.Count++
-		ms.LastSeen = now
-		s.metricsStats[tag] = ms
-	}
+	ms := s.metricsStats[name]
+	ms.Count++
+	ms.LastSeen = now
+	s.metricsStats[name] = ms
 }
 
 // GetJSONDebugStats returns jsonified debug statistics.
@@ -351,13 +349,13 @@ func FormatDebugStats(stats []byte) (string, error) {
 	// write the response
 	buf := bytes.NewBuffer(nil)
 
-	header := fmt.Sprintf("%-40s | %-10s | %-20s\n", "Tag", "Count", "Last Seen")
+	header := fmt.Sprintf("%-40s | %-10s | %-20s\n", "Metric", "Count", "Last Seen")
 	buf.Write([]byte(header))
 	buf.Write([]byte(strings.Repeat("-", len(header)) + "\n"))
 
-	for _, tag := range order {
-		stats := dogStats[tag]
-		buf.Write([]byte(fmt.Sprintf("%-40s | %-10d | %-20v\n", tag, stats.Count, stats.LastSeen)))
+	for _, metric := range order {
+		stats := dogStats[metric]
+		buf.Write([]byte(fmt.Sprintf("%-40s | %-10d | %-20v\n", metric, stats.Count, stats.LastSeen)))
 	}
 
 	if len(dogStats) == 0 {
