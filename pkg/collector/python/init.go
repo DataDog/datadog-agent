@@ -92,8 +92,15 @@ func Initialize(paths ...string) error {
 	return nil
 }
 
+// Destroy destroys the loaded Python interpreter initialized by 'Initialize'
 func Destroy() {
 	if six != nil {
 		C.destroy(six)
 	}
+}
+
+// GetSix returns the underlying six_t struct. This is meant for testing and
+// tooling, use the six_t struct at your own risk
+func GetSix() *C.six_t {
+	return six
 }
