@@ -102,7 +102,7 @@ func TestConvertDocker(t *testing.T) {
 	assert.Equal(t, "/host/test/proc", config.Datadog.GetString("container_proc_root"))
 	assert.Equal(t, "/host/test/sys/fs/cgroup", config.Datadog.GetString("container_cgroup_root"))
 	assert.Equal(t, map[string]string{"test1": "test1", "test2": "test2"},
-		config.Datadog.Get("docker_labels_as_tags").(map[string]string))
+		config.Datadog.GetStringMapString("docker_labels_as_tags"))
 
 	// test overwrite
 	err = ImportDockerConf(src, dst, false)

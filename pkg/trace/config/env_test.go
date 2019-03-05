@@ -39,7 +39,7 @@ func TestLoadEnv(t *testing.T) {
 			if tt.envNew == "DD_APM_IGNORE_RESOURCES" {
 				assert.Equal([]string{"4", "5", "6"}, config.Datadog.GetStringSlice(tt.key))
 			} else {
-				assert.Equal("4,5,6", config.Datadog.Get(tt.key))
+				assert.Equal("4,5,6", config.Datadog.GetString(tt.key))
 			}
 		}
 	})
