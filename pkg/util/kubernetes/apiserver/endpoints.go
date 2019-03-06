@@ -37,9 +37,6 @@ func SearchTargetPerName(endpoints *v1.Endpoints, targetName string) (v1.Endpoin
 	return v1.EndpointAddress{}, dderrors.NewNotFound("target named " + targetName)
 }
 
-func EntityForEndpoints(endpt *v1.Endpoints) string {
-	if endpt == nil {
-		return ""
-	}
-	return fmt.Sprintf("%s%s/%s", kubeEndpointIDPrefix, endpt.Namespace, endpt.Name)
+func EntityForEndpoints(namespace, name string) string {
+	return fmt.Sprintf("%s%s/%s", kubeEndpointIDPrefix, namespace, name)
 }

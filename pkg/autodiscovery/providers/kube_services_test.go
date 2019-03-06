@@ -22,19 +22,68 @@ import (
 
 func TestParseKubeServiceAnnotations(t *testing.T) {
 	for _, tc := range []struct {
+		name        string
 		service     *v1.Service
 		expectedOut []integration.Config
 	}{
 		{
+			name:        "nil input",
 			service:     nil,
 			expectedOut: nil,
 		},
 		{
+			name: "valid service annotations only",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID("test"),
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/service.init_configs": "[{}]",
+						"ad.datadoghq.com/service.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+					},
+				},
+			},
+			expectedOut: []integration.Config{
+				{
+					Name:          "http_check",
+					ADIdentifiers: []string{"kube_service://test"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					ClusterCheck:  true,
+				},
+			},
+		},
+		{
+			name: "valid endpoints annotations only",
 			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					UID:       types.UID("test"),
 					Namespace: "default",
-					Name:      "myendpoint",
+					Name:      "myservice",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/endpoints.check_names":  "[\"etcd\"]",
+						"ad.datadoghq.com/endpoints.init_configs": "[{}]",
+						"ad.datadoghq.com/endpoints.instances":    "[{\"use_preview\": \"true\", \"prometheus_url\": \"http://%%host%%:2379/metrics\"}]",
+					},
+				},
+			},
+			expectedOut: []integration.Config{
+				{
+					Name:          "etcd",
+					ADIdentifiers: []string{"kube_endpoint://default/myservice"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"prometheus_url\":\"http://%%host%%:2379/metrics\",\"use_preview\":\"true\"}")},
+					ClusterCheck:  true,
+				},
+			},
+		},
+		{
+			name: "valid service end endpoints annotations",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:       types.UID("test"),
+					Namespace: "default",
+					Name:      "myservice",
 					Annotations: map[string]string{
 						"ad.datadoghq.com/service.check_names":    "[\"http_check\"]",
 						"ad.datadoghq.com/service.init_configs":   "[{}]",
@@ -55,7 +104,78 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 				},
 				{
 					Name:          "etcd",
-					ADIdentifiers: []string{"kube_endpoint://default/myendpoint"},
+					ADIdentifiers: []string{"kube_endpoint://default/myservice"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"prometheus_url\":\"http://%%host%%:2379/metrics\",\"use_preview\":\"true\"}")},
+					ClusterCheck:  true,
+				},
+			},
+		},
+		{
+			name: "invalid service and endpoints annotations",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID("test"),
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names":    "[\"http_check\"]",
+						"ad.datadoghq.com/service.init_configs":   "[{}]",
+						"ad.datadoghq.com/service.instances":      "[{\"name\" \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+						"ad.datadoghq.com/endpoints.check_names":  "[\"etcd\"]",
+						"ad.datadoghq.com/endpoints.init_configs": "[{}]",
+						"ad.datadoghq.com/endpoints.instances":    "[{\"use_preview\" \"true\", \"prometheus_url\": \"http://%%host%%:2379/metrics\"}]",
+					},
+				},
+			},
+			expectedOut: nil,
+		},
+		{
+			name: "valid service annotations, invalid endpoints annotations",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:       types.UID("test"),
+					Namespace: "default",
+					Name:      "myservice",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names":    "[\"http_check\"]",
+						"ad.datadoghq.com/service.init_configs":   "[{}]",
+						"ad.datadoghq.com/service.instances":      "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+						"ad.datadoghq.com/endpoints.check_names":  "[\"etcd\"]",
+						"ad.datadoghq.com/endpoints.init_configs": "[{}]",
+						"ad.datadoghq.com/endpoints.instances":    "[{\"use_preview\" \"true\", \"prometheus_url\": \"http://%%host%%:2379/metrics\"}]",
+					},
+				},
+			},
+			expectedOut: []integration.Config{
+				{
+					Name:          "http_check",
+					ADIdentifiers: []string{"kube_service://test"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					ClusterCheck:  true,
+				},
+			},
+		},
+		{
+			name: "invalid service annotations, valid endpoints annotations",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:       types.UID("test"),
+					Namespace: "default",
+					Name:      "myservice",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names":    "[\"http_check\"]",
+						"ad.datadoghq.com/service.init_configs":   "[{}]",
+						"ad.datadoghq.com/service.instances":      "[{\"name\" \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+						"ad.datadoghq.com/endpoints.check_names":  "[\"etcd\"]",
+						"ad.datadoghq.com/endpoints.init_configs": "[{}]",
+						"ad.datadoghq.com/endpoints.instances":    "[{\"use_preview\": \"true\", \"prometheus_url\": \"http://%%host%%:2379/metrics\"}]",
+					},
+				},
+			},
+			expectedOut: []integration.Config{
+				{
+					Name:          "etcd",
+					ADIdentifiers: []string{"kube_endpoint://default/myservice"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"prometheus_url\":\"http://%%host%%:2379/metrics\",\"use_preview\":\"true\"}")},
 					ClusterCheck:  true,
@@ -63,7 +183,7 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			cfgs, _ := parseServiceAnnotations([]*v1.Service{tc.service})
 			assert.EqualValues(t, tc.expectedOut, cfgs)
 		})

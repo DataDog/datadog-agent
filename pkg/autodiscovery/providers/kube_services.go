@@ -110,12 +110,7 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 		return
 	}
 	// Compare annotations
-	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeServiceAnnotationPrefix) {
-		log.Trace("Invalidating configs on service change")
-		k.upToDate = false
-		return
-	}
-	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeEndpointAnnotationPrefix) {
+	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeServiceAnnotationPrefix, kubeEndpointAnnotationPrefix) {
 		log.Trace("Invalidating configs on service change")
 		k.upToDate = false
 		return
@@ -125,24 +120,28 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 // valuesDiffer returns true if the annotations matching the
 // given prefix are different between map first and second.
 // It also counts the annotation count to catch deletions.
-func valuesDiffer(first, second map[string]string, prefix string) bool {
+func valuesDiffer(first, second map[string]string, prefixes ...string) bool {
 	var matchingInFirst int
 	for name, value := range first {
-		if !strings.HasPrefix(name, prefix) {
-			continue
+		for _, prefix := range prefixes {
+			if !strings.HasPrefix(name, prefix) {
+				continue
+			}
+			if second[name] != value {
+				return true
+			}
+			matchingInFirst++
 		}
-		if second[name] != value {
-			return true
-		}
-		matchingInFirst++
 	}
 
 	var matchingInSecond int
 	for name := range second {
-		if !strings.HasPrefix(name, prefix) {
-			continue
+		for _, prefix := range prefixes {
+			if !strings.HasPrefix(name, prefix) {
+				continue
+			}
+			matchingInSecond++
 		}
-		matchingInSecond++
 	}
 
 	return matchingInFirst != matchingInSecond
@@ -158,11 +157,11 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 		service_id := apiserver.EntityForService(svc)
 		svcConf, errors := extractTemplatesFromMap(service_id, svc.Annotations, kubeServiceAnnotationPrefix)
 		for _, err := range errors {
-			log.Errorf("Cannot parse template for service %s/%s: %s", svc.Namespace, svc.Name, err)
+			log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
-		endptConf, errors := extractTemplatesFromMap(fmt.Sprintf("%s%s/%s", kubeEndpointIDPrefix, svc.Namespace, svc.Name), svc.Annotations, kubeEndpointAnnotationPrefix)
+		endptConf, errors := extractTemplatesFromMap(apiserver.EntityForEndpoints(svc.Namespace, svc.Name), svc.Annotations, kubeEndpointAnnotationPrefix)
 		for _, err := range errors {
-			log.Errorf("Cannot parse template for service %s/%s: %s", svc.Namespace, svc.Name, err)
+			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
 		// All configurations are cluster checks
 		for i := range svcConf {
