@@ -135,8 +135,10 @@ func FromAgentConfig(agentConfig Config) error {
 		configConverter.Set("bind_host", agentConfig["bind_host"])
 	}
 
-	//Trace APM based configurations
+	// Processes-specific configuration
+	extractProcessAgentConfig(agentConfig, configConverter)
 
+	// Trace APM based configurations
 	if agentConfig["apm_enabled"] != "" {
 		if enabled, err := isAffirmative(agentConfig["apm_enabled"]); err == nil {
 			configConverter.Set("apm_config.enabled", enabled)
@@ -153,6 +155,59 @@ func FromAgentConfig(agentConfig Config) error {
 	configConverter.Set("hostname_fqdn", true)
 
 	return extractTraceAgentConfig(agentConfig, configConverter)
+}
+
+func extractProcessAgentConfig(agentConfig Config, configConverter *config.LegacyConfigConverter) {
+	for iniKey, yamlKey := range map[string]string{
+		"process.config.allow_real_time":               "process_config.allow_real_time",
+		"process.config.log_file":                      "process_config.log_file",
+		"process.config.dd_agent_py":                   "process_config.dd_agent_py",
+		"process.config.proc_limit":                    "process_config.max_per_message",
+		"process.config.queue_size":                    "process_config.queue_size",
+		"process.config.process_interval":              "process_config.intervals.process",
+		"process.config.rtprocess_interval":            "process_config.intervals.process_realtime",
+		"process.config.container_interval":            "process_config.intervals.container",
+		"process.config.rtcontainer_interval":          "process_config.intervals.container_realtime",
+		"process.config.connections_interval":          "process_config.intervals.connections",
+		"process.config.scrub_args":                    "process_config.scrub_args",
+		"process.config.strip_proc_arguments":          "process_config.strip_proc_arguments",
+		"process.config.windows_args_refresh_interval": "process_config.windows.args_refresh_interval",
+		"process.config.windows_add_new_args":          "process_config.windows.add_new_args",
+	} {
+		if v, ok := agentConfig[iniKey]; ok {
+			configConverter.Set(yamlKey, v)
+		}
+	}
+
+	// DDAgent Python Environment
+	if v, ok := agentConfig["process.config.dd_agent_py_env"]; ok {
+		r, err := splitString(v, ',')
+		if err == nil {
+			configConverter.Set("process_config.dd_agent_py_env", r)
+		} else {
+			fmt.Println("Ignoring value provided process.config.dd_agent_py_env because of parsing error")
+		}
+	}
+
+	// Blacklist regex patterns
+	if v, ok := agentConfig["process.config.blacklist"]; ok {
+		r, err := splitString(v, ',')
+		if err == nil {
+			configConverter.Set("process_config.blacklist_patterns", r)
+		} else {
+			fmt.Println("Ignoring value provided process.config.blacklist because of parsing error")
+		}
+	}
+
+	// Data scrubber custom sensitive words
+	if v, ok := agentConfig["process.config.custom_sensitive_words"]; ok {
+		r, err := splitString(v, ',')
+		if err == nil {
+			configConverter.Set("process_config.custom_sensitive_words", r)
+		} else {
+			fmt.Println("Ignoring value provided process.config.custom_sensitive_words because of parsing error")
+		}
+	}
 }
 
 func extractTraceAgentConfig(agentConfig Config, configConverter *config.LegacyConfigConverter) error {
@@ -283,6 +338,30 @@ func extractURLAPIKeys(agentConfig Config, configConverter *config.LegacyConfigC
 		}
 	}
 	configConverter.Set("additional_endpoints", additionalEndpoints)
+
+	// Process url + additional endpoints
+	if v, ok := agentConfig["process.config.endpoint"]; ok {
+		processEndpoints := map[string][]string{}
+
+		processURLs, err := splitString(v, ',')
+		if err != nil || len(processURLs) == 0 {
+			return nil
+		}
+
+		configConverter.Set("process_config.process_dd_url", processURLs[0])
+		for idx, url := range processURLs[1:] {
+			if url == "" || keys[idx] == "" {
+				return fmt.Errorf("found empty additional 'endpoint' or 'api_key' for processes. Please check that you don't have any misplaced commas")
+			}
+			if _, ok := processEndpoints[url]; ok {
+				processEndpoints[url] = append(processEndpoints[url], keys[idx])
+			} else {
+				processEndpoints[url] = []string{keys[idx]}
+			}
+		}
+		configConverter.Set("process_config.additional_endpoints", processEndpoints)
+	}
+
 	return nil
 }
 

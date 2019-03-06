@@ -335,6 +335,74 @@ func TestConverter(t *testing.T) {
 	}, c.GetStringMapString("apm_config.analyzed_spans"))
 }
 
+func TestProcessesConverter(t *testing.T) {
+	require := require.New(t)
+	cfg, err := GetAgentConfig("./tests/datadog.conf")
+	require.NoError(err)
+	cfg["dd_url"] = "https://dev.datadoghq.com,https://beta.datadoghq.com"
+	cfg["api_key"] = "abc,123"
+	err = FromAgentConfig(cfg)
+	require.NoError(err)
+	c := config.Datadog
+
+	// string values
+	for k, v := range map[string]string{
+		"process_config.log_file":    "/mnt/log/process-agent/process.log",
+		"process_config.dd_agent_py": "/bin/python",
+	} {
+		require.True(c.IsSet(k), k)
+		require.Equal(v, c.GetString(k), k)
+	}
+
+	// bool values
+	for k, v := range map[string]bool{
+		"process_config.allow_real_time":      false,
+		"process_config.scrub_args":           false,
+		"process_config.strip_proc_arguments": true,
+		"process_config.windows.add_new_args": false,
+	} {
+		require.True(c.IsSet(k), k)
+		require.Equal(v, c.GetBool(k), k)
+	}
+
+	// int values
+	for k, v := range map[string]int{
+		"process_config.max_per_message":               321,
+		"process_config.queue_size":                    123,
+		"process_config.intervals.process":             12,
+		"process_config.intervals.process_realtime":    13,
+		"process_config.intervals.container":           14,
+		"process_config.intervals.container_realtime":  15,
+		"process_config.intervals.connections":         16,
+		"process_config.windows.args_refresh_interval": 21,
+		"dogstatsd_port":                               8125,
+	} {
+		require.True(c.IsSet(k), k)
+		require.Equal(v, c.GetInt(k), k)
+	}
+
+	require.Equal([]string{
+		"GOPATH=/go",
+		"SHELL=/bin/zsh",
+	}, c.GetStringSlice("process_config.dd_agent_py_env"))
+
+	require.Equal([]string{
+		"auth",
+		"aws",
+	}, c.GetStringSlice("process_config.custom_sensitive_words"))
+
+	require.Equal([]string{
+		"pass*",
+		"*key",
+	}, c.GetStringSlice("process_config.blacklist_patterns"))
+
+	require.True(c.IsSet("process_config.additional_endpoints"))
+	ms := c.GetStringMapStringSlice("process_config.additional_endpoints")
+	actual, ok := ms["https://staging.burrito.com"]
+	require.True(ok)
+	require.Equal(actual, []string{"123"})
+}
+
 func TestExtractURLAPIKeys(t *testing.T) {
 	configConverter := config.NewConfigConverter()
 	defer func(*config.LegacyConfigConverter) {

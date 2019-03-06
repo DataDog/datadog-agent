@@ -66,4 +66,5 @@ func TestGetAgentConfig(t *testing.T) {
 	require.True(t, pos > 0)
 	require.Equal(t, "1234", agentConfigGo["trace.api.api_key"])
 	require.Equal(t, "http://ip.url", agentConfigGo["trace.api.endpoint"])
+	require.Equal(t, "321", agentConfigGo["process.config.proc_limit"])
 }

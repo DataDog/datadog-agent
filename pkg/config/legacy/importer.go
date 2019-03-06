@@ -109,7 +109,7 @@ func GetAgentConfig(datadogConfPath string) (Config, error) {
 	config["proxy_settings"] = "{'host': 'my-proxy.com', 'password': 'password', 'port': 3128, 'user': 'user'}"
 	config["service_discovery"] = "True"
 
-	// add trace agent sections as <section>.<key>
+	// add trace + process agent sections as <section>.<key>
 	for _, section := range []string{
 		"trace.api",
 		"trace.config",
@@ -123,6 +123,7 @@ func GetAgentConfig(datadogConfPath string) (Config, error) {
 		"trace.writer.services",
 		"trace.writer.stats",
 		"trace.writer.traces",
+		"process.config",
 	} {
 		s, err := iniFile.GetSection(section)
 		if err != nil {
