@@ -242,10 +242,20 @@ func TestInvalidateIfChanged(t *testing.T) {
 			Annotations: map[string]string{
 				"ad.datadoghq.com/service.check_names":    "[\"http_check\"]",
 				"ad.datadoghq.com/service.init_configs":   "[{}]",
-				"ad.datadoghq.com/service.instances":      "[{\"name\": \"My NEW service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+				"ad.datadoghq.com/service.instances":      "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
 				"ad.datadoghq.com/endpoints.check_names":  "[\"etcd\"]",
 				"ad.datadoghq.com/endpoints.init_configs": "[{}]",
-				"ad.datadoghq.com/endpoints.instances":    "[{\"use_preview\": \"true\", \"prometheus_url\": \"http://%%host%%:2379/metrics\"}]",
+				"ad.datadoghq.com/endpoints.instances":    "[{\"use_preview\": \"false\", \"prometheus_url\": \"http://%%host%%:2379/metrics\"}]",
+			},
+		},
+	}
+	s94 := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			ResourceVersion: "94",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
+				"ad.datadoghq.com/service.init_configs": "[{}]",
+				"ad.datadoghq.com/service.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
 			},
 		},
 	}
@@ -308,6 +318,12 @@ func TestInvalidateIfChanged(t *testing.T) {
 			// Edit endpoints annotations
 			old:        s92,
 			obj:        s93,
+			invalidate: true,
+		},
+		{
+			// Edit endpoints annotations removed
+			old:        s92,
+			obj:        s94,
 			invalidate: true,
 		},
 	} {

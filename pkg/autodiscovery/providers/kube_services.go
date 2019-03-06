@@ -110,8 +110,13 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 		return
 	}
 	// Compare annotations
-	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeServiceAnnotationPrefix, kubeEndpointAnnotationPrefix) {
+	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeServiceAnnotationPrefix) {
 		log.Trace("Invalidating configs on service change")
+		k.upToDate = false
+		return
+	}
+	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeEndpointAnnotationPrefix) {
+		log.Trace("Invalidating configs on service endpoints annotations change")
 		k.upToDate = false
 		return
 	}
@@ -120,28 +125,24 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 // valuesDiffer returns true if the annotations matching the
 // given prefix are different between map first and second.
 // It also counts the annotation count to catch deletions.
-func valuesDiffer(first, second map[string]string, prefixes ...string) bool {
+func valuesDiffer(first, second map[string]string, prefix string) bool {
 	var matchingInFirst int
 	for name, value := range first {
-		for _, prefix := range prefixes {
-			if !strings.HasPrefix(name, prefix) {
-				continue
-			}
-			if second[name] != value {
-				return true
-			}
-			matchingInFirst++
+		if !strings.HasPrefix(name, prefix) {
+			continue
 		}
+		if second[name] != value {
+			return true
+		}
+		matchingInFirst++
 	}
 
 	var matchingInSecond int
 	for name := range second {
-		for _, prefix := range prefixes {
-			if !strings.HasPrefix(name, prefix) {
-				continue
-			}
-			matchingInSecond++
+		if !strings.HasPrefix(name, prefix) {
+			continue
 		}
+		matchingInSecond++
 	}
 
 	return matchingInFirst != matchingInSecond
