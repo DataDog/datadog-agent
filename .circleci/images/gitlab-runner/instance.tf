@@ -1,6 +1,29 @@
+data "aws_ami" "app_server_ami" {
+  most_recent = true
+  owners      = ["801119661308"] # Amazon
+
+  filter {
+    name = "name"
+    values = ["Windows_Server-2016-English-Full-Base-*"]
+    #    values = ["ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-*"]
+  }
+
+  filter {
+    name = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  filter {
+    name = "root-device-type"
+    values = ["ebs"]
+  }
+
+}
+
+
 resource "aws_instance" "gitlab-runner" {
 
-  ami = "${lookup(var.WIN_AMIS, "base2016")}"
+  ami = "${data.aws_ami.app_server_ami.image_id}"
   instance_type = "t3.large"
   security_groups = ["winrms-open"]
 
@@ -12,7 +35,7 @@ resource "aws_instance" "gitlab-runner" {
   }
 
   tags {
-    Name = "Windows Gitlab Runner"
+    Name = "Windows Gitlab Runner ${terraform.workspace}"
   }
   user_data = <<EOF
 <powershell>
@@ -81,8 +104,6 @@ ansible_winrm_server_cert_validation=ignore
 
 HOSTS
 }
-
-
 
 output "Makefile" {
   value = "${local.Makefile}"

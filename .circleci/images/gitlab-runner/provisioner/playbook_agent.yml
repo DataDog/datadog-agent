@@ -4,10 +4,15 @@
 #    registration_token: sdfsdfsdfsdfsdfsdfsd
 #    token: ghjkghjkghjkghjkghjkghjkghjkgh
 
-  vars_files:
-    - gitlab_vars.yml
-
   tasks:
+  - name: Include runner related vars
+    include_vars: "{{ item }}"
+    with_first_found:
+      - files:
+          - "gitlab_vars.yml"
+        skip: true
+    tags:
+      - always
 
   - name: Gitlab Runner | Check if a service is installed
     win_service:
@@ -47,12 +52,14 @@
        --shell {{ gitlab_shell }} `
        --tag-list {{ gitlab_tags|join(', ') }} `
        --env "GIT_SSL_NO_VERIFY=true"
+    when:  gitlab_runner_registration_token is defined
 
 #      {{ "--env \"%s\"" | format(gitlab_environment) }}
 
   - name: Install runner as service
     win_command: C:\GitLab-Runner\gitlab-runner.exe install
-    when: not gitlab_service.exists
+    when: not gitlab_service.exists and  gitlab_runner_registration_token is defined
 
   - name: Start runner service
     win_command: C:\GitLab-Runner\gitlab-runner.exe start
+    when:  gitlab_runner_registration_token is defined

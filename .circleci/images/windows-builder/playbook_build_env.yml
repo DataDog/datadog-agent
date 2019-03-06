@@ -55,10 +55,9 @@
         version: 2.4.3.1
 
     - name: Install msys2
-      win_shell: choco install msys2
-#      win_chocolatey:
-#        name: msys2
-#        state: present
+      win_chocolatey:
+        name: msys2
+        state: present
 
     - name: Install python virtualwrapper
       win_shell: pip install virtualenvwrapper-win
@@ -85,27 +84,36 @@
       win_chocolatey:
         name: visualstudio2017community
         state: present
-        package_params: "--norestart --wait --quiet --locale en-US --norestart --wait --quiet --locale en-US --add Microsoft.VisualStudio.Workload.MSBuildTools --add Microsoft.VisualStudio.Workload.NativeDesktop  --add Microsoft.VisualStudio.Component.VC.CMake.Project --add Microsoft.VisualStudio.Component.VC.CLI.Support --add Microsoft.VisualStudio.Workload.UniversalBuildTools --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Win81"
-#        package_params: "--allWorkloads --includeRecommended --includeOptional --passive --locale en-US"
+        package_params: "--norestart --wait --quiet --locale en-US --add Microsoft.VisualStudio.Workload.MSBuildTools --add Microsoft.VisualStudio.Workload.NativeDesktop  --add Microsoft.VisualStudio.Component.VC.CMake.Project --add Microsoft.VisualStudio.Component.VC.CLI.Support --add Microsoft.VisualStudio.Workload.UniversalBuildTools --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Win81"
 
+# validate by  Get-WindowsFeature
+    - name: Activate .NET35 feature
+      win_feature:
+        name:
+          - Net-Framework-Core
+        state: present
 
 # HANGS TODO: replace with exe install from  https://github.com/wixtoolset/wix3/releases/tag/wix3111rtm  ?
-    # - name: Install Wix tool set
-    #   win_shell: choco install wixtoolset
-    #   # win_chocolatey:
-    #   #   name: wixtoolset
-    #   #   state: present
-    #   ignore_errors: true
-    #   register: dotnet35_try1
+    - name: Install Wix tool set
+      win_chocolatey:
+        name: wixtoolset
+        state: present
+      async: 30
+      poll: 0
+      ignore_errors: true
+      register: wix_try1
 
-    # - name: Install Wix tool set
-    #   win_shell: choco install wixtoolset
-    #   # win_chocolatey:
-    #   #   name: wixtoolset
-    #   #   state: present
-    #   when: dotnet35_try1 is failed
-    #   ignore_errors: true
+    - name: Check wix response
+      async_status: jid={{ wix_try1.ansible_job_id }}
+      register: wix_try1
+      ignore_errors: true
+      until: wix_try1.finished
+      retries: 10
 
+    - name: Install Wix tool set
+      win_shell: choco install wixtoolset
+      when: wix_try1 is failed
+      ignore_errors: true
 
     - name: Install hg
       win_chocolatey:

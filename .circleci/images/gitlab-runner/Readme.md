@@ -54,3 +54,7 @@ Set-ItemProperty -Path $AdminKey -Name "IsInstalled" -Value 0
 Set-ItemProperty -Path $UserKey -Name "IsInstalled" -Value 0
 
 ```
+
+Creating refreshed gitlab image for fleet
+
+1. Switch terraform workspace to image
