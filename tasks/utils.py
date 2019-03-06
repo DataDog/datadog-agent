@@ -62,6 +62,8 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs),
         "CGO_CFLAGS_ALLOW": "-static-libgcc",  # whitelist additional flags, here a flag used for net-snmp
     }
+    if 'CGO_LDFLAGS' in os.environ:
+        env['CGO_LDFLAGS'] = os.environ['CGO_LDFLAGS']
 
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
@@ -79,6 +81,9 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
     elif use_venv and os.getenv('VIRTUAL_ENV'):
         venv_prefix = os.getenv('VIRTUAL_ENV')
         ldflags += "-X {}/pkg/collector/py.pythonHome={} ".format(REPO_PATH, venv_prefix)
+
+    ldflags += "-X {}/pkg/collector/python.pythonHome2={} ".format(REPO_PATH, os.environ['PYTHON_HOME_2'])
+    ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, os.environ['PYTHON_HOME_3'])
 
     if os.environ.get("DELVE"):
         gcflags = "-N -l"
