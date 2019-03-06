@@ -116,7 +116,7 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 		return
 	}
 	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeEndpointAnnotationPrefix) {
-		log.Trace("Invalidating configs on service endpoints annotations change")
+		log.Trace("Invalidating configs on service end annotations change")
 		k.upToDate = false
 		return
 	}
