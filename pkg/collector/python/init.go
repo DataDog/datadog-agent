@@ -20,7 +20,7 @@ import (
 )
 
 // #include "datadog_agent_six.h"
-// #cgo LDFLAGS: -L/home/hush-hush/dev/six/six -ldatadog-agent-six -ldl
+// #cgo LDFLAGS: -ldatadog-agent-six -ldl
 import "C"
 
 var (
