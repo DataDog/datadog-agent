@@ -47,3 +47,24 @@ def test_stackstate_agent_log(host):
     for line in agent_log.splitlines():
         print("Considering: %s" % line)
         assert not re.search("\\| error \\|", line, re.IGNORECASE)
+
+
+def test_stackstate_process_agent_no_log_errors(host):
+    process_agent_log_path = "c:\\programdata\\stackstate\\logs\\process-agent.log"
+
+    # Check for presence of success
+    def wait_for_check_successes():
+        process_agent_log = host.ansible("win_shell", "cat \"{}\"".format(process_agent_log_path), check=False)["stdout"]
+        print process_agent_log
+
+        assert re.search("Finished check #1", process_agent_log)
+        assert re.search("starting network tracer locally", process_agent_log)
+
+    util.wait_until(wait_for_check_successes, 30, 3)
+
+    process_agent_log = host.ansible("win_shell", "cat \"{}\"".format(process_agent_log_path), check=False)["stdout"]
+
+    # Check for errors
+    for line in process_agent_log.splitlines():
+        print("Considering: %s" % line)
+        assert not re.search("error", line, re.IGNORECASE)
