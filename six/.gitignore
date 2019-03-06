@@ -9,6 +9,7 @@ cmake_install.cmake
 Makefile
 constants.h
 datadog-agent-six.pc
+install_manifest.txt
 
 # OS X trash
 .DS_Store
