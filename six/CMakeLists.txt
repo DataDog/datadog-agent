@@ -5,7 +5,7 @@ include(GNUInstallDirs)
 
 if(WIN32)
 # explicitly set the compiler flags to use the static C runtime (/MT(d) instead of the DLL
-# c runtime (/MD(d) so that we don't have to worry about redistributing the CRT).  
+# c runtime (/MD(d) so that we don't have to worry about redistributing the CRT).
 foreach(flag_var
         CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
         CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
@@ -30,7 +30,7 @@ endif()
 set_target_properties(datadog-agent-six PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION 1
-    PUBLIC_HEADER include/datadog_agent_six.h
+    PUBLIC_HEADER ../include/datadog_agent_six.h
 )
 configure_file(datadog-agent-six.pc.in datadog-agent-six.pc @ONLY)
 target_include_directories(datadog-agent-six PRIVATE ./include)
@@ -39,8 +39,7 @@ target_include_directories(datadog-agent-six PUBLIC
 )
 
 if(NOT WIN32)
-# install target not valid because we're generating a static link LIBRARY
-#on windows.  
+# install target not valid because we're generating a static link LIBRARY on windows.
 find_library( LIBdl dl )
 install(TARGETS datadog-agent-six
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

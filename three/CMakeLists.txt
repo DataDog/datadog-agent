@@ -34,11 +34,13 @@ target_include_directories(datadog-agent-three PUBLIC
     ${Python3_INCLUDE_DIRS}
 )
 target_link_libraries(datadog-agent-three ${Python3_LIBRARIES} datadog-agent-six)
+
 if(WIN32)
   install(TARGETS datadog-agent-three
       RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR}
   )
 else()
+  target_compile_options(datadog-agent-three PRIVATE "-Wno-deprecated-register")
   install(TARGETS datadog-agent-three
       LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   )
