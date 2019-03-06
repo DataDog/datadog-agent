@@ -125,30 +125,73 @@ func TestBuildStoreKey(t *testing.T) {
 }
 
 func TestBuildTemplates(t *testing.T) {
-	// wrong number of checkNames
-	res := buildTemplates("id",
-		[]string{"a", "b"},
-		[][]integration.Data{{integration.Data("")}},
-		[][]integration.Data{{integration.Data("")}})
-	assert.Len(t, res, 0)
-
-	res = buildTemplates("id",
-		[]string{"a", "b"},
-		[][]integration.Data{{integration.Data("{\"test\": 1}")}, {integration.Data("{}")}},
-		[][]integration.Data{{integration.Data("{}")}, {integration.Data("{1:2}")}})
-	require.Len(t, res, 2)
-
-	assert.Len(t, res[0].ADIdentifiers, 1)
-	assert.Equal(t, "id", res[0].ADIdentifiers[0])
-	assert.Equal(t, res[0].Name, "a")
-	assert.Equal(t, res[0].InitConfig, integration.Data("{\"test\": 1}"))
-	assert.Equal(t, res[0].Instances, []integration.Data{integration.Data("{}")})
-
-	assert.Len(t, res[1].ADIdentifiers, 1)
-	assert.Equal(t, "id", res[1].ADIdentifiers[0])
-	assert.Equal(t, res[1].Name, "b")
-	assert.Equal(t, res[1].InitConfig, integration.Data("{}"))
-	assert.Equal(t, res[1].Instances, []integration.Data{integration.Data("{1:2}")})
+	key := "id"
+	tests := []struct {
+		name            string
+		inputCheckNames []string
+		inputInitConfig [][]integration.Data
+		inputInstances  [][]integration.Data
+		expectedConfigs []integration.Config
+	}{
+		{
+			name:            "wrong number of checkNames",
+			inputCheckNames: []string{"a", "b"},
+			inputInitConfig: [][]integration.Data{{integration.Data("")}},
+			inputInstances:  [][]integration.Data{{integration.Data("")}},
+			expectedConfigs: []integration.Config{},
+		},
+		{
+			name:            "valid inputs",
+			inputCheckNames: []string{"a", "b"},
+			inputInitConfig: [][]integration.Data{{integration.Data("{\"test\": 1}")}, {integration.Data("{}")}},
+			inputInstances:  [][]integration.Data{{integration.Data("{}")}, {integration.Data("{1:2}")}},
+			expectedConfigs: []integration.Config{
+				{
+					Name:          "a",
+					ADIdentifiers: []string{key},
+					InitConfig:    integration.Data("{\"test\": 1}"),
+					Instances:     []integration.Data{integration.Data("{}")},
+				},
+				{
+					Name:          "b",
+					ADIdentifiers: []string{key},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{1:2}")},
+				},
+			},
+		},
+		{
+			name:            "valid inputs with list",
+			inputCheckNames: []string{"a", "b"},
+			inputInitConfig: [][]integration.Data{{integration.Data("{\"test\": 1}")}, {integration.Data("{}")}},
+			inputInstances:  [][]integration.Data{{integration.Data("{\"foo\": 1}"), integration.Data("{\"foo\": 2}")}, {integration.Data("{1:2}")}},
+			expectedConfigs: []integration.Config{
+				{
+					Name:          "a",
+					ADIdentifiers: []string{key},
+					InitConfig:    integration.Data("{\"test\": 1}"),
+					Instances:     []integration.Data{integration.Data("{\"foo\": 1}")},
+				},
+				{
+					Name:          "a",
+					ADIdentifiers: []string{key},
+					InitConfig:    integration.Data("{\"test\": 1}"),
+					Instances:     []integration.Data{integration.Data("{\"foo\": 2}")},
+				},
+				{
+					Name:          "b",
+					ADIdentifiers: []string{key},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{1:2}")},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedConfigs, buildTemplates(key, tt.inputCheckNames, tt.inputInitConfig, tt.inputInstances))
+		})
+	}
 }
 
 func TestExtractTemplatesFromMap(t *testing.T) {
