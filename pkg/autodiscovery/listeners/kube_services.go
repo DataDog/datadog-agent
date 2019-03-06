@@ -25,13 +25,17 @@ import (
 )
 
 const (
-	kubeServiceAnnotationFormat = "ad.datadoghq.com/service.instances"
+	kubeServiceAnnotationFormat  = "ad.datadoghq.com/service.instances"
+	kubeEndpointAnnotationFormat = "ad.datadoghq.com/endpoints.instances"
 )
 
 // KubeServiceListener listens to kubernetes service creation
 type KubeServiceListener struct {
-	informer   infov1.ServiceInformer
+	servicesInformer   infov1.ServiceInformer
+	endpointsInformer   infov1.EndpointsInformer
 	services   map[types.UID]Service
+	endpoints   map[string]Service
+	endpointsAnnotated map[string]bool
 	newService chan<- Service
 	delService chan<- Service
 	m          sync.RWMutex
@@ -39,6 +43,25 @@ type KubeServiceListener struct {
 
 // KubeServiceService represents a Kubernetes Service
 type KubeServiceService struct {
+	entity       string
+	tags         []string
+	hosts        map[string]string
+	ports        []ContainerPort
+	creationTime integration.CreationTime
+}
+
+// KubeEndpointListener listens to kubernetes endpoint creation
+type KubeEndpointListener struct {
+	informer   infov1.EndpointsInformer
+	servicesInformer infov1.ServiceInformer
+	endpoints  map[types.UID]Service
+	newService chan<- Service
+	delService chan<- Service
+	m          sync.RWMutex
+}
+
+// KubeEndpointService represents a Kubernetes Endpoint
+type KubeEndpointService struct {
 	entity       string
 	tags         []string
 	hosts        map[string]string
@@ -59,9 +82,16 @@ func NewKubeServiceListener() (ServiceListener, error) {
 	if servicesInformer == nil {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
+	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
+	if endpointsInformer == nil {
+		return nil, fmt.Errorf("cannot get endpoint informer: %s", err)
+	}
 	return &KubeServiceListener{
 		services: make(map[types.UID]Service),
-		informer: servicesInformer,
+		endpoints: make(map[string]Service)
+		endpointsAnnotated: make(map[string]bool)
+		servicesInformer: servicesInformer,
+		endpointsInformer: endpointsInformer,
 	}, nil
 }
 
@@ -70,19 +100,32 @@ func (l *KubeServiceListener) Listen(newSvc chan<- Service, delSvc chan<- Servic
 	l.newService = newSvc
 	l.delService = delSvc
 
-	l.informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    l.added,
-		UpdateFunc: l.updated,
-		DeleteFunc: l.deleted,
+	l.servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    l.addedSvc,
+		UpdateFunc: l.updatedSvc,
+		DeleteFunc: l.deletedSvc,
+	})
+
+	l.endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    l.addedEndpt,
+		UpdateFunc: l.updatedEndpt,
+		DeleteFunc: l.deletedEndpt,
 	})
 
 	// Initial fill
-	services, err := l.informer.Lister().List(labels.Everything())
+	services, err := l.servicesInformer.Lister().List(labels.Everything())
 	if err != nil {
 		log.Errorf("Cannot list Kubernetes services: %s", err)
 	}
 	for _, s := range services {
 		l.createService(s, true)
+	}
+	endpoints, err := l.endpointsInformer.Lister().List(labels.Everything())
+	if err != nil {
+		log.Errorf("Cannot list Kubernetes endpoints: %s", err)
+	}
+	for _, e := range endpoints {
+		l.createEndpoint(e, true)
 	}
 }
 
@@ -91,7 +134,7 @@ func (l *KubeServiceListener) Stop() {
 	// We cannot deregister from the informer
 }
 
-func (l *KubeServiceListener) added(obj interface{}) {
+func (l *KubeServiceListener) addedSvc(obj interface{}) {
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
 		log.Errorf("Expected a Service type, got: %v", obj)
@@ -100,7 +143,7 @@ func (l *KubeServiceListener) added(obj interface{}) {
 	l.createService(castedObj, false)
 }
 
-func (l *KubeServiceListener) deleted(obj interface{}) {
+func (l *KubeServiceListener) deletedSvc(obj interface{}) {
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
 		log.Errorf("Expected a Service type, got: %v", obj)
@@ -109,7 +152,7 @@ func (l *KubeServiceListener) deleted(obj interface{}) {
 	l.removeService(castedObj)
 }
 
-func (l *KubeServiceListener) updated(old, obj interface{}) {
+func (l *KubeServiceListener) updatedSvc(old, obj interface{}) {
 	// Cast the updated object or return on failure
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
@@ -139,6 +182,9 @@ func servicesDiffer(first, second *v1.Service) bool {
 	}
 	// AD annotations
 	if isServiceAnnotated(first) != isServiceAnnotated(second) {
+		return true
+	}
+	if isEndpointAnnotated(first) != isEndpointAnnotated(second) {
 		return true
 	}
 	// Cluster IP
@@ -174,9 +220,9 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 
 	l.m.Lock()
 	l.services[ksvc.UID] = svc
-	l.m.Unlock()
-
+	l.endpointsAnnotated[fmt.Sprintf("%s/%s", ksvc.Namespace, ksvc.Name)] = isEndpointAnnotated(ksvc)
 	l.newService <- svc
+	l.m.Unlock()
 }
 
 func processService(ksvc *v1.Service, firstRun bool) *KubeServiceService {
@@ -225,9 +271,10 @@ func (l *KubeServiceListener) removeService(ksvc *v1.Service) {
 	if ok {
 		l.m.Lock()
 		delete(l.services, ksvc.UID)
+		delete(l.endpointsAnnotated, fmt.Sprintf("%s/%s", ksvc.Namespace, ksvc.Name))
+		l.delService <- svc
 		l.m.Unlock()
 
-		l.delService <- svc
 	} else {
 		log.Debugf("Entity %s not found, not removing", ksvc.UID)
 	}
@@ -276,5 +323,204 @@ func (s *KubeServiceService) GetCreationTime() integration.CreationTime {
 
 func isServiceAnnotated(ksvc *v1.Service) bool {
 	_, found := ksvc.Annotations[kubeServiceAnnotationFormat]
+	return found
+}
+
+func (l *KubeServiceListener) addedEndpt(obj interface{}) {
+	castedObj, ok := obj.(*v1.Endpoints)
+	if !ok {
+		log.Errorf("Expected a Endpoints type, got: %v", obj)
+		return
+	}
+	l.createEndpoint(castedObj, false)
+}
+
+func (l *KubeServiceListener) updatedEndpt(old, obj interface{}) {
+	// Cast the updated object or return on failure
+	castedObj, ok := obj.(*v1.Endpoints)
+	if !ok {
+		log.Errorf("Expected a Endpoints type, got: %v", obj)
+		return
+	}
+	// Cast the old object, consider it an add on cast failure
+	castedOld, ok := old.(*v1.Endpoints)
+	if !ok {
+		log.Errorf("Expected a Endpoints type, got: %v", old)
+		l.createEndpoint(castedObj, false)
+		return
+	}
+	if endpointsDiffer(castedObj, castedOld) {
+		l.removeEndpoint(castedObj)
+		l.createEndpoint(castedObj, false)
+	}
+}
+
+// endpointsDiffer compares two endpoints to only go forward
+// when relevant fields are changed. This logic must be
+// updated if more fields are used.
+func endpointsDiffer(first, second *v1.Endpoints) bool {
+	// Quick exit if resversion did not change
+	if first.ResourceVersion == second.ResourceVersion {
+		return false
+	}
+
+	// Subsets
+	if len(first.Subsets) != len(second.Subsets) {
+		return true
+	}
+
+	// Addresses and Ports
+	for i := range first.Subsets {
+		if len(first.Subsets[i].Addresses) != len(second.Subsets[i].Addresses) {
+			return true
+		}
+		if len(first.Subsets[i].Ports) != len(second.Subsets[i].Ports) {
+			return true
+		}
+		// Addresses
+		for j := range first.Subsets[i].Addresses {
+			if first.Subsets[i].Addresses[j].IP != second.Subsets[i].Addresses[j].IP {
+				return true
+			}
+			if first.Subsets[i].Addresses[j].Hostname != second.Subsets[i].Addresses[j].Hostname {
+				return true
+			}
+		}
+		// Ports
+		for j := range first.Subsets[i].Ports {
+			if first.Subsets[i].Ports[j].Port != second.Subsets[i].Ports[j].Port {
+				return true
+			}
+			if first.Subsets[i].Ports[j].Name != second.Subsets[i].Ports[j].Name {
+				return true
+			}
+		}
+	}
+	// No relevant change
+	return false
+}
+
+func (l *KubeServiceListener) createEndpoint(kendpt *v1.Endpoints, firstRun bool) {
+	if kendpt == nil {
+		return
+	}
+	endptId := fmt.Sprintf("%s/%s", kendpt.Namespace, kendpt.Name)
+	
+	l.m.Lock()
+	for id, isAnnotated := l.endpointsAnnotated {
+		if id == endptId && isAnnotated {
+			endpt := processEndpoint(kendpt, firstRun)
+			l.endpoints[kendpt.UID] = endpt
+			l.newService <- endpt
+		}
+	}
+	l.m.Unlock()
+}
+
+func (l *KubeServiceListener) deletedEndpt(obj interface{}) {
+	castedObj, ok := obj.(*v1.Endpoints)
+	if !ok {
+		log.Errorf("Expected a Endpoint type, got: %v", obj)
+		return
+	}
+	l.removeEndpoint(castedObj)
+}
+
+func processEndpoint(kendpt *v1.Endpoints, firstRun bool) *KubeEndpointService {
+	endpt := &KubeEndpointService{
+		entity:       apiserver.EntityForEndpoints(kendpt),
+		creationTime: integration.After,
+	}
+	if firstRun {
+		endpt.creationTime = integration.Before
+	}
+
+	// Tags, static for now
+	endpt.tags = []string{
+		fmt.Sprintf("kube_endpoint:%s", kendpt.Name),
+		fmt.Sprintf("kube_namespace:%s", kendpt.Namespace),
+	}
+
+	// Hosts and Ports
+	var hosts = make(map[string]string)
+	var ports []ContainerPort
+	for i := range kendpt.Subsets {
+		// Hosts
+		for _, host := range kendpt.Subsets[i].Addresses {
+			hosts[host.Hostname] = host.IP
+		}
+		// Ports
+		for _, port := range kendpt.Subsets[i].Ports {
+			ports = append(ports, ContainerPort{int(port.Port), port.Name})
+		}
+	}
+	endpt.hosts = hosts
+	endpt.ports = ports
+
+	return endpt
+}
+
+func (l *KubeServiceListener) removeEndpoint(kendpt *v1.Endpoints) {
+	if kendpt == nil {
+		return
+	}
+	l.m.RLock()
+	endpt, ok := l.endpoints[kendpt.UID]
+	l.m.RUnlock()
+
+	if ok {
+		l.m.Lock()
+		delete(l.endpoints, kendpt.UID)
+		l.delService <- endpt
+		l.m.Unlock()
+
+	} else {
+		log.Debugf("Entity %s not found, not removing", kendpt.UID)
+	}
+}
+
+// GetEntity returns the unique entity name linked to that endpoint
+func (s *KubeEndpointService) GetEntity() string {
+	return s.entity
+}
+
+// GetADIdentifiers returns the service AD identifiers
+func (s *KubeEndpointService) GetADIdentifiers() ([]string, error) {
+	// Only the entity for now, to match on annotation
+	return []string{s.entity}, nil
+}
+
+// GetHosts returns the endpoint hosts
+func (s *KubeEndpointService) GetHosts() (map[string]string, error) {
+	return s.hosts, nil
+}
+
+// GetPid is not supported
+func (s *KubeEndpointService) GetPid() (int, error) {
+	return -1, ErrNotSupported
+}
+
+// GetPorts returns the endpoint's ports
+func (s *KubeEndpointService) GetPorts() ([]ContainerPort, error) {
+	return s.ports, nil
+}
+
+// GetTags retrieves tags
+func (s *KubeEndpointService) GetTags() ([]string, error) {
+	return s.tags, nil
+}
+
+// GetHostname returns nil and an error because port is not supported in Kubelet
+func (s *KubeEndpointService) GetHostname() (string, error) {
+	return "", ErrNotSupported
+}
+
+// GetCreationTime returns the creation time of the service compare to the agent start.
+func (s *KubeEndpointService) GetCreationTime() integration.CreationTime {
+	return s.creationTime
+}
+
+func isEndpointAnnotated(ksvc *v1.Service) bool {
+	_, found := ksvc.Annotations[kubeEndpointAnnotationFormat]
 	return found
 }
