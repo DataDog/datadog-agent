@@ -17,6 +17,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 	"testing"
@@ -699,6 +700,64 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 		map[string]string{
 			"url": fmt.Sprintf("http://127.0.0.1:%d", kubeletPort),
 		}, ku.GetRawConnectionInfo())
+}
+
+func TestPotentialKubeletHostsFilter(t *testing.T) {
+	for _, tc := range []struct {
+		in  host
+		out host
+	}{
+		{
+			in: host{
+				ips:       []string{"127.0.0.1"},
+				hostnames: []string{"localhost"},
+			},
+			out: host{
+				ips:       []string{"127.0.0.1"},
+				hostnames: []string{"localhost"},
+			},
+		},
+		{
+			in: host{
+				ips:       []string{"127.0.0.1", "127.0.0.1"},
+				hostnames: []string{"localhost"},
+			},
+			out: host{
+				ips:       []string{"127.0.0.1"},
+				hostnames: []string{"localhost"},
+			},
+		},
+		{
+			in: host{
+				ips:       []string{"127.0.0.1"},
+				hostnames: []string{"localhost", "localhost"},
+			},
+			out: host{
+				ips:       []string{"127.0.0.1"},
+				hostnames: []string{"localhost"},
+			},
+		},
+		{
+			in: host{
+				ips:       []string{"127.0.0.1", "127.0.0.1", "127.0.1.1", "127.1.0.1", "127.0.1.1"},
+				hostnames: []string{"localhost", "host", "localhost", "host1", "host1"},
+			},
+			out: host{
+				ips:       []string{"127.0.0.1", "127.1.0.1", "127.0.1.1"},
+				hostnames: []string{"localhost", "host", "host1"},
+			},
+		},
+	} {
+		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+			potentialKubeletHostsFilter(&tc.in)
+			sort.Strings(tc.in.ips)
+			sort.Strings(tc.out.ips)
+			assert.EqualValues(t, tc.in.ips, tc.out.ips)
+			sort.Strings(tc.in.hostnames)
+			sort.Strings(tc.out.hostnames)
+			assert.EqualValues(t, tc.in.hostnames, tc.out.hostnames)
+		})
+	}
 }
 
 func TestKubeletTestSuite(t *testing.T) {
