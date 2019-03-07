@@ -297,3 +297,7 @@ void set_log_cb(six_t *six, cb_log_t cb) {
 void set_set_external_tags_cb(six_t *six, cb_set_external_tags_t cb) {
     AS_TYPE(Six, six)->setSetExternalTagsCb(cb);
 }
+
+char *get_integration_list(six_t *six) {
+    return AS_TYPE(Six, six)->getIntegrationList();
+}

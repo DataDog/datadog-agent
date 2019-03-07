@@ -94,6 +94,16 @@ int main(int argc, char *argv[]) {
     char *code = read_file("./demo/main.py");
     run_simple_string(six, code);
 
+    // list integration
+    char *dd_wheels = get_integration_list(six);
+    if (dd_wheels == NULL) {
+        printf("error getting integration list: %s\n", get_error(six));
+    } else {
+        printf("integration: %s\n", dd_wheels);
+        six_free(six, dd_wheels);
+    }
+    return 0;
+
     // load the Directory check if available
     six_pyobject_t *py_module;
     six_pyobject_t *py_class;
