@@ -2,6 +2,30 @@
 Release Notes
 =============
 
+.. _Release Notes_6.10.1:
+
+6.10.1
+======
+
+.. _Release Notes_6.10.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-03-07
+
+
+.. _Release Notes_6.10.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Mixing cases in `apm_config.analyzed_spans` and `apm_config.analyzed_rate_by_service`
+  entries is now allowed. Service names and operation names will be treated as case insensitive.
+
+- Refactor the ``ContainerdUtil`` so that each call to the ``containerd`` api has a dedicated timeout.
+
+
 .. _Release Notes_6.10.0:
 
 6.10.0
