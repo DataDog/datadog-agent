@@ -4,16 +4,24 @@ find_package (Python3 COMPONENTS Interpreter Development)
 project(datadog-agent-three VERSION 0.1.0 DESCRIPTION "CPython backend for the Datadog Agent")
 
 if(WIN32)
-# explicitly set the compiler flags to use the static C runtime (/MT(d) instead of the DLL
-# c runtime (/MD(d) so that we don't have to worry about redistributing the CRT).
+  if(MSVC)
 
-foreach(flag_var
-        CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
-        CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-   if(${flag_var} MATCHES "/MD")
-      string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
-   endif(${flag_var} MATCHES "/MD")
-endforeach(flag_var)
+    # explicitly set the compiler flags to use the static C runtime (/MT(d) instead of the DLL
+    # c runtime (/MD(d) so that we don't have to worry about redistributing the CRT).
+    foreach(flag_var
+            CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+            CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+    if(${flag_var} MATCHES "/MD")
+        string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+    endif(${flag_var} MATCHES "/MD")
+    endforeach(flag_var)
+  else() # assume gnuC on windows
+    set(CMAKE_C_FLAGS "-D_hypot=hypot -DMS_WIN64")
+    set(CMAKE_CXX_FLAGS "-D_hypot=hypot -DMS_WIN64")
+    if(Python3_STDLIB)
+        string(REPLACE "\\" "\\\\" Python3_STDLIB ${Python3_STDLIB})
+    endif()
+  endif()
 endif()
 
 include(GNUInstallDirs)
@@ -25,6 +33,10 @@ add_library(datadog-agent-three SHARED
     ../common/aggregator.c
     ../common/datadog_agent.c
 )
+
+if(WIN32)
+  set_target_properties(datadog-agent-three PROPERTIES LINK_FLAGS -static)
+endif()
 
 add_compile_definitions(DATADOG_AGENT_THREE)
 target_include_directories(datadog-agent-three PRIVATE .)
