@@ -6,11 +6,19 @@ file(GLOB_RECURSE
 list(FILTER ALL_SOURCE_FILES EXCLUDE REGEX ".CMakeFiles.")
 
 # Adding clang-format target if executable is found
-find_program(
-    CLANG_FORMAT
-    NAMES clang-format-8 clang-format
-    PATHS "/usr/local/bin"
-    )
+if(WIN32)
+    find_program(
+        CLANG_FORMAT
+        NAMES clang-format-8 clang-format
+        PATHS "c:\\devtools\\llvm\\bin"
+        )
+else()
+    find_program(
+        CLANG_FORMAT
+        NAMES clang-format-8 clang-format
+        PATHS "/usr/local/bin"
+        )
+endif()
 if(CLANG_FORMAT)
   add_custom_target(
     clang-format

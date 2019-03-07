@@ -1,5 +1,6 @@
 {
     "files.associations": {
         "datadog_agent_six.h": "c"
-    }
+    },
+    "editor.formatOnSave": true
 }
