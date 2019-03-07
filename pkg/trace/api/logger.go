@@ -3,7 +3,7 @@ package api
 import (
 	"sync"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // these could be configurable, but fine with hardcoded for now

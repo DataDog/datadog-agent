@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	log "github.com/cihub/seelog"
 	"github.com/tinylib/msgp/msgp"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -23,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (

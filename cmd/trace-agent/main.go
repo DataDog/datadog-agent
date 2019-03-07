@@ -7,7 +7,7 @@ import (
 
 	_ "net/http/pprof"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // handleSignal closes a channel to exit cleanly from routines

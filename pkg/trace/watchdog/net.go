@@ -3,10 +3,12 @@
 package watchdog
 
 import (
-	log "github.com/cihub/seelog"
-	"github.com/shirou/gopsutil/net"
 	"os"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/shirou/gopsutil/net"
 )
 
 // Net returns basic network info.

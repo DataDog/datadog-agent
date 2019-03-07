@@ -23,6 +23,9 @@ api_key: 1234
 # # logging level
 # log_level: info
 # 
+# # enable logging in JSON format
+# log_format_json: true
+#
 # # Trace agent listening port
 # listen_port: 8126
 # 

@@ -3,44 +3,38 @@ package agent
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
-	log "github.com/cihub/seelog"
-
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/cihub/seelog"
 )
 
-const agentLoggerConfigFmt = `
-<seelog minlevel="%[1]s">
-  <outputs formatid="agent">
-    <filter levels="warn,error">
-      <custom name="throttled" data-interval="%[2]d" data-max-per-interval="%[3]d" data-file-path="%[4]s" />
-    </filter>
-    <filter levels="trace,debug,info,critical">
-      <console />
-      <rollingfile type="size" filename="%[4]s" maxsize="10000000" maxrolls="5" />
-    </filter>
-  </outputs>
-  <formats>
-    <format id="agent" format="%%Date %%Time %%LEVEL (%%File:%%Line) - %%Msg%%n" />
-  </formats>
-</seelog>
-`
+// throttledReceiver is a custom seelog receiver dropping log messages
+// once the maximum number of log messages per interval have been
+// reached.
+// NOTE: we don't need to protect our log counter with a
+// mutex. Seelog's default logger type is the asynchronous loop
+// logger, implemented as a goroutine processing logs independently
+// from where they were emitted
+// (https://github.com/cihub/seelog/wiki/Logger-types).
+type throttledReceiver struct {
+	logCount           int64
+	maxLogsPerInterval int64
 
-const rawLoggerConfigFmt = `
-<seelog>
-  <outputs formatid="agent">
-      <console />
-      <rollingfile type="size" filename="%s" maxsize="10000000" maxrolls="5" />
-  </outputs>
-  <formats>
-    <format id="agent" format="%%Date %%Time %%LEVEL (%%File:%%Line) - %%Msg%%n" />
-  </formats>
-</seelog>
-`
+	loggerError     seelog.LoggerInterface
+	loggerForwarder seelog.LoggerInterface
 
-const rawLoggerNoFmtConfigFmt = `
+	done chan struct{}
+}
+
+// loggerConfigForwarder is used to forward any raw messages received by the throttled
+// receiver.
+const loggerConfigForwarder = `
 <seelog>
   <outputs formatid="raw">
       <console />
@@ -52,89 +46,89 @@ const rawLoggerNoFmtConfigFmt = `
 </seelog>
 `
 
-// forwardLogMsg forwards the given message to the given logger making
-// sure the log level is kept.
-func forwardLogMsg(logger log.LoggerInterface, msg string, lvl log.LogLevel) {
-	switch lvl {
-	case log.TraceLvl:
-		logger.Trace(msg)
-	case log.DebugLvl:
-		logger.Debug(msg)
-	case log.InfoLvl:
-		logger.Info(msg)
-	case log.WarnLvl:
-		logger.Warn(msg)
-	case log.ErrorLvl:
-		logger.Error(msg)
-	case log.CriticalLvl:
-		logger.Critical(msg)
-	}
-}
-
-// ThrottledReceiver is a custom seelog receiver dropping log messages
-// once the maximum number of log messages per interval have been
-// reached.
-// NOTE: we don't need to protect our log counter with a
-// mutex. Seelog's default logger type is the asynchronous loop
-// logger, implemented as a goroutine processing logs independently
-// from where they were emitted
-// (https://github.com/cihub/seelog/wiki/Logger-types).
-type ThrottledReceiver struct {
-	maxLogsPerInterval int64
-
-	rawLogger      log.LoggerInterface
-	rawLoggerNoFmt log.LoggerInterface
-
-	logCount int64
-	tick     <-chan time.Time
-	done     chan struct{}
-}
-
-// ReceiveMessage implements log.CustomReceiver
-func (r *ThrottledReceiver) ReceiveMessage(msg string, lvl log.LogLevel, _ log.LogContextInterface) error {
+// ReceiveMessage implements seelog.CustomReceiver
+func (r *throttledReceiver) ReceiveMessage(msg string, lvl seelog.LogLevel, _ seelog.LogContextInterface) error {
 	r.logCount++
 
 	if r.maxLogsPerInterval < 0 || r.logCount < r.maxLogsPerInterval {
-		forwardLogMsg(r.rawLoggerNoFmt, msg, lvl)
+		r.forwardLogMsg(msg, lvl)
 	} else if r.logCount == r.maxLogsPerInterval {
-		r.rawLogger.Error("Too many messages to log, skipping for a bit...")
+		r.loggerError.Error("Too many messages to log, skipping for a bit...")
 	}
 	return nil
 }
 
-// AfterParse implements log.CustomReceiver
-func (r *ThrottledReceiver) AfterParse(args log.CustomReceiverInitArgs) error {
-	// Parse the maxLogs attribute (no verification needed, its an
-	// integer for sure)
-	interval, _ := strconv.Atoi(args.XmlCustomAttrs["interval"])
+// loggerConfigError is the template used by the throttled receiver to report
+// that maximum error capacity per the given interval has been reached.
+const loggerConfigError = `
+<seelog>
+  <outputs formatid="%[1]s">
+      <console />
+      <rollingfile type="size" filename="%[2]s" maxsize="10000000" maxrolls="5" />
+  </outputs>
+  <formats>
+    <format id="json" format="%[3]s"/>
+    <format id="common" format="%[4]s"/>
+  </formats>
+</seelog>
+`
 
-	// Parse the maxLogs attribute (no verification needed, its an
-	// integer for sure)
-	maxLogsPerInterval, _ := strconv.Atoi(
-		args.XmlCustomAttrs["max-per-interval"],
-	)
+// forwardLogMsg forwards the given message to the given logger making
+// sure the log level is kept.
+func (r *throttledReceiver) forwardLogMsg(msg string, lvl seelog.LogLevel) {
+	switch lvl {
+	case seelog.TraceLvl:
+		r.loggerForwarder.Trace(msg)
+	case seelog.DebugLvl:
+		r.loggerForwarder.Debug(msg)
+	case seelog.InfoLvl:
+		r.loggerForwarder.Info(msg)
+	case seelog.WarnLvl:
+		r.loggerForwarder.Warn(msg)
+	case seelog.ErrorLvl:
+		r.loggerForwarder.Error(msg)
+	case seelog.CriticalLvl:
+		r.loggerForwarder.Critical(msg)
+	}
+}
 
-	// Parse the logFilePath attribute
+// AfterParse implements seelog.CustomReceiver
+func (r *throttledReceiver) AfterParse(args seelog.CustomReceiverInitArgs) error {
+	interval, err := strconv.Atoi(args.XmlCustomAttrs["interval"])
+	if err != nil {
+		return err
+	}
+	maxLogsPerInterval, err := strconv.Atoi(args.XmlCustomAttrs["max-per-interval"])
+	if err != nil {
+		return err
+	}
 	logFilePath := args.XmlCustomAttrs["file-path"]
+	format := "common"
+	if args.XmlCustomAttrs["use-json"] == "true" {
+		format = "json"
+	}
 
-	// Setup rawLogger
-	rawLoggerConfig := fmt.Sprintf(rawLoggerConfigFmt, logFilePath)
-	rawLogger, err := log.LoggerFromConfigAsString(rawLoggerConfig)
+	cfgError := fmt.Sprintf(
+		loggerConfigError,
+		format,
+		logFilePath,
+		coreconfig.LogFormatJSON,
+		coreconfig.LogFormatCommon,
+	)
+	loggerError, err := seelog.LoggerFromConfigAsString(cfgError)
 	if err != nil {
 		return err
 	}
 
-	// Setup rawLoggerNoFmt
-	rawLoggerNoFmtConfig := fmt.Sprintf(rawLoggerNoFmtConfigFmt, logFilePath)
-	rawLoggerNoFmt, err := log.LoggerFromConfigAsString(rawLoggerNoFmtConfig)
+	cfgForwarder := fmt.Sprintf(loggerConfigForwarder, logFilePath)
+	loggerForwarder, err := seelog.LoggerFromConfigAsString(cfgForwarder)
 	if err != nil {
 		return err
 	}
 
-	// Setup the ThrottledReceiver
 	r.maxLogsPerInterval = int64(maxLogsPerInterval)
-	r.rawLogger = rawLogger
-	r.rawLoggerNoFmt = rawLoggerNoFmt
+	r.loggerError = loggerError
+	r.loggerForwarder = loggerForwarder
 	r.done = make(chan struct{})
 
 	// If no interval was given, no need to continue setup
@@ -144,14 +138,14 @@ func (r *ThrottledReceiver) AfterParse(args log.CustomReceiverInitArgs) error {
 	}
 
 	r.logCount = 0
-	r.tick = time.Tick(time.Duration(interval))
+	tick := time.Tick(time.Duration(interval))
 
 	// Start the goroutine resetting the log count
 	go func() {
 		defer watchdog.LogOnPanic()
 		for {
 			select {
-			case <-r.tick:
+			case <-tick:
 				r.logCount = 0
 			case <-r.done:
 				return
@@ -163,63 +157,85 @@ func (r *ThrottledReceiver) AfterParse(args log.CustomReceiverInitArgs) error {
 	return nil
 }
 
-// Flush implements log.CustomReceiver
-func (r *ThrottledReceiver) Flush() {
+// Flush implements seelog.CustomReceiver
+func (r *throttledReceiver) Flush() {
 	// Flush all raw loggers, a typical use cases for log is showing an error at startup
 	// (eg: "cannot listen on localhost:8126: listen tcp 127.0.0.1:8126: bind: address already in use")
 	// and those are not shown if we don't Flush for real.
-	if r.rawLogger != nil { // set by AfterParse, so double-checking it's not nil
-		r.rawLogger.Flush()
+	if r.loggerError != nil { // set by AfterParse, so double-checking it's not nil
+		r.loggerError.Flush()
 	}
-	if r.rawLoggerNoFmt != nil { // set by AfterParse, so double-checking it's not nil
-		r.rawLoggerNoFmt.Flush()
+	if r.loggerForwarder != nil { // set by AfterParse, so double-checking it's not nil
+		r.loggerForwarder.Flush()
 	}
 }
 
-// Close implements log.CustomReceiver
-func (r *ThrottledReceiver) Close() error {
+// Close implements seelog.CustomReceiver
+func (r *throttledReceiver) Close() error {
 	// Stop the go routine periodically resetting the log count
 	close(r.done)
 	return nil
 }
 
-// SetupLogger sets up the agent's logger. We use seelog for logging
-// in the following way:
-// * Logs with a level under "minLogLvl" are dropped.
-// * Logs with a level of "trace", "debug" and "info" are always
-//   showed if "minLogLvl" is set accordingly. This is for development
-//   purposes.
-// * Logs with a level of "warn" or "error" are dropped after
-//   "logsDropMaxPerInterval" number of messages are showed. The
-//   counter is reset every "logsDropInterval". If "logsDropInterval"
-//   is 0, dropping is disabled (and might flood your logs!).
-func SetupLogger(minLogLvl log.LogLevel, logFilePath string, logsDropInterval time.Duration, logsDropMaxPerInterval int) error {
-	log.RegisterReceiver("throttled", &ThrottledReceiver{})
+// loggerConfig specifies the main agent configuration.
+const loggerConfig = `
+<seelog minlevel="%[1]s">
+  <outputs formatid="%[2]s">
+    <filter levels="warn,error">
+      <custom name="throttled" data-interval="%[3]d" data-max-per-interval="10" data-use-json="%[4]v" data-file-path="%[5]s" />
+    </filter>
+    <filter levels="trace,debug,info,critical">
+      <console />
+      <rollingfile type="size" filename="%[5]s" maxsize="10000000" maxrolls="5" />
+    </filter>
+  </outputs>
+  <formats>
+    <format id="json" format="%[6]s"/>
+    <format id="common" format="%[7]s"/>
+  </formats>
+</seelog>
+`
 
-	// Build our config string
+// setupLogger sets up the agent's logger based on the given agent configuration.
+func setupLogger(cfg *config.AgentConfig) error {
+	logLevel := strings.ToLower(cfg.LogLevel)
+	if logLevel == "warning" {
+		// to match core agent:
+		// https://github.com/DataDog/datadog-agent/blob/6f2d901aeb19f0c0a4e09f149c7cc5a084d2f708/pkg/config/seelog.go#L74-L76
+		logLevel = "warn"
+	}
+	minLogLvl, ok := seelog.LogLevelFromString(logLevel)
+	if !ok {
+		minLogLvl = seelog.InfoLvl
+	}
+	var duration time.Duration
+	if cfg.LogThrottlingEnabled {
+		duration = 10 * time.Second
+	}
+	format := "common"
+	if coreconfig.Datadog.GetBool("log_format_json") {
+		format = "json"
+	}
+
+	seelog.RegisterReceiver("throttled", &throttledReceiver{})
+
 	logConfig := fmt.Sprintf(
-		agentLoggerConfigFmt,
+		loggerConfig,
 		minLogLvl,
-		logsDropInterval,
-		logsDropMaxPerInterval,
-		logFilePath,
+		format,
+		duration,
+		format == "json",
+		cfg.LogFilePath,
+		coreconfig.LogFormatJSON,
+		coreconfig.LogFormatCommon,
 	)
-
-	logger, err := log.LoggerFromConfigAsString(logConfig)
+	logger, err := seelog.LoggerFromConfigAsString(logConfig)
 	if err != nil {
 		return err
 	}
-	return log.ReplaceLogger(logger)
-}
 
-// SetupDefaultLogger sets up a default logger for the agent, showing
-// all log messages and with no throttling.
-func SetupDefaultLogger() error {
-	logConfig := fmt.Sprintf(rawLoggerConfigFmt, config.DefaultLogFilePath)
+	seelog.ReplaceLogger(logger)
+	log.SetupDatadogLogger(logger, minLogLvl.String())
 
-	logger, err := log.LoggerFromConfigAsString(logConfig)
-	if err != nil {
-		return err
-	}
-	return log.ReplaceLogger(logger)
+	return nil
 }

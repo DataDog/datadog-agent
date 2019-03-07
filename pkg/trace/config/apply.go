@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer/backoff"
 	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
@@ -271,7 +271,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		for key, rate := range rateBySpan {
 			serviceName, operationName, err := parseServiceAndOp(key)
 			if err != nil {
-				log.Errorf("Error when parsing names", err)
+				log.Errorf("error parsing names: %v", err)
 				continue
 			}
 
