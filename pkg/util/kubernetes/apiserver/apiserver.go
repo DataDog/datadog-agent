@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -145,16 +146,16 @@ func (c *APIClient) connect() error {
 	return nil
 }
 
-// MetadataMapperBundle maps pod names to associated metadata.
-type MetadataMapperBundle struct {
-	Services ServicesMapper `json:"services,omitempty"`
-	mapOnIP  bool           // temporary opt-out of the new mapping logic
+// metadataMapperBundle maps pod names to associated metadata.
+type metadataMapperBundle struct {
+	Services apiv1.NamespacesPodsStringsSet
+	mapOnIP  bool // temporary opt-out of the new mapping logic
 	m        sync.RWMutex
 }
 
-func newMetadataMapperBundle() *MetadataMapperBundle {
-	return &MetadataMapperBundle{
-		Services: make(ServicesMapper),
+func newMetadataMapperBundle() *metadataMapperBundle {
+	return &metadataMapperBundle{
+		Services: apiv1.NewNamespacesPodsStringsSet(),
 		mapOnIP:  config.Datadog.GetBool("kubernetes_map_services_on_ip"),
 	}
 }
@@ -296,16 +297,13 @@ func (c *APIClient) GetNodeForPod(namespace, pod_name string) (string, error) {
 }
 
 // GetMetadataMapBundleOnAllNodes is used for the CLI svcmap command to run fetch the metadata map of all nodes.
-func GetMetadataMapBundleOnAllNodes(cl *APIClient) (map[string]interface{}, error) {
-	nodePodMetadataMap := make(map[string]*MetadataMapperBundle)
-	stats := make(map[string]interface{})
-	var warnlist []string
-	var warn string
+func GetMetadataMapBundleOnAllNodes(cl *APIClient) (*apiv1.MetadataResponse, error) {
+	stats := apiv1.NewMetadataResponse()
 	var err error
 
 	nodes, err := getNodeList(cl)
 	if err != nil {
-		stats["Errors"] = fmt.Sprintf("Failed to get nodes from the API server: %s", err.Error())
+		stats.Errors = fmt.Sprintf("Failed to get nodes from the API server: %s", err.Error())
 		return stats, err
 	}
 
@@ -314,39 +312,37 @@ func GetMetadataMapBundleOnAllNodes(cl *APIClient) (map[string]interface{}, erro
 			log.Error("Incorrect payload when evaluating a node for the service mapper") // This will be removed as we move to the client-go
 			continue
 		}
-		nodePodMetadataMap[node.Name], err = getMetadataMapBundle(node.Name)
+		var bundle *metadataMapperBundle
+		bundle, err = getMetadataMapBundle(node.Name)
 		if err != nil {
-			warn = fmt.Sprintf("Node %s could not be added to the service map bundle: %s", node.Name, err.Error())
-			warnlist = append(warnlist, warn)
+			warn := fmt.Sprintf("Node %s could not be added to the service map bundle: %s", node.Name, err.Error())
+			stats.Warnings = append(stats.Warnings, warn)
 		}
+		stats.Nodes[node.Name] = convertmetadataMapperBundleToAPI(bundle)
 	}
-	stats["Nodes"] = nodePodMetadataMap
-	stats["Warnings"] = warnlist
 	return stats, nil
 }
 
 // GetMetadataMapBundleOnNode is used for the CLI metamap command to output given a nodeName.
-func GetMetadataMapBundleOnNode(nodeName string) (map[string]interface{}, error) {
-	nodePodMetadataMap := make(map[string]*MetadataMapperBundle)
-	stats := make(map[string]interface{})
-	var err error
-
-	nodePodMetadataMap[nodeName], err = getMetadataMapBundle(nodeName)
+func GetMetadataMapBundleOnNode(nodeName string) (*apiv1.MetadataResponse, error) {
+	stats := apiv1.NewMetadataResponse()
+	bundle, err := getMetadataMapBundle(nodeName)
 	if err != nil {
-		stats["Warnings"] = []string{fmt.Sprintf("Node %s could not be added to the metadata map bundle: %s", nodeName, err.Error())}
+		stats.Warnings = []string{fmt.Sprintf("Node %s could not be added to the metadata map bundle: %s", nodeName, err.Error())}
 		return stats, err
 	}
-	stats["Nodes"] = nodePodMetadataMap
+
+	stats.Nodes[nodeName] = convertmetadataMapperBundleToAPI(bundle)
 	return stats, nil
 }
 
-func getMetadataMapBundle(nodeName string) (*MetadataMapperBundle, error) {
+func getMetadataMapBundle(nodeName string) (*metadataMapperBundle, error) {
 	nodeNameCacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 	metaBundle, found := cache.Cache.Get(nodeNameCacheKey)
 	if !found {
 		return nil, fmt.Errorf("the key %s was not found in the cache", nodeNameCacheKey)
 	}
-	return metaBundle.(*MetadataMapperBundle), nil
+	return metaBundle.(*metadataMapperBundle), nil
 }
 
 func getNodeList(cl *APIClient) ([]v1.Node, error) {
@@ -366,4 +362,10 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	}
 
 	return result.Into(output)
+}
+
+func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.MetadataMapperBundle {
+	output := apiv1.NewMetadataMapperBundle()
+	output.Services = input.Services
+	return output
 }

@@ -10,6 +10,7 @@ package collectors
 import (
 	"strings"
 
+	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -18,10 +19,24 @@ import (
 )
 
 func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
+	var err error
+	metadataByNsPods := apiv1.NewNamespacesPodsStringsSet()
+	if config.Datadog.GetBool("cluster_agent.enabled") {
+		var nodeName string
+		nodeName, err = c.kubeUtil.GetNodename()
+		if err != nil {
+			log.Errorf("Could not retrieve the Nodename, err: %v", err)
+			return nil
+		}
+		metadataByNsPods, err = c.dcaClient.GetPodsMetadataForNode(nodeName)
+		if err != nil {
+			log.Debugf("Could not pull the metadata map of pods on node %s from the Datadog Cluster Agent: %s", nodeName, err.Error())
+			return nil
+		}
+	}
 	var tagInfo []*TagInfo
 	var metadataNames []string
 	var tag []string
-	var err error
 	for _, po := range pods {
 		if kubelet.IsPodReady(po) == false {
 			log.Debugf("pod %q is not ready, skipping", po.Metadata.Name)
@@ -51,11 +66,7 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 				continue
 			}
 		} else {
-			metadataNames, err = c.dcaClient.GetKubernetesMetadataNames(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
-			if err != nil {
-				log.Debugf("Could not pull the metadata map of po %s on node %s from the Datadog Cluster Agent: %s", po.Metadata.Name, po.Spec.NodeName, err.Error())
-				continue
-			}
+			metadataNames = metadataByNsPods[po.Metadata.Namespace][po.Metadata.Name].List()
 		}
 		for _, tagDCA := range metadataNames {
 			log.Tracef("Tagging %s with %s", po.Metadata.Name, tagDCA)

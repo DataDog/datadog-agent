@@ -294,7 +294,7 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 		return nil, nil
 	}
 
-	metaBundle, ok := metaBundleInterface.(*MetadataMapperBundle)
+	metaBundle, ok := metaBundleInterface.(*metadataMapperBundle)
 	if !ok {
 		return nil, fmt.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
 	}

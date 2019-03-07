@@ -8,11 +8,12 @@
 package apiserver
 
 import (
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // NodeMetadataMapping only fetch the endpoints from Kubernetes apiserver and add the metadataMapper of the
@@ -68,7 +69,7 @@ func processKubeServices(nodeList *v1.NodeList, pods []*kubelet.Pod, endpointLis
 			log.Debugf("Refreshing cache for %s", nodeNameCacheKey)
 		}
 
-		err := metaBundle.(*MetadataMapperBundle).mapServices(nodeName, pods, *endpointList)
+		err := metaBundle.(*metadataMapperBundle).mapServices(nodeName, pods, *endpointList)
 		if err != nil {
 			log.Errorf("Could not map the services on node %s: %s", node.Name, err.Error())
 			continue

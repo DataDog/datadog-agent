@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
+	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -240,6 +241,68 @@ func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
 	}
 	err = json.Unmarshal(body, &labels)
 	return labels, err
+}
+
+// GetPodsMetadataForNode queries the datadog cluster agent to get nodeName registered
+// Kubernetes pods metadata.
+func (c *DCAClient) GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error) {
+	const dcaMetadataPath = "api/v1/tags/pod"
+	var err error
+
+	if c == nil {
+		return nil, fmt.Errorf("cluster agent's client is not properly initialized")
+	}
+	/* https://host:port/api/v1/tags/pod/{nodeName}
+	response example:
+	{
+		"Nodes": {
+			"node1": {
+				"services": {
+					"default": {
+						"datadog-monitoring-cluster-agent-58f45b9b44-pkxrv": {
+							"datadog-monitoring-cluster-agent": {},
+							"datadog-monitoring-cluster-agent-metrics-api": {}
+						}
+					},
+					"kube-system": {
+						"kube-dns-6b98c9c9bf-ts7gc": {
+							"kube-dns": {}
+						}
+					}
+				}
+			}
+		}
+	}
+	*/
+	rawURL := fmt.Sprintf("%s/%s/%s", c.ClusterAgentAPIEndpoint, dcaMetadataPath, nodeName)
+	req, err := http.NewRequest("GET", rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = c.clusterAgentAPIRequestHeaders
+
+	resp, err := c.clusterAgentAPIClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+	}
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	metadataPodPayload := apiv1.NewMetadataResponse()
+	if err = json.Unmarshal(b, metadataPodPayload); err != nil {
+		return nil, err
+	}
+
+	if _, ok := metadataPodPayload.Nodes[nodeName]; !ok {
+		return nil, fmt.Errorf("cluster agent didn't return pods metadata for node: %s", nodeName)
+	}
+	return metadataPodPayload.Nodes[nodeName].Services, nil
 }
 
 // GetKubernetesMetadataNames queries the datadog cluster agent to get nodeName/podName registered

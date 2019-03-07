@@ -11,10 +11,11 @@ import (
 	"testing"
 	"time"
 
+	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -79,7 +80,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		desc            string
 		delete          bool // whether to add or delete endpoints
 		endpoints       *v1.Endpoints
-		expectedBundles map[string]ServicesMapper
+		expectedBundles map[string]apiv1.NamespacesPodsStringsSet
 	}{
 		{
 			"one service on multiple nodes",
@@ -95,7 +96,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 					},
 				},
 			},
-			map[string]ServicesMapper{
+			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc1"),
@@ -123,7 +124,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 					},
 				},
 			},
-			map[string]ServicesMapper{
+			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc1"),
@@ -151,7 +152,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 					},
 				},
 			},
-			map[string]ServicesMapper{
+			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc1"),
@@ -177,7 +178,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 					},
 				},
 			},
-			map[string]ServicesMapper{
+			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc1", "svc2"),
@@ -196,7 +197,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			&v1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc1"},
 			},
-			map[string]ServicesMapper{
+			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc2"),
@@ -216,7 +217,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 					},
 				},
 			},
-			map[string]ServicesMapper{ // no changes to cluster metadata
+			map[string]apiv1.NamespacesPodsStringsSet{ // no changes to cluster metadata
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc2"),
@@ -236,7 +237,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 					},
 				},
 			},
-			map[string]ServicesMapper{ // no changes to cluster metadata
+			map[string]apiv1.NamespacesPodsStringsSet{ // no changes to cluster metadata
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc2"),
@@ -250,7 +251,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			&v1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc2"},
 			},
-			map[string]ServicesMapper{},
+			map[string]apiv1.NamespacesPodsStringsSet{},
 		},
 	}
 
@@ -443,10 +444,10 @@ func TestMetadataController(t *testing.T) {
 
 	fullmapper, errList := GetMetadataMapBundleOnAllNodes(cl)
 	require.Nil(t, errList)
-	list := fullmapper["Nodes"]
+	list := fullmapper.Nodes
 	assert.Contains(t, list, "ip-172-31-119-125")
-	fullMap := list.(map[string]*MetadataMapperBundle)
-	services, found := fullMap["ip-172-31-119-125"].ServicesForPod(metav1.NamespaceDefault, "nginx")
+	bundle := metadataMapperBundle{Services: list["ip-172-31-119-125"].Services}
+	services, found := bundle.ServicesForPod(metav1.NamespaceDefault, "nginx")
 	assert.True(t, found)
 	assert.Contains(t, services, "nginx-1")
 }

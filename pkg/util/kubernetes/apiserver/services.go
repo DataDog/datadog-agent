@@ -9,67 +9,15 @@ package apiserver
 
 import (
 	"fmt"
-	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/sets"
+
+	v1 "k8s.io/api/core/v1"
 )
 
 const kubeServiceIDPrefix = "kube_service://"
 
-// ServicesMapper maps pod names to the names of the services targeting the pod
-// keyed by the namespace a pod belongs to. This data structure allows for O(1)
-// lookups of services given a namespace and pod name.
-//
-// The data is stored in the following schema:
-// {
-// 	"namespace": {
-// 		"pod": [ "svc1", "svc2", "svc3" ]
-// 	}
-// }
-type ServicesMapper map[string]map[string]sets.String
-
-// Get returns the list of services for a given namespace and pod name.
-func (m ServicesMapper) Get(namespace, podName string) ([]string, bool) {
-	if _, ok := m[namespace]; !ok {
-		return nil, false
-	}
-	if _, ok := m[namespace][podName]; !ok {
-		return nil, false
-	}
-	return m[namespace][podName].UnsortedList(), true
-}
-
-// Set updates services for a given namespace and pod name.
-func (m ServicesMapper) Set(namespace, podName string, svcs ...string) {
-	if _, ok := m[namespace]; !ok {
-		m[namespace] = make(map[string]sets.String)
-	}
-	if _, ok := m[namespace][podName]; !ok {
-		m[namespace][podName] = sets.NewString()
-	}
-	m[namespace][podName].Insert(svcs...)
-}
-
-// Delete deletes services for a given namespace.
-func (m ServicesMapper) Delete(namespace string, svcs ...string) {
-	if _, ok := m[namespace]; !ok {
-		// Nothing to delete.
-		return
-	}
-	for podName, svcSet := range m[namespace] {
-		svcSet.Delete(svcs...)
-
-		if svcSet.Len() == 0 {
-			delete(m[namespace], podName)
-		}
-	}
-	if len(m[namespace]) == 0 {
-		delete(m, namespace)
-	}
-}
-
 // ServicesForPod returns the services mapped to a given pod and namespace.
 // If nothing is found, the boolean is false. This call is thread-safe.
-func (metaBundle *MetadataMapperBundle) ServicesForPod(ns, podName string) ([]string, bool) {
+func (metaBundle *metadataMapperBundle) ServicesForPod(ns, podName string) ([]string, bool) {
 	metaBundle.m.RLock()
 	defer metaBundle.m.RUnlock()
 
