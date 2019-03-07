@@ -51,6 +51,9 @@ public:
     void setError(const std::string &msg) const; // let const methods set errors
     void setError(const char *msg) const;
 
+    // Python Helpers
+    virtual char *getIntegrationList() = 0;
+
     // aggregator API
     virtual void setSubmitMetricCb(cb_submit_metric_t) = 0;
     virtual void setSubmitServiceCheckCb(cb_submit_service_check_t) = 0;
