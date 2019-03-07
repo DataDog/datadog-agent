@@ -1,6 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// This product includes software developed at Datadog
+// (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 #include "three.h"
 
@@ -393,7 +394,8 @@ std::string Three::_fetchPythonError() const {
     PyObject *pvalue = NULL;
     PyObject *ptraceback = NULL;
 
-    // Fetch error and make sure exception values are normalized, as per python C API docs.
+    // Fetch error and make sure exception values are normalized, as per python C
+    // API docs.
     PyErr_Fetch(&ptype, &pvalue, &ptraceback);
     PyErr_NormalizeException(&ptype, &pvalue, &ptraceback);
 
@@ -418,7 +420,8 @@ std::string Three::_fetchPythonError() const {
             }
             Py_XDECREF(traceback);
         } else {
-            // If we reach this point, there was an error while formatting the exception
+            // If we reach this point, there was an error while formatting the
+            // exception
             ret_val = "can't format exception";
         }
     }

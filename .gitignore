@@ -67,3 +67,4 @@ Release/
 *.dir/
 .vs/
 x64/
+.vscode/

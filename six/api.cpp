@@ -1,6 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// This product includes software developed at Datadog
+// (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 #ifdef _WIN32
 #    include <Windows.h>
@@ -55,7 +56,6 @@ six_t *make2() {
 
     return AS_TYPE(six_t, create());
 }
-
 
 six_t *make3() {
     // load the library
