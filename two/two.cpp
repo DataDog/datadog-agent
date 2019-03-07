@@ -1,6 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// This product includes software developed at Datadog
+// (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 #include "two.h"
 
@@ -291,7 +292,8 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module) {
             symbol_name = PyString_AsString(symbol);
         }
 
-        // get symbol instance. It's a new ref but in case of success we don't DecRef since we return it and the caller
+        // get symbol instance. It's a new ref but in case of success we don't
+        // DecRef since we return it and the caller
         // will be owner
         klass = PyObject_GetAttrString(module, symbol_name);
         if (klass == NULL) {
@@ -391,7 +393,8 @@ std::string Two::_fetchPythonError() {
     PyObject *pvalue = NULL;
     PyObject *ptraceback = NULL;
 
-    // Fetch error and make sure exception values are normalized, as per python C API docs.
+    // Fetch error and make sure exception values are normalized, as per python C
+    // API docs.
     PyErr_Fetch(&ptype, &pvalue, &ptraceback);
     PyErr_NormalizeException(&ptype, &pvalue, &ptraceback);
 
@@ -414,7 +417,8 @@ std::string Two::_fetchPythonError() {
             }
             Py_XDECREF(traceback);
         } else {
-            // If we reach this point, there was an error while formatting the exception
+            // If we reach this point, there was an error while formatting the
+            // exception
             ret_val = "can't format exception";
         }
     }
