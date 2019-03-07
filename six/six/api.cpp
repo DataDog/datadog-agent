@@ -20,8 +20,8 @@
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.dylib"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dylib"
 #elif _WIN32
-#    define DATADOG_AGENT_TWO "datadog-agent-two.dll"
-#    define DATADOG_AGENT_THREE "datadog-agent-three.dll"
+#    define DATADOG_AGENT_TWO "libdatadog-agent-two.dll"
+#    define DATADOG_AGENT_THREE "libdatadog-agent-three.dll"
 #else
 #    error Platform not supported
 #endif
@@ -56,17 +56,6 @@ six_t *make2() {
     return AS_TYPE(six_t, create());
 }
 
-void destroy2(six_t *six) {
-    if (six_backend) {
-        // dlsym object destructor
-        destroy_t *destroy = (destroy_t *)GetProcAddress(six_backend, "destroy");
-        if (!destroy) {
-            std::cerr << "Unable to open 'two' destructor: " << GetLastError() << std::endl;
-            return;
-        }
-        destroy(AS_TYPE(Six, six));
-    }
-}
 
 six_t *make3() {
     // load the library
@@ -86,7 +75,7 @@ six_t *make3() {
     return AS_TYPE(six_t, create_three());
 }
 
-void destroy3(six_t *six) {
+void destroy(six_t *six) {
     if (six_backend) {
         // dlsym object destructor
         destroy_t *destroy = (destroy_t *)GetProcAddress(six_backend, "destroy");
