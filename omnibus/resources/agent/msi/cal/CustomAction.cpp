@@ -256,6 +256,9 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
         keyInstall.setStringValue(installInstalledServices.c_str(), L"true");
 
     }
+    er = addDdUserPermsToFile(data, programdataroot);
+    WcaLog(LOGMSG_STANDARD, "%d setting programdata dir perms", er);
+
     er = addDdUserPermsToFile(data, logfilename);
     WcaLog(LOGMSG_STANDARD, "%d setting log file perms", er);
     er = addDdUserPermsToFile(data, authtokenfilename);
@@ -266,9 +269,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     WcaLog(LOGMSG_STANDARD, "%d setting confd dir perms", er);
     er = addDdUserPermsToFile(data, logdir);
     WcaLog(LOGMSG_STANDARD, "%d setting log dir perms", er);
-    er = addDdUserPermsToFile(data, programdataroot);
-    WcaLog(LOGMSG_STANDARD, "%d setting programdata dir perms", er);
-
+    
     if (0 == changeRegistryAcls(data, datadog_acl_key_datadog.c_str())) {
         WcaLog(LOGMSG_STANDARD, "registry perms updated");
     }

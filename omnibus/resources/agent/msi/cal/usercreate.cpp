@@ -149,7 +149,8 @@ DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename)
     if (ERROR_SUCCESS == dwRes) {
         dwRes = acl.SetEntriesInAclW(pOldDACL, &pNewDACL);
         if(dwRes == 0) {
-            dwRes = SetNamedSecurityInfoW((LPWSTR) filename.c_str(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
+            dwRes = SetNamedSecurityInfoW((LPWSTR) filename.c_str(), SE_FILE_OBJECT, 
+            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
             NULL, NULL, pNewDACL, NULL);
         } else {
             WcaLog(LOGMSG_STANDARD, "%d setting entries in acl", dwRes);    

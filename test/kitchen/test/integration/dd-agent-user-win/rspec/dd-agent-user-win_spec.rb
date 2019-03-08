@@ -166,7 +166,7 @@ shared_examples_for 'an Agent with valid permissions' do
     # on server 2016, it doesn't have the assigned system right, only the inherited.
     # allow either
     #expected_sddl = "O:SYG:SYD:(A;;FA;;;SY)(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
-    expected_sddl = "O:SYG:SYD:AI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})(A;OICIID;FA;;;SY)(A;OICIID;FA;;;BA)(A;OICIIOID;GA;;;CO)(A;OICIID;0x1200a9;;;BU)(A;CIID;DCLCRPCR;;;BU)"
+    expected_sddl = "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
     expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog")
     equal_base = equal_sddl?(expected_sddl, actual_sddl)
@@ -179,15 +179,13 @@ shared_examples_for 'an Agent with valid permissions' do
 
     # on server 2016, it doesn't have the assigned system right, only the inherited.
     # allow either
-    #expected_sddl = "O:SYG:SYD:(A;;FA;;;SY)(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
-    expected_sddl      = "O:SYG:SYD:AI(A;;FA;;;#{dd_user_sid})(A;ID;FA;;;#{dd_user_sid})(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;0x1200a9;;;BU)"
-    expected_sddl_2008 = "O:SYG:SYD:AI(A;;FA;;;SY)(A;;FA;;;#{dd_user_sid})(A;ID;FA;;;#{dd_user_sid})(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;0x1200a9;;;BU)"
+    #expected_sddl =   "O:SYG:SYD:(A;;FA;;;SY)(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
+    expected_sddl = "O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;#{dd_user_sid})"
     expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog\\datadog.yaml")
     equal_base = equal_sddl?(expected_sddl, actual_sddl)
-    equal_2008 = equal_sddl?(expected_sddl_2008, actual_sddl)
     equal_2016 = equal_sddl?(expected_sddl_2016, actual_sddl)
-    expect(equal_base | equal_2008 | equal_2016).to be_truthy
+    expect(equal_base | equal_2016).to be_truthy
   end
   it 'has proper permissions on the conf.d directory' do
     # A,OICI;FA;;;SY = Allows Object Inheritance (OI) container inherit (CI); File All Access to LocalSystem
@@ -196,13 +194,11 @@ shared_examples_for 'an Agent with valid permissions' do
     # A,OICIID;FA;;;SY = Inherited right of OI, CI, (FA) to LocalSystem
     # A,OICIID;FA;;;dd_user_sid = explicit right assignment of OI, CI, FA to the dd-agent user, inherited from the parent
 
-    expected_sddl =      "O:SYG:SYD:AI(A;OICI;FA;;;#{dd_user_sid})(A;OICIID;FA;;;#{dd_user_sid})(A;OICIID;WD;;;BU)(A;OICIID;FA;;;BA)(A;OICIID;FA;;;SY)(A;OICIIOID;GA;;;CO)(A;OICIID;0x1200a9;;;BU)(A;CIID;DCLCRPCR;;;BU)"
-    expected_sddl_2008 = "O:SYG:SYD:AI(A;OICI;FA;;;SY)(A;OICI;FA;;;#{dd_user_sid})(A;OICIID;FA;;;#{dd_user_sid})(A;OICIID;WD;;;BU)(A;OICIID;FA;;;BA)(A;OICIID;FA;;;SY)(A;OICIIOID;GA;;;CO)(A;OICIID;0x1200a9;;;BU)(A;CIID;DCLCRPCR;;;BU)"
+    expected_sddl =      "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog\\conf.d")
 
     sddl_result = equal_sddl?(expected_sddl, actual_sddl)
-    equal_2008 = equal_sddl?(expected_sddl_2008, actual_sddl)
-    expect(sddl_result | equal_2008).to be_truthy
+    expect(sddl_result).to be_truthy
   end
 
   it 'has the proper permissions on the DataDog registry key' do
