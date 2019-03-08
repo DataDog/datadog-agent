@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -52,12 +51,11 @@ func GetHostname() (string, error) {
 
 // GetHostAlias returns the host alias from GCE
 func GetHostAlias() (string, error) {
-	instanceName, err := getResponseWithMaxLength(metadataURL+"/instance/hostname",
+	instanceName, err := getResponseWithMaxLength(metadataURL+"/instance/name",
 		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
-		return "", fmt.Errorf("unable to retrieve hostname from GCE: %s", err)
+		return "", fmt.Errorf("unable to retrieve instance name from GCE: %s", err)
 	}
-	instanceName = strings.SplitN(instanceName, ".", 2)[0]
 
 	projectID, err := getResponseWithMaxLength(metadataURL+"/project/project-id",
 		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
