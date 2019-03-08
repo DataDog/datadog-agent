@@ -2,8 +2,6 @@ package testsix
 
 import (
 	"fmt"
-	"io/ioutil"
-	"log"
 	"os"
 	"strings"
 	"testing"
@@ -16,7 +14,11 @@ func TestMain(m *testing.M) {
 		os.Exit(-1)
 	}
 
-	os.Exit(m.Run())
+	ret := m.Run()
+
+	tearDown()
+
+	os.Exit(ret)
 }
 
 func TestGetVersion(t *testing.T) {
@@ -32,17 +34,11 @@ func TestGetVersion(t *testing.T) {
 }
 
 func TestRunSimpleString(t *testing.T) {
-	tmpfile, err := ioutil.TempFile("", "testout")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer os.Remove(tmpfile.Name())
-
 	code := fmt.Sprintf(`
 with open('%s', 'w') as f:
 	f.write('Hello, World!')`, tmpfile.Name())
 
-	output, err := runString(code, tmpfile)
+	output, err := runString(code)
 
 	if err != nil {
 		t.Fatalf("`run_simple_string` error: %v", err)

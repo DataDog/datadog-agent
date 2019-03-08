@@ -12,7 +12,10 @@ import (
 	"os"
 )
 
-var six *C.six_t
+var (
+	six     *C.six_t
+	tmpfile *os.File
+)
 
 func setUp() error {
 	if _, ok := os.LookupEnv("TESTING_TWO"); ok {
@@ -27,6 +30,12 @@ func setUp() error {
 		}
 	}
 
+	var err error
+	tmpfile, err = ioutil.TempFile("", "testout")
+	if err != nil {
+		return err
+	}
+
 	// Updates sys.path so testing Check can be found
 	C.add_python_path(six, C.CString("../python"))
 
@@ -38,12 +47,17 @@ func setUp() error {
 	return nil
 }
 
+func tearDown() {
+	os.Remove(tmpfile.Name())
+}
+
 func getVersion() string {
 	ret := C.GoString(C.get_py_version(six))
 	return ret
 }
 
-func runString(code string, tmpfile *os.File) (string, error) {
+func runString(code string) (string, error) {
+	tmpfile.Truncate(0)
 	ret := C.run_simple_string(six, C.CString(code)) == 1
 	if !ret {
 		return "", fmt.Errorf("`run_simple_string` errored")
