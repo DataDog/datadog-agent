@@ -8,9 +8,8 @@ import "C"
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
-
-	common "../common"
 )
 
 var six *C.six_t
@@ -44,22 +43,13 @@ func getVersion() string {
 	return ret
 }
 
-func runString(code string) (string, error) {
-	var ret bool
-	var err error
-	var output []byte
-	output, err = common.Capture(func() {
-		ret = C.run_simple_string(six, C.CString(code)) == 1
-	})
-
-	if err != nil {
-		return "", err
-	}
-
+func runString(code string, tmpfile *os.File) (string, error) {
+	ret := C.run_simple_string(six, C.CString(code)) == 1
 	if !ret {
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
 
+	output, err := ioutil.ReadFile(tmpfile.Name())
 	return string(output), err
 }
 
