@@ -549,13 +549,7 @@ func getPotentialKubeletHosts(kubeletHost string, h *host) error {
 		log.Debugf("Got potential kubelet hosts from config, ips: %v, hostnames: %v", configIps, configHostnames)
 	}
 
-	dockerIps, dockerHostnames, err := getKubeletHostFromDocker(ctx)
-	if err != nil && kubeletHost == "" {
-		// report the error only if kubernetes_kubelet_host is not set
-		// cannot connect to kubelet in this case
-		return err
-	}
-
+	dockerIps, dockerHostnames := getKubeletHostFromDocker(ctx)
 	h.ips = append(h.ips, dockerIps...)
 	h.hostnames = append(h.hostnames, dockerHostnames...)
 	log.Debugf("Got potential kubelet hosts from docker, ips: %v, hostnames: %v", dockerIps, dockerHostnames)
@@ -602,12 +596,13 @@ func getKubeletHostFromConfig(kubeletHost string, ctx context.Context) ([]string
 	return ips, hostnames
 }
 
-func getKubeletHostFromDocker(ctx context.Context) ([]string, []string, error) {
+func getKubeletHostFromDocker(ctx context.Context) ([]string, []string) {
 	var ips []string
 	var hostnames []string
 	dockerHost, err := docker.HostnameProvider()
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to get hostname from docker, make sure to set the kubernetes_kubelet_host option: %s", err)
+		log.Warnf("unable to get hostname from docker, make sure to set the kubernetes_kubelet_host option: %s", err)
+		return ips, hostnames
 	}
 
 	log.Debugf("Trying to resolve host name %s provided by docker to ip...", dockerHost)
@@ -622,7 +617,7 @@ func getKubeletHostFromDocker(ctx context.Context) ([]string, []string, error) {
 		}
 	}
 
-	return ips, hostnames, nil
+	return ips, hostnames
 }
 
 func potentialKubeletHostsFilter(h *host) {
