@@ -8,6 +8,7 @@
 package kubelet
 
 import (
+	"context"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
@@ -702,7 +703,7 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 		}, ku.GetRawConnectionInfo())
 }
 
-func TestPotentialKubeletHostsFilter(t *testing.T) {
+func (suite *KubeletTestSuite) TestPotentialKubeletHostsFilter() {
 	for _, tc := range []struct {
 		in  host
 		out host
@@ -748,16 +749,43 @@ func TestPotentialKubeletHostsFilter(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(fmt.Sprintf(""), func(t *testing.T) {
-			potentialKubeletHostsFilter(&tc.in)
-			sort.Strings(tc.in.ips)
-			sort.Strings(tc.out.ips)
-			assert.EqualValues(t, tc.in.ips, tc.out.ips)
-			sort.Strings(tc.in.hostnames)
-			sort.Strings(tc.out.hostnames)
-			assert.EqualValues(t, tc.in.hostnames, tc.out.hostnames)
-		})
+		potentialKubeletHostsFilter(&tc.in)
+		sort.Strings(tc.in.ips)
+		sort.Strings(tc.out.ips)
+		assert.Equal(suite.T(), tc.in.ips, tc.out.ips)
+		sort.Strings(tc.in.hostnames)
+		sort.Strings(tc.out.hostnames)
+		assert.Equal(suite.T(), tc.in, tc.out)
 	}
+}
+
+func (suite *KubeletTestSuite) TestGetKubeletHostFromConfig() {
+	mockConfig := config.Mock()
+
+	// without token, without certs on HTTP
+	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
+	require.Nil(suite.T(), err)
+
+	s, kubeletPort, err := k.Start()
+	require.Nil(suite.T(), err)
+	defer s.Close()
+
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	ips, hostnames := getKubeletHostFromConfig(mockConfig.GetString("kubernetes_kubelet_host"), ctx)
+	assert.Equal(suite.T(), ips, []string{"127.0.0.1"})
+	assert.Equal(suite.T(), hostnames, []string{"localhost"})
+
+	// when kubernetes_kubelet_host is not set
+	mockConfig.Set("kubernetes_kubelet_host", "")
+	ips, hostnames = getKubeletHostFromConfig(mockConfig.GetString("kubernetes_kubelet_host"), ctx)
+	assert.Equal(suite.T(), ips, []string([]string(nil)))
+	assert.Equal(suite.T(), hostnames, []string([]string(nil)))
 }
 
 func TestKubeletTestSuite(t *testing.T) {

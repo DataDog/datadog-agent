@@ -566,6 +566,11 @@ func getPotentialKubeletHosts(kubeletHost string, h *host) error {
 func getKubeletHostFromConfig(kubeletHost string, ctx context.Context) ([]string, []string) {
 	var ips []string
 	var hostnames []string
+	if kubeletHost == "" {
+		log.Debug("kubernetes_kubelet_host is not set")
+		return ips, hostnames
+	}
+
 	log.Debugf("Trying to parse kubernetes_kubelet_host: %s", kubeletHost)
 	kubeletIp := net.ParseIP(kubeletHost)
 	if kubeletIp == nil {
@@ -655,6 +660,7 @@ func (ku *KubeUtil) setKubeletHost(h *host, httpsPort, httpPort int) error {
 
 		err = checkKubeletHTTPSConnection(ku, httpsPort)
 		if err == nil {
+			log.Infof("Can connect to kubelet using %s and HTTPS, setting up %s as kubelet host", ip, ip)
 			ku.kubeletHost = ip
 			return nil
 		}
@@ -670,6 +676,7 @@ func (ku *KubeUtil) setKubeletHost(h *host, httpsPort, httpPort int) error {
 
 		err = checkKubeletHTTPSConnection(ku, httpsPort)
 		if err == nil {
+			log.Infof("Can connect to kubelet using %s and HTTPS, setting up %s as kubelet host", hostname, hostname)
 			ku.kubeletHost = hostname
 			return nil
 		}
@@ -679,6 +686,7 @@ func (ku *KubeUtil) setKubeletHost(h *host, httpsPort, httpPort int) error {
 		log.Infof("Trying to use host %s with HTTP", ip)
 		err = checkKubeletHTTPConnection(ip, httpPort)
 		if err == nil {
+			log.Infof("Can connect to kubelet using %s and HTTP, setting up %s as kubelet host", ip, ip)
 			ku.kubeletHost = ip
 			return nil
 		}
@@ -688,6 +696,7 @@ func (ku *KubeUtil) setKubeletHost(h *host, httpsPort, httpPort int) error {
 		log.Infof("Trying to use host %s with HTTP", hostname)
 		err = checkKubeletHTTPConnection(hostname, httpPort)
 		if err == nil {
+			log.Infof("Can connect to kubelet using %s and HTTP, setting up %s as kubelet host", hostname, hostname)
 			ku.kubeletHost = hostname
 			return nil
 		}
