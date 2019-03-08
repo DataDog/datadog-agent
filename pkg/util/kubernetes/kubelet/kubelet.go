@@ -733,12 +733,15 @@ func checkKubeletHTTPSConnection(ku *KubeUtil, httpsPort int) error {
 			// err != nil
 		} else if strings.Contains(err.Error(), "x509: certificate is valid for") {
 			log.Debugf(`Invalid x509 settings, the kubelet server certificate is not valid for this subject alternative name: %s, %v, Please check the SAN of the kubelet server certificate with "openssl x509 -in ${KUBELET_CERTIFICATE} -text -noout". `, ku.kubeletHost, err)
+			return err
 
 		} else if strings.Contains(err.Error(), "x509: certificate signed by unknown authority") {
 			log.Debugf(`The kubelet server certificate is signed by unknown authority, the current cacert is %s. Is the kubelet issuing self-signed certificates? Please validate the kubelet certificate with "openssl verify -CAfile %s ${KUBELET_CERTIFICATE}" to avoid this error: %v`, ku.rawConnectionInfo["ca_cert"], ku.rawConnectionInfo["ca_cert"], err)
+			return err
 
 		} else {
-			log.Debugf("Cannot query %s on kubelet endpoint %s: %v", response.Request.URL, ku.kubeletApiEndpoint, err)
+			log.Debugf("Cannot query %s on kubelet endpoint %s: %v", kubeletPodPath, ku.kubeletApiEndpoint, err)
+			return err
 		}
 	} else {
 		log.Debugf("Cannot use the HTTPS endpoint: %s, trying through HTTP", ku.kubeletApiEndpoint)
