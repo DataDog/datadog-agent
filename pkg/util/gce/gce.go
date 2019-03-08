@@ -62,6 +62,15 @@ func GetHostAlias() (string, error) {
 	return fmt.Sprintf("%s.%s", instanceName, projectID), nil
 }
 
+// GetClusterName returns the name of the cluster containing the current GCE instance
+func GetClusterName() (string, error) {
+	clusterName, err := getResponse(metadataURL + "/instance/attributes/cluster-name")
+	if err != nil {
+		return "", fmt.Errorf("unable to retrieve clustername from GCE: %s", err)
+	}
+	return clusterName, nil
+}
+
 func getResponse(url string) (string, error) {
 	client := http.Client{
 		Timeout: timeout,

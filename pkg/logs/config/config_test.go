@@ -25,7 +25,6 @@ func (suite *ConfigTestSuite) SetupTest() {
 func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
 	suite.Equal(false, suite.config.GetBool("log_enabled"))
 	suite.Equal(false, suite.config.GetBool("logs_enabled"))
-	suite.Equal("", suite.config.GetString("logset"))
 	suite.Equal("", suite.config.GetString("logs_config.dd_url"))
 	suite.Equal(10516, suite.config.GetInt("logs_config.dd_port"))
 	suite.Equal(false, suite.config.GetBool("logs_config.dev_mode_no_ssl"))

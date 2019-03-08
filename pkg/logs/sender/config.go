@@ -36,7 +36,6 @@ func BuildEndpoints() (*client.Endpoints, error) {
 
 	main := client.Endpoint{
 		APIKey:       config.Datadog.GetString("api_key"),
-		Logset:       config.Datadog.GetString("logset"),
 		UseProto:     useProto,
 		ProxyAddress: proxyAddress,
 	}

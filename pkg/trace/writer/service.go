@@ -74,7 +74,7 @@ func (w *ServiceWriter) Run() {
 			switch event.typ {
 			case eventTypeSuccess:
 				url := event.stats.host
-				log.Infof("flushed service payload; url:%s, time:%s, size:%d bytes", url, event.stats.sendTime,
+				log.Debugf("flushed service payload; url:%s, time:%s, size:%d bytes", url, event.stats.sendTime,
 					len(event.payload.bytes))
 				tags := []string{"url:" + url}
 				metrics.Gauge("datadog.trace_agent.service_writer.flush_duration",

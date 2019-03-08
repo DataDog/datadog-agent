@@ -206,7 +206,9 @@ def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix
             version = "{0}.git.{1}.{2}".format(version, commits_since_version,git_sha)
         else:
             version = "{0}+git.{1}.{2}".format(version, commits_since_version,git_sha)
-    return version
+
+    # version could be unicode as it comes from `query_version`
+    return str(version)
 
 def get_version_numeric_only(ctx):
     version, _, _, _ = query_version(ctx)

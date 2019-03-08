@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/api/types"
+	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/namespaces"
 )
 
@@ -32,10 +34,13 @@ var (
 
 // ContainerdItf is the interface implementing a subset of methods that leverage the Containerd api.
 type ContainerdItf interface {
-	GetEvents() containerd.EventService
 	Containers() ([]containerd.Container, error)
+	GetEvents() containerd.EventService
+	Info(ctn containerd.Container) (containers.Container, error)
+	ImageSize(ctn containerd.Container) (int64, error)
 	Metadata() (containerd.Version, error)
 	Namespace() string
+	TaskMetrics(ctn containerd.Container) (*types.Metric, error)
 }
 
 // ContainerdUtil is the util used to interact with the Containerd api.
@@ -52,7 +57,6 @@ type ContainerdUtil struct {
 // Errors are handled in the retrier.
 func GetContainerdUtil() (ContainerdItf, error) {
 	once.Do(func() {
-
 		globalContainerdUtil = &ContainerdUtil{
 			queryTimeout:      config.Datadog.GetDuration("cri_query_timeout") * time.Second,
 			connectionTimeout: config.Datadog.GetDuration("cri_connection_timeout") * time.Second,
@@ -133,4 +137,40 @@ func (c *ContainerdUtil) Containers() ([]containerd.Container, error) {
 	defer cancel()
 	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
 	return c.cl.Containers(ctxNamespace)
+}
+
+// ImageSize interfaces with the containerd api to get the size of an image
+func (c *ContainerdUtil) ImageSize(ctn containerd.Container) (int64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
+
+	img, err := ctn.Image(ctxNamespace)
+	if err != nil {
+		return 0, err
+	}
+	return img.Size(ctxNamespace)
+}
+
+// Info interfaces with the containerd api to get Container info
+func (c *ContainerdUtil) Info(ctn containerd.Container) (containers.Container, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
+
+	return ctn.Info(ctxNamespace)
+}
+
+// TaskMetrics interfaces with the containerd api to get the metrics from a container
+func (c *ContainerdUtil) TaskMetrics(ctn containerd.Container) (*types.Metric, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
+
+	t, errTask := ctn.Task(ctxNamespace, nil)
+	if errTask != nil {
+		return nil, errTask
+	}
+
+	return t.Metrics(ctxNamespace)
 }

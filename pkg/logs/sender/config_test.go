@@ -67,14 +67,12 @@ func (suite *ConfigTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndValid
 	var endpoint client.Endpoint
 
 	suite.config.Set("api_key", "azerty")
-	suite.config.Set("logset", "baz")
 	suite.config.Set("logs_config.socks5_proxy_address", "boz:1234")
 
 	endpoints, err = BuildEndpoints()
 	suite.Nil(err)
 	endpoint = endpoints.Main
 	suite.Equal("azerty", endpoint.APIKey)
-	suite.Equal("baz", endpoint.Logset)
 	suite.Equal("agent-intake.logs.datadoghq.com", endpoint.Host)
 	suite.Equal(10516, endpoint.Port)
 	suite.True(endpoint.UseSSL)
@@ -86,7 +84,6 @@ func (suite *ConfigTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndValid
 	suite.Nil(err)
 	endpoint = endpoints.Main
 	suite.Equal("azerty", endpoint.APIKey)
-	suite.Equal("baz", endpoint.Logset)
 	suite.Equal("agent-443-intake.logs.datadoghq.com", endpoint.Host)
 	suite.Equal(443, endpoint.Port)
 	suite.True(endpoint.UseSSL)
@@ -99,7 +96,6 @@ func (suite *ConfigTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndValid
 	suite.Nil(err)
 	endpoint = endpoints.Main
 	suite.Equal("azerty", endpoint.APIKey)
-	suite.Equal("baz", endpoint.Logset)
 	suite.Equal("host", endpoint.Host)
 	suite.Equal(1234, endpoint.Port)
 	suite.False(endpoint.UseSSL)
@@ -112,7 +108,6 @@ func (suite *ConfigTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndValid
 	suite.Nil(err)
 	endpoint = endpoints.Main
 	suite.Equal("azerty", endpoint.APIKey)
-	suite.Equal("baz", endpoint.Logset)
 	suite.Equal("", endpoint.Host)
 	suite.Equal(1234, endpoint.Port)
 	suite.True(endpoint.UseSSL)

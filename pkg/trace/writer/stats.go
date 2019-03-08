@@ -262,7 +262,7 @@ func (w *StatsWriter) monitor() {
 			switch e.typ {
 			case eventTypeSuccess:
 				url := e.stats.host
-				log.Infof("flushed stat payload; url: %s, time:%s, size:%d bytes", url, e.stats.sendTime,
+				log.Debugf("flushed stat payload; url: %s, time:%s, size:%d bytes", url, e.stats.sendTime,
 					len(e.payload.bytes))
 				tags := []string{"url:" + url}
 				metrics.Gauge("datadog.trace_agent.stats_writer.flush_duration",

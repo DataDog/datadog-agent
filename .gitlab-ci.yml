@@ -795,9 +795,6 @@ testkitchen_cleanup_azure:
 #
 # image_build
 #
-# docker build must run with DOCKER_CONTENT_TRUST to
-# enable signature check of the base images
-#
 
 .docker_build_job_definition: &docker_build_job_definition
   stage: image_build
@@ -809,8 +806,15 @@ testkitchen_cleanup_azure:
     - aws s3 sync --only-show-errors "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID" $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
-    - DOCKER_CONTENT_TRUST=1 docker build $BUILD_ARG --pull --tag $IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX $BUILD_CONTEXT
-    - docker push $IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
+    - TARGET_TAG=$IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
+    # Pull base image(s) with content trust enabled
+    - pip install -r requirements.txt
+    - inv -e docker.pull-base-images --signed-pull $BUILD_CONTEXT/Dockerfile
+    # Build testing stage if provided
+    - test "$TESTING_ARG" &&  docker build $TESTING_ARG $BUILD_CONTEXT
+    # Build release stage and push to ECR
+    - docker build $BUILD_ARG --pull --tag $TARGET_TAG $BUILD_CONTEXT
+    - docker push $TARGET_TAG
 
 # build the agent6 image
 build_agent6:
@@ -818,6 +822,8 @@ build_agent6:
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
+    BUILD_ARG: --target release
+    TESTING_ARG:  --target testing
 
 # build the agent6 jmx image
 build_agent6_jmx:
@@ -826,7 +832,8 @@ build_agent6_jmx:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -jmx
-    BUILD_ARG: --build-arg WITH_JMX=true
+    BUILD_ARG: --target release --build-arg WITH_JMX=true
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true
 
 # build the cluster-agent image
 build_cluster_agent:

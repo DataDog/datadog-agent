@@ -67,6 +67,9 @@ apm_config:
 #   # Maximum number of traces per second to sample.
 #   max_traces_per_second: 10
 # 
+#   # Maximum number of APM events per second to sample.
+#   max_events_per_second: 200
+#
 #   # Traces having a root span with this resource will be filtered out.
 #   ignore_resources:
 #     - secret/resource

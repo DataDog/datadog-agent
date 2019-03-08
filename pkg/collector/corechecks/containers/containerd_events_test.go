@@ -15,8 +15,10 @@ import (
 
 	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/api/events"
+	"github.com/containerd/containerd/api/types"
+	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/events"
-	"github.com/gogo/protobuf/types"
+	prototypes "github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -24,10 +26,25 @@ import (
 )
 
 type mockItf struct {
-	mockEvents    func() containerd.EventService
-	mockContainer func() ([]containerd.Container, error)
-	mockMetadata  func() (containerd.Version, error)
-	mockNamespace func() string
+	mockEvents      func() containerd.EventService
+	mockContainer   func() ([]containerd.Container, error)
+	mockMetadata    func() (containerd.Version, error)
+	mockImageSize   func(ctn containerd.Container) (int64, error)
+	mockTaskMetrics func(ctn containerd.Container) (*types.Metric, error)
+	mockInfo        func(ctn containerd.Container) (containers.Container, error)
+	mockNamespace   func() string
+}
+
+func (m *mockItf) ImageSize(ctn containerd.Container) (int64, error) {
+	return m.mockImageSize(ctn)
+}
+
+func (m *mockItf) Info(ctn containerd.Container) (containers.Container, error) {
+	return m.mockInfo(ctn)
+}
+
+func (m *mockItf) TaskMetrics(ctn containerd.Container) (*types.Metric, error) {
+	return m.mockTaskMetrics(ctn)
 }
 
 func (m *mockItf) Metadata() (containerd.Version, error) {
@@ -83,7 +100,7 @@ func TestCheckEvents(t *testing.T) {
 	en := events.Envelope{
 		Timestamp: time.Now(),
 		Topic:     "/tasks/paused",
-		Event: &types.Any{
+		Event: &prototypes.Any{
 			Value: vp,
 		},
 	}
@@ -140,7 +157,7 @@ func TestCheckEvents(t *testing.T) {
 	ek := events.Envelope{
 		Timestamp: time.Now(),
 		Topic:     "/tasks/oom",
-		Event: &types.Any{
+		Event: &prototypes.Any{
 			Value: vk,
 		},
 	}
@@ -154,7 +171,7 @@ func TestCheckEvents(t *testing.T) {
 	evnd := events.Envelope{
 		Timestamp: time.Now(),
 		Topic:     "/namespaces/delete",
-		Event: &types.Any{
+		Event: &prototypes.Any{
 			Value: vnd,
 		},
 	}
