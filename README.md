@@ -20,7 +20,7 @@ and development, is located under [the docs directory](docs) of the present repo
 
 To build the Agent you need:
  * [Go](https://golang.org/doc/install) 1.11.5 or later.
- * Python 2.7 along with development libraries.
+ * Python 2.7+ along with development libraries.
  * Python dependencies. You may install these with `pip install -r requirements.txt`
    This will also pull in [Invoke](http://www.pyinvoke.org) if not yet installed.
 
