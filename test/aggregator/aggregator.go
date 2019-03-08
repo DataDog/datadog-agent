@@ -106,8 +106,7 @@ except Exception as e:
 		f.write("{}\n".format(e))
 `, call, tmpfile.Name()))
 
-	var ret bool
-	ret = C.run_simple_string(six, code) == 1
+	ret := C.run_simple_string(six, code) == 1
 	if !ret {
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
