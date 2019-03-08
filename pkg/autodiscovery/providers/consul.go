@@ -251,7 +251,7 @@ func (p *ConsulConfigProvider) getCheckNames(key string) ([]string, error) {
 	return checks, err
 }
 
-func (p *ConsulConfigProvider) getJSONValue(key string) ([]integration.Data, error) {
+func (p *ConsulConfigProvider) getJSONValue(key string) ([][]integration.Data, error) {
 	rawValue, err := p.getValue(key)
 	if err != nil {
 		err := fmt.Errorf("Couldn't get key %s from consul: %s", key, err)
