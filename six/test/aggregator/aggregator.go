@@ -2,10 +2,10 @@ package testaggregator
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
 	"unsafe"
-
-	common "../common"
 )
 
 // #cgo CFLAGS: -I../../include
@@ -91,34 +91,29 @@ func setUp() error {
 
 func run(call string) (string, error) {
 	resetOuputValues()
+	tmpfile, err := ioutil.TempFile("", "testout")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
 
 	code := C.CString(fmt.Sprintf(`
 try:
-	import sys
 	import aggregator
 	%s
 except Exception as e:
-	sys.stderr.write("{}\n".format(e))
-	sys.stderr.flush()
-`, call))
+	with open('%s', 'w') as f:
+		f.write("{}\n".format(e))
+`, call, tmpfile.Name()))
 
-	var (
-		err    error
-		ret    bool
-		output []byte
-	)
-
-	output, err = common.Capture(func() {
-		ret = C.run_simple_string(six, code) == 1
-	})
-
-	if err != nil {
-		return "", err
-	}
-
+	var ret bool
+	ret = C.run_simple_string(six, code) == 1
 	if !ret {
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
+
+	var output []byte
+	output, err = ioutil.ReadFile(tmpfile.Name())
 
 	return string(output), err
 }
