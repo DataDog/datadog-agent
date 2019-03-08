@@ -13,14 +13,17 @@ func TestMain(m *testing.M) {
 		os.Exit(-1)
 	}
 
-	os.Exit(m.Run())
+	ret := m.Run()
+	tearDown()
+
+	os.Exit(ret)
 }
 
 func TestGetVersion(t *testing.T) {
-	code := `
-	sys.stderr.write(datadog_agent.get_version())
-	sys.stderr.flush()
-	`
+	code := fmt.Sprintf(`
+	with open('%s', 'w') as f:
+		f.write(datadog_agent.get_version())
+	`, tmpfile.Name())
 	out, err := run(code)
 	if err != nil {
 		t.Fatal(err)
@@ -31,11 +34,11 @@ func TestGetVersion(t *testing.T) {
 }
 
 func TestGetConfig(t *testing.T) {
-	code := `
+	code := fmt.Sprintf(`
 	d = datadog_agent.get_config("foo")
-	sys.stderr.write("{}:{}:{}".format(d.get('name'), d.get('body'), d.get('time')))
-	sys.stderr.flush()
-	`
+	with open('%s', 'w') as f:
+		f.write("{}:{}:{}".format(d.get('name'), d.get('body'), d.get('time')))
+	`, tmpfile.Name())
 	out, err := run(code)
 	if err != nil {
 		t.Fatal(err)
@@ -46,11 +49,11 @@ func TestGetConfig(t *testing.T) {
 }
 
 func TestHeaders(t *testing.T) {
-	code := `
+	code := fmt.Sprintf(`
 	d = datadog_agent.headers(http_host="myhost", ignore_me="snafu")
-	sys.stderr.write(",".join(sorted(d.keys())))
-	sys.stderr.flush()
-	`
+	with open('%s', 'w') as f:
+		f.write(",".join(sorted(d.keys())))
+	`, tmpfile.Name())
 	out, err := run(code)
 	if err != nil {
 		t.Fatal(err)
@@ -61,10 +64,10 @@ func TestHeaders(t *testing.T) {
 }
 
 func TestGetHostname(t *testing.T) {
-	code := `
-	sys.stderr.write(datadog_agent.get_hostname())
-	sys.stderr.flush()
-	`
+	code := fmt.Sprintf(`
+	with open('%s', 'w') as f:
+		f.write(datadog_agent.get_hostname())
+	`, tmpfile.Name())
 	out, err := run(code)
 	if err != nil {
 		t.Fatal(err)
@@ -75,10 +78,11 @@ func TestGetHostname(t *testing.T) {
 }
 
 func TestGetClustername(t *testing.T) {
-	code := `
-	sys.stderr.write(datadog_agent.get_clustername())
-	sys.stderr.flush()
-	`
+	code := fmt.Sprintf(`
+	with open('%s', 'w') as f:
+		f.write(datadog_agent.get_clustername())
+	`, tmpfile.Name())
+
 	out, err := run(code)
 	if err != nil {
 		t.Fatal(err)
