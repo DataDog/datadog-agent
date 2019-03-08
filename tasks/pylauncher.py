@@ -11,7 +11,7 @@ from .utils import REPO_PATH, bin_name, get_root
 
 
 #constants
-PYLAUNCHER_BIN_PATH = os.path.join(get_root(), "bin", "pylauncher")
+PYLAUNCHER_BIN_PATH = os.path.join(get_root().decode('utf-8'), "bin", "pylauncher")
 
 @task
 def build(ctx, rebuild=False):
