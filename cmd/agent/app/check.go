@@ -276,8 +276,8 @@ func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 	return aggData
 }
 func printWindowsUserWarning(op string) {
-	fmt.Printf("\n")
-	color.Yellow("The %s command runs in a different user context than the running service\n", op)
-	color.Yellow("This could affect the results of, if the command relies on specific permissions and/or user context\n")
+	fmt.Printf("\nNOTE:\n")
+	fmt.Printf("The %s command runs in a different user context than the running service\n", op)
+	fmt.Printf("This could affect the results of, if the command relies on specific permissions and/or user context\n")
 	fmt.Printf("\n")
 }

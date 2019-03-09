@@ -1,30 +1,5 @@
 #include "stdafx.h"
 
-
-
-
-/* define _NO_SECRET_USER_RIGHTS_REMOVAL to test with the datadog_secretuser
-   retaining interactive, network, remote login rights
-   */
-//#define _NO_SECRET_USER_RIGHTS_REMOVAL
-
-/* define _NO_DD_USER_RIGHTS_REMOVAL to test with the ddagentuser
-   retaining interactive, network, remote login rights
-   */
-//#define _NO_DD_USER_RIGHTS_REMOVAL
-
-#ifdef CA_CMD_TEST
-#define LOGMSG_STANDARD 0
-void WcaLog(int type, const char * fmt...)
-{
-    va_list args;
-    va_start(args, fmt);
-    vprintf(fmt, args);
-    va_end(args);
-    printf("\n");
-}
-#else
-
 extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     HRESULT hr = S_OK;
     UINT er = ERROR_SUCCESS;
@@ -540,5 +515,5 @@ extern "C" BOOL WINAPI DllMain(
 
     return TRUE;
 }
-#endif // CA_CMD_TEST
+
 
