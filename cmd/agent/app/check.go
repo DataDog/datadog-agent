@@ -171,15 +171,16 @@ var checkCmd = &cobra.Command{
 			}
 		}
 
+		if runtime.GOOS == "windows" {
+			printWindowsUserWarning("check")
+		}
+
 		if formatJSON {
 			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("JSON")))
 			instancesJSON, _ := json.MarshalIndent(instancesData, "", "  ")
 			fmt.Println(string(instancesJSON))
 		} else if checkRate == false && checkTimes < 2 {
 			color.Yellow("Check has run only once, if some metrics are missing you can try again with --check-rate to see any other metric if available.")
-		}
-		if runtime.GOOS == "windows" {
-			printWindowsUserWarning("check")
 		}
 
 		return nil
