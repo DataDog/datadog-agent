@@ -749,7 +749,7 @@ func (suite *KubeletTestSuite) TestPotentialKubeletHostsFilter() {
 			},
 		},
 	} {
-		potentialKubeletHostsFilter(&tc.in)
+		dedupeConnectionInfo(&tc.in)
 		sort.Strings(tc.in.ips)
 		sort.Strings(tc.out.ips)
 		assert.Equal(suite.T(), tc.in.ips, tc.out.ips)

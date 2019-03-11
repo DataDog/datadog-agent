@@ -515,7 +515,7 @@ func (ku *KubeUtil) init() error {
 
 	potentialHosts := getPotentialKubeletHosts(kubeletHost)
 
-	potentialKubeletHostsFilter(potentialHosts)
+	dedupeConnectionInfo(potentialHosts)
 
 	err = ku.setKubeletHost(potentialHosts, kubeletHttpsPort, kubeletHttpPort)
 	if err != nil {
@@ -618,7 +618,7 @@ func getKubeletHostFromDocker(ctx context.Context) ([]string, []string) {
 	return ips, hostnames
 }
 
-func potentialKubeletHostsFilter(hosts *connectionInfo) {
+func dedupeConnectionInfo(hosts *connectionInfo) {
 	ipsKeys := make(map[string]bool)
 	ips := []string{}
 	for _, ip := range hosts.ips {
