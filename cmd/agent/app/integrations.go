@@ -391,9 +391,6 @@ func downloadWheel(integration, version string) (string, error) {
 		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", verbose)))
 	}
 	downloaderCmd := exec.Command(pyPath, args...)
-	// Change the working directory to one the Datadog Agent can read, so that we
-	// can switch to temporary working directories, and back, for in-toto.
-	downloaderCmd.Dir, _ = executable.Folder()
 	downloaderCmd.Env = os.Environ()
 
 	// Proxy support
