@@ -184,7 +184,7 @@ func (z *ZookeeperConfigProvider) getTemplates(key string) []integration.Config 
 	return buildTemplates(key, checkNames, initConfigs, instances)
 }
 
-func (z *ZookeeperConfigProvider) getJSONValue(key string) ([]integration.Data, error) {
+func (z *ZookeeperConfigProvider) getJSONValue(key string) ([][]integration.Data, error) {
 	rawValue, _, err := z.client.Get(key)
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't get key '%s' from zookeeper: %s", key, err)

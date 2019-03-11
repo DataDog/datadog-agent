@@ -1,5 +1,33 @@
 # Setting up your development environment
 
+## Python
+
+The Agent embeds a full-fledged CPython interpreter so it requires the development
+files to be available in the dev env.
+
+If you're on OSX/macOS, installing Python 2.7 with [Homebrew](https://brew.sh) will
+bring along all the development files needed:
+```
+brew install python@2
+```
+
+On Linux, depending on the distribution, you might need to explicitly install
+the development files, for example on Ubuntu:
+```
+sudo apt-get install python2.7-dev
+```
+
+On Windows, install Python 2.7 via the [official installer](https://www.python.org/downloads/).
+
+### Additional Windows Tools
+You will also need the Visual Studio for [Visual Studio for Python installer](http://aka.ms/vcpython27)
+
+Download the [gcc toolchain](http://win-builds.org/). 
+- From the graphical package manager, select and install the needed libraries, leave the default (select all) if you're unsure.  
+- Make sure to select x86_64. 
+- Add installation folder to the %PATH%.
+
+
 ## Invoke + Python Dependencies
 
 [Invoke](http://www.pyinvoke.org/) is a task runner written in Python
@@ -104,25 +132,6 @@ boolean flag value to _false_, either exporting the env var `INVOKE_USE_SYSTEM_L
 changing the `invoke.yaml` file or passing the corresponding arg to the build and
 test tasks, like `invoke build --use-system-libs=false`.
 
-### Python
-
-The Agent embeds a full-fledged CPython interpreter so it requires the development
-files to be available in the dev env.
-
-If you're on OSX/macOS, installing Python 2.7 with [Homebrew](https://brew.sh) will
-bring along all the development files needed:
-```
-brew install python@2
-```
-
-On Windows, the [official installer](https://www.python.org/downloads/) will
-provide all the files needed.
-
-On Linux, depending on the distribution, you might need to explicitly install
-the development files, for example on Ubuntu:
-```
-sudo apt-get install python2.7-dev
-```
 
 ### SNMP (Simple Network Management Protocol)
 

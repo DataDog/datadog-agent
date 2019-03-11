@@ -6,9 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+enhancements:
   - |
-    You can add extra listeners and config providers via the ``DD_EXTRA_LISTENERS`` and
-    ``DD_EXTRA_CONFIG_PROVIDERS`` environment variables. They will be added on top of the
-    ones defined in the ``listeners`` and ``config_providers`` section of the datadog.yaml
-    configuration file.
+    The import command doesn't stop anymore when there is no ``conf.d`` or
+    ``auto_conf`` directory.

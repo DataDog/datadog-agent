@@ -109,7 +109,7 @@ Please note that the `docker.containers.running`, `.stopped`, `.running.total` a
 
 ### Additional Autodiscovery sources
 
-You can add extra listeners and config providers via the `DD_EXTRA_LISTENERS` and `DD_EXTRA_CONFIG_PROVIDERS` enviroment variables. They will be added on top of the ones defined in the `listeners` and `config_providers` section of the datadog.yaml configuration file.
+You can add extra listeners and config providers via the `DD_EXTRA_LISTENERS` and `DD_EXTRA_CONFIG_PROVIDERS` environment variables. They will be added on top of the ones defined in the `listeners` and `config_providers` section of the datadog.yaml configuration file.
 
 ### Datadog Cluster Agent
 
@@ -313,7 +313,7 @@ The commands related to log collection are the following:
 * `-e DD_AC_EXCLUDE="name:datadog-agent"`: to prevent the Datadog Agent from collecting and sending its own logs. Remove this parameter if you want to collect the Datadog Agent logs.
 
 **Important notes**: Integration Pipelines and Processors will not be installed automatically, as the source and service are set to the `docker` generic value.
-The source and service values can be overriden thanks to Autodiscovery as described below; it automatically installs integration Pipelines that parse your logs and extract all the relevant information from them.
+The source and service values can be overridden thanks to Autodiscovery as described below; it automatically installs integration Pipelines that parse your logs and extract all the relevant information from them.
 
 ### Activate Log Integrations
 
