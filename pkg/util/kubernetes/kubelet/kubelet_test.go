@@ -20,6 +20,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -539,8 +540,8 @@ func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
 
 	ku := newKubeUtil()
 	err = ku.init()
-	expectedErr := fmt.Errorf("could not read token from %s: open %s: no such file or directory", fakePath, fakePath)
-	assert.Equal(suite.T(), expectedErr, err, fmt.Sprintf("%v", err))
+	expectedErrMsg := "cannot set a valid kubelet host: cannot connect to kubelet using any of the given hosts:"
+	assert.True(suite.T(), strings.Contains(fmt.Sprintf("%v", err), expectedErrMsg))
 	assert.Equal(suite.T(), 0, len(ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
 }
 
@@ -705,45 +706,45 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 
 func (suite *KubeletTestSuite) TestPotentialKubeletHostsFilter() {
 	for _, tc := range []struct {
-		in  host
-		out host
+		in  connectionInfo
+		out connectionInfo
 	}{
 		{
-			in: host{
+			in: connectionInfo{
 				ips:       []string{"127.0.0.1"},
 				hostnames: []string{"localhost"},
 			},
-			out: host{
+			out: connectionInfo{
 				ips:       []string{"127.0.0.1"},
 				hostnames: []string{"localhost"},
 			},
 		},
 		{
-			in: host{
+			in: connectionInfo{
 				ips:       []string{"127.0.0.1", "127.0.0.1"},
 				hostnames: []string{"localhost"},
 			},
-			out: host{
+			out: connectionInfo{
 				ips:       []string{"127.0.0.1"},
 				hostnames: []string{"localhost"},
 			},
 		},
 		{
-			in: host{
+			in: connectionInfo{
 				ips:       []string{"127.0.0.1"},
 				hostnames: []string{"localhost", "localhost"},
 			},
-			out: host{
+			out: connectionInfo{
 				ips:       []string{"127.0.0.1"},
 				hostnames: []string{"localhost"},
 			},
 		},
 		{
-			in: host{
+			in: connectionInfo{
 				ips:       []string{"127.0.0.1", "127.0.0.1", "127.0.1.1", "127.1.0.1", "127.0.1.1"},
 				hostnames: []string{"localhost", "host", "localhost", "host1", "host1"},
 			},
-			out: host{
+			out: connectionInfo{
 				ips:       []string{"127.0.0.1", "127.1.0.1", "127.0.1.1"},
 				hostnames: []string{"localhost", "host", "host1"},
 			},

@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Resolve once the DNS name gave by docker and try the associated IP to reach the kubelet
+    
