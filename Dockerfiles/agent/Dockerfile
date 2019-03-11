@@ -90,9 +90,12 @@ COPY entrypoint /etc/cont-init.d/
 COPY probe.sh initlog.sh secrets-helper/readsecret.py /
 
 # Extract s6-overlay
-# Buster used to have /bin/ symlinked to /usr/bin, which broke
-# the tar invocation, see #1591 for the changes we made then
-# Is is now back to a dedicated folder
+#
+# This step is dependant on the distribution's filesystem layout:
+# - When Buster moved to merged-usr (/bin/ as a symlink to /usr/bin),
+#   we had to change the extraction logic, see #1591
+# - The debian image is now built with merged-usr explicitly disabled,
+#   see https://github.com/debuerreotype/debuerreotype/pull/50
 RUN tar xzf s6.tgz \
  && rm s6.tgz \
 # Prepare for running without root
