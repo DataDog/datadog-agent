@@ -43,14 +43,14 @@ six_t *make2() {
     // load library
     six_backend = LoadLibraryA(DATADOG_AGENT_TWO);
     if (!six_backend) {
-        std::cerr << "Unable to open 'two' library: " << GetLastError() << std::endl;
+        std::cerr << "Unable to open 'two' library LLA: " << GetLastError() << std::endl;
         return 0;
     }
 
     // dlsym class factory
     create_t *create = (create_t *)GetProcAddress(six_backend, "create");
     if (!create) {
-        std::cerr << "Unable to open 'two' factory: " << GetLastError() << std::endl;
+        std::cerr << "Unable to open 'two' factory GPA: " << GetLastError() << std::endl;
         return 0;
     }
 
@@ -97,7 +97,7 @@ six_t *make2() {
     // load library
     six_backend = dlopen(DATADOG_AGENT_TWO, RTLD_LAZY | RTLD_GLOBAL);
     if (!six_backend) {
-        std::cerr << "Unable to open 'two' library: " << dlerror() << std::endl;
+        std::cerr << " 'two' library: " << dlerror() << std::endl;
         return NULL;
     }
 

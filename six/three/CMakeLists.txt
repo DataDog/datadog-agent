@@ -5,9 +5,9 @@ project(datadog-agent-three VERSION 0.1.0 DESCRIPTION "CPython backend for the D
 
 if(WIN32)
   if(MSVC)
-
     # explicitly set the compiler flags to use the static C runtime (/MT(d) instead of the DLL
     # c runtime (/MD(d) so that we don't have to worry about redistributing the CRT).
+
     foreach(flag_var
             CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
             CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
@@ -15,16 +15,15 @@ if(WIN32)
         string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
     endif(${flag_var} MATCHES "/MD")
     endforeach(flag_var)
-  else() # assume gnuC on windows
-    set(CMAKE_C_FLAGS "-D_hypot=hypot -DMS_WIN64")
-    set(CMAKE_CXX_FLAGS "-D_hypot=hypot -DMS_WIN64")
-    if(Python3_STDLIB)
-        string(REPLACE "\\" "\\\\" Python3_STDLIB ${Python3_STDLIB})
-    endif()
+  else()
+     #assume that it's the gnu generator
+     set(CMAKE_C_FLAGS "-D_hypot=hypot")
+     set(CMAKE_CXX_FLAGS "-D_hypot=hypot")
   endif()
 endif()
 
 include(GNUInstallDirs)
+string(REPLACE "\\" "\\\\" Python3_STDLIB $Python3_STDLIB)
 configure_file(constants.h.in constants.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_library(datadog-agent-three SHARED
@@ -32,6 +31,7 @@ add_library(datadog-agent-three SHARED
     ../common/sixstrings.c
     ../common/aggregator.c
     ../common/datadog_agent.c
+    ../common/util.c
 )
 
 if(WIN32)
