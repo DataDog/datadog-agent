@@ -1,7 +1,7 @@
 package testsix
 
 // #cgo CFLAGS: -I../../include
-// #cgo LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
+// #cgo LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl -lstdc++
 // #include <datadog_agent_six.h>
 //
 import "C"
@@ -31,7 +31,7 @@ func setUp() error {
 	// Updates sys.path so testing Check can be found
 	C.add_python_path(six, C.CString("../python"))
 
-	ok := C.init(six, nil)
+	ok := C.init(six, C.CString("c:\\python27amd64"))
 	if ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(six)))
 	}
