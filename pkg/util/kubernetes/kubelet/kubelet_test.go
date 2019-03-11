@@ -20,7 +20,6 @@ import (
 	"os"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -540,8 +539,8 @@ func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
 
 	ku := newKubeUtil()
 	err = ku.init()
-	expectedErrMsg := "cannot set a valid kubelet host: cannot connect to kubelet using any of the given hosts:"
-	assert.True(suite.T(), strings.Contains(fmt.Sprintf("%v", err), expectedErrMsg))
+	expectedErr := fmt.Errorf("could not read token from %s: open %s: no such file or directory", fakePath, fakePath)
+	assert.Contains(suite.T(), err.Error(), expectedErr.Error())
 	assert.Equal(suite.T(), 0, len(ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
 }
 

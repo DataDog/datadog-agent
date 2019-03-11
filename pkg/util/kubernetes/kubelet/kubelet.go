@@ -644,68 +644,82 @@ func potentialKubeletHostsFilter(hosts *connectionInfo) {
 // setKubeletHost select a kubelet host from potential kubelet hosts
 // the method check HTTPS connections first and prioritize ips over hostnames
 func (ku *KubeUtil) setKubeletHost(hosts *connectionInfo, httpsPort, httpPort int) error {
-	kubeletHost, err := selectFromPotentialHostsHTTPS(ku, hosts.ips, httpsPort)
-	if kubeletHost != "" && err == nil {
+	var connectionErrors []error
+	kubeletHost, errors := selectFromPotentialHostsHTTPS(ku, hosts.ips, httpsPort)
+	if kubeletHost != "" && errors == nil {
 		log.Infof("%s is set as kubelet host", kubeletHost)
 		return nil
+	} else {
+		connectionErrors = append(connectionErrors, errors...)
 	}
 
-	kubeletHost, err = selectFromPotentialHostsHTTPS(ku, hosts.hostnames, httpsPort)
-	if kubeletHost != "" && err == nil {
+	kubeletHost, errors = selectFromPotentialHostsHTTPS(ku, hosts.hostnames, httpsPort)
+	if kubeletHost != "" && errors == nil {
 		log.Infof("%s is set as kubelet host", kubeletHost)
 		return nil
+	} else {
+		connectionErrors = append(connectionErrors, errors...)
 	}
 
-	kubeletHost, err = selectFromPotentialHostsHTTP(hosts.ips, httpPort)
-	if kubeletHost != "" && err == nil {
+	kubeletHost, errors = selectFromPotentialHostsHTTP(hosts.ips, httpPort)
+	if kubeletHost != "" && errors == nil {
 		ku.kubeletHost = kubeletHost
 		log.Infof("%s is set as kubelet host", kubeletHost)
 		return nil
+	} else {
+		connectionErrors = append(connectionErrors, errors...)
 	}
 
-	kubeletHost, err = selectFromPotentialHostsHTTP(hosts.hostnames, httpPort)
-	if kubeletHost != "" && err == nil {
+	kubeletHost, errors = selectFromPotentialHostsHTTP(hosts.hostnames, httpPort)
+	if kubeletHost != "" && errors == nil {
 		ku.kubeletHost = kubeletHost
 		log.Infof("%s is set as kubelet host", kubeletHost)
 		return nil
+	} else {
+		connectionErrors = append(connectionErrors, errors...)
 	}
 
-	log.Errorf("Cannot set a valid kubeletHost: cannot connect to kubelet using any of the given hosts: %v %v", hosts.ips, hosts.hostnames)
-	return fmt.Errorf("cannot set a valid kubelet host: cannot connect to kubelet using any of the given hosts: %v %v", hosts.ips, hosts.hostnames)
+	log.Errorf("Cannot set a valid kubeletHost: cannot connect to kubelet using any of the given hosts: %v %v, Errors: %v", hosts.ips, hosts.hostnames, connectionErrors)
+	return fmt.Errorf("cannot set a valid kubelet host: cannot connect to kubelet using any of the given hosts: %v %v, Errors: %v", hosts.ips, hosts.hostnames, connectionErrors)
 }
 
-func selectFromPotentialHostsHTTPS(ku *KubeUtil, hosts []string, httpsPort int) (string, error) {
-	var err error
+func selectFromPotentialHostsHTTPS(ku *KubeUtil, hosts []string, httpsPort int) (string, []error) {
+	var connectionErrors []error
 	for _, host := range hosts {
 		log.Infof("Trying to use host %s with HTTPS", host)
 		ku.kubeletHost = host
-		err = ku.setupKubeletApiClient()
+		err := ku.setupKubeletApiClient()
 		if err != nil {
-			return "", err
+			connectionErrors = append(connectionErrors, err)
+			continue
 		}
 
 		err = checkKubeletHTTPSConnection(ku, httpsPort)
 		if err == nil {
 			log.Infof("Can connect to kubelet using %s and HTTPS", host)
 			return host, nil
+		} else {
+			connectionErrors = append(connectionErrors, err)
 		}
 	}
 
-	return "", err
+	return "", connectionErrors
 }
 
-func selectFromPotentialHostsHTTP(hosts []string, httpPort int) (string, error) {
-	var err error
+func selectFromPotentialHostsHTTP(hosts []string, httpPort int) (string, []error) {
+	var connectionErrors []error
 	for _, host := range hosts {
 		log.Infof("Trying to use host %s with HTTP", host)
-		err = checkKubeletHTTPConnection(host, httpPort)
+		err := checkKubeletHTTPConnection(host, httpPort)
 		if err == nil {
 			log.Infof("Can connect to kubelet using %s and HTTP", host)
 			return host, nil
+		} else {
+			connectionErrors = append(connectionErrors, err)
 		}
 	}
 
-	return "", err
+	return "", connectionErrors
 }
 
 func checkKubeletHTTPSConnection(ku *KubeUtil, httpsPort int) error {
