@@ -188,6 +188,7 @@ suites:
         <% end %>
       dd-agent-install:
         agent6: true
+        windows_agent_url: <%= windows_agent_url %>
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
         <% end %>
@@ -225,6 +226,7 @@ suites:
         <% end %>
       dd-agent-install:
         agent6: true
+        windows_agent_url: <%= windows_agent_url %>
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
         <% end %>
@@ -253,6 +255,7 @@ suites:
         <% end %>
       dd-agent-install:
         agent6: true
+        windows_agent_url: <%= windows_agent_url %>
         <% if ENV['AGENT_VERSION'] %>
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
         <% end %>

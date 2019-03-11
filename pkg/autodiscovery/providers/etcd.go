@@ -135,7 +135,7 @@ func (p *EtcdConfigProvider) getCheckNames(key string) ([]string, error) {
 	return parseCheckNames(rawNames)
 }
 
-func (p *EtcdConfigProvider) getJSONValue(key string) ([]integration.Data, error) {
+func (p *EtcdConfigProvider) getJSONValue(key string) ([][]integration.Data, error) {
 	rawValue, err := p.getEtcdValue(key)
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't get key %s from etcd: %s", key, err)

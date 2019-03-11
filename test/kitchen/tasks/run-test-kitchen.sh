@@ -79,6 +79,7 @@ set -x
 if [ -z ${AGENT_VERSION+x} ]; then
   pushd ../..
     export AGENT_VERSION=`inv agent.version --url-safe --git-sha-length=7`
+    export DD_AGENT_EXPECTED_VERSION=`inv agent.version --url-safe --git-sha-length=7`
   popd
 fi
 

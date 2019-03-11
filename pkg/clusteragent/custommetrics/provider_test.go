@@ -8,16 +8,16 @@
 package custommetrics
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
+	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/metrics/pkg/apis/external_metrics"
-
-	"fmt"
-
-	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 )
 
 type mockDatadogProvider struct {
@@ -36,6 +36,161 @@ type metricCompare struct {
 	name      provider.ExternalMetricInfo
 	namespace string
 	labels    labels.Set
+}
+
+func TestListAllExternalMetrics(t *testing.T) {
+	metricName := "m1"
+	metric2Name := "m2"
+	metric3Name := "m3"
+	labels := map[string]string{
+		"foo": "bar",
+	}
+	cachedQuantity, _ := resource.ParseQuantity("0.00000000003")
+	tests := []struct {
+		name          string
+		metricsStored []ExternalMetricValue
+		cached        []externalMetric
+		expected      []externalMetric
+		timestamp     int64
+	}{
+		{
+			name:          "no metrics stored",
+			metricsStored: []ExternalMetricValue{},
+			cached:        []externalMetric{},
+			expected:      nil,
+		},
+		{
+			name: "last call is too recent",
+			metricsStored: []ExternalMetricValue{
+				{
+					MetricName: metricName,
+					Labels:     labels,
+					Valid:      true,
+				}},
+			cached: []externalMetric{{
+				info: provider.ExternalMetricInfo{
+					Metric: metricName,
+				},
+				value: external_metrics.ExternalMetricValue{
+					MetricName:   metricName,
+					MetricLabels: labels,
+					Value:        cachedQuantity,
+				},
+			}},
+			timestamp: metav1.Now().Unix(),
+			expected: []externalMetric{{
+				info: provider.ExternalMetricInfo{
+					Metric: metricName,
+				},
+				value: external_metrics.ExternalMetricValue{
+					MetricName:   metricName,
+					MetricLabels: labels,
+					Value:        cachedQuantity,
+				},
+			}},
+		},
+		{
+			name: "one nano metric stored",
+			metricsStored: []ExternalMetricValue{
+				{
+					MetricName: metricName,
+					Value:      float64(0.000000001),
+					Labels:     labels,
+					Valid:      true,
+				}},
+			cached: []externalMetric{{}},
+			expected: []externalMetric{{
+				info: provider.ExternalMetricInfo{
+					Metric: metricName,
+				},
+				value: external_metrics.ExternalMetricValue{
+					MetricName:   metricName,
+					MetricLabels: labels,
+					Value:        resource.MustParse("1e-09"),
+				},
+			},
+			},
+			timestamp: 0,
+		},
+		{
+			name: "multiple types",
+			metricsStored: []ExternalMetricValue{
+				{
+					MetricName: metricName,
+					Value:      float64(0.012),
+					Labels:     labels,
+					Valid:      true,
+				}, {
+					MetricName: metric2Name,
+					Value:      float64(1),
+					Labels:     labels,
+					Valid:      true,
+				}, {
+					MetricName: metric3Name,
+					Value:      float64(1000001),
+					Labels:     labels,
+					Valid:      true,
+				}, {
+					MetricName: "unexpected",
+					Labels:     labels,
+					Valid:      false,
+				},
+			},
+			expected: []externalMetric{{
+				info: provider.ExternalMetricInfo{
+					Metric: metricName,
+				},
+				value: external_metrics.ExternalMetricValue{
+					MetricName:   metricName,
+					MetricLabels: labels,
+					Value:        *resource.NewMilliQuantity(12, resource.DecimalSI),
+				},
+			}, {
+				info: provider.ExternalMetricInfo{
+					Metric: metric2Name,
+				},
+				value: external_metrics.ExternalMetricValue{
+					MetricName:   metric2Name,
+					MetricLabels: labels,
+					Value:        resource.MustParse("1"),
+				},
+			},
+				{
+					info: provider.ExternalMetricInfo{
+						Metric: metric3Name,
+					},
+					value: external_metrics.ExternalMetricValue{
+						MetricName:   metric3Name,
+						MetricLabels: labels,
+						Value:        resource.MustParse("1.000001e+06"),
+					}}},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			m := &mockDatadogProvider{
+				mockListAllExternalMetricValues: func() ([]ExternalMetricValue, error) {
+					return test.metricsStored, nil
+				},
+			}
+			dp := datadogProvider{
+				store:           Store(m),
+				timestamp:       test.timestamp,
+				maxAge:          int64(300),
+				externalMetrics: test.cached,
+			}
+			output := dp.ListAllExternalMetrics()
+			require.Equal(t, len(test.expected), len(output))
+
+			for _, q := range dp.externalMetrics {
+				for _, val := range test.expected {
+					if val.info.Metric == q.info.Metric {
+						require.Equal(t, val.value, q.value)
+					}
+				}
+			}
+		})
+	}
 }
 
 func TestGetExternalMetric(t *testing.T) {
@@ -144,7 +299,7 @@ func TestGetExternalMetric(t *testing.T) {
 			[]external_metrics.ExternalMetricValue{},
 		},
 		{
-			"one matching metric with capital letterstored",
+			"one matching metric with capital letter stored",
 			[]ExternalMetricValue{
 				{
 					MetricName: "CapitalMetric",

@@ -418,7 +418,7 @@ The `dd-agent` user is created when you install the datadog-agent.
 
 The first thing the agent does on startup is to load `datadog.yaml` and decrypt
 any secrets in it. This is done before setting up the logging. This means that
-on platform/setup errors occuring when loading `datadog.yaml` aren't written in
+on platform/setup errors occurring when loading `datadog.yaml` aren't written in
 the logs but on stderr (this can occurs when the executable given to the agent
 for secrets returns an error).
 ##### Windows
