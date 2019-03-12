@@ -86,7 +86,7 @@ jobs:
       - run: *enter_venv
       - run:
           name: run unit tests
-          command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 4
+          command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 3
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
