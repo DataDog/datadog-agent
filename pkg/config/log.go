@@ -25,6 +25,14 @@ const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format sy
 
 var syslogTLSConfig *tls.Config
 
+var (
+	// LogFormatCommon specifies the common logging format.
+	LogFormatCommon = fmt.Sprintf("%%Date(%s) | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n", logDateFormat)
+
+	// LogFormatJSON specifies the common JSON format.
+	LogFormatJSON = fmt.Sprintf("{&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n", logDateFormat)
+)
+
 func getSyslogTLSKeyPair() (*tls.Certificate, error) {
 	var syslogTLSKeyPair *tls.Certificate
 	if Datadog.IsSet("syslog_pem") && Datadog.IsSet("syslog_key") {
@@ -123,14 +131,6 @@ func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bo
 	log.SetupDatadogLogger(logger, seelogLogLevel)
 	return nil
 }
-
-var (
-	// LogFormatCommon specifies the common logging format.
-	LogFormatCommon = fmt.Sprintf("%%Date(%s) | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n", logDateFormat)
-
-	// LogFormatJSON specifies the common JSON format.
-	LogFormatJSON = fmt.Sprintf("{&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n", logDateFormat)
-)
 
 // ErrorLogWriter is a Writer that logs all written messages with the global seelog logger
 // at an error level

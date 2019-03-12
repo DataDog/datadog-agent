@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -23,8 +24,8 @@ import (
 // from where they were emitted
 // (https://github.com/cihub/seelog/wiki/Logger-types).
 type throttledReceiver struct {
-	logCount           int64
-	maxLogsPerInterval int64
+	logCount           uint64
+	maxLogsPerInterval uint64
 
 	loggerError     seelog.LoggerInterface
 	loggerForwarder seelog.LoggerInterface
@@ -48,11 +49,11 @@ const loggerConfigForwarder = `
 
 // ReceiveMessage implements seelog.CustomReceiver
 func (r *throttledReceiver) ReceiveMessage(msg string, lvl seelog.LogLevel, _ seelog.LogContextInterface) error {
-	r.logCount++
+	logCount := atomic.AddUint64(&r.logCount, 1)
 
-	if r.maxLogsPerInterval < 0 || r.logCount < r.maxLogsPerInterval {
+	if r.maxLogsPerInterval == 0 || logCount < r.maxLogsPerInterval {
 		r.forwardLogMsg(msg, lvl)
-	} else if r.logCount == r.maxLogsPerInterval {
+	} else if logCount == r.maxLogsPerInterval {
 		r.loggerError.Error("Too many messages to log, skipping for a bit...")
 	}
 	return nil
@@ -98,7 +99,7 @@ func (r *throttledReceiver) AfterParse(args seelog.CustomReceiverInitArgs) error
 	if err != nil {
 		return err
 	}
-	maxLogsPerInterval, err := strconv.Atoi(args.XmlCustomAttrs["max-per-interval"])
+	maxLogsPerInterval, err := strconv.ParseUint(args.XmlCustomAttrs["max-per-interval"], 10, 64)
 	if err != nil {
 		return err
 	}
@@ -126,18 +127,18 @@ func (r *throttledReceiver) AfterParse(args seelog.CustomReceiverInitArgs) error
 		return err
 	}
 
-	r.maxLogsPerInterval = int64(maxLogsPerInterval)
+	r.maxLogsPerInterval = maxLogsPerInterval
 	r.loggerError = loggerError
 	r.loggerForwarder = loggerForwarder
 	r.done = make(chan struct{})
 
 	// If no interval was given, no need to continue setup
 	if interval <= 0 {
-		r.maxLogsPerInterval = -1
+		r.maxLogsPerInterval = 0
 		return nil
 	}
 
-	r.logCount = 0
+	atomic.SwapUint64(&r.logCount, 0)
 	tick := time.Tick(time.Duration(interval))
 
 	// Start the goroutine resetting the log count
@@ -146,7 +147,7 @@ func (r *throttledReceiver) AfterParse(args seelog.CustomReceiverInitArgs) error
 		for {
 			select {
 			case <-tick:
-				r.logCount = 0
+				atomic.SwapUint64(&r.logCount, 0)
 			case <-r.done:
 				return
 			}

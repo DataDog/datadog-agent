@@ -31,7 +31,7 @@ func Run(ctx context.Context) {
 	}
 	err = info.InitInfo(cfg) // for expvar & -info option
 	if err != nil {
-		panic(err)
+		osutil.Exitf("%v", err)
 	}
 
 	if flags.Version {
