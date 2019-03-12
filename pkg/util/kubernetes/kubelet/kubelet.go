@@ -60,6 +60,7 @@ type KubeUtil struct {
 	podListCacheDuration     time.Duration
 	filter                   *containers.Filter
 	waitOnMissingContainer   time.Duration
+	podExpirationDuration    time.Duration
 }
 
 // ResetGlobalKubeUtil is a helper to remove the current KubeUtil global
@@ -88,7 +89,8 @@ func newKubeUtil() *KubeUtil {
 
 	// Register our custom filtering decoder when pod expiration is set
 	if config.Datadog.GetInt("kubernetes_pod_expiration_minutes") > 0 {
-		jsoniter.RegisterTypeDecoderFunc("kubelet.PodList", decodeAndFilterPodList)
+		ku.podExpirationDuration = config.Datadog.GetDuration("kubernetes_pod_expiration_minutes") * time.Minute
+		jsoniter.RegisterTypeDecoderFunc("kubelet.PodList", ku.decodeAndFilterPodList)
 	}
 
 	return ku

@@ -12,21 +12,11 @@ import (
 	"unsafe"
 
 	jsoniter "github.com/json-iterator/go"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func init() {
-	//jsoniter.RegisterFieldDecoderFunc("kubelet.PodList", "Items", decodePodList)
-	//jsoniter.RegisterTypeDecoderFunc("kubelet.PodList", decodePodList)
-
-}
-
-func decodeAndFilterPodList(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
+func (ku *KubeUtil) decodeAndFilterPodList(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
 	p := (*PodList)(ptr)
-
-	expirationDuration := config.Datadog.GetDuration("kubernetes_pod_expiration_minutes") * time.Minute
-	cutoffTime := time.Now().Add(-1 * expirationDuration)
+	cutoffTime := time.Now().Add(-1 * ku.podExpirationDuration)
 
 	podCallback := func(iter *jsoniter.Iterator) bool {
 		pod := &Pod{}
