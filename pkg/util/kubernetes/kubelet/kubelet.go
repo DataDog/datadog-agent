@@ -645,9 +645,10 @@ func dedupeConnectionInfo(hosts *connectionInfo) {
 // the method check HTTPS connections first and prioritize ips over hostnames
 func (ku *KubeUtil) setKubeletHost(hosts *connectionInfo, httpsPort, httpPort int) error {
 	var connectionErrors []error
+	log.Infof("Trying several connection methods to locate the kubelet...")
 	kubeletHost, errors := selectFromPotentialHostsHTTPS(ku, hosts.ips, httpsPort)
 	if kubeletHost != "" && errors == nil {
-		log.Infof("%s is set as kubelet host", kubeletHost)
+		log.Infof("Connection to the kubelet succeeded! %s is set as kubelet host", kubeletHost)
 		return nil
 	} else {
 		connectionErrors = append(connectionErrors, errors...)
@@ -655,7 +656,7 @@ func (ku *KubeUtil) setKubeletHost(hosts *connectionInfo, httpsPort, httpPort in
 
 	kubeletHost, errors = selectFromPotentialHostsHTTPS(ku, hosts.hostnames, httpsPort)
 	if kubeletHost != "" && errors == nil {
-		log.Infof("%s is set as kubelet host", kubeletHost)
+		log.Infof("Connection to the kubelet succeeded! %s is set as kubelet host", kubeletHost)
 		return nil
 	} else {
 		connectionErrors = append(connectionErrors, errors...)
@@ -664,7 +665,7 @@ func (ku *KubeUtil) setKubeletHost(hosts *connectionInfo, httpsPort, httpPort in
 	kubeletHost, errors = selectFromPotentialHostsHTTP(hosts.ips, httpPort)
 	if kubeletHost != "" && errors == nil {
 		ku.kubeletHost = kubeletHost
-		log.Infof("%s is set as kubelet host", kubeletHost)
+		log.Infof("Connection to the kubelet succeeded! %s is set as kubelet host", kubeletHost)
 		return nil
 	} else {
 		connectionErrors = append(connectionErrors, errors...)
@@ -673,13 +674,13 @@ func (ku *KubeUtil) setKubeletHost(hosts *connectionInfo, httpsPort, httpPort in
 	kubeletHost, errors = selectFromPotentialHostsHTTP(hosts.hostnames, httpPort)
 	if kubeletHost != "" && errors == nil {
 		ku.kubeletHost = kubeletHost
-		log.Infof("%s is set as kubelet host", kubeletHost)
+		log.Infof("Connection to the kubelet succeeded! %s is set as kubelet host", kubeletHost)
 		return nil
 	} else {
 		connectionErrors = append(connectionErrors, errors...)
 	}
 
-	log.Errorf("Cannot set a valid kubeletHost: cannot connect to kubelet using any of the given hosts: %v %v, Errors: %v", hosts.ips, hosts.hostnames, connectionErrors)
+	log.Error("All connection attempts to the Kubelet failed.")
 	return fmt.Errorf("cannot set a valid kubelet host: cannot connect to kubelet using any of the given hosts: %v %v, Errors: %v", hosts.ips, hosts.hostnames, connectionErrors)
 }
 
@@ -690,6 +691,7 @@ func selectFromPotentialHostsHTTPS(ku *KubeUtil, hosts []string, httpsPort int) 
 		ku.kubeletHost = host
 		err := ku.setupKubeletApiClient()
 		if err != nil {
+			log.Warnf("Cannot setup https kubelet api client for %s: %v", host, err)
 			connectionErrors = append(connectionErrors, err)
 			continue
 		}
@@ -699,6 +701,7 @@ func selectFromPotentialHostsHTTPS(ku *KubeUtil, hosts []string, httpsPort int) 
 			log.Infof("Can connect to kubelet using %s and HTTPS", host)
 			return host, nil
 		} else {
+			log.Warnf("Cannot connect to kubelet using %s and https: %v", host, err)
 			connectionErrors = append(connectionErrors, err)
 		}
 	}
@@ -715,6 +718,7 @@ func selectFromPotentialHostsHTTP(hosts []string, httpPort int) (string, []error
 			log.Infof("Can connect to kubelet using %s and HTTP", host)
 			return host, nil
 		} else {
+			log.Warnf("Cannot connect to kubelet using %s and http: %v", host, err)
 			connectionErrors = append(connectionErrors, err)
 		}
 	}
