@@ -3,14 +3,14 @@ package testdatadogagent
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
-
-	common "../common"
 )
 
 // #cgo CFLAGS: -I../../include
-// #cgo LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
+// #cgo linux LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
+// #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
 // #include <datadog_agent_six.h>
 //
 // extern void getVersion(char **);
@@ -32,7 +32,10 @@ import (
 // }
 import "C"
 
-var six *C.six_t
+var (
+	six     *C.six_t
+	tmpfile *os.File
+)
 
 type message struct {
 	Name string `json:"name"`
@@ -53,6 +56,12 @@ func setUp() error {
 		}
 	}
 
+	var err error
+	tmpfile, err = ioutil.TempFile("", "testout")
+	if err != nil {
+		return err
+	}
+
 	C.initDatadogAgentTests(six)
 
 	// Updates sys.path so testing Check can be found
@@ -66,35 +75,27 @@ func setUp() error {
 	return nil
 }
 
-func run(call string) (string, error) {
+func tearDown() {
+	os.Remove(tmpfile.Name())
+}
 
+func run(call string) (string, error) {
+	tmpfile.Truncate(0)
 	code := C.CString(fmt.Sprintf(`
 try:
-	import sys
 	import datadog_agent
 	%s
 except Exception as e:
-	sys.stderr.write("{}\n".format(e))
-	sys.stderr.flush()
-`, call))
+	with open('%s', 'w') as f:
+		f.write("{}\n".format(e))
+`, call, tmpfile.Name()))
 
-	var (
-		err    error
-		ret    bool
-		output []byte
-	)
-
-	output, err = common.Capture(func() {
-		ret = C.run_simple_string(six, code) == 1
-	})
-
-	if err != nil {
-		return "", err
-	}
-
+	ret := C.run_simple_string(six, code) == 1
 	if !ret {
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
+
+	output, err := ioutil.ReadFile(tmpfile.Name())
 
 	return string(output), err
 }
@@ -136,8 +137,8 @@ func getClustername(in **C.char) {
 
 //export doLog
 func doLog(msg *C.char, level C.int) {
-	fmt.Printf("[%d]%s", int(level), C.GoString(msg))
-	// in a real implementation, msg should be freed
+	data := []byte(fmt.Sprintf("[%d]%s", int(level), C.GoString(msg)))
+	ioutil.WriteFile(tmpfile.Name(), data, 0644)
 }
 
 //export setExternalHostTags
@@ -147,9 +148,13 @@ func setExternalHostTags(dump *C.char) {
 	var hostTags []HostTag
 	err := json.Unmarshal(jsonData, &hostTags)
 	if err != nil {
-		fmt.Println("Error:", err)
+		ioutil.WriteFile(tmpfile.Name(), []byte(fmt.Sprintf("Error: %s", err)), 0644)
 		return
 	}
+
+	var f *os.File
+	f, err = os.Create(tmpfile.Name())
+	defer f.Close()
 
 	for _, t := range hostTags {
 		out := []string{}
@@ -166,8 +171,7 @@ func setExternalHostTags(dump *C.char) {
 				out = append(out, tag.(string))
 			}
 		}
-		fmt.Println(strings.Join(out, ","))
+		f.WriteString(strings.Join(out, ","))
+		f.WriteString("\n")
 	}
-
-	// in a real implementation, dump should be freed
 }

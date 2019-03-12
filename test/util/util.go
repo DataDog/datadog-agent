@@ -3,14 +3,13 @@ package testutil
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
-
-	common "../common"
 )
 
 // #cgo CFLAGS: -I../../include
 // #cgo linux LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
-// #cgo windows LDFLAGS: -L../../six/Release -ldatadog-agent-six -lstdc++
+// #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
 // #include <datadog_agent_six.h>
 //
 // extern void headers(char **);
@@ -20,7 +19,10 @@ import (
 // }
 import "C"
 
-var six *C.six_t
+var (
+	six     *C.six_t
+	tmpfile *os.File
+)
 
 type message struct {
 	Name string `json:"name"`
@@ -41,6 +43,12 @@ func setUp() error {
 		}
 	}
 
+	var err error
+	tmpfile, err = ioutil.TempFile("", "testout")
+	if err != nil {
+		return err
+	}
+
 	C.initDatadogAgentTests(six)
 
 	// Updates sys.path so testing Check can be found
@@ -54,35 +62,27 @@ func setUp() error {
 	return nil
 }
 
-func run(call string) (string, error) {
+func tearDown() {
+	os.Remove(tmpfile.Name())
+}
 
+func run(call string) (string, error) {
+	tmpfile.Truncate(0)
 	code := C.CString(fmt.Sprintf(`
 try:
-	import sys
 	import util
 	%s
 except Exception as e:
-	sys.stderr.write("{}\n".format(e))
-	sys.stderr.flush()
-`, call))
+	with open(r'%s', 'w') as f:
+		f.write("{}\n".format(e))
+`, call, tmpfile.Name()))
 
-	var (
-		err    error
-		ret    bool
-		output []byte
-	)
-
-	output, err = common.Capture(func() {
-		ret = C.run_simple_string(six, code) == 1
-	})
-
-	if err != nil {
-		return "", err
-	}
-
+	ret := C.run_simple_string(six, code) == 1
 	if !ret {
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
+
+	output, err := ioutil.ReadFile(tmpfile.Name())
 
 	return string(output), err
 }

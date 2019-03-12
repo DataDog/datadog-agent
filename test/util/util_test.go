@@ -18,7 +18,7 @@ func TestMain(m *testing.M) {
 
 func TestHeaders(t *testing.T) {
 	code := `
-	d = datadog_agent.headers(http_host="myhost", ignore_me="snafu")
+	d = util.headers(http_host="myhost", ignore_me="snafu")
 	sys.stderr.write(",".join(sorted(d.keys())))
 	sys.stderr.flush()
 	`
