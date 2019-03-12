@@ -385,6 +385,7 @@ func downloadWheel(integration, version string) (string, error) {
 	args := []string{
 		"-m", downloaderModule,
 		integration,
+		"--python", pyPath,
 		"--version", version,
 	}
 	if verbose > 0 {
