@@ -17,11 +17,11 @@ func TestMain(m *testing.M) {
 }
 
 func TestHeaders(t *testing.T) {
-	code := `
+	code := fmt.Sprintf(`
 	d = util.headers(http_host="myhost", ignore_me="snafu")
-	sys.stderr.write(",".join(sorted(d.keys())))
-	sys.stderr.flush()
-	`
+	with open(r'%s', 'w') as f:
+		f.write(",".join(sorted(d.keys())))
+	`, tmpfile.Name())
 	out, err := run(code)
 	if err != nil {
 		t.Fatal(err)

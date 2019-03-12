@@ -107,6 +107,10 @@ func getVersion(in **C.char) {
 
 //export getConfig
 func getConfig(key *C.char, in **C.char) {
+	if "log_level" == C.GoString(key) {
+		*in = C.CString("\"warning\"")
+		return
+	}
 	m := message{C.GoString(key), "Hello", 123456}
 	b, _ := json.Marshal(m)
 
