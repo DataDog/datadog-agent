@@ -71,6 +71,7 @@ func run(call string) (string, error) {
 	code := C.CString(fmt.Sprintf(`
 try:
 	import util
+	import sys
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
