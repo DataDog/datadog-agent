@@ -14,7 +14,11 @@ func TestMain(m *testing.M) {
 		os.Exit(-1)
 	}
 
-	os.Exit(m.Run())
+	ret := m.Run()
+
+	tearDown()
+
+	os.Exit(ret)
 }
 
 func TestGetVersion(t *testing.T) {
@@ -30,7 +34,11 @@ func TestGetVersion(t *testing.T) {
 }
 
 func TestRunSimpleString(t *testing.T) {
-	output, err := runString("import sys; sys.stderr.write('Hello, World!'); sys.stderr.flush()")
+	code := fmt.Sprintf(`
+with open(r'%s', 'w') as f:
+	f.write('Hello, World!')`, tmpfile.Name())
+
+	output, err := runString(code)
 
 	if err != nil {
 		t.Fatalf("`run_simple_string` error: %v", err)

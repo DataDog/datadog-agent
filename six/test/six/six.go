@@ -1,19 +1,22 @@
 package testsix
 
 // #cgo CFLAGS: -I../../include
-// #cgo LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl -lstdc++
+// #cgo linux LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl -lstdc++
+// #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
 // #include <datadog_agent_six.h>
 //
 import "C"
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
-
-	common "../common"
 )
 
-var six *C.six_t
+var (
+	six     *C.six_t
+	tmpfile *os.File
+)
 
 func setUp() error {
 	if _, ok := os.LookupEnv("TESTING_TWO"); ok {
@@ -28,15 +31,25 @@ func setUp() error {
 		}
 	}
 
+	var err error
+	tmpfile, err = ioutil.TempFile("", "testout")
+	if err != nil {
+		return err
+	}
+
 	// Updates sys.path so testing Check can be found
 	C.add_python_path(six, C.CString("../python"))
 
-	ok := C.init(six, C.CString("c:\\python27amd64"))
+	ok := C.init(six, nil)
 	if ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(six)))
 	}
 	C.ensure_gil(six)
 	return nil
+}
+
+func tearDown() {
+	os.Remove(tmpfile.Name())
 }
 
 func getVersion() string {
@@ -45,21 +58,13 @@ func getVersion() string {
 }
 
 func runString(code string) (string, error) {
-	var ret bool
-	var err error
-	var output []byte
-	output, err = common.Capture(func() {
-		ret = C.run_simple_string(six, C.CString(code)) == 1
-	})
-
-	if err != nil {
-		return "", err
-	}
-
+	tmpfile.Truncate(0)
+	ret := C.run_simple_string(six, C.CString(code)) == 1
 	if !ret {
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
 
+	output, err := ioutil.ReadFile(tmpfile.Name())
 	return string(output), err
 }
 
@@ -110,7 +115,8 @@ func runFakeCheck() (string, error) {
 	var check *C.six_pyobject_t
 	var version *C.char
 
-	C.get_class(six, C.CString("datadog_checks.directory"), &module, &class)
+	//C.get_class(six, C.CString("datadog_checks.directory"), &module, &class)
+	C.get_class(six, C.CString("datadog_checks.fake_check"), &module, &class)
 	C.get_attr_string(six, module, C.CString("__version__"), &version)
 	C.get_check(six, class, C.CString(""), C.CString("[{fake_check: \"/\"}]"), C.CString("checkID"), C.CString("fake_check"), &check)
 
