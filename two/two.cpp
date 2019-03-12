@@ -9,6 +9,7 @@
 
 #include <aggregator.h>
 #include <datadog_agent.h>
+#include <util.h>
 
 #include <algorithm>
 #include <iostream>
@@ -42,6 +43,7 @@ bool Two::init(const char *pythonHome) {
     // init custom builtins
     Py2_init_aggregator();
     Py2_init_datadog_agent();
+    Py2_init_util();
 
     // Set PYTHONPATH
     if (_pythonPaths.size()) {

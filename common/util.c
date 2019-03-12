@@ -4,6 +4,7 @@
 // Copyright 2019 Datadog, Inc.
 #include "util.h"
 #include "datadog_agent.h"
+#include "util.h"
 
 #include <sixstrings.h>
 
