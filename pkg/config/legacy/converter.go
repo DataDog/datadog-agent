@@ -135,9 +135,6 @@ func FromAgentConfig(agentConfig Config) error {
 		configConverter.Set("bind_host", agentConfig["bind_host"])
 	}
 
-	// Processes-specific configuration
-	extractProcessAgentConfig(agentConfig, configConverter)
-
 	// Trace APM based configurations
 	if agentConfig["apm_enabled"] != "" {
 		if enabled, err := isAffirmative(agentConfig["apm_enabled"]); err == nil {
@@ -153,6 +150,9 @@ func FromAgentConfig(agentConfig Config) error {
 	}
 
 	configConverter.Set("hostname_fqdn", true)
+
+	// Processes-specific configuration
+	extractProcessAgentConfig(agentConfig, configConverter)
 
 	return extractTraceAgentConfig(agentConfig, configConverter)
 }
@@ -328,9 +328,12 @@ func extractURLAPIKeys(agentConfig Config, configConverter *config.LegacyConfigC
 
 	additionalEndpoints := map[string][]string{}
 	for idx, url := range urls {
-		if url == "" || keys[idx] == "" {
-			return fmt.Errorf("Found empty additional 'dd_url' or 'api_key'. Please check that you don't have any misplaced commas")
+		if url == "" {
+			return fmt.Errorf("found empty additional 'dd_url'. Please check that you don't have any misplaced commas")
+		} else if keys[idx] == "" {
+			return fmt.Errorf("found empty additional 'api_key'. Please check that you don't have any misplaced commas")
 		}
+
 		if _, ok := additionalEndpoints[url]; ok {
 			additionalEndpoints[url] = append(additionalEndpoints[url], keys[idx])
 		} else {
@@ -350,9 +353,12 @@ func extractURLAPIKeys(agentConfig Config, configConverter *config.LegacyConfigC
 
 		configConverter.Set("process_config.process_dd_url", processURLs[0])
 		for idx, url := range processURLs[1:] {
-			if url == "" || keys[idx] == "" {
-				return fmt.Errorf("found empty additional 'endpoint' or 'api_key' for processes. Please check that you don't have any misplaced commas")
+			if url == "" {
+				return fmt.Errorf("found empty additional 'endpoint' for processes. Please check that you don't have any misplaced commas")
+			} else if keys[idx] == "" {
+				return fmt.Errorf("found empty additional 'api_key' for processes. Please check that you don't have any misplaced commas")
 			}
+
 			if _, ok := processEndpoints[url]; ok {
 				processEndpoints[url] = append(processEndpoints[url], keys[idx])
 			} else {
