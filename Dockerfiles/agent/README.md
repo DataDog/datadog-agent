@@ -44,7 +44,7 @@ For more information: https://docs.datadoghq.com/agent/proxy/#agent-v6
 
 These features are disabled by default for security or performance reasons, you need to explicitly enable them:
 
-- `DD_APM_ENABLED`: run the trace-agent along with the infrastructure agent, allowing the container to accept traces on 8126/tcp
+- `DD_APM_ENABLED`: run the [trace-agent](https://docs.datadoghq.com/tracing/) along with the infrastructure agent, allowing the container to locally accept traces on 8126/tcp. [See APM documentation for further configuration variables](https://docs.datadoghq.com/agent/docker/apm/#docker-apm-environment-variables)
 - `DD_LOGS_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. [See below for details](#log-collection)
 - `DD_PROCESS_AGENT_ENABLED`: enable live process collection in the [process-agent](https://docs.datadoghq.com/graphing/infrastructure/process/). The Live Container View is already enabled by default if the Docker socket is available
 
