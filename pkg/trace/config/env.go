@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func applyEnv() {
@@ -49,7 +49,7 @@ func applyEnv() {
 	} {
 		if v := os.Getenv(envKey); v != "" {
 			if r, err := splitString(v, ','); err != nil {
-				log.Warn("%q value not loaded: %v", envKey, err)
+				log.Warnf("%q value not loaded: %v", envKey, err)
 			} else {
 				config.Datadog.Set("apm_config.ignore_resources", r)
 			}
