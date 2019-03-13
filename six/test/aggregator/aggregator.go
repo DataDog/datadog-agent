@@ -103,7 +103,7 @@ try:
 	import aggregator
 	%s
 except Exception as e:
-	with open('%s', 'w') as f:
+	with open(r'%s', 'w') as f:
 		f.write("{}\n".format(e))
 `, call, tmpfile.Name()))
 
