@@ -20,7 +20,7 @@ if(WIN32)
      set(CMAKE_C_FLAGS "-D_hypot=hypot")
      set(CMAKE_CXX_FLAGS "-D_hypot=hypot")
   endif()
-  string(REPLACE "\\" "\\\\" Python3_STDLIB $Python3_STDLIB)
+  string(REPLACE "\\" "\\\\" Python3_STDLIB ${Python3_STDLIB})
 endif()
 
 include(GNUInstallDirs)
