@@ -12,11 +12,49 @@ import (
 	"unsafe"
 
 	jsoniter "github.com/json-iterator/go"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func (ku *KubeUtil) decodeAndFilterPodList(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
+// jsoniterConfig mirrors jsoniter.ConfigFastest
+var jsonConfig = jsoniter.Config{
+	EscapeHTML:                    false,
+	MarshalFloatWith6Digits:       true, // will lose precession
+	ObjectFieldMustBeSimpleString: true, // do not unescape object field
+}
+
+type podUnmarshaller struct {
+	jsonConfig            jsoniter.API
+	podExpirationDuration time.Duration
+	timeNowFunction       func() time.Time // Allows to mock time in tests
+}
+
+func newPodUnmarshaller() *podUnmarshaller {
+	pu := &podUnmarshaller{
+		podExpirationDuration: config.Datadog.GetDuration("kubernetes_pod_expiration_minutes") * time.Minute,
+		timeNowFunction:       time.Now,
+	}
+
+	if pu.podExpirationDuration > 0 {
+		jsoniter.RegisterTypeDecoderFunc("kubelet.PodList", pu.decodeAndFilterPodList)
+	} else {
+		// Force-unregister for unit tests to pick up the right state
+		jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
+	}
+
+	// Build a new frozen config to invalidate type decoder cache
+	pu.jsonConfig = jsonConfig.Froze()
+
+	return pu
+}
+
+func (pu *podUnmarshaller) Unmarshal(data []byte, v interface{}) error {
+	return pu.jsonConfig.Unmarshal(data, v)
+}
+
+func (pu *podUnmarshaller) decodeAndFilterPodList(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
 	p := (*PodList)(ptr)
-	cutoffTime := time.Now().Add(-1 * ku.podExpirationDuration)
+	cutoffTime := pu.timeNowFunction().Add(-1 * pu.podExpirationDuration)
 
 	podCallback := func(iter *jsoniter.Iterator) bool {
 		pod := &Pod{}

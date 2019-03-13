@@ -19,8 +19,6 @@ import (
 	"strings"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -60,7 +58,7 @@ type KubeUtil struct {
 	podListCacheDuration     time.Duration
 	filter                   *containers.Filter
 	waitOnMissingContainer   time.Duration
-	podExpirationDuration    time.Duration
+	podUnmarshaller          *podUnmarshaller
 }
 
 // ResetGlobalKubeUtil is a helper to remove the current KubeUtil global
@@ -80,17 +78,12 @@ func newKubeUtil() *KubeUtil {
 		kubeletApiRequestHeaders: &http.Header{},
 		rawConnectionInfo:        make(map[string]string),
 		podListCacheDuration:     config.Datadog.GetDuration("kubelet_cache_pods_duration") * time.Second,
+		podUnmarshaller:          newPodUnmarshaller(),
 	}
 
 	waitOnMissingContainer := config.Datadog.GetDuration("kubelet_wait_on_missing_container")
 	if waitOnMissingContainer > 0 {
 		ku.waitOnMissingContainer = waitOnMissingContainer * time.Second
-	}
-
-	// Register our custom filtering decoder when pod expiration is set
-	if config.Datadog.GetInt("kubernetes_pod_expiration_minutes") > 0 {
-		ku.podExpirationDuration = config.Datadog.GetDuration("kubernetes_pod_expiration_minutes") * time.Minute
-		jsoniter.RegisterTypeDecoderFunc("kubelet.PodList", ku.decodeAndFilterPodList)
 	}
 
 	return ku
@@ -198,7 +191,7 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	}
 
 	// Will use the decodePodList decoder if kubernetes_pod_expiration_minutes is not zero
-	err = jsoniter.Unmarshal(data, &pods)
+	err = ku.podUnmarshaller.Unmarshal(data, &pods)
 	if err != nil {
 		return nil, err
 	}
