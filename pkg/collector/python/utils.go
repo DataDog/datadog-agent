@@ -8,10 +8,12 @@
 package python
 
 import (
+	"encoding/json"
 	"fmt"
 	"runtime"
 	"strings"
 	"sync/atomic"
+	"unsafe"
 )
 
 // #include "datadog_agent_six.h"
@@ -105,12 +107,6 @@ func getModuleName(modulePath string) string {
 	return toks[len(toks)-1]
 }
 
-//func decAllRefs(refs []*python.PyObject) {
-//	for _, ref := range refs {
-//		ref.DecRef()
-//	}
-//}
-//
 //// GetPythonInterpreterMemoryUsage collects python interpreter memory usage
 //func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 //	glock := newStickyLock()
@@ -281,57 +277,34 @@ func getModuleName(modulePath string) string {
 //
 //	return myPythonStats, nil
 //}
-//
-//// GetPythonIntegrationList collects python datadog installed integrations list
-//func GetPythonIntegrationList() ([]string, error) {
-//	glock := newStickyLock()
-//	defer glock.unlock()
-//
-//	pkgModule := python.PyImport_ImportModule(pyPkgModule)
-//	if pkgModule == nil {
-//		return nil, fmt.Errorf("Unable to import Python module: %s", pyPkgModule)
-//	}
-//	defer pkgModule.DecRef()
-//
-//	pkgLister := pkgModule.GetAttrString(pyIntegrationListFunc)
-//	if pkgLister == nil {
-//		pyErr, err := glock.getPythonError()
-//
-//		if err != nil {
-//			return nil, fmt.Errorf("An error occurred while grabbing the python datadog integration list: %v", err)
-//		}
-//		return nil, errors.New(pyErr)
-//	}
-//	defer pkgLister.DecRef()
-//
-//	args := python.PyTuple_New(0)
-//	kwargs := python.PyDict_New()
-//	defer args.DecRef()
-//	defer kwargs.DecRef()
-//
-//	packages := pkgLister.Call(args, kwargs)
-//	if packages == nil {
-//		pyErr, err := glock.getPythonError()
-//
-//		if err != nil {
-//			return nil, fmt.Errorf("An error occurred compiling the list of python integrations: %v", err)
-//		}
-//		return nil, errors.New(pyErr)
-//	}
-//	defer packages.DecRef()
-//
-//	ddPythonPackages := []string{}
-//	for i := 0; i < python.PyList_Size(packages); i++ {
-//		pkgName := python.PyString_AsString(python.PyList_GetItem(packages, i))
-//		if _, ok := nonIntegrationsWheelSet[pkgName]; ok {
-//			continue
-//		}
-//		ddPythonPackages = append(ddPythonPackages, pkgName)
-//	}
-//
-//	return ddPythonPackages, nil
-//}
-//
+
+// GetPythonIntegrationList collects python datadog installed integrations list
+func GetPythonIntegrationList() ([]string, error) {
+	glock := newStickyLock()
+	defer glock.unlock()
+
+	integrationsList := C.get_integration_list(six)
+	if integrationsList == nil {
+		return nil, fmt.Errorf("Could not query integration list: %s", getSixError())
+	}
+	defer C.six_free(six, unsafe.Pointer(integrationsList))
+	payload := C.GoString(integrationsList)
+
+	ddIntegrations := []string{}
+	if err := json.Unmarshal([]byte(payload), &ddIntegrations); err != nil {
+		return nil, fmt.Errorf("Could not Unmarshal integration list payload: %s", err)
+	}
+
+	ddPythonPackages := []string{}
+	for _, pkgName := range ddIntegrations {
+		if _, ok := nonIntegrationsWheelSet[pkgName]; ok {
+			continue
+		}
+		ddPythonPackages = append(ddPythonPackages, pkgName)
+	}
+	return ddPythonPackages, nil
+}
+
 //// SetPythonPsutilProcPath sets python psutil.PROCFS_PATH
 //func SetPythonPsutilProcPath(procPath string) error {
 //	glock := newStickyLock()
