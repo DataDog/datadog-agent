@@ -3,15 +3,13 @@
 **This feature is in beta and its options or behavior might break between
 minor or bugfix releases of the Agent.**
 
-Starting with version `6.3.0` on Linux and `6.6` on Windows, the agent is able
+Starting with version `6.3.0` on Linux and `6.11` on Windows, the agent is able
 to leverage the `secrets` package in order to call a user-provided executable
 to handle retrieval or decryption of secrets, which are then loaded in memory
 by the agent. This feature allows users to no longer store passwords and other
 secrets in plain text in configuration files. Users have the flexibility to
 design their executable according to their preferred key management service,
 authentication method, and continuous integration workflow.
-
-For now, secrets are not supported in APM or Process configurations.
 
 For now, secrets are not supported in APM or Live Process configurations.
 
@@ -28,8 +26,9 @@ This section covers how to set up this feature.
       - [Linux](#linux-1)
     - [The executable API](#the-executable-api)
   - [Troubleshooting](#troubleshooting)
+      - [Listing dectected secrets](#listing-dectected-secrets)
       - [Seeing configurations after secrets were injected](#seeing-configurations-after-secrets-were-injected)
-      - [Debugging your secret_backend_command](#debugging-your-secretbackendcommand)
+      - [Debugging your secret_backend_command](#debugging-your-secret_backend_command)
         - [Linux](#linux-2)
     - [Agent refusing to start](#agent-refusing-to-start)
         - [Windows](#windows-1)
@@ -40,7 +39,7 @@ This section covers how to set up this feature.
 ## Defining secrets in configurations
 
 To declare a secret in a check configuration simply use the `ENC[]` notation.
-This notation can be used to denotate as a secret the *value* of any YAML field
+This notation can be used to denotate a secret as the *value* of any YAML field
 in your configuration (not the key), in any section (`init_config`, `instances`,
 `logs`, ...).
 
@@ -65,7 +64,7 @@ instances:
     user: "ENC[db_prod_user]"
     password: "ENC[db_prod_password]"
 
-    # The `ENC[]` handle must contain the entire YAML value, which means that
+    # The `ENC[]` handle must be the entire YAML value, which means that
     # the following will NOT be detected as a secret handle:
     password2: "db-ENC[prod_password]"
 ```
@@ -234,26 +233,6 @@ The agent GUI will **NOT** show the decrypted password but the raw handle. This
 is on purposes as it let you edit configuration files. To see the final config
 after being decrypted use the `configcheck` command on the datadog-agent CLI.
 
-### Agent security requirements
-
-The agent will run `secret_backend_command` executable as a sub-process.
-
-#### Linux
-
-On Linux, the executable set as `secret_backend_command` **MUST** (the agent
-will refuse to use it otherwise):
-
-- Belong to the same user running the agent (by default `dd-agent` or `root`
-  inside a container).
-- Have **no** rights for `group` or `other`.
-- Have at least `exec` right for the owner.
-
-Also:
-- The executable will be run with an empty environment.
-- Never output sensitive information on STDERR. If the binary exit with a
-  different status code than `0` the agent will log the standard error output
-  of the executable to ease troubleshooting.
-
 ### The executable API
 
 The executable has to respect a very simple API: it reads a JSON on the
@@ -373,7 +352,67 @@ instances:
 
 ## Troubleshooting
 
-#### Seeing configurations after secrets were injected
+### Listing dectected secrets
+
+The `secret` command in the Agent CLI will show any error related to your setup
+(if the rights on the executable aren't the right one for example). It will
+also list all handles found and where they where found.
+
+On Linux the command will output file mode, owner and group for the executable,
+on Windows ACL rights are listed.
+
+Example on Linux:
+
+```shell
+$> datadog-agent secrets
+=== Checking executable rights ===
+Executable path: /path/to/you/executable
+Check Rights: OK, the executable has the correct rights
+
+Rights Detail:
+file mode: 100700
+Owner username: dd-agent
+Group name: dd-agent
+
+=== Secrets stats ===
+Number of secrets decrypted: 3
+Secrets handle decrypted:
+- api_key: from datadog.yaml
+- db_prod_user: from postgres.yaml
+- db_prod_password: from postgres.yaml
+```
+
+Example on Windows (from an Administrator Powershell):
+```powershell
+PS C:\> & 'C:\Program Files\Datadog\Datadog Agent\embedded\agent.exe' secret
+=== Checking executable rights ===
+Executable path: C:\path\to\you\executable.exe
+Check Rights: OK, the executable has the correct rights
+
+Rights Detail:
+Acl list:
+stdout:
+
+
+Path   : Microsoft.PowerShell.Core\FileSystem::C:\path\to\you\executable.exe
+Owner  : BUILTIN\Administrators
+Group  : WIN-ITODMBAT8RG\None
+Access : NT AUTHORITY\SYSTEM Allow  FullControl
+         BUILTIN\Administrators Allow  FullControl
+         WIN-ITODMBAT8RG\ddagentuser Allow  ReadAndExecute, Synchronize
+Audit  :
+Sddl   : O:BAG:S-1-5-21-2685101404-2783901971-939297808-513D:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;0x1200
+         a9;;;S-1-5-21-2685101404-2783901971-939297808-1001)
+
+=== Secrets stats ===
+Number of secrets decrypted: 3
+Secrets handle decrypted:
+- api_key: from datadog.yaml
+- db_prod_user: from sqlserver.yaml
+- db_prod_password: from sqlserver.yaml
+```
+
+### Seeing configurations after secrets were injected
 
 To quickly see how the check's configurations are resolved you can use the
 `configcheck` command :
@@ -402,11 +441,11 @@ password: <decrypted_password2>
 
 Note that the agent needs to be restarted to pick up changes on configuration files.
 
-#### Debugging your secret_backend_command
+### Debugging your secret_backend_command
 
 To test or debug outside of the agent you can simply mimic how the agent will run it:
 
-##### Linux
+#### Linux
 
 ```bash
 sudo su dd-agent - bash -c "echo '{\"version\": \"1.0\", \"secrets\": [\"secret1\", \"secret2\"]}' | /path/to/the/secret_backend_command
@@ -414,16 +453,9 @@ sudo su dd-agent - bash -c "echo '{\"version\": \"1.0\", \"secrets\": [\"secret1
 
 The `dd-agent` user is created when you install the datadog-agent.
 
-### Agent refusing to start
+#### Windows
 
-The first thing the agent does on startup is to load `datadog.yaml` and decrypt
-any secrets in it. This is done before setting up the logging. This means that
-on platform/setup errors occuring when loading `datadog.yaml` aren't written in
-the logs but on stderr (this can occurs when the executable given to the agent
-for secrets returns an error).
-##### Windows
-
-###### Rights related errors
+##### Rights related errors
 
 If you encounter one of the following errors then something is missing in your
 setup. See Windows intructions [here](#windows).
@@ -440,10 +472,10 @@ setup. See Windows intructions [here](#windows).
 
 3. Your executable need to be a valid Win32 application, or you will get the following error:
    ```
-   error while running 'C:\test.txt': fork/exec C:\decrypt.py: %1 is not a valid Win32 application.
+   error while running 'C:\decrypt.py': fork/exec C:\decrypt.py: %1 is not a valid Win32 application.
    ```
 
-###### Testing your executable
+##### Testing your executable
 
 Your executable will be executed by the agent when fetching your secrets. The
 Datadog agent run using the `ddagentuser`. This specific user has no specific
@@ -493,7 +525,7 @@ exit code:
 0
 ```
 
-#### Agent refusing to start
+### Agent refusing to start
 
 The first thing the agent does on startup is to load `datadog.yaml` and decrypt
 any secrets in it. This is done before setting up the logging. This means that
@@ -502,5 +534,6 @@ written in the logs but on stderr (this can occurs when the executable given to
 the agent for secrets returns an error).
 
 If you have secrets in `datadog.yaml` and the agent refuse to start: either try
-to start the agent manually to be able to see STDERR or remove secrets from
+to start the agent manually to be able to see STDERR or remove the secrets from
 `datadog.yaml` and test with secrets in a check configuration file first.
+

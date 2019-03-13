@@ -51,7 +51,7 @@ The following configuration command line options are available when installing t
 * DD_URL="_string_"
   * Sets the **dd_url** variable in datadog.yaml to _string_. 
 * LOGS_DD_URL="_string_"
-  * Sets the **dd_url** variable in the **logs_config** section in datadog.yaml to _string_. 
+  * Sets the **logs_dd_url** variable in the **logs_config** section in datadog.yaml to _string_ . _string_ has to be of the form `<endpoint>:<format>`, for example `agent-intake.logs.datadoghq.com:443`.
 * PROCESS_DD_URL="_string_"
   * Sets the **process_dd_url** variable in the **process_config** section in datadog.yaml to _string_. 
 * TRACE_DD_URL="_string_"

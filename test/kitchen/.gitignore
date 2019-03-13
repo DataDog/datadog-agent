@@ -10,3 +10,4 @@ cookbooks/
 ssh-key
 ssh-key.pub
 azureid.sh
+*.bat

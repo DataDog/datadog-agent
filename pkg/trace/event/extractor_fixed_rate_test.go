@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/stretchr/testify/assert"
 )
 
 func createTestSpans(serviceName string, operationName string) []*pb.Span {
@@ -13,6 +14,27 @@ func createTestSpans(serviceName string, operationName string) []*pb.Span {
 		spans[i] = &pb.Span{TraceID: rand.Uint64(), Service: serviceName, Name: operationName}
 	}
 	return spans
+}
+
+func TestFixedCases(t *testing.T) {
+	assert := assert.New(t)
+	e := NewFixedRateExtractor(map[string]map[string]float64{
+		"sERvice1": {
+			"OP1": 1,
+			"op2": 0.5,
+		},
+	})
+
+	span1 := &pb.Span{Service: "service1", Name: "op1"}
+	span2 := &pb.Span{Service: "SerVice1", Name: "Op2"}
+
+	rate, ok := e.Extract(span1, 0)
+	assert.Equal(rate, 1.)
+	assert.True(ok)
+
+	rate, ok = e.Extract(span2, 0)
+	assert.Equal(rate, 0.5)
+	assert.True(ok)
 }
 
 func TestAnalyzedExtractor(t *testing.T) {

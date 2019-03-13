@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -27,8 +27,8 @@ const (
 	// AD on the load-balanced service IPs
 	kubeServiceAnnotationPrefix = "ad.datadoghq.com/service."
 	// AD on the individual service endpoints (TODO)
-	// kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
-	// kubeEndpointIDPrefix         = "kube_endpoint://"
+	kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
+	kubeEndpointIDPrefix         = "kube_endpoint://"
 )
 
 // KubeletConfigProvider implements the ConfigProvider interface for the kubelet.
@@ -115,6 +115,11 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 		k.upToDate = false
 		return
 	}
+	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeEndpointAnnotationPrefix) {
+		log.Trace("Invalidating configs on service end annotations change")
+		k.upToDate = false
+		return
+	}
 }
 
 // valuesDiffer returns true if the annotations matching the
@@ -151,15 +156,23 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 			continue
 		}
 		service_id := apiserver.EntityForService(svc)
-		c, errors := extractTemplatesFromMap(service_id, svc.Annotations, kubeServiceAnnotationPrefix)
+		svcConf, errors := extractTemplatesFromMap(service_id, svc.Annotations, kubeServiceAnnotationPrefix)
 		for _, err := range errors {
-			log.Errorf("Cannot parse template for service %s/%s: %s", svc.Namespace, svc.Name, err)
+			log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
+		}
+		endptConf, errors := extractTemplatesFromMap(apiserver.EntityForEndpoints(svc.Namespace, svc.Name), svc.Annotations, kubeEndpointAnnotationPrefix)
+		for _, err := range errors {
+			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
 		// All configurations are cluster checks
-		for i := range c {
-			c[i].ClusterCheck = true
+		for i := range svcConf {
+			svcConf[i].ClusterCheck = true
 		}
-		configs = append(configs, c...)
+		for i := range endptConf {
+			endptConf[i].ClusterCheck = true
+		}
+		configs = append(configs, svcConf...)
+		configs = append(configs, endptConf...)
 	}
 
 	return configs, nil
