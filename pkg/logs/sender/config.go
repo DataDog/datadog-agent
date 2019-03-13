@@ -40,7 +40,7 @@ func BuildEndpoints() (*client.Endpoints, error) {
 		ProxyAddress: proxyAddress,
 	}
 	switch {
-	case config.Datadog.IsSet("logs_config.logs_dd_url"):
+	case config.Datadog.IsSet("logs_config.logs_dd_url") && config.Datadog.GetString("logs_config.logs_dd_url") != "":
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
 		// and '<PORT>' to be an integer.
 		// By default ssl is enabled ; to disable ssl set 'logs_config.logs_no_ssl' to true.
