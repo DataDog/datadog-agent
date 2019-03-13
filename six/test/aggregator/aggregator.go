@@ -9,7 +9,8 @@ import (
 )
 
 // #cgo CFLAGS: -I../../include
-// #cgo LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
+// #cgo linux LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
+// #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
 // #include <datadog_agent_six.h>
 //
 // extern void submitMetric(char *, metric_type_t, char *, float, char **, int, char *);
@@ -102,7 +103,7 @@ try:
 	import aggregator
 	%s
 except Exception as e:
-	with open('%s', 'w') as f:
+	with open(r'%s', 'w') as f:
 		f.write("{}\n".format(e))
 `, call, tmpfile.Name()))
 

@@ -167,6 +167,12 @@ PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs) {
     return headers_dict;
 }
 
+// provide a non-static entry point for the `headers` method; headers is duplicated
+// in the `util` module; allow it to be called directly
+
+PyObject *_public_headers(PyObject *self, PyObject *args, PyObject *kwargs){
+    return headers(self, args, kwargs);
+}
 PyObject *get_hostname(PyObject *self, PyObject *args) {
     // callback must be set
     if (cb_get_hostname == NULL) {
