@@ -14,7 +14,7 @@
 /cmd/agent/app/integrations*.go         @DataDog/prodsec @DataDog/agent-integrations @DataDog/agent-core
 /cmd/cluster-agent/                     @DataDog/container-integrations
 
-/docs/                                  @DataDog/baklava
+/docs/                                  @DataDog/baklava @DataDog/agent-core
 
 /pkg/                                   @DataDog/agent-core
 /pkg/aggregator/                        @DataDog/agent-core
