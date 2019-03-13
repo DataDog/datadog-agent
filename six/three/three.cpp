@@ -5,6 +5,10 @@
 // Copyright 2019 Datadog, Inc.
 #include "three.h"
 
+extern "C" {
+#include "sixstrings.h"
+}
+
 #include "constants.h"
 
 #include <aggregator.h>
@@ -535,4 +539,52 @@ void Three::setLogCb(cb_log_t cb) {
 
 void Three::setSetExternalTagsCb(cb_set_external_tags_t cb) {
     _set_set_external_tags_cb(cb);
+}
+
+// Python Helpers
+
+// get_integration_list return a list of every datadog's wheels installed.
+char *Three::getIntegrationList() {
+    PyObject *pyPackages = NULL;
+    PyObject *pkgLister = NULL;
+    PyObject *args = NULL;
+    PyObject *packages = NULL;
+    char *wheels = NULL;
+
+    six_gilstate_t state = GILEnsure();
+
+    pyPackages = PyImport_ImportModule("datadog_checks.base.utils.agent.packages");
+    if (pyPackages == NULL) {
+        setError("could not import datadog_checks.base.utils.agent.packages: " + _fetchPythonError());
+        goto done;
+    }
+
+    pkgLister = PyObject_GetAttrString(pyPackages, "get_datadog_wheels");
+    if (pyPackages == NULL) {
+        setError("could not fetch get_datadog_wheels attr: " + _fetchPythonError());
+        goto done;
+    }
+
+    args = PyTuple_New(0);
+    packages = PyObject_Call(pkgLister, args, NULL);
+    if (packages == NULL) {
+        setError("error fetching wheels list: " + _fetchPythonError());
+        goto done;
+    }
+
+    if (PyList_Check(packages) == 0) {
+        setError("'get_datadog_wheels' did not return a list");
+        goto done;
+    }
+
+    wheels = as_json(packages);
+
+done:
+    Py_XDECREF(pyPackages);
+    Py_XDECREF(pkgLister);
+    Py_XDECREF(args);
+    Py_XDECREF(packages);
+    GILRelease(state);
+
+    return wheels;
 }
