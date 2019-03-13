@@ -137,6 +137,14 @@ func (suite *ConfigTestSuite) TestBuildEndpointsShouldSucceedWhenMigratingToAgen
 	suite.Equal(10516, endpoints.Main.Port)
 }
 
+func (suite *ConfigTestSuite) TestIsSetAndNotEmpty() {
+	suite.config.Set("bob", "vanilla")
+	suite.config.Set("empty", "")
+	suite.True(isSetAndNotEmpty(suite.config, "bob"))
+	suite.False(isSetAndNotEmpty(suite.config, "empty"))
+	suite.False(isSetAndNotEmpty(suite.config, "wassup"))
+}
+
 func TestConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigTestSuite))
 }
