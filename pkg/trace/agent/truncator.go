@@ -2,7 +2,7 @@ package agent
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (

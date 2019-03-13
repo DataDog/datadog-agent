@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/protobuf/proto"
 )
 
