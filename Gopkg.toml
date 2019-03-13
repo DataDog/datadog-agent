@@ -128,7 +128,7 @@
 
 [[constraint]]
   name = "github.com/DataDog/viper"
-  revision = "59d5cbf4d7cee2828fca42ff1117894b013ca978"
+  revision = "v1.5.0"
 
 [[constraint]]
   name = "github.com/coreos/go-systemd"
