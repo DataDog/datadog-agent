@@ -43,6 +43,9 @@ public:
         return reinterpret_cast<SixPyObject *>(Py_None);
     }
 
+    // Python Helpers
+    char *getIntegrationList();
+
     // aggregator API
     void setSubmitMetricCb(cb_submit_metric_t);
     void setSubmitServiceCheckCb(cb_submit_service_check_t);

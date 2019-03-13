@@ -9,11 +9,22 @@ if(WIN32)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin )
 endif()
 
+## Config options
+option(DISABLE_PYTHON2 "Do not build Python2 support")
+option(DISABLE_PYTHON3 "Do not build Python3 support")
+option(BUILD_DEMO "Build the demo app" ON)
+
 ## Add Build Targets
-add_subdirectory(two)
-add_subdirectory(three)
+if (NOT DISABLE_PYTHON2)
+    add_subdirectory(two)
+endif()
+if (NOT DISABLE_PYTHON3)
+    add_subdirectory(three)
+endif()
 add_subdirectory(six)
-add_subdirectory(demo)
+if (BUILD_DEMO)
+    add_subdirectory(demo)
+endif()
 
 ## Dev tools
 include(cmake/clang-format.cmake)

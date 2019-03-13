@@ -49,6 +49,9 @@ DATADOG_AGENT_SIX_API int run_simple_string(const six_t *, const char *code);
 DATADOG_AGENT_SIX_API int has_error(const six_t *);
 DATADOG_AGENT_SIX_API const char *get_error(const six_t *);
 
+// PYTHON HELPERS
+DATADOG_AGENT_SIX_API char *get_integration_list(six_t *);
+
 // AGGREGATOR API
 DATADOG_AGENT_SIX_API void set_submit_metric_cb(six_t *, cb_submit_metric_t);
 DATADOG_AGENT_SIX_API void set_submit_service_check_cb(six_t *, cb_submit_service_check_t);
