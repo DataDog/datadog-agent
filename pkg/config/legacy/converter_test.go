@@ -349,28 +349,28 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	agentConfig["api_key"] = ""
 	err := extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
-	assert.Equal(t, "", config.Datadog.Get("dd_url"))
-	assert.Equal(t, "", config.Datadog.Get("api_key"))
-	assert.Nil(t, config.Datadog.Get("additional_endpoints"))
+	assert.Equal(t, "", config.Datadog.GetString("dd_url"))
+	assert.Equal(t, "", config.Datadog.GetString("api_key"))
+	assert.Empty(t, config.Datadog.GetStringMapStringSlice("additional_endpoints"))
 
 	// one url and one key
 	agentConfig["dd_url"] = "https://datadoghq.com"
 	agentConfig["api_key"] = "123456789"
 	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
-	assert.Equal(t, "https://datadoghq.com", config.Datadog.Get("dd_url"))
-	assert.Equal(t, "123456789", config.Datadog.Get("api_key"))
-	assert.Nil(t, config.Datadog.Get("additional_endpoints"))
+	assert.Equal(t, "https://datadoghq.com", config.Datadog.GetString("dd_url"))
+	assert.Equal(t, "123456789", config.Datadog.GetString("api_key"))
+	assert.Empty(t, config.Datadog.GetStringMapStringSlice("additional_endpoints"))
 
 	// multiple dd_url and api_key
 	agentConfig["dd_url"] = "https://datadoghq.com,https://datadoghq.com,https://datadoghq.com,https://staging.com"
 	agentConfig["api_key"] = "123456789,abcdef,secret_key,secret_key2"
 	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
-	assert.Equal(t, "https://datadoghq.com", config.Datadog.Get("dd_url"))
-	assert.Equal(t, "123456789", config.Datadog.Get("api_key"))
+	assert.Equal(t, "https://datadoghq.com", config.Datadog.GetString("dd_url"))
+	assert.Equal(t, "123456789", config.Datadog.GetString("api_key"))
 
-	endpoints := config.Datadog.Get("additional_endpoints").(map[string][]string)
+	endpoints := config.Datadog.GetStringMapStringSlice("additional_endpoints")
 	assert.Equal(t, 2, len(endpoints))
 	assert.Equal(t, []string{"abcdef", "secret_key"}, endpoints["https://datadoghq.com"])
 	assert.Equal(t, []string{"secret_key2"}, endpoints["https://staging.com"])
