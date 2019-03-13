@@ -35,7 +35,7 @@ func TestGetVersion(t *testing.T) {
 
 func TestRunSimpleString(t *testing.T) {
 	code := fmt.Sprintf(`
-with open('%s', 'w') as f:
+with open(r'%s', 'w') as f:
 	f.write('Hello, World!')`, tmpfile.Name())
 
 	output, err := runString(code)

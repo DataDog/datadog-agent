@@ -1,7 +1,8 @@
 package testsix
 
 // #cgo CFLAGS: -I../../include
-// #cgo LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
+// #cgo linux LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl -lstdc++
+// #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
 // #include <datadog_agent_six.h>
 //
 import "C"
@@ -114,7 +115,8 @@ func runFakeCheck() (string, error) {
 	var check *C.six_pyobject_t
 	var version *C.char
 
-	C.get_class(six, C.CString("datadog_checks.directory"), &module, &class)
+	//C.get_class(six, C.CString("datadog_checks.directory"), &module, &class)
+	C.get_class(six, C.CString("datadog_checks.fake_check"), &module, &class)
 	C.get_attr_string(six, module, C.CString("__version__"), &version)
 	C.get_check(six, class, C.CString(""), C.CString("[{fake_check: \"/\"}]"), C.CString("checkID"), C.CString("fake_check"), &check)
 
