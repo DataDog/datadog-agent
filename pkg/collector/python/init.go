@@ -14,9 +14,12 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // #include "datadog_agent_six.h"
@@ -44,18 +47,37 @@ var (
 	six *C.six_t = nil
 )
 
+func sendTelemetry(pythonVersion int) {
+	tags := []string{
+		fmt.Sprintf("python_version:%d", pythonVersion),
+	}
+	if agentVersion, err := version.New(version.AgentVersion, version.Commit); err == nil {
+		tags = append(tags,
+			fmt.Sprintf("agent_version_major:%d", agentVersion.Major),
+			fmt.Sprintf("agent_version_minor:%d", agentVersion.Minor),
+			fmt.Sprintf("agent_version_patch:%d", agentVersion.Patch),
+		)
+	}
+	aggregator.AddRecurrentSeries(&metrics.Serie{
+		Name:   "datadog.agent.python.version",
+		Points: []metrics.Point{{Value: 1.0}},
+		Tags:   tags,
+		MType:  metrics.APIGaugeType,
+	})
+}
+
 func Initialize(paths ...string) error {
-	pythonVersion := config.Datadog.GetString("python_version")
+	pythonVersion := config.Datadog.GetInt("python_version")
 
 	pythonHome := ""
-	if pythonVersion == "2" {
+	if pythonVersion == 2 {
 		six = C.make2()
 		pythonHome = pythonHome2
-	} else if pythonVersion == "3" {
+	} else if pythonVersion == 3 {
 		six = C.make3()
 		pythonHome = pythonHome3
 	} else {
-		return fmt.Errorf("unknown requested version of python: %s", pythonVersion)
+		return fmt.Errorf("unknown requested version of python: %d", pythonVersion)
 	}
 
 	if runtime.GOOS == "windows" {
@@ -86,6 +108,8 @@ func Initialize(paths ...string) error {
 		key := cache.BuildAgentKey("pythonVersion")
 		cache.Cache.Set(key, PythonVersion, cache.NoExpiration)
 	}
+
+	sendTelemetry(pythonVersion)
 
 	// TODO: query PythonPath
 	// TODO: query PythonHome
