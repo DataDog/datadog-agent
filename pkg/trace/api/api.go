@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	stdlog "log"
 	"net"
 	"net/http"
 	"sort"
@@ -140,6 +141,7 @@ func (r *HTTPReceiver) Listen(addr, logExtra string) error {
 	r.server = &http.Server{
 		ReadTimeout:  timeout,
 		WriteTimeout: timeout,
+		ErrorLog:     stdlog.New(writableFunc(log.Error), "http.Server: ", 0),
 	}
 	log.Infof("listening for traces at http://%s%s", addr, logExtra)
 
@@ -441,4 +443,16 @@ func tracesFromSpans(spans []pb.Span) pb.Traces {
 	}
 
 	return traces
+}
+
+// writableFunc implements io.Writer over a function. Anything written will be
+// forwarded to the function as one string argument.
+type writableFunc func(v ...interface{}) error
+
+// Write implements io.Writer.
+func (fn writableFunc) Write(p []byte) (n int, err error) {
+	if err = fn(string(p)); err != nil {
+		return 0, err
+	}
+	return len(p), nil
 }
