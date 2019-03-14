@@ -246,9 +246,9 @@ const char *Three::runCheck(SixPyObject *check) {
 
     // result will be eventually returned as a copy and the corresponding Python
     // string decref'ed, caller will be responsible for memory deallocation.
-    char *ret, *ret_copy = NULL;
+    char *ret = NULL;
     char run[] = "run";
-    PyObject *result = NULL, *bytes = NULL;
+    PyObject *result = NULL;
 
     result = PyObject_CallMethod(py_check, run, NULL);
     if (result == NULL || !PyUnicode_Check(result)) {
@@ -256,21 +256,15 @@ const char *Three::runCheck(SixPyObject *check) {
         goto done;
     }
 
-    bytes = PyUnicode_AsEncodedString(result, "UTF-8", "strict");
-    if (bytes == NULL) {
-        setError("error converting result to string: " + _fetchPythonError());
+    ret = as_string(result);
+    if (ret == NULL) {
+        setError("error converting 'run' result to string: " + _fetchPythonError());
         goto done;
     }
 
-    // `ret` points to the Python string internal storage and will be eventually
-    // deallocated along with the corresponding Python object.
-    ret = PyBytes_AsString(bytes);
-    ret_copy = _strdup(ret);
-    Py_XDECREF(bytes);
-
 done:
     Py_XDECREF(result);
-    return ret_copy;
+    return ret;
 }
 
 // return new reference
@@ -318,17 +312,12 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module) {
     PyObject *klass = NULL;
     for (int i = 0; i < PyList_GET_SIZE(dir); i++) {
         // get symbol name
-        std::string symbol_name;
+        char *symbol_name;
         PyObject *symbol = PyList_GetItem(dir, i);
         if (symbol != NULL) {
-            PyObject *bytes = PyUnicode_AsEncodedString(symbol, "UTF-8", "strict");
-
-            if (bytes != NULL) {
-                symbol_name = PyBytes_AsString(bytes);
-                Py_XDECREF(bytes);
-            } else {
+            symbol_name = as_string(symbol);
+            if (symbol_name == NULL)
                 continue;
-            }
         } else {
             // Gets exception reason
             PyObject *reason = PyUnicodeDecodeError_GetReason(PyExc_IndexError);
@@ -339,7 +328,8 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module) {
             goto done;
         }
 
-        klass = PyObject_GetAttrString(module, symbol_name.c_str());
+        klass = PyObject_GetAttrString(module, symbol_name);
+        ::free(symbol_name);
         if (klass == NULL) {
             continue;
         }
@@ -419,9 +409,9 @@ std::string Three::_fetchPythonError() const {
                 if (fmt_exc != NULL) {
                     // "format_exception" returns a list of strings (one per line)
                     for (int i = 0; i < PyList_Size(fmt_exc); i++) {
-                        PyObject *temp_bytes = PyUnicode_AsEncodedString(PyList_GetItem(fmt_exc, i), "UTF-8", "strict");
-                        ret_val += PyBytes_AS_STRING(temp_bytes);
-                        Py_XDECREF(temp_bytes);
+                        char *item = as_string(PyList_GetItem(fmt_exc, i));
+                        ret_val += item;
+                        ::free(item);
                     }
                 }
                 Py_XDECREF(fmt_exc);
@@ -438,18 +428,18 @@ std::string Three::_fetchPythonError() const {
     else if (pvalue != NULL) {
         PyObject *pvalue_obj = PyObject_Str(pvalue);
         if (pvalue_obj != NULL) {
-            PyObject *temp_bytes = PyUnicode_AsEncodedString(pvalue_obj, "UTF-8", "strict");
-            ret_val = PyBytes_AS_STRING(temp_bytes);
+            char *ret = as_string(pvalue_obj);
+            ret_val += ret;
+            ::free(ret);
             Py_XDECREF(pvalue_obj);
-            Py_XDECREF(temp_bytes);
         }
     } else if (ptype != NULL) {
         PyObject *ptype_obj = PyObject_Str(ptype);
         if (ptype_obj != NULL) {
-            PyObject *temp_bytes = PyUnicode_AsEncodedString(ptype_obj, "UTF-8", "strict");
-            ret_val = PyBytes_AS_STRING(temp_bytes);
+            char *ret = as_string(ptype_obj);
+            ret_val += ret;
+            ::free(ret);
             Py_XDECREF(ptype_obj);
-            Py_XDECREF(temp_bytes);
         }
     }
 
@@ -477,11 +467,10 @@ bool Three::getAttrString(SixPyObject *obj, const char *attributeName, char *&va
 
     py_attr = PyObject_GetAttrString(py_obj, attributeName);
     if (py_attr != NULL && PyUnicode_Check(py_attr)) {
-        py_attr_bytes = PyUnicode_AsEncodedString(py_attr, "UTF-8", "strict");
-        if (py_attr_bytes == NULL) {
+        value = as_string(py_attr);
+        if (value == NULL) {
             setError("error converting attribute " + std::string(attributeName) + " to string: " + _fetchPythonError());
         } else {
-            value = _strdup(PyBytes_AsString(py_attr_bytes));
             res = true;
         }
     } else if (py_attr != NULL && !PyUnicode_Check(py_attr)) {

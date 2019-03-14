@@ -469,7 +469,7 @@ bool Two::getAttrString(SixPyObject *obj, const char *attributeName, char *&valu
 
     py_attr = PyObject_GetAttrString(py_obj, attributeName);
     if (py_attr != NULL && PyString_Check(py_attr)) {
-        value = _strdup(PyString_AS_STRING(py_attr));
+        value = as_string(py_attr);
         res = true;
     } else if (py_attr != NULL && !PyString_Check(py_attr)) {
         setError("error attribute " + std::string(attributeName) + " is has a different type than string");
