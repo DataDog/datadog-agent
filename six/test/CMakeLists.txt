@@ -8,6 +8,7 @@ set(PKGS
 	"./util/..."
 	"./uutil/..."
 	"./common/..."
+	"./tagger/..."
 )
 
 set(LIBS_PATH "${CMAKE_SOURCE_DIR}/six/:${CMAKE_SOURCE_DIR}/two/:${CMAKE_SOURCE_DIR}/three/")

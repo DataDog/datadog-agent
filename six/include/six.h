@@ -74,6 +74,9 @@ public:
     // CGO API
     virtual void setCGOFreeCb(cb_cgo_free_t) = 0;
 
+    // tagger API
+    virtual void setGetTagsCb(cb_get_tags_t) = 0;
+
 private:
     mutable std::string _error;
     mutable bool _errorFlag;

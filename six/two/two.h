@@ -66,6 +66,9 @@ public:
     // CGO API
     void setCGOFreeCb(cb_cgo_free_t);
 
+    // tagger
+    void setGetTagsCb(cb_get_tags_t);
+
 private:
     PyObject *_importFrom(const char *module, const char *name);
     PyObject *_findSubclassOf(PyObject *base, PyObject *moduleName);

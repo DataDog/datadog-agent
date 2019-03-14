@@ -72,6 +72,9 @@ DATADOG_AGENT_SIX_API void set_get_subprocess_output_cb(six_t *six, cb_get_subpr
 // CGO API
 DATADOG_AGENT_SIX_API void set_cgo_free_cb(six_t *, cb_cgo_free_t);
 
+// TAGGER
+DATADOG_AGENT_SIX_API void set_get_tags_cb(six_t *, cb_get_tags_t);
+
 #ifdef __cplusplus
 }
 #endif
