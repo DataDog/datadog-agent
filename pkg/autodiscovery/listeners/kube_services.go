@@ -28,6 +28,7 @@ import (
 const (
 	kubeServiceAnnotationFormat  = "ad.datadoghq.com/service.instances"
 	kubeEndpointAnnotationFormat = "ad.datadoghq.com/endpoints.instances"
+	kubeEndpointIDPrefix         = "kube_endpoint://"
 )
 
 // KubeServiceListener listens to kubernetes service creation
@@ -58,6 +59,7 @@ type KubeEndpointService struct {
 	hosts        map[string]string
 	ports        []ContainerPort
 	creationTime integration.CreationTime
+	adID         string
 }
 
 func init() {
@@ -399,7 +401,7 @@ func processEndpoint(kendpt *v1.Endpoints, firstRun bool) []*KubeEndpointService
 	for host, ip := range hosts {
 		// create a separate AD service per host
 		endpt := &KubeEndpointService{
-			entity:       apiserver.EntityForEndpoints(kendpt.Namespace, kendpt.Name),
+			entity:       apiserver.EntityForEndpoints(kendpt.Namespace, kendpt.Name, ip),
 			creationTime: integration.After,
 			hosts:        map[string]string{host: ip},
 			ports:        ports,
@@ -407,6 +409,7 @@ func processEndpoint(kendpt *v1.Endpoints, firstRun bool) []*KubeEndpointService
 				fmt.Sprintf("kube_endpoint:%s", kendpt.Name),
 				fmt.Sprintf("kube_namespace:%s", kendpt.Namespace),
 			},
+			adID: fmt.Sprintf("%s%s/%s", kubeEndpointIDPrefix, kendpt.Namespace, kendpt.Name),
 		}
 		if firstRun {
 			endpt.creationTime = integration.Before
@@ -539,8 +542,8 @@ func (s *KubeEndpointService) GetEntity() string {
 
 // GetADIdentifiers returns the service AD identifiers
 func (s *KubeEndpointService) GetADIdentifiers() ([]string, error) {
-	// Only the entity for now, to match on annotation
-	return []string{s.entity}, nil
+	// Only the entity without the IP for now, to match on annotation
+	return []string{s.adID}, nil
 }
 
 // GetHosts returns the endpoint hosts

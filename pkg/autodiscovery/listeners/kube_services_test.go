@@ -373,7 +373,7 @@ func TestProcessEndpoint(t *testing.T) {
 		}
 		return keyi < keyj
 	})
-	assert.Equal(t, "kube_endpoint://default/myendpoint", endpts[0].GetEntity())
+	assert.Equal(t, "kube_endpoint://default/myendpoint/10.0.0.1", endpts[0].GetEntity())
 	assert.Equal(t, integration.Before, endpts[0].GetCreationTime())
 
 	adID, err := endpts[0].GetADIdentifiers()
@@ -392,7 +392,7 @@ func TestProcessEndpoint(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_endpoint:myendpoint", "kube_namespace:default"}, tags)
 
-	assert.Equal(t, "kube_endpoint://default/myendpoint", endpts[1].GetEntity())
+	assert.Equal(t, "kube_endpoint://default/myendpoint/10.0.0.2", endpts[1].GetEntity())
 	assert.Equal(t, integration.Before, endpts[1].GetCreationTime())
 
 	adID, err = endpts[1].GetADIdentifiers()
@@ -669,7 +669,7 @@ func TestDiffEndpoints(t *testing.T) {
 		"one added endpoint": {
 			current: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.1"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost1": "10.0.0.1"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -679,7 +679,7 @@ func TestDiffEndpoints(t *testing.T) {
 					},
 				},
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.2"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost2": "10.0.0.2"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -691,7 +691,7 @@ func TestDiffEndpoints(t *testing.T) {
 			},
 			old: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.1"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost1": "10.0.0.1"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -703,7 +703,7 @@ func TestDiffEndpoints(t *testing.T) {
 			},
 			new: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.2"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost2": "10.0.0.2"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -718,7 +718,7 @@ func TestDiffEndpoints(t *testing.T) {
 		"one removed endpoint": {
 			current: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.1"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost1": "10.0.0.1"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -730,7 +730,7 @@ func TestDiffEndpoints(t *testing.T) {
 			},
 			old: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.1"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost1": "10.0.0.1"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -740,7 +740,7 @@ func TestDiffEndpoints(t *testing.T) {
 					},
 				},
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.2"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost2": "10.0.0.2"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -753,7 +753,7 @@ func TestDiffEndpoints(t *testing.T) {
 			new: nil,
 			removed: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.2"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost2": "10.0.0.2"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -767,7 +767,7 @@ func TestDiffEndpoints(t *testing.T) {
 		"one removed endpoint and one added endpoint": {
 			current: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.1"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost1": "10.0.0.1"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -777,7 +777,7 @@ func TestDiffEndpoints(t *testing.T) {
 					},
 				},
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.3"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost3": "10.0.0.3"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -789,7 +789,7 @@ func TestDiffEndpoints(t *testing.T) {
 			},
 			old: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.1"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost1": "10.0.0.1"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -799,7 +799,7 @@ func TestDiffEndpoints(t *testing.T) {
 					},
 				},
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.2"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost2": "10.0.0.2"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -811,7 +811,7 @@ func TestDiffEndpoints(t *testing.T) {
 			},
 			new: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.3"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost3": "10.0.0.3"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -823,7 +823,7 @@ func TestDiffEndpoints(t *testing.T) {
 			},
 			removed: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.2"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost2": "10.0.0.2"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -852,7 +852,7 @@ func TestContainsEndpointService(t *testing.T) {
 		"contained": {
 			endptsSvcs: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.1"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost1": "10.0.0.1"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -862,7 +862,7 @@ func TestContainsEndpointService(t *testing.T) {
 					},
 				},
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.2"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost2": "10.0.0.2"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -872,7 +872,7 @@ func TestContainsEndpointService(t *testing.T) {
 					},
 				},
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.3"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost3": "10.0.0.3"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -883,7 +883,7 @@ func TestContainsEndpointService(t *testing.T) {
 				},
 			},
 			endptSvc: &KubeEndpointService{
-				entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+				entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.3"),
 				creationTime: integration.After,
 				hosts:        map[string]string{"testhost3": "10.0.0.3"},
 				ports:        []ContainerPort{{123, "testport1"}},
@@ -897,7 +897,7 @@ func TestContainsEndpointService(t *testing.T) {
 		"not contained: same hostname and different address": {
 			endptsSvcs: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.1"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost1": "10.0.0.1"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -907,7 +907,7 @@ func TestContainsEndpointService(t *testing.T) {
 					},
 				},
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.2"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost2": "10.0.0.2"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -917,7 +917,7 @@ func TestContainsEndpointService(t *testing.T) {
 					},
 				},
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.3"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost3": "10.0.0.3"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -928,7 +928,7 @@ func TestContainsEndpointService(t *testing.T) {
 				},
 			},
 			endptSvc: &KubeEndpointService{
-				entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+				entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.4"),
 				creationTime: integration.After,
 				hosts:        map[string]string{"testhost3": "10.0.0.4"},
 				ports:        []ContainerPort{{123, "testport1"}},
@@ -942,7 +942,7 @@ func TestContainsEndpointService(t *testing.T) {
 		"not contained: different hostname and same address": {
 			endptsSvcs: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.1"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost1": "10.0.0.1"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -952,7 +952,7 @@ func TestContainsEndpointService(t *testing.T) {
 					},
 				},
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.2"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost2": "10.0.0.2"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -962,7 +962,7 @@ func TestContainsEndpointService(t *testing.T) {
 					},
 				},
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.3"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost3": "10.0.0.3"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -973,7 +973,7 @@ func TestContainsEndpointService(t *testing.T) {
 				},
 			},
 			endptSvc: &KubeEndpointService{
-				entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+				entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.3"),
 				creationTime: integration.After,
 				hosts:        map[string]string{"testhost4": "10.0.0.3"},
 				ports:        []ContainerPort{{123, "testport1"}},
@@ -1005,7 +1005,7 @@ func TestUpdateEndpoints(t *testing.T) {
 				endpoints: map[string][]*KubeEndpointService{
 					"default/myendpoint": {
 						{
-							entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+							entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.1"),
 							creationTime: integration.After,
 							hosts:        map[string]string{"testhost1": "10.0.0.1"},
 							ports:        []ContainerPort{{123, "testport1"}},
@@ -1015,7 +1015,7 @@ func TestUpdateEndpoints(t *testing.T) {
 							},
 						},
 						{
-							entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+							entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.2"),
 							creationTime: integration.After,
 							hosts:        map[string]string{"testhost2": "10.0.0.2"},
 							ports:        []ContainerPort{{123, "testport1"}},
@@ -1029,7 +1029,7 @@ func TestUpdateEndpoints(t *testing.T) {
 			},
 			new: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.3"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost3": "10.0.0.3"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -1041,7 +1041,7 @@ func TestUpdateEndpoints(t *testing.T) {
 			},
 			removed: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+					entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.1"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost1": "10.0.0.1"},
 					ports:        []ContainerPort{{123, "testport1"}},
@@ -1054,7 +1054,7 @@ func TestUpdateEndpoints(t *testing.T) {
 			expected: map[string][]*KubeEndpointService{
 				"default/myendpoint": {
 					{
-						entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+						entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.2"),
 						creationTime: integration.After,
 						hosts:        map[string]string{"testhost2": "10.0.0.2"},
 						ports:        []ContainerPort{{123, "testport1"}},
@@ -1064,7 +1064,7 @@ func TestUpdateEndpoints(t *testing.T) {
 						},
 					},
 					{
-						entity:       apiserver.EntityForEndpoints("default", "myendpoint"),
+						entity:       apiserver.EntityForEndpoints("default", "myendpoint", "10.0.0.3"),
 						creationTime: integration.After,
 						hosts:        map[string]string{"testhost3": "10.0.0.3"},
 						ports:        []ContainerPort{{123, "testport1"}},
@@ -1147,7 +1147,7 @@ func TestCreateEndpoint(t *testing.T) {
 			},
 			expectedEndpts: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myservice"),
+					entity:       apiserver.EntityForEndpoints("default", "myservice", "10.0.0.1"),
 					creationTime: integration.Before,
 					hosts:        map[string]string{"testhost1": "10.0.0.1"},
 					ports:        []ContainerPort{{123, "testport1"}, {124, "testport2"}},
@@ -1155,9 +1155,10 @@ func TestCreateEndpoint(t *testing.T) {
 						"kube_endpoint:myservice",
 						"kube_namespace:default",
 					},
+					adID: "kube_endpoint://default/myservice",
 				},
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myservice"),
+					entity:       apiserver.EntityForEndpoints("default", "myservice", "10.0.0.2"),
 					creationTime: integration.Before,
 					hosts:        map[string]string{"testhost2": "10.0.0.2"},
 					ports:        []ContainerPort{{123, "testport1"}, {124, "testport2"}},
@@ -1165,6 +1166,7 @@ func TestCreateEndpoint(t *testing.T) {
 						"kube_endpoint:myservice",
 						"kube_namespace:default",
 					},
+					adID: "kube_endpoint://default/myservice",
 				},
 			},
 		},
@@ -1221,7 +1223,7 @@ func TestCreateEndpoint(t *testing.T) {
 			},
 			expectedEndpts: []*KubeEndpointService{
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myservice"),
+					entity:       apiserver.EntityForEndpoints("default", "myservice", "10.0.0.1"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost1": "10.0.0.1"},
 					ports:        []ContainerPort{{123, "testport1"}, {124, "testport2"}},
@@ -1229,9 +1231,10 @@ func TestCreateEndpoint(t *testing.T) {
 						"kube_endpoint:myservice",
 						"kube_namespace:default",
 					},
+					adID: "kube_endpoint://default/myservice",
 				},
 				{
-					entity:       apiserver.EntityForEndpoints("default", "myservice"),
+					entity:       apiserver.EntityForEndpoints("default", "myservice", "10.0.0.2"),
 					creationTime: integration.After,
 					hosts:        map[string]string{"testhost2": "10.0.0.2"},
 					ports:        []ContainerPort{{123, "testport1"}, {124, "testport2"}},
@@ -1239,6 +1242,7 @@ func TestCreateEndpoint(t *testing.T) {
 						"kube_endpoint:myservice",
 						"kube_namespace:default",
 					},
+					adID: "kube_endpoint://default/myservice",
 				},
 			},
 		},
