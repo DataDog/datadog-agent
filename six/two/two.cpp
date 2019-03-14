@@ -5,12 +5,9 @@
 // Copyright 2019 Datadog, Inc.
 #include "two.h"
 
-extern "C" {
-#include "sixstrings.h"
-}
-
 #include "constants.h"
 
+#include "sixstrings.h"
 #include <_util.h>
 #include <aggregator.h>
 #include <cgo_free.h>
