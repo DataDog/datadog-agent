@@ -1,7 +1,7 @@
 package testsix
 
 // #cgo CFLAGS: -I../../include
-// #cgo linux LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl -lstdc++
+// #cgo !windows LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl -lstdc++
 // #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
 // #include <datadog_agent_six.h>
 //
