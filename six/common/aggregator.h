@@ -8,6 +8,8 @@
 #include <Python.h>
 #include <six_types.h>
 
+#define AGGREGATOR_MODULE_NAME "aggregator"
+
 #ifdef DATADOG_AGENT_THREE
 PyMODINIT_FUNC PyInit_aggregator(void);
 #endif

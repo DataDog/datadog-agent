@@ -6,8 +6,6 @@
 
 #include <sixstrings.h>
 
-#define MODULE_NAME "datadog_agent"
-
 // these must be set by the Agent
 static cb_get_version_t cb_get_version = NULL;
 static cb_get_config_t cb_get_config = NULL;
@@ -38,7 +36,7 @@ static PyMethodDef methods[] = {
 };
 
 #ifdef DATADOG_AGENT_THREE
-static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, MODULE_NAME, NULL, -1, methods };
+static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, DATADOG_AGENT_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_datadog_agent(void) {
     return PyModule_Create(&module_def);
@@ -50,7 +48,7 @@ PyMODINIT_FUNC PyInit_datadog_agent(void) {
 static PyObject *module;
 
 void Py2_init_datadog_agent() {
-    module = Py_InitModule(MODULE_NAME, methods);
+    module = Py_InitModule(DATADOG_AGENT_MODULE_NAME, methods);
 }
 #endif
 
@@ -173,6 +171,7 @@ PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs) {
 PyObject *_public_headers(PyObject *self, PyObject *args, PyObject *kwargs){
     return headers(self, args, kwargs);
 }
+
 PyObject *get_hostname(PyObject *self, PyObject *args) {
     // callback must be set
     if (cb_get_hostname == NULL) {

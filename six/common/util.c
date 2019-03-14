@@ -8,8 +8,6 @@
 
 #include <sixstrings.h>
 
-#define MODULE_NAME "util"
-
 static PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *get_hostname(PyObject *self, PyObject *args);
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -22,7 +20,7 @@ static PyMethodDef methods[] = {
 };
 
 #ifdef DATADOG_AGENT_THREE
-static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, MODULE_NAME, NULL, -1, methods };
+static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, UTIL_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_util(void) {
     return PyModule_Create(&module_def);
@@ -34,7 +32,7 @@ PyMODINIT_FUNC PyInit_util(void) {
 static PyObject *module;
 
 void Py2_init_util() {
-    module = Py_InitModule(MODULE_NAME, methods);
+    module = Py_InitModule(UTIL_MODULE_NAME, methods);
 }
 #endif
 
