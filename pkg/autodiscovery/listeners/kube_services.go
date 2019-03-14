@@ -371,9 +371,11 @@ func (l *KubeServiceListener) createEndpoint(kendpt *v1.Endpoints, firstRun bool
 			newEndpts, removedEndpts := diffEndpoints(endpts, l.endpoints[endptId])
 			l.updateEndpoints(newEndpts, removedEndpts, endptId)
 			for _, endpt := range newEndpts {
+				log.Debugf("sending new endpoint: %v", endpt)
 				l.newService <- endpt
 			}
 			for _, endpt := range removedEndpts {
+				log.Debugf("removing endpoint: %v", endpt)
 				l.delService <- endpt
 			}
 		}
@@ -390,7 +392,7 @@ func processEndpoint(kendpt *v1.Endpoints, firstRun bool) []*KubeEndpointService
 	for i := range kendpt.Subsets {
 		// Hosts
 		for _, host := range kendpt.Subsets[i].Addresses {
-			hosts[host.Hostname] = host.IP
+			hosts[host.IP] = host.Hostname
 		}
 		// Ports
 		for _, port := range kendpt.Subsets[i].Ports {
@@ -398,7 +400,7 @@ func processEndpoint(kendpt *v1.Endpoints, firstRun bool) []*KubeEndpointService
 		}
 	}
 
-	for host, ip := range hosts {
+	for ip, host := range hosts {
 		// create a separate AD service per host
 		endpt := &KubeEndpointService{
 			entity:       apiserver.EntityForEndpoints(kendpt.Namespace, kendpt.Name, ip),
