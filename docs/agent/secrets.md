@@ -22,19 +22,16 @@ This section covers how to set up this feature.
     - [Agent security requirements](#agent-security-requirements)
       - [Linux](#linux)
       - [Windows](#windows)
-    - [Agent security requirements](#agent-security-requirements-1)
-      - [Linux](#linux-1)
     - [The executable API](#the-executable-api)
   - [Troubleshooting](#troubleshooting)
-      - [Listing dectected secrets](#listing-dectected-secrets)
-      - [Seeing configurations after secrets were injected](#seeing-configurations-after-secrets-were-injected)
-      - [Debugging your secret_backend_command](#debugging-your-secret_backend_command)
-        - [Linux](#linux-2)
+    - [Listing detected secrets](#listing-detected-secrets)
+    - [Seeing configurations after secrets were injected](#seeing-configurations-after-secrets-were-injected)
+    - [Debugging your secret_backend_command](#debugging-your-secretbackendcommand)
+      - [Linux](#linux-1)
+      - [Windows](#windows-1)
+        - [Rights related errors](#rights-related-errors)
+        - [Testing your executable](#testing-your-executable)
     - [Agent refusing to start](#agent-refusing-to-start)
-        - [Windows](#windows-1)
-          - [Rights related errors](#rights-related-errors)
-          - [Testing your executable](#testing-your-executable)
-      - [Agent refusing to start](#agent-refusing-to-start-1)
 
 ## Defining secrets in configurations
 
@@ -352,7 +349,7 @@ instances:
 
 ## Troubleshooting
 
-### Listing dectected secrets
+### Listing detected secrets
 
 The `secret` command in the Agent CLI will show any error related to your setup
 (if the rights on the executable aren't the right one for example). It will
