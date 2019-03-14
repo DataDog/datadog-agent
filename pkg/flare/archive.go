@@ -38,6 +38,9 @@ import (
 
 const (
 	routineDumpFilename = "go-routine-dump.log"
+
+	// Maximum size for the root directory name
+	directoryNameMaxSize = 32
 )
 
 var (
@@ -46,6 +49,9 @@ var (
 
 	// Match .yaml and .yml to ship configuration files in the flare.
 	cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
+
+	// Filter to clean the directory name from invalid file name characters
+	directoryNameFilter = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
 
 	// Match other services api keys
 	// It is a best effort to match the api key field without matching our
@@ -106,6 +112,8 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	if err != nil {
 		hostname = "unknown"
 	}
+
+	hostname = cleanDirectoryName(hostname)
 
 	permsInfos := make(permissionsInfos)
 
@@ -610,4 +618,12 @@ func getArchivePath() string {
 	fileName = strings.Join([]string{fileName, "zip"}, ".")
 	filePath := filepath.Join(dir, fileName)
 	return filePath
+}
+
+func cleanDirectoryName(name string) string {
+	filteredName := directoryNameFilter.ReplaceAllString(name, "_")
+	if len(filteredName) > directoryNameMaxSize {
+		return filteredName[:directoryNameMaxSize]
+	}
+	return filteredName
 }

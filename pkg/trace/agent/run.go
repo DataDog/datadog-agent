@@ -7,10 +7,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
-	"strings"
 	"time"
-
-	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -19,27 +16,53 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const agentDisabledMessage = `trace-agent not enabled.
-Set env var DD_APM_ENABLED=true or add
-apm_enabled: true
-to your datadog.conf file.
-Exiting.`
+const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
+DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
+to your datadog.yaml. Exiting...`
 
 // Run is the entrypoint of our code, which starts the agent.
 func Run(ctx context.Context) {
-	// configure a default logger before anything so we can observe initialization
-	if flags.Info || flags.Version {
-		log.UseLogger(log.Disabled)
-	} else {
-		SetupDefaultLogger()
-		defer log.Flush()
+	cfg, err := config.Load(flags.ConfigPath)
+	if err != nil {
+		osutil.Exitf("%v", err)
+	}
+	err = info.InitInfo(cfg) // for expvar & -info option
+	if err != nil {
+		osutil.Exitf("%v", err)
+	}
+
+	if flags.Version {
+		fmt.Print(info.VersionString())
+		return
+	}
+
+	if flags.Info {
+		if err := info.Info(os.Stdout, cfg); err != nil {
+			osutil.Exitf("failed to print info: %s\n", err)
+		}
+		return
+	}
+
+	if err := setupLogger(cfg); err != nil {
+		osutil.Exitf("cannot create logger: %v", err)
+	}
+	defer log.Flush()
+
+	if !cfg.Enabled {
+		log.Info(messageAgentDisabled)
+
+		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
+		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
+		// http://supervisord.org/subprocess.html#process-states
+		time.Sleep(5 * time.Second)
+		return
 	}
 
 	defer watchdog.LogOnPanic()
 
-	// start CPU profiling
 	if flags.CPUProfile != "" {
 		f, err := os.Create(flags.CPUProfile)
 		if err != nil {
@@ -50,91 +73,29 @@ func Run(ctx context.Context) {
 		defer pprof.StopCPUProfile()
 	}
 
-	if flags.Version {
-		fmt.Print(info.VersionString())
-		return
-	}
-
-	if !flags.Info && flags.PIDFilePath != "" {
+	if flags.PIDFilePath != "" {
 		err := pidfile.WritePID(flags.PIDFilePath)
 		if err != nil {
-			log.Errorf("Error while writing PID file, exiting: %v", err)
+			log.Criticalf("error writing PID file, exiting: %v", err)
 			os.Exit(1)
 		}
 
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), flags.PIDFilePath)
-		defer func() {
-			// remove pidfile if set
-			os.Remove(flags.PIDFilePath)
-		}()
+		defer os.Remove(flags.PIDFilePath)
 	}
 
-	cfg, err := config.Load(flags.ConfigPath)
-	if err != nil {
-		osutil.Exitf("%v", err)
-	}
-	err = info.InitInfo(cfg) // for expvar & -info option
-	if err != nil {
-		panic(err)
-	}
-
-	if flags.Info {
-		if err := info.Info(os.Stdout, cfg); err != nil {
-			os.Stdout.WriteString(fmt.Sprintf("failed to print info: %s\n", err))
-			os.Exit(1)
-		}
-		return
-	}
-
-	// Exit if tracing is not enabled
-	if !cfg.Enabled {
-		log.Info(agentDisabledMessage)
-
-		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
-		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
-		// http://supervisord.org/subprocess.html#process-states
-		time.Sleep(5 * time.Second)
-		return
-	}
-
-	// Initialize logging (replacing the default logger). No need
-	// to defer log.Flush, it was already done when calling
-	// "SetupDefaultLogger" earlier.
-	cfgLogLevel := strings.ToLower(cfg.LogLevel)
-	if cfgLogLevel == "warning" {
-		// to match core agent:
-		// https://github.com/DataDog/datadog-agent/blob/6f2d901aeb19f0c0a4e09f149c7cc5a084d2f708/pkg/config/log.go#L74-L76
-		cfgLogLevel = "warn"
-	}
-	logLevel, ok := log.LogLevelFromString(cfgLogLevel)
-	if !ok {
-		logLevel = log.InfoLvl
-	}
-	duration := 10 * time.Second
-	if !cfg.LogThrottlingEnabled {
-		duration = 0
-	}
-	err = SetupLogger(logLevel, cfg.LogFilePath, duration, 10)
-	if err != nil {
-		osutil.Exitf("cannot create logger: %v", err)
-	}
-
-	// Initialize dogstatsd client
 	err = metrics.Configure(cfg, []string{"version:" + info.Version})
 	if err != nil {
 		osutil.Exitf("cannot configure dogstatsd: %v", err)
 	}
-
-	// count the number of times the agent started
 	metrics.Count("datadog.trace_agent.started", 1, nil, 1)
 
 	// Seed rand
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	ta := NewAgent(ctx, cfg)
-
+	agnt := NewAgent(ctx, cfg)
 	log.Infof("trace-agent running on host %s", cfg.Hostname)
-	ta.Run()
+	agnt.Run()
 
 	// collect memory profile
 	if flags.MemProfile != "" {
