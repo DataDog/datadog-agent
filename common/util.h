@@ -7,6 +7,8 @@
 #include <Python.h>
 #include <six_types.h>
 
+#define UTIL_MODULE_NAME "util"
+
 #ifdef DATADOG_AGENT_THREE
 PyMODINIT_FUNC PyInit_util(void);
 #endif
