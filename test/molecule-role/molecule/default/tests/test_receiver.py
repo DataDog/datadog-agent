@@ -291,4 +291,17 @@ def test_topology_components(host):
         assert _component_data("process", "urn:process:/agent-ubuntu", "/opt/stackstate-agent/bin/agent/agent")["hostTags"] == ["os:linux"]
         assert _component_data("process", "urn:process:/agent-win", "\"C:\\Program Files\\StackState\\StackState Agent\\embedded\\agent.exe\"")["hostTags"] == ["os:windows"]
 
+        # assert that process filtering works correctly
+        # fedora specific process filtering
+        assert _component_data("process", "urn:process:/agent-fedora", "/usr/sbin/sshd") is None
+        assert _component_data("process", "urn:process:/agent-fedora", "/usr/sbin/dhclient") is None
+        assert _component_data("process", "urn:process:/agent-fedora", "/usr/lib/systemd/systemd-journald") is None
+        # ubuntu specific process filtering
+        assert _component_data("process", "urn:process:/agent-ubuntu", "/usr/sbin/sshd") is None
+        assert _component_data("process", "urn:process:/agent-ubuntu", "/lib/systemd/systemd-journald") is None
+        assert _component_data("process", "urn:process:/agent-ubuntu", "/sbin/agetty") is None
+        # windows specific process filtering
+        assert _component_data("process", "urn:process:/agent-win", "C:\\Windows\\system32\\svchost.exe") is None
+        assert _component_data("process", "urn:process:/agent-win", "winlogon.exe") is None
+        assert _component_data("process", "urn:process:/agent-win", "C:\\Windows\\system32\\wlms\\wlms.exe") is None
     util.wait_until(wait_for_components, 30, 3)
