@@ -1,7 +1,7 @@
 ---
 enhancements:
   - |
-    In order to decrease the number API DCA request from the Agents,
-    The Agent no use a different API endpoint in order to call only 
-    once the DCA API in order to retrieve the Pods metadata.
-
+    In order to decrease the number of API DCA requests,
+    The Agent now uses a different API endpoint to call
+    the DCA's API only once in order to retrieve the Pods
+    metadata.

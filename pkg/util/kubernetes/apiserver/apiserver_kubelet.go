@@ -56,7 +56,7 @@ func processKubeServices(nodeList *v1.NodeList, pods []*kubelet.Pod, endpointLis
 		freshnessCache, freshnessFound := cache.Cache.Get(freshness) // if expired, freshness not found deal with that
 
 		if !found {
-			metaBundle = newMetadataMapperBundle()
+			metaBundle = newMetadataResponseBundle()
 			cache.Cache.Set(freshness, len(pods), metadataMapExpire)
 		}
 
@@ -64,7 +64,7 @@ func processKubeServices(nodeList *v1.NodeList, pods []*kubelet.Pod, endpointLis
 		// If a pod is killed and rescheduled during a run, we will only keep the old entry for another run, which is acceptable.
 		if found && freshnessCache != len(pods) || !freshnessFound {
 			cache.Cache.Delete(nodeNameCacheKey)
-			metaBundle = newMetadataMapperBundle()
+			metaBundle = newMetadataResponseBundle()
 			cache.Cache.Set(freshness, len(pods), metadataMapExpire)
 			log.Debugf("Refreshing cache for %s", nodeNameCacheKey)
 		}

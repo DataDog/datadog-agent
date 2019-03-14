@@ -72,7 +72,7 @@ func (m *metaBundleStore) getOrCreate(nodeName string) *metadataMapperBundle {
 		log.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
 	}
 
-	metaBundle = newMetadataMapperBundle()
+	metaBundle = newMetadataResponseBundle()
 
 	m.cache.Set(cacheKey, metaBundle, cache.NoExpiration)
 

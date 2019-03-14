@@ -64,7 +64,7 @@ func newDummyClusterAgent() (*dummyClusterAgent, error) {
 			"pod/node2/bar/pod-00006": {},
 		},
 		responsesByNode: apiv1.MetadataResponse{
-			Nodes: map[string]*apiv1.MetadataMapperBundle{
+			Nodes: map[string]*apiv1.MetadataResponseBundle{
 				"node1": {
 					Services: apiv1.NamespacesPodsStringsSet{
 						"foo": {
@@ -155,7 +155,7 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case "pod":
 			if nodeResp, found := d.responsesByNode.Nodes[nodeName]; found {
 				resp := apiv1.MetadataResponse{
-					Nodes: map[string]*apiv1.MetadataMapperBundle{
+					Nodes: map[string]*apiv1.MetadataResponseBundle{
 						nodeName: nodeResp,
 					},
 				}

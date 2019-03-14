@@ -85,31 +85,31 @@ func (m NamespacesPodsStringsSet) Delete(namespace string, strings ...string) {
 	}
 }
 
-// MetadataMapperBundle maps pod names to associated metadata.
-type MetadataMapperBundle struct {
+// MetadataResponseBundle maps pod names to associated metadata.
+type MetadataResponseBundle struct {
 	// Services maps pod names to the names of the services targeting the pod.
 	// keyed by the namespace a pod belongs to.
 	Services NamespacesPodsStringsSet `json:"services,omitempty"`
 }
 
-// NewMetadataMapperBundle returns new MetadataMapperBundle initialized instance
-func NewMetadataMapperBundle() *MetadataMapperBundle {
-	return &MetadataMapperBundle{
+// NewMetadataResponseBundle returns new MetadataResponseBundle initialized instance
+func NewMetadataResponseBundle() *MetadataResponseBundle {
+	return &MetadataResponseBundle{
 		Services: NewNamespacesPodsStringsSet(),
 	}
 }
 
 // MetadataResponse use to encore /api/v1/tags payloads
 type MetadataResponse struct {
-	Nodes    map[string]*MetadataMapperBundle `json:"Nodes,omitempty"`    // Nodes with uppercase for backward compatibility
-	Warnings []string                         `json:"Warnings,omitempty"` // Warnings with uppercase for backward compatibility
-	Errors   string                           `json:"Errors,omitempty"`   // Errors with uppercase for backward compatibility
+	Nodes    map[string]*MetadataResponseBundle `json:"Nodes,omitempty"`    // Nodes with uppercase for backward compatibility
+	Warnings []string                           `json:"Warnings,omitempty"` // Warnings with uppercase for backward compatibility
+	Errors   string                             `json:"Errors,omitempty"`   // Errors with uppercase for backward compatibility
 	// TODO: Since it is Errors, it should be []string and not string
 }
 
 // NewMetadataResponse returns new NewMetadataResponse initialized instance
 func NewMetadataResponse() *MetadataResponse {
 	return &MetadataResponse{
-		Nodes: make(map[string]*MetadataMapperBundle),
+		Nodes: make(map[string]*MetadataResponseBundle),
 	}
 }

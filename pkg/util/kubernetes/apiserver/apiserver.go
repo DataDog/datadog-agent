@@ -153,7 +153,7 @@ type metadataMapperBundle struct {
 	m        sync.RWMutex
 }
 
-func newMetadataMapperBundle() *metadataMapperBundle {
+func newMetadataResponseBundle() *metadataMapperBundle {
 	return &metadataMapperBundle{
 		Services: apiv1.NewNamespacesPodsStringsSet(),
 		mapOnIP:  config.Datadog.GetBool("kubernetes_map_services_on_ip"),
@@ -364,8 +364,8 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	return result.Into(output)
 }
 
-func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.MetadataMapperBundle {
-	output := apiv1.NewMetadataMapperBundle()
+func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.MetadataResponseBundle {
+	output := apiv1.NewMetadataResponseBundle()
 	output.Services = input.Services
 	return output
 }
