@@ -250,13 +250,12 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			atomic.AddInt64(&ts.TracesDropped, 1)
 			atomic.AddInt64(&ts.SpansDropped, int64(spans))
 
-			errorMsg := fmt.Sprintf("dropping trace reason: %s (debug for more info), %v", err, trace)
-
-			// avoid truncation in DEBUG mode
-			if len(errorMsg) > 150 && !r.debug {
-				errorMsg = errorMsg[:150] + "..."
+			msg := fmt.Sprintf("dropping trace; reason: %s", err)
+			if len(msg) > 150 && !r.debug {
+				// we're not in DEBUG log level, truncate long messages.
+				msg = msg[:150] + "... (set DEBUG for more info)"
 			}
-			log.Errorf(errorMsg)
+			log.Errorf(msg)
 		} else {
 			select {
 			case r.Out <- trace:
@@ -267,7 +266,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 				atomic.AddInt64(&ts.TracesDropped, 1)
 				atomic.AddInt64(&ts.SpansDropped, int64(spans))
 
-				log.Errorf("dropping trace reason: rate-limited")
+				log.Errorf("dropping trace; reason: rate-limited")
 			}
 		}
 	}
