@@ -12,6 +12,7 @@
 #include <aggregator.h>
 #include <cgo_free.h>
 #include <datadog_agent.h>
+#include <tagger.h>
 #include <util.h>
 
 #include <algorithm>
@@ -48,6 +49,7 @@ bool Two::init(const char *pythonHome) {
     Py2_init_datadog_agent();
     Py2_init_util();
     Py2_init__util();
+    Py2_init_tagger();
 
     // Set PYTHONPATH
     if (_pythonPaths.size()) {
@@ -533,6 +535,10 @@ void Two::setSubprocessOutputCb(cb_get_subprocess_output_t cb) {
 
 void Two::setCGOFreeCb(cb_cgo_free_t cb) {
     _set_cgo_free_cb(cb);
+}
+
+void Two::setGetTagsCb(cb_get_tags_t cb) {
+    _set_get_tags_cb(cb);
 }
 
 // Python Helpers

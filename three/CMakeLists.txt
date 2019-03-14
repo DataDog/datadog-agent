@@ -35,6 +35,7 @@ add_library(datadog-agent-three SHARED
     ../common/util.c
     ../common/_util.c
     ../common/cgo_free.c
+    ../common/tagger.c
 )
 
 if(WIN32)

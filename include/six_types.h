@@ -93,6 +93,11 @@ typedef void (*cb_get_subprocess_output_t)(char **, int, int, char **);
 //
 typedef void (*cb_cgo_free_t)(void *);
 
+// tagger
+//
+// (id, highCard)
+typedef void (*cb_get_tags_t)(char *, int, char **);
+
 #ifdef __cplusplus
 }
 #endif
