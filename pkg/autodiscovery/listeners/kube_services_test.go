@@ -1168,33 +1168,155 @@ func TestCreateEndpoint(t *testing.T) {
 				},
 			},
 		},
+		"add endpoints annotations to an existing service": {
+			ksvc: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					UID:             types.UID("test"),
+					Namespace:       "default",
+					Name:            "myservice",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/service.init_configs": "[{}]",
+						"ad.datadoghq.com/service.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+					},
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.1",
+					Ports: []v1.ServicePort{
+						{Name: "test1", Port: 126},
+					},
+				},
+			},
+			kendpt: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					Namespace:       "default",
+					Name:            "myservice",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.2", Hostname: "testhost2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 124},
+						},
+					},
+				},
+			},
+			expectedSvcs: []*KubeServiceService{
+				{
+					entity:       "kube_service://test",
+					creationTime: integration.After,
+					hosts:        map[string]string{"cluster": "10.0.0.1"},
+					ports:        []ContainerPort{{126, "test1"}},
+					tags: []string{
+						"kube_service:myservice",
+						"kube_namespace:default",
+					},
+				},
+			},
+			expectedEndpts: []*KubeEndpointService{
+				{
+					entity:       apiserver.EntityForEndpoints("default", "myservice"),
+					creationTime: integration.After,
+					hosts:        map[string]string{"testhost1": "10.0.0.1"},
+					ports:        []ContainerPort{{123, "testport1"}, {124, "testport2"}},
+					tags: []string{
+						"kube_endpoint:myservice",
+						"kube_namespace:default",
+					},
+				},
+				{
+					entity:       apiserver.EntityForEndpoints("default", "myservice"),
+					creationTime: integration.After,
+					hosts:        map[string]string{"testhost2": "10.0.0.2"},
+					ports:        []ContainerPort{{123, "testport1"}, {124, "testport2"}},
+					tags: []string{
+						"kube_endpoint:myservice",
+						"kube_namespace:default",
+					},
+				},
+			},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			c := make(chan Service, 10)
+			cr := make(chan Service, 10)
 			listener := &KubeServiceListener{
 				services:           make(map[types.UID]Service),
 				endpoints:          make(map[string][]*KubeEndpointService),
 				endpointsAnnotated: make(map[string]bool),
 				newService:         c,
-				delService:         nil,
+				delService:         cr,
 				servicesInformer:   nil,
 				endpointsInformer:  nil,
 			}
-			listener.createService(tc.ksvc, true)
-			listener.createEndpoint(tc.kendpt, true)
-			for i := 0; i < 3; i++ {
-				select {
-				case svc := <-c:
-					switch i {
-					case 0:
-						assert.Equal(t, tc.expectedSvcs[0], svc)
-					case 1:
-						assert.Equal(t, tc.expectedEndpts[0], svc)
-					case 2:
-						assert.Equal(t, tc.expectedEndpts[1], svc)
+			switch name {
+			case "nominal case":
+				listener.createService(tc.ksvc, true)
+				listener.createEndpoint(tc.kendpt, true)
+				for i := 0; i < 3; i++ {
+					select {
+					case svc := <-c:
+						switch i {
+						case 0:
+							assert.Equal(t, tc.expectedSvcs[0], svc)
+						case 1:
+							assert.Equal(t, tc.expectedEndpts[0], svc)
+						case 2:
+							assert.Equal(t, tc.expectedEndpts[1], svc)
+						}
+					case <-time.After(250 * time.Millisecond):
+						assert.FailNow(t, "Timeout on receive channel")
 					}
-				case <-time.After(250 * time.Millisecond):
-					assert.FailNow(t, "Timeout on receive channel")
+				}
+			case "add endpoints annotations to an existing service":
+				listener.createService(tc.ksvc, true)
+				listener.updatedSvc(tc.ksvc, &v1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						ResourceVersion: "124",
+						UID:             types.UID("test"),
+						Namespace:       "default",
+						Name:            "myservice",
+						Annotations: map[string]string{
+							"ad.datadoghq.com/service.check_names":    "[\"http_check\"]",
+							"ad.datadoghq.com/service.init_configs":   "[{}]",
+							"ad.datadoghq.com/service.instances":      "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+							"ad.datadoghq.com/endpoints.check_names":  "[\"etcd\"]",
+							"ad.datadoghq.com/endpoints.init_configs": "[{}]",
+							"ad.datadoghq.com/endpoints.instances":    "[{\"use_preview\": \"true\", \"prometheus_url\": \"http://%%host%%:2379/metrics\"}]",
+						},
+					},
+					Spec: v1.ServiceSpec{
+						ClusterIP: "10.0.0.1",
+						Ports: []v1.ServicePort{
+							{Name: "test1", Port: 126},
+						},
+					},
+				})
+				listener.addedEndpt(tc.kendpt)
+				// listener.createEndpoint(tc.kendpt, true)
+				for i := 0; i < 4; i++ {
+					select {
+					case svc := <-c:
+						switch i {
+						case 0:
+							// receive the non endpoints annotated service
+							continue
+						case 1:
+							assert.Equal(t, tc.expectedSvcs[0], svc)
+						case 2:
+							assert.Equal(t, tc.expectedEndpts[0], svc)
+						case 3:
+							assert.Equal(t, tc.expectedEndpts[1], svc)
+						}
+					case <-time.After(250 * time.Millisecond):
+						assert.FailNow(t, "Timeout on receive channel")
+					}
 				}
 			}
 		})
