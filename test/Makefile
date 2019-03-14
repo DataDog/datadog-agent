@@ -4,7 +4,8 @@ PKGS = \
 	./six/... \
 	./aggregator/... \
 	./datadog_agent/... \
-        ./util/...
+    ./util/... \
+	./uutil/... 
 
 all: test
 

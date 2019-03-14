@@ -11,6 +11,7 @@ extern "C" {
 
 #include "constants.h"
 
+#include <_util.h>
 #include <aggregator.h>
 #include <datadog_agent.h>
 #include <util.h>
@@ -48,6 +49,7 @@ bool Two::init(const char *pythonHome) {
     Py2_init_aggregator();
     Py2_init_datadog_agent();
     Py2_init_util();
+    Py2_init__util();
 
     // Set PYTHONPATH
     if (_pythonPaths.size()) {
@@ -525,6 +527,10 @@ void Two::setLogCb(cb_log_t cb) {
 
 void Two::setSetExternalTagsCb(cb_set_external_tags_t cb) {
     _set_set_external_tags_cb(cb);
+}
+
+void Two::setSubprocessOutputCb(cb_get_subprocess_output_t cb) {
+    _set_get_subprocess_output_cb(cb);
 }
 
 // Python Helpers

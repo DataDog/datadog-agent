@@ -301,3 +301,10 @@ void set_set_external_tags_cb(six_t *six, cb_set_external_tags_t cb) {
 char *get_integration_list(six_t *six) {
     return AS_TYPE(Six, six)->getIntegrationList();
 }
+
+/*
+ * _util API
+ */
+void set_get_subprocess_output_cb(six_t *six, cb_get_subprocess_output_t cb) {
+    AS_TYPE(Six, six)->setSubprocessOutputCb(cb);
+}
