@@ -3,26 +3,19 @@ shallow_clone: false
 platform: x64
 skip_branch_with_pr: true
 
-clone_folder: C:\gopath\src\github.com\DataDog\datadog-agent-six
-
-# environment must be set for python 64 bit 
 environment:
   GOPATH: C:\gopath
-  GOROOT: C:\go111
-  RUBY_PATH: C:\Ruby23-x64
-  RI_DEVKIT: C:\Ruby23-x64\DevKit\
+  # Give hints to CMake to find Pythons
+  Python2_ROOT_DIR: C:\Python27-x64
+  Python3_ROOT_DIR: C:\Python37-x64
 
 install:
-  - set PATH=%GOPATH%\bin;C:\%GOPATH%\bin;C:\mingw-w64\x86_64-7.2.0-posix-seh-rt_v5-rev1\mingw64\bin\;%RUBY_PATH%\bin;%RI_DEVKIT%bin;%RI_DEVKIT%mingw\bin;c:\python27-x64;c:\python27-x64\scripts;c:\python37-x64;c:\python37-x64\scripts;%PATH%
-  - set PATH=%PATH%;
-  - echo cd is %CD%
+  - set PATH=%APPVEYOR_BUILD_FOLDER%\bin;%GOPATH%\bin;C:\mingw-w64\x86_64-7.2.0-posix-seh-rt_v5-rev1\mingw64\bin\;c:\msys64\mingw64\bin;C:\Python27-x64;c:\python27-x64\scripts;c:\python37-x64;c:\python37-x64\scripts;%PATH%
   - go version
   - python --version
   - c:\python37-x64\python --version
   - gcc --version
-  - mkdir \dd
-  - cd \dd
-  - git clone https://github.com/datadog/integrations-core
+  - git clone --depth 1 https://github.com/datadog/integrations-core
   - pip install pyyaml requests prometheus_client six
   - pip3 install pyyaml requests prometheus_client six
   - pip install integrations-core/datadog_checks_base/
@@ -31,19 +24,22 @@ install:
   - pip3 install -r integrations-core\directory\requirements.in
   - pip install integrations-core/directory/
   - pip3 install integrations-core/directory/
+  # Following is needed by CMake that would refuse to generate "MinGW Makefiles" otherwise
+  - del "C:\Program Files\Git\usr\bin\sh.exe"
 
 cache:
-  - '%GOPATH%\bin'
-  - '%GOPATH%\src\github.com\DataDog\datadog-agent\vendor'
+  - '%LOCALAPPDATA%\pip\Cache'
 
 build: off
 
 test_script:
-  - cd %APPVEYOR_BUILD_FOLDER%
-  - echo %Python3_ROOT_DIR%
-  - cmake -G "Unix Makefiles" .
-  - make
-  - set PATH=%PATH%;%CD%\bin
+  - cmake -G "MinGW Makefiles" .
+  - mingw32-make clang-format
+  - mingw32-make
+  - mingw32-make -C test run
   - bin\demo 2
   - bin\demo 3
-  - make -C test
+
+# uncomment to debug builds
+# on_finish:
+#   - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
