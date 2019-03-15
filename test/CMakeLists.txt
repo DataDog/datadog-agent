@@ -1,12 +1,13 @@
 cmake_minimum_required(VERSION 3.12)
 
 set(PKGS
-    "./init/..."
+	"./init/..."
 	"./six/..."
 	"./aggregator/..."
 	"./datadog_agent/..."
-    "./util/..."
-    "./uutil/..."
+	"./util/..."
+	"./uutil/..."
+	"./common/..."
 )
 
 set(LIBS_PATH "${CMAKE_SOURCE_DIR}/six/:${CMAKE_SOURCE_DIR}/two/:${CMAKE_SOURCE_DIR}/three/")
@@ -14,7 +15,7 @@ set(LIBS_PATH "${CMAKE_SOURCE_DIR}/six/:${CMAKE_SOURCE_DIR}/two/:${CMAKE_SOURCE_
 if (NOT DISABLE_PYTHON2)
     add_custom_command(
         OUTPUT testPy2
-        COMMAND ${CMAKE_COMMAND} -E env TESTING_TWO="" DYLD_LIBRARY_PATH=${LIBS_PATH} LD_LIBRARY_PATH=${LIBS_PATH} go test -count=1 -p=1 ${PKGS}
+        COMMAND ${CMAKE_COMMAND} -E env TESTING_TWO="" DYLD_LIBRARY_PATH=${LIBS_PATH} LD_LIBRARY_PATH=${LIBS_PATH} go test -tags "two" -count=1 -p=1 ${PKGS}
     )
     list(APPEND TARGETS "testPy2")
 endif()
@@ -22,7 +23,7 @@ endif()
 if (NOT DISABLE_PYTHON3)
     add_custom_command(
         OUTPUT testPy3
-        COMMAND ${CMAKE_COMMAND} -E env TESTING_THREE="" DYLD_LIBRARY_PATH=${LIBS_PATH} LD_LIBRARY_PATH=${LIBS_PATH} go test -count=1 -p=1 ${PKGS}
+        COMMAND ${CMAKE_COMMAND} -E env TESTING_THREE="" DYLD_LIBRARY_PATH=${LIBS_PATH} LD_LIBRARY_PATH=${LIBS_PATH} go test -tags "three" -count=1 -p=1 ${PKGS}
     )
     list(APPEND TARGETS "testPy3")
 endif()

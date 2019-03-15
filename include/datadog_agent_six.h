@@ -69,6 +69,9 @@ DATADOG_AGENT_SIX_API void set_set_external_tags_cb(six_t *, cb_set_external_tag
 // _UTIL
 DATADOG_AGENT_SIX_API void set_get_subprocess_output_cb(six_t *six, cb_get_subprocess_output_t cb);
 
+// CGO API
+DATADOG_AGENT_SIX_API void set_cgo_free_cb(six_t *, cb_cgo_free_t);
+
 #ifdef __cplusplus
 }
 #endif
