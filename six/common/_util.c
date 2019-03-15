@@ -3,11 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 #include "_util.h"
-#include "datadog_agent.h"
 
 #include <sixstrings.h>
 #include <stdio.h>
-#define MODULE_NAME "_util"
 
 // must be set by the caller
 static cb_get_subprocess_output_t cb_get_subprocess_output = NULL;
@@ -23,7 +21,7 @@ static PyMethodDef methods[] = {
 };
 
 #ifdef DATADOG_AGENT_THREE
-static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, MODULE_NAME, NULL, -1, methods };
+static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, _UTIL_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit__util(void) {
     return PyModule_Create(&module_def);
@@ -35,7 +33,7 @@ PyMODINIT_FUNC PyInit__util(void) {
 static PyObject *module;
 
 void Py2_init__util() {
-    module = Py_InitModule(MODULE_NAME, methods);
+    module = Py_InitModule(_UTIL_MODULE_NAME, methods);
 }
 #endif
 
@@ -99,9 +97,14 @@ PyObject *subprocess_output(PyObject *self, PyObject *args) {
     char *output = NULL;
     PyObject *pyOutput = NULL;
     cb_get_subprocess_output(subprocess_args, subprocess_args_sz, raise, &output);
+    if (subprocess_args) {
+        for (i = 0; i < subprocess_args_sz; i++) {
+            free(subprocess_args[i]);
+        }
+    }
     free(subprocess_args);
     if (output) {
-        pyOutput = CStringFromPyString(output);
+        pyOutput = PyStringFromCString(output);
     }
     return pyOutput;
 }

@@ -7,9 +7,11 @@
 #include <Python.h>
 #include <six_types.h>
 
+#define _UTIL_MODULE_NAME "_util"
+
 #ifdef DATADOG_AGENT_THREE
 PyMODINIT_FUNC PyInit__util(void);
-#    define CStringFromPyString(x) PyUnicode_FromString(x)
+#    define PyStringFromCString(x) PyUnicode_FromString(x)
 #endif
 
 #ifdef __cplusplus
@@ -18,7 +20,7 @@ extern "C" {
 
 #ifdef DATADOG_AGENT_TWO
 void Py2_init__util();
-#    define CStringFromPyString(x) PyString_FromString(x)
+#    define PyStringFromCString(x) PyString_FromString(x)
 #endif
 
 void _set_get_subprocess_output_cb(cb_get_subprocess_output_t);
