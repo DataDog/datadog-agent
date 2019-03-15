@@ -253,7 +253,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			msg := fmt.Sprintf("dropping trace; reason: %s", err)
 			if len(msg) > 150 && !r.debug {
 				// we're not in DEBUG log level, truncate long messages.
-				msg = msg[:150] + "... (set DEBUG for more info)"
+				msg = msg[:150] + "... (set DEBUG log level for more info)"
 			}
 			log.Errorf(msg)
 		} else {
