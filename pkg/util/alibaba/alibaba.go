@@ -10,6 +10,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // declare these as vars not const to ease testing
@@ -20,7 +22,8 @@ var (
 
 // GetHostAlias returns the VM ID from the Alibaba Metadata api
 func GetHostAlias() (string, error) {
-	res, err := getResponseWithMaxLength(metadataURL+"/latest/meta-data/instance-id", 255)
+	res, err := getResponseWithMaxLength(metadataURL+"/latest/meta-data/instance-id",
+		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
 		return "", fmt.Errorf("Alibaba HostAliases: unable to query metadata endpoint: %s", err)
 	}

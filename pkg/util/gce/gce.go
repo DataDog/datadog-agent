@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // declare these as vars not const to ease testing
@@ -40,7 +42,8 @@ type gceProjectMetadata struct {
 
 // GetHostname returns the hostname querying GCE Metadata api
 func GetHostname() (string, error) {
-	hostname, err := getResponseWithMaxLength(metadataURL+"/instance/hostname", 255)
+	hostname, err := getResponseWithMaxLength(metadataURL+"/instance/hostname",
+		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve hostname from GCE: %s", err)
 	}
@@ -49,13 +52,15 @@ func GetHostname() (string, error) {
 
 // GetHostAlias returns the host alias from GCE
 func GetHostAlias() (string, error) {
-	instanceName, err := getResponseWithMaxLength(metadataURL+"/instance/hostname", 255)
+	instanceName, err := getResponseWithMaxLength(metadataURL+"/instance/hostname",
+		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve hostname from GCE: %s", err)
 	}
 	instanceName = strings.SplitN(instanceName, ".", 2)[0]
 
-	projectID, err := getResponseWithMaxLength(metadataURL+"/project/project-id", 255)
+	projectID, err := getResponseWithMaxLength(metadataURL+"/project/project-id",
+		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve project ID from GCE: %s", err)
 	}
@@ -64,7 +69,8 @@ func GetHostAlias() (string, error) {
 
 // GetClusterName returns the name of the cluster containing the current GCE instance
 func GetClusterName() (string, error) {
-	clusterName, err := getResponseWithMaxLength(metadataURL+"/instance/attributes/cluster-name", 255)
+	clusterName, err := getResponseWithMaxLength(metadataURL+"/instance/attributes/cluster-name",
+		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve clustername from GCE: %s", err)
 	}
