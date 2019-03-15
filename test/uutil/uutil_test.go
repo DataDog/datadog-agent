@@ -16,9 +16,24 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestGetSubprocessOutput(t *testing.T) {
+func TestSubprocessOutput(t *testing.T) {
 	code := fmt.Sprintf(`
 	d = _util.subprocess_output(["ls"], False)
+	with open(r'%s', 'w') as f:
+		f.write(d)
+	`, tmpfile.Name())
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "/tmp" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
+
+func TestGetSubprocessOutput(t *testing.T) {
+	code := fmt.Sprintf(`
+	d = _util.get_subprocess_output(["ls"], False)
 	with open(r'%s', 'w') as f:
 		f.write(d)
 	`, tmpfile.Name())

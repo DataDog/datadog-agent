@@ -17,6 +17,8 @@ static PyObject *subprocess_output(PyObject *self, PyObject *args);
 static PyMethodDef methods[] = {
     { "subprocess_output", (PyCFunction)subprocess_output, METH_VARARGS | METH_KEYWORDS,
       "Exec a process and return the output." },
+    { "get_subprocess_output", (PyCFunction)subprocess_output, METH_VARARGS | METH_KEYWORDS,
+      "Exec a process and return the output." },
     { NULL, NULL } // guards
 };
 
