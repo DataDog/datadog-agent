@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.9)
+cmake_minimum_required(VERSION 3.12)
 
 ## Require C++11 with no extensions
 set(CMAKE_CXX_STANDARD 11)
@@ -22,6 +22,7 @@ if (NOT DISABLE_PYTHON3)
     add_subdirectory(three)
 endif()
 add_subdirectory(six)
+add_subdirectory(test)
 if (BUILD_DEMO)
     add_subdirectory(demo)
 endif()
