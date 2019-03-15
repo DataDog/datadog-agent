@@ -39,11 +39,14 @@ static void *six_backend = NULL;
 
 #ifdef _WIN32
 
-six_t *make2() {
+create_t *loadAndCreate(const char *dll, const char *python_home) {
+    // first, add python home to the directory search path for loading DLLs
+    SetDllDirectoryA(python_home);
+
     // load library
-    six_backend = LoadLibraryA(DATADOG_AGENT_TWO);
+    six_backend = LoadLibraryA(dll);
     if (!six_backend) {
-        std::cerr << "Unable to open 'two' library LLA: " << GetLastError() << std::endl;
+        std::cerr << "Unable to open  library LLA: " << GetLastError() << " " << dll << std::endl;
         return 0;
     }
 
@@ -51,27 +54,24 @@ six_t *make2() {
     create_t *create = (create_t *)GetProcAddress(six_backend, "create");
     if (!create) {
         std::cerr << "Unable to open 'two' factory GPA: " << GetLastError() << std::endl;
-        return 0;
+        return NULL;
     }
+    return create;
+}
+six_t *make2(const char *python_home) {
 
+    create_t *create = loadAndCreate(DATADOG_AGENT_TWO, python_home);
+    if (!create) {
+        return NULL;
+    }
     return AS_TYPE(six_t, create());
 }
 
-six_t *make3() {
-    // load the library
-    six_backend = LoadLibraryA(DATADOG_AGENT_THREE);
-    if (!six_backend) {
-        std::cerr << "Unable to open 'three' library: " << GetLastError() << std::endl;
-        return 0;
-    }
-
-    // dlsym class factory
-    create_t *create_three = (create_t *)GetProcAddress(six_backend, "create");
+six_t *make3(const char *python_home) {
+    create_t *create_three = loadAndCreate(DATADOG_AGENT_THREE, python_home);
     if (!create_three) {
-        std::cerr << "Unable to open 'three' factory: " << GetLastError() << std::endl;
-        return 0;
+        return NULL;
     }
-
     return AS_TYPE(six_t, create_three());
 }
 
@@ -89,7 +89,7 @@ void destroy(six_t *six) {
 }
 
 #else
-six_t *make2() {
+six_t *make2(const char *python_home) {
     if (six_backend != NULL) {
         std::cerr << "Six alrady initialized!" << std::endl;
         return NULL;
@@ -115,7 +115,7 @@ six_t *make2() {
     return AS_TYPE(six_t, create());
 }
 
-six_t *make3() {
+six_t *make3(const char *python_home) {
     if (six_backend != NULL) {
         std::cerr << "Six alrady initialized!" << std::endl;
         return NULL;

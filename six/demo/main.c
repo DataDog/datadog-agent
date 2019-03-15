@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
 
     // Embed Python2
     if (strcmp(argv[1], "2") == 0) {
-        six = make2();
+        six = make2(python_home);
         if (!six) {
             printf("Unable to init Python2\n");
             return 1;
@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
     }
     // Embed Python3
     else if (strcmp(argv[1], "3") == 0) {
-        six = make3();
+        six = make3(python_home);
         if (!six) {
             printf("Unable to init Python3\n");
             return 1;
