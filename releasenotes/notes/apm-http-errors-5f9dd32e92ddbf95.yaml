@@ -6,6 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-other:
+enhancements:
   - |
-    JMXFetch upgraded to 0.25.0. See https://github.com/DataDog/jmxfetch/releases/tag/0.25.0
+    APM: errors reported by the receiver's HTTP server are now
+    shown in the logs.

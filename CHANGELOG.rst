@@ -2,6 +2,187 @@
 Release Notes
 =============
 
+.. _Release Notes_6.10.1:
+
+6.10.1
+======
+
+.. _Release Notes_6.10.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-03-07
+
+
+.. _Release Notes_6.10.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Mixing cases in `apm_config.analyzed_spans` and `apm_config.analyzed_rate_by_service`
+  entries is now allowed. Service names and operation names will be treated as case insensitive.
+
+- Refactor the ``ContainerdUtil`` so that each call to the ``containerd`` api has a dedicated timeout.
+
+
+.. _Release Notes_6.10.0:
+
+6.10.0
+======
+
+.. _Release Notes_6.10.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-02-28
+
+- Please refer to the `6.10.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6100>`_ for the list of changes on the Core Checks.
+
+- Please refer to the `6.10.0 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.10.0>`_ for the list of changes on the Process Agent.
+
+- Starting with this release, the changes on the Trace Agent are listed in the present release notes.
+
+
+.. _Release Notes_6.10.0_Security Notes:
+
+Security Notes
+--------------
+
+- The Agent now defaults to aliasing `yaml.load` and `yaml.dump` to `yaml.safe_load` and `yaml.safe_dump` for ALL checks
+  as a defense-in-depth measure against CVE-2017-18342. The Datadog Agent does not use the vulnerable code directly. The
+  effort to patch the PyYAML library guards against the accidental unsafe use of this library by custom checks and transitive
+  dependencies. Specifically, the kubernetes client library v8.0.1 calls the unsafe `yaml.load` function, but the fix provided
+  forces the use of `yaml.safe_load` by default. In this release of the Agent, kubernetes client library v8.0.1 is only used
+  by the new `kube_controller_manager` integration. If for any reason you encounter problems with your custom checks, please
+  reach out to support.
+
+
+.. _Release Notes_6.10.0_New Features:
+
+New Features
+------------
+
+- Introduce pod and container tagging through annotations.
+
+- Docker images are now signed with Content Trust to ensure their integrity when pulling
+
+- Dogstatsd can now inject extra tags on a metric when a special entity tag is provided
+
+- ``datadog-agent integration install`` command allows to install a check from a locally available wheel (.whl file)
+  with the added parameter ``--local-wheel``.
+
+- JMXFetch upgraded to 0.26.1: introduces concurrent metric collection across
+  JMXFetch check instances. Concurrent collection should avoid stalling
+  healthy instances in the event of issues (networking, system) in
+  any of the remaining instances configured. A timeout of ``jmx_collection_timeout``
+  (default 60s) is enforced on the whole metric collection run.
+  See `0.25.0  <https://github.com/DataDog/jmxfetch/releases/tag/0.25.0>`_,
+  `0.26.0  <https://github.com/DataDog/jmxfetch/releases/tag/0.26.0>`_ and
+  `0.26.1  <https://github.com/DataDog/jmxfetch/releases/tag/0.26.1>`_.
+
+- Added the possibility to define global logs processing rules in `datadog.yaml` that will be applied to all logs,
+  in addition to integration logs processing rules when defined.
+
+
+.. _Release Notes_6.10.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Consider static pods as ready, even though their status is never updated in the pod list.
+  This creates the risk of running checks against pods that are not actually ready, but this
+  is necessary to make autodiscovery work on static pods (which are used in standard kops
+  deployments for example).
+
+- Adds the device mapper logical volume name as a tag
+  in the system.io infos.
+
+- Extends the docker check to accommodate the failed memory count metric.
+  This metric increments every time a cgroup hits its memory limit
+
+- Add a ``--json`` flag to the ``check`` command that will
+  output all aggregator data as JSON.
+
+- [tagger] Add pod phase to kubelet collector
+
+- The Agent logs now contains the relative file path (including the package) instead of only the filename.
+
+- Each corecheck could now send custom tags using
+  the ``tags`` field in its configuration file.
+
+- ECS: running the agent in awsvpc mode is now supported, provided it runs in a
+  security group that can reach both the containers to monitor and the host via
+  its private IP on port 51678
+
+- The performance of the Agent under DogStatsD load has been improved.
+
+- Improve memory usage when metrics, service checks or events contain many tags.
+
+- APM: improve performance of NormalizeTag function.
+
+- Use dedicated ``datadog_checks_downloader`` to securely download integrations wheels when using the ``datadog-agent integration install`` command.
+
+- A warning is now displayed in the status when the connection to the
+  log endpoint cannot be established
+
+- When shutting the agent down, cancel ongoing python subprocess
+  so they can exit as cleanly and gracefully as possible.
+
+- Add of a "secrets" command to show information about decrypted secrets. We
+  now also track the configuration's name where each secrets was found.
+
+- Secrets are now resolved in environment variables.
+
+- In order to ensure compatibility with systemd < 229,
+  ``StartLimitBurst`` and ``StartLimitInterval`` have been
+  moved to the Service section of the service files.
+
+- Files are not tailed in reverse lexicographical order w.r.t their file names then dir name. If you have files
+  `/1/2017.log`, `/1/2018.log`, `/2/2018.log` and `logs_config.open_files_limit == 2`, then you will tail
+  `/2/2018.log` and `/1/2018.log`.
+
+- Include ``.yml`` configuration files in the flare.
+
+
+.. _Release Notes_6.10.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix an issue where some auto-discovered integrations would not get rescheduled when the template was not containing variables
+
+- Autodiscovery now removes children configurations when removing templates
+
+- Fix the display of unresolved configs in the verbose output of the ``configcheck`` command
+
+- Fix custom command line port configuration on `configcheck` and `tagger-list` CLI commands.
+
+- When the secrets feature is enabled, fix bug preventing the ``additional_endpoints``
+  config option from being read correctly
+
+- Fix "status" command JSON output to exclude non JSON header. The output of
+  the command is now a valid JSON payload.
+
+- APM: Fix a potential memory leak problem when the trace agent is stopped.
+
+- Fixed a bug where logs forwarded by UDP would not be split because of missing line feed character at the end of a datagram.
+  Now adding a line feed character at the end of each frame is deprecated because it is automatically added by the agent on read operations.
+
+- Fix an issue where some kubernetes tags would not be properly removed.
+
+
+.. _Release Notes_6.10.0_Other Notes:
+
+Other Notes
+-----------
+
+- The Agent is now compiled with Go 1.11.5
+
+- Custom checks default on safe pyyaml methods.
+
+
 .. _Release Notes_6.9.0:
 
 6.9.0

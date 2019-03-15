@@ -71,8 +71,9 @@ func getWhitelistedEnvvars() []string {
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)
 		key := strings.ToUpper(parts[0])
-		if strings.Contains(key, "_KEY") {
+		if strings.Contains(key, "_KEY") || strings.Contains(key, "_AUTH_TOKEN") {
 			// `_key`-suffixed env vars are sensitive: don't track them
+			// `_auth_token`-suffixed env vars are sensitive: don't track them
 			continue
 		}
 		for _, whitelisted := range envVarWhiteList {

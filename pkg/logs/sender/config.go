@@ -24,6 +24,10 @@ var logsEndpoints = map[string]int{
 	"agent-intake.logs.datad0g.eu":    443,
 }
 
+func isSetAndNotEmpty(config config.Config, key string) bool {
+	return config.IsSet(key) && len(config.GetString(key)) > 0
+}
+
 // BuildEndpoints returns the endpoints to send logs to.
 func BuildEndpoints() (*client.Endpoints, error) {
 	if config.Datadog.GetBool("logs_config.dev_mode_no_ssl") {
@@ -36,12 +40,11 @@ func BuildEndpoints() (*client.Endpoints, error) {
 
 	main := client.Endpoint{
 		APIKey:       config.Datadog.GetString("api_key"),
-		Logset:       config.Datadog.GetString("logset"),
 		UseProto:     useProto,
 		ProxyAddress: proxyAddress,
 	}
 	switch {
-	case config.Datadog.IsSet("logs_config.logs_dd_url"):
+	case isSetAndNotEmpty(config.Datadog, "logs_config.logs_dd_url"):
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
 		// and '<PORT>' to be an integer.
 		// By default ssl is enabled ; to disable ssl set 'logs_config.logs_no_ssl' to true.

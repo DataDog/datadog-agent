@@ -99,6 +99,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("additional_checksd", defaultAdditionalChecksPath)
 	config.BindEnvAndSetDefault("log_payloads", false)
 	config.BindEnvAndSetDefault("log_file", "")
+	config.BindEnvAndSetDefault("log_file_max_size", "10Mb")
+	config.BindEnvAndSetDefault("log_file_max_rolls", 1)
 	config.BindEnvAndSetDefault("log_level", "info")
 	config.BindEnvAndSetDefault("log_to_syslog", false)
 	config.BindEnvAndSetDefault("log_to_console", true)
@@ -194,10 +196,18 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
-	config.BindEnvAndSetDefault("dogstatsd_port", 8125)                                        // Notice: 0 means UDP port closed
-	config.BindEnvAndSetDefault("dogstatsd_buffer_size", 1024*8)                               // 8KB buffer
-	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_size", 4096)                          // Number of packets to buffer at dogstatsd intake before flushing them to parsing/aggregation
-	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_flush_timeout", 100*time.Millisecond) // Timeout after which we force dogstatsd intake buffer to be flushed
+	config.BindEnvAndSetDefault("dogstatsd_port", 8125) // Notice: 0 means UDP port closed
+
+	// The following options allow to configure how the dogstatsd intake buffers and queues incoming datagrams.
+	// When a datagram is received it is first added to a datagrams buffer. This buffer fills up until
+	// we reach `dogstatsd_packet_buffer_size` datagrams or after `dogstatsd_packet_buffer_flush_timeout` ms.
+	// After this happens we flush this buffer of datagrams to a queue for processing. The size of this queue
+	// is `dogstatsd_queue_size`.
+	config.BindEnvAndSetDefault("dogstatsd_buffer_size", 1024*8)
+	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_size", 512)
+	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_flush_timeout", 100*time.Millisecond)
+	config.BindEnvAndSetDefault("dogstatsd_queue_size", 100)
+
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
@@ -365,6 +375,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.node_expiration_timeout", 30) // value in seconds
 	config.BindEnvAndSetDefault("cluster_checks.warmup_duration", 30)         // value in seconds
 	config.BindEnvAndSetDefault("cluster_checks.cluster_tag_name", "cluster_name")
+	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
 
 	setAssetFs(config)
 }

@@ -399,19 +399,23 @@ func TestPatchConfiguration(t *testing.T) {
 	assert.Equal(t, true, rawConfig["empty_default_hostname"])
 }
 
-func TestClusterNameTag(t *testing.T) {
+func TestExtraTags(t *testing.T) {
 	for _, tc := range []struct {
+		extraTagsConfig   []string
 		clusterNameConfig string
 		tagNameConfig     string
 		expected          []string
 	}{
-		{"testing", "cluster_name", []string{"cluster_name:testing"}},
-		{"mycluster", "custom_name", []string{"custom_name:mycluster"}},
-		{"", "cluster_name", nil},
-		{"testing", "", nil},
+		{nil, "testing", "cluster_name", []string{"cluster_name:testing"}},
+		{nil, "mycluster", "custom_name", []string{"custom_name:mycluster"}},
+		{nil, "", "cluster_name", nil},
+		{nil, "testing", "", nil},
+		{[]string{"one", "two"}, "", "", []string{"one", "two"}},
+		{[]string{"one", "two"}, "mycluster", "custom_name", []string{"one", "two", "custom_name:mycluster"}},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {
 			mockConfig := config.Mock()
+			mockConfig.Set("cluster_checks.extra_tags", tc.extraTagsConfig)
 			mockConfig.Set("cluster_name", tc.clusterNameConfig)
 			mockConfig.Set("cluster_checks.cluster_tag_name", tc.tagNameConfig)
 
@@ -420,5 +424,4 @@ func TestClusterNameTag(t *testing.T) {
 			assert.EqualValues(t, tc.expected, dispatcher.extraTags)
 		})
 	}
-
 }

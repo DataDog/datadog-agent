@@ -49,6 +49,18 @@ func TestEnvvarWhitelisting(t *testing.T) {
 			},
 		},
 		{
+			name: "_auth_token env var case",
+			in: map[string]string{
+				"DOCKER_HOST":                 "tcp://10.0.0.10:8888",
+				"DD_CLUSTER_AGENT_AUTH_TOKEN": "don't pickup",
+				"GOGC":                        "120",
+			},
+			out: []string{
+				"GOGC=120",
+				"DOCKER_HOST=tcp://10.0.0.10:8888",
+			},
+		},
+		{
 			name: "process config options",
 			in: map[string]string{
 				"DOCKER_HOST":              "tcp://10.0.0.10:8888",

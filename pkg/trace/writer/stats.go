@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const pathStats = "/api/v0.2/stats"
@@ -262,7 +262,7 @@ func (w *StatsWriter) monitor() {
 			switch e.typ {
 			case eventTypeSuccess:
 				url := e.stats.host
-				log.Infof("flushed stat payload; url: %s, time:%s, size:%d bytes", url, e.stats.sendTime,
+				log.Debugf("flushed stat payload; url: %s, time:%s, size:%d bytes", url, e.stats.sendTime,
 					len(e.payload.bytes))
 				tags := []string{"url:" + url}
 				metrics.Gauge("datadog.trace_agent.stats_writer.flush_duration",

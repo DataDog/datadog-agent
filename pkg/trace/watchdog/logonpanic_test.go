@@ -6,21 +6,24 @@ import (
 	"sync"
 	"testing"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
 
 var testLogBuf bytes.Buffer
 
 func init() {
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(&testLogBuf, log.DebugLvl, "%Ns [%Level] %Msg")
+	logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(&testLogBuf, seelog.DebugLvl, "%Ns [%Level] %Msg")
 	if err != nil {
 		panic(err)
 	}
-	err = log.ReplaceLogger(logger)
+	err = seelog.ReplaceLogger(logger)
 	if err != nil {
 		panic(err)
 	}
+	log.SetupDatadogLogger(logger, "INFO")
 }
 
 func TestLogOnPanicMain(t *testing.T) {

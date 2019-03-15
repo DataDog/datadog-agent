@@ -1,8 +1,8 @@
-##########################################
-# Preparation stage: extract and cleanup #
-##########################################
+############################################
+#  Preparation stage: extract and cleanup  #
+############################################
 
-FROM debian:buster-slim as extract
+FROM debian:buster-slim AS extract
 ARG WITH_JMX
 COPY datadog-agent*_amd64.deb /
 WORKDIR /output
@@ -43,11 +43,11 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
 COPY datadog*.yaml etc/datadog-agent/
 
 
-####################################
-# Actual docker image construction #
-####################################
+######################################
+#  Actual docker image construction  #
+######################################
 
-FROM debian:buster-slim
+FROM debian:buster-slim AS release
 LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ENV DOCKER_DD_AGENT=true \
@@ -90,11 +90,14 @@ COPY entrypoint /etc/cont-init.d/
 COPY probe.sh initlog.sh secrets-helper/readsecret.py /
 
 # Extract s6-overlay
-# Done in 2 steps to avoid overriding the /bin --> /usr/bin symlink
-# FIXME: copying it from the extract stage does not work
-RUN tar xzf s6.tgz -C / --exclude="./bin" \
-  && tar xzf s6.tgz -C /usr ./bin \
-  && rm s6.tgz \
+#
+# This step is dependant on the distribution's filesystem layout:
+# - When Buster moved to merged-usr (/bin/ as a symlink to /usr/bin),
+#   we had to change the extraction logic, see #1591
+# - The debian image is now built with merged-usr explicitly disabled,
+#   see https://github.com/debuerreotype/debuerreotype/pull/50
+RUN tar xzf s6.tgz \
+ && rm s6.tgz \
 # Prepare for running without root
 # - Create a dd-agent:root user and give it permissions on relevant folders
 # - Remove the /var/run -> /run symlink and create a legit /var/run folder
@@ -120,3 +123,15 @@ HEALTHCHECK --interval=2m --timeout=5s --retries=2 \
 VOLUME ["/var/run/s6", "/etc/datadog-agent", "/var/log/datadog", "/tmp"]
 
 CMD ["/init"]
+
+
+################################################################
+#  Sanity checks on the image contents                         #
+#  Build the release artifact with "--target release" to skip  #
+################################################################
+
+FROM release AS testing
+ARG WITH_JMX
+
+COPY test_*.py /
+RUN python /test_image_contents.py -v

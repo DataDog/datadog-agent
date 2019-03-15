@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 
-	log "github.com/cihub/seelog"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
@@ -97,7 +96,6 @@ func main() {
 		runService(false)
 		return
 	}
-	defer log.Flush()
 	// sigh.  Go doesn't have boolean xor operator.  The options are mutually exclusive,
 	// make sure more than one wasn't specified
 	optcount := 0

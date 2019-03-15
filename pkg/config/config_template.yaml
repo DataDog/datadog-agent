@@ -250,7 +250,7 @@ api_key:
 # dogstatsd_origin_detection: false
 #
 # The buffer size use to receive statsd packet, in bytes
-# dogstatsd_buffer_size: 1024
+# dogstatsd_buffer_size: 8192
 #
 # Whether dogstatsd should listen to non local UDP traffic
 # dogstatsd_non_local_traffic: false
@@ -324,25 +324,25 @@ api_key:
 # Duration of the restart interval in seconds
 # jmx_restart_interval: 5
 #
-# JMXFetch collects multiples instances concurrently. The following metrics may
+# JMXFetch collects multiples instances concurrently. The following options may
 # help fine-tune the level of concurrency and timeouts that come into play during the
 # collection of metrics from configured instances:
 #
 # Defines the maximum level of concurrency. Higher concurrency will increase CPU
 # utilization during metric collection. Lower concurrency will result in lower CPU
-# usage but also fewer workers in the event of timeouts to continue work - a value of
-# 1 will process instances serially, each taking up to `jmx_collection_timeout`
+# usage but may increase the total collection time - a value of 1 will process
+# instances serially. The total collection is allowed to take up to `jmx_collection_timeout`
 # seconds.
 # jmx_thread_pool_size: 3
 #
 # Defines the maximum waiting period in seconds before timing up on metric collection.
 # jmx_collection_timeout: 60
 #
-# Defines the maximum level of concurrency in the reconnection pool. Higher concurrency
-# will increase CPU utilization during instance recovery/reconnection. Lower concurrency
-# will result in lower CPU usage but also fewer workers in the event of timeouts to continue
-# work - a value of 1 will process instances serially, each taking up to `jmx_reconnection_timeout`
-# seconds.
+# Defines the maximum level of concurrency. Higher concurrency will increase CPU
+# utilization during reconnection. Lower concurrency will result in lower CPU
+# usage but may increase the total reconnection time - a value of 1 will process
+# instance reconnections serially. In total, reconnections are allowed to take up to
+# `jmx_reconnection_timeout` seconds.
 # jmx_reconnection_thread_pool_size: 3
 #
 # Determines the maximum waiting period in seconds before timing up on instance reconnection.
@@ -428,6 +428,15 @@ api_key:
 
 # Set to 'true' to disable logging to the log file
 # disable_file_logging: false
+
+# Maximum size of one log file. Use either a size (e.g. 10MB) or
+# provide value in bytes: 10485760
+# log_file_max_size: 10MB
+
+# Maximum amount of "old" log files to keep.
+# Set to 0 to not limit the number of files
+# to create.
+# log_file_max_rolls: 1
 
 # Set to 'true' to enable logging to syslog.
 # Note: Even if this option is set to 'false', the service launcher of your environment
@@ -564,6 +573,9 @@ api_key:
 #   to all cluster-check configurations sent to the node-agents.
 #   You can use another tag name, or disable it by setting an empty name.
 #   cluster_tag_name: cluster_name
+#
+#   Additionnal tags can be set here. They will be added to every cluster-check configuration
+#   extra_tags: []
 #
 {{ end -}}
 {{- if .DockerTagging }}

@@ -6,9 +6,11 @@
 package azure
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -32,6 +34,28 @@ func GetHostAlias() (string, error) {
 	}
 
 	return string(all), nil
+}
+
+// GetClusterName returns the name of the cluster containing the current VM
+func GetClusterName() (string, error) {
+	res, err := getResponse(metadataURL + "/metadata/instance/compute/resourceGroupName?api-version=2017-08-01&format=text")
+	if err != nil {
+		return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
+	}
+
+	defer res.Body.Close()
+	all, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return "", fmt.Errorf("error while reading response from azure metadata endpoint: %s", err)
+	}
+
+	splitAll := strings.Split(string(all), "_")
+	if len(splitAll) < 4 || splitAll[0] != "MC" {
+		return "", errors.New("cannot parse the clustername from metadata")
+	}
+
+	clusterName := splitAll[len(splitAll)-2]
+	return clusterName, nil
 }
 
 func getResponse(url string) (*http.Response, error) {
