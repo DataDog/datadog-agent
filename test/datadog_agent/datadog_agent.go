@@ -45,12 +45,12 @@ type message struct {
 
 func setUp() error {
 	if _, ok := os.LookupEnv("TESTING_TWO"); ok {
-		six = C.make2()
+		six = C.make2(nil)
 		if six == nil {
 			return fmt.Errorf("`make2` failed")
 		}
 	} else {
-		six = C.make3()
+		six = C.make3(nil)
 		if six == nil {
 			return fmt.Errorf("`make3` failed")
 		}
