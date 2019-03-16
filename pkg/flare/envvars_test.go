@@ -53,7 +53,7 @@ func TestEnvvarWhitelisting(t *testing.T) {
 			in: map[string]string{
 				"DOCKER_HOST":                 "tcp://10.0.0.10:8888",
 				"DD_CLUSTER_AGENT_AUTH_TOKEN": "don't pickup",
-				"GOGC":                        "120",
+				"GOGC": "120",
 			},
 			out: []string{
 				"GOGC=120",
