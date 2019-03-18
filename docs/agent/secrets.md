@@ -203,7 +203,7 @@ will refuse to use it otherwise):
 Also:
 - The executable will share the same environment variables than agent.
 - Never output sensitive information on STDERR. If the binary exit with a
-  different status code than `0` the agent will log the standard error output
+  different status code than `0` the Agent logs the standard error output
   of the executable to ease troubleshooting.
 
 #### Windows
