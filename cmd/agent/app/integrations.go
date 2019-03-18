@@ -391,7 +391,7 @@ func downloadWheel(integration, version string) (string, error) {
 	// Get the directory of our embedded Python.
 	path_dir := filepath.Dir(pyPath)
 	// Prepend this dir to PATH array.
-	path_arr := append(path_dir, path_arr...)
+	path_arr = append(path_dir, path_arr...)
 	// Build a new PATH string from the array.
 	path_str := strings.Join(path_arr, string(os.PathListSeparator))
 	// Replace the old PATH with the new one.
