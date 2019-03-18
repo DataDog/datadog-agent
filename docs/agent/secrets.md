@@ -222,7 +222,7 @@ Also:
   of the executable to ease troubleshooting.
 
 Here is an example of a [powershell script](secrets_scripts/set_rights.ps1)
-that remove rights on a file to everybody except from `Administrator` and
+that removes rights on a file to everybody except from `Administrator` and
 `LocalSystem` and then add `ddagentuser`. Use it only as an example as your
 setup might differ.
 
