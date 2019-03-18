@@ -5,12 +5,12 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	log "github.com/cihub/seelog"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestMain(m *testing.M) {
-	log.UseLogger(log.Disabled)
+	seelog.UseLogger(seelog.Disabled)
 	os.Exit(m.Run())
 }
 
@@ -39,7 +39,7 @@ func TestLoadEnv(t *testing.T) {
 			if tt.envNew == "DD_APM_IGNORE_RESOURCES" {
 				assert.Equal([]string{"4", "5", "6"}, config.Datadog.GetStringSlice(tt.key))
 			} else {
-				assert.Equal("4,5,6", config.Datadog.Get(tt.key))
+				assert.Equal("4,5,6", config.Datadog.GetString(tt.key))
 			}
 		}
 	})

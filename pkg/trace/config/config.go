@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (

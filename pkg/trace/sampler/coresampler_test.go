@@ -5,13 +5,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	log "github.com/cihub/seelog"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
 
 func getTestSampler() *Sampler {
 	// Disable debug logs in these tests
-	log.UseLogger(log.Disabled)
+	seelog.UseLogger(seelog.Disabled)
 
 	// No extra fixed sampling, no maximum TPS
 	extraRate := 1.0

@@ -50,12 +50,12 @@
   revision = "2cfb68475274527a10701355c739f31dd404718c"
 
 [[projects]]
-  digest = "1:e9ca79fa28ff0fe0271b63d2d30f4118643746610cd0d75603c7b4255a44f161"
+  branch = "master"
+  digest = "1:b22f5da83ac471bbbe2a5aa1f07c8029dc82bcbf6ff832516f035fc3a314d539"
   name = "github.com/DataDog/viper"
   packages = ["."]
   pruneopts = ""
-  revision = "23ced3bc6b3751855704445e48da2c53075ade86"
-  version = "v1.4.0"
+  revision = "59d5cbf4d7cee2828fca42ff1117894b013ca978"
 
 [[projects]]
   digest = "1:34d4c1b61fa208e523726ddb85d01b8caa8f2de0cd656d91c81b6b86daea485c"
@@ -1160,12 +1160,12 @@
   version = "v1.1.1"
 
 [[projects]]
-  digest = "1:d0b38ba6da419a6d4380700218eeec8623841d44a856bb57369c172fbf692ab4"
+  digest = "1:2adc43fd6d031cb1d246e409a4a2d8b5a05abf1abe68d7608d7bca8cf9eaa9e1"
   name = "github.com/spf13/cast"
   packages = ["."]
   pruneopts = ""
-  revision = "8965335b8c7107321228e3e3702cab9832751bac"
-  version = "v1.2.0"
+  revision = "1ee8c8bd14a3d768a7ff681617ed56bc6c204940"
+  source = "github.com/DataDog/cast"
 
 [[projects]]
   digest = "1:a1403cc8a94b8d7956ee5e9694badef0e7b051af289caad1cf668331e3ffa4f6"

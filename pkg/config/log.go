@@ -20,10 +20,17 @@ import (
 	"github.com/cihub/seelog"
 )
 
-const logFileMaxSize = 10 * 1024 * 1024         // 10MB
 const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format syntax
 
 var syslogTLSConfig *tls.Config
+
+var (
+	// LogFormatCommon specifies the common logging format.
+	LogFormatCommon = fmt.Sprintf("%%Date(%s) | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n", logDateFormat)
+
+	// LogFormatJSON specifies the common JSON format.
+	LogFormatJSON = fmt.Sprintf("{&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n", logDateFormat)
+)
 
 func getSyslogTLSKeyPair() (*tls.Certificate, error) {
 	var syslogTLSKeyPair *tls.Certificate
@@ -88,7 +95,7 @@ func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bo
 		configTemplate += `<console />`
 	}
 	if logFile != "" {
-		configTemplate += fmt.Sprintf(`<rollingfile type="size" filename="%s" maxsize="%d" maxrolls="1" />`, logFile, logFileMaxSize)
+		configTemplate += fmt.Sprintf(`<rollingfile type="size" filename="%s" maxsize="%d" maxrolls="%d" />`, logFile, Datadog.GetSizeInBytes("log_file_max_size"), Datadog.GetInt("log_file_max_rolls"))
 	}
 	if syslog {
 		var syslogTemplate string
@@ -107,12 +114,12 @@ func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bo
 
 	configTemplate += fmt.Sprintf(`</outputs>
 	<formats>
-		<format id="json" format="{&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
-		<format id="common" format="%%Date(%s) | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n"/>
+		<format id="json" format="%s"/>
+		<format id="common" format="%s"/>
 		<format id="syslog-json" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`){&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
 		<format id="syslog-common" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`) %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n" />
 	</formats>
-</seelog>`, logDateFormat, logDateFormat)
+</seelog>`, LogFormatJSON, LogFormatCommon)
 
 	logger, err := seelog.LoggerFromConfigAsString(configTemplate)
 	if err != nil {

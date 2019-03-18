@@ -7,7 +7,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // serviceApp represents the app to which certain integration belongs to

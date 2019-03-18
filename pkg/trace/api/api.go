@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	stdlog "log"
 	"net"
 	"net/http"
 	"sort"
@@ -13,7 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	log "github.com/cihub/seelog"
 	"github.com/tinylib/msgp/msgp"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -140,6 +141,7 @@ func (r *HTTPReceiver) Listen(addr, logExtra string) error {
 	r.server = &http.Server{
 		ReadTimeout:  timeout,
 		WriteTimeout: timeout,
+		ErrorLog:     stdlog.New(writableFunc(log.Error), "http.Server: ", 0),
 	}
 	log.Infof("listening for traces at http://%s%s", addr, logExtra)
 
@@ -250,13 +252,12 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			atomic.AddInt64(&ts.TracesDropped, 1)
 			atomic.AddInt64(&ts.SpansDropped, int64(spans))
 
-			errorMsg := fmt.Sprintf("dropping trace reason: %s (debug for more info), %v", err, trace)
-
-			// avoid truncation in DEBUG mode
-			if len(errorMsg) > 150 && !r.debug {
-				errorMsg = errorMsg[:150] + "..."
+			msg := fmt.Sprintf("dropping trace; reason: %s", err)
+			if len(msg) > 150 && !r.debug {
+				// we're not in DEBUG log level, truncate long messages.
+				msg = msg[:150] + "... (set DEBUG log level for more info)"
 			}
-			log.Errorf(errorMsg)
+			log.Errorf(msg)
 		} else {
 			select {
 			case r.Out <- trace:
@@ -267,7 +268,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 				atomic.AddInt64(&ts.TracesDropped, 1)
 				atomic.AddInt64(&ts.SpansDropped, int64(spans))
 
-				log.Errorf("dropping trace reason: rate-limited")
+				log.Errorf("dropping trace; reason: rate-limited")
 			}
 		}
 	}
@@ -441,4 +442,16 @@ func tracesFromSpans(spans []pb.Span) pb.Traces {
 	}
 
 	return traces
+}
+
+// writableFunc implements io.Writer over a function. Anything written will be
+// forwarded to the function as one string argument.
+type writableFunc func(v ...interface{}) error
+
+// Write implements io.Writer.
+func (fn writableFunc) Write(p []byte) (n int, err error) {
+	if err = fn(string(p)); err != nil {
+		return 0, err
+	}
+	return len(p), nil
 }

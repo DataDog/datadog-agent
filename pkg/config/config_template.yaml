@@ -429,6 +429,15 @@ api_key:
 # Set to 'true' to disable logging to the log file
 # disable_file_logging: false
 
+# Maximum size of one log file. Use either a size (e.g. 10MB) or
+# provide value in bytes: 10485760
+# log_file_max_size: 10MB
+
+# Maximum amount of "old" log files to keep.
+# Set to 0 to not limit the number of files
+# to create.
+# log_file_max_rolls: 1
+
 # Set to 'true' to enable logging to syslog.
 # Note: Even if this option is set to 'false', the service launcher of your environment
 # may redirect the agent process' stdout/stderr to syslog. In that case, if you wish
