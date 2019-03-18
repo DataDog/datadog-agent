@@ -3,7 +3,7 @@
 **This feature is in beta and its options or behavior might break between
 minor or bugfix releases of the Agent.**
 
-Starting with version `6.3.0` on Linux and `6.11` on Windows, the agent is able
+Starting with version `6.3.0` on Linux and `6.11` on Windows, the Agent is able
 to leverage the `secrets` package in order to call a user-provided executable
 to handle retrieval or decryption of secrets, which are then loaded in memory
 by the agent. This feature allows users to no longer store passwords and other
