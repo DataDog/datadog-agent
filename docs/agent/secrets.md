@@ -467,7 +467,7 @@ setup. See the [Windows intructions](#windows).
    error while decrypting secrets in an instance: could not query ACLs for C:\decrypt.exe
    ```
 
-3. Your executable needs to be a valid Win32 application, or you will get the following error:
+3. Your executable needs to be a valid Win32 application, the following error is written to the log:
    ```
    error while running 'C:\decrypt.py': fork/exec C:\decrypt.py: %1 is not a valid Win32 application.
    ```
