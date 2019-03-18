@@ -208,7 +208,7 @@ Also:
 
 #### Windows
 
-On Windows, the executable set as `secret_backend_command` **MUST** (the agent
+On Windows, the executable set as `secret_backend_command` **MUST** (the Agent
 will refuse to use it otherwise):
 
 - Have `Read/Exec` for `ddagentuser` (the user used to run the Agent).
