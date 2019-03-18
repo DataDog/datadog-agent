@@ -68,6 +68,9 @@ public:
     virtual void setLogCb(cb_log_t) = 0;
     virtual void setSetExternalTagsCb(cb_set_external_tags_t) = 0;
 
+    // _util API
+    virtual void setSubprocessOutputCb(cb_get_subprocess_output_t) = 0;
+
 private:
     mutable std::string _error;
     mutable bool _errorFlag;

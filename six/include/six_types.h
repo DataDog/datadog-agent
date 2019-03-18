@@ -85,6 +85,10 @@ typedef void (*cb_log_t)(char *, int);
 // (json_dump)
 typedef void (*cb_set_external_tags_t)(char *);
 
+// _util
+// (argv, argc, raise, output)
+typedef void (*cb_get_subprocess_output_t)(char **, int, int, char **);
+
 #ifdef __cplusplus
 }
 #endif

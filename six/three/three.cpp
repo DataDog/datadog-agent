@@ -11,6 +11,7 @@ extern "C" {
 
 #include "constants.h"
 
+#include <_util.h>
 #include <aggregator.h>
 #include <datadog_agent.h>
 #include <util.h>
@@ -40,6 +41,7 @@ bool Three::init(const char *pythonHome) {
     PyImport_AppendInittab("aggregator", PyInit_aggregator);
     PyImport_AppendInittab("datadog_agent", PyInit_datadog_agent);
     PyImport_AppendInittab("util", PyInit_util);
+    PyImport_AppendInittab("_util", PyInit__util);
 
     if (pythonHome == NULL) {
         _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
@@ -539,6 +541,10 @@ void Three::setLogCb(cb_log_t cb) {
 
 void Three::setSetExternalTagsCb(cb_set_external_tags_t cb) {
     _set_set_external_tags_cb(cb);
+}
+
+void Three::setSubprocessOutputCb(cb_get_subprocess_output_t cb) {
+    _set_get_subprocess_output_cb(cb);
 }
 
 // Python Helpers

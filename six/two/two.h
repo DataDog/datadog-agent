@@ -60,6 +60,9 @@ public:
     void setLogCb(cb_log_t);
     void setSetExternalTagsCb(cb_set_external_tags_t);
 
+    // _util API
+    virtual void setSubprocessOutputCb(cb_get_subprocess_output_t);
+
 private:
     PyObject *_importFrom(const char *module, const char *name);
     PyObject *_findSubclassOf(PyObject *base, PyObject *moduleName);
