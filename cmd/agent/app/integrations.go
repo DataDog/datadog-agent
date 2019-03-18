@@ -382,20 +382,36 @@ func downloadWheel(integration, version string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// We do all of the following so that when we call our downloader, which will
+	// in turn call in-toto, which will in turn call Python to inspect the wheel,
+	// we will use our embedded Python.
+	// First, get the current PATH as an array.
+	path_arr := filepath.SplitList(os.Getenv("PATH"))
+	// Get the directory of our embedded Python.
+	path_dir := filepath.Dir(pyPath)
+	// Prepend this dir to PATH array.
+	path_arr := append(path_dir, path_arr...)
+	// Build a new PATH string from the array.
+	path_str := strings.Join(path_arr, string(os.PathListSeparator))
+	// Replace the old PATH with the new one.
+	os.Setenv("PATH", path_str)
+
 	args := []string{
 		"-m", downloaderModule,
 		integration,
 		"--python", pyPath,
 		"--version", version,
 	}
+
 	if verbose > 0 {
 		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", verbose)))
 	}
+
 	downloaderCmd := exec.Command(pyPath, args...)
 	// Change the working directory to one the Datadog Agent can read, so that we
 	// can switch to temporary working directories, and back, for in-toto.
 	downloaderCmd.Dir, _ = executable.Folder()
-	downloaderCmd.Env = os.Environ()
 
 	// Proxy support
 	if err := common.SetupConfig(confFilePath); err != nil {
