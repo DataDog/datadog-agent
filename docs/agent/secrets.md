@@ -3,7 +3,7 @@
 **This feature is in beta and its options or behavior might break between
 minor or bugfix releases of the Agent.**
 
-Starting with version `6.3.0` on Linux and `6.11` on Windows, the agent is able
+Starting with version `6.3.0` on Linux and `6.11` on Windows, the Agent is able
 to leverage the `secrets` package in order to call a user-provided executable
 to handle retrieval or decryption of secrets, which are then loaded in memory
 by the agent. This feature allows users to no longer store passwords and other
@@ -188,7 +188,7 @@ More settings are available: see `datadog.yaml`.
 ### Agent security requirements
 
 The agent will run `secret_backend_command` executable as a sub-process. The
-execution pattern differ on Linux and Windows.
+execution pattern differs on Linux and Windows.
 
 #### Linux
 
@@ -201,28 +201,28 @@ will refuse to use it otherwise):
 - Have at least `exec` right for the owner.
 
 Also:
-- The executable will share the same environment variables than agent.
+- The executable shares the same environment variables as the Agent.
 - Never output sensitive information on STDERR. If the binary exit with a
-  different status code than `0` the agent will log the standard error output
+  different status code than `0` the Agent logs the standard error output
   of the executable to ease troubleshooting.
 
 #### Windows
 
-On Windows, the executable set as `secret_backend_command` **MUST** (the agent
+On Windows, the executable set as `secret_backend_command` **MUST** (the Agent
 will refuse to use it otherwise):
 
-- Have `Read/Exec` for `ddagentuser` (the user used to run the agent).
+- Have `Read/Exec` for `ddagentuser` (the user used to run the Agent).
 - Have **no** rights for any user or group except `Administrator` or `LocalSystem`.
-- Be a valid Win32 application so the agent can execute it.
+- Be a valid Win32 application so the Agent can execute it.
 
 Also:
-- The executable will share any the same environment variables than agent.
+- The executable shares the same environment variables as the Agent.
 - Never output sensitive information on STDERR. If the binary exit with a
   different status code than `0` the agent will log the standard error output
   of the executable to ease troubleshooting.
 
 Here is an example of a [powershell script](secrets_scripts/set_rights.ps1)
-that remove rights on a file to everybody except from `Administrator` and
+that removes rights on a file to everybody except from `Administrator` and
 `LocalSystem` and then add `ddagentuser`. Use it only as an example as your
 setup might differ.
 
