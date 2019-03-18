@@ -405,7 +405,7 @@ func processEndpoint(kendpt *v1.Endpoints, firstRun bool) []*KubeEndpointService
 		endpt := &KubeEndpointService{
 			entity:       apiserver.EntityForEndpoints(kendpt.Namespace, kendpt.Name, ip),
 			creationTime: integration.After,
-			hosts:        map[string]string{host: ip},
+			hosts:        map[string]string{ip: host},
 			ports:        ports,
 			tags: []string{
 				fmt.Sprintf("kube_endpoint:%s", kendpt.Name),
