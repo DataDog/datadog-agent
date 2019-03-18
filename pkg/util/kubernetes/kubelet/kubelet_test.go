@@ -818,6 +818,12 @@ func (suite *KubeletTestSuite) TestPodListNoExpire() {
 }
 
 func (suite *KubeletTestSuite) TestPodListExpire() {
+	// Fixtures contains four pods:
+	//   - dd-agent-ntepl old but running
+	//   - hello1-1550504220-ljnzx succeeded and old enough to expire
+	//   - hello5-1550509440-rlgvf succeeded but not old enough
+	//   - hello8-1550505780-kdnjx has one old container and a recent container, don't expire
+
 	mockConfig := config.Mock()
 	mockConfig.Set("kubernetes_pod_expiration_minutes", 15)
 
@@ -837,6 +843,7 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 	require.NotNil(suite.T(), kubeutil)
 	kubelet.dropRequests() // Throwing away first GETs
 
+	// Mock time.Now call
 	kubeutil.podUnmarshaller.timeNowFunction = func() time.Time {
 		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 		return t
@@ -846,6 +853,14 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 	require.Len(suite.T(), pods, 3)
+
+	// Test we kept the right pods
+	expectedNames := []string{"dd-agent-ntepl", "hello5-1550509440-rlgvf", "hello8-1550505780-kdnjx"}
+	var podNames []string
+	for _, p := range pods {
+		podNames = append(podNames, p.Metadata.Name)
+	}
+	assert.Equal(suite.T(), expectedNames, podNames)
 }
 
 func TestKubeletTestSuite(t *testing.T) {

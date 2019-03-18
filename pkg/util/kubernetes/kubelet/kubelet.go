@@ -168,7 +168,9 @@ func (ku *KubeUtil) GetNodename() (string, error) {
 	return "", fmt.Errorf("failed to get the kubernetes nodename, pod list length: %d", len(pods))
 }
 
-// GetLocalPodList returns the list of pods running on the node
+// GetLocalPodList returns the list of pods running on the node.
+// If kubernetes_pod_expiration_minutes is set, old exited pods
+// will be filtered out to keep the podlist size down: see json.go
 func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	var ok bool
 	pods := PodList{}
@@ -190,8 +192,7 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletApiEndpoint, kubeletPodPath, string(data))
 	}
 
-	// Will use the decodePodList decoder if kubernetes_pod_expiration_minutes is not zero
-	err = ku.podUnmarshaller.Unmarshal(data, &pods)
+	err = ku.podUnmarshaller.unmarshal(data, &pods)
 	if err != nil {
 		return nil, err
 	}

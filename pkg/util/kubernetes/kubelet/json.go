@@ -19,10 +19,13 @@ import (
 // jsoniterConfig mirrors jsoniter.ConfigFastest
 var jsonConfig = jsoniter.Config{
 	EscapeHTML:                    false,
-	MarshalFloatWith6Digits:       true, // will lose precession
-	ObjectFieldMustBeSimpleString: true, // do not unescape object field
+	MarshalFloatWith6Digits:       true,
+	ObjectFieldMustBeSimpleString: true,
 }
 
+// podUnmarshaller handles unmarshalling and filtering the podlist contents
+// according to the kubernetes_pod_expiration_minutes setting. It uses jsoniter
+// under the hood, with a custom decoder.
 type podUnmarshaller struct {
 	jsonConfig            jsoniter.API
 	podExpirationDuration time.Duration
@@ -36,7 +39,7 @@ func newPodUnmarshaller() *podUnmarshaller {
 	}
 
 	if pu.podExpirationDuration > 0 {
-		jsoniter.RegisterTypeDecoderFunc("kubelet.PodList", pu.decodeAndFilterPodList)
+		jsoniter.RegisterTypeDecoderFunc("kubelet.PodList", pu.filteringDecoder)
 	} else {
 		// Force-unregister for unit tests to pick up the right state
 		jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
@@ -48,11 +51,12 @@ func newPodUnmarshaller() *podUnmarshaller {
 	return pu
 }
 
-func (pu *podUnmarshaller) Unmarshal(data []byte, v interface{}) error {
+// unmarshal is a drop-in replacement for json.Unmarshall
+func (pu *podUnmarshaller) unmarshal(data []byte, v interface{}) error {
 	return pu.jsonConfig.Unmarshal(data, v)
 }
 
-func (pu *podUnmarshaller) decodeAndFilterPodList(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
+func (pu *podUnmarshaller) filteringDecoder(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
 	p := (*PodList)(ptr)
 	cutoffTime := pu.timeNowFunction().Add(-1 * pu.podExpirationDuration)
 
@@ -66,6 +70,8 @@ func (pu *podUnmarshaller) decodeAndFilterPodList(ptr unsafe.Pointer, iter *json
 			return true
 		}
 
+		// Only keep terminated pods where at least one container
+		// terminated after the cutoffTime
 		expired := true
 		for _, ctr := range pod.Status.Containers {
 			if ctr.State.Terminated == nil ||
