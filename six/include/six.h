@@ -23,7 +23,7 @@ public:
     virtual ~Six(){};
 
     // Public API
-    virtual bool init(const char *pythonHome) = 0;
+    virtual bool init() = 0;
     virtual bool addPythonPath(const char *path) = 0;
     virtual six_gilstate_t GILEnsure() = 0;
     virtual void GILRelease(six_gilstate_t) = 0;
@@ -73,7 +73,7 @@ private:
     mutable bool _errorFlag;
 };
 
-typedef Six *create_t();
+typedef Six *create_t(const char *python_home);
 typedef void destroy_t(Six *);
 
 #endif

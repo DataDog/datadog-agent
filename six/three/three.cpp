@@ -18,15 +18,36 @@ extern "C" {
 #include <algorithm>
 #include <sstream>
 
-extern "C" DATADOG_AGENT_SIX_API Six *create() {
-    return new Three();
+extern "C" DATADOG_AGENT_SIX_API Six *create(const char *pythonHome)
+{
+    return new Three(pythonHome);
 }
 
-extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p) {
+extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p)
+{
     delete p;
 }
 
-Three::~Three() {
+Three::Three()
+    : Six()
+    , _pythonHome(NULL)
+    , _baseClass(NULL)
+    , _pythonPaths()
+{
+    initPythonHome();
+}
+
+Three::Three(const char *python_home)
+    : Six()
+    , _pythonHome(NULL)
+    , _baseClass(NULL)
+    , _pythonPaths()
+{
+    initPythonHome(python_home);
+}
+
+Three::~Three()
+{
     PyEval_RestoreThread(_threadState);
     if (_pythonHome) {
         PyMem_RawFree((void *)_pythonHome);
@@ -34,13 +55,8 @@ Three::~Three() {
     Py_XDECREF(_baseClass);
     Py_Finalize();
 }
-
-bool Three::init(const char *pythonHome) {
-    // add custom builtins init funcs to Python inittab, one by one
-    PyImport_AppendInittab("aggregator", PyInit_aggregator);
-    PyImport_AppendInittab("datadog_agent", PyInit_datadog_agent);
-    PyImport_AppendInittab("util", PyInit_util);
-
+void Three::initPythonHome(const char *pythonHome)
+{
     if (pythonHome == NULL) {
         _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
     } else {
@@ -51,6 +67,14 @@ bool Three::init(const char *pythonHome) {
     }
 
     Py_SetPythonHome(_pythonHome);
+}
+bool Three::init()
+{
+    // add custom builtins init funcs to Python inittab, one by one
+    PyImport_AppendInittab("aggregator", PyInit_aggregator);
+    PyImport_AppendInittab("datadog_agent", PyInit_datadog_agent);
+    PyImport_AppendInittab("util", PyInit_util);
+
     Py_Initialize();
 
     // Set PYTHONPATH
@@ -72,19 +96,23 @@ bool Three::init(const char *pythonHome) {
     return _baseClass != NULL;
 }
 
-bool Three::isInitialized() const {
+bool Three::isInitialized() const
+{
     return Py_IsInitialized();
 }
 
-const char *Three::getPyVersion() const {
+const char *Three::getPyVersion() const
+{
     return Py_GetVersion();
 }
 
-bool Three::runSimpleString(const char *code) const {
+bool Three::runSimpleString(const char *code) const
+{
     return PyRun_SimpleString(code) == 0;
 }
 
-bool Three::addPythonPath(const char *path) {
+bool Three::addPythonPath(const char *path)
+{
     if (std::find(_pythonPaths.begin(), _pythonPaths.end(), path) == _pythonPaths.end()) {
         _pythonPaths.push_back(path);
         return true;
@@ -92,7 +120,8 @@ bool Three::addPythonPath(const char *path) {
     return false;
 }
 
-six_gilstate_t Three::GILEnsure() {
+six_gilstate_t Three::GILEnsure()
+{
     PyGILState_STATE state = PyGILState_Ensure();
     if (state == PyGILState_LOCKED) {
         return DATADOG_AGENT_SIX_GIL_LOCKED;
@@ -100,7 +129,8 @@ six_gilstate_t Three::GILEnsure() {
     return DATADOG_AGENT_SIX_GIL_UNLOCKED;
 }
 
-void Three::GILRelease(six_gilstate_t state) {
+void Three::GILRelease(six_gilstate_t state)
+{
     if (state == DATADOG_AGENT_SIX_GIL_LOCKED) {
         PyGILState_Release(PyGILState_LOCKED);
     } else {
@@ -108,7 +138,8 @@ void Three::GILRelease(six_gilstate_t state) {
     }
 }
 
-bool Three::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyClass) {
+bool Three::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyClass)
+{
     PyObject *obj_module = NULL;
     PyObject *obj_class = NULL;
 
@@ -136,7 +167,8 @@ bool Three::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&p
 
 bool Three::getCheck(SixPyObject *py_class, const char *init_config_str, const char *instance_str,
                      const char *check_id_str, const char *check_name, const char *agent_config_str,
-                     SixPyObject *&check) {
+                     SixPyObject *&check)
+{
 
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
     PyObject *agent_config = NULL;
@@ -234,7 +266,8 @@ done:
 }
 
 //
-const char *Three::runCheck(SixPyObject *check) {
+const char *Three::runCheck(SixPyObject *check)
+{
     if (check == NULL) {
         return NULL;
     }
@@ -271,7 +304,8 @@ done:
 }
 
 // return new reference
-PyObject *Three::_importFrom(const char *module, const char *name) {
+PyObject *Three::_importFrom(const char *module, const char *name)
+{
     PyObject *obj_module = NULL;
     PyObject *obj_symbol = NULL;
 
@@ -295,7 +329,8 @@ error:
     return NULL;
 }
 
-PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module) {
+PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)
+{
     if (base == NULL || !PyType_Check(base)) {
         setError("base class is not of type 'Class'");
         return NULL;
@@ -389,7 +424,8 @@ done:
     return klass;
 }
 
-std::string Three::_fetchPythonError() const {
+std::string Three::_fetchPythonError() const
+{
     std::string ret_val = "";
 
     if (PyErr_Occurred() == NULL) {
@@ -462,7 +498,8 @@ std::string Three::_fetchPythonError() const {
     return ret_val;
 }
 
-bool Three::getAttrString(SixPyObject *obj, const char *attributeName, char *&value) const {
+bool Three::getAttrString(SixPyObject *obj, const char *attributeName, char *&value) const
+{
     if (obj == NULL) {
         return false;
     }
@@ -493,58 +530,71 @@ bool Three::getAttrString(SixPyObject *obj, const char *attributeName, char *&va
     return res;
 }
 
-void Three::decref(SixPyObject *obj) {
+void Three::decref(SixPyObject *obj)
+{
     Py_XDECREF(reinterpret_cast<PyObject *>(obj));
 }
 
-void Three::incref(SixPyObject *obj) {
+void Three::incref(SixPyObject *obj)
+{
     Py_XINCREF(reinterpret_cast<PyObject *>(obj));
 }
 
-void Three::setSubmitMetricCb(cb_submit_metric_t cb) {
+void Three::setSubmitMetricCb(cb_submit_metric_t cb)
+{
     _set_submit_metric_cb(cb);
 }
 
-void Three::setSubmitServiceCheckCb(cb_submit_service_check_t cb) {
+void Three::setSubmitServiceCheckCb(cb_submit_service_check_t cb)
+{
     _set_submit_service_check_cb(cb);
 }
 
-void Three::setSubmitEventCb(cb_submit_event_t cb) {
+void Three::setSubmitEventCb(cb_submit_event_t cb)
+{
     _set_submit_event_cb(cb);
 }
 
-void Three::setGetVersionCb(cb_get_version_t cb) {
+void Three::setGetVersionCb(cb_get_version_t cb)
+{
     _set_get_version_cb(cb);
 }
 
-void Three::setGetConfigCb(cb_get_config_t cb) {
+void Three::setGetConfigCb(cb_get_config_t cb)
+{
     _set_get_config_cb(cb);
 }
 
-void Three::setHeadersCb(cb_headers_t cb) {
+void Three::setHeadersCb(cb_headers_t cb)
+{
     _set_headers_cb(cb);
 }
 
-void Three::setGetHostnameCb(cb_get_hostname_t cb) {
+void Three::setGetHostnameCb(cb_get_hostname_t cb)
+{
     _set_get_hostname_cb(cb);
 }
 
-void Three::setGetClusternameCb(cb_get_clustername_t cb) {
+void Three::setGetClusternameCb(cb_get_clustername_t cb)
+{
     _set_get_clustername_cb(cb);
 }
 
-void Three::setLogCb(cb_log_t cb) {
+void Three::setLogCb(cb_log_t cb)
+{
     _set_log_cb(cb);
 }
 
-void Three::setSetExternalTagsCb(cb_set_external_tags_t cb) {
+void Three::setSetExternalTagsCb(cb_set_external_tags_t cb)
+{
     _set_set_external_tags_cb(cb);
 }
 
 // Python Helpers
 
 // get_integration_list return a list of every datadog's wheels installed.
-char *Three::getIntegrationList() {
+char *Three::getIntegrationList()
+{
     PyObject *pyPackages = NULL;
     PyObject *pkgLister = NULL;
     PyObject *args = NULL;

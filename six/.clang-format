@@ -20,10 +20,10 @@ AlwaysBreakBeforeMultilineStrings: false
 BinPackArguments: true
 BinPackParameters: true
 BraceWrapping:
-  AfterClass:      false
+  AfterClass:      true
   AfterControlStatement: false
   AfterEnum:       false
-  AfterFunction:   false
+  AfterFunction:   true
   AfterNamespace:  false
   AfterObjCDeclaration: false
   AfterStruct:     false

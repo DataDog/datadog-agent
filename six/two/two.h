@@ -14,13 +14,11 @@
 
 class Two : public Six {
 public:
-    Two()
-        : Six()
-        , _baseClass(NULL)
-        , _pythonPaths(){};
+    Two();
+    Two(const char *python_home);
     ~Two();
 
-    bool init(const char *pythonHome);
+    bool init();
     bool addPythonPath(const char *path);
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
@@ -61,6 +59,7 @@ public:
     void setSetExternalTagsCb(cb_set_external_tags_t);
 
 private:
+    void initPythonHome(const char *pythonHome = NULL);
     PyObject *_importFrom(const char *module, const char *name);
     PyObject *_findSubclassOf(PyObject *base, PyObject *moduleName);
     PyObject *_getClass(const char *module, const char *base);
