@@ -36,7 +36,7 @@ This section covers how to set up this feature.
 ## Defining secrets in configurations
 
 To declare a secret in a check configuration simply use the `ENC[]` notation.
-This notation can be used to denotate a secret as the *value* of any YAML field
+This notation can be used to denote a secret as the *value* of any YAML field
 in your configuration (not the key), in any section (`init_config`, `instances`,
 `logs`, ...).
 
@@ -62,7 +62,7 @@ instances:
     password: "ENC[db_prod_password]"
 
     # The `ENC[]` handle must be the entire YAML value, which means that
-    # the following will NOT be detected as a secret handle:
+    # the following is NOT detected as a secret handle:
     password2: "db-ENC[prod_password]"
 ```
 
@@ -135,12 +135,12 @@ instance is restarted, or if the Agent dynamically loads a new check containing
 a secret handle (e.g. via Autodiscovery).
 
 By design, the user-provided executable needs to implement any error handling
-mechanism that a user might require. Conversely, the Agent will need to be
+mechanism that a user might require. Conversely, the Agent needs to be
 restarted if a secret has to be refreshed in memory (e.g. revoked password).
 
 This approach which relies on a user-provided executable has multiple benefits:
 
-- Guarantees that the Agent will not attempt to load in memory parameters for
+- Guarantees that the Agent does not attempt to load in memory parameters for
   which there isn't a secret handle.
 - Ability for the user to limit the visibility of the Agent to secrets that
   it needs (e.g. by restraining in the key management backend the list of
@@ -193,7 +193,7 @@ execution patterns differ on Linux and Windows.
 #### Linux
 
 On Linux, the executable set as `secret_backend_command` **MUST** (the Agent
-will refuse to use it otherwise):
+refuses to use it otherwise):
 
 - Belong to the same user running the Agent (by default `dd-agent` or `root`
   inside a container).
@@ -218,7 +218,7 @@ will refuse to use it otherwise):
 Also:
 - The executable shares the same environment variables as the Agent.
 - Never output sensitive information on STDERR. If the binary exit with a
-  different status code than `0` the Agent will log the standard error output
+  different status code than `0` the Agent logs the standard error output
   of the executable to ease troubleshooting.
 
 Here is an example of a [powershell script](secrets_scripts/set_rights.ps1)
@@ -226,7 +226,7 @@ that removes rights on a file to everybody except from `Administrator` and
 `LocalSystem` and then add `ddagentuser`. Use it only as an example as your
 setup might differ.
 
-The Agent GUI will **NOT** show the decrypted password but the raw handle. This
+The Agent GUI does **NOT** show the decrypted password but instead shows the raw handle. This
 is on purposes as it lets you edit configuration files. To see the final config
 after being decrypted use the `configcheck` command on the datadog-agent CLI.
 
@@ -355,7 +355,7 @@ The `secret` command in the Agent CLI shows any errors related to your setup
 (if the rights on the executable aren't the right one for example). It 
 also lists all handles found and where they where found.
 
-On Linux the command will output file mode, owner and group for the executable,
+On Linux the command outputs file mode, owner and group for the executable,
 on Windows ACL rights are listed.
 
 Example on Linux:
@@ -436,11 +436,11 @@ password: <decrypted_password2>
 ===
 ```
 
-Note that the Agent needs to be restarted to pick up changes on configuration files.
+**Note**:  The Agent needs to be restarted to pick up changes on configuration files.
 
 ### Debugging your secret_backend_command
 
-To test or debug outside of the Agent you can simply mimic how the Agent will run it:
+To test or debug outside of the Agent you can mimic how the Agent runs it:
 
 #### Linux
 
@@ -455,14 +455,14 @@ The `dd-agent` user is created when you install the datadog-agent.
 ##### Rights related errors
 
 If you encounter one of the following errors then something is missing in your
-setup. See Windows intructions [here](#windows).
+setup. See the [Windows intructions](#windows).
 
-1. If any other group or user than needed has rights on the executable you will get a similar error in the log:
+1. If any other group or user than needed has rights on the executable a similar error is written to the log:
    ```
    error while decrypting secrets in an instance: Invalid executable 'C:\decrypt.exe': other users/groups than LOCAL_SYSTEM, Administrators or ddagentuser have rights on it
    ```
 
-2. If `ddagentuser` doesn't have read and execute right on the file, you will get a similar error:
+2. If `ddagentuser` doesn't have read and execute right on the file, a similar error is written to the log:
    ```
    error while decrypting secrets in an instance: could not query ACLs for C:\decrypt.exe
    ```
@@ -477,16 +477,15 @@ setup. See Windows intructions [here](#windows).
 Your executable is executed by the Agent when fetching your secrets. The
 Datadog Agent runs using the `ddagentuser`. This user has no specific
 rights but is part of the `Performance Monitor Users` group. The password for
-this user is randomly generated at install time and os never saved anywhere.
+this user is randomly generated at install time and is never saved anywhere.
 
 This means that your executable might work with your default user or
 development user but not when it's run by the Agent, as `ddagentuser` has more
 restricted rights.
 
 The easiest way to test your executable in the same conditions as the Agent is
-to update the password of the `ddagentuser` on your dev box. This way you will
-be able to authenticate as `ddagentuser` and run your executable in the same
-context the Agent would.
+to update the password of the `ddagentuser` on your dev box. This way you can
+authenticate as `ddagentuser` and run your executable in the same context the Agent would.
 
 To do so, follow those steps:
 1. Remove `ddagentuser` from the `Local Policies/User Rights Assignement/Deny
@@ -505,8 +504,8 @@ To do so, follow those steps:
 
 You can now login as `ddagentuser` to test your executable. We have a
 [powershell script](secrets_scripts/secrets_tester.ps1) to help you test your
-executable as another user. It will switch the user context and mimic how the
-agent runs your executable.
+executable as another user. It switches user context and mimics how the
+Agent runs your executable.
 
 Example on how to use it:
 ```powershell
@@ -526,8 +525,8 @@ exit code:
 
 The first thing the Agent does on startup is to load `datadog.yaml` and decrypt
 any secrets in it. This is done before setting up the logging. This means that
-on platforms like Windows, errors occuring when loading `datadog.yaml` aren't
-written in the logs but on stderr (this can occurs when the executable given to
+on platforms like Windows, errors occurring when loading `datadog.yaml` aren't
+written in the logs but on stderr (this can occur when the executable given to
 the Agent for secrets returns an error).
 
 If you have secrets in `datadog.yaml` and the Agent refuses to start: either try
