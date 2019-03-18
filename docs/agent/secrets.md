@@ -211,7 +211,7 @@ Also:
 On Windows, the executable set as `secret_backend_command` **MUST** (the agent
 will refuse to use it otherwise):
 
-- Have `Read/Exec` for `ddagentuser` (the user used to run the agent).
+- Have `Read/Exec` for `ddagentuser` (the user used to run the Agent).
 - Have **no** rights for any user or group except `Administrator` or `LocalSystem`.
 - Be a valid Win32 application so the Agent can execute it.
 
