@@ -213,7 +213,7 @@ will refuse to use it otherwise):
 
 - Have `Read/Exec` for `ddagentuser` (the user used to run the agent).
 - Have **no** rights for any user or group except `Administrator` or `LocalSystem`.
-- Be a valid Win32 application so the agent can execute it.
+- Be a valid Win32 application so the Agent can execute it.
 
 Also:
 - The executable shares the same environment variables as the Agent.
