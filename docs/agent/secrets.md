@@ -201,9 +201,9 @@ will refuse to use it otherwise):
 - Have at least `exec` right for the owner.
 
 Also:
-- The executable will share the same environment variables as the Agent.
-- Never output sensitive information on STDERR. If the binary exit with a
-  different status code than `0` the Agent will log the standard error output
+- The executable shares the same environment variables as the Agent.
+- Never output sensitive information on STDERR. If the binary exits with a
+  different status code than `0` the Agent logs the standard error output
   of the executable to ease troubleshooting.
 
 #### Windows
@@ -216,7 +216,7 @@ will refuse to use it otherwise):
 - Be a valid Win32 application so the Agent can execute it.
 
 Also:
-- The executable will share the same environment variables as the Agent.
+- The executable shares the same environment variables as the Agent.
 - Never output sensitive information on STDERR. If the binary exit with a
   different status code than `0` the agent will log the standard error output
   of the executable to ease troubleshooting.
@@ -351,9 +351,9 @@ instances:
 
 ### Listing detected secrets
 
-The `secret` command in the Agent CLI will show any error related to your setup
-(if the rights on the executable aren't the right one for example). It will
-also list all handles found and where they where found.
+The `secret` command in the Agent CLI shows any error related to your setup
+(if the rights on the executable aren't the right one for example). It 
+also lists all handles found and where they where found.
 
 On Linux the command will output file mode, owner and group for the executable,
 on Windows ACL rights are listed.
@@ -440,7 +440,7 @@ Note that the agent needs to be restarted to pick up changes on configuration fi
 
 ### Debugging your secret_backend_command
 
-To test or debug outside of the agent you can simply mimic how the agent will run it:
+To test or debug outside of the Agent you can simply mimic how the Agent will run it:
 
 #### Linux
 
@@ -474,10 +474,10 @@ setup. See Windows intructions [here](#windows).
 
 ##### Testing your executable
 
-Your executable will be executed by the agent when fetching your secrets. The
-Datadog agent run using the `ddagentuser`. This specific user has no specific
+Your executable is executed by the Agent when fetching your secrets. The
+Datadog Agent runs using the `ddagentuser`. This user has no specific
 rights but is part of the `Performance Monitor Users` group. The password for
-this user is randomly generated at install time and never saved anywhere.
+this user is randomly generated at install time and os never saved anywhere.
 
 This means that your executable might work with your default user or
 development user but not when it's run by the agent, as `ddagentuser` has more
