@@ -281,6 +281,12 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
+	// Metadata endpoints
+
+	// Defines the maximum size of hostame gathered from EC2, GCE, Azure and Alibabacloud metadata endpoints.
+	// Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.
+	config.BindEnvAndSetDefault("metadata_endpoints_max_hostname_size", 255)
+
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
 	config.BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")
