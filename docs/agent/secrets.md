@@ -44,13 +44,13 @@ Secrets are supported in every configuration backend: file, etcd, consul ...
 
 Starting version `6.10.0`, secrets are supported in environment variables.
 
-Secrets are also supported in `datadog.yaml`. The agent will first load the
-main configuration and reload it after decrypting the secrets. This means the
+Secrets are also supported in `datadog.yaml`. The Agent first loads the
+main configuration and reloads it after decrypting the secrets. This means the
 only place where secrets can't be used is the `secret_*` settings (see
 Configuration section).
 
 Secrets are always strings, this means you can't use this feature to set the
-value of a setting of type integer or boolean (such as `GUI_port` for example).
+value of a setting of type integer or boolean (for example, `GUI_port`).
 
 Example:
 
@@ -66,7 +66,7 @@ instances:
     password2: "db-ENC[prod_password]"
 ```
 
-In the above example we have two secrets : `db_prod_user` and
+In the above example there are two secrets : `db_prod_user` and
 `db_prod_password`. Those are the secrets **handles** and each must uniquely
 identify a secret within your secrets management backend.
 
@@ -92,7 +92,7 @@ In this example the secret handle is the string `AES256_GCM,data:v8jQ=,iv:HBE=,a
 
 Example 3:
 
-There is no need to escape inner `[` and `]`. The agent will select everything between the first `ENC[` and the last `]`.
+There is no need to escape inner `[` and `]`. The Agent selects everything between the first `ENC[` and the last `]`.
 
 ```yaml
 instances:
@@ -123,32 +123,32 @@ instances:
 To retrieve secrets, you have to provide an executable that is able to
 authenticate to and fetch secrets from your secrets management backend.
 
-The agent will cache secrets internally in memory to reduce the number of calls
-(useful in a containerized environment for example). The agent calls the
+The Agent caches secrets internally in memory to reduce the number of calls
+(useful in a containerized environment for example). The Agent calls the
 executable every time it accesses a check configuration file that contains at
 least one secret handle for which the secret is not already loaded in memory. In
 particular, secrets that have already been loaded in memory do not trigger
-additional calls to the executable. In practice, this means that the agent calls
+additional calls to the executable. In practice, this means that the Agent calls
 the user-provided executable once per file that contains a secret handle at
-startup, and might make additional calls to the executable later if the agent or
-instance is restarted, or if the agent dynamically loads a new check containing
+startup, and might make additional calls to the executable later if the Agent or
+instance is restarted, or if the Agent dynamically loads a new check containing
 a secret handle (e.g. via Autodiscovery).
 
 By design, the user-provided executable needs to implement any error handling
-mechanism that a user might require. Conversely, the agent will need to be
+mechanism that a user might require. Conversely, the Agent will need to be
 restarted if a secret has to be refreshed in memory (e.g. revoked password).
 
 This approach which relies on a user-provided executable has multiple benefits:
 
-- Guarantees that the agent will not attempt to load in memory parameters for
+- Guarantees that the Agent will not attempt to load in memory parameters for
   which there isn't a secret handle.
-- Ability for the user to limit the visibility of the agent to secrets that
+- Ability for the user to limit the visibility of the Agent to secrets that
   it needs (e.g. by restraining in the key management backend the list of
   secrets that the executable can access).
 - Maximum freedom and flexibility in allowing users to use any secrets
   management backend (including open source solutions such as `Vault` as well as
-  closed sources ones) without having to rebuild the agent.
-- Enabling each user to solve the **initial trust** problem from the agent to
+  closed sources ones) without having to rebuild the Agent.
+- Enabling each user to solve the **initial trust** problem from the Agent to
   their secrets management backend, in a way that leverages their preferred
   authentication method, and fits into their continuous integration workflow.
 
@@ -159,9 +159,9 @@ define a workflow that fits their requirements and environment.
 User A manages secrets centrally in a KMS, such as `Hashicorp Vault`. They store
 the secret’s path and name as the handle (e.g. `mysql/prod/agent-a`), then
 provide an executable that establishes trust with the KMS and makes web service
-calls to it in order to retrieve secrets needed by the agent. In this setup,
+calls to it in order to retrieve secrets needed by the Agent. In this setup,
 User A was careful to appropriately configure the KMS so that the executable
-only has read-only access, and only to secrets that the Datadog agent requires.
+only has read-only access, and only to secrets that the Datadog Agent requires.
 
 User B does not wish to provide access to a centralized KMS at run-time. They
 store an encrypted version of the secret in the configuration file, then provide
@@ -187,15 +187,15 @@ More settings are available: see `datadog.yaml`.
 
 ### Agent security requirements
 
-The agent runs `secret_backend_command` executable as a sub-process. The
+The Agent runs `secret_backend_command` executable as a sub-process. The
 execution patterns differ on Linux and Windows.
 
 #### Linux
 
-On Linux, the executable set as `secret_backend_command` **MUST** (the agent
+On Linux, the executable set as `secret_backend_command` **MUST** (the Agent
 will refuse to use it otherwise):
 
-- Belong to the same user running the agent (by default `dd-agent` or `root`
+- Belong to the same user running the Agent (by default `dd-agent` or `root`
   inside a container).
 - Have **no** rights for `group` or `other`.
 - Have at least `exec` right for the owner.
@@ -218,7 +218,7 @@ will refuse to use it otherwise):
 Also:
 - The executable shares the same environment variables as the Agent.
 - Never output sensitive information on STDERR. If the binary exit with a
-  different status code than `0` the agent will log the standard error output
+  different status code than `0` the Agent will log the standard error output
   of the executable to ease troubleshooting.
 
 Here is an example of a [powershell script](secrets_scripts/set_rights.ps1)
@@ -226,8 +226,8 @@ that removes rights on a file to everybody except from `Administrator` and
 `LocalSystem` and then add `ddagentuser`. Use it only as an example as your
 setup might differ.
 
-The agent GUI will **NOT** show the decrypted password but the raw handle. This
-is on purposes as it let you edit configuration files. To see the final config
+The Agent GUI will **NOT** show the decrypted password but the raw handle. This
+is on purposes as it lets you edit configuration files. To see the final config
 after being decrypted use the `configcheck` command on the datadog-agent CLI.
 
 ### The executable API
@@ -242,7 +242,7 @@ dropped.
 
 **Input:**
 
-The executable will receive a JSON payload on the `Standard input` containing
+The executable receives a JSON payload on the `Standard input` containing
 the list of secrets to fetch:
 
 ```json
@@ -351,7 +351,7 @@ instances:
 
 ### Listing detected secrets
 
-The `secret` command in the Agent CLI shows any error related to your setup
+The `secret` command in the Agent CLI shows any errors related to your setup
 (if the rights on the executable aren't the right one for example). It 
 also lists all handles found and where they where found.
 
@@ -436,7 +436,7 @@ password: <decrypted_password2>
 ===
 ```
 
-Note that the agent needs to be restarted to pick up changes on configuration files.
+Note that the Agent needs to be restarted to pick up changes on configuration files.
 
 ### Debugging your secret_backend_command
 
@@ -467,7 +467,7 @@ setup. See Windows intructions [here](#windows).
    error while decrypting secrets in an instance: could not query ACLs for C:\decrypt.exe
    ```
 
-3. Your executable need to be a valid Win32 application, or you will get the following error:
+3. Your executable needs to be a valid Win32 application, or you will get the following error:
    ```
    error while running 'C:\decrypt.py': fork/exec C:\decrypt.py: %1 is not a valid Win32 application.
    ```
@@ -480,13 +480,13 @@ rights but is part of the `Performance Monitor Users` group. The password for
 this user is randomly generated at install time and os never saved anywhere.
 
 This means that your executable might work with your default user or
-development user but not when it's run by the agent, as `ddagentuser` has more
+development user but not when it's run by the Agent, as `ddagentuser` has more
 restricted rights.
 
-The easiest way to test your executable in the same conditions as the agent is
+The easiest way to test your executable in the same conditions as the Agent is
 to update the password of the `ddagentuser` on your dev box. This way you will
 be able to authenticate as `ddagentuser` and run your executable in the same
-context the agent would.
+context the Agent would.
 
 To do so, follow those steps:
 1. Remove `ddagentuser` from the `Local Policies/User Rights Assignement/Deny
@@ -524,13 +524,13 @@ exit code:
 
 ### Agent refusing to start
 
-The first thing the agent does on startup is to load `datadog.yaml` and decrypt
+The first thing the Agent does on startup is to load `datadog.yaml` and decrypt
 any secrets in it. This is done before setting up the logging. This means that
-on platform like Windows, errors occuring when loading `datadog.yaml` aren't
+on platforms like Windows, errors occuring when loading `datadog.yaml` aren't
 written in the logs but on stderr (this can occurs when the executable given to
-the agent for secrets returns an error).
+the Agent for secrets returns an error).
 
-If you have secrets in `datadog.yaml` and the agent refuse to start: either try
-to start the agent manually to be able to see STDERR or remove the secrets from
+If you have secrets in `datadog.yaml` and the Agent refuses to start: either try
+to start the Agent manually to be able to see STDERR or remove the secrets from
 `datadog.yaml` and test with secrets in a check configuration file first.
 
