@@ -6,6 +6,7 @@ set(PKGS
 	"./aggregator/..."
 	"./datadog_agent/..."
     "./util/..."
+    "./uutil/..."
 )
 
 set(LIBS_PATH "${CMAKE_SOURCE_DIR}/six/:${CMAKE_SOURCE_DIR}/two/:${CMAKE_SOURCE_DIR}/three/")

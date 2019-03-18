@@ -11,4 +11,10 @@ char *as_string(PyObject *);
 PyObject *from_json(const char *);
 char *as_json(PyObject *);
 
+#ifdef DATADOG_AGENT_THREE
+#    define PyStringFromCString(x) PyUnicode_FromString(x)
+#elif defined DATADOG_AGENT_TWO
+#    define PyStringFromCString(x) PyString_FromString(x)
+#endif
+
 #endif
