@@ -11,7 +11,8 @@
 
 static six_t *six;
 
-void submitMetric(char *id, metric_type_t mt, char *name, float val, char **tags, int tags_num, char *hostname) {
+void submitMetric(char *id, metric_type_t mt, char *name, float val, char **tags, int tags_num, char *hostname)
+{
     printf("I'm extending Python providing aggregator.submit_metric:\n");
     printf("Check id: %s\n", id);
     printf("Metric '%s': %f\n", name, val);
@@ -26,7 +27,8 @@ void submitMetric(char *id, metric_type_t mt, char *name, float val, char **tags
     // TODO: cleanup memory
 }
 
-char *read_file(const char *path) {
+char *read_file(const char *path)
+{
     FILE *f = fopen(path, "rb");
     fseek(f, 0, SEEK_END);
     long fsize = ftell(f);
@@ -44,7 +46,8 @@ char *read_file(const char *path) {
     return string;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     if (argc < 2) {
         printf("Please run: demo <2|3> [path_to_python_home]. For example:\n\n");
         printf("demo 3 $VIRTUAL_ENV\n");
@@ -82,7 +85,7 @@ int main(int argc, char *argv[]) {
     // set submitMetric callback
     set_submit_metric_cb(six, submitMetric);
 
-    if (!init(six, python_home)) {
+    if (!init(six)) {
         printf("Error initializing six: %s\n", get_error(six));
         return 1;
     }

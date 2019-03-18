@@ -40,7 +40,7 @@ func setUp() error {
 	// Updates sys.path so testing Check can be found
 	C.add_python_path(six, C.CString("../python"))
 
-	ok := C.init(six, nil)
+	ok := C.init(six)
 	if ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(six)))
 	}
