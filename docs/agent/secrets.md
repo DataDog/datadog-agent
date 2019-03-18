@@ -201,7 +201,7 @@ will refuse to use it otherwise):
 - Have at least `exec` right for the owner.
 
 Also:
-- The executable will share the same environment variables than agent.
+- The executable shares the same environment variables as the Agent.
 - Never output sensitive information on STDERR. If the binary exit with a
   different status code than `0` the Agent logs the standard error output
   of the executable to ease troubleshooting.
