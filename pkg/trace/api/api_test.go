@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	fmtlog "log"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -592,6 +594,18 @@ func TestReceiverPreSamplerCancel(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func TestErrorLogger(t *testing.T) {
+	var got string
+	logger := fmtlog.New(writableFunc(func(v ...interface{}) error {
+		got = v[0].(string)
+		return nil
+	}), "http.Server: ", 0)
+	logger.Print("my-error")
+	if !strings.HasPrefix(got, "http.Server: my-error") {
+		t.Fatal("didn't log error")
+	}
 }
 
 func BenchmarkHandleTracesFromOneApp(b *testing.B) {
