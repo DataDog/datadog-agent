@@ -216,7 +216,7 @@ will refuse to use it otherwise):
 - Be a valid Win32 application so the agent can execute it.
 
 Also:
-- The executable will share any the same environment variables than agent.
+- The executable shares the same environment variables as the Agent.
 - Never output sensitive information on STDERR. If the binary exit with a
   different status code than `0` the agent will log the standard error output
   of the executable to ease troubleshooting.
