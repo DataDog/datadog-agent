@@ -1270,9 +1270,19 @@ func TestCreateEndpoint(t *testing.T) {
 						case 0:
 							assert.Equal(t, tc.expectedSvcs[0], svc)
 						case 1:
-							assert.Equal(t, tc.expectedEndpts[0], svc)
+							// endpts could be received in different order because listener.endooints is a map
+							if svc.GetEntity() == "kube_endpoint://default/myservice/10.0.0.1" {
+								assert.Equal(t, tc.expectedEndpts[0], svc)
+							} else {
+								assert.Equal(t, tc.expectedEndpts[1], svc)
+							}
 						case 2:
-							assert.Equal(t, tc.expectedEndpts[1], svc)
+							// endpts could be received in different order because listener.endooints is a map
+							if svc.GetEntity() == "kube_endpoint://default/myservice/10.0.0.1" {
+								assert.Equal(t, tc.expectedEndpts[0], svc)
+							} else {
+								assert.Equal(t, tc.expectedEndpts[1], svc)
+							}
 						}
 					case <-time.After(250 * time.Millisecond):
 						assert.FailNow(t, "Timeout on receive channel")
@@ -1314,9 +1324,19 @@ func TestCreateEndpoint(t *testing.T) {
 						case 1:
 							assert.Equal(t, tc.expectedSvcs[0], svc)
 						case 2:
-							assert.Equal(t, tc.expectedEndpts[0], svc)
+							// endpts could be received in different order because listener.endooints is a map
+							if svc.GetEntity() == "kube_endpoint://default/myservice/10.0.0.1" {
+								assert.Equal(t, tc.expectedEndpts[0], svc)
+							} else {
+								assert.Equal(t, tc.expectedEndpts[1], svc)
+							}
 						case 3:
-							assert.Equal(t, tc.expectedEndpts[1], svc)
+							// endpts could be received in different order because listener.endooints is a map
+							if svc.GetEntity() == "kube_endpoint://default/myservice/10.0.0.1" {
+								assert.Equal(t, tc.expectedEndpts[0], svc)
+							} else {
+								assert.Equal(t, tc.expectedEndpts[1], svc)
+							}
 						}
 					case <-time.After(250 * time.Millisecond):
 						assert.FailNow(t, "Timeout on receive channel")
