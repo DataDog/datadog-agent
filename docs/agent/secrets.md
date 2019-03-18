@@ -209,7 +209,7 @@ Also:
 #### Windows
 
 On Windows, the executable set as `secret_backend_command` **MUST** (the Agent
-will refuse to use it otherwise):
+refuses to use it otherwise):
 
 - Have `Read/Exec` for `ddagentuser` (the user used to run the Agent).
 - Have **no** rights for any user or group except `Administrator` or `LocalSystem`.
@@ -218,7 +218,7 @@ will refuse to use it otherwise):
 Also:
 - The executable shares the same environment variables as the Agent.
 - Never output sensitive information on STDERR. If the binary exit with a
-  different status code than `0` the Agent logs the standard error output
+  different status code than `0`, the Agent logs the standard error output
   of the executable to ease troubleshooting.
 
 Here is an example of a [powershell script](secrets_scripts/set_rights.ps1)

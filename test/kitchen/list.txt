@@ -1,0 +1,25 @@
+$$$$$$ Deprecated configuration detected:
+require_chef_omnibus
+Run 'kitchen doctor' for details.
+
+Instance                                         Driver  Provisioner  Verifier  Transport  Last Action    Last Error
+dd-agent-installopts-windows-2008-r2-hyperv      Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-installopts-windows-2012-r2-hyperv      Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-installopts-windows-2016-hyperv         Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-installopts-windows-2019-hyperv         Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-all-subservices-windows-2008-r2-hyperv  Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-all-subservices-windows-2012-r2-hyperv  Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-all-subservices-windows-2016-hyperv     Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-all-subservices-windows-2019-hyperv     Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-no-subservices-windows-2008-r2-hyperv   Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-no-subservices-windows-2012-r2-hyperv   Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-no-subservices-windows-2016-hyperv      Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-no-subservices-windows-2019-hyperv      Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-user-win-windows-2008-r2-hyperv         Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-user-win-windows-2012-r2-hyperv         Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-user-win-windows-2016-hyperv            Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-user-win-windows-2019-hyperv            Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-install-fail-windows-2008-r2-hyperv     Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-install-fail-windows-2012-r2-hyperv     Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-install-fail-windows-2016-hyperv        Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
+dd-agent-install-fail-windows-2019-hyperv        Hyperv  ChefSolo     Busser    Winrm      <Not Created>  <None>
