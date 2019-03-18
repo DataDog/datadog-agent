@@ -23,16 +23,6 @@ func jsonTraceFromPath(path string) (pb.Trace, error) {
 	return t, err
 }
 
-func writeTransactions(t *testing.T, v pb.TracePayload, path string) {
-	b, err := json.MarshalIndent(v.Transactions, "", "\t")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := ioutil.WriteFile(path, b, 0666); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestAPMEvents(t *testing.T) {
 	runner := test.Runner{Verbose: true}
 	if err := runner.Start(); err != nil {
@@ -64,7 +54,9 @@ func TestAPMEvents(t *testing.T) {
 		}
 
 		waitForTrace(t, &runner, func(v pb.TracePayload) {
-			writeTransactions(t, v, "./off.json")
+			if n := len(v.Transactions); n != 0 {
+				t.Fatalf("expected no events, got %d", n)
+			}
 		})
 	})
 
@@ -81,7 +73,9 @@ func TestAPMEvents(t *testing.T) {
 		}
 
 		waitForTrace(t, &runner, func(v pb.TracePayload) {
-			writeTransactions(t, v, "./env.json")
+			if n := len(v.Transactions); n != 1 {
+				t.Fatalf("expected 1 event, got %d", n)
+			}
 		})
 	})
 
@@ -96,7 +90,9 @@ func TestAPMEvents(t *testing.T) {
 		}
 
 		waitForTrace(t, &runner, func(v pb.TracePayload) {
-			writeTransactions(t, v, "./client.json")
+			if n := len(v.Transactions); n != 5 {
+				t.Fatalf("expected 5 event, got %d", n)
+			}
 		})
 	})
 }
