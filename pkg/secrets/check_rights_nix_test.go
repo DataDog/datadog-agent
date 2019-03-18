@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// +build !windows
+// +build secrets,!windows
 
 package secrets
 
@@ -15,6 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func setCorrectRight(path string) {
+	os.Chmod(path, 0700)
+}
+
 func TestWrongPath(t *testing.T) {
 	require.NotNil(t, checkRights("does not exists"))
 }
@@ -22,6 +26,7 @@ func TestWrongPath(t *testing.T) {
 func TestGroupOtherRights(t *testing.T) {
 	tmpfile, err := ioutil.TempFile("", "agent-collector-test")
 	require.Nil(t, err)
+	defer os.Remove(tmpfile.Name())
 
 	// file exists
 	require.NotNil(t, checkRights("/does not exists"))

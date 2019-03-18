@@ -1,7 +1,10 @@
 #include "stdafx.h"
 
 
-ExplicitAccess::ExplicitAccess() {
+ExplicitAccess::ExplicitAccess()
+    : freeSid(false)
+    , deleteSid(false)
+{
 	memset(&data, 0, sizeof(EXPLICIT_ACCESS));
 }
 
@@ -10,7 +13,12 @@ ExplicitAccess::~ExplicitAccess() {
 		free(data.Trustee.ptstrName);
 	}
 	else if (data.Trustee.TrusteeForm == TRUSTEE_IS_SID && data.Trustee.ptstrName) {
-		FreeSid((PSID)data.Trustee.ptstrName);
+        if (this->freeSid) {
+            FreeSid((PSID)data.Trustee.ptstrName);
+        }
+        else if (this->deleteSid) {
+            delete[](BYTE *)  data.Trustee.ptstrName;
+        }
 	}
 }
 void ExplicitAccess::Build(LPWSTR pTrusteeName, DWORD AccessPermissions,
@@ -33,6 +41,33 @@ void ExplicitAccess::BuildGrantUser(LPCWSTR name, DWORD rights) {
 	data.Trustee.TrusteeType = TRUSTEE_IS_USER;
 	data.Trustee.ptstrName = localName;
 }
+
+void ExplicitAccess::BuildGrantUser(LPCWSTR name, DWORD rights, DWORD inheritance_flags) {
+	LPWSTR localName = _wcsdup(name);
+
+	data.grfAccessPermissions = rights;
+	data.grfAccessMode = GRANT_ACCESS;
+	data.grfInheritance = inheritance_flags;
+	data.Trustee.pMultipleTrustee = NULL;
+	data.Trustee.MultipleTrusteeOperation = NO_MULTIPLE_TRUSTEE;
+	data.Trustee.TrusteeForm = TRUSTEE_IS_NAME;
+	data.Trustee.TrusteeType = TRUSTEE_IS_USER;
+	data.Trustee.ptstrName = localName;
+}
+
+
+void ExplicitAccess::BuildGrantUser(SID *sid, DWORD rights, DWORD inheritance_flags) {
+    this->deleteSid = true;
+    data.grfAccessPermissions = rights;
+    data.grfAccessMode = GRANT_ACCESS;
+    data.grfInheritance = inheritance_flags;
+    data.Trustee.pMultipleTrustee = NULL;
+    data.Trustee.MultipleTrusteeOperation = NO_MULTIPLE_TRUSTEE;
+    data.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+    data.Trustee.TrusteeType = TRUSTEE_IS_USER;
+    data.Trustee.ptstrName = (LPWSTR)sid;
+}
+
 
 void ExplicitAccess::BuildGrantGroup(LPCWSTR name) {
 	LPWSTR localName = _wcsdup(name);
@@ -75,6 +110,7 @@ void ExplicitAccess::BuildGrantSid(TRUSTEE_TYPE ttype, DWORD rights, DWORD sub1,
 	if (!AllocateAndInitializeSid(&SIDAuth, count, sub1, sub2, 0, 0, 0, 0, 0, 0, &pSID)) {
 		return ;
 	}
+    this->freeSid = true;
 	data.grfAccessPermissions = rights;
 	data.grfAccessMode = GRANT_ACCESS;
 	data.grfInheritance = NO_INHERITANCE;

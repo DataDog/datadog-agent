@@ -111,7 +111,7 @@ func GetViewsPath() string {
 			return ""
 		}
 		viewsPath = filepath.Join(s, "bin", "agent", "dist", "views")
-		log.Debug("ViewsPath is now %s", viewsPath)
+		log.Debugf("ViewsPath is now %s", viewsPath)
 	}
 	return viewsPath
 }
@@ -148,7 +148,7 @@ func ImportRegistryConfig() error {
 			return nil
 		}
 		// otherwise, unexpected error
-		log.Warnf("Unexpected error getting registry config: %s", err)
+		log.Warnf("Unexpected error getting registry config %s", err.Error())
 		return err
 	}
 	defer k.Close()

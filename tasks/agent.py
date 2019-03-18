@@ -42,6 +42,7 @@ DEFAULT_BUILD_TAGS = [
     "snmp",
     "zk",
     "zlib",
+    "secrets",
 ]
 
 AGENT_CORECHECKS = [

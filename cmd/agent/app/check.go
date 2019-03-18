@@ -8,6 +8,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/fatih/color"
@@ -170,6 +171,10 @@ var checkCmd = &cobra.Command{
 			}
 		}
 
+		if runtime.GOOS == "windows" {
+			printWindowsUserWarning("check")
+		}
+
 		if formatJSON {
 			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("JSON")))
 			instancesJSON, _ := json.MarshalIndent(instancesData, "", "  ")
@@ -270,4 +275,10 @@ func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 	}
 
 	return aggData
+}
+func printWindowsUserWarning(op string) {
+	fmt.Printf("\nNOTE:\n")
+	fmt.Printf("The %s command runs in a different user context than the running service\n", op)
+	fmt.Printf("This could affect the results of, if the command relies on specific permissions and/or user context\n")
+	fmt.Printf("\n")
 }

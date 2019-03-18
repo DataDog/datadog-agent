@@ -5,6 +5,11 @@ VisualStudioVersion = 15.0.27428.2037
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "customaction", "customaction.vcxproj", "{330D78DA-3542-4456-9694-41F10646B172}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{9DDE42EF-9C2B-411E-A8C6-32BA821BC5A8}"
+	ProjectSection(SolutionItems) = preProject
+		PropertySheet.props = PropertySheet.props
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
