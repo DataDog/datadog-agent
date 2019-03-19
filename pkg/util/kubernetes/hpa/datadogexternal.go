@@ -61,22 +61,14 @@ const (
 
 // queryDatadogExternal converts the metric name and labels from the HPA format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
-func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point, error) {
-	if metricNames == nil {
+func (p *Processor) queryDatadogExternal(queries []string) (map[string]Point, error) {
+	if queries == nil {
 		log.Tracef("No processed external metrics to query")
 		return nil, nil
 	}
 	// TODO move viper parameters to the Processor struct
 	bucketSize := config.Datadog.GetInt64("external_metrics_provider.bucket_size")
-
-	aggregator := config.Datadog.GetString("external_metrics.aggregator")
-	rollup := config.Datadog.GetInt("external_metrics_provider.rollup")
-	var toQuery []string
-	for _, metric := range metricNames {
-		toQuery = append(toQuery, fmt.Sprintf("%s:%s.rollup(%d)", aggregator, metric, rollup))
-	}
-
-	query := strings.Join(toQuery, ",")
+	query := strings.Join(queries, ",")
 
 	seriesSlice, err := p.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
 	if err != nil {
@@ -86,10 +78,10 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 	ddRequests.WithLabelValues("success").Inc()
 
 	processedMetrics := make(map[string]Point)
-	for _, name := range metricNames {
+	for _, q := range queries {
 		// If the returned Series is empty for one or more processedMetrics, add it as invalid now
 		// so it can be retried later.
-		processedMetrics[name] = Point{
+		processedMetrics[q] = Point{
 			timestamp: time.Now().Unix(),
 		}
 	}
@@ -126,14 +118,14 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 			point.valid = true
 
 			m := fmt.Sprintf("%s{%s}", *serie.Metric, *serie.Scope)
-			processedMetrics[m] = point
+			processedMetrics[*serie.Expression] = point
 
 			// Prometheus submissions on the processed external metrics
 			metricsEval.WithLabelValues(m).Set(float64(point.value))
 			precision := time.Now().Unix() - point.timestamp
 			metricsDelay.WithLabelValues(m).Set(float64(precision))
 
-			log.Debugf("Validated %s | Value:%v at %d after %d/%d buckets", m, point.value, point.timestamp, i+1, len(serie.Points))
+			log.Debugf("Validated %s | Value:%v at %d after %d/%d buckets", *serie.Expression, point.value, point.timestamp, i+1, len(serie.Points))
 			break
 		}
 	}

@@ -9,11 +9,18 @@ package hpa
 
 import (
 	"reflect"
+	"strings"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	hpaAnnotationPrefix = "custom.datadog."
+	aggAnnotation       = hpaAnnotationPrefix + "agg"
+	tagAnnotationPrefix = hpaAnnotationPrefix + "tag."
 )
 
 // Inspect returns the list of external metrics from the hpa to use for autoscaling.
@@ -27,6 +34,7 @@ func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics
 			}
 
 			em := custommetrics.ExternalMetricValue{
+				CustomTags: make(map[string]string),
 				MetricName: metricSpec.External.MetricName,
 				HPA: custommetrics.ObjectReference{
 					Name:      hpa.Name,
@@ -36,6 +44,16 @@ func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics
 			}
 			if metricSpec.External.MetricSelector != nil {
 				em.Labels = metricSpec.External.MetricSelector.MatchLabels
+			}
+			if hpa.Annotations != nil {
+				// Custom tag lookup.
+				if em.Labels != nil {
+					em.CustomTags = extractCustomTags(em.Labels, hpa.Annotations)
+				}
+				// Custom aggregator lookup.
+				if agg, ok := hpa.Annotations[aggAnnotation]; ok {
+					em.CustomAggregator = agg
+				}
 			}
 			emList = append(emList, em)
 		default:
@@ -63,7 +81,10 @@ func DiffExternalMetrics(informerList []*autoscalingv2.HorizontalPodAutoscaler, 
 		for _, m := range emList {
 			// We have previously processed an external metric from this HPA.
 			// Check that it's still the same. If not, remove the entry from the Global Store.
-			if em.MetricName == m.MetricName && reflect.DeepEqual(em.Labels, m.Labels) {
+			if em.MetricName == m.MetricName &&
+				em.CustomAggregator == m.CustomAggregator &&
+				reflect.DeepEqual(em.CustomTags, m.CustomTags) &&
+				reflect.DeepEqual(em.Labels, m.Labels) {
 				found = true
 				break
 			}
@@ -79,4 +100,19 @@ func DiffExternalMetrics(informerList []*autoscalingv2.HorizontalPodAutoscaler, 
 // We only care about updates of the metrics or their scopes.
 func AutoscalerMetricsUpdate(new, old *autoscalingv2.HorizontalPodAutoscaler) bool {
 	return old.Annotations["kubectl.kubernetes.io/last-applied-configuration"] != new.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
+}
+
+// extractCustomTags returns the mapping between tag references found in metric
+// selector labels and values declared in the HPA through annotations.
+func extractCustomTags(metricLabels map[string]string, hpaAnnotations map[string]string) map[string]string {
+	customTags := map[string]string{}
+	for _, value := range metricLabels {
+		if !strings.HasPrefix(value, tagAnnotationPrefix) {
+			continue
+		}
+		if tagValue, ok := hpaAnnotations[value]; ok {
+			customTags[value] = tagValue
+		}
+	}
+	return customTags
 }

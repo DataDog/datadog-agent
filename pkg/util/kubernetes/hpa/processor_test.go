@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	testutil "github.com/DataDog/datadog-agent/test/util"
 )
 
 type fakeDatadogClient struct {
@@ -66,24 +67,22 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: metricName,
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
 				},
 			},
 			[]datadog.Series{
-				{
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						makePoints(1531492452000, 12),
-						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
-						makePoints(0, 27),
-					},
-					Scope: makePtr("foo:bar"),
-				},
+				testutil.BuildSeriesWithDefaults(metricName, "foo:bar", []datadog.DataPoint{
+					makePoints(1531492452000, 12),
+					makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+					makePoints(0, 27),
+				}),
 			},
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "bar"},
 					Value:      14,
 					Valid:      true,
@@ -95,24 +94,22 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"2foo": "bar"},
 					Valid:      true,
 				},
 			},
 			[]datadog.Series{
-				{
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						makePoints(1431492452000, 12),
-						makePoints(1431492453000, 14), // Force the point to be considered outdated at all time(> externalMaxAge)
-						makePoints(0, 1000),           // Force the point to be considered fresh at all time(< externalMaxAge)
-					},
-					Scope: makePtr("2foo:bar"),
-				},
+				testutil.BuildSeriesWithDefaults(metricName, "2foo:bar", []datadog.DataPoint{
+					makePoints(1431492452000, 12),
+					makePoints(1431492453000, 14), // Force the point to be considered outdated at all time(> externalMaxAge)
+					makePoints(0, 1000),           // Force the point to be considered fresh at all time(< externalMaxAge)
+				}),
 			},
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"2foo": "bar"},
 					Value:      14,
 					Valid:      false,
@@ -147,11 +144,13 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 	emList := []custommetrics.ExternalMetricValue{
 		{
 			MetricName: metricName,
+			CustomTags: map[string]string{},
 			Labels:     map[string]string{"foo": "bar"},
 			Valid:      true,
 		},
 		{
 			MetricName: metricName,
+			CustomTags: map[string]string{},
 			Labels:     map[string]string{"bar": "baz"},
 			Valid:      true,
 		},
@@ -199,22 +198,62 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 				},
 			},
 			[]datadog.Series{
-				{
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						makePoints(1531492452000, 12),
-						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
-						makePoints(0, 23),
-					},
-					Scope: makePtr("dcos_version:1.9.4"),
-				},
+				testutil.BuildSeriesWithDefaults(metricName, "dcos_version:1.9.4", []datadog.DataPoint{
+					makePoints(1531492452000, 12),
+					makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+					makePoints(0, 23),
+				}),
 			},
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"dcos_version": "1.9.4"},
 					Value:      14,
 					Valid:      true,
+				},
+			},
+		},
+		{
+			"process valid hpa external metric with custom tags and aggregation function",
+			autoscalingv2.HorizontalPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"custom.datadog.agg":   "sum",
+						"custom.datadog.tag.1": "1.9.4",
+					},
+				},
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: metricName,
+								MetricSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										"dcos_version": "custom.datadog.tag.1",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			[]datadog.Series{
+				testutil.BuildSeries(metricName, "sum", "dcos_version:1.9.4", []datadog.DataPoint{
+					makePoints(1531492452000, 12),
+					makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+					makePoints(0, 23),
+				}),
+			},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName:       "requests_per_s",
+					CustomAggregator: "sum",
+					CustomTags:       map[string]string{"custom.datadog.tag.1": "1.9.4"},
+					Labels:           map[string]string{"dcos_version": "custom.datadog.tag.1"},
+					Value:            14,
+					Valid:            true,
 				},
 			},
 		},
@@ -246,6 +285,7 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"dcos_version": "1.9.4"},
 					Value:      0,
 					Valid:      false,
@@ -305,54 +345,47 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 				},
 			},
 			[]datadog.Series{
-				{
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						makePoints(1531492452000, 22),
-						makePoints(penTime, 12),
-						makePoints(0, 14),
-					},
-					Scope: makePtr("dcos_version:1.9.4"),
-				}, {
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						makePoints(1531492452000, 22),
-						makePoints(penTime, 13), // Validate that there are 2 different entries for the metric metricName as there are 2 different scopes
-						makePoints(0, 16),
-					},
-					Scope: makePtr("dcos_version:2.1.9"),
-				},
-				{
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						makePoints(1531492452000, 22),
-						makePoints(1531492442000, 13), // old timestamp (over maxAge) - Keep the value, set to false
-						makePoints(1531492432000, 10),
-					},
-					Scope: makePtr("dcos_version:3.1.1"),
-				},
+				testutil.BuildSeriesWithDefaults(metricName, "dcos_version:1.9.4", []datadog.DataPoint{
+					makePoints(1531492452000, 22),
+					makePoints(penTime, 12),
+					makePoints(0, 14),
+				}),
+				testutil.BuildSeriesWithDefaults(metricName, "dcos_version:2.1.9", []datadog.DataPoint{
+					makePoints(1531492452000, 22),
+					makePoints(penTime, 13), // Validate that there are 2 different entries for the metric metricName as there are 2 different scopes
+					makePoints(0, 16),
+				}),
+				testutil.BuildSeriesWithDefaults(metricName, "dcos_version:3.1.1", []datadog.DataPoint{
+					makePoints(1531492452000, 22),
+					makePoints(1531492442000, 13), // old timestamp (over maxAge) - Keep the value, set to false
+					makePoints(1531492432000, 10),
+				}),
 			},
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"dcos_version": "1.9.4"},
 					Value:      12,
 					Valid:      true,
 				},
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"dcos_version": "2.1.9"},
 					Value:      13,
 					Valid:      true,
 				},
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"dcos_version": "3.1.1"},
 					Value:      13,
 					Valid:      false,
 				},
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"dcos_version": "4.1.1"},
 					Value:      0, // If Datadog does not even return the metric, store it as invalid with Value = 0
 					Valid:      false,
@@ -398,29 +431,28 @@ func TestProcessor_Batching(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
 				},
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "baz"},
 					Valid:      false,
 				},
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "foobar"},
 					Valid:      false,
 				},
 			},
 			[]datadog.Series{
-				{
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						makePoints(1531492452000, 12),
-						makePoints(0, 14),
-					},
-					Scope: makePtr("foo:bar"),
-				},
+				testutil.BuildSeriesWithDefaults(metricName, "foo:bar", []datadog.DataPoint{
+					makePoints(1531492452000, 12),
+					makePoints(0, 14),
+				}),
 			},
 			1,
 		},
@@ -429,19 +461,16 @@ func TestProcessor_Batching(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      true,
 				},
 			},
 			[]datadog.Series{
-				{
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						makePoints(1431492452000, 12),
-						makePoints(1431492453000, 14),
-					},
-					Scope: makePtr("foo:bar"),
-				},
+				testutil.BuildSeriesWithDefaults(metricName, "foo:bar", []datadog.DataPoint{
+					makePoints(1431492452000, 12),
+					makePoints(1431492453000, 14),
+				}),
 			},
 			1,
 		},
@@ -464,42 +493,66 @@ func TestProcessor_Batching(t *testing.T) {
 }
 
 // Test that we consistently get the same key.
-func TestGetKey(t *testing.T) {
+func TestBuildQuery(t *testing.T) {
 	tests := []struct {
-		desc     string
-		name     string
-		labels   map[string]string
-		expected string
+		desc          string
+		metric        custommetrics.ExternalMetricValue
+		expectedQuery string
 	}{
 		{
 			"correct name and label",
-			"kubernetes.io",
-			map[string]string{
-				"foo": "bar",
+			custommetrics.ExternalMetricValue{
+				MetricName: "kubernetes.io",
+				CustomTags: map[string]string{},
+				Labels: map[string]string{
+					"foo": "bar",
+				},
 			},
-			"kubernetes.io{foo:bar}",
+			testutil.BuildQueryWithDefaults("kubernetes.io{foo:bar}"),
 		},
 		{
 			"correct name and labels",
-			"kubernetes.io",
-			map[string]string{
-				"zfoo": "bar",
-				"afoo": "bar",
-				"ffoo": "bar",
+			custommetrics.ExternalMetricValue{
+				MetricName: "kubernetes.io",
+				CustomTags: map[string]string{},
+				Labels: map[string]string{
+					"zfoo": "bar",
+					"afoo": "bar",
+					"ffoo": "bar",
+				},
 			},
-			"kubernetes.io{afoo:bar,ffoo:bar,zfoo:bar}",
+			testutil.BuildQueryWithDefaults("kubernetes.io{afoo:bar,ffoo:bar,zfoo:bar}"),
 		},
 		{
 			"correct name, no labels",
-			"kubernetes.io",
-			nil,
-			"kubernetes.io{*}",
+			custommetrics.ExternalMetricValue{
+				MetricName: "kubernetes.io",
+				CustomTags: map[string]string{},
+				Labels:     make(map[string]string),
+			},
+			testutil.BuildQueryWithDefaults("kubernetes.io{*}"),
+		},
+		{
+			"correct name, tag references and custom aggregrator",
+			custommetrics.ExternalMetricValue{
+				MetricName: "kubernetes.io",
+				Labels: map[string]string{
+					"kube_container_name": "custom.datadog.tag.1",
+					"kube_deployment":     "custom.datadog.tag.2",
+				},
+				CustomAggregator: "sum",
+				CustomTags: map[string]string{
+					"custom.datadog.tag.1": "nginx",
+					"custom.datadog.tag.2": "web",
+				},
+			},
+			testutil.BuildQuery("sum", "kubernetes.io{kube_container_name:nginx,kube_deployment:web}"),
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			formatedKey := getKey(test.name, test.labels)
-			require.Equal(t, test.expected, formatedKey)
+			query := buildQuery(test.metric)
+			require.Equal(t, test.expectedQuery, query)
 		})
 	}
 }

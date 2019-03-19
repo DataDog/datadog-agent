@@ -58,8 +58,8 @@ func (p *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricV
 
 	for _, em := range emList {
 		// use query (metricName{scope}) as a key to avoid conflict if multiple hpas are using the same metric with different scopes.
-		metricIdentifier := getKey(em.MetricName, em.Labels)
-		metric := metrics[metricIdentifier]
+		query := buildQuery(em)
+		metric := metrics[query]
 
 		if time.Now().Unix()-metric.timestamp > maxAge || !metric.valid {
 			// invalidating sparse metrics that are outdated
@@ -92,8 +92,8 @@ func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []cu
 	}
 	for _, em := range emList {
 		maxAge := int64(p.externalMaxAge.Seconds())
-		metricIdentifier := getKey(em.MetricName, em.Labels)
-		metric := metrics[metricIdentifier]
+		query := buildQuery(em)
+		metric := metrics[query]
 		em.Value = metric.value
 		em.Timestamp = metric.timestamp
 		em.Valid = metric.valid
@@ -112,10 +112,43 @@ func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []cu
 func (p *Processor) validateExternalMetric(emList []custommetrics.ExternalMetricValue) (processed map[string]Point, err error) {
 	var batch []string
 	for _, e := range emList {
-		q := getKey(e.MetricName, e.Labels)
+		q := buildQuery(e)
 		batch = append(batch, q)
 	}
 	return p.queryDatadogExternal(batch)
+}
+
+func buildQuery(metric custommetrics.ExternalMetricValue) string {
+	aggregator := config.Datadog.GetString("external_metrics.aggregator")
+	rollup := config.Datadog.GetInt("external_metrics_provider.rollup")
+
+	if metric.CustomAggregator != "" {
+		aggregator = metric.CustomAggregator
+	}
+
+	metricQuery := buildMetricQuery(metric)
+	return fmt.Sprintf("%s:%s.rollup(%d)", aggregator, metricQuery, rollup)
+}
+
+func buildMetricQuery(metric custommetrics.ExternalMetricValue) string {
+	if len(metric.Labels) == 0 {
+		return fmt.Sprintf("%s{*}", metric.MetricName)
+	}
+
+	var datadogTags []string
+
+	for tagName, tagValue := range metric.Labels {
+		if customTagValue, found := metric.CustomTags[tagValue]; found {
+			datadogTags = append(datadogTags, fmt.Sprintf("%s:%s", tagName, customTagValue))
+		} else {
+			datadogTags = append(datadogTags, fmt.Sprintf("%s:%s", tagName, tagValue))
+		}
+	}
+
+	sort.Strings(datadogTags)
+	tags := strings.Join(datadogTags, ",")
+
+	return fmt.Sprintf("%s{%s}", metric.MetricName, tags)
 }
 
 func invalidate(emList []custommetrics.ExternalMetricValue) (invList []custommetrics.ExternalMetricValue) {
@@ -125,20 +158,4 @@ func invalidate(emList []custommetrics.ExternalMetricValue) (invList []custommet
 		invList = append(invList, e)
 	}
 	return invList
-}
-
-func getKey(name string, labels map[string]string) string {
-	// Support queries with no tags
-	if len(labels) == 0 {
-		return fmt.Sprintf("%s{*}", name)
-	}
-
-	datadogTags := []string{}
-	for key, val := range labels {
-		datadogTags = append(datadogTags, fmt.Sprintf("%s:%s", key, val))
-	}
-	sort.Strings(datadogTags)
-	tags := strings.Join(datadogTags, ",")
-
-	return fmt.Sprintf("%s{%s}", name, tags)
 }

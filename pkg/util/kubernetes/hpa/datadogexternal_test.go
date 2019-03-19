@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	testutil "github.com/DataDog/datadog-agent/test/util"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 )
@@ -20,11 +21,11 @@ import (
 // Worth noting: We check that the penultimate point is considered and also that even if buckets don't align, we can retrieve the last value.
 func TestDatadogExternalQuery(t *testing.T) {
 	tests := []struct {
-		name       string
-		queryfunc  func(from, to int64, query string) ([]datadog.Series, error)
-		metricName []string
-		points     map[string]Point
-		err        error
+		name      string
+		queryfunc func(from, to int64, query string) ([]datadog.Series, error)
+		queries   []string
+		points    map[string]Point
+		err       error
 	}{
 		{
 			"metricName is empty",
@@ -38,8 +39,8 @@ func TestDatadogExternalQuery(t *testing.T) {
 			func(from, to int64, query string) ([]datadog.Series, error) {
 				return nil, nil
 			},
-			[]string{"mymetric{foo:bar}"},
-			map[string]Point{"mymetric{foo:bar}": {value: 0, valid: false}},
+			[]string{testutil.BuildQueryWithDefaults("mymetric{foo:bar}")},
+			map[string]Point{testutil.BuildQueryWithDefaults("mymetric{foo:bar}"): {value: 0, valid: false}},
 			fmt.Errorf("Returned series slice empty"),
 		},
 		{
@@ -47,7 +48,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 			func(int64, int64, string) ([]datadog.Series, error) {
 				return nil, fmt.Errorf("Rate limit of 300 requests in 3600 seconds.")
 			},
-			[]string{"mymetric{foo:bar}"},
+			[]string{testutil.BuildQueryWithDefaults("mymetric{foo:bar}")},
 			nil,
 			fmt.Errorf("Error while executing metric query avg:mymetric{foo:bar}.rollup(30): Rate limit of 300 requests in 3600 seconds."),
 		},
@@ -55,53 +56,43 @@ func TestDatadogExternalQuery(t *testing.T) {
 			"metrics with different granularities Datadog",
 			func(from, to int64, query string) ([]datadog.Series, error) {
 				return []datadog.Series{
-					{
-						// Note that points are ordered when we get them from Datadog.
-						Points: []datadog.DataPoint{
-							makePoints(100000, 40),
-							makePartialPoints(11000),
-							makePoints(200000, 23),
-							makePoints(300000, 42),
-							makePoints(400000, 911),
-						},
-						Scope:  makePtr("foo:bar,baz:ar"),
-						Metric: makePtr("mymetric"),
-					}, {
-						Points: []datadog.DataPoint{
-							makePartialPoints(10000),
-							makePoints(110000, 70),
-							makePartialPoints(20000),
-							makePoints(300000, 42),
-							makePartialPoints(40000),
-						},
-						Scope:  makePtr("foo:baz"),
-						Metric: makePtr("mymetric2"),
-					}, {
-						Points: []datadog.DataPoint{
-							makePartialPoints(10000),
-							makePoints(110000, 3),
-							makePartialPoints(20000),
-							makePartialPoints(30000),
-							makePartialPoints(40000),
-						},
-						Scope:  makePtr("ba:bar"),
-						Metric: makePtr("my.aws.metric"),
-					},
+					// Note that points are ordered when we get them from Datadog.
+					testutil.BuildSeriesWithDefaults("mymetric", "baz:ar,foo:bar", []datadog.DataPoint{
+						makePoints(100000, 40),
+						makePartialPoints(11000),
+						makePoints(200000, 23),
+						makePoints(300000, 42),
+						makePoints(400000, 911),
+					}),
+					testutil.BuildSeriesWithDefaults("mymetric2", "foo:baz", []datadog.DataPoint{
+						makePartialPoints(10000),
+						makePoints(110000, 70),
+						makePartialPoints(20000),
+						makePoints(300000, 42),
+						makePartialPoints(40000),
+					}),
+					testutil.BuildSeriesWithDefaults("my.aws.metric", "ba:bar", []datadog.DataPoint{
+						makePartialPoints(10000),
+						makePoints(110000, 3),
+						makePartialPoints(20000),
+						makePartialPoints(30000),
+						makePartialPoints(40000),
+					}),
 				}, nil
 			},
-			[]string{"mymetric{foo:bar,baz:ar}", "mymetric2{foo:baz}", "my.aws.metric{ba:bar}"},
+			[]string{testutil.BuildQueryWithDefaults("mymetric{baz:ar,foo:bar}"), testutil.BuildQueryWithDefaults("mymetric2{foo:baz}"), testutil.BuildQueryWithDefaults("my.aws.metric{ba:bar}")},
 			map[string]Point{
-				"mymetric{foo:bar,baz:ar}": {
+				testutil.BuildQueryWithDefaults("mymetric{baz:ar,foo:bar}"): {
 					value:     42.0,
 					valid:     true,
 					timestamp: 300,
 				},
-				"mymetric2{foo:baz}": {
+				testutil.BuildQueryWithDefaults("mymetric2{foo:baz}"): {
 					value:     70.0,
 					valid:     true,
 					timestamp: 110,
 				},
-				"my.aws.metric{ba:bar}": {
+				testutil.BuildQueryWithDefaults("my.aws.metric{ba:bar}"): {
 					value:     0.0,
 					valid:     false,
 					timestamp: time.Now().Unix(),
@@ -116,7 +107,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 				queryMetricsFunc: test.queryfunc,
 			}
 			p := Processor{datadogClient: cl}
-			points, err := p.queryDatadogExternal(test.metricName)
+			points, err := p.queryDatadogExternal(test.queries)
 			if test.err != nil {
 				require.EqualError(t, test.err, err.Error())
 			}

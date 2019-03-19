@@ -230,6 +230,7 @@ func TestInspect(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"dcos_version": "1.9.4"},
 					Timestamp:  0,
 					Value:      0,
@@ -237,7 +238,94 @@ func TestInspect(t *testing.T) {
 				},
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"dcos_version": "2.1.9"},
+					Timestamp:  0,
+					Value:      0,
+					Valid:      false,
+				},
+			},
+		},
+		"external metrics with custom tags and aggregation": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"custom.datadog.agg":   "sum",
+						"custom.datadog.tag.1": "1.9.4",
+						"custom.datadog.tag.2": "2.1.9",
+					},
+				},
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: metricName,
+								MetricSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										"dcos_version": "custom.datadog.tag.1",
+									},
+								},
+							},
+						},
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: metricName,
+								MetricSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										"dcos_version": "custom.datadog.tag.2",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName:       "requests_per_s",
+					CustomAggregator: "sum",
+					CustomTags:       map[string]string{"custom.datadog.tag.1": "1.9.4"},
+					Labels:           map[string]string{"dcos_version": "custom.datadog.tag.1"},
+					Timestamp:        0,
+					Value:            0,
+					Valid:            false,
+				},
+				{
+					MetricName:       "requests_per_s",
+					CustomAggregator: "sum",
+					CustomTags:       map[string]string{"custom.datadog.tag.2": "2.1.9"},
+					Labels:           map[string]string{"dcos_version": "custom.datadog.tag.2"},
+					Timestamp:        0,
+					Value:            0,
+					Valid:            false,
+				},
+			},
+		},
+		"external metrics with unresolved custom tag": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: metricName,
+								MetricSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										"dcos_version": "custom.datadog.tag.1",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
+					Labels:     map[string]string{"dcos_version": "custom.datadog.tag.1"},
 					Timestamp:  0,
 					Value:      0,
 					Valid:      false,
@@ -276,6 +364,7 @@ func TestInspect(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "foo",
+					CustomTags: map[string]string{},
 					Labels:     nil,
 					Timestamp:  0,
 					Value:      0,
@@ -318,6 +407,7 @@ func TestInspect(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: metricNameUpper,
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"dcos_version": "1.9.4"},
 					Timestamp:  0,
 					Value:      0,
@@ -379,6 +469,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s_one",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "tagbar"},
 					Valid:      true,
 					HPA: custommetrics.ObjectReference{
@@ -389,6 +480,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 				},
 				{
 					MetricName: "requests_per_s_two",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "dre"},
 					Valid:      false,
 					HPA: custommetrics.ObjectReference{
@@ -399,6 +491,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 				},
 				{
 					MetricName: "requests_per_s_three",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "tu"},
 					Valid:      false,
 					HPA: custommetrics.ObjectReference{
@@ -411,6 +504,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s_two",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "dre"},
 					Valid:      false,
 					HPA: custommetrics.ObjectReference{
@@ -443,6 +537,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s_one",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      true,
 					HPA: custommetrics.ObjectReference{
@@ -453,6 +548,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 				},
 				{
 					MetricName: "requests_per_s_old",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
 					HPA: custommetrics.ObjectReference{
@@ -465,6 +561,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s_old",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
 					HPA: custommetrics.ObjectReference{
@@ -497,6 +594,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s_one",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      true,
 					HPA: custommetrics.ObjectReference{
@@ -507,6 +605,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 				},
 				{
 					MetricName: "requests_per_s_two",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
 					HPA: custommetrics.ObjectReference{
@@ -519,6 +618,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s_two",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
 					HPA: custommetrics.ObjectReference{

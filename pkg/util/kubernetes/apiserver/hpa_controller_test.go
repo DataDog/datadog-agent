@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
+	testutil "github.com/DataDog/datadog-agent/test/util"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
@@ -137,24 +138,16 @@ func TestAutoscalerController(t *testing.T) {
 	store, client := newFakeConfigMapStore(t, "default", name, nil)
 	metricName := "foo"
 	ddSeries := []datadog.Series{
-		{
-			Metric: &metricName,
-			Points: []datadog.DataPoint{
-				makePoints(1531492452000, 12.01),
-				makePoints(penTime, 14.123),
-				makePoints(0, 25.12),
-			},
-			Scope: makePtr("foo:bar"),
-		},
-		{
-			Metric: &metricName,
-			Points: []datadog.DataPoint{
-				makePoints(1531492452000, 12.34),
-				makePoints(penTime, 1.01),
-				makePoints(0, 0.902),
-			},
-			Scope: makePtr("dcos_version:2.1.9"),
-		},
+		testutil.BuildSeriesWithDefaults(metricName, "foo:bar", []datadog.DataPoint{
+			makePoints(1531492452000, 12.01),
+			makePoints(penTime, 14.123),
+			makePoints(0, 25.12),
+		}),
+		testutil.BuildSeriesWithDefaults(metricName, "dcos_version:2.1.9", []datadog.DataPoint{
+			makePoints(1531492452000, 12.34),
+			makePoints(penTime, 1.01),
+			makePoints(0, 0.902),
+		}),
 	}
 	d := &fakeDatadogClient{
 		queryMetricsFunc: func(from, to int64, query string) ([]datadog.Series, error) {
@@ -323,6 +316,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 			metrics: []custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"bar": "baz"},
 					HPA:        custommetrics.ObjectReference{Name: "foo", Namespace: "default", UID: "1111"},
 					Timestamp:  12,
@@ -353,6 +347,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 			expected: []custommetrics.ExternalMetricValue{ // skipped by gc
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"bar": "baz"},
 					HPA:        custommetrics.ObjectReference{Name: "foo", Namespace: "default", UID: "1111"},
 					Timestamp:  12,
@@ -366,6 +361,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 			metrics: []custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
+					CustomTags: map[string]string{},
 					Labels:     map[string]string{"bar": "baz"},
 					HPA:        custommetrics.ObjectReference{Name: "foo", Namespace: "default", UID: "1111"},
 					Timestamp:  12,
