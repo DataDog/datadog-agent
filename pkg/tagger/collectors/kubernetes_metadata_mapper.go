@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -21,7 +20,7 @@ import (
 func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	var err error
 	metadataByNsPods := apiv1.NewNamespacesPodsStringsSet()
-	if config.Datadog.GetBool("cluster_agent.enabled") {
+	if !c.clusterAgentEnabled {
 		var nodeName string
 		nodeName, err = c.kubeUtil.GetNodename()
 		if err != nil {
@@ -30,7 +29,7 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		}
 		metadataByNsPods, err = c.dcaClient.GetPodsMetadataForNode(nodeName)
 		if err != nil {
-			log.Debugf("Could not pull the metadata map of pods on node %s from the Datadog Cluster Agent: %s", nodeName, err.Error())
+			log.Errorf("Could not pull the metadata map of pods on node %s from the Datadog Cluster Agent: %s", nodeName, err.Error())
 			return nil
 		}
 	}
@@ -59,7 +58,7 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		}
 
 		tagList := utils.NewTagList()
-		if !config.Datadog.GetBool("cluster_agent.enabled") {
+		if !c.clusterAgentEnabled {
 			metadataNames, err = apiserver.GetPodMetadataNames(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
 			if err != nil {
 				log.Errorf("Could not fetch cluster level tags for the pod %s: %s", po.Metadata.Name, err.Error())
