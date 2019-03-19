@@ -383,6 +383,21 @@ func downloadWheel(integration, version string) (string, error) {
 		return "", err
 	}
 
+	args := []string{
+		"-m", downloaderModule,
+		integration,
+		"--version", version,
+	}
+	if verbose > 0 {
+		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", verbose)))
+	}
+
+	downloaderCmd := exec.Command(pyPath, args...)
+
+	// Change the working directory to one the Datadog Agent can read, so that we
+	// can switch to temporary working directories, and back, for in-toto.
+	downloaderCmd.Dir, _ = executable.Folder()
+
 	// We do all of the following so that when we call our downloader, which will
 	// in turn call in-toto, which will in turn call Python to inspect the wheel,
 	// we will use our embedded Python.
@@ -394,23 +409,18 @@ func downloadWheel(integration, version string) (string, error) {
 	path_arr = append([]string{path_dir}, path_arr...)
 	// Build a new PATH string from the array.
 	path_str := strings.Join(path_arr, string(os.PathListSeparator))
-	// Replace the old PATH with the new one.
-	os.Setenv("PATH", path_str)
-
-	args := []string{
-		"-m", downloaderModule,
-		integration,
-		"--version", version,
+	// Make a copy of the current environment.
+	environ := os.Environ()
+	// Walk over the copy of the environment, and replace PATH.
+	for key, value := range environ {
+		if strings.HasPrefix(value, "PATH=") {
+			environ[key] = "PATH=" + path_str
+			break
+		}
 	}
-
-	if verbose > 0 {
-		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", verbose)))
-	}
-
-	downloaderCmd := exec.Command(pyPath, args...)
-	// Change the working directory to one the Datadog Agent can read, so that we
-	// can switch to temporary working directories, and back, for in-toto.
-	downloaderCmd.Dir, _ = executable.Folder()
+	// Now, while downloaderCmd itself won't use the new PATH, any child process,
+	// such as in-toto subprocesses, will.
+	downloaderCmd.Env = environ
 
 	// Proxy support
 	if err := common.SetupConfig(confFilePath); err != nil {
