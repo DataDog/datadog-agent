@@ -2,7 +2,94 @@
 Release Notes
 =============
 
-.. _Release Notes_1.0.0:
+.. _Release Notes_1.2.0:
+
+1.2.0
+=====
+
+.. _Release Notes_1.2.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2019-02-25
+
+The Datadog Agent now supports distributing Cluster Level Checks. This feature is compatible with the version 6.9.0 and up of the Datadog Agent.
+
+Refer to `the official documentation <https://docs.datadoghq.com/agent/autodiscovery/clusterchecks/>`_ to read more about this feature.
+
+1.2.0-rc.5
+==========
+2019-02-14
+
+Bug Fixes
+---------
+- Ensure dangling cluster checks can be re-scheduled
+
+1.2.0-rc.4
+==========
+2019-02-12
+
+Bug Fixes
+---------
+- Fix re-scheduling of the same clusterchecks config on the same node
+
+1.2.0-rc.3
+==========
+2019-02-11
+
+Enhancement Notes
+-----------------
+- Sign docker images when pushing to Docker Hub
+
+Bug Fixes
+---------
+- Fix configcheck verbose output
+- Fix AutoDiscovery rescheduling issue when no template variables
+- Remove resolved configs when template are removed
+- Support adding/removing the AD annotation to an existing kube service
+- Only expose cluster-check prometheus metrics when leading
+- Fix support for custom metrics case sensitivity
+
+1.2.0-rc.2
+==========
+2019-02-05
+
+Enhancement Notes
+-----------------
+The External Metrics Provider is now agnostic of the case, both on the metric name and the labels extracted from HPAs.
+
+Bug Fixes
+---------
+- Cluster Agent HPA metrics case support
+
+New Features
+------------
+- Add GetLeaderIP method to LeaderEngine
+- Add kube_service config provider
+- Allow to set additional Autodiscovery sources by envvars
+- Add dispatching metrics in clusterchecks module
+- Add a health probe in the ccheck dispatching logic
+- Add kube-services AD listener
+- Cluster-checks: handle leader election and follower->leader redirection
+- Enable clusterchecks in DCA master
+- Support /conf.d in cluster-agent image
+- Fix clustercheck leader not starting its dispatching logic
+- Use the appropriate port when redirecting node-agents to leader
+- Cluster-checks: patch configurations on schedule
+- Add configcheck/config cmd on the cluster agent
+- Add clustercheck info to the cluster-agent's status and flare
+- Make error in clusterchecks cmd clear when feature is disabled
+
+1.2.0-rc.1
+==========
+2019-01-31
+
+Note
+----
+The release of the RC1 was dismissed to embed a fix for the CI runners used to build the image.
+- Go 1.11.5 compliancy + 1.11.5 for every CI
+The official release of the Datadog Cluster Agent 1.2.0 starts with the RC2.
 
 1.0.0
 =====
@@ -27,7 +114,7 @@ It is only supported in containerized environments.
 2018-10-17
 
 Enhancement Notes
-------------------
+-----------------
 - Expose telemetry metrics with the Open Metrics format instead of expvar
 
 Bug Fixes
@@ -39,7 +126,7 @@ Bug Fixes
 2018-10-15
 
 Enhancement Notes
-------------------
+-----------------
 - Leverage diff logic to only update the internal custom metrics store and Config Map with relevant changes.
 - Better logging on the Autoscalers Controller
 
@@ -53,7 +140,7 @@ Bug Fixes
 2018-10-11
 
 Enhancement Notes
-------------------
+-----------------
 
 - Support `agent` and `datadog-cluster-agent` for the CLI of the Datadog Cluster Agent
 - Retrieve hostname in GCE
