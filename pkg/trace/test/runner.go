@@ -107,7 +107,7 @@ func (s *Runner) Post(traceList pb.Traces) error {
 	if err := msgp.Encode(&buf, traceList); err != nil {
 		return err
 	}
-	addr := fmt.Sprintf("http://%s/v0.3/traces", s.agent.Addr())
+	addr := fmt.Sprintf("http://%s/v0.4/traces", s.agent.Addr())
 	req, err := http.NewRequest("POST", addr, &buf)
 	if err != nil {
 		return err
