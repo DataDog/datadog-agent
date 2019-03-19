@@ -44,6 +44,11 @@ func (c *Container) FillCgroupLimits() error {
 	if err != nil {
 		return fmt.Errorf("failed mem count: %s", err)
 	}
+	c.ThreadLimit, err = c.cgroup.ThreadLimit()
+	if err != nil {
+		return fmt.Errorf("thread limit: %s", err)
+	}
+
 	return nil
 }
 
@@ -74,6 +79,10 @@ func (c *Container) FillCgroupMetrics() error {
 	c.StartedAt, err = c.cgroup.ContainerStartTime()
 	if err != nil {
 		return fmt.Errorf("start time: %s", err)
+	}
+	c.ThreadCount, err = c.cgroup.ThreadCount()
+	if err != nil {
+		return fmt.Errorf("thread count: %s", err)
 	}
 
 	return nil

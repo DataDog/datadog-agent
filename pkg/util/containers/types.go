@@ -63,6 +63,8 @@ type Container struct {
 	Network        metrics.ContainerNetStats
 	AddressList    []NetworkAddress
 	StartedAt      int64
+	ThreadCount    uint64
+	ThreadLimit    uint64
 
 	// For internal use only
 	cgroup *metrics.ContainerCgroup

@@ -357,6 +357,52 @@ func (c ContainerCgroup) IO() (*CgroupIOStat, error) {
 	return ret, nil
 }
 
+// ThreadCount returns the number of threads in the pid cgroup
+// linked to the container.
+// ref: https://www.kernel.org/doc/Documentation/cgroup-v1/pids.txt
+//
+// Although the metric is called `pid.current`, it also tracks
+// threads, and not only task-group-pids
+func (c ContainerCgroup) ThreadCount() (uint64, error) {
+	v, err := c.ParseSingleStat("pids", "pids.current")
+	if os.IsNotExist(err) {
+		log.Debugf("Missing cgroup file: %s",
+			c.cgroupFilePath("pids", "pids.current"))
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+	return v, nil
+}
+
+// ThreadCount returns the thread count limit in the pid cgroup
+// linked to the container.
+// ref: https://www.kernel.org/doc/Documentation/cgroup-v1/pids.txt
+//
+// If `max` is found, the method returns 0 as-in "no limit"
+func (c ContainerCgroup) ThreadLimit() (uint64, error) {
+	statFile := c.cgroupFilePath("pids", "pids.max")
+	lines, err := readLines(statFile)
+	if os.IsNotExist(err) {
+		log.Debugf("Missing cgroup file: %s",
+			c.cgroupFilePath("pids", "pids.max"))
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+	if len(lines) != 1 {
+		return 0, fmt.Errorf("wrong file format: %s", statFile)
+	}
+	if lines[0] == "max" {
+		return 0, nil
+	}
+	value, err := strconv.ParseUint(lines[0], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return value, nil
+}
+
 // ParseSingleStat reads and converts a single-value cgroup stat file content to uint64.
 func (c ContainerCgroup) ParseSingleStat(target, file string) (uint64, error) {
 	statFile := c.cgroupFilePath(target, file)
