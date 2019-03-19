@@ -88,6 +88,5 @@ else
     #
     # expand python zip into the embedded directory
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(install_dir)}\\embedded\""
-    command "SETX PYTHONPATH \"#{windows_safe_path(install_dir)}\\embedded\""
   end
 end
