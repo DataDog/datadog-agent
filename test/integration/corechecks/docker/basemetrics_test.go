@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
 func init() {
@@ -37,6 +39,7 @@ func TestContainerMetricsTagging(t *testing.T) {
 			"docker.mem.soft_limit",
 			"docker.container.size_rw",
 			"docker.container.size_rootfs",
+			"docker.thread.count",
 		},
 		"Rate": {
 			"docker.cpu.system",
@@ -75,4 +78,7 @@ func TestContainerMetricsTagging(t *testing.T) {
 			}
 		}
 	}
+
+	// redis:3.2 runs one process with 3 threads
+	sender.AssertCalled(t, "Gauge", "docker.thread.count", 3.0, "", mocksender.MatchTagsContains(expectedTags))
 }
