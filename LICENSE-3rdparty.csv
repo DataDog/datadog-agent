@@ -43,7 +43,6 @@ core,github.com/emicklei/go-restful-swagger12,MIT
 core,github.com/evanphx/json-patch,BSD-3-Clause
 core,github.com/fatih/color,MIT
 core,github.com/fsnotify/fsnotify,BSD-3-Clause
-core,github.com/geoffgarside/ber,BSD-3-Clause
 core,github.com/ghodss/yaml,MIT
 core,github.com/godbus/dbus,BSD-2-Clause
 core,github.com/go-ini/ini,Apache-2.0
