@@ -176,13 +176,14 @@ func (c *compressor) close() ([]byte, error) {
 		return nil, err
 	}
 
-	c.input.Reset()
+	payload := make([]byte, c.compressed.Len())
+	copy(payload, c.compressed.Bytes())
 
 	expvarsTotalPayloads.Add(1)
 	expvarsBytesIn.Add(int64(c.uncompressedWritten))
 	expvarsBytesOut.Add(int64(c.compressed.Len()))
 
-	return c.compressed.Bytes(), nil
+	return payload, nil
 }
 
 func (c *compressor) remainingSpace() int {
