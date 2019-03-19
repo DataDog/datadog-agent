@@ -10,7 +10,6 @@ package listeners
 
 import (
 	"fmt"
-	"reflect"
 	"sort"
 	"sync"
 
@@ -204,6 +203,19 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 	if ksvc == nil {
 		return
 	}
+
+	l.m.Lock()
+	l.endpointsAnnotated[fmt.Sprintf("%s/%s", ksvc.Namespace, ksvc.Name)] = isEndpointAnnotated(ksvc)
+	endpoints, err := l.endpointsInformer.Lister().List(labels.Everything())
+	l.m.Unlock()
+
+	if err != nil {
+		log.Errorf("Cannot list Kubernetes endpoints: %s", err)
+	}
+	for _, e := range endpoints {
+		l.createEndpoint(e, true)
+	}
+
 	if !isServiceAnnotated(ksvc) {
 		// Ignore services with no AD annotation
 		return
@@ -213,7 +225,6 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 
 	l.m.Lock()
 	l.services[ksvc.UID] = svc
-	l.endpointsAnnotated[fmt.Sprintf("%s/%s", ksvc.Namespace, ksvc.Name)] = isEndpointAnnotated(ksvc)
 	l.m.Unlock()
 
 	l.newService <- svc
@@ -363,21 +374,18 @@ func (l *KubeServiceListener) createEndpoint(kendpt *v1.Endpoints, firstRun bool
 		return
 	}
 	endptId := fmt.Sprintf("%s/%s", kendpt.Namespace, kendpt.Name)
-
+	log.Debugf("creating endpoint %v, is endpoint annotated %v", kendpt, l.endpointsAnnotated)
 	l.m.Lock()
-	for id, isAnnotated := range l.endpointsAnnotated {
-		if id == endptId && isAnnotated {
-			endpts := processEndpoint(kendpt, firstRun)
-			newEndpts, removedEndpts := diffEndpoints(endpts, l.endpoints[endptId])
-			l.updateEndpoints(newEndpts, removedEndpts, endptId)
-			for _, endpt := range newEndpts {
-				log.Debugf("sending new endpoint: %v", endpt)
-				l.newService <- endpt
-			}
-			for _, endpt := range removedEndpts {
-				log.Debugf("removing endpoint: %v", endpt)
-				l.delService <- endpt
-			}
+	isAnnotated := l.endpointsAnnotated[endptId]
+	if isAnnotated {
+		endpts := processEndpoint(kendpt, firstRun)
+		newEndpts, removedEndpts := diffEndpoints(endpts, l.endpoints[endptId])
+		l.endpoints[endptId] = endpts
+		for _, endpt := range newEndpts {
+			l.newService <- endpt
+		}
+		for _, endpt := range removedEndpts {
+			l.delService <- endpt
 		}
 	}
 	l.m.Unlock()
@@ -385,86 +393,63 @@ func (l *KubeServiceListener) createEndpoint(kendpt *v1.Endpoints, firstRun bool
 
 func processEndpoint(kendpt *v1.Endpoints, firstRun bool) []*KubeEndpointService {
 	var newEndpointServices []*KubeEndpointService
-
-	// Hosts and Ports
-	var hosts = make(map[string]string)
-	var ports []ContainerPort
 	for i := range kendpt.Subsets {
-		// Hosts
-		for _, host := range kendpt.Subsets[i].Addresses {
-			hosts[host.IP] = host.Hostname
-		}
+		ports := []ContainerPort{}
 		// Ports
 		for _, port := range kendpt.Subsets[i].Ports {
 			ports = append(ports, ContainerPort{int(port.Port), port.Name})
 		}
-	}
-
-	for ip, host := range hosts {
-		// create a separate AD service per host
-		endpt := &KubeEndpointService{
-			entity:       apiserver.EntityForEndpoints(kendpt.Namespace, kendpt.Name, ip),
-			creationTime: integration.After,
-			hosts:        map[string]string{host: ip},
-			ports:        ports,
-			tags: []string{
-				fmt.Sprintf("kube_endpoint:%s", kendpt.Name),
-				fmt.Sprintf("kube_namespace:%s", kendpt.Namespace),
-			},
-			adID: fmt.Sprintf("%s%s/%s", kubeEndpointIDPrefix, kendpt.Namespace, kendpt.Name),
+		// Hosts
+		for _, host := range kendpt.Subsets[i].Addresses {
+			// create a separate AD service per host
+			endpt := &KubeEndpointService{
+				entity:       fmt.Sprintf("%s%s/%s/%s", kubeEndpointIDPrefix, kendpt.Namespace, kendpt.Name, host.IP),
+				creationTime: integration.After,
+				hosts:        map[string]string{"service": host.IP},
+				ports:        ports,
+				tags: []string{
+					fmt.Sprintf("kube_service:%s", kendpt.Name),
+					fmt.Sprintf("kube_namespace:%s", kendpt.Namespace),
+					fmt.Sprintf("kube_endpoint_ip:%s", host.IP),
+				},
+				adID: apiserver.EntityForEndpoints(kendpt.Namespace, kendpt.Name),
+			}
+			if firstRun {
+				endpt.creationTime = integration.Before
+			}
+			newEndpointServices = append(newEndpointServices, endpt)
 		}
-		if firstRun {
-			endpt.creationTime = integration.Before
-		}
-		newEndpointServices = append(newEndpointServices, endpt)
 	}
 	return newEndpointServices
 }
 
 func diffEndpoints(current, old []*KubeEndpointService) ([]*KubeEndpointService, []*KubeEndpointService) {
-	var new []*KubeEndpointService
-	var removed []*KubeEndpointService
+	var newEndpts []*KubeEndpointService
+	var removedEndpts []*KubeEndpointService
 	for _, endpt := range current {
 		// looking for new endpoints
 		if !containsEndpointService(old, endpt) {
-			new = append(new, endpt)
+			newEndpts = append(newEndpts, endpt)
 		}
 	}
 	for _, endpt := range old {
 		// looking for removed endpoints
 		if !containsEndpointService(current, endpt) {
-			removed = append(removed, endpt)
+			removedEndpts = append(removedEndpts, endpt)
 		}
 	}
 
-	return new, removed
+	return newEndpts, removedEndpts
 }
 
 // containsEndpointService return true if a slice of endpoints services contain a given endpoint service
 func containsEndpointService(svcs []*KubeEndpointService, svc *KubeEndpointService) bool {
 	for _, s := range svcs {
-		if reflect.DeepEqual(*s, *svc) {
+		if svc.GetEntity() == s.GetEntity() {
 			return true
 		}
 	}
 	return false
-}
-
-// updateEndopoints uses differences in endpoints detected in diffEndpoints function to update the listener's endpoints map
-func (l *KubeServiceListener) updateEndpoints(new, removed []*KubeEndpointService, endptId string) {
-	endpts, found := l.endpoints[endptId]
-	if found {
-		// clean removed endpoints endpoints map
-		tmp := endpts[:0]
-		for _, endpt := range endpts {
-			if !containsEndpointService(removed, endpt) {
-				tmp = append(tmp, endpt)
-			}
-		}
-		l.endpoints[endptId] = tmp
-	}
-	// append new endpoints
-	l.endpoints[endptId] = append(l.endpoints[endptId], new...)
 }
 
 func (l *KubeServiceListener) removeEndpoint(kendpt *v1.Endpoints) {
