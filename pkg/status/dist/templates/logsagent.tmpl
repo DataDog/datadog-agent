@@ -9,14 +9,25 @@ Logs Agent
 
   Logs Agent is not running
 {{- end }}
+
+{{- if .errors }}
+
+  Errors
+  {{ printDashes "Errors" "=" }}
+  {{- range $error := .errors }}
+    {{ $error }}
+  {{- end }}
+{{- end }}
+
 {{- if .warnings }}
 
-  warnings
-  {{ printDashes "warnings" "-" }}
+  Warnings
+  {{ printDashes "warnings" "=" }}
   {{- range $warning := .warnings }}
     {{ $warning }}
   {{- end }}
 {{- end }}
+
 {{- range .integrations }}
 
   {{ .name }}

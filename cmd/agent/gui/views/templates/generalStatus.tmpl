@@ -191,6 +191,15 @@
 
         Logs Agent is not running </br>
       {{- end }}
+      {{- if .errors }}
+
+        <span class="warning stat_subtitle">Errors</span>
+        <span class="stat_subdata">
+        {{- range error := .errors }}
+          {{ $error }}</br>
+        {{- end }}
+        </span>
+      {{- end}}
       {{- if .warnings }}
 
         <span class="warning stat_subtitle">Warnings</span>
