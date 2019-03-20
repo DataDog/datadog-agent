@@ -105,7 +105,7 @@ func getSecurityCreds() (*ec2SecurityCred, error) {
 		return iamParams, err
 	}
 
-	res, err := getResponse(metadataURL + "/iam/security-credentials/" + iamRole + "/")
+	res, err := getResponse(metadataURL + "/iam/security-credentials/" + iamRole)
 	if err != nil {
 		return iamParams, fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}
