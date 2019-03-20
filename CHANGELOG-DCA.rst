@@ -139,6 +139,8 @@ Bug Fixes
 - DCA: fix custom metrics server
 - Avoid panicking for missing fields in HPA
 
+.. _Release Notes_1.0.0:
+
 1.0.0
 =====
 
