@@ -65,7 +65,7 @@ public:
     void setSubmitServiceCheckCb(cb_submit_service_check_t);
     void setSubmitEventCb(cb_submit_event_t);
 
-    // datadog_agent
+    // datadog_agent API
     void setGetVersionCb(cb_get_version_t);
     void setGetConfigCb(cb_get_config_t);
     void setHeadersCb(cb_headers_t);
@@ -76,6 +76,9 @@ public:
 
     // _util API
     virtual void setSubprocessOutputCb(cb_get_subprocess_output_t);
+
+    // CGO API
+    void setCGOFreeCb(cb_cgo_free_t);
 
 private:
     PyObject *_importFrom(const char *module, const char *name);
