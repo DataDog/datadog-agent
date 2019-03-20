@@ -230,6 +230,13 @@ func (d *DockerCheck) Run() error {
 			log.Debugf("Empty IO metrics for container %s", c.ID[:12])
 		}
 
+		if c.ThreadCount != 0 {
+			sender.Gauge("docker.thread.count", float64(c.ThreadCount), "", tags)
+		}
+		if c.ThreadLimit != 0 {
+			sender.Gauge("docker.thread.limit", float64(c.ThreadLimit), "", tags)
+		}
+
 		if c.Network != nil {
 			for _, netStat := range c.Network {
 				if netStat.NetworkName == "" {
