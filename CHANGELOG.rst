@@ -2,6 +2,21 @@
 Release Notes
 =============
 
+6.10.2
+======
+
+Prelude
+-------
+
+Release on: 2019-03-20
+
+
+Bug Fixes
+---------
+
+- Fix a race condition in Autodiscovery leading to some checks not
+  being unscheduled on container exit
+
 .. _Release Notes_6.10.1:
 
 6.10.1
@@ -311,8 +326,8 @@ Bug Fixes
   problem where `logs` was effectively hardcoded to use `c:` for programdata
   Fixes installation problem where process & trace service were using
   `c:\programdata\...` to find datadog.yaml regardless of installation dir
-  
-  If upgrading from a prior version, the configuration file (datadog.yaml) may 
+
+  If upgrading from a prior version, the configuration file (datadog.yaml) may
   have incorrect data.  It will be necessary to manually update those entries.
   For example
   `confd_path: c:\programdata\datadog\conf.d`
