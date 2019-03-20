@@ -50,7 +50,7 @@ func GetProcesses() ([]*ProcessInfo, error) {
 
 		processInfo, err := newProcessInfo(p, pid, totalMem)
 		if err != nil {
-			log.Infof("Error fetching info for pid %d: %s", pid, err)
+			log.Debugf("Error fetching info for pid %d: %s", pid, err)
 			continue
 		}
 
