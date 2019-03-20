@@ -13,6 +13,7 @@ extern "C" {
 
 #include <_util.h>
 #include <aggregator.h>
+#include <cgo_free.h>
 #include <datadog_agent.h>
 #include <util.h>
 
@@ -545,6 +546,10 @@ void Three::setSetExternalTagsCb(cb_set_external_tags_t cb) {
 
 void Three::setSubprocessOutputCb(cb_get_subprocess_output_t cb) {
     _set_get_subprocess_output_cb(cb);
+}
+
+void Three::setCGOFreeCb(cb_cgo_free_t cb) {
+    _set_cgo_free_cb(cb);
 }
 
 // Python Helpers

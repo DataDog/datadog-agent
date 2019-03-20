@@ -308,3 +308,10 @@ char *get_integration_list(six_t *six) {
 void set_get_subprocess_output_cb(six_t *six, cb_get_subprocess_output_t cb) {
     AS_TYPE(Six, six)->setSubprocessOutputCb(cb);
 }
+
+/*
+ * CGO API
+ */
+void set_cgo_free_cb(six_t *six, cb_cgo_free_t cb) {
+    AS_TYPE(Six, six)->setCGOFreeCb(cb);
+}

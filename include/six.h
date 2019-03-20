@@ -71,6 +71,9 @@ public:
     // _util API
     virtual void setSubprocessOutputCb(cb_get_subprocess_output_t) = 0;
 
+    // CGO API
+    virtual void setCGOFreeCb(cb_cgo_free_t) = 0;
+
 private:
     mutable std::string _error;
     mutable bool _errorFlag;
