@@ -8,8 +8,8 @@
 package gui
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func getPythonChecks() ([]string, error) {
@@ -23,7 +23,7 @@ func getPythonChecks() ([]string, error) {
 	}
 
 	for _, integration := range integrations {
-		if _, ok := check.JMXChecks[integration]; !ok {
+		if _, ok := config.StandardJMXIntegrations[integration]; !ok {
 			pyChecks = append(pyChecks, integration)
 		}
 	}
