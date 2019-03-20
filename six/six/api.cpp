@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
-#if defined _WIN32 || defined __MSYS__
+#ifdef _WIN32
 #    include <Windows.h>
 #else
 #    include <dlfcn.h>
@@ -20,7 +20,7 @@
 #elif __APPLE__
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.dylib"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dylib"
-#elif defined _WIN32 || defined __MSYS__
+#elif _WIN32
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.dll"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dll"
 #else
@@ -31,13 +31,13 @@
 #define AS_PTYPE(Type, Obj) reinterpret_cast<Type **>(Obj)
 #define AS_CTYPE(Type, Obj) reinterpret_cast<const Type *>(Obj)
 
-#if defined _WIN32 || defined __MSYS__
+#ifdef _WIN32
 static HMODULE six_backend = NULL;
 #else
 static void *six_backend = NULL;
 #endif
 
-#if defined _WIN32 || defined __MSYS__
+#ifdef _WIN32
 
 six_t *make2() {
     // load library
