@@ -43,14 +43,18 @@ six_t *make2() {
     // load library
     six_backend = LoadLibraryA(DATADOG_AGENT_TWO);
     if (!six_backend) {
-        std::cerr << "Unable to open 'two' library LLA: " << GetLastError() << std::endl;
+        // printing to stderr might reset the error, get it now
+        int err = GetLastError();
+        std::cerr << "Unable to open library " << DATADOG_AGENT_TWO << ", error code: " << err << std::endl;
         return 0;
     }
 
     // dlsym class factory
     create_t *create = (create_t *)GetProcAddress(six_backend, "create");
     if (!create) {
-        std::cerr << "Unable to open 'two' factory GPA: " << GetLastError() << std::endl;
+        // printing to stderr might reset the error, get it now
+        int err = GetLastError();
+        std::cerr << "Unable to open 'two' factory GPA: " << err << std::endl;
         return 0;
     }
 
@@ -61,14 +65,18 @@ six_t *make3() {
     // load the library
     six_backend = LoadLibraryA(DATADOG_AGENT_THREE);
     if (!six_backend) {
-        std::cerr << "Unable to open 'three' library: " << GetLastError() << std::endl;
+        // printing to stderr might reset the error, get it now
+        int err = GetLastError();
+        std::cerr << "Unable to open library " << DATADOG_AGENT_THREE << ", error code: " << err << std::endl;
         return 0;
     }
 
     // dlsym class factory
     create_t *create_three = (create_t *)GetProcAddress(six_backend, "create");
     if (!create_three) {
-        std::cerr << "Unable to open 'three' factory: " << GetLastError() << std::endl;
+        // printing to stderr might reset the error, get it now
+        int err = GetLastError();
+        std::cerr << "Unable to open 'three' factory GPA: " << err << std::endl;
         return 0;
     }
 
