@@ -9,15 +9,18 @@
 package listeners
 
 import (
-	"fmt"
+	"errors"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	listv1 "k8s.io/client-go/listers/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
@@ -961,11 +964,80 @@ func TestContainsEndpointService(t *testing.T) {
 			},
 			result: false,
 		},
+		"not contained: same ips and different ports": {
+			endptsSvcs: []*KubeEndpointService{
+				{
+					entity:       "kube_endpoint://default/myendpoint/10.0.0.1",
+					creationTime: integration.After,
+					hosts:        map[string]string{"service": "10.0.0.1"},
+					ports:        []ContainerPort{{123, "testport1"}},
+					tags: []string{
+						"kube_service:myendpoint",
+						"kube_namespace:default",
+						"kube_endpoint_ip:10.0.0.1",
+					},
+				},
+				{
+					entity:       "kube_endpoint://default/myendpoint/10.0.0.2",
+					creationTime: integration.After,
+					hosts:        map[string]string{"service": "10.0.0.2"},
+					ports:        []ContainerPort{{123, "testport1"}},
+					tags: []string{
+						"kube_service:myendpoint",
+						"kube_namespace:default",
+						"kube_endpoint_ip:10.0.0.3",
+					},
+				},
+				{
+					entity:       "kube_endpoint://default/myendpoint/10.0.0.3",
+					creationTime: integration.After,
+					hosts:        map[string]string{"service": "10.0.0.3"},
+					ports:        []ContainerPort{{123, "testport1"}},
+					tags: []string{
+						"kube_service:myendpoint",
+						"kube_namespace:default",
+						"kube_endpoint_ip:10.0.0.3",
+					},
+				},
+			},
+			endptSvc: &KubeEndpointService{
+				entity:       "kube_endpoint://default/myendpoint/10.0.0.2",
+				creationTime: integration.After,
+				hosts:        map[string]string{"service": "10.0.0.2"},
+				ports:        []ContainerPort{{123, "testport1"}, {124, "testport2"}},
+				tags: []string{
+					"kube_service:myendpoint",
+					"kube_namespace:default",
+					"kube_endpoint_ip:10.0.0.2",
+				},
+			},
+			result: false,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.result, containsEndpointService(tc.endptsSvcs, tc.endptSvc))
 		})
 	}
+}
+
+type mockedEndpointsLister struct {
+	mock.Mock
+}
+
+func (m *mockedEndpointsLister) List(selector labels.Selector) (ret []*v1.Endpoints, err error) {
+	return nil, errors.New("Not implemented")
+}
+
+func (m *mockedEndpointsLister) Endpoints(namespace string) listv1.EndpointsNamespaceLister {
+	m.On("Endpoints", "default").Return(nil)
+	m.Called(namespace)
+	return &mockedEndpointsLister{}
+}
+
+func (m *mockedEndpointsLister) Get(name string) (*v1.Endpoints, error) {
+	m.On("Get", "myservice").Return(nil)
+	m.Called(name)
+	return nil, nil
 }
 
 func TestCreateEndpoint(t *testing.T) {
@@ -1138,6 +1210,7 @@ func TestCreateEndpoint(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			c := make(chan Service, 10)
 			cr := make(chan Service, 10)
+			endpointsLister := &mockedEndpointsLister{}
 			listener := &KubeServiceListener{
 				services:           make(map[types.UID]Service),
 				endpoints:          make(map[string][]*KubeEndpointService),
@@ -1146,15 +1219,12 @@ func TestCreateEndpoint(t *testing.T) {
 				delService:         cr,
 				servicesInformer:   nil,
 				endpointsInformer:  nil,
+				endpointsLister:    endpointsLister,
 			}
 			switch name {
 			case "nominal case":
-				svc := processService(tc.ksvc, true)
-				listener.m.Lock()
-				listener.services[tc.ksvc.UID] = svc
-				listener.endpointsAnnotated[fmt.Sprintf("%s/%s", tc.ksvc.Namespace, tc.ksvc.Name)] = isEndpointAnnotated(tc.ksvc)
-				listener.m.Unlock()
-				listener.newService <- svc
+				listener.createService(tc.ksvc, true)
+				endpointsLister.AssertCalled(t, "Endpoints", tc.ksvc.Namespace)
 				listener.createEndpoint(tc.kendpt, true)
 				for i := 0; i < 3; i++ {
 					select {
@@ -1182,15 +1252,9 @@ func TestCreateEndpoint(t *testing.T) {
 					}
 				}
 			case "add endpoints annotations to an existing service":
-				svc := processService(tc.ksvc, true)
-				listener.m.Lock()
-				listener.services[tc.ksvc.UID] = svc
-				listener.endpointsAnnotated[fmt.Sprintf("%s/%s", tc.ksvc.Namespace, tc.ksvc.Name)] = isEndpointAnnotated(tc.ksvc)
-				listener.m.Unlock()
-				listener.newService <- svc
-				// update service
-				listener.removeService(tc.ksvc)
-				newSvc := &v1.Service{
+				listener.createService(tc.ksvc, true)
+				endpointsLister.AssertNotCalled(t, "Endpoints", tc.ksvc.Namespace)
+				listener.updatedSvc(tc.ksvc, &v1.Service{
 					ObjectMeta: metav1.ObjectMeta{
 						ResourceVersion: "124",
 						UID:             types.UID("test"),
@@ -1211,15 +1275,9 @@ func TestCreateEndpoint(t *testing.T) {
 							{Name: "test1", Port: 126},
 						},
 					},
-				}
-				svc = processService(newSvc, false)
-				listener.m.Lock()
-				listener.services[newSvc.UID] = svc
-				listener.endpointsAnnotated[fmt.Sprintf("%s/%s", newSvc.Namespace, newSvc.Name)] = isEndpointAnnotated(newSvc)
-				listener.m.Unlock()
-				listener.newService <- svc
+				})
+				endpointsLister.AssertCalled(t, "Endpoints", tc.ksvc.Namespace)
 				listener.addedEndpt(tc.kendpt)
-				// listener.createEndpoint(tc.kendpt, true)
 				for i := 0; i < 4; i++ {
 					select {
 					case svc := <-c:

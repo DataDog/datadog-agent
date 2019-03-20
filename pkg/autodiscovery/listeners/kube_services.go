@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	infov1 "k8s.io/client-go/informers/core/v1"
+	listv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -34,6 +35,7 @@ const (
 type KubeServiceListener struct {
 	servicesInformer   infov1.ServiceInformer
 	endpointsInformer  infov1.EndpointsInformer
+	endpointsLister    listv1.EndpointsLister
 	services           map[types.UID]Service
 	endpoints          map[string][]*KubeEndpointService
 	endpointsAnnotated map[string]bool
@@ -78,12 +80,15 @@ func NewKubeServiceListener() (ServiceListener, error) {
 	if endpointsInformer == nil {
 		return nil, fmt.Errorf("cannot get endpoint informer: %s", err)
 	}
+	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{"namespace": cache.MetaNamespaceIndexFunc})
+	endpointsLister := listv1.NewEndpointsLister(indexer)
 	return &KubeServiceListener{
 		services:           make(map[types.UID]Service),
 		endpoints:          make(map[string][]*KubeEndpointService),
 		endpointsAnnotated: make(map[string]bool),
 		servicesInformer:   servicesInformer,
 		endpointsInformer:  endpointsInformer,
+		endpointsLister:    endpointsLister,
 	}, nil
 }
 
@@ -111,13 +116,6 @@ func (l *KubeServiceListener) Listen(newSvc chan<- Service, delSvc chan<- Servic
 	}
 	for _, s := range services {
 		l.createService(s, true)
-	}
-	endpoints, err := l.endpointsInformer.Lister().List(labels.Everything())
-	if err != nil {
-		log.Errorf("Cannot list Kubernetes endpoints: %s", err)
-	}
-	for _, e := range endpoints {
-		l.createEndpoint(e, true)
 	}
 }
 
@@ -203,17 +201,23 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 	if ksvc == nil {
 		return
 	}
-
+	svcId := fmt.Sprintf("%s/%s", ksvc.Namespace, ksvc.Name)
+	isEndptAnnotated := isEndpointAnnotated(ksvc)
+	var err error
+	var endpoints *v1.Endpoints
 	l.m.Lock()
-	l.endpointsAnnotated[fmt.Sprintf("%s/%s", ksvc.Namespace, ksvc.Name)] = isEndpointAnnotated(ksvc)
-	endpoints, err := l.endpointsInformer.Lister().List(labels.Everything())
+	if (!l.endpointsAnnotated[svcId] && isEndptAnnotated) || (l.endpointsAnnotated[svcId] && !isEndptAnnotated) {
+		l.endpointsAnnotated[svcId] = isEndptAnnotated
+		endpoints, err = l.endpointsLister.Endpoints(ksvc.Namespace).Get(ksvc.Name)
+	}
 	l.m.Unlock()
 
 	if err != nil {
-		log.Errorf("Cannot list Kubernetes endpoints: %s", err)
+		log.Errorf("Cannot get Kubernetes endpoints: %s", err)
 	}
-	for _, e := range endpoints {
-		l.createEndpoint(e, true)
+
+	if endpoints != nil {
+		l.createEndpoint(endpoints, true)
 	}
 
 	if !isServiceAnnotated(ksvc) {
@@ -374,7 +378,6 @@ func (l *KubeServiceListener) createEndpoint(kendpt *v1.Endpoints, firstRun bool
 		return
 	}
 	endptId := fmt.Sprintf("%s/%s", kendpt.Namespace, kendpt.Name)
-	log.Debugf("creating endpoint %v, is endpoint annotated %v", kendpt, l.endpointsAnnotated)
 	l.m.Lock()
 	isAnnotated := l.endpointsAnnotated[endptId]
 	if isAnnotated {
@@ -445,7 +448,12 @@ func diffEndpoints(current, old []*KubeEndpointService) ([]*KubeEndpointService,
 // containsEndpointService return true if a slice of endpoints services contain a given endpoint service
 func containsEndpointService(svcs []*KubeEndpointService, svc *KubeEndpointService) bool {
 	for _, s := range svcs {
-		if svc.GetEntity() == s.GetEntity() {
+		if svc.entity == s.entity && len(svc.ports) == len(s.ports) {
+			for i := 0; i < len(svc.ports); i++ {
+				if svc.ports[i] != s.ports[i] {
+					return false
+				}
+			}
 			return true
 		}
 	}
