@@ -49,9 +49,9 @@ var (
 func init() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
-		DefaultConfPath = filepath.Join(pd, "Datadog")
-		DefaultLogFile = filepath.Join(pd, "Datadog", "logs", "agent.log")
-		DefaultDCALogFile = filepath.Join(pd, "Datadog", "logs", "cluster-agent.log")
+		DefaultConfPath = pd
+		DefaultLogFile = filepath.Join(pd, "logs", "agent.log")
+		DefaultDCALogFile = filepath.Join(pd, "logs", "cluster-agent.log")
 	} else {
 		winutil.LogEventViewer(config.ServiceName, 0x8000000F, DefaultConfPath)
 	}

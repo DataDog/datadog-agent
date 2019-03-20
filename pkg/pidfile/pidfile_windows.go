@@ -37,7 +37,7 @@ func isProcess(pid int) bool {
 func Path() string {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
-		return filepath.Join(pd, "DataDog", "datadog-agent.pid")
+		return filepath.Join(pd, "datadog-agent.pid")
 	}
 	return "c:\\ProgramData\\DataDog\\datadog-agent.pid"
 }

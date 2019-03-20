@@ -12,8 +12,11 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
+import "path/filepath"
 
 // GUID is representation of the C GUID structure
 type GUID struct {
@@ -63,9 +66,7 @@ func CoTaskMemFree(pv uintptr) {
 	return
 }
 
-// GetProgramDataDir returns the current programdatadir, usually
-// c:\programdata
-func GetProgramDataDir() (path string, err error) {
+func getDefaultProgramDataDir() (path string, err error) {
 	var retstr uintptr
 	err = SHGetKnownFolderPath(&FOLDERIDProgramData, 0, 0, &retstr)
 	if err == nil {
@@ -74,6 +75,28 @@ func GetProgramDataDir() (path string, err error) {
 		// the path = windows.UTF16ToString... returns a
 		// go vet: "possible misuse of unsafe.Pointer"
 		path = windows.UTF16ToString((*[1 << 16]uint16)(unsafe.Pointer(retstr))[:])
+		path = filepath.Join(path, "Datadog")
 	}
+	return
+}
+
+// GetProgramDataDir returns the current programdatadir, usually
+// c:\programdata
+func GetProgramDataDir() (path string, err error) {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		"SOFTWARE\\Datadog\\Datadog Agent",
+		registry.ALL_ACCESS)
+	if err != nil {
+		// otherwise, unexpected error
+		log.Warnf("Windows installation key not found, using default program data dir")
+		return getDefaultProgramDataDir()
+	}
+	defer k.Close()
+	val, _, err := k.GetStringValue("ConfigRoot")
+	if err != nil {
+		log.Warnf("Windows installation key not found, using default program data dir")
+		return getDefaultProgramDataDir()
+	}
+	path = val
 	return
 }
