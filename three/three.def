@@ -1,4 +1,4 @@
-LIBRARY datadog-agent-two
+LIBRARY datadog-agent-three
 EXPORTS
 	create @1
 	destroy @2
