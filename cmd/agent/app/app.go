@@ -9,13 +9,16 @@ all the components and providing the command line interface. */
 package app
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/cobra"
 )
 
 var (
 	// AgentCmd is the root command
 	AgentCmd = &cobra.Command{
-		Use:   "agent [command]",
+		Use:   fmt.Sprintf("%s [command]", os.Args[0]),
 		Short: "Datadog Agent at your service.",
 		Long: `
 The Datadog Agent faithfully collects events and metrics and brings them
