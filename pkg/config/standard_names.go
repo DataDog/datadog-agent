@@ -21,7 +21,7 @@ var StandardStatsdPrefixes = []string{
 }
 
 func init() {
-	// JMXFetch sends data through
+	// JMXFetch sends data through dogstatsd
 	for jmxIntegration := range StandardJMXIntegrations {
 		StandardStatsdPrefixes = append(StandardStatsdPrefixes, jmxIntegration)
 	}
