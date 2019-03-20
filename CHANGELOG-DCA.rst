@@ -91,6 +91,54 @@ The release of the RC1 was dismissed to embed a fix for the CI runners used to b
 - Go 1.11.5 compliancy + 1.11.5 for every CI
 The official release of the Datadog Cluster Agent 1.2.0 starts with the RC2.
 
+.. _Release Notes_1.1.0:
+
+1.1.0
+=====
+
+.. _Release Notes_1.1.0_Prelude:
+
+Prelude
+-------
+
+The version 1.1.0 of the Cluster Agent introduces new features and enhancements around the External Metrics Provider.
+
+1.1.0-rc.2
+==========
+2018-11-21
+
+Bug Fixes
+---------
+- Get goautoneg from github
+- Fix datadog external metric query when no label is set
+
+1.1.0-rc.1
+==========
+2018-11-20
+
+Enhancement Notes
+-----------------
+- Migrating back to official custom metrics lib
+- Change test to remove flakiness
+
+New Features
+------------
+- Disable cluster checks in cluster-agent 1.1.x
+- Allow users to change the custom metric provider port, to run as non-root
+- Adding rollup and fix to circumvent time aggregation
+- clusterchecks: simple dispatching logic
+- Honor external metrics provider settings in cluster-agent status
+- Run cluster-agent as non-root, support read-only rootfs
+- Only push cluster-agent-dev:master from master
+
+Bug Fixes
+---------
+- Fix folder permissions on containerd
+- Adding fix for edge case in external metrics
+- Fix flare if can't access APIServer
+- DCA: fix custom metrics server
+- Avoid panicking for missing fields in HPA
+
 1.0.0
 =====
 
