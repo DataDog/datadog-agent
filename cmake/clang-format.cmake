@@ -10,7 +10,7 @@ if(WIN32)
     find_program(
         CLANG_FORMAT
         NAMES clang-format-8 clang-format
-        PATHS "c:\\devtools\\llvm\\bin"
+        PATHS "c:\\devtools\\llvm\\bin" "c:\\Program Files\\LLVM\\bin"
         )
 else()
     find_program(
