@@ -375,7 +375,7 @@ func (c ContainerCgroup) ThreadCount() (uint64, error) {
 	return v, nil
 }
 
-// ThreadCount returns the thread count limit in the pid cgroup
+// ThreadLimit returns the thread count limit in the pid cgroup
 // linked to the container.
 // ref: https://www.kernel.org/doc/Documentation/cgroup-v1/pids.txt
 //
