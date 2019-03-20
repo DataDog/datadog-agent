@@ -9,10 +9,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -33,6 +35,7 @@ var (
 	checkDelay int
 	logLevel   string
 	formatJSON bool
+	breakPoint string
 )
 
 // Make the check cmd aggregator never flush by setting a very high interval
@@ -47,6 +50,7 @@ func init() {
 	checkCmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off')")
 	checkCmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
 	checkCmd.Flags().BoolVarP(&formatJSON, "json", "", false, "format aggregator and check runner output as json")
+	checkCmd.Flags().StringVarP(&breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
 	checkCmd.SetArgs([]string{"checkName"})
 }
 
@@ -105,7 +109,37 @@ var checkCmd = &cobra.Command{
 		s := serializer.NewSerializer(common.Forwarder)
 		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, "agent", checkCmdFlushInterval)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
-		cs := collector.GetChecksByNameForConfigs(checkName, common.AC.GetAllConfigs())
+
+		allConfigs := common.AC.GetAllConfigs()
+
+		if breakPoint != "" {
+			breakPointLine, err := strconv.Atoi(breakPoint)
+			if err != nil {
+				fmt.Printf("breakpoint must be an integer\n")
+				return err
+			}
+
+			for idx := range allConfigs {
+				conf := &allConfigs[idx]
+				if conf.Name != checkName {
+					continue
+				}
+
+				var data map[string]interface{}
+
+				yaml.Unmarshal(conf.InitConfig, &data)
+				if data == nil {
+					data = make(map[string]interface{})
+				}
+
+				data["set_breakpoint"] = breakPointLine
+
+				y, _ := yaml.Marshal(data)
+				conf.InitConfig = y
+			}
+		}
+
+		cs := collector.GetChecksByNameForConfigs(checkName, allConfigs)
 		if len(cs) == 0 {
 			for check, error := range autodiscovery.GetConfigErrors() {
 				if checkName == check {
@@ -279,6 +313,6 @@ func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 func printWindowsUserWarning(op string) {
 	fmt.Printf("\nNOTE:\n")
 	fmt.Printf("The %s command runs in a different user context than the running service\n", op)
-	fmt.Printf("This could affect the results of, if the command relies on specific permissions and/or user context\n")
+	fmt.Printf("This could affect results if the command relies on specific permissions and/or user contexts\n")
 	fmt.Printf("\n")
 }
