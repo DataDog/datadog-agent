@@ -27,7 +27,7 @@ func TestCgoFree(t *testing.T) {
 	v := 21
 	callCgoFree(unsafe.Pointer(&v))
 	if cgoFreeCalled != true {
-		t.Errorf("freeing a pointer should haved called the cgoFree callback")
+		t.Errorf("freeing a pointer should have called the cgoFree callback")
 	}
 	if unsafe.Pointer(&v) != latestFreePtr {
 		t.Errorf("Freed pointer was not the same as the one given to the callback")

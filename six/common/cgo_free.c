@@ -16,7 +16,8 @@ void _set_cgo_free_cb(cb_cgo_free_t cb) {
 // free method to release memory allocated in the agent once we're done with
 // them.
 void cgo_free(void *ptr) {
-    if (cb_cgo_free == NULL || ptr == NULL)
+    if (cb_cgo_free == NULL || ptr == NULL) {
         return;
+    }
     cb_cgo_free(ptr);
 }

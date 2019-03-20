@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 void _set_cgo_free_cb(cb_cgo_free_t);
-void cgo_free(void *ptr);
+void DATADOG_AGENT_SIX_API cgo_free(void *ptr);
 
 #ifdef __cplusplus
 }
