@@ -14,7 +14,7 @@ extern "C" {
 #ifndef DATADOG_AGENT_SIX_API
 #    ifdef DATADOG_AGENT_SIX_TEST
 #        define DATADOG_AGENT_SIX_API
-#    elif _WIN32
+#    elif defined _WIN32 || defined __MSYS__
 #        define DATADOG_AGENT_SIX_API __declspec(dllexport)
 #    else
 #        if __GNUC__ >= 4

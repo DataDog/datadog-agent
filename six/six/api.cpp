@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
-#ifdef _WIN32
+#if defined _WIN32 || defined __MSYS__
 #    include <Windows.h>
 #else
 #    include <dlfcn.h>
@@ -20,7 +20,7 @@
 #elif __APPLE__
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.dylib"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dylib"
-#elif _WIN32
+#elif defined _WIN32 || defined __MSYS__
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.dll"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dll"
 #else
@@ -31,26 +31,30 @@
 #define AS_PTYPE(Type, Obj) reinterpret_cast<Type **>(Obj)
 #define AS_CTYPE(Type, Obj) reinterpret_cast<const Type *>(Obj)
 
-#ifdef _WIN32
+#if defined _WIN32 || defined __MSYS__
 static HMODULE six_backend = NULL;
 #else
 static void *six_backend = NULL;
 #endif
 
-#ifdef _WIN32
+#if defined _WIN32 || defined __MSYS__
 
 six_t *make2() {
     // load library
     six_backend = LoadLibraryA(DATADOG_AGENT_TWO);
     if (!six_backend) {
-        std::cerr << "Unable to open 'two' library LLA: " << GetLastError() << std::endl;
+        // printing to stderr might reset the error, get it now
+        int err = GetLastError();
+        std::cerr << "Unable to open library " << DATADOG_AGENT_TWO << ", error code: " << err << std::endl;
         return 0;
     }
 
     // dlsym class factory
     create_t *create = (create_t *)GetProcAddress(six_backend, "create");
     if (!create) {
-        std::cerr << "Unable to open 'two' factory GPA: " << GetLastError() << std::endl;
+        // printing to stderr might reset the error, get it now
+        int err = GetLastError();
+        std::cerr << "Unable to open 'two' factory GPA: " << err << std::endl;
         return 0;
     }
 
@@ -61,14 +65,18 @@ six_t *make3() {
     // load the library
     six_backend = LoadLibraryA(DATADOG_AGENT_THREE);
     if (!six_backend) {
-        std::cerr << "Unable to open 'three' library: " << GetLastError() << std::endl;
+        // printing to stderr might reset the error, get it now
+        int err = GetLastError();
+        std::cerr << "Unable to open library " << DATADOG_AGENT_THREE << ", error code: " << err << std::endl;
         return 0;
     }
 
     // dlsym class factory
     create_t *create_three = (create_t *)GetProcAddress(six_backend, "create");
     if (!create_three) {
-        std::cerr << "Unable to open 'three' factory: " << GetLastError() << std::endl;
+        // printing to stderr might reset the error, get it now
+        int err = GetLastError();
+        std::cerr << "Unable to open 'three' factory GPA: " << err << std::endl;
         return 0;
     }
 
