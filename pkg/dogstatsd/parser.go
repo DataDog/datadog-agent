@@ -10,6 +10,9 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -321,7 +324,15 @@ func parseMetricMessage(message []byte, namespace string, defaultHostname string
 
 	metricName := string(rawName)
 	if namespace != "" {
-		metricName = namespace + metricName
+		blacklisted := false
+		for _, prefix := range config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist") {
+			if strings.HasPrefix(metricName, prefix) {
+				blacklisted = true
+			}
+		}
+		if !blacklisted {
+			metricName = namespace + metricName
+		}
 	}
 
 	metricType, ok := metricTypes[string(rawType)]
