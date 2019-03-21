@@ -141,7 +141,6 @@ def lint_teamassignment(ctx):
         import requests
         pr_id = pr_url.rsplit('/')[-1]
 
-        # first check 'noreno' label
         res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
         issue = res.json()
         if any([re.match('team/', l['name']) for l in issue.get('labels', {})]):
@@ -190,11 +189,11 @@ def lint_releasenote(ctx):
         import requests
         pr_id = pr_url.rsplit('/')[-1]
 
-        # first check 'noreno' label
+        # first check 'changelog/no-changelog' label
         res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
         issue = res.json()
-        if any([l['name'] == 'noreno' for l in issue.get('labels', {})]):
-            print("'noreno' label found on the PR: skipping linting")
+        if any([l['name'] == 'changelog/no-changelog' for l in issue.get('labels', {})]):
+            print("'changelog/no-changelog' label found on the PR: skipping linting")
             return
 
         # Then check that at least one note was touched by the PR
