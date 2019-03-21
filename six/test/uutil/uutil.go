@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+
+	common "../common"
 )
 
 // #cgo CFLAGS: -I../../include
-// #cgo linux LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
+// #cgo !windows LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
 // #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
 // #include <datadog_agent_six.h>
 //
@@ -24,16 +26,9 @@ var (
 )
 
 func setUp() error {
-	if _, ok := os.LookupEnv("TESTING_TWO"); ok {
-		six = C.make2()
-		if six == nil {
-			return fmt.Errorf("`make2` failed")
-		}
-	} else {
-		six = C.make3()
-		if six == nil {
-			return fmt.Errorf("`make3` failed")
-		}
+	six = (*C.six_t)(common.GetSix())
+	if six == nil {
+		return fmt.Errorf("make failed")
 	}
 
 	var err error
