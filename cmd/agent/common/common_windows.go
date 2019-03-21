@@ -269,7 +269,7 @@ func ImportRegistryConfig() error {
 		log.Debugf("Setting dd_url to %s", val)
 	}
 	if val, _, err = k.GetStringValue("logs_dd_url"); err == nil && val != "" {
-		overrides["logs_dd_url"] = val
+		overrides["logs_config.logs_dd_url"] = val
 		log.Debugf("Setting logs_config.dd_url to %s", val)
 	}
 	if val, _, err = k.GetStringValue("process_dd_url"); err == nil && val != "" {
