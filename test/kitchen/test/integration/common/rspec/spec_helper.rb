@@ -25,6 +25,7 @@ def os
   )
 end
 
+
 def agent_command
   if os == :windows
     '"C:\\Program Files\\Datadog\\Datadog Agent\\embedded\\agent.exe"'
@@ -487,4 +488,102 @@ shared_examples_for 'an Agent with APM enabled' do
       expect(is_process_running?("process-agent.exe")).to be_truthy
       expect(is_service_running?("datadog-process-agent")).to be_truthy
     end
+  end
+
+  def get_user_sid(uname)
+    output = `powershell -command "(New-Object System.Security.Principal.NTAccount('#{uname}')).Translate([System.Security.Principal.SecurityIdentifier]).value"`.strip
+    output
+  end 
+  
+  def get_sddl_for_object(name) 
+    cmd = "powershell -command \"get-acl -Path \\\"#{name}\\\" | format-list -Property sddl\""
+    outp = `#{cmd}`.gsub("\n", "").gsub(" ", "")
+    sddl = outp.gsub("/\s+/", "").split(":").drop(1).join(":").strip
+    sddl
+  end
+  
+  def equal_sddl?(left, right)
+    # First, split the sddl into the ownership (user and group), and the dacl
+    left_array = left.split("D:")
+    right_array = right.split("D:")
+  
+    # compare the ownership & group.  Must be the same
+    if left_array[0] != right_array[0]
+      return false
+    end
+    left_dacl = left_array[1].scan(/(\([^)]*\))/)
+    right_dacl = right_array[1].scan(/(\([^)]*\))/)
+  
+    
+    # if they're different lengths, they're different
+    if left_dacl.length != right_dacl.length
+      return false
+    end
+  
+    ## now need to break up the DACL list, because they may be listed in different
+    ## orders... the order doesn't matter but the components should be the same.  So..
+  
+    left_dacl.each do |left_entry|
+      found = false
+      right_dacl.each do |right_entry|
+        if left_entry == right_entry
+          found = true
+          right_dacl.delete(right_entry)
+          break
+        end
+      end
+      if !found
+        return false
+      end
+    end
+    return false if right_dacl.length != 0
+    return true
+  end
+  def get_security_settings
+    fname = "secout.txt"
+    system "secedit /export /cfg  #{fname} /areas USER_RIGHTS"
+    data = Hash.new
+    
+    utext = File.open(fname).read
+    text = utext.unpack("v*").pack("U*") 
+    text.each_line do |line|
+      next unless line.include? "="
+      kv = line.strip.split("=")
+      data[kv[0].strip] = kv[1].strip
+    end
+    #File::delete(fname)
+    data
+  end
+  
+  def check_has_security_right(data, k, name)
+    right = data[k]
+    unless right
+      return false
+    end
+    rights = right.split(",")
+    rights.each do |r|
+      return true if r == name
+    end
+    false
+  end
+  
+  def check_is_user_in_group(user, group)
+    members = `net localgroup "#{group}"`
+    members.split(/\n+/).each do |line|
+      return true if line.strip == user
+    end
+    false
+  end
+  
+  def get_username_from_tasklist(exename)
+    # output of tasklist command is
+    # Image Name  PID  Session Name  Session#  Mem Usage Status  User Name  CPU Time  Window Title
+    output = `tasklist /v /fi "imagename eq #{exename}" /nh`.gsub("\n", "").gsub("NT AUTHORITY", "NT_AUTHORITY")
+  
+    # for the above, the system user comes out as "NT AUTHORITY\System", which confuses the split 
+    # below.  So special case it, and get rid of the space
+  
+    #username is fully qualified <domain>\username
+    uname = output.split(' ')[7].partition('\\').last
+    uname
   end
