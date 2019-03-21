@@ -13,6 +13,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	common "../common"
 )
 
 var (
@@ -21,16 +23,9 @@ var (
 )
 
 func setUp() error {
-	if _, ok := os.LookupEnv("TESTING_TWO"); ok {
-		six = C.make2()
-		if six == nil {
-			return fmt.Errorf("`make2` failed")
-		}
-	} else {
-		six = C.make3()
-		if six == nil {
-			return fmt.Errorf("`make3` failed")
-		}
+	six = (*C.six_t)(common.GetSix())
+	if six == nil {
+		return fmt.Errorf("make failed")
 	}
 
 	var err error

@@ -2,7 +2,6 @@ package testcommon
 
 import (
 	"fmt"
-	"os"
 	"unsafe"
 )
 
@@ -28,16 +27,9 @@ var (
 )
 
 func setUp() error {
-	if _, ok := os.LookupEnv("TESTING_TWO"); ok {
-		six = C.make2()
-		if six == nil {
-			return fmt.Errorf("`make2` failed")
-		}
-	} else {
-		six = C.make3()
-		if six == nil {
-			return fmt.Errorf("`make3` failed")
-		}
+	six = GetSix()
+	if six == nil {
+		return fmt.Errorf("make failed")
 	}
 
 	C.initCgoFreeTests(six)
