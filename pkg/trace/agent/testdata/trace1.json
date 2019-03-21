@@ -1,0 +1,205 @@
+[
+	{
+		"service": "pylons",
+		"name": "web.template",
+		"resource": "SELECT user.handle AS user_handle, user.id AS user_id, user.org_id AS user_org_id, user.password AS user_password, user.email AS user_email, user.name AS user_name, user.role AS user_role, user.team AS user_team, user.support AS user_support, user.is_admin AS user_is_admin, user.github_username AS user_github_username, user.github_token AS user_github_token, user.disabled AS user_disabled, user.verified AS user_verified, user.bot AS user_bot, user.created AS user_created, user.modified AS user_modified, user.time_zone AS user_time_zone, user.password_modified AS user_password_modified FROM user WHERE user.id = ? AND user.org_id = ? LIMIT ?",
+		"trace_id": 5608047284309712831,
+		"span_id": 1231678854345793851,
+		"parent_id": 1258735780700396068,
+		"start": 1549359141765341000,
+		"duration": 1000,
+		"error": 0,
+		"meta": {
+			"in.host": "172.0.0.42",
+			"query": "\n        -- get_contexts_sub_query[[org:9543 query_id:a135e15e7d batch:1]]\n        WITH sub_contexts as (\n            \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags,\n            org_id\n        FROM vs9543.dim_context c\n        WHERE key = ANY(%(key)s)\n        \n        \n        \n        \n    \n        )\n        \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags\n        FROM sub_contexts c\n        WHERE (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags0)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags1)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags2)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags3)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags4)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags5)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags6)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags7)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags8)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags9)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags10)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags11)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags12)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags13)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags14)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags15)s)\n        \n        \n        \n        \n    \n        "
+		},
+		"metrics": {
+			"payloads": 0.932265594506285,
+			"rowcount": 0.7833576827797065,
+			"size": 0.5232127069412313,
+            "_sampling_priority_v1": 1
+		},
+		"type": "redis"
+	},
+	{
+		"service": "rails",
+		"name": "pylons.controller",
+		"resource": "GET /url/test/fixture/resource/42",
+		"trace_id": 5608047284309712831,
+		"span_id": 6122071623394155063,
+		"parent_id": 1231678854345793851,
+		"start": 1549359141765341270,
+		"duration": 551,
+		"error": 400,
+		"meta": {
+			"in.section": "4242",
+			"out.section": "standby",
+			"query": "SELECT id\n                 FROM ddsuperuser\n                WHERE id = %(id)s",
+			"user": "mattp"
+		},
+		"metrics": {
+			"payloads": 0.7499336020740552,
+			"rowcount": 0.22308290808330475,
+			"size": 0.28329184308735694
+		},
+		"type": "http"
+	},
+	{
+		"service": "pg-master",
+		"name": "web.template",
+		"resource": "events.buckets",
+		"trace_id": 5608047284309712831,
+		"span_id": 6235791302968307996,
+		"parent_id": 1231678854345793851,
+		"start": 1549359141765341004,
+		"duration": 163,
+		"error": 403,
+		"meta": {
+			"in.host": "172.0.0.42",
+			"query": "GET beaker:c76db4c3af90410197cf88b0afba4942:session"
+		},
+		"metrics": {
+			"rowcount": 0.531794789143964,
+			"size": 0.7518606418246901
+		},
+		"type": "redis"
+	},
+	{
+		"service": "django",
+		"name": "web.query",
+		"resource": "GET cache|xxx",
+		"trace_id": 5608047284309712831,
+		"span_id": 1497934751310239606,
+		"parent_id": 1231678854345793851,
+		"start": 1549359141765341006,
+		"duration": 1,
+		"error": 0,
+		"meta": {
+			"in.section": "4242",
+			"out.host": "datadoghq.com",
+			"out.section": "8080"
+		},
+		"metrics": {
+			"loops": 0.6671978782775444,
+			"payloads": 0.6920829536871193,
+			"rowcount": 0.15946548185303183,
+			"size": 0.2552699189231713
+		},
+		"type": "http"
+	},
+	{
+		"service": "django",
+		"name": "web.template",
+		"resource": "GET cache|xxx",
+		"trace_id": 5608047284309712831,
+		"span_id": 7438836351795691430,
+		"parent_id": 1231678854345793851,
+		"start": 1549359141765341001,
+		"duration": 2,
+		"error": 2,
+		"meta": {
+			"in.host": "postgres.service.consul",
+			"out.host": "/dev/null",
+			"query": "\n        -- get_contexts_sub_query[[org:9543 query_id:a135e15e7d batch:1]]\n        WITH sub_contexts as (\n            \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags,\n            org_id\n        FROM vs9543.dim_context c\n        WHERE key = ANY(%(key)s)\n        \n        \n        \n        \n    \n        )\n        \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags\n        FROM sub_contexts c\n        WHERE (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags0)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags1)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags2)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags3)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags4)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags5)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags6)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags7)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags8)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags9)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags10)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags11)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags12)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags13)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags14)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags15)s)\n        \n        \n        \n        \n    \n        "
+		},
+		"metrics": {},
+		"type": "lamar"
+	},
+	{
+		"service": "django",
+		"name": "postgres.query",
+		"resource": "データの犬",
+		"trace_id": 5608047284309712831,
+		"span_id": 3196512912335558833,
+		"parent_id": 1231678854345793851,
+		"start": 1549359141765341001,
+		"duration": 0,
+		"error": 0,
+		"meta": {
+			"in.host": "2a01:e35:2ee1:7160:f66d:4ff:fe71:b690",
+			"in.section": "22",
+			"out.host": "datadoghq.com",
+			"out.section": "standby",
+			"query": "\n        -- get_contexts_sub_query[[org:9543 query_id:a135e15e7d batch:1]]\n        WITH sub_contexts as (\n            \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags,\n            org_id\n        FROM vs9543.dim_context c\n        WHERE key = ANY(%(key)s)\n        \n        \n        \n        \n    \n        )\n        \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags\n        FROM sub_contexts c\n        WHERE (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags0)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags1)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags2)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags3)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags4)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags5)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags6)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags7)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags8)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags9)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags10)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags11)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags12)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags13)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags14)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags15)s)\n        \n        \n        \n        \n    \n        ",
+			"user": "benjamin"
+		},
+		"metrics": {
+			"heap_allocated": 0.4790170161645831,
+			"loops": 0.5665602729465598,
+			"payloads": 0.5743124570768108,
+			"rowcount": 0.3390765467922551,
+			"size": 0.08364471973320474
+		},
+		"type": "lamar"
+	},
+	{
+		"service": "web-billing",
+		"name": "postgres.query",
+		"resource": "データの犬",
+		"trace_id": 5608047284309712831,
+		"span_id": 7573552206668807123,
+		"parent_id": 1231678854345793851,
+		"start": 1549359141765341000,
+		"duration": 0,
+		"error": 502,
+		"meta": {
+			"in.host": "",
+			"in.section": "4242",
+			"out.host": "datadoghq.com",
+			"out.section": "proxy-XXX",
+			"query": "GET beaker:c76db4c3af90410197cf88b0afba4942:session",
+			"user": "bartek"
+		},
+		"metrics": {
+			"payloads": 0.6208788888008268,
+			"rowcount": 0.03057510973169464,
+			"size": 0.8703537626332798
+		},
+		"type": "sql"
+	},
+	{
+		"service": "pg-master",
+		"name": "postgres.query",
+		"resource": "SELECT user.handle AS user_handle, user.id AS user_id, user.org_id AS user_org_id, user.password AS user_password, user.email AS user_email, user.name AS user_name, user.role AS user_role, user.team AS user_team, user.support AS user_support, user.is_admin AS user_is_admin, user.github_username AS user_github_username, user.github_token AS user_github_token, user.disabled AS user_disabled, user.verified AS user_verified, user.bot AS user_bot, user.created AS user_created, user.modified AS user_modified, user.time_zone AS user_time_zone, user.password_modified AS user_password_modified FROM user WHERE user.id = ? AND user.org_id = ? LIMIT ?",
+		"trace_id": 5608047284309712831,
+		"span_id": 2036853343953264498,
+		"parent_id": 1231678854345793851,
+		"start": 1549359141765341000,
+		"duration": 0,
+		"error": 1,
+		"meta": {
+			"in.host": "8.8.8.8",
+			"in.section": "dogdataprod",
+			"out.host": "138.195.130.42",
+			"out.section": "-",
+			"query": "SELECT id\n                 FROM ddsuperuser\n                WHERE id = %(id)s"
+		},
+		"metrics": {
+			"rowcount": 0.15363731310525977,
+			"size": 0.7884435297202483
+		},
+		"type": "lamar"
+	},
+	{
+		"service": "pg-master",
+		"name": "postgres.query",
+		"resource": "events.buckets",
+		"trace_id": 5608047284309712831,
+		"span_id": 1135565260467469660,
+		"parent_id": 1231678854345793851,
+		"start": 1549359141765341000,
+		"duration": 0,
+		"error": 0,
+		"meta": {
+			"in.host": "",
+			"out.host": "raclette.service",
+			"out.section": "8080",
+			"query": "\n        -- get_contexts_sub_query[[org:9543 query_id:a135e15e7d batch:1]]\n        WITH sub_contexts as (\n            \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags,\n            org_id\n        FROM vs9543.dim_context c\n        WHERE key = ANY(%(key)s)\n        \n        \n        \n        \n    \n        )\n        \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags\n        FROM sub_contexts c\n        WHERE (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags0)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags1)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags2)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags3)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags4)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags5)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags6)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags7)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags8)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags9)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags10)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags11)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags12)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags13)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags14)s)\n        OR (c.org_id = %(org_id)s AND c.tags @\u003e %(yes_tags15)s)\n        \n        \n        \n        \n    \n        ",
+			"user": "mattp"
+		},
+		"metrics": {
+			"rowcount": 0.7869320424605325
+		},
+		"type": "sql"
+	}
+]

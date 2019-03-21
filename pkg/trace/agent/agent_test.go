@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/cihub/seelog"
@@ -243,6 +245,79 @@ func TestProcessTrace(t *testing.T) {
 		assert.EqualValues(t, 4, stats.TracesPriority1)
 		assert.EqualValues(t, 5, stats.TracesPriority2)
 	})
+}
+
+// TestTraceThroughput sends a series of traces in a loop to a running agent via
+// its input channel and calculatsimply sendses the percentage of dropped traces. It is not really
+// a test nor a benchmark per-se.
+func TestTraceThroughput(t *testing.T) {
+	t.Skip("not a test")
+
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewAgent(ctx, cfg)
+	defer cancel()
+
+	f, err := os.Open("./testdata/trace1.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var trace pb.Trace
+	if err := json.NewDecoder(f).Decode(&trace); err != nil {
+		t.Fatal(err)
+	}
+
+	exit := make(chan bool)
+	go func() {
+		defer close(exit)
+		for {
+			select {
+			case <-agnt.ServiceExtractor.outServices:
+			case <-agnt.tracePkgChan:
+			case <-agnt.Concentrator.OutStats:
+			case <-exit:
+				return
+			}
+		}
+	}()
+
+	go agnt.Run()
+
+	// runTest sends total amount of traces in a loop and returns the
+	// percentage of dropped traces.
+	runTest := func(total int) int {
+		var failed int
+		for i := 0; i < total; i++ {
+			tracecp := testutil.CopyTrace(trace)
+			select {
+			case agnt.Receiver.Out <- tracecp:
+				// ok 👍
+			default:
+				failed++
+			}
+		}
+		return failed * 100 / total
+	}
+
+	log.SetupDatadogLogger(seelog.Disabled, "")
+
+	for i, iterations := range []int{
+		cap(agnt.Receiver.Out), // fill the channel
+		10000,
+		100000,
+		1000000,
+	} {
+		if i == 0 {
+			// first entry just fills channel
+			continue
+		}
+		time.Sleep(500 * time.Millisecond) // wait a bit between tests to process whatever was buffered
+		t.Logf("Drop rate (%6d traces): %d%%", iterations, runTest(iterations))
+	}
+
+	exit <- true
+	<-exit
 }
 
 func TestSampling(t *testing.T) {
