@@ -5,14 +5,14 @@
 // Copyright 2019 Datadog, Inc.
 #include "two.h"
 
-extern "C" {
-#include "sixstrings.h"
-}
-
 #include "constants.h"
 
+#include "sixstrings.h"
+#include <_util.h>
 #include <aggregator.h>
+#include <cgo_free.h>
 #include <datadog_agent.h>
+#include <tagger.h>
 #include <util.h>
 
 #include <algorithm>
@@ -72,6 +72,8 @@ bool Two::init()
     Py2_init_aggregator();
     Py2_init_datadog_agent();
     Py2_init_util();
+    Py2_init__util();
+    Py2_init_tagger();
 
     // Set PYTHONPATH
     if (_pythonPaths.size()) {
@@ -503,7 +505,7 @@ bool Two::getAttrString(SixPyObject *obj, const char *attributeName, char *&valu
 
     py_attr = PyObject_GetAttrString(py_obj, attributeName);
     if (py_attr != NULL && PyString_Check(py_attr)) {
-        value = _strdup(PyString_AS_STRING(py_attr));
+        value = as_string(py_attr);
         res = true;
     } else if (py_attr != NULL && !PyString_Check(py_attr)) {
         setError("error attribute " + std::string(attributeName) + " is has a different type than string");
@@ -574,6 +576,18 @@ void Two::setLogCb(cb_log_t cb)
 void Two::setSetExternalTagsCb(cb_set_external_tags_t cb)
 {
     _set_set_external_tags_cb(cb);
+}
+
+void Two::setSubprocessOutputCb(cb_get_subprocess_output_t cb) {
+    _set_get_subprocess_output_cb(cb);
+}
+
+void Two::setCGOFreeCb(cb_cgo_free_t cb) {
+    _set_cgo_free_cb(cb);
+}
+
+void Two::setGetTagsCb(cb_get_tags_t cb) {
+    _set_get_tags_cb(cb);
 }
 
 // Python Helpers

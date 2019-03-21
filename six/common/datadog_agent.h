@@ -12,6 +12,8 @@
 PyMODINIT_FUNC PyInit_datadog_agent(void);
 #endif
 
+#define DATADOG_AGENT_MODULE_NAME "datadog_agent"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

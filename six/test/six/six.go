@@ -8,9 +8,13 @@ package testsix
 import "C"
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
+
+	common "../common"
 )
 
 var (
@@ -19,16 +23,9 @@ var (
 )
 
 func setUp() error {
-	if _, ok := os.LookupEnv("TESTING_TWO"); ok {
-		six = C.make2(nil)
-		if six == nil {
-			return fmt.Errorf("`make2` failed")
-		}
-	} else {
-		six = C.make3(nil)
-		if six == nil {
-			return fmt.Errorf("`make3` failed")
-		}
+	six = (*C.six_t)(common.GetSix())
+	if six == nil {
+		return fmt.Errorf("make failed")
 	}
 
 	var err error
@@ -38,7 +35,7 @@ func setUp() error {
 	}
 
 	// Updates sys.path so testing Check can be found
-	C.add_python_path(six, C.CString("../python"))
+	C.add_python_path(six, C.CString(filepath.Join("..", "python")))
 
 	ok := C.init(six)
 	if ok != 1 {
@@ -115,10 +112,22 @@ func runFakeCheck() (string, error) {
 	var check *C.six_pyobject_t
 	var version *C.char
 
-	//C.get_class(six, C.CString("datadog_checks.directory"), &module, &class)
 	C.get_class(six, C.CString("datadog_checks.fake_check"), &module, &class)
 	C.get_attr_string(six, module, C.CString("__version__"), &version)
 	C.get_check(six, class, C.CString(""), C.CString("[{fake_check: \"/\"}]"), C.CString("checkID"), C.CString("fake_check"), &check)
 
 	return C.GoString(C.run_check(six, check)), nil
+}
+
+func getIntegrationList() ([]string, error) {
+	cstr := C.GoString(C.get_integration_list(six))
+	var out []string
+	err := json.Unmarshal([]byte(cstr), &out)
+	fmt.Println(cstr)
+	fmt.Println(out)
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
 }

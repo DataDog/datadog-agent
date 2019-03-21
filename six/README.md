@@ -1,5 +1,8 @@
 # Datadog Agent Six
 
+[![Build status](https://ci.appveyor.com/api/projects/status/325i4ry39gdfbfxh?svg=true)](https://ci.appveyor.com/project/Datadog/datadog-agent-six)
+[![CircleCI](https://circleci.com/gh/DataDog/datadog-agent-six.svg?style=svg)](https://circleci.com/gh/DataDog/datadog-agent-six)
+
 CPython embedding/extending backend with support for multiple Python versions.
 
 ## Concepts

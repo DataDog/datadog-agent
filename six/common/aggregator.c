@@ -6,8 +6,6 @@
 
 #include <sixstrings.h>
 
-#define MODULE_NAME "aggregator"
-
 // these must be set by the Agent
 static cb_submit_metric_t cb_submit_metric = NULL;
 static cb_submit_service_check_t cb_submit_service_check = NULL;
@@ -27,7 +25,7 @@ static PyMethodDef methods[] = {
 };
 
 #ifdef DATADOG_AGENT_THREE
-static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, MODULE_NAME, NULL, -1, methods };
+static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, AGGREGATOR_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_aggregator(void) {
     PyObject *m = PyModule_Create(&module_def);
@@ -41,7 +39,7 @@ PyMODINIT_FUNC PyInit_aggregator(void) {
 static PyObject *module;
 
 void Py2_init_aggregator() {
-    module = Py_InitModule(MODULE_NAME, methods);
+    module = Py_InitModule(AGGREGATOR_MODULE_NAME, methods);
     add_constants(module);
 }
 #endif

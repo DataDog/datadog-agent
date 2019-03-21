@@ -1,7 +1,6 @@
-package testutil
+package testuutil
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -14,10 +13,10 @@ import (
 // #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
 // #include <datadog_agent_six.h>
 //
-// extern void headers(char **);
+// extern void getSubprocessOutput(char **argv, int argc, int raise, char** retval);
 //
-// static void initDatadogAgentTests(six_t *six) {
-//    set_headers_cb(six, headers);
+// static void init_utilTests(six_t *six) {
+//    set_get_subprocess_output_cb(six, getSubprocessOutput);
 // }
 import "C"
 
@@ -25,12 +24,6 @@ var (
 	six     *C.six_t
 	tmpfile *os.File
 )
-
-type message struct {
-	Name string `json:"name"`
-	Body string `json:"body"`
-	Time int64  `json:"time"`
-}
 
 func setUp() error {
 	six = (*C.six_t)(common.GetSix())
@@ -44,12 +37,12 @@ func setUp() error {
 		return err
 	}
 
-	C.initDatadogAgentTests(six)
+	C.init_utilTests(six)
 
 	// Updates sys.path so testing Check can be found
 	C.add_python_path(six, C.CString("../python"))
 
-	if ok := C.init(six); ok != 1 {
+	if ok := C.init(six, nil); ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(six)))
 	}
 
@@ -65,7 +58,7 @@ func run(call string) (string, error) {
 	tmpfile.Truncate(0)
 	code := C.CString(fmt.Sprintf(`
 try:
-	import util
+	import _util
 	import sys
 	%s
 except Exception as e:
@@ -83,14 +76,8 @@ except Exception as e:
 	return string(output), err
 }
 
-//export headers
-func headers(in **C.char) {
-	h := map[string]string{
-		"User-Agent":   "Datadog Agent/0.99",
-		"Content-Type": "application/x-www-form-urlencoded",
-		"Accept":       "text/html, */*",
-	}
-	retval, _ := json.Marshal(h)
-
-	*in = C.CString(string(retval))
+//export getSubprocessOutput
+func getSubprocessOutput(argv **C.char, argc, raise C.int, retval **C.char) {
+	fmt.Fprintln(os.Stderr, "gso")
+	*retval = C.CString(string("/tmp"))
 }
