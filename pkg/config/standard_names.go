@@ -14,15 +14,17 @@ var StandardJMXIntegrations = map[string]struct{}{
 
 // StandardStatsdPrefixes is a list of the statsd prefixes used by the agent and it's components
 var StandardStatsdPrefixes = []string{
-	"datadog.trace_agent",
-	"datadog.process",
 	"datadog.agent",
 	"datadog.dogstatsd",
-}
+	"datadog.process",
+	"datadog.trace_agent",
 
-func init() {
-	// JMXFetch sends data through dogstatsd
-	for jmxIntegration := range StandardJMXIntegrations {
-		StandardStatsdPrefixes = append(StandardStatsdPrefixes, jmxIntegration)
-	}
+	"activemq",
+	"activemq_58",
+	"cassandra",
+	"jvm",
+	"presto",
+	"solr",
+	"tomcat",
+	"kafka",
 }
