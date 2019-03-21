@@ -16,7 +16,7 @@ set(LIBS_PATH "${CMAKE_SOURCE_DIR}/six/:${CMAKE_SOURCE_DIR}/two/:${CMAKE_SOURCE_
 if (NOT DISABLE_PYTHON2)
     add_custom_command(
         OUTPUT testPy2
-        COMMAND ${CMAKE_COMMAND} -E env TESTING_TWO="1" DYLD_LIBRARY_PATH=${LIBS_PATH} LD_LIBRARY_PATH=${LIBS_PATH} go test -tags "two" -count=1 -p=1 ${PKGS}
+        COMMAND ${CMAKE_COMMAND} -E env DYLD_LIBRARY_PATH=${LIBS_PATH} LD_LIBRARY_PATH=${LIBS_PATH} go test -tags "two" -count=1 -p=1 ${PKGS}
     )
     list(APPEND TARGETS "testPy2")
 endif()
@@ -24,7 +24,7 @@ endif()
 if (NOT DISABLE_PYTHON3)
     add_custom_command(
         OUTPUT testPy3
-        COMMAND ${CMAKE_COMMAND} -E env TESTING_THREE="1" DYLD_LIBRARY_PATH=${LIBS_PATH} LD_LIBRARY_PATH=${LIBS_PATH} go test -tags "three" -count=1 -p=1 ${PKGS}
+        COMMAND ${CMAKE_COMMAND} -E env DYLD_LIBRARY_PATH=${LIBS_PATH} LD_LIBRARY_PATH=${LIBS_PATH} go test -tags "three" -count=1 -p=1 ${PKGS}
     )
     list(APPEND TARGETS "testPy3")
 endif()
