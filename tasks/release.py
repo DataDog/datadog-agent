@@ -7,7 +7,7 @@ import sys
 from datetime import date
 
 from invoke import task, Failure
-from invoke.exceptions import UnexpectedExit
+from invoke.exceptions import Exit, UnexpectedExit
 
 
 @task
