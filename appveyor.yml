@@ -12,24 +12,21 @@ environment:
   # Give hints to CMake to find Pythons
   Python2_ROOT_DIR: C:\Python27-x64
   Python3_ROOT_DIR: C:\Python37-x64
+  PIP2: pip -q
+  PIP3: pip3 -q
+  MSYS_ROOT: C:\msys64
 
 install:
-  - set PATH=%APPVEYOR_BUILD_FOLDER%\bin;%GOPATH%\bin;C:\mingw-w64\x86_64-7.2.0-posix-seh-rt_v5-rev1\mingw64\bin\;c:\msys64\mingw64\bin;C:\Python27-x64;c:\python27-x64\scripts;c:\python37-x64;c:\python37-x64\scripts;%PATH%
-  - go version
-  - python --version
-  - c:\python37-x64\python --version
-  - gcc --version
+  - set PATH=%APPVEYOR_BUILD_FOLDER%\bin;%GOPATH%\bin;%Python2_ROOT_DIR%;%Python2_ROOT_DIR%\Scripts;%Python3_ROOT_DIR%;%Python3_ROOT_DIR%\Scripts;%MSYS_ROOT%\mingw64\bin;%MSYS_ROOT%\usr\bin\;%PATH%
   - git clone --depth 1 https://github.com/datadog/integrations-core
-  - pip install pyyaml requests prometheus_client six
-  - pip3 install pyyaml requests prometheus_client six
-  - pip install integrations-core/datadog_checks_base/
-  - pip3 install integrations-core/datadog_checks_base/
-  - pip install -r integrations-core\directory\requirements.in
-  - pip3 install -r integrations-core\directory\requirements.in
-  - pip install integrations-core/directory/
-  - pip3 install integrations-core/directory/
-  # Following is needed by CMake that would refuse to generate "MinGW Makefiles" otherwise
-  - del "C:\Program Files\Git\usr\bin\sh.exe"
+  - "%PIP2% install pyyaml requests prometheus_client six"
+  - "%PIP3% install pyyaml requests prometheus_client six"
+  - "%PIP2% install integrations-core/datadog_checks_base"
+  - "%PIP3% install integrations-core/datadog_checks_base"
+  - "%PIP2% install -r integrations-core/directory/requirements.in"
+  - "%PIP3% install -r integrations-core/directory/requirements.in"
+  - "%PIP2% install integrations-core/directory"
+  - "%PIP3% install integrations-core/directory"
 
 cache:
   - '%LOCALAPPDATA%\pip\Cache'
@@ -37,12 +34,11 @@ cache:
 build: off
 
 test_script:
-  - cmake -G "MinGW Makefiles" .
-  - mingw32-make clang-format
-  - mingw32-make
-  - mingw32-make -C test run
-  - bin\demo 2
-  - bin\demo 3
+  - cmake -G "MSYS Makefiles" .
+  - bash -c "make clang-format"
+  - bash -c "make && make -C test run"
+  - bash -c "./bin/demo 2"
+  - bash -c "./bin/demo 3"
 
 # uncomment to debug builds
 # on_finish:
