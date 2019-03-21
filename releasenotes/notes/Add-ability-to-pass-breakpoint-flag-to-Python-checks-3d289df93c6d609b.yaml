@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Add the ability to pass down the ``set_breakpoint`` flag to Python checks to start
-    an `interactive debugging session <https://docs.python.org/3/library/pdb.html>`_.
+    Add the ability for the ``datadog-agent check`` command to have Python checks start
+    an `interactive debugging session <https://docs.python.org/2/library/pdb.html>`_.
