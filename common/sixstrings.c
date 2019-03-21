@@ -19,6 +19,10 @@ char *as_string(PyObject *object) {
     }
 
     PyObject *temp_bytes = PyUnicode_AsEncodedString(object, "UTF-8", "strict");
+    if (temp_bytes == NULL) {
+        return NULL;
+    }
+
     retval = _strdup(PyBytes_AS_STRING(temp_bytes));
     Py_XDECREF(temp_bytes);
 #else

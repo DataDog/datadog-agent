@@ -85,6 +85,19 @@ typedef void (*cb_log_t)(char *, int);
 // (json_dump)
 typedef void (*cb_set_external_tags_t)(char *);
 
+// _util
+// (argv, argc, raise, output)
+typedef void (*cb_get_subprocess_output_t)(char **, int, int, char **);
+
+// CGO API
+//
+typedef void (*cb_cgo_free_t)(void *);
+
+// tagger
+//
+// (id, highCard)
+typedef void (*cb_get_tags_t)(char *, int, char **);
+
 #ifdef __cplusplus
 }
 #endif

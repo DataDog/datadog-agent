@@ -5,10 +5,25 @@
 // Copyright 2019 Datadog, Inc.
 #ifndef DATADOG_AGENT_SIX_THREE_SIXSTRINGS_H
 #define DATADOG_AGENT_SIX_THREE_SIXSTRINGS_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <Python.h>
 
 char *as_string(PyObject *);
 PyObject *from_json(const char *);
 char *as_json(PyObject *);
+
+#ifdef DATADOG_AGENT_THREE
+#    define PyStringFromCString(x) PyUnicode_FromString(x)
+#elif defined DATADOG_AGENT_TWO
+#    define PyStringFromCString(x) PyString_FromString(x)
+#endif
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -31,6 +31,9 @@ add_library(datadog-agent-two SHARED
     ../common/aggregator.c
     ../common/datadog_agent.c
     ../common/util.c
+    ../common/_util.c
+    ../common/cgo_free.c
+    ../common/tagger.c
 )
 add_compile_definitions(DATADOG_AGENT_TWO)
 target_include_directories(datadog-agent-two PRIVATE .)

@@ -3,8 +3,11 @@ package testsix
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
+
+	common "../common"
 )
 
 func TestMain(m *testing.M) {
@@ -24,7 +27,7 @@ func TestMain(m *testing.M) {
 func TestGetVersion(t *testing.T) {
 	ver := getVersion()
 	prefix := "3."
-	if _, ok := os.LookupEnv("TESTING_TWO"); ok {
+	if common.UsingTwo {
 		prefix = "2.7."
 	}
 
@@ -52,7 +55,7 @@ with open(r'%s', 'w') as f:
 func TestGetError(t *testing.T) {
 	errorStr := getError()
 	expected := "unable to import module 'foo': No module named 'foo'"
-	if _, ok := os.LookupEnv("TESTING_TWO"); ok {
+	if common.UsingTwo {
 		expected = "unable to import module 'foo': No module named foo"
 	}
 	if errorStr != expected {
@@ -87,5 +90,19 @@ func TestRunCheck(t *testing.T) {
 
 	if res != "" {
 		t.Fatal(res)
+	}
+}
+
+func TestGetIntegrationsList(t *testing.T) {
+	res, err := getIntegrationList()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := []string{"foo", "bar", "baz"}
+
+	if !reflect.DeepEqual(expected, res) {
+		t.Fatalf("Expected %v, got %v", expected, res)
 	}
 }

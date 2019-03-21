@@ -11,6 +11,7 @@
 
 #ifdef DATADOG_AGENT_THREE
 PyMODINIT_FUNC PyInit__util(void);
+#    define PyStringFromCString(x) PyUnicode_FromString(x)
 #endif
 
 #ifdef __cplusplus
@@ -19,6 +20,7 @@ extern "C" {
 
 #ifdef DATADOG_AGENT_TWO
 void Py2_init__util();
+#    define PyStringFromCString(x) PyString_FromString(x)
 #endif
 
 void _set_get_subprocess_output_cb(cb_get_subprocess_output_t);
