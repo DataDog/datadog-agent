@@ -145,6 +145,23 @@ func (suite *ConfigTestSuite) TestIsSetAndNotEmpty() {
 	suite.False(isSetAndNotEmpty(suite.config, "wassup"))
 }
 
+func (suite *ConfigTestSuite) TestDefaultApiKey() {
+	suite.config.Set("api_key", "wassupkey")
+	suite.Equal("wassupkey", getLogsAPIKey(suite.config))
+	endpoints, err := BuildEndpoints()
+	suite.Nil(err)
+	suite.Equal("wassupkey", endpoints.Main.APIKey)
+}
+
+func (suite *ConfigTestSuite) TestOverrideApiKey() {
+	suite.config.Set("api_key", "wassupkey")
+	suite.config.Set("logs_config.api_key", "wassuplogskey")
+	suite.Equal("wassuplogskey", getLogsAPIKey(suite.config))
+	endpoints, err := BuildEndpoints()
+	suite.Nil(err)
+	suite.Equal("wassuplogskey", endpoints.Main.APIKey)
+}
+
 func TestConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigTestSuite))
 }
