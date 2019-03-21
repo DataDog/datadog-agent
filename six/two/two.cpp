@@ -578,15 +578,18 @@ void Two::setSetExternalTagsCb(cb_set_external_tags_t cb)
     _set_set_external_tags_cb(cb);
 }
 
-void Two::setSubprocessOutputCb(cb_get_subprocess_output_t cb) {
+void Two::setSubprocessOutputCb(cb_get_subprocess_output_t cb)
+{
     _set_get_subprocess_output_cb(cb);
 }
 
-void Two::setCGOFreeCb(cb_cgo_free_t cb) {
+void Two::setCGOFreeCb(cb_cgo_free_t cb)
+{
     _set_cgo_free_cb(cb);
 }
 
-void Two::setGetTagsCb(cb_get_tags_t cb) {
+void Two::setGetTagsCb(cb_get_tags_t cb)
+{
     _set_get_tags_cb(cb);
 }
 

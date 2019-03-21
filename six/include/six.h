@@ -13,9 +13,12 @@
 #include <vector>
 
 // Opaque type to wrap PyObject
-class SixPyObject {};
+class SixPyObject
+{
+};
 
-class Six {
+class Six
+{
 public:
     Six()
         : _error()

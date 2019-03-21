@@ -12,7 +12,8 @@
 #include <Python.h>
 #include <six.h>
 
-class Two : public Six {
+class Two : public Six
+{
 public:
     Two();
     Two(const char *python_home);
@@ -37,7 +38,8 @@ public:
     bool isInitialized() const;
     const char *getPyVersion() const;
     bool runSimpleString(const char *code) const;
-    SixPyObject *getNone() const {
+    SixPyObject *getNone() const
+    {
         return reinterpret_cast<SixPyObject *>(Py_None);
     }
 
