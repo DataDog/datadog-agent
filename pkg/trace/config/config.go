@@ -110,6 +110,10 @@ type AgentConfig struct {
 
 	// Obfuscation holds sensitive data obufscator's configuration.
 	Obfuscation *ObfuscationConfig
+
+	// Workers specifies the number of workers to use when processing incoming
+	// payloads.
+	Workers int
 }
 
 // New returns a configuration with the default values.
@@ -149,6 +153,7 @@ func New() *AgentConfig {
 		Ignore:                      make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
+		Workers:                     50,
 	}
 }
 

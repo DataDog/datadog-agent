@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -67,40 +68,21 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	serviceChan := make(chan pb.ServicesMetadata, 50)
 	filteredServiceChan := make(chan pb.ServicesMetadata, 50)
 
-	// create components
-	r := api.NewHTTPReceiver(conf, dynConf, rawTraceChan, serviceChan)
-	c := stats.NewConcentrator(
-		conf.ExtraAggregators,
-		conf.BucketInterval.Nanoseconds(),
-		statsChan,
-	)
-
-	obf := obfuscate.NewObfuscator(conf.Obfuscation)
-	ss := NewScoreSampler(conf)
-	ess := NewErrorsSampler(conf)
-	ps := NewPrioritySampler(conf, dynConf)
-	ep := eventProcessorFromConf(conf)
-	se := NewTraceServiceExtractor(serviceChan)
-	sm := NewServiceMapper(serviceChan, filteredServiceChan)
-	tw := writer.NewTraceWriter(conf, tracePkgChan)
-	sw := writer.NewStatsWriter(conf, statsChan)
-	svcW := writer.NewServiceWriter(conf, filteredServiceChan)
-
 	return &Agent{
-		Receiver:           r,
-		Concentrator:       c,
+		Receiver:           api.NewHTTPReceiver(conf, dynConf, rawTraceChan, serviceChan),
+		Concentrator:       stats.NewConcentrator(conf.ExtraAggregators, conf.BucketInterval.Nanoseconds(), statsChan),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
-		ScoreSampler:       ss,
-		ErrorsScoreSampler: ess,
-		PrioritySampler:    ps,
-		EventProcessor:     ep,
-		TraceWriter:        tw,
-		StatsWriter:        sw,
-		ServiceWriter:      svcW,
-		ServiceExtractor:   se,
-		ServiceMapper:      sm,
-		obfuscator:         obf,
+		ScoreSampler:       NewScoreSampler(conf),
+		ErrorsScoreSampler: NewErrorsSampler(conf),
+		PrioritySampler:    NewPrioritySampler(conf, dynConf),
+		EventProcessor:     eventProcessorFromConf(conf),
+		TraceWriter:        writer.NewTraceWriter(conf, tracePkgChan),
+		StatsWriter:        writer.NewStatsWriter(conf, statsChan),
+		ServiceWriter:      writer.NewServiceWriter(conf, filteredServiceChan),
+		ServiceExtractor:   NewTraceServiceExtractor(serviceChan),
+		ServiceMapper:      NewServiceMapper(serviceChan, filteredServiceChan),
+		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
 		tracePkgChan:       tracePkgChan,
 		conf:               conf,
 		dynConf:            dynConf,
@@ -110,66 +92,86 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 
 // Run starts routers routines and individual pieces then stop them when the exit order is received
 func (a *Agent) Run() {
-	// it's really important to use a ticker for this, and with a not too short
-	// interval, for this is our guarantee that the process won't start and kill
-	// itself too fast (nightmare loop)
-	watchdogTicker := time.NewTicker(a.conf.WatchdogInterval)
-	defer watchdogTicker.Stop()
+	for _, starter := range []interface{ Start() }{
+		a.Receiver,
+		a.TraceWriter,
+		a.StatsWriter,
+		a.ServiceMapper,
+		a.ServiceWriter,
+		a.Concentrator,
+		a.ScoreSampler,
+		a.ErrorsScoreSampler,
+		a.PrioritySampler,
+		a.EventProcessor,
+	} {
+		starter.Start()
+	}
 
-	// update the data served by expvar so that we don't expose a 0 sample rate
-	info.UpdatePreSampler(*a.Receiver.PreSampler.Stats())
-
-	// TODO: unify components APIs. Use Start/Stop as non-blocking ways of controlling the blocking Run loop.
-	// Like we do with TraceWriter.
-	a.Receiver.Run()
-	a.TraceWriter.Start()
-	a.StatsWriter.Start()
-	a.ServiceMapper.Start()
-	a.ServiceWriter.Start()
-	a.Concentrator.Start()
-	a.ScoreSampler.Run()
-	a.ErrorsScoreSampler.Run()
-	a.PrioritySampler.Run()
-	a.EventProcessor.Start()
-
+	var wg sync.WaitGroup
 	ts := a.Receiver.Stats.GetTagStats(info.Tags{})
+	for i := 0; i < a.conf.Workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer watchdog.LogOnPanic()
+			for {
+				select {
+				case t := <-a.Receiver.Out:
+					err := api.NormalizeTrace(t)
+					if err != nil {
+						atomic.AddInt64(&ts.TracesDropped, 1)
+						atomic.AddInt64(&ts.SpansDropped, int64(len(t)))
 
+						log.Errorf(fmt.Sprintf("dropping trace; reason: %s", err))
+					} else {
+						a.processTrace(t)
+					}
+				case <-a.ctx.Done():
+					return
+				}
+			}
+		}()
+	}
+
+	ticker := time.NewTicker(a.conf.WatchdogInterval)
+	defer ticker.Stop()
+loop:
 	for {
 		select {
-		case t := <-a.Receiver.Out:
-			err := api.NormalizeTrace(t)
-			if err != nil {
-				atomic.AddInt64(&ts.TracesDropped, 1)
-				atomic.AddInt64(&ts.SpansDropped, int64(len(t)))
-
-				log.Errorf(fmt.Sprintf("dropping trace; reason: %s", err))
-			} else {
-				a.Process(t)
-			}
-		case <-watchdogTicker.C:
+		case <-ticker.C:
 			a.watchdog()
 		case <-a.ctx.Done():
-			log.Info("exiting")
-			if err := a.Receiver.Stop(); err != nil {
-				log.Error(err)
-			}
-			a.Concentrator.Stop()
-			a.TraceWriter.Stop()
-			a.StatsWriter.Stop()
-			a.ServiceMapper.Stop()
-			a.ServiceWriter.Stop()
-			a.ScoreSampler.Stop()
-			a.ErrorsScoreSampler.Stop()
-			a.PrioritySampler.Stop()
-			a.EventProcessor.Stop()
-			return
+			break loop
 		}
+	}
+
+	wg.Wait()
+	a.shutdown()
+}
+
+func (a *Agent) shutdown() {
+	log.Info("exiting")
+	if err := a.Receiver.Stop(); err != nil {
+		log.Error(err)
+	}
+	for _, stopper := range []interface{ Stop() }{
+		a.Concentrator,
+		a.TraceWriter,
+		a.StatsWriter,
+		a.ServiceMapper,
+		a.ServiceWriter,
+		a.ScoreSampler,
+		a.ErrorsScoreSampler,
+		a.PrioritySampler,
+		a.EventProcessor,
+	} {
+		stopper.Stop()
 	}
 }
 
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
-func (a *Agent) Process(t pb.Trace) {
+func (a *Agent) processTrace(t pb.Trace) {
 	if len(t) == 0 {
 		log.Debugf("skipping received empty trace")
 		return
@@ -242,55 +244,42 @@ func (a *Agent) Process(t pb.Trace) {
 		Env:           a.conf.DefaultEnv,
 		Sublayers:     sublayers,
 	}
-	// Replace Agent-configured environment with `env` coming from span tag.
 	if tenv := traceutil.GetEnv(t); tenv != "" {
+		// user overrode default env.
 		pt.Env = tenv
 	}
 
-	go func() {
-		defer watchdog.LogOnPanic()
-		a.ServiceExtractor.Process(pt.WeightedTrace)
-	}()
+	a.ServiceExtractor.Process(pt.WeightedTrace)
+	a.Concentrator.Add(&stats.Input{
+		Trace:     pt.WeightedTrace,
+		Sublayers: pt.Sublayers,
+		Env:       pt.Env,
+	})
 
-	go func(pt ProcessedTrace) {
-		defer watchdog.LogOnPanic()
-		// Everything is sent to concentrator for stats, regardless of sampling.
-		a.Concentrator.Add(&stats.Input{
-			Trace:     pt.WeightedTrace,
-			Sublayers: pt.Sublayers,
-			Env:       pt.Env,
-		})
-	}(pt)
-
-	// Don't go through sampling for < 0 priority traces
 	if priority < 0 {
+		// user rejected trace, drop it
 		return
 	}
-	// Run both full trace sampling and transaction extraction in another goroutine.
-	go func(pt ProcessedTrace) {
-		defer watchdog.LogOnPanic()
 
-		tracePkg := writer.TracePackage{}
+	var tracePkg writer.TracePackage
 
-		sampled, rate := a.sample(pt)
+	sampled, rate := a.sample(pt)
+	if sampled {
+		pt.Sampled = sampled
+		sampler.AddGlobalRate(pt.Root, rate)
+		tracePkg.Trace = pt.Trace
+	}
 
-		if sampled {
-			pt.Sampled = sampled
-			sampler.AddGlobalRate(pt.Root, rate)
-			tracePkg.Trace = pt.Trace
-		}
+	// continue, events can be sampled on unsampled traces too
+	events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
+	tracePkg.Events = events
 
-		// NOTE: Events can be processed on non-sampled traces.
-		events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
-		tracePkg.Events = events
+	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
+	atomic.AddInt64(&ts.EventsSampled, int64(len(tracePkg.Events)))
 
-		atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
-		atomic.AddInt64(&ts.EventsSampled, int64(len(tracePkg.Events)))
-
-		if !tracePkg.Empty() {
-			a.tracePkgChan <- &tracePkg
-		}
-	}(pt)
+	if !tracePkg.Empty() {
+		a.tracePkgChan <- &tracePkg
+	}
 }
 
 func (a *Agent) sample(pt ProcessedTrace) (sampled bool, rate float64) {
