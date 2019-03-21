@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -276,7 +274,7 @@ func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, 
 	return &event, nil
 }
 
-func parseMetricMessage(message []byte, namespace string, defaultHostname string) (*metrics.MetricSample, error) {
+func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (*metrics.MetricSample, error) {
 	// daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2
 	// daemon:666|g|@0.1|#sometag:somevalue"
 
@@ -325,7 +323,7 @@ func parseMetricMessage(message []byte, namespace string, defaultHostname string
 	metricName := string(rawName)
 	if namespace != "" {
 		blacklisted := false
-		for _, prefix := range config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist") {
+		for _, prefix := range namespaceBlacklist {
 			if strings.HasPrefix(metricName, prefix) {
 				blacklisted = true
 			}
