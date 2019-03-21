@@ -21,12 +21,6 @@ install:
   - git clone --depth 1 https://github.com/datadog/integrations-core
   - "%PIP2% install pyyaml requests prometheus_client six"
   - "%PIP3% install pyyaml requests prometheus_client six"
-  - "%PIP2% install integrations-core/datadog_checks_base"
-  - "%PIP3% install integrations-core/datadog_checks_base"
-  - "%PIP2% install -r integrations-core/directory/requirements.in"
-  - "%PIP3% install -r integrations-core/directory/requirements.in"
-  - "%PIP2% install integrations-core/directory"
-  - "%PIP3% install integrations-core/directory"
 
 cache:
   - '%LOCALAPPDATA%\pip\Cache'
@@ -37,7 +31,12 @@ test_script:
   - cmake -G "MSYS Makefiles" .
   - bash -c "make clang-format"
   - bash -c "make && make -C test run"
+  # we install the base check here because tests must run in a clean env
+  - "%PIP2% install -r integrations-core/directory/requirements.in"
+  - "%PIP2% install integrations-core/datadog_checks_base integrations-core/directory"
   - bash -c "./bin/demo 2"
+  - "%PIP3% install -r integrations-core/directory/requirements.in"
+  - "%PIP3% install integrations-core/datadog_checks_base integrations-core/directory"
   - bash -c "./bin/demo 3"
 
 # uncomment to debug builds
