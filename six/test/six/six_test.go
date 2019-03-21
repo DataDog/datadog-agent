@@ -3,6 +3,7 @@ package testsix
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -87,5 +88,19 @@ func TestRunCheck(t *testing.T) {
 
 	if res != "" {
 		t.Fatal(res)
+	}
+}
+
+func TestGetIntegrationsList(t *testing.T) {
+	res, err := getIntegrationList()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := []string{"foo", "bar", "baz"}
+
+	if !reflect.DeepEqual(expected, res) {
+		t.Fatalf("Expected %v, got %v", expected, res)
 	}
 }
