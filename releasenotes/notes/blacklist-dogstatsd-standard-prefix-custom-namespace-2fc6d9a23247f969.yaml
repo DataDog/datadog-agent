@@ -8,13 +8,13 @@
 ---
 upgrade:
   - |
-    Metrics comming trough dogstatsd with the following internal prefixes: ``activemq``, ``activemq_58``,
+    Metrics coming through dogstatsd with the following internal prefixes: ``activemq``, ``activemq_58``,
     ``cassandra``, ``jmx`, ``presto``, ``solr``, ``tomcat``, ``kafka``, ``datadog.trace_agent``,
     ``datadog.process``, ``datadog.agent``, ``datadog.dogstatsd`` are no longer affected by the
     ``statsd_metric_namespace`` option.
 fixes:
   - |
-    Metrics comming trough dogstatsd with the following internal prefixes: ``activemq``, ``activemq_58``,
+    Metrics coming through dogstatsd with the following internal prefixes: ``activemq``, ``activemq_58``,
     ``cassandra``, ``jmx`, ``presto``, ``solr``, ``tomcat``, ``kafka``, ``datadog.trace_agent``,
     ``datadog.process``, ``datadog.agent``, ``datadog.dogstatsd`` are no longer affected by the
     ``statsd_metric_namespace`` option.
