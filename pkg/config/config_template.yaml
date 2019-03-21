@@ -271,6 +271,12 @@ api_key:
 # might change depending on the OS.
 # dogstatsd_so_rcvbuf:
 #
+# When this flag is enabled, Dogstatsd collects basic statistics (count/last seen)
+# about the metrics it processsed. Use the agent command "dogstatsd-stats" to visualize
+# those statistics. Note that this feature slightly increase the cpu usage
+# of the dogstatsd server. Set this flag to true to activate it.
+# dogstatsd_metrics_stats_enable: false
+#
 # Additional tags to append to all metrics, events and service checks received by
 # this dogstatsd server. Useful for tagging all dogstatsd metrics reporting from
 # a single host without resorting to host tags.

@@ -6,6 +6,7 @@
 package dogstatsd
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -342,4 +343,50 @@ func TestExtraTags(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
+}
+
+func TestDebugStats(t *testing.T) {
+	metricOut := make(chan []*metrics.MetricSample)
+	eventOut := make(chan []*metrics.Event)
+	serviceOut := make(chan []*metrics.ServiceCheck)
+	s, err := NewServer(metricOut, eventOut, serviceOut)
+	require.NoError(t, err, "cannot start DSD")
+	defer s.Stop()
+
+	s.storeMetricStats("some.metric1")
+	s.storeMetricStats("some.metric2")
+	time.Sleep(10 * time.Millisecond)
+	s.storeMetricStats("some.metric1")
+
+	data, err := s.GetJSONDebugStats()
+	require.NoError(t, err, "cannot get debug stats")
+	require.NotNil(t, data)
+	require.NotEmpty(t, data)
+
+	var stats map[string]metricStat
+	err = json.Unmarshal(data, &stats)
+	require.NoError(t, err, "data is not valid")
+	require.Len(t, stats, 2, "two metrics should have been captured")
+
+	require.True(t, stats["some.metric1"].LastSeen.After(stats["some.metric2"].LastSeen), "some.metric1 should have appeared again after sometag2")
+
+	s.storeMetricStats("some.metric3")
+	time.Sleep(10 * time.Millisecond)
+	s.storeMetricStats("some.metric1")
+
+	data, _ = s.GetJSONDebugStats()
+	err = json.Unmarshal(data, &stats)
+	require.NoError(t, err, "data is not valid")
+	require.Len(t, stats, 3, "three metrics should have been captured")
+
+	metric1 := stats["some.metric1"]
+	metric2 := stats["some.metric2"]
+	metric3 := stats["some.metric3"]
+	require.True(t, metric1.LastSeen.After(metric2.LastSeen), "some.metric1 should have appeared again after some.metric2")
+	require.True(t, metric1.LastSeen.After(metric3.LastSeen), "some.metric1 should have appeared again after some.metric3")
+	require.True(t, metric3.LastSeen.After(metric2.LastSeen), "some.metric3 should have appeared again after some.metric2")
+
+	require.Equal(t, metric1.Count, uint64(3))
+	require.Equal(t, metric2.Count, uint64(1))
+	require.Equal(t, metric3.Count, uint64(1))
 }
