@@ -24,14 +24,14 @@ func TestGetConnectionInfo(t *testing.T) {
 	d = kubeutil.get_connection_info()
 	with open(r'%s', 'w') as f:
 		f.write(",".join(sorted(d.keys())))
-		f.write("\n")
+		f.write("-")
 		f.write(",".join(sorted(d.values())))
 	`, tmpfile.Name())
 	out, err := run(code)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "BarKey,FooKey\nBarValue,FooValue" {
+	if out != "BarKey,FooKey-BarValue,FooValue" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 }
