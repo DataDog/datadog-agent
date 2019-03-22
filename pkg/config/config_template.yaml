@@ -19,6 +19,7 @@ api_key:
 # refer to the specific check documentation for more details. Environment
 # variables DD_PROXY_HTTP, DD_PROXY_HTTPS and DD_PROXY_NO_PROXY (space-separated string)
 # will override the values set here. See https://docs.datadoghq.com/agent/proxy/.
+# For Logs proxy information, refer to the logs_config section.
 #
 # proxy:
 #   http: http://user:password@proxy_for_http:port
@@ -217,7 +218,41 @@ api_key:
 #
 # The timeout to execute the command in second
 # secret_backend_timeout: 5
-
+#
+{{ end -}}
+{{- if .LogsAgent }}
+# Logs agent
+#
+# Enable logs collection, disabled by default
+# logs_enabled: false
+#
+# logs_config:
+#
+#   Enable container log collection for all the containers (see ac_exclude to filter out containers)
+#   container_collect_all: false
+#
+#   Define the endpoint and port to hit when using a proxy for logs. The logs are forwarded in TCP
+#   therefore the proxy must be able to handle TCP connections.
+#   logs_dd_url: <endpoint>:<port>
+#
+#   Disable the SSL encryption (default to false). This parameter should only be used when logs are
+#   forwarded locally to a proxy. It is highly recommended to then handle the SSL encryption 
+#   on the proxy side. 
+#   logs_no_ssl: false
+#
+#   Global processing rules that are applied to all the logs. The available rules are
+#   "exclude_at_match", "include_at_match" and "mask_sequences". More information in the documentation:
+#   https://docs.datadoghq.com/logs/log_collection/?tab=tailexistingfiles#advanced-log-collection-functions
+#   processing_rules:
+#     - rule1_arg1
+#       rule1_arg2
+#     - rule2_arg1
+#       rule2_arg2
+#
+#   By default, logs are sent to port 10516 (for the US site), use this parameter
+#   to force the agent to send logs in TCP to port 443 (default is false)
+#   use_port_443: false
+#
 {{ end -}}
 {{- if .Metadata }}
 # Metadata providers, add or remove from the list to enable or disable collection.
@@ -226,6 +261,7 @@ api_key:
 # metadata_providers:
 #  - name: k8s
 #    interval: 60
+#
 {{ end -}}
 {{- if .Dogstatsd }}
 # DogStatsd
@@ -294,17 +330,6 @@ api_key:
 # you can configure the namspace below. Each metric received will be prefixed
 # with the namespace before it's sent to Datadog.
 # statsd_metric_namespace:
-{{ end -}}
-{{- if .LogsAgent }}
-# Logs agent
-#
-# Logs agent is disabled by default
-# logs_enabled: false
-#
-# Enable logs collection for all containers, disabled by default
-# logs_config:
-#   container_collect_all: false
-#
 {{ end -}}
 {{- if .JMX }}
 # JMX
