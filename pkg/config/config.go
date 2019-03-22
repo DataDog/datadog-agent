@@ -331,6 +331,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// send the logs to a proxy:
 	config.BindEnv("logs_config.logs_dd_url") // must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	// specific logs-agent api-key
+	config.BindEnv("logs_config.api_key")
 	config.BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
 	// send the logs to the port 443 of the logs-backend via TCP:
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
