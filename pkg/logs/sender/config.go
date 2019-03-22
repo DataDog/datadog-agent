@@ -24,10 +24,6 @@ var logsEndpoints = map[string]int{
 	"agent-intake.logs.datad0g.eu":    443,
 }
 
-func isSetAndNotEmpty(config config.Config, key string) bool {
-	return config.IsSet(key) && len(config.GetString(key)) > 0
-}
-
 // BuildEndpoints returns the endpoints to send logs to.
 func BuildEndpoints() (*client.Endpoints, error) {
 	if config.Datadog.GetBool("logs_config.dev_mode_no_ssl") {
@@ -37,9 +33,8 @@ func BuildEndpoints() (*client.Endpoints, error) {
 	var useSSL bool
 	useProto := config.Datadog.GetBool("logs_config.dev_mode_use_proto")
 	proxyAddress := config.Datadog.GetString("logs_config.socks5_proxy_address")
-
 	main := client.Endpoint{
-		APIKey:       config.Datadog.GetString("api_key"),
+		APIKey:       getLogsAPIKey(config.Datadog),
 		UseProto:     useProto,
 		ProxyAddress: proxyAddress,
 	}
@@ -88,4 +83,16 @@ func BuildEndpoints() (*client.Endpoints, error) {
 	}
 
 	return client.NewEndpoints(main, additionals), nil
+}
+
+func isSetAndNotEmpty(config config.Config, key string) bool {
+	return config.IsSet(key) && len(config.GetString(key)) > 0
+}
+
+//getLogsApiKey provides the dd api key used by the main logs agent sender.
+func getLogsAPIKey(config config.Config) string {
+	if isSetAndNotEmpty(config, "logs_config.api_key") {
+		return config.GetString("logs_config.api_key")
+	}
+	return config.GetString("api_key")
 }
