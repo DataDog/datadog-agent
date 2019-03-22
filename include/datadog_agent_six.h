@@ -66,14 +66,17 @@ DATADOG_AGENT_SIX_API void set_get_clustername_cb(six_t *, cb_get_clustername_t)
 DATADOG_AGENT_SIX_API void set_log_cb(six_t *, cb_log_t);
 DATADOG_AGENT_SIX_API void set_set_external_tags_cb(six_t *, cb_set_external_tags_t);
 
-// _UTIL
+// _UTIL API
 DATADOG_AGENT_SIX_API void set_get_subprocess_output_cb(six_t *six, cb_get_subprocess_output_t cb);
 
 // CGO API
 DATADOG_AGENT_SIX_API void set_cgo_free_cb(six_t *, cb_cgo_free_t);
 
-// TAGGER
+// TAGGER API
 DATADOG_AGENT_SIX_API void set_get_tags_cb(six_t *, cb_get_tags_t);
+
+// KUBEUTIL API
+DATADOG_AGENT_SIX_API void set_get_connection_info_cb(six_t *, cb_get_connection_info_t);
 
 #ifdef __cplusplus
 }
