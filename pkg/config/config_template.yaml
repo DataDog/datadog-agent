@@ -228,29 +228,29 @@ api_key:
 #
 # logs_config:
 #
-## Enable container log collection for all the containers (see ac_exclude to filter out containers)
+#   Enable container log collection for all the containers (see ac_exclude to filter out containers)
 #   container_collect_all: false
 #
-## Define the endpoint and port to hit when using a proxy for logs. The logs are forwarded in TCP
-## therefore the proxy must be able to handle TCP connections.
+#   Define the endpoint and port to hit when using a proxy for logs. The logs are forwarded in TCP
+#   therefore the proxy must be able to handle TCP connections.
 #   logs_dd_url: <endpoint>:<port>
 #
-## Disable the SSL encryption (default to false). This parameter should only be used when logs are
-## forwarded locally to a proxy. It is highly recommended to then handle the SSL encryption 
-## on the proxy side. 
+#   Disable the SSL encryption (default to false). This parameter should only be used when logs are
+#   forwarded locally to a proxy. It is highly recommended to then handle the SSL encryption 
+#   on the proxy side. 
 #   logs_no_ssl: false
 #
-## Global processing rules that are applied to all the logs. The available rules are
-## "exclude_at_match", "include_at_match" and "mask_sequences". More information in the documentation:
-## https://docs.datadoghq.com/logs/log_collection/?tab=tailexistingfiles#advanced-log-collection-functions
+#   Global processing rules that are applied to all the logs. The available rules are
+#   "exclude_at_match", "include_at_match" and "mask_sequences". More information in the documentation:
+#   https://docs.datadoghq.com/logs/log_collection/?tab=tailexistingfiles#advanced-log-collection-functions
 #   processing_rules:
 #     - rule1_arg1
 #       rule1_arg2
 #     - rule2_arg1
 #       rule2_arg2
 #
-## By default, logs are sent to port 10516 (for the US site), use this parameter
-## to force the agent to send logs in TCP to port 443 (default is false)
+#   By default, logs are sent to port 10516 (for the US site), use this parameter
+#   to force the agent to send logs in TCP to port 443 (default is false)
 #   use_port_443: false
 #
 {{ end -}}
