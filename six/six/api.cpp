@@ -39,13 +39,17 @@ static void *six_backend = NULL;
 
 #ifdef _WIN32
 
-six_t *make2() {
+create_t *loadAndCreate(const char *dll, const char *python_home)
+{
+    // first, add python home to the directory search path for loading DLLs
+    SetDllDirectoryA(python_home);
+
     // load library
-    six_backend = LoadLibraryA(DATADOG_AGENT_TWO);
+    six_backend = LoadLibraryA(dll);
     if (!six_backend) {
         // printing to stderr might reset the error, get it now
         int err = GetLastError();
-        std::cerr << "Unable to open library " << DATADOG_AGENT_TWO << ", error code: " << err << std::endl;
+        std::cerr << "Unable to open library " << dll << ", error code: " << err << std::endl;
         return 0;
     }
 
@@ -54,36 +58,31 @@ six_t *make2() {
     if (!create) {
         // printing to stderr might reset the error, get it now
         int err = GetLastError();
-        std::cerr << "Unable to open 'two' factory GPA: " << err << std::endl;
+        std::cerr << "Unable to open factory GPA: " << err << std::endl;
         return 0;
     }
-
-    return AS_TYPE(six_t, create());
+    return create;
+}
+six_t *make2(const char *python_home)
+{
+    create_t *create = loadAndCreate(DATADOG_AGENT_TWO, python_home);
+    if (!create) {
+        return 0;
+    }
+    return AS_TYPE(six_t, create(python_home));
 }
 
-six_t *make3() {
-    // load the library
-    six_backend = LoadLibraryA(DATADOG_AGENT_THREE);
-    if (!six_backend) {
-        // printing to stderr might reset the error, get it now
-        int err = GetLastError();
-        std::cerr << "Unable to open library " << DATADOG_AGENT_THREE << ", error code: " << err << std::endl;
-        return 0;
-    }
-
-    // dlsym class factory
-    create_t *create_three = (create_t *)GetProcAddress(six_backend, "create");
+six_t *make3(const char *python_home)
+{
+    create_t *create_three = loadAndCreate(DATADOG_AGENT_THREE, python_home);
     if (!create_three) {
-        // printing to stderr might reset the error, get it now
-        int err = GetLastError();
-        std::cerr << "Unable to open 'three' factory GPA: " << err << std::endl;
         return 0;
     }
-
-    return AS_TYPE(six_t, create_three());
+    return AS_TYPE(six_t, create_three(python_home));
 }
 
-void destroy(six_t *six) {
+void destroy(six_t *six)
+{
     if (six_backend) {
         // dlsym object destructor
         destroy_t *destroy = (destroy_t *)GetProcAddress(six_backend, "destroy");
@@ -97,7 +96,8 @@ void destroy(six_t *six) {
 }
 
 #else
-six_t *make2() {
+six_t *make2(const char *python_home)
+{
     if (six_backend != NULL) {
         std::cerr << "Six alrady initialized!" << std::endl;
         return NULL;
@@ -120,10 +120,11 @@ six_t *make2() {
         return NULL;
     }
 
-    return AS_TYPE(six_t, create());
+    return AS_TYPE(six_t, create(python_home));
 }
 
-six_t *make3() {
+six_t *make3(const char *python_home)
+{
     if (six_backend != NULL) {
         std::cerr << "Six alrady initialized!" << std::endl;
         return NULL;
@@ -147,10 +148,11 @@ six_t *make3() {
         return NULL;
     }
 
-    return AS_TYPE(six_t, create_three());
+    return AS_TYPE(six_t, create_three(python_home));
 }
 
-void destroy(six_t *six) {
+void destroy(six_t *six)
+{
     if (six_backend) {
         // dlsym object destructor
         destroy_t *destroy = (destroy_t *)dlsym(six_backend, "destroy");
@@ -164,49 +166,60 @@ void destroy(six_t *six) {
 }
 #endif
 
-int init(six_t *six, char *pythonHome) {
-    return AS_TYPE(Six, six)->init(pythonHome) ? 1 : 0;
+int init(six_t *six)
+{
+    return AS_TYPE(Six, six)->init() ? 1 : 0;
 }
 
-int is_initialized(six_t *six) {
+int is_initialized(six_t *six)
+{
     return AS_CTYPE(Six, six)->isInitialized();
 }
 
-const char *get_py_version(const six_t *six) {
+const char *get_py_version(const six_t *six)
+{
     return AS_CTYPE(Six, six)->getPyVersion();
 }
 
-int run_simple_string(const six_t *six, const char *code) {
+int run_simple_string(const six_t *six, const char *code)
+{
     return AS_CTYPE(Six, six)->runSimpleString(code) ? 1 : 0;
 }
 
-six_pyobject_t *get_none(const six_t *six) {
+six_pyobject_t *get_none(const six_t *six)
+{
     return AS_TYPE(six_pyobject_t, AS_CTYPE(Six, six)->getNone());
 }
 
-int add_python_path(six_t *six, const char *path) {
+int add_python_path(six_t *six, const char *path)
+{
     return AS_TYPE(Six, six)->addPythonPath(path) ? 1 : 0;
 }
 
-six_gilstate_t ensure_gil(six_t *six) {
+six_gilstate_t ensure_gil(six_t *six)
+{
     return AS_TYPE(Six, six)->GILEnsure();
 }
 
-void release_gil(six_t *six, six_gilstate_t state) {
+void release_gil(six_t *six, six_gilstate_t state)
+{
     AS_TYPE(Six, six)->GILRelease(state);
 }
 
-int get_class(six_t *six, const char *name, six_pyobject_t **py_module, six_pyobject_t **py_class) {
+int get_class(six_t *six, const char *name, six_pyobject_t **py_module, six_pyobject_t **py_class)
+{
     return AS_TYPE(Six, six)->getClass(name, *AS_PTYPE(SixPyObject, py_module), *AS_PTYPE(SixPyObject, py_class)) ? 1
                                                                                                                   : 0;
 }
 
-int get_attr_string(six_t *six, six_pyobject_t *py_class, const char *attr_name, char **value) {
+int get_attr_string(six_t *six, six_pyobject_t *py_class, const char *attr_name, char **value)
+{
     return AS_TYPE(Six, six)->getAttrString(AS_TYPE(SixPyObject, py_class), attr_name, *value);
 }
 
 int get_check(six_t *six, six_pyobject_t *py_class, const char *init_config, const char *instance, const char *check_id,
-              const char *check_name, six_pyobject_t **check) {
+              const char *check_name, six_pyobject_t **check)
+{
     return AS_TYPE(Six, six)->getCheck(AS_TYPE(SixPyObject, py_class), init_config, instance, check_id, check_name,
                                        NULL, *AS_PTYPE(SixPyObject, check))
         ? 1
@@ -214,15 +227,16 @@ int get_check(six_t *six, six_pyobject_t *py_class, const char *init_config, con
 }
 
 int get_check_deprecated(six_t *six, six_pyobject_t *py_class, const char *init_config, const char *instance,
-                         const char *agent_config, const char *check_id, const char *check_name,
-                         six_pyobject_t **check) {
+                         const char *agent_config, const char *check_id, const char *check_name, six_pyobject_t **check)
+{
     return AS_TYPE(Six, six)->getCheck(AS_TYPE(SixPyObject, py_class), init_config, instance, check_id, check_name,
                                        agent_config, *AS_PTYPE(SixPyObject, check))
         ? 1
         : 0;
 }
 
-const char *run_check(six_t *six, six_pyobject_t *check) {
+const char *run_check(six_t *six, six_pyobject_t *check)
+{
     return AS_TYPE(Six, six)->runCheck(AS_TYPE(SixPyObject, check));
 }
 
@@ -230,15 +244,18 @@ const char *run_check(six_t *six, six_pyobject_t *check) {
  * error API
  */
 
-int has_error(const six_t *six) {
+int has_error(const six_t *six)
+{
     return AS_CTYPE(Six, six)->hasError() ? 1 : 0;
 }
 
-const char *get_error(const six_t *six) {
+const char *get_error(const six_t *six)
+{
     return AS_CTYPE(Six, six)->getError();
 }
 
-void clear_error(six_t *six) {
+void clear_error(six_t *six)
+{
     AS_TYPE(Six, six)->clearError();
 }
 
@@ -246,15 +263,18 @@ void clear_error(six_t *six) {
  * memory management
  */
 
-void six_free(six_t *six, void *ptr) {
+void six_free(six_t *six, void *ptr)
+{
     AS_TYPE(Six, six)->free(ptr);
 }
 
-void six_decref(six_t *six, six_pyobject_t *obj) {
+void six_decref(six_t *six, six_pyobject_t *obj)
+{
     AS_TYPE(Six, six)->decref(AS_TYPE(SixPyObject, obj));
 }
 
-void six_incref(six_t *six, six_pyobject_t *obj) {
+void six_incref(six_t *six, six_pyobject_t *obj)
+{
     AS_TYPE(Six, six)->incref(AS_TYPE(SixPyObject, obj));
 }
 
@@ -262,15 +282,18 @@ void six_incref(six_t *six, six_pyobject_t *obj) {
  * aggregator API
  */
 
-void set_submit_metric_cb(six_t *six, cb_submit_metric_t cb) {
+void set_submit_metric_cb(six_t *six, cb_submit_metric_t cb)
+{
     AS_TYPE(Six, six)->setSubmitMetricCb(cb);
 }
 
-void set_submit_service_check_cb(six_t *six, cb_submit_service_check_t cb) {
+void set_submit_service_check_cb(six_t *six, cb_submit_service_check_t cb)
+{
     AS_TYPE(Six, six)->setSubmitServiceCheckCb(cb);
 }
 
-void set_submit_event_cb(six_t *six, cb_submit_event_t cb) {
+void set_submit_event_cb(six_t *six, cb_submit_event_t cb)
+{
     AS_TYPE(Six, six)->setSubmitEventCb(cb);
 }
 
@@ -278,55 +301,66 @@ void set_submit_event_cb(six_t *six, cb_submit_event_t cb) {
  * datadog_agent API
  */
 
-void set_get_version_cb(six_t *six, cb_get_version_t cb) {
+void set_get_version_cb(six_t *six, cb_get_version_t cb)
+{
     AS_TYPE(Six, six)->setGetVersionCb(cb);
 }
 
-void set_get_config_cb(six_t *six, cb_get_config_t cb) {
+void set_get_config_cb(six_t *six, cb_get_config_t cb)
+{
     AS_TYPE(Six, six)->setGetConfigCb(cb);
 }
 
-void set_headers_cb(six_t *six, cb_headers_t cb) {
+void set_headers_cb(six_t *six, cb_headers_t cb)
+{
     AS_TYPE(Six, six)->setHeadersCb(cb);
 }
 
-void set_get_hostname_cb(six_t *six, cb_get_hostname_t cb) {
+void set_get_hostname_cb(six_t *six, cb_get_hostname_t cb)
+{
     AS_TYPE(Six, six)->setGetHostnameCb(cb);
 }
 
-void set_get_clustername_cb(six_t *six, cb_get_clustername_t cb) {
+void set_get_clustername_cb(six_t *six, cb_get_clustername_t cb)
+{
     AS_TYPE(Six, six)->setGetClusternameCb(cb);
 }
 
-void set_log_cb(six_t *six, cb_log_t cb) {
+void set_log_cb(six_t *six, cb_log_t cb)
+{
     AS_TYPE(Six, six)->setLogCb(cb);
 }
 
-void set_set_external_tags_cb(six_t *six, cb_set_external_tags_t cb) {
+void set_set_external_tags_cb(six_t *six, cb_set_external_tags_t cb)
+{
     AS_TYPE(Six, six)->setSetExternalTagsCb(cb);
 }
 
-char *get_integration_list(six_t *six) {
+char *get_integration_list(six_t *six)
+{
     return AS_TYPE(Six, six)->getIntegrationList();
 }
 
 /*
  * _util API
  */
-void set_get_subprocess_output_cb(six_t *six, cb_get_subprocess_output_t cb) {
+void set_get_subprocess_output_cb(six_t *six, cb_get_subprocess_output_t cb)
+{
     AS_TYPE(Six, six)->setSubprocessOutputCb(cb);
 }
 
 /*
  * CGO API
  */
-void set_cgo_free_cb(six_t *six, cb_cgo_free_t cb) {
+void set_cgo_free_cb(six_t *six, cb_cgo_free_t cb)
+{
     AS_TYPE(Six, six)->setCGOFreeCb(cb);
 }
 
 /*
  * tagger API
  */
-void set_get_tags_cb(six_t *six, cb_get_tags_t cb) {
+void set_get_tags_cb(six_t *six, cb_get_tags_t cb)
+{
     AS_TYPE(Six, six)->setGetTagsCb(cb);
 }

@@ -5,17 +5,20 @@
 // Copyright 2019 Datadog, Inc.
 #include <six.h>
 
-void Six::setError(const std::string &msg) const {
+void Six::setError(const std::string &msg) const
+{
     _errorFlag = true;
     _error = msg;
 }
 
-void Six::setError(const char *msg) const {
+void Six::setError(const char *msg) const
+{
     _errorFlag = true;
     _error = msg;
 }
 
-const char *Six::getError() const {
+const char *Six::getError() const
+{
     if (!_errorFlag) {
         // error was already fetched, cleanup
         _error = "";
@@ -26,16 +29,19 @@ const char *Six::getError() const {
     return _error.c_str();
 }
 
-bool Six::hasError() const {
+bool Six::hasError() const
+{
     return _errorFlag;
 }
 
-void Six::clearError() {
+void Six::clearError()
+{
     _errorFlag = false;
     _error = "";
 }
 
-void Six::free(void *ptr) {
+void Six::free(void *ptr)
+{
     if (ptr != NULL) {
         ::free(ptr);
     }

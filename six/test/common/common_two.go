@@ -14,5 +14,5 @@ const UsingTwo bool = true
 
 // GetSix returns a Six instance using Two
 func GetSix() *C.six_t {
-	return C.make2()
+	return C.make2(nil)
 }
