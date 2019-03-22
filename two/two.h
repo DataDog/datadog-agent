@@ -69,6 +69,9 @@ public:
     // tagger
     void setGetTagsCb(cb_get_tags_t);
 
+    // containers
+    void setIsExcludedCb(cb_is_excluded_t);
+
 private:
     void initPythonHome(const char *pythonHome = NULL);
     PyObject *_importFrom(const char *module, const char *name);
