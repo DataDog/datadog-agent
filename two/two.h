@@ -12,15 +12,14 @@
 #include <Python.h>
 #include <six.h>
 
-class Two : public Six {
+class Two : public Six
+{
 public:
-    Two()
-        : Six()
-        , _baseClass(NULL)
-        , _pythonPaths(){};
+    Two();
+    Two(const char *python_home);
     ~Two();
 
-    bool init(const char *pythonHome);
+    bool init();
     bool addPythonPath(const char *path);
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
@@ -39,7 +38,8 @@ public:
     bool isInitialized() const;
     const char *getPyVersion() const;
     bool runSimpleString(const char *code) const;
-    SixPyObject *getNone() const {
+    SixPyObject *getNone() const
+    {
         return reinterpret_cast<SixPyObject *>(Py_None);
     }
 
@@ -70,6 +70,7 @@ public:
     void setGetTagsCb(cb_get_tags_t);
 
 private:
+    void initPythonHome(const char *pythonHome = NULL);
     PyObject *_importFrom(const char *module, const char *name);
     PyObject *_findSubclassOf(PyObject *base, PyObject *moduleName);
     PyObject *_getClass(const char *module, const char *base);

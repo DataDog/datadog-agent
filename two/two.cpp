@@ -19,25 +19,49 @@
 #include <iostream>
 #include <sstream>
 
-extern "C" DATADOG_AGENT_SIX_API Six *create() {
-    return new Two();
+extern "C" DATADOG_AGENT_SIX_API Six *create(const char *pythonHome)
+{
+    return new Two(pythonHome);
 }
-extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p) {
+extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p)
+{
     delete p;
 }
 
-Two::~Two() {
+Two::Two()
+    : Six()
+    , _baseClass(NULL)
+    , _pythonPaths()
+{
+    initPythonHome();
+}
+
+Two::Two(const char *python_home)
+    : Six()
+    , _baseClass(NULL)
+    , _pythonPaths()
+{
+    initPythonHome(python_home);
+}
+
+Two::~Two()
+{
     PyEval_RestoreThread(_threadState);
     Py_XDECREF(_baseClass);
     Py_Finalize();
 }
 
-bool Two::init(const char *pythonHome) {
+void Two::initPythonHome(const char *pythonHome)
+{
     if (pythonHome != NULL) {
         _pythonHome = pythonHome;
     }
 
     Py_SetPythonHome(const_cast<char *>(_pythonHome));
+}
+bool Two::init()
+{
+
     Py_Initialize();
 
     // In recent versions of Python3 this is called from Py_Initialize already,
@@ -71,19 +95,23 @@ bool Two::init(const char *pythonHome) {
     return _baseClass != NULL;
 }
 
-bool Two::isInitialized() const {
+bool Two::isInitialized() const
+{
     return Py_IsInitialized();
 }
 
-const char *Two::getPyVersion() const {
+const char *Two::getPyVersion() const
+{
     return Py_GetVersion();
 }
 
-bool Two::runSimpleString(const char *code) const {
+bool Two::runSimpleString(const char *code) const
+{
     return PyRun_SimpleString(code) == 0;
 }
 
-bool Two::addPythonPath(const char *path) {
+bool Two::addPythonPath(const char *path)
+{
     if (std::find(_pythonPaths.begin(), _pythonPaths.end(), path) == _pythonPaths.end()) {
         _pythonPaths.push_back(path);
         return true;
@@ -91,7 +119,8 @@ bool Two::addPythonPath(const char *path) {
     return false;
 }
 
-six_gilstate_t Two::GILEnsure() {
+six_gilstate_t Two::GILEnsure()
+{
     PyGILState_STATE state = PyGILState_Ensure();
     if (state == PyGILState_LOCKED) {
         return DATADOG_AGENT_SIX_GIL_LOCKED;
@@ -99,7 +128,8 @@ six_gilstate_t Two::GILEnsure() {
     return DATADOG_AGENT_SIX_GIL_UNLOCKED;
 }
 
-void Two::GILRelease(six_gilstate_t state) {
+void Two::GILRelease(six_gilstate_t state)
+{
     if (state == DATADOG_AGENT_SIX_GIL_LOCKED) {
         PyGILState_Release(PyGILState_LOCKED);
     } else {
@@ -108,7 +138,8 @@ void Two::GILRelease(six_gilstate_t state) {
 }
 
 // return new reference
-PyObject *Two::_importFrom(const char *module, const char *name) {
+PyObject *Two::_importFrom(const char *module, const char *name)
+{
     PyObject *obj_module = NULL;
     PyObject *obj_symbol = NULL;
 
@@ -133,7 +164,8 @@ error:
     return NULL;
 }
 
-SixPyObject *Two::getCheckClass(const char *module) {
+SixPyObject *Two::getCheckClass(const char *module)
+{
     PyObject *obj_module = NULL;
     PyObject *klass = NULL;
 
@@ -148,7 +180,8 @@ done:
     return reinterpret_cast<SixPyObject *>(klass);
 }
 
-bool Two::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyClass) {
+bool Two::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyClass)
+{
     PyObject *obj_module = NULL;
     PyObject *obj_class = NULL;
 
@@ -175,8 +208,8 @@ bool Two::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyC
 }
 
 bool Two::getCheck(SixPyObject *py_class, const char *init_config_str, const char *instance_str,
-                   const char *check_id_str, const char *check_name, const char *agent_config_str,
-                   SixPyObject *&check) {
+                   const char *check_id_str, const char *check_name, const char *agent_config_str, SixPyObject *&check)
+{
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
     PyObject *agent_config = NULL;
     PyObject *init_config = NULL;
@@ -272,7 +305,8 @@ done:
     return true;
 }
 
-PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module) {
+PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
+{
     // baseClass is not a Class type
     if (base == NULL || !PyType_Check(base)) {
         setError("base class is not of type 'Class'");
@@ -356,7 +390,8 @@ done:
     return klass;
 }
 
-const char *Two::runCheck(SixPyObject *check) {
+const char *Two::runCheck(SixPyObject *check)
+{
     if (check == NULL) {
         return NULL;
     }
@@ -390,7 +425,8 @@ done:
     return ret_copy;
 }
 
-std::string Two::_fetchPythonError() {
+std::string Two::_fetchPythonError()
+{
     std::string ret_val = "";
 
     if (PyErr_Occurred() == NULL) {
@@ -457,7 +493,8 @@ std::string Two::_fetchPythonError() {
     return ret_val;
 }
 
-bool Two::getAttrString(SixPyObject *obj, const char *attributeName, char *&value) const {
+bool Two::getAttrString(SixPyObject *obj, const char *attributeName, char *&value) const
+{
     if (obj == NULL) {
         return false;
     }
@@ -481,63 +518,78 @@ bool Two::getAttrString(SixPyObject *obj, const char *attributeName, char *&valu
     return res;
 }
 
-void Two::decref(SixPyObject *obj) {
+void Two::decref(SixPyObject *obj)
+{
     Py_XDECREF(reinterpret_cast<PyObject *>(obj));
 }
 
-void Two::incref(SixPyObject *obj) {
+void Two::incref(SixPyObject *obj)
+{
     Py_XINCREF(reinterpret_cast<SixPyObject *>(obj));
 }
 
-void Two::setSubmitMetricCb(cb_submit_metric_t cb) {
+void Two::setSubmitMetricCb(cb_submit_metric_t cb)
+{
     _set_submit_metric_cb(cb);
 }
 
-void Two::setSubmitServiceCheckCb(cb_submit_service_check_t cb) {
+void Two::setSubmitServiceCheckCb(cb_submit_service_check_t cb)
+{
     _set_submit_service_check_cb(cb);
 }
 
-void Two::setSubmitEventCb(cb_submit_event_t cb) {
+void Two::setSubmitEventCb(cb_submit_event_t cb)
+{
     _set_submit_event_cb(cb);
 }
 
-void Two::setGetVersionCb(cb_get_version_t cb) {
+void Two::setGetVersionCb(cb_get_version_t cb)
+{
     _set_get_version_cb(cb);
 }
 
-void Two::setGetConfigCb(cb_get_config_t cb) {
+void Two::setGetConfigCb(cb_get_config_t cb)
+{
     _set_get_config_cb(cb);
 }
 
-void Two::setHeadersCb(cb_headers_t cb) {
+void Two::setHeadersCb(cb_headers_t cb)
+{
     _set_headers_cb(cb);
 }
 
-void Two::setGetHostnameCb(cb_get_hostname_t cb) {
+void Two::setGetHostnameCb(cb_get_hostname_t cb)
+{
     _set_get_hostname_cb(cb);
 }
 
-void Two::setGetClusternameCb(cb_get_clustername_t cb) {
+void Two::setGetClusternameCb(cb_get_clustername_t cb)
+{
     _set_get_clustername_cb(cb);
 }
 
-void Two::setLogCb(cb_log_t cb) {
+void Two::setLogCb(cb_log_t cb)
+{
     _set_log_cb(cb);
 }
 
-void Two::setSetExternalTagsCb(cb_set_external_tags_t cb) {
+void Two::setSetExternalTagsCb(cb_set_external_tags_t cb)
+{
     _set_set_external_tags_cb(cb);
 }
 
-void Two::setSubprocessOutputCb(cb_get_subprocess_output_t cb) {
+void Two::setSubprocessOutputCb(cb_get_subprocess_output_t cb)
+{
     _set_get_subprocess_output_cb(cb);
 }
 
-void Two::setCGOFreeCb(cb_cgo_free_t cb) {
+void Two::setCGOFreeCb(cb_cgo_free_t cb)
+{
     _set_cgo_free_cb(cb);
 }
 
-void Two::setGetTagsCb(cb_get_tags_t cb) {
+void Two::setGetTagsCb(cb_get_tags_t cb)
+{
     _set_get_tags_cb(cb);
 }
 
@@ -545,7 +597,8 @@ void Two::setGetTagsCb(cb_get_tags_t cb) {
 
 // get_integration_list return a list of every datadog's wheels installed. The
 // returned list must be free by calling free_integration_list.
-char *Two::getIntegrationList() {
+char *Two::getIntegrationList()
+{
     PyObject *pyPackages = NULL;
     PyObject *pkgLister = NULL;
     PyObject *args = NULL;
