@@ -49,10 +49,6 @@ machines = {
         :box => 'mwrock/Windows2016',
         :ip => '192.168.56.120',
     },
-    :win12 => {
-        :box => 'mwrock/Windows2012R2',
-        :ip => '192.168.56.121',
-    },
 }
 
 Vagrant.configure("2") do |config|
