@@ -261,23 +261,26 @@ func (series Series) DescribeItem(i int) string {
 // Called when using jsoniter
 func encodePoints(ptr unsafe.Pointer, stream *jsoniter.Stream) {
 	if ptr == nil {
-		stream.Write(jsonArrayStart)
-		stream.Write(jsonArrayEnd)
-		return
+		stream.WriteEmptyArray()
 	}
 
 	points := *(*[]Point)(ptr)
 	var needComa bool
-	stream.Write(jsonArrayStart)
+
+	stream.WriteArrayStart()
 	for _, p := range points {
 		if needComa {
-			stream.Write(jsonSeparator)
+			stream.WriteMore()
 		} else {
 			needComa = true
 		}
-		fmt.Fprintf(stream, "[%v,%v]", int64(p.Ts), p.Value)
+		stream.WriteArrayStart()
+		stream.WriteInt64(int64(p.Ts))
+		stream.WriteMore()
+		stream.WriteFloat64(p.Value)
+		stream.WriteArrayEnd()
 	}
-	stream.Write(jsonArrayEnd)
+	stream.WriteArrayEnd()
 }
 
 func init() {
