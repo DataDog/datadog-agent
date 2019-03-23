@@ -11,6 +11,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"io"
 	"strings"
 	"unsafe"
 
@@ -224,28 +225,42 @@ func (e Serie) String() string {
 //// The following methods implement the StreamJSONMarshaler interface
 //// for support of the enable_stream_payload_serialization option.
 
-// JSONHeader prints the payload header for this type
-func (series Series) JSONHeader() []byte {
-	return []byte(`{"series":[`)
+// WriteHeader writes the payload header for this type
+func (series Series) WriteHeader(w io.Writer) {
+	stream := marshaller.BorrowStream(w)
+	defer marshaller.ReturnStream(stream)
+	stream.WriteObjectStart()
+	stream.WriteObjectField("series")
+	stream.WriteArrayStart()
+	stream.Flush()
+}
+
+// WriteFooter prints the payload footer for this type
+func (series Series) WriteFooter(w io.Writer) {
+	stream := marshaller.BorrowStream(w)
+	defer marshaller.ReturnStream(stream)
+	stream.WriteArrayEnd()
+	stream.WriteObjectEnd()
+	stream.Flush()
+}
+
+// WriteItem prints the json representation of an item
+func (series Series) WriteItem(w io.Writer, i int) error {
+	if i < 0 || i > len(series)-1 {
+		return errors.New("out of range")
+	}
+	serie := series[i]
+	populateDeviceField(serie)
+	stream := marshaller.BorrowStream(w)
+	defer marshaller.ReturnStream(stream)
+	stream.WriteVal(serie)
+	stream.Flush()
+	return nil
 }
 
 // Len returns the number of items to marshal
 func (series Series) Len() int {
 	return len(series)
-}
-
-// JSONItem prints the json representation of an item
-func (series Series) JSONItem(i int) ([]byte, error) {
-	if i < 0 || i > len(series)-1 {
-		return nil, errors.New("out of range")
-	}
-	populateDeviceField(series[i])
-	return marshaller.Marshal(series[i])
-}
-
-// JSONFooter prints the payload footer for this type
-func (series Series) JSONFooter() []byte {
-	return []byte(`]}`)
 }
 
 // DescribeItem returns a text description for logs

@@ -7,6 +7,7 @@ package serializer
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"testing"
 
@@ -106,11 +107,15 @@ func (p *testPayload) Marshal() ([]byte, error)     { return protobufString, nil
 func (p *testPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return []marshaler.Marshaler{}, nil
 }
-func (p *testPayload) JSONHeader() []byte             { return jsonHeader }
-func (p *testPayload) Len() int                       { return 1 }
-func (p *testPayload) JSONItem(i int) ([]byte, error) { return jsonItem, nil }
-func (p *testPayload) DescribeItem(i int) string      { return "description" }
-func (p *testPayload) JSONFooter() []byte             { return jsonFooter }
+
+func (p *testPayload) WriteHeader(w io.Writer) { w.Write(jsonHeader) }
+func (p *testPayload) WriteFooter(w io.Writer) { w.Write(jsonFooter) }
+func (p *testPayload) WriteItem(w io.Writer, i int) error {
+	w.Write(jsonItem)
+	return nil
+}
+func (p *testPayload) Len() int                  { return 1 }
+func (p *testPayload) DescribeItem(i int) string { return "description" }
 
 type testErrorPayload struct{}
 
@@ -119,11 +124,12 @@ func (p *testErrorPayload) Marshal() ([]byte, error)     { return nil, fmt.Error
 func (p *testErrorPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return []marshaler.Marshaler{}, fmt.Errorf("some error")
 }
-func (p *testErrorPayload) JSONHeader() []byte             { return jsonHeader }
-func (p *testErrorPayload) Len() int                       { return 1 }
-func (p *testErrorPayload) JSONItem(i int) ([]byte, error) { return jsonItem, fmt.Errorf("some error") }
-func (p *testErrorPayload) DescribeItem(i int) string      { return "description" }
-func (p *testErrorPayload) JSONFooter() []byte             { return jsonFooter }
+
+func (p *testErrorPayload) WriteHeader(w io.Writer)            { w.Write(jsonHeader) }
+func (p *testErrorPayload) WriteFooter(w io.Writer)            { w.Write(jsonFooter) }
+func (p *testErrorPayload) WriteItem(w io.Writer, i int) error { return fmt.Errorf("some error") }
+func (p *testErrorPayload) Len() int                           { return 1 }
+func (p *testErrorPayload) DescribeItem(i int) string          { return "description" }
 
 func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 	payloads := forwarder.Payloads{}

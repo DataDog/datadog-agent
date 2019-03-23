@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -293,26 +294,33 @@ func TestStreamJSONMarshaler(t *testing.T) {
 		},
 	}
 
+	var buffer bytes.Buffer
+
 	assert.Equal(t, 3, series.Len())
-	assert.Equal(t, `{"series":[`, string(series.JSONHeader()))
-	assert.Equal(t, `]}`, string(series.JSONFooter()))
+
+	series.WriteHeader(&buffer)
+	assert.Equal(t, `{"series":[`, buffer.String())
+	buffer.Reset()
+
+	series.WriteFooter(&buffer)
+	assert.Equal(t, `]}`, buffer.String())
+	buffer.Reset()
 
 	// Access an out-of-bounds item
-	out, err := series.JSONItem(10)
-	assert.Nil(t, out)
+	err := series.WriteItem(&buffer, 10)
 	assert.EqualError(t, err, "out of range")
-	out, err = series.JSONItem(-10)
-	assert.Nil(t, out)
+	err = series.WriteItem(&buffer, -10)
 	assert.EqualError(t, err, "out of range")
 
 	// Test each item type
 	for i := range series {
-		out, err = series.JSONItem(i)
+		buffer.Reset()
+		err = series.WriteItem(&buffer, i)
 		assert.NoError(t, err)
 
 		// Make sure the output is valid and matches the original item
 		item := &Serie{}
-		err = json.Unmarshal(out, item)
+		err = json.Unmarshal(buffer.Bytes(), item)
 		assert.NoError(t, err)
 		assert.EqualValues(t, series[i], item)
 	}
@@ -333,12 +341,14 @@ func TestStreamJSONMarshalerWithDevice(t *testing.T) {
 		},
 	}
 
-	out, err := series.JSONItem(0)
+	var buffer bytes.Buffer
+
+	err := series.WriteItem(&buffer, 0)
 	assert.NoError(t, err)
 
 	// Make sure the output is valid and fields are as expected
 	item := &Serie{}
-	err = json.Unmarshal(out, item)
+	err = json.Unmarshal(buffer.Bytes(), item)
 	assert.NoError(t, err)
 	assert.Equal(t, item.Device, "/dev/sda1")
 	assert.Equal(t, item.Tags, []string{"tag1", "tag2:yes"})
