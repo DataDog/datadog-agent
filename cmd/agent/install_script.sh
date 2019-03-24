@@ -218,7 +218,7 @@ function version_gt() {
     test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1";
 }
 
-#Minimum kernel version required for network tracer https://github.com/StackVista/tcptracer-bpf/blob/master/pkg/tracer/tracer.go#L33
+#Minimum kernel version required for network tracer https://github.com/StackVista/tcptracer-bpf/blob/master/pkg/tracer/common/common_linux.go#L28
 min_required_kernel="4.3.0"
 current_kernel=`uname -r`
 if version_gt $min_required_kernel $current_kernel; then

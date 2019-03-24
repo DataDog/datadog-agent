@@ -87,7 +87,7 @@ deps:
 
 deps-rpm:
   stage: prepare
-  image: stackstate/stackstate-agent-runner-gitlab:rpm.latest
+  image: stackstate/stackstate-agent-runner-gitlab:centos6
   cache:
     key: "agent-deps-rpm"
     paths:
@@ -213,6 +213,8 @@ build_rpm_clear_cache:
 
 build_deb:
   stage: build_and_test
+  dependencies:
+    - deps
   tags:
     # We put the deb build on sts-aws because it runs long and we do want to have it run
     # fast.
@@ -258,7 +260,7 @@ build_deb:
 
 build_rpm:
   stage: build_and_test
-  image: stackstate/stackstate-agent-runner-gitlab:rpm.latest
+  image: stackstate/stackstate-agent-runner-gitlab:centos6
   dependencies:
     - deps-rpm
   tags:
@@ -333,7 +335,7 @@ test_deb_renaming:
 
 test_rpm_renaming:
   stage: pre_release
-  image: stackstate/stackstate-agent-runner-gitlab:rpm.latest
+  image: stackstate/stackstate-agent-runner-gitlab:centos6
   dependencies:
     - build_rpm
   before_script: []

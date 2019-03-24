@@ -14,8 +14,8 @@ dependency 'six'
 dependency 'protobuf-py'
 dependency 'nfsiostat'
 unless windows?
-dependency 'sysstat'
-dependency 'curl'
+  dependency 'sysstat'
+  dependency 'curl'
 end
 
 # Actual dependencies

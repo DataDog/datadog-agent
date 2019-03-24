@@ -1,5 +1,5 @@
 build:
-	docker build -t stackstate/stackstate-agent-runner-circle:rpm_base.latest .
+	docker build -t stackstate/stackstate-agent-runner-circle:centos6 .
 push:
-	docker push stackstate/stackstate-agent-runner-circle:rpm_base.latest
+	docker push stackstate/stackstate-agent-runner-circle:centos6
 

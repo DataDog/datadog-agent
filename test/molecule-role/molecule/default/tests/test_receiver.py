@@ -24,7 +24,7 @@ def test_receiver_ok(host):
 
 
 def test_generic_events(host):
-    url = "http://localhost:7070/api/topic/sts_generic_events?offset=0&limit=40"
+    url = "http://localhost:7070/api/topic/sts_generic_events?offset=0&limit=80"
 
     def wait_for_metrics():
         data = host.check_output("curl \"%s\"" % url)
@@ -39,6 +39,7 @@ def test_generic_events(host):
         print events
         assert events["agent-ubuntu"] == {"System.Agent Startup", "processStateEvent"}
         assert events["agent-fedora"] == {"System.Agent Startup", "processStateEvent"}
+        assert events["agent-centos"] == {"System.Agent Startup", "processStateEvent"}
         assert events["agent-win"] == {"System.Agent Startup"}
 
     util.wait_until(wait_for_metrics, 30, 3)
@@ -258,6 +259,7 @@ def test_process_metrics(host):
 
         assert get_keys("agent-ubuntu") == expected
         assert get_keys("agent-fedora") == expected
+        assert get_keys("agent-centos") == expected
         assert get_keys("agent-win") == expected
 
     util.wait_until(wait_for_metrics, 30, 3)
@@ -287,8 +289,10 @@ def test_topology_components(host):
         assert _component_data("host", "urn:host:/agent-win", None)["system"]["os"]["name"] == "windows"
         assert _component_data("host", "urn:host:/agent-fedora", None)["system"]["os"]["name"] == "linux"
         assert _component_data("host", "urn:host:/agent-ubuntu", None)["system"]["os"]["name"] == "linux"
+        assert _component_data("host", "urn:host:/agent-centos", None)["system"]["os"]["name"] == "linux"
         assert _component_data("process", "urn:process:/agent-fedora", "/opt/stackstate-agent/bin/agent/agent")["hostTags"] == ["os:linux"]
         assert _component_data("process", "urn:process:/agent-ubuntu", "/opt/stackstate-agent/bin/agent/agent")["hostTags"] == ["os:linux"]
+        assert _component_data("process", "urn:process:/agent-centos", "/opt/stackstate-agent/bin/agent/agent")["hostTags"] == ["os:linux"]
         assert _component_data("process", "urn:process:/agent-win", "\"C:\\Program Files\\StackState\\StackState Agent\\embedded\\agent.exe\"")["hostTags"] == ["os:windows"]
 
     util.wait_until(wait_for_components, 30, 3)

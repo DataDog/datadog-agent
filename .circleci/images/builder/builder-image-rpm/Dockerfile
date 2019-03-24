@@ -1,19 +1,41 @@
-FROM centos:7
+FROM centos:6
 
-ARG GOLANG_VERSION=1.10.3
+ENV SYSTEMD_VERSION=219
+ENV GIT_VERSION=2.21.0
+ENV PYTHON_VERSION=2.7.15
+ENV GOLANG_VERSION=1.10.3
 ARG GIMME_URL=raw.githubusercontent.com/travis-ci/gimme/master/gimme
 ARG GIMME_DEBUG=0
-ARG RBENV_VERSION=2.4.4
-ARG BUNDLER_VERSION=1.15.3
+ENV RBENV_VERSION=2.4.4
+ENV BUNDLER_VERSION=1.15.3
 
-RUN yum -y install git bzip2 gcc make openssl-devel readline-devel zlib-devel \
-                   python-devel.x86_64 patch gcc-c++ file rpm-build
+RUN yum -y install curl-devel expat-devel gettext-devel perl-ExtUtils-MakeMaker \
+                   gcc make openssl-devel bzip2 bzip2-devel readline-devel \
+                   zlib-devel patch gcc-c++ file rpm-build
 
-RUN yum install -y python  \
-    && curl "https://bootstrap.pypa.io/get-pip.py" -o "get-pip.py" \
+# Provide systemd header files needed to build the agent systemd module (journald log collector)
+RUN curl "https://codeload.github.com/systemd/systemd/tar.gz/v$SYSTEMD_VERSION" -o "systemd-$SYSTEMD_VERSION.tar.gz" \
+    && tar xzf systemd-$SYSTEMD_VERSION.tar.gz \
+    && mv systemd-$SYSTEMD_VERSION/src/systemd/ /usr/include/
+
+RUN curl "https://mirrors.edge.kernel.org/pub/software/scm/git/git-$GIT_VERSION.tar.gz" -o "git-$GIT_VERSION.tar.gz" \
+    && tar xzf git-$GIT_VERSION.tar.gz \
+    && cd git-$GIT_VERSION \
+    && make prefix=/usr/src/git all \
+    && make prefix=/usr/src/git install
+
+ENV PATH=$PATH:/usr/src/git/bin
+
+RUN curl "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tgz" -o "Python-$PYTHON_VERSION.tgz" \
+    && tar xzf Python-$PYTHON_VERSION.tgz \
+    && cd Python-$PYTHON_VERSION \
+    && ./configure --enable-optimizations \
+    && make altinstall
+
+RUN curl "https://bootstrap.pypa.io/2.6/get-pip.py" -o "get-pip.py" \
     && python get-pip.py \
     && rm get-pip.py \
-    && pip install virtualenv==16.0.0
+    && pip install virtualenv==15.2.0
 
 RUN eval "$(curl -sL https://$GIMME_URL | \
     GIMME_GO_VERSION="$GOLANG_VERSION" \

@@ -28,6 +28,16 @@ platforms:
     ssh_user: fedora
     user_data: files/agent/none.txt
 
+  - name: agent-centos
+    image: ami-0451e9d3427711cb1    # CentOS Linux 6.10 x86_64 HVM EBS ENA 1901_01
+    instance_type: t2.micro
+    vpc_subnet_id: subnet-41c8f224  # eu-west-1a
+    region: eu-west-1
+    groups:
+      - agent_linux_vm
+    ssh_user: centos
+    user_data: files/agent/none.txt
+
   - name: agent-win
     image: ami-027b3f92f3ed575ca  #  Windows Server 2016 preconfigured for ansible (EBS-Backed)
     instance_type: t3.small

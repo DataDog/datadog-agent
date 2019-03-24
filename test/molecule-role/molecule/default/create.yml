@@ -105,6 +105,7 @@
         vpc_subnet_id: "{{ item.vpc_subnet_id }}"
         group: "{{ security_group_name }}"
         instance_tags:
+          Name: "{{ item.name }}"
           instance: "{{ item.name }}"
           molecule_run_id: "{{ molecule_run_id }}"
           molecule: yes

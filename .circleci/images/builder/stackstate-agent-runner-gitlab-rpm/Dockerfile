@@ -1,4 +1,4 @@
-FROM stackstate/stackstate-agent-runner-circle:rpm_base.latest
+FROM stackstate/stackstate-agent-runner-circle:centos6
 
 RUN pip install awscli boto3 sa-rpm-s3
 

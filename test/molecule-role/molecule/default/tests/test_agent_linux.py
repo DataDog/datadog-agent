@@ -22,7 +22,7 @@ def test_stackstate_agent_running_and_enabled(host):
 
 def test_stackstate_process_agent_running_and_enabled(host):
     # We don't check enabled because on systemd redhat is not needed check omnibus/package-scripts/agent/posttrans
-    assert not host.ansible("service", "name=stackstate-agent-process state=started")['changed']
+    assert not host.ansible("service", "name=stackstate-agent-process state=started", become=True)['changed']
 
 
 def test_stackstate_agent_log(host):
@@ -53,6 +53,7 @@ def test_stackstate_agent_log(host):
 
 
 def test_stackstate_process_agent_no_log_errors(host):
+    hostname = host.ansible.get_variables()["inventory_hostname"]
     process_agent_log_path = "/var/log/stackstate-agent/process-agent.log"
 
     # Check for presence of success
@@ -61,7 +62,8 @@ def test_stackstate_process_agent_no_log_errors(host):
         print process_agent_log
 
         assert re.search("Finished check #1", process_agent_log)
-        assert re.search("starting network tracer locally", process_agent_log)
+        if hostname != "agent-centos":
+            assert re.search("starting network tracer locally", process_agent_log)
 
     util.wait_until(wait_for_check_successes, 30, 3)
 
