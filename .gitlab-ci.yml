@@ -407,7 +407,7 @@ build_windows_msi_x64:
     - if exist \omnibus-ruby rd /s/q \omnibus-ruby
     - if exist %OMNIBUS_BASE_DIR_WIN% rd /s/q %OMNIBUS_BASE_DIR_WIN%
     - if exist \opt\datadog-agent rd /s/q \opt\datadog-agent
-    - if exist %GOPATH%\src\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent
+    - if exist %GOPATH%\src rd /s/q %GOPATH%\src
     - mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
     - xcopy /q/h/e/s * %GOPATH%\src\github.com\DataDog\datadog-agent
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
