@@ -364,3 +364,11 @@ void set_get_tags_cb(six_t *six, cb_get_tags_t cb)
 {
     AS_TYPE(Six, six)->setGetTagsCb(cb);
 }
+
+/*
+ * containers API
+ */
+void set_is_excluded_cb(six_t *six, cb_is_excluded_t cb)
+{
+    AS_TYPE(Six, six)->setIsExcludedCb(cb);
+}

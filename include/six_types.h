@@ -98,6 +98,11 @@ typedef void (*cb_cgo_free_t)(void *);
 // (id, highCard)
 typedef void (*cb_get_tags_t)(char *, int, char **);
 
+// containers
+//
+// (container_name, image_name, bool_result)
+typedef void (*cb_is_excluded_t)(char *, char *, int *);
+
 #ifdef __cplusplus
 }
 #endif
