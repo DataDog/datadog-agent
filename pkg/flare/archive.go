@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -509,11 +510,6 @@ func zipStackTraces(tempDir, hostname string) error {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
 	f := filepath.Join(tempDir, hostname, routineDumpFilename)
 	err = ensureParentDirsExist(f)
 	if err != nil {
@@ -526,7 +522,8 @@ func zipStackTraces(tempDir, hostname string) error {
 	}
 	defer w.Close()
 
-	_, err = w.Write(body)
+	_, err = io.Copy(w, resp.Body)
+
 	return err
 }
 
