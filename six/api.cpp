@@ -372,3 +372,11 @@ void set_get_connection_info_cb(six_t *six, cb_get_connection_info_t cb)
 {
     AS_TYPE(Six, six)->setGetConnectionInfoCb(cb);
 }
+
+/*
+ * containers API
+ */
+void set_is_excluded_cb(six_t *six, cb_is_excluded_t cb)
+{
+    AS_TYPE(Six, six)->setIsExcludedCb(cb);
+}

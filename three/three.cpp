@@ -11,6 +11,7 @@
 #include <_util.h>
 #include <aggregator.h>
 #include <cgo_free.h>
+#include <containers.h>
 #include <datadog_agent.h>
 #include <kubeutil.h>
 #include <tagger.h>
@@ -78,6 +79,7 @@ bool Three::init()
     PyImport_AppendInittab(_UTIL_MODULE_NAME, PyInit__util);
     PyImport_AppendInittab(TAGGER_MODULE_NAME, PyInit_tagger);
     PyImport_AppendInittab(KUBEUTIL_MODULE_NAME, PyInit_kubeutil);
+    PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
     Py_Initialize();
 
@@ -601,6 +603,11 @@ void Three::setGetTagsCb(cb_get_tags_t cb)
 void Three::setGetConnectionInfoCb(cb_get_connection_info_t cb)
 {
     _set_get_connection_info_cb(cb);
+}
+
+void Three::setIsExcludedCb(cb_is_excluded_t cb)
+{
+    _set_is_excluded_cb(cb);
 }
 
 // Python Helpers
