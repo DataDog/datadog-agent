@@ -49,7 +49,7 @@ PyObject *get_connection_info(PyObject *self, PyObject *args)
         Py_RETURN_NONE;
     }
 
-    char *data;
+    char *data = NULL;
     cb_get_connection_info(&data);
 
     // create a new ref
