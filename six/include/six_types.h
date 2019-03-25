@@ -103,6 +103,11 @@ typedef void (*cb_get_tags_t)(char *, int, char **);
 // (json_result)
 typedef void (*cb_get_connection_info_t)(char **);
 
+// containers
+//
+// (container_name, image_name, bool_result)
+typedef void (*cb_is_excluded_t)(char *, char *, int *);
+
 #ifdef __cplusplus
 }
 #endif
