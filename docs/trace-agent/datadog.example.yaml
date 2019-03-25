@@ -19,6 +19,13 @@ api_key: 1234
 # 
 # # hostname
 # hostname: localhost
+#
+# # The host to listen on for metrics and traces. This is ignored when non-local
+# # traffic is enabled on either APM or dogstatsd. The trace-agent uses this host
+# # to send metrics to and it defaults it to "localhost". This default is invalid
+# # in IPv6 environments where dogstatsd listens on "::1". To solve this problem,
+# # simply set the below value specifically to "localhost".
+# bind_host: localhost
 # 
 # # logging level
 # log_level: info
