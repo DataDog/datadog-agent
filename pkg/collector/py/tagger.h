@@ -10,6 +10,15 @@
 
 #include <Python.h>
 
+typedef enum {
+  TC_FIRST = 0,
+  LOW_CARD = TC_FIRST,
+  ORCHESTRATOR_CARD,
+  HIGH_CARD,
+  TC_LAST = HIGH_CARD
+} TaggerCardinality;
+
+
 void inittagger();
 
 #endif /* TAGGER_HEADER */
