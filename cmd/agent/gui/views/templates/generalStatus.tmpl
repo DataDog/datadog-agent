@@ -7,6 +7,7 @@
       {{- if .runnerStats.Workers}}
         <br>Check Workers: {{.runnerStats.Workers}}
       {{end}}
+      <br>Agent uptime: {{.agent_uptime}}
       <br>Log File: {{.config.log_file}}
       <br>Log Level: {{.config.log_level}}
       <br>Config File: {{if .conf_file}}{{.conf_file}}
