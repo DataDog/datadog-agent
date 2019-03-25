@@ -21,6 +21,13 @@ from .dogstatsd import integration_tests as dsd_integration_tests
 from .trace_agent import integration_tests as trace_integration_tests
 from .cluster_agent import integration_tests as dca_integration_tests
 
+#We use `basestring` in the code for compat with python2 unicode strings.
+#This makes the same code work in python3 as well.
+try:
+    basestring
+except NameError:
+    basestring = str
+
 PROFILE_COV = "profile.cov"
 
 DEFAULT_TOOL_TARGETS = [
