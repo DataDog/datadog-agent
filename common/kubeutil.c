@@ -51,10 +51,13 @@ PyObject *get_connection_info(PyObject *self, PyObject *args)
 
     char *data;
     cb_get_connection_info(&data);
+
+    // create a new ref
+    PyObject *conn_info_dict = from_json(data);
+
+    // free the memory allocated by the Agent
     cgo_free(data);
 
-    // new ref
-    PyObject *conn_info_dict = from_json(data);
     if (conn_info_dict == NULL || !PyDict_Check(conn_info_dict)) {
         Py_RETURN_NONE;
     }
