@@ -421,6 +421,8 @@ func decodeReceiverPayload(r io.Reader, dest msgp.Decodable, v Version, contentT
 
 	case "application/json":
 		fallthrough
+	case "application/json;charset=utf-8":
+		fallthrough
 	case "text/json":
 		fallthrough
 	case "":
