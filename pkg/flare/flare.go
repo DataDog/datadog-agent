@@ -6,7 +6,6 @@
 package flare
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -32,41 +31,48 @@ type flareResponse struct {
 
 // SendFlareWithHostname sends a flare with a set hostname
 func SendFlareWithHostname(archivePath string, caseID string, email string, hostname string) (string, error) {
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
+	bodyReader, bodyWriter := io.Pipe()
+	writer := multipart.NewWriter(bodyWriter)
 
-	p, err := writer.CreateFormFile("flare_file", filepath.Base(archivePath))
-	if err != nil {
-		return "", err
-	}
-	file, err := os.Open(archivePath)
-	defer file.Close()
-	if err != nil {
-		return "", err
-	}
-	_, err = io.Copy(p, file)
-	if err != nil {
-		return "", err
-	}
-	if caseID != "" {
-		writer.WriteField("case_id", caseID)
-	}
-	if email != "" {
-		writer.WriteField("email", email)
-	}
+	//Write stuff to the pipe will block until it is read from the other end, so we don't load everything in memory
+	go func() {
 
-	// Send the full version
-	av, _ := version.New(version.AgentVersion, version.Commit)
-	writer.WriteField("agent_version", av.String())
-	writer.WriteField("hostname", hostname)
+		defer bodyWriter.Close()
+		defer writer.Close()
 
-	err = writer.Close()
-	if err != nil {
-		return "", err
-	}
+		if caseID != "" {
+			writer.WriteField("case_id", caseID)
+		}
+		if email != "" {
+			writer.WriteField("email", email)
+		}
+
+		//Flare file
+		p, err := writer.CreateFormFile("flare_file", filepath.Base(archivePath))
+		if err != nil {
+			bodyWriter.CloseWithError(err)
+			return
+		}
+		file, err := os.Open(archivePath)
+		defer file.Close()
+		if err != nil {
+			bodyWriter.CloseWithError(err)
+			return
+		}
+		_, err = io.Copy(p, file)
+		if err != nil {
+			bodyWriter.CloseWithError(err)
+			return
+		}
+
+		agentFullVersion, _ := version.New(version.AgentVersion, version.Commit)
+		writer.WriteField("agent_version", agentFullVersion.String())
+		writer.WriteField("hostname", hostname)
+
+	}()
 
 	var url = mkURL(caseID)
-	request, err := http.NewRequest("POST", url, body)
+	request, err := http.NewRequest("POST", url, bodyReader)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	if err != nil {
 		return "", err
