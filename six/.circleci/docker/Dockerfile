@@ -9,7 +9,7 @@ ENV PATH $CMAKE_DEST_DIR/bin/:$PATH
 RUN set -ex \
     && apt-get update && apt-get install -y --no-install-recommends \
         gnupg ca-certificates \
-        gcc g++ make git \
+        gcc g++ make git ssh \
         wget \
         python-dev python3.7-dev python3-distutils \
         golang
