@@ -4,6 +4,7 @@
 // Copyright 2019 Datadog, Inc.
 #include "kubeutil.h"
 
+#include "cgo_free.h"
 #include <sixstrings.h>
 
 // these must be set by the Agent
