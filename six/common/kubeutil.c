@@ -50,6 +50,7 @@ PyObject *get_connection_info(PyObject *self, PyObject *args)
 
     char *data;
     cb_get_connection_info(&data);
+    cgo_free(data);
 
     // new ref
     PyObject *conn_info_dict = from_json(data);
