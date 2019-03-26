@@ -20,6 +20,7 @@ var JMXChecks = map[string]struct{}{
 	"solr":        {},
 	"tomcat":      {},
 	"kafka":       {},
+	"presto":      {},
 }
 
 // IsJMXConfig checks if a certain YAML config is a JMX config
