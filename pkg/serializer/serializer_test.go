@@ -267,8 +267,7 @@ func TestSendSketch(t *testing.T) {
 
 func TestSendMetadata(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	payloads, _ := mkPayloads(jsonString, false)
-	f.On("SubmitV1Intake", payloads, jsonExtraHeaders).Return(nil).Times(1)
+	f.On("SubmitV1Intake", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 	s := NewSerializer(f)
 
@@ -277,7 +276,7 @@ func TestSendMetadata(t *testing.T) {
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 
-	f.On("SubmitV1Intake", payloads, jsonExtraHeaders).Return(fmt.Errorf("some error")).Times(1)
+	f.On("SubmitV1Intake", jsonPayloads, jsonExtraHeadersWithCompression).Return(fmt.Errorf("some error")).Times(1)
 	err = s.SendMetadata(payload)
 	require.NotNil(t, err)
 	f.AssertExpectations(t)
@@ -331,7 +330,6 @@ func TestSendWithDisabledKind(t *testing.T) {
 	s := NewSerializer(f)
 
 	payload := &testPayload{}
-	payloads, _ := mkPayloads(jsonString, false)
 
 	s.SendEvents(payload)
 	s.SendSeries(payload)
@@ -348,7 +346,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 	f.AssertNotCalled(t, "SubmitSketchSeries")
 
 	// We never disable metadata
-	f.On("SubmitV1Intake", payloads, jsonExtraHeaders).Return(nil).Times(1)
+	f.On("SubmitV1Intake", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 	s.SendMetadata(payload)
 	f.AssertNumberOfCalls(t, "SubmitV1Intake", 1) // called once for the metadata
 }

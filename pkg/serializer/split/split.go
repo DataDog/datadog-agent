@@ -45,19 +45,19 @@ func init() {
 
 // CheckSizeAndSerialize Check the size of a payload and marshall it (optionally compress it)
 // The dual role makes sense as you will never serialize without checking the size of the payload
-func CheckSizeAndSerialize(m marshaler.Marshaler, compress bool, mType MarshalType) (bool, []byte, error) {
-	payload, _, err := serializeMarshaller(m, compress, mType)
+func CheckSizeAndSerialize(m marshaler.Marshaler, compress bool, mType MarshalType) (bool, []byte, []byte, error) {
+	compressedPayload, payload, err := serializeMarshaller(m, compress, mType)
 	if err != nil {
-		return false, nil, err
+		return false, nil, nil, err
 	}
-	return checkSize(payload), payload, nil
+	return checkSize(compressedPayload), compressedPayload, payload, nil
 }
 
 // Payloads serializes a metadata payload and sends it to the forwarder
 func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarder.Payloads, error) {
 	marshallers := []marshaler.Marshaler{m}
 	smallEnoughPayloads := forwarder.Payloads{}
-	nottoobig, payload, err := CheckSizeAndSerialize(m, compress, mType)
+	nottoobig, payload, _, err := CheckSizeAndSerialize(m, compress, mType)
 	if err != nil {
 		return smallEnoughPayloads, err
 	}
@@ -103,7 +103,7 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 			// after the payload has been split, loop through the chunks
 			for _, chunk := range chunks {
 				// serialize the payload
-				smallEnough, payload, err := CheckSizeAndSerialize(chunk, compress, mType)
+				smallEnough, payload, _, err := CheckSizeAndSerialize(chunk, compress, mType)
 				if err != nil {
 					log.Debugf("Error serializing a chunk: %s", err)
 					continue
