@@ -52,13 +52,17 @@ func (suite *TailerTestSuite) SetupTest() {
 		Path: suite.testPath,
 	})
 	sleepDuration := 10 * time.Millisecond
-	suite.tl = NewTailer(suite.outputChan, suite.source, suite.testPath, sleepDuration)
+	suite.tl = NewTailer(suite.outputChan, suite.source, suite.testPath, sleepDuration, false)
 }
 
 func (suite *TailerTestSuite) TearDownTest() {
 	suite.tl.Stop()
 	suite.testFile.Close()
 	os.Remove(suite.testDir)
+}
+
+func TestTailerTestSuite(t *testing.T) {
+	suite.Run(t, new(TailerTestSuite))
 }
 
 func (suite *TailerTestSuite) TestTailFromBeginning() {
@@ -170,11 +174,55 @@ func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 	tags := msg.Origin.Tags()
 	suite.Equal(1, len(tags))
 	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
-
 }
 
-func TestTailerTestSuite(t *testing.T) {
-	suite.Run(t, new(TailerTestSuite))
+func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
+
+	dirTaggedSource := config.NewLogSource("", &config.LogsConfig{
+		Type: config.FileType,
+		Path: suite.testPath,
+	})
+	sleepDuration := 10 * time.Millisecond
+	suite.tl = NewTailer(suite.outputChan, dirTaggedSource, suite.testPath, sleepDuration, true)
+	suite.tl.StartFromBeginning()
+
+	_, err := suite.testFile.WriteString("foo\n")
+	suite.Nil(err)
+
+	msg := <-suite.outputChan
+	tags := msg.Origin.Tags()
+	suite.Equal(2, len(tags))
+	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
+	suite.Equal("dirname:"+filepath.Dir(suite.testFile.Name()), tags[1])
+}
+
+func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
+	dirTaggedSource := config.NewLogSource("", &config.LogsConfig{
+		Type: config.FileType,
+		Path: suite.testPath,
+	})
+	sleepDuration := 10 * time.Millisecond
+	suite.tl = NewTailer(suite.outputChan, dirTaggedSource, suite.testPath, sleepDuration, false)
+	suite.tl.StartFromBeginning()
+
+	tags := suite.tl.buildTailerTags()
+	suite.Equal(1, len(tags))
+	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
+}
+
+func (suite *TailerTestSuite) TestBuildTagsFileDir() {
+	dirTaggedSource := config.NewLogSource("", &config.LogsConfig{
+		Type: config.FileType,
+		Path: suite.testPath,
+	})
+	sleepDuration := 10 * time.Millisecond
+	suite.tl = NewTailer(suite.outputChan, dirTaggedSource, suite.testPath, sleepDuration, true)
+	suite.tl.StartFromBeginning()
+
+	tags := suite.tl.buildTailerTags()
+	suite.Equal(2, len(tags))
+	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
+	suite.Equal("dirname:"+filepath.Dir(suite.testFile.Name()), tags[1])
 }
 
 func toInt(str string) int {
