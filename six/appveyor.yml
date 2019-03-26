@@ -6,6 +6,7 @@ skip_branch_with_pr: true
 branches:
   only:
     - master
+    - /^\d+\.\d+\.\d+$/
 
 environment:
   GOPATH: C:\gopath
