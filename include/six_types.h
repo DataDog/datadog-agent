@@ -72,9 +72,9 @@ typedef void (*cb_submit_event_t)(char *, event_t *);
 //
 // (version)
 typedef void (*cb_get_version_t)(char **);
-// (key, json_dump)
+// (key, json_result)
 typedef void (*cb_get_config_t)(char *, char **);
-// (json_dump)
+// (json_result)
 typedef void (*cb_headers_t)(char **);
 // (hostname)
 typedef void (*cb_get_hostname_t)(char **);
@@ -82,7 +82,7 @@ typedef void (*cb_get_hostname_t)(char **);
 typedef void (*cb_get_clustername_t)(char **);
 // (message, level)
 typedef void (*cb_log_t)(char *, int);
-// (json_dump)
+// (json_input)
 typedef void (*cb_set_external_tags_t)(char *);
 
 // _util
@@ -97,6 +97,11 @@ typedef void (*cb_cgo_free_t)(void *);
 //
 // (id, highCard)
 typedef void (*cb_get_tags_t)(char *, int, char **);
+
+// kubeutil
+//
+// (json_result)
+typedef void (*cb_get_connection_info_t)(char **);
 
 // containers
 //

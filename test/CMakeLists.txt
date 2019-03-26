@@ -9,6 +9,7 @@ set(PKGS
 	"./uutil/..."
 	"./common/..."
 	"./tagger/..."
+    "./kubeutil/..."
     "./containers/..."
 )
 
