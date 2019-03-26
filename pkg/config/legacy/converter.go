@@ -153,7 +153,6 @@ func FromAgentConfig(agentConfig Config) error {
 
 	// Processes-specific configuration
 	extractProcessAgentConfig(agentConfig, configConverter)
-
 	return extractTraceAgentConfig(agentConfig, configConverter)
 }
 
@@ -380,7 +379,6 @@ func extractURLAPIKeys(agentConfig Config, configConverter *config.LegacyConfigC
 		}
 	}
 	configConverter.Set("additional_endpoints", additionalEndpoints)
-
 	return nil
 }
 
