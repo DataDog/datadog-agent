@@ -208,6 +208,45 @@ func extractProcessAgentConfig(agentConfig Config, configConverter *config.Legac
 			fmt.Println("Ignoring value provided process.config.custom_sensitive_words because of parsing error")
 		}
 	}
+
+	// Additional endpoints processing for process-agent
+	urls := strings.Split(agentConfig["dd_url"], ",")
+	keys := strings.Split(agentConfig["api_key"], ",")
+
+	if len(urls) != len(keys) {
+		fmt.Println("Invalid number of 'dd_url'/'api_key': please provide one api_key for each url")
+	}
+
+	urls = urls[1:]
+	keys = keys[1:]
+
+	// Process url + additional endpoints
+	if v, ok := agentConfig["process.config.endpoint"]; ok {
+		processEndpoints := map[string][]string{}
+
+		processURLs, err := splitString(v, ',')
+		if err != nil || len(processURLs) == 0 {
+			return
+		}
+
+		configConverter.Set("process_config.process_dd_url", processURLs[0])
+		for idx, url := range processURLs[1:] {
+			if url == "" {
+				fmt.Println("found empty additional 'endpoint' for processes. Please check that you don't have any misplaced commas")
+				return
+			} else if keys[idx] == "" {
+				fmt.Println("found empty additional 'api_key' for processes. Please check that you don't have any misplaced commas")
+				return
+			}
+
+			if _, ok := processEndpoints[url]; ok {
+				processEndpoints[url] = append(processEndpoints[url], keys[idx])
+			} else {
+				processEndpoints[url] = []string{keys[idx]}
+			}
+		}
+		configConverter.Set("process_config.additional_endpoints", processEndpoints)
+	}
 }
 
 func extractTraceAgentConfig(agentConfig Config, configConverter *config.LegacyConfigConverter) error {
@@ -341,32 +380,6 @@ func extractURLAPIKeys(agentConfig Config, configConverter *config.LegacyConfigC
 		}
 	}
 	configConverter.Set("additional_endpoints", additionalEndpoints)
-
-	// Process url + additional endpoints
-	if v, ok := agentConfig["process.config.endpoint"]; ok {
-		processEndpoints := map[string][]string{}
-
-		processURLs, err := splitString(v, ',')
-		if err != nil || len(processURLs) == 0 {
-			return nil
-		}
-
-		configConverter.Set("process_config.process_dd_url", processURLs[0])
-		for idx, url := range processURLs[1:] {
-			if url == "" {
-				return fmt.Errorf("found empty additional 'endpoint' for processes. Please check that you don't have any misplaced commas")
-			} else if keys[idx] == "" {
-				return fmt.Errorf("found empty additional 'api_key' for processes. Please check that you don't have any misplaced commas")
-			}
-
-			if _, ok := processEndpoints[url]; ok {
-				processEndpoints[url] = append(processEndpoints[url], keys[idx])
-			} else {
-				processEndpoints[url] = []string{keys[idx]}
-			}
-		}
-		configConverter.Set("process_config.additional_endpoints", processEndpoints)
-	}
 
 	return nil
 }
