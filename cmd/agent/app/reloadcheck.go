@@ -34,7 +34,7 @@ var reloadCheckCommand = &cobra.Command{
 			return fmt.Errorf("missing arguments")
 		}
 
-		err := common.SetupConfig(confFilePath)
+		err := common.SetupConfigWithoutSecrets(confFilePath)
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
