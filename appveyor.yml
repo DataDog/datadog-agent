@@ -51,9 +51,10 @@ deploy:
   auth_token:
     secure: 89PR5NjCO2AajmsJBlM/lr5EpYMefvZaVve8Tkyxu2X9xqVcxKGcq25C9ywMySDI
   artifact: "datadog-agent-six.zip"
+  tag: $(APPVEYOR_REPO_TAG_NAME)
   on:
     # deploy on tag push only
-    APPVEYOR_REPO_TAG: true
+    appveyor_repo_tag: true
 
 # uncomment to debug builds
 # on_finish:
