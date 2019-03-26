@@ -80,6 +80,9 @@ public:
     // tagger API
     virtual void setGetTagsCb(cb_get_tags_t) = 0;
 
+    // kubeutil API
+    virtual void setGetConnectionInfoCb(cb_get_connection_info_t) = 0;
+
     // containers API
     virtual void setIsExcludedCb(cb_is_excluded_t) = 0;
 

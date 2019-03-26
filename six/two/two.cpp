@@ -13,6 +13,7 @@
 #include <cgo_free.h>
 #include <containers.h>
 #include <datadog_agent.h>
+#include <kubeutil.h>
 #include <tagger.h>
 #include <util.h>
 
@@ -75,6 +76,7 @@ bool Two::init()
     Py2_init_util();
     Py2_init__util();
     Py2_init_tagger();
+    Py2_init_kubeutil();
     Py2_init_containers();
 
     // Set PYTHONPATH
@@ -593,6 +595,11 @@ void Two::setCGOFreeCb(cb_cgo_free_t cb)
 void Two::setGetTagsCb(cb_get_tags_t cb)
 {
     _set_get_tags_cb(cb);
+}
+
+void Two::setGetConnectionInfoCb(cb_get_connection_info_t cb)
+{
+    _set_get_connection_info_cb(cb);
 }
 
 void Two::setIsExcludedCb(cb_is_excluded_t cb)

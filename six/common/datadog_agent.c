@@ -38,7 +38,8 @@ static PyMethodDef methods[] = {
 #ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, DATADOG_AGENT_MODULE_NAME, NULL, -1, methods };
 
-PyMODINIT_FUNC PyInit_datadog_agent(void) {
+PyMODINIT_FUNC PyInit_datadog_agent(void)
+{
     return PyModule_Create(&module_def);
 }
 #endif
@@ -47,40 +48,49 @@ PyMODINIT_FUNC PyInit_datadog_agent(void) {
 // in Python2 keep the object alive for the program lifetime
 static PyObject *module;
 
-void Py2_init_datadog_agent() {
+void Py2_init_datadog_agent()
+{
     module = Py_InitModule(DATADOG_AGENT_MODULE_NAME, methods);
 }
 #endif
 
-void _set_get_version_cb(cb_get_version_t cb) {
+void _set_get_version_cb(cb_get_version_t cb)
+{
     cb_get_version = cb;
 }
 
-void _set_get_config_cb(cb_get_config_t cb) {
+void _set_get_config_cb(cb_get_config_t cb)
+{
     cb_get_config = cb;
 }
 
-void _set_headers_cb(cb_headers_t cb) {
+void _set_headers_cb(cb_headers_t cb)
+{
     cb_headers = cb;
 }
 
-void _set_get_hostname_cb(cb_get_hostname_t cb) {
+void _set_get_hostname_cb(cb_get_hostname_t cb)
+{
     cb_get_hostname = cb;
 }
 
-void _set_get_clustername_cb(cb_get_clustername_t cb) {
+void _set_get_clustername_cb(cb_get_clustername_t cb)
+{
     cb_get_clustername = cb;
 }
 
-void _set_log_cb(cb_log_t cb) {
+void _set_log_cb(cb_log_t cb)
+{
     cb_log = cb;
 }
 
-void _set_set_external_tags_cb(cb_set_external_tags_t cb) {
+void _set_set_external_tags_cb(cb_set_external_tags_t cb)
+{
     cb_set_external_tags = cb;
 }
 
-PyObject *get_version(PyObject *self, PyObject *args) {
+PyObject *get_version(PyObject *self, PyObject *args)
+{
     if (cb_get_version == NULL) {
         Py_RETURN_NONE;
     }
@@ -105,7 +115,8 @@ PyObject *get_version(PyObject *self, PyObject *args) {
  * decoded back to Python and passed to the caller. JSON usage is transparent to
  * the caller, who would receive a Python object as returned from `json.loads`.
  */
-PyObject *get_config(PyObject *self, PyObject *args) {
+PyObject *get_config(PyObject *self, PyObject *args)
+{
     // callback must be set
     if (cb_get_config == NULL) {
         Py_RETURN_NONE;
@@ -116,7 +127,7 @@ PyObject *get_config(PyObject *self, PyObject *args) {
         Py_RETURN_NONE;
     }
 
-    char *data;
+    char *data = NULL;
     cb_get_config(key, &data);
 
     // new ref
@@ -136,13 +147,14 @@ PyObject *get_config(PyObject *self, PyObject *args) {
  *  1. github.com/DataDog/integrations-core/datadog_checks_base/datadog_checks/base/utils/headers.py
  *  2. github.com/DataDog/datadog-agent/pkg/util/common.go
  */
-PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs) {
+PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs)
+{
     // callback must be set but be resilient for the Python caller
     if (cb_headers == NULL) {
         Py_RETURN_NONE;
     }
 
-    char *data;
+    char *data = NULL;
     cb_headers(&data);
 
     // new ref
@@ -168,11 +180,13 @@ PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs) {
 // provide a non-static entry point for the `headers` method; headers is duplicated
 // in the `util` module; allow it to be called directly
 
-PyObject *_public_headers(PyObject *self, PyObject *args, PyObject *kwargs){
+PyObject *_public_headers(PyObject *self, PyObject *args, PyObject *kwargs)
+{
     return headers(self, args, kwargs);
 }
 
-PyObject *get_hostname(PyObject *self, PyObject *args) {
+PyObject *get_hostname(PyObject *self, PyObject *args)
+{
     // callback must be set
     if (cb_get_hostname == NULL) {
         Py_RETURN_NONE;
@@ -189,7 +203,8 @@ PyObject *get_hostname(PyObject *self, PyObject *args) {
     Py_RETURN_NONE;
 }
 
-PyObject *get_clustername(PyObject *self, PyObject *args) {
+PyObject *get_clustername(PyObject *self, PyObject *args)
+{
     // callback must be set
     if (cb_get_clustername == NULL) {
         Py_RETURN_NONE;
@@ -206,7 +221,8 @@ PyObject *get_clustername(PyObject *self, PyObject *args) {
     Py_RETURN_NONE;
 }
 
-static PyObject *log_message(PyObject *self, PyObject *args) {
+static PyObject *log_message(PyObject *self, PyObject *args)
+{
     // callback must be set
     if (cb_log == NULL) {
         Py_RETURN_NONE;
@@ -224,7 +240,8 @@ static PyObject *log_message(PyObject *self, PyObject *args) {
     Py_RETURN_NONE;
 }
 
-static PyObject *set_external_tags(PyObject *self, PyObject *args) {
+static PyObject *set_external_tags(PyObject *self, PyObject *args)
+{
     // callback must be set
     if (cb_set_external_tags == NULL) {
         Py_RETURN_NONE;
