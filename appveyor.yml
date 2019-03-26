@@ -38,6 +38,22 @@ test_script:
   - "%PIP3% install -r integrations-core/directory/requirements.in"
   - "%PIP3% install integrations-core/datadog_checks_base integrations-core/directory"
   - bash -c "./bin/demo 3"
+  # archive binaries
+  - 7z a "datadog-agent-six.zip" "./bin/*.dll" "./six/libdatadog-agent-six.a"
+
+artifacts:
+  - path: "datadog-agent-six.zip"
+
+deploy:
+  provider: GitHub
+  description: "Datadog Agent Six"
+  force_update: true
+  auth_token:
+    secure: 89PR5NjCO2AajmsJBlM/lr5EpYMefvZaVve8Tkyxu2X9xqVcxKGcq25C9ywMySDI
+  artifact: "datadog-agent-six.zip"
+  on:
+    # deploy on tag push only
+    APPVEYOR_REPO_TAG: true
 
 # uncomment to debug builds
 # on_finish:
