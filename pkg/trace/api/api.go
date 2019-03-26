@@ -182,11 +182,7 @@ func (r *HTTPReceiver) httpHandle(fn http.HandlerFunc) http.HandlerFunc {
 
 func (r *HTTPReceiver) httpHandleWithVersion(v Version, f func(Version, http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return r.httpHandle(func(w http.ResponseWriter, req *http.Request) {
-		mediaType, err := getMediaType(req)
-		if err != nil {
-			log.Errorf("error parsing Content-Type header: %v", mediaType)
-			// mediaType is empty, defaults will be assumed
-		}
+		mediaType := getMediaType(req)
 		if mediaType == "application/msgpack" && (v == v01 || v == v02) {
 			// msgpack is only supported for versions 0.3
 			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
@@ -282,11 +278,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 func (r *HTTPReceiver) handleServices(v Version, w http.ResponseWriter, req *http.Request) {
 	var servicesMeta pb.ServicesMetadata
 
-	mediaType, err := getMediaType(req)
-	if err != nil {
-		log.Errorf("error parsing Content-Type header: %v", mediaType)
-		// mediaType is empty, defaults will be assumed
-	}
+	mediaType := getMediaType(req)
 	if err := decodeReceiverPayload(req.Body, &servicesMeta, v, mediaType); err != nil {
 		log.Errorf("cannot decode %s services payload: %v", v, err)
 		httpDecodingError(err, []string{tagServiceHandler, fmt.Sprintf("v:%s", v)}, w)
@@ -383,11 +375,7 @@ func (r *HTTPReceiver) Languages() string {
 
 func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, bool) {
 	var traces pb.Traces
-	mediaType, err := getMediaType(req)
-	if err != nil {
-		log.Errorf("error parsing Content-Type header: %v", mediaType)
-		// mediaType is empty, defaults will be assumed
-	}
+	mediaType := getMediaType(req)
 	switch v {
 	case v01:
 		// We cannot use decodeReceiverPayload because []model.Span does not
@@ -455,9 +443,15 @@ func tracesFromSpans(spans []pb.Span) pb.Traces {
 	return traces
 }
 
-func getMediaType(req *http.Request) (string, error) {
+// getMediaType attempts to return the media type from the Content-Type MIME header. If it fails
+// it returns the default media type "application/json".
+func getMediaType(req *http.Request) string {
 	mt, _, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
-	return mt, err
+	if err != nil {
+		log.Debugf(`error parsing media type: %v, assuming "application/json"`, err)
+		return "application/json"
+	}
+	return mt
 }
 
 // writableFunc implements io.Writer over a function. Anything written will be
