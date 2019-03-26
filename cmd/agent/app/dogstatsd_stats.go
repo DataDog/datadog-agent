@@ -36,7 +36,7 @@ var dogstatsdStatsCmd = &cobra.Command{
 	Short: "Print basic statistics on the metrics processed by dogstatsd",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := common.SetupConfig(confFilePath)
+		err := common.SetupConfigWithoutSecrets(confFilePath)
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}

@@ -604,7 +604,7 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := setupConf()
 	conf.SetConfigFile("./tests/datadog_secrets.yaml")
 	// load the configuration
-	err := load(conf, "datadog_secrets.yaml")
+	err := load(conf, "datadog_secrets.yaml", true)
 	assert.NoError(t, err)
 
 	expectedKeysPerDomain := map[string][]string{

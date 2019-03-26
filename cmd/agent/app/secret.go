@@ -28,7 +28,7 @@ var secretInfoCommand = &cobra.Command{
 	Short: "Print information about decrypted secrets in configuration.",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := common.SetupConfig(confFilePath); err != nil {
+		if err := common.SetupConfigWithoutSecrets(confFilePath); err != nil {
 			fmt.Printf("unable to set up global agent configuration: %v", err)
 			return nil
 		}
