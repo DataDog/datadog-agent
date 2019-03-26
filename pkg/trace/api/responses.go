@@ -8,6 +8,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -21,15 +22,16 @@ type traceResponse struct {
 	Rates map[string]float64 `json:"rate_by_service"`
 }
 
-// HTTPFormatError is used for payload format errors
-func HTTPFormatError(tags []string, w http.ResponseWriter) {
-	tags = append(tags, "error:format-error")
+// httpFormatError is used for payload format errors
+func httpFormatError(w http.ResponseWriter, v Version, err error) {
+	log.Errorf("rejecting client request: %v", err)
+	tags := []string{"error:format-error", "version:" + string(v)}
 	metrics.Count(receiverErrorKey, 1, tags, 1)
-	http.Error(w, "format-error", http.StatusUnsupportedMediaType)
+	http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 }
 
-// HTTPDecodingError is used for errors happening in decoding
-func HTTPDecodingError(err error, tags []string, w http.ResponseWriter) {
+// httpDecodingError is used for errors happening in decoding
+func httpDecodingError(err error, tags []string, w http.ResponseWriter) {
 	status := http.StatusBadRequest
 	errtag := "decoding-error"
 	msg := err.Error()
@@ -46,15 +48,15 @@ func HTTPDecodingError(err error, tags []string, w http.ResponseWriter) {
 	http.Error(w, msg, status)
 }
 
-// HTTPEndpointNotSupported is for payloads getting sent to a wrong endpoint
-func HTTPEndpointNotSupported(tags []string, w http.ResponseWriter) {
+// httpEndpointNotSupported is for payloads getting sent to a wrong endpoint
+func httpEndpointNotSupported(tags []string, w http.ResponseWriter) {
 	tags = append(tags, "error:unsupported-endpoint")
 	metrics.Count(receiverErrorKey, 1, tags, 1)
 	http.Error(w, "unsupported-endpoint", http.StatusInternalServerError)
 }
 
-// HTTPOK is a dumb response for when things are a OK
-func HTTPOK(w http.ResponseWriter) {
+// httpOK is a dumb response for when things are a OK
+func httpOK(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
 	io.WriteString(w, "OK\n")
 }

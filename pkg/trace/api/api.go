@@ -182,11 +182,14 @@ func (r *HTTPReceiver) httpHandle(fn http.HandlerFunc) http.HandlerFunc {
 
 func (r *HTTPReceiver) httpHandleWithVersion(v Version, f func(Version, http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return r.httpHandle(func(w http.ResponseWriter, req *http.Request) {
-		mediaType := getMediaType(req)
+		mediaType, err := getMediaType(req)
+		if err != nil {
+			log.Errorf("error parsing Content-Type header: %v", mediaType)
+			// mediaType is empty, defaults will be assumed
+		}
 		if mediaType == "application/msgpack" && (v == v01 || v == v02) {
 			// msgpack is only supported for versions 0.3
-			log.Errorf("rejecting client request, unsupported media type: %q", mediaType)
-			HTTPFormatError([]string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
+			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
 			return
 		}
 
@@ -202,7 +205,7 @@ func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
 		fallthrough
 	case v03:
 		// Simple response, simply acknowledge with "OK"
-		HTTPOK(w)
+		httpOK(w)
 	case v04:
 		// Return the recommended sampling rate for each service as a JSON.
 		HTTPRateByService(w, r.dynConf)
@@ -279,14 +282,18 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 func (r *HTTPReceiver) handleServices(v Version, w http.ResponseWriter, req *http.Request) {
 	var servicesMeta pb.ServicesMetadata
 
-	mediaType := getMediaType(req)
+	mediaType, err := getMediaType(req)
+	if err != nil {
+		log.Errorf("error parsing Content-Type header: %v", mediaType)
+		// mediaType is empty, defaults will be assumed
+	}
 	if err := decodeReceiverPayload(req.Body, &servicesMeta, v, mediaType); err != nil {
 		log.Errorf("cannot decode %s services payload: %v", v, err)
-		HTTPDecodingError(err, []string{tagServiceHandler, fmt.Sprintf("v:%s", v)}, w)
+		httpDecodingError(err, []string{tagServiceHandler, fmt.Sprintf("v:%s", v)}, w)
 		return
 	}
 
-	HTTPOK(w)
+	httpOK(w)
 
 	// We parse the tags from the header
 	tags := info.Tags{
@@ -376,8 +383,11 @@ func (r *HTTPReceiver) Languages() string {
 
 func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, bool) {
 	var traces pb.Traces
-	mediaType := getMediaType(req)
-
+	mediaType, err := getMediaType(req)
+	if err != nil {
+		log.Errorf("error parsing Content-Type header: %v", mediaType)
+		// mediaType is empty, defaults will be assumed
+	}
 	switch v {
 	case v01:
 		// We cannot use decodeReceiverPayload because []model.Span does not
@@ -387,8 +397,7 @@ func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, 
 		case "application/json", "text/json", "":
 			// ok
 		default:
-			log.Errorf("rejecting client request, unsupported media type %q", mediaType)
-			HTTPFormatError([]string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
+			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
 			return nil, false
 		}
 
@@ -396,7 +405,7 @@ func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, 
 		var spans []pb.Span
 		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
 			log.Errorf("cannot decode %s traces payload: %v", v, err)
-			HTTPDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
+			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
 			return nil, false
 		}
 		traces = tracesFromSpans(spans)
@@ -407,11 +416,11 @@ func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, 
 	case v04:
 		if err := decodeReceiverPayload(req.Body, &traces, v, mediaType); err != nil {
 			log.Errorf("cannot decode %s traces payload: %v", v, err)
-			HTTPDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
+			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
 			return nil, false
 		}
 	default:
-		HTTPEndpointNotSupported([]string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
+		httpEndpointNotSupported([]string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
 		return nil, false
 	}
 
@@ -446,9 +455,9 @@ func tracesFromSpans(spans []pb.Span) pb.Traces {
 	return traces
 }
 
-func getMediaType(req *http.Request) string {
-	mt, _, _ := mime.ParseMediaType(req.Header.Get("Content-Type"))
-	return mt
+func getMediaType(req *http.Request) (string, error) {
+	mt, _, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
+	return mt, err
 }
 
 // writableFunc implements io.Writer over a function. Anything written will be
