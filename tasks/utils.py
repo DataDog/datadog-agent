@@ -60,7 +60,6 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
     ldflags = get_version_ldflags(ctx, prefix)
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs),
-        "CGO_CFLAGS_ALLOW": "-static-libgcc",  # whitelist additional flags, here a flag used for net-snmp
     }
 
     if sys.platform == 'win32':

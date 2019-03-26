@@ -9,9 +9,6 @@ require 'pathname'
 name 'datadog-agent'
 
 dependency 'python'
-unless windows?
-  dependency 'net-snmp-lib'
-end
 
 license "Apache-2.0"
 license_file "../LICENSE"

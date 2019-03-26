@@ -495,14 +495,6 @@
   version = "v1.4.7"
 
 [[projects]]
-  branch = "master"
-  digest = "1:288c32dd3c0cdde82a10d77b3749b85880d4e54e07472281096399bcc3c0c9fc"
-  name = "github.com/geoffgarside/ber"
-  packages = ["."]
-  pruneopts = ""
-  revision = "0b763e6b6fb1cb7422c29cd9195a3abf625651fb"
-
-[[projects]]
   digest = "1:b13707423743d41665fd23f0c36b2f37bb49c30e94adb813319c44188a51ba22"
   name = "github.com/ghodss/yaml"
   packages = ["."]
@@ -787,14 +779,6 @@
   pruneopts = ""
   revision = "1624edc4454b8682399def8740d46db5e4362ba4"
   version = "v1.1.5"
-
-[[projects]]
-  digest = "1:bf3f3d50a823d94ff1042d76d30ef35be1c12f133ca1c0699b2126c6307abaa3"
-  name = "github.com/k-sone/snmpgo"
-  packages = ["."]
-  pruneopts = ""
-  revision = "de09377ff34857b08afdc16ea8c7c2929eb1fc6e"
-  version = "v3.2.0"
 
 [[projects]]
   digest = "1:2c5ad58492804c40bdaf5d92039b0cde8b5becd2b7feeb37d7d1cc36a8aa8dbe"
@@ -1982,7 +1966,6 @@
     "github.com/hashicorp/consul/api",
     "github.com/hectane/go-acl",
     "github.com/json-iterator/go",
-    "github.com/k-sone/snmpgo",
     "github.com/kardianos/osext",
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/apiserver",
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd",
