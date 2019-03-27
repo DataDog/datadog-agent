@@ -645,12 +645,6 @@ char *Two::getIntegrationList()
         goto done;
     }
 
-    Py_ssize_t packagesSize;
-    packagesSize = PyList_Size(packages);
-    if (packagesSize == 0) {
-        goto done;
-    }
-
     wheels = as_json(packages);
 
 done:
