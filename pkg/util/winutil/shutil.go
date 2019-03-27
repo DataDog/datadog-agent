@@ -81,7 +81,7 @@ func getDefaultProgramDataDir() (path string, err error) {
 }
 
 // GetProgramDataDir returns the current programdatadir, usually
-// c:\programdata
+// c:\programdata\Datadog
 func GetProgramDataDir() (path string, err error) {
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		"SOFTWARE\\Datadog\\Datadog Agent",
