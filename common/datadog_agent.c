@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 #include "datadog_agent.h"
+#include "cgo_free.h"
 
 #include <sixstrings.h>
 
@@ -100,7 +101,7 @@ PyObject *get_version(PyObject *self, PyObject *args)
 
     if (v != NULL) {
         PyObject *retval = PyUnicode_FromString(v);
-        free(v);
+        cgo_free(v);
         return retval;
     }
     Py_RETURN_NONE;
@@ -132,6 +133,7 @@ PyObject *get_config(PyObject *self, PyObject *args)
 
     // new ref
     PyObject *value = from_json(data);
+    cgo_free(data);
     if (value == NULL) {
         Py_RETURN_NONE;
     }
@@ -159,6 +161,7 @@ PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs)
 
     // new ref
     PyObject *headers_dict = from_json(data);
+    cgo_free(data);
     if (headers_dict == NULL || !PyDict_Check(headers_dict)) {
         Py_RETURN_NONE;
     }
@@ -197,7 +200,7 @@ PyObject *get_hostname(PyObject *self, PyObject *args)
 
     if (v != NULL) {
         PyObject *retval = PyUnicode_FromString(v);
-        free(v);
+        cgo_free(v);
         return retval;
     }
     Py_RETURN_NONE;
@@ -215,7 +218,7 @@ PyObject *get_clustername(PyObject *self, PyObject *args)
 
     if (v != NULL) {
         PyObject *retval = PyUnicode_FromString(v);
-        free(v);
+        cgo_free(v);
         return retval;
     }
     Py_RETURN_NONE;
@@ -240,21 +243,119 @@ static PyObject *log_message(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-static PyObject *set_external_tags(PyObject *self, PyObject *args)
-{
-    // callback must be set
-    if (cb_set_external_tags == NULL) {
-        Py_RETURN_NONE;
-    }
+// set_external_tags receive the following data:
+// [('hostname', {'source_type': ['tag1', 'tag2']})]
+static PyObject *set_external_tags(PyObject *self, PyObject *args) {
+    PyObject *input_list = NULL;
+    PyGILState_STATE gstate = PyGILState_Ensure();
 
     // function expects only one positional arg containing a list
-    PyObject *input_list = NULL; // borrowed
     if (!PyArg_ParseTuple(args, "O", &input_list)) {
+        PyGILState_Release(gstate);
         Py_RETURN_NONE;
     }
 
-    char *lst = as_json(input_list);
-    cb_set_external_tags(lst);
-    free(lst);
+    // if not a list, set an error
+    if (!PyList_Check(input_list)) {
+        PyErr_SetString(PyExc_TypeError, "function arg must be a list");
+        PyGILState_Release(gstate);
+        Py_RETURN_NONE;
+    }
+
+    char *hostname = NULL;
+    char *source_type = NULL;
+    int input_len = PyList_Size(input_list);
+    int i;
+    for (i=0; i<input_len; i++) {
+        PyObject *tuple = PyList_GetItem(input_list, i);
+
+        // list must contain only tuples in form ('hostname', {'source_type': ['tag1', 'tag2']},)
+        if (!PyTuple_Check(tuple)) {
+            PyErr_SetString(PyExc_TypeError, "external host tags list must contain only tuples");
+            goto done;
+        }
+
+        // first elem is the hostname
+        hostname = as_string(PyTuple_GetItem(tuple, 0));
+        if (hostname == NULL) {
+            PyErr_SetString(PyExc_TypeError, "hostname is not a valid string");
+            goto done;
+        }
+
+        // second is a dictionary
+        PyObject *dict = PyTuple_GetItem(tuple, 1);
+        if (!PyDict_Check(dict)) {
+            PyErr_SetString(PyExc_TypeError, "second elem of the host tags tuple must be a dict");
+            goto done;
+        }
+
+        // dict contains only 1 key, if dict is empty don't do anything
+        Py_ssize_t pos = 0;
+        PyObject *key = NULL, *value = NULL;
+        if (!PyDict_Next(dict, &pos, &key, &value)) {
+            continue;
+        }
+
+        // key is the source type (e.g. 'vsphere') value is the list of tags
+        source_type = as_string(key);
+        if (source_type == NULL) {
+            PyErr_SetString(PyExc_TypeError, "source_type is not a valid string");
+            goto done;
+        }
+
+        if (!PyList_Check(value)) {
+            PyErr_SetString(PyExc_TypeError, "dict value must be a list of tags ");
+            goto done;
+        }
+
+        // allocate an array of char* to store the tags we'll send to the Go function
+        char **tags;
+        int tags_len = PyList_Size(value);
+        if(!(tags = (char **)malloc(sizeof(*tags)*tags_len+1))) {
+            PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
+            goto done;
+        }
+        tags[tags_len] = NULL;
+
+        // copy the list of tags into an array of char*
+        int j, actual_size = 0;
+        for (j=0; j<tags_len; j++) {
+            PyObject *s = PyList_GetItem(value, j);
+            if (s == NULL) {
+                continue;
+            }
+
+            char *tag = as_string(s);
+            // cleanup and return error
+            if (tag == NULL) {
+                int k;
+                for (k=0; k<actual_size; k++) {
+                    free(tags[k]);
+                }
+                free(tags);
+                // raise an exception
+                PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
+                goto done;
+            }
+            tags[actual_size] = tag;
+            actual_size++;
+        }
+
+        // finally, invoke the Go function
+        cb_set_external_tags(hostname, source_type, tags);
+
+        // cleanup
+        for (j=0; j<actual_size; j++) {
+            free(tags[j]);
+        }
+        free(tags);
+    }
+
+done:
+    if (hostname)
+        free(hostname);
+    if (source_type)
+        free(source_type);
+    PyGILState_Release(gstate);
     Py_RETURN_NONE;
 }
