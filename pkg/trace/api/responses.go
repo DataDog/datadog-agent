@@ -61,9 +61,9 @@ func httpOK(w http.ResponseWriter) {
 	io.WriteString(w, "OK\n")
 }
 
-// HTTPRateByService outputs, as a JSON, the recommended sampling rates for all services.
-func HTTPRateByService(w http.ResponseWriter, dynConf *sampler.DynamicConfig) {
-	w.WriteHeader(http.StatusOK)
+// httpRateByService outputs, as a JSON, the recommended sampling rates for all services.
+func httpRateByService(w http.ResponseWriter, dynConf *sampler.DynamicConfig) {
+	w.Header().Set("Content-Type", "application/json")
 	response := traceResponse{
 		Rates: dynConf.RateByService.GetAll(), // this is thread-safe
 	}
