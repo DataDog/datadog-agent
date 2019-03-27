@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"unsafe"
 
 	common "../common"
 )
@@ -21,7 +22,7 @@ import (
 // extern void getHostname(char **);
 // extern void getClustername(char **);
 // extern void doLog(char*, int);
-// extern void setExternalHostTags(char*);
+// extern void setExternalHostTags(char*, char*, char**);
 //
 // static void initDatadogAgentTests(six_t *six) {
 //    set_get_version_cb(six, getVersion);
@@ -145,36 +146,29 @@ func doLog(msg *C.char, level C.int) {
 }
 
 //export setExternalHostTags
-func setExternalHostTags(dump *C.char) {
-	jsonData := []byte(C.GoString(dump))
-	type HostTag []interface{}
-	var hostTags []HostTag
-	err := json.Unmarshal(jsonData, &hostTags)
-	if err != nil {
-		ioutil.WriteFile(tmpfile.Name(), []byte(fmt.Sprintf("Error: %s", err)), 0644)
-		return
-	}
+func setExternalHostTags(hostname *C.char, sourceType *C.char, tags **C.char) {
+	hname := C.GoString(hostname)
+	stype := C.GoString(sourceType)
+	tagsStrings := []string{}
 
-	var f *os.File
-	f, err = os.Create(tmpfile.Name())
+	pTags := uintptr(unsafe.Pointer(tags))
+	ptrSize := unsafe.Sizeof(*tags)
+
+	f, _ := os.OpenFile(tmpfile.Name(), os.O_APPEND|os.O_RDWR|os.O_CREATE, 0666)
 	defer f.Close()
 
-	for _, t := range hostTags {
-		out := []string{}
+	f.WriteString(strings.Join([]string{hname, stype}, ","))
 
-		// hostname
-		out = append(out, t[0].(string))
-		stypes := t[1].(map[string]interface{})
-		for k, v := range stypes {
-			// source type
-			out = append(out, k)
-			// tags
-			tags := v.([]interface{})
-			for _, tag := range tags {
-				out = append(out, tag.(string))
-			}
+	// loop over the **char array
+	for i := uintptr(0); ; i++ {
+		tagPtr := *(**C.char)(unsafe.Pointer(pTags + ptrSize*i))
+		if tagPtr == nil {
+			break
 		}
-		f.WriteString(strings.Join(out, ","))
-		f.WriteString("\n")
+		tag := C.GoString(tagPtr)
+		tagsStrings = append(tagsStrings, tag)
 	}
+	f.WriteString(",")
+	f.WriteString(strings.Join(tagsStrings, ","))
+	f.WriteString("\n")
 }
