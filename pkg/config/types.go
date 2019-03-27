@@ -57,6 +57,7 @@ type Config interface {
 	MergeConfigOverride(in io.Reader) error
 
 	AllSettings() map[string]interface{}
+	AllKeys() []string
 
 	AddConfigPath(in string)
 	SetConfigName(in string)
@@ -65,6 +66,12 @@ type Config interface {
 	ConfigFileUsed() string
 
 	BindPFlag(key string, flag *pflag.Flag) error
+
+	// SetKnown adds a key to the set of known valid config keys
+	SetKnown(key string)
+	// GetKnownKeys returns all the keys that meet at least one of these criteria:
+	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
+	GetKnownKeys() map[string]interface{}
 
 	// API not implemented by viper.Viper and that have proven useful for our config usage
 

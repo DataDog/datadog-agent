@@ -50,12 +50,12 @@
   revision = "2cfb68475274527a10701355c739f31dd404718c"
 
 [[projects]]
-  digest = "1:1d7a2553b25c97fa4ee2e3d710a03c08013b3ec79a3ed9d5d7ab206ff53e2d66"
+  digest = "1:a4261d199fb200222fa77f78c343184ddcfd6ebedc71fdd966df3e7e76a1b95b"
   name = "github.com/DataDog/viper"
   packages = ["."]
   pruneopts = ""
-  revision = "991b92b30e71a5ae48f8c2e81a95b1209549ed8d"
-  version = "v1.6.0"
+  revision = "0d6ea091c7f3660c643588f92960e87b0601ab74"
+  version = "v1.7.0"
 
 [[projects]]
   digest = "1:34d4c1b61fa208e523726ddb85d01b8caa8f2de0cd656d91c81b6b86daea485c"

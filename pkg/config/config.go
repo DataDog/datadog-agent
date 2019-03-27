@@ -390,6 +390,34 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.cluster_tag_name", "cluster_name")
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
 
+	//Declare other keys that don't have a default/env var
+	config.SetKnown("metadata_providers")
+	config.SetKnown("config_providers")
+	config.SetKnown("proxy.http")
+	config.SetKnown("proxy.https")
+	config.SetKnown("proxy.no_proxy")
+	config.SetKnown("process_config.dd_agent_env")
+	config.SetKnown("process_config.enabled")
+	config.SetKnown("process_config.intervals.process_realtime")
+	config.SetKnown("process_config.queue_size")
+	config.SetKnown("process_config.max_per_message")
+	config.SetKnown("process_config.intervals.process")
+	config.SetKnown("process_config.blacklist_patterns")
+	config.SetKnown("process_config.intervals.container")
+	config.SetKnown("process_config.intervals.container_realtime")
+	config.SetKnown("process_config.dd_agent_bin")
+	config.SetKnown("process_config.max_proc_fds")
+	config.SetKnown("apm_config.receiver_port")
+	config.SetKnown("apm_config.env")
+	config.SetKnown("apm_config.apm_non_local_traffic")
+	config.SetKnown("apm_config.extra_sample_rate")
+	config.SetKnown("apm_config.ignore_resources")
+	config.SetKnown("apm_config.max_traces_per_second")
+	config.SetKnown("jmx_pipe_name")
+	config.SetKnown("jmx_pipe_path")
+	config.SetKnown("clustername")
+	config.SetKnown("listeners")
+
 	setAssetFs(config)
 }
 
@@ -494,6 +522,16 @@ func load(config Config, origin string, loadSecret bool) error {
 		log.Warnf("config.load() error %v", err)
 		return err
 	}
+
+	knownKeys := config.GetKnownKeys()
+	loadedKeys := config.AllKeys()
+	for i := range loadedKeys {
+		key := loadedKeys[i]
+		if _, found := knownKeys[key]; !found {
+			log.Warnf("Uknown key in config file: %v", key)
+		}
+	}
+
 	log.Infof("config.load succeeded")
 
 	if loadSecret {
