@@ -71,7 +71,6 @@ func TestParseGauge(t *testing.T) {
 
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, "666", parsed.RawValue)
 	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.Equal(t, "default-hostname", parsed.Host)

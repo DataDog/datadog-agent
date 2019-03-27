@@ -345,7 +345,6 @@ func parseMetricMessage(message []byte, namespace string, defaultHostname string
 		if err != nil {
 			return nil, fmt.Errorf("invalid metric value for %q", message)
 		}
-		sample.RawValue = string(rawValue)
 		sample.Value = metricValue
 	}
 
