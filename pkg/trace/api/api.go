@@ -96,7 +96,7 @@ func NewHTTPReceiver(
 
 // Run starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Run() {
-	// FIXME[1.x]: remove all those legacy endpoints + code that goes with it
+	// TODO(gbbr): Do not use http.DefaultServeMux!
 	http.HandleFunc("/spans", r.httpHandleWithVersion(v01, r.handleTraces))
 	http.HandleFunc("/services", r.httpHandleWithVersion(v01, r.handleServices))
 	http.HandleFunc("/v0.1/spans", r.httpHandleWithVersion(v01, r.handleTraces))

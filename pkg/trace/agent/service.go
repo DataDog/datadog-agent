@@ -119,11 +119,11 @@ const appType = "app_type"
 
 // TraceServiceExtractor extracts service metadata from top-level spans
 type TraceServiceExtractor struct {
-	outServices chan<- pb.ServicesMetadata
+	outServices chan pb.ServicesMetadata
 }
 
 // NewTraceServiceExtractor returns a new TraceServiceExtractor
-func NewTraceServiceExtractor(out chan<- pb.ServicesMetadata) *TraceServiceExtractor {
+func NewTraceServiceExtractor(out chan pb.ServicesMetadata) *TraceServiceExtractor {
 	return &TraceServiceExtractor{out}
 }
 
