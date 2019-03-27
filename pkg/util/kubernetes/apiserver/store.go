@@ -21,7 +21,7 @@ var globalMetaBundleStore = &metaBundleStore{
 	cache: agentcache.Cache,
 }
 
-// metaBundleStore is a cache for MetadataMapperBundles for each node in the cluster
+// metaBundleStore is a cache for metadataMapperBundles for each node in the cluster
 // and allows multiple goroutines to safely get or create meta bundles for the same nodes
 // without overwriting each other.
 type metaBundleStore struct {
@@ -33,10 +33,10 @@ type metaBundleStore struct {
 	cache *cache.Cache
 }
 
-func (m *metaBundleStore) get(nodeName string) (*MetadataMapperBundle, bool) {
+func (m *metaBundleStore) get(nodeName string) (*metadataMapperBundle, bool) {
 	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 
-	var metaBundle *MetadataMapperBundle
+	var metaBundle *metadataMapperBundle
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -46,7 +46,7 @@ func (m *metaBundleStore) get(nodeName string) (*MetadataMapperBundle, bool) {
 		return nil, false
 	}
 
-	metaBundle, ok = v.(*MetadataMapperBundle)
+	metaBundle, ok = v.(*metadataMapperBundle)
 	if !ok {
 		log.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
 		return nil, false
@@ -55,31 +55,31 @@ func (m *metaBundleStore) get(nodeName string) (*MetadataMapperBundle, bool) {
 	return metaBundle, true
 }
 
-func (m *metaBundleStore) getOrCreate(nodeName string) *MetadataMapperBundle {
+func (m *metaBundleStore) getOrCreate(nodeName string) *metadataMapperBundle {
 	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 
-	var metaBundle *MetadataMapperBundle
+	var metaBundle *metadataMapperBundle
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	v, ok := m.cache.Get(cacheKey)
 	if ok {
-		metaBundle, ok := v.(*MetadataMapperBundle)
+		metaBundle, ok := v.(*metadataMapperBundle)
 		if ok {
 			return metaBundle
 		}
 		log.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
 	}
 
-	metaBundle = newMetadataMapperBundle()
+	metaBundle = newMetadataResponseBundle()
 
 	m.cache.Set(cacheKey, metaBundle, cache.NoExpiration)
 
 	return metaBundle
 }
 
-func (m *metaBundleStore) set(nodeName string, metaBundle *MetadataMapperBundle) {
+func (m *metaBundleStore) set(nodeName string, metaBundle *metadataMapperBundle) {
 	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 
 	m.mu.Lock()

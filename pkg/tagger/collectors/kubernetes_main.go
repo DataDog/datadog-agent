@@ -32,6 +32,8 @@ type KubeMetadataCollector struct {
 	// used to set a custom delay
 	lastUpdate time.Time
 	updateFreq time.Duration
+
+	clusterAgentEnabled bool
 }
 
 // Detect tries to connect to the kubelet and the API Server if the DCA is not used or the DCA.
@@ -48,6 +50,7 @@ func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, e
 	}
 	// if no DCA or can't communicate with the DCA run the local service mapper.
 	if config.Datadog.GetBool("cluster_agent.enabled") {
+		c.clusterAgentEnabled = true
 		c.dcaClient, errDCA = clusteragent.GetClusterAgentClient()
 		if errDCA != nil {
 			log.Errorf("Could not initialise the communication with the DCA, falling back to local service mapping: %s", errDCA.Error())
@@ -77,7 +80,7 @@ func (c *KubeMetadataCollector) Pull() error {
 	if err != nil {
 		return err
 	}
-	if !config.Datadog.GetBool("cluster_agent.enabled") {
+	if !c.clusterAgentEnabled {
 		// If the DCA is not used, each agent stores a local cache of the MetadataMap.
 		err = c.addToCacheMetadataMapping(pods)
 		if err != nil {
@@ -104,7 +107,7 @@ func (c *KubeMetadataCollector) Fetch(entity string) ([]string, []string, []stri
 	}
 
 	pods := []*kubelet.Pod{pod}
-	if !config.Datadog.GetBool("cluster_agent.enabled") {
+	if !c.clusterAgentEnabled {
 		// If the DCA is not used, each agent stores a local cache of the MetadataMap.
 		err = c.addToCacheMetadataMapping(pods)
 		if err != nil {

@@ -23,17 +23,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type dummyClusterAgent struct {
-	node         map[string]map[string]string
-	responses    map[string][]string
-	rawResponses map[string]string
-	requests     chan *http.Request
+	node            map[string]map[string]string
+	responses       map[string][]string
+	responsesByNode apiv1.MetadataResponse
+	rawResponses    map[string]string
+	requests        chan *http.Request
 	sync.RWMutex
 	token       string
 	redirectURL string
@@ -59,6 +62,28 @@ func newDummyClusterAgent() (*dummyClusterAgent, error) {
 			"pod/node2/bar/pod-00004": {"kube_service:svc2"},
 			"pod/node2/bar/pod-00005": {"kube_service:svc3"},
 			"pod/node2/bar/pod-00006": {},
+		},
+		responsesByNode: apiv1.MetadataResponse{
+			Nodes: map[string]*apiv1.MetadataResponseBundle{
+				"node1": {
+					Services: apiv1.NamespacesPodsStringsSet{
+						"foo": {
+							"pod-00001": sets.NewString("kube_service:svc1"),
+							"pod-00002": sets.NewString("kube_service:svc1", "kube_service:svc2"),
+						},
+						"bar": {
+							"pod-00004": sets.NewString("kube_service:svc2"),
+						},
+					},
+				},
+				"node2": {
+					Services: apiv1.NamespacesPodsStringsSet{
+						"foo": {
+							"pod-00003": sets.NewString("kube_service:svc1"),
+						},
+					},
+				},
+			},
 		},
 		rawResponses: map[string]string{
 			"/version": `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
@@ -124,18 +149,37 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	case 6:
 		nodeName := s[5]
-		key := fmt.Sprintf("node/%s", nodeName)
 		d.RLock()
 		defer d.RUnlock()
-		labels, found := d.node[key]
-		if found {
-			b, err := json.Marshal(labels)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
+		switch s[4] {
+		case "pod":
+			if nodeResp, found := d.responsesByNode.Nodes[nodeName]; found {
+				resp := apiv1.MetadataResponse{
+					Nodes: map[string]*apiv1.MetadataResponseBundle{
+						nodeName: nodeResp,
+					},
+				}
+				b, err := json.Marshal(resp)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				w.Write(b)
 				return
 			}
-			w.Write(b)
-			return
+		case "node":
+			key := fmt.Sprintf("node/%s", nodeName)
+			labels, found := d.node[key]
+			if found {
+				b, err := json.Marshal(labels)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				w.Write(b)
+				return
+			}
+		default:
 		}
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
@@ -440,6 +484,77 @@ func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
 	}
 }
 
+func (suite *clusterAgentSuite) TestGetPodsMetadataForNode() {
+	dca, err := newDummyClusterAgent()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	ts, p, err := dca.StartTLS()
+	defer ts.Close()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+
+	ca, err := GetClusterAgentClient()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	testSuite := []struct {
+		name              string
+		nodeName          string
+		expectedMetadatas apiv1.NamespacesPodsStringsSet
+		expectedErr       error
+	}{
+		{
+			name:     "basic case with 2 namespaces",
+			nodeName: "node1",
+			expectedMetadatas: apiv1.NamespacesPodsStringsSet{
+				"foo": apiv1.MapStringSet{
+					"pod-00001": sets.NewString("kube_service:svc1"),
+					"pod-00002": sets.NewString("kube_service:svc1", "kube_service:svc2"),
+				},
+				"bar": {
+					"pod-00004": sets.NewString("kube_service:svc2"),
+				},
+			},
+		},
+		{
+			name:     "basic case",
+			nodeName: "node2",
+			expectedMetadatas: apiv1.NamespacesPodsStringsSet{
+				"foo": apiv1.MapStringSet{
+					"pod-00003": sets.NewString("kube_service:svc1"),
+				},
+			},
+		},
+		{
+			name:        "error case: node not found",
+			nodeName:    "node3",
+			expectedErr: fmt.Errorf("unexpected status code from cluster agent: 404"),
+		},
+	}
+
+	for _, testCase := range testSuite {
+		suite.T().Run(testCase.name, func(t *testing.T) {
+			metadatas, err := ca.GetPodsMetadataForNode(testCase.nodeName)
+			if testCase.expectedErr != nil {
+				assert.Error(t, err)
+				assert.Equal(t, testCase.expectedErr, err)
+			} else {
+				assert.NoError(t, err)
+				t.Logf("metadatas: %s", metadatas)
+
+				require.Nil(t, err, fmt.Sprintf("%v", err))
+				require.Equal(t, len(testCase.expectedMetadatas), len(metadatas))
+				for ns, expectedNSValues := range testCase.expectedMetadatas {
+					for podName, expectedMetadatas := range expectedNSValues {
+						for _, elt := range expectedMetadatas.List() {
+							assert.Contains(t, metadatas[ns][podName].List(), elt)
+						}
+					}
+				}
+			}
+		})
+	}
+}
 func TestClusterAgentSuite(t *testing.T) {
 	clusterAgentAuthTokenFilename := "cluster_agent.auth_token"
 

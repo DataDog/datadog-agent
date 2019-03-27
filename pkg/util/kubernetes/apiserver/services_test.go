@@ -12,11 +12,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 )
 
-func TestServicesMapper(t *testing.T) {
-	mapper := ServicesMapper{}
+func TestNamespacesPodsStringsSet(t *testing.T) {
+	mapper := apiv1.NewNamespacesPodsStringsSet()
 
 	mapper.Set("default", "pod1", "svc1")
 	mapper.Set("default", "pod2", "svc1")

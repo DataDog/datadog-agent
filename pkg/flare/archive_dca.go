@@ -18,6 +18,7 @@ import (
 
 	"github.com/mholt/archiver"
 
+	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -165,10 +166,10 @@ func zipDCAStatusFile(tempDir, hostname string) error {
 }
 
 func zipMetadataMap(tempDir, hostname string) error {
-	metaList := make(map[string]interface{})
+	metaList := apiv1.NewMetadataResponse()
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
-		metaList["Errors"] = fmt.Sprintf("Can't create client to query the API Server: %s", err.Error())
+		metaList.Errors = fmt.Sprintf("Can't create client to query the API Server: %s", err.Error())
 	} else {
 		// Grab the metadata map for all nodes.
 		metaList, err = apiserver.GetMetadataMapBundleOnAllNodes(cl)
