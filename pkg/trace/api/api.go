@@ -204,7 +204,7 @@ func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
 		httpOK(w)
 	case v04:
 		// Return the recommended sampling rate for each service as a JSON.
-		HTTPRateByService(w, r.dynConf)
+		httpRateByService(w, r.dynConf)
 	}
 }
 
