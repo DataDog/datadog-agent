@@ -14,6 +14,6 @@ cp $ARTIFACT_PATH/*.deb Dockerfiles/agent
 
 docker build -t stackstate/${IMAGE_REPO}:${IMAGE_TAG} Dockerfiles/agent
 docker tag stackstate/${IMAGE_REPO}:${IMAGE_TAG} stackstate/${IMAGE_REPO}:latest
+
 docker login -u $DOCKER_USER -p $DOCKER_PASS
-echo docker push stackstate/${IMAGE_REPO}:${IMAGE_TAG}
 docker push stackstate/${IMAGE_REPO}:${IMAGE_TAG}
