@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -96,7 +97,7 @@ func NewHTTPReceiver(
 
 // Run starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Run() {
-	// FIXME[1.x]: remove all those legacy endpoints + code that goes with it
+	// TODO(gbbr): Do not use http.DefaultServeMux!
 	http.HandleFunc("/spans", r.httpHandleWithVersion(v01, r.handleTraces))
 	http.HandleFunc("/services", r.httpHandleWithVersion(v01, r.handleServices))
 	http.HandleFunc("/v0.1/spans", r.httpHandleWithVersion(v01, r.handleTraces))
@@ -200,10 +201,8 @@ func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
 	case v02:
 		fallthrough
 	case v03:
-		// Simple response, simply acknowledge with "OK"
 		httpOK(w)
 	case v04:
-		// Return the recommended sampling rate for each service as a JSON.
 		httpRateByService(w, r.dynConf)
 	}
 }
@@ -216,62 +215,80 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		return
 	}
 
-	traces, ok := getTraces(v, w, req)
-	if !ok {
-		return
-	}
-
-	// We successfully decoded the payload
-	r.replyTraces(v, w)
-
-	// We parse the tags from the header
-	tags := info.Tags{
+	ts := r.Stats.GetTagStats(info.Tags{
 		Lang:          req.Header.Get("Datadog-Meta-Lang"),
 		LangVersion:   req.Header.Get("Datadog-Meta-Lang-Version"),
 		Interpreter:   req.Header.Get("Datadog-Meta-Lang-Interpreter"),
 		TracerVersion: req.Header.Get("Datadog-Meta-Tracer-Version"),
+	})
+
+	mediaType := getMediaType(req)
+	switch mediaType {
+	case "application/msgpack":
+		// process sequentially as we decode
+		for trace := range decodeTraces(w, req, v) {
+			r.sendTrace(ts, trace)
+		}
+	default:
+		traces, ok := getTraces(v, w, req)
+		if !ok {
+			return
+		}
+		for _, trace := range traces {
+			r.sendTrace(ts, trace)
+		}
 	}
-
-	// We get the address of the struct holding the stats associated to the tags
-	ts := r.Stats.GetTagStats(tags)
-
 	bytesRead := req.Body.(*LimitedReader).Count
 	if bytesRead > 0 {
 		atomic.AddInt64(&ts.TracesBytes, int64(bytesRead))
 	}
+	r.replyTraces(v, w)
+}
 
-	// normalize data
-	for _, trace := range traces {
-		spans := len(trace)
+func (r *HTTPReceiver) sendTrace(ts *info.TagStats, trace pb.Trace) {
+	atomic.AddInt64(&ts.TracesReceived, 1)
+	atomic.AddInt64(&ts.SpansReceived, int64(len(trace)))
 
-		atomic.AddInt64(&ts.TracesReceived, 1)
-		atomic.AddInt64(&ts.SpansReceived, int64(spans))
+	select {
+	case r.Out <- trace:
+		// OK
+	default:
+		atomic.AddInt64(&ts.TracesDropped, 1)
+		atomic.AddInt64(&ts.SpansDropped, int64(len(trace)))
 
-		err := normalizeTrace(trace)
-		if err != nil {
-			atomic.AddInt64(&ts.TracesDropped, 1)
-			atomic.AddInt64(&ts.SpansDropped, int64(spans))
-
-			msg := fmt.Sprintf("dropping trace; reason: %s", err)
-			if len(msg) > 150 && !r.debug {
-				// we're not in DEBUG log level, truncate long messages.
-				msg = msg[:150] + "... (set DEBUG log level for more info)"
-			}
-			log.Errorf(msg)
-		} else {
-			select {
-			case r.Out <- trace:
-				// if our downstream consumer is slow, we drop the trace on the floor
-				// this is a safety net against us using too much memory
-				// when clients flood us
-			default:
-				atomic.AddInt64(&ts.TracesDropped, 1)
-				atomic.AddInt64(&ts.SpansDropped, int64(spans))
-
-				log.Errorf("dropping trace; reason: rate-limited")
-			}
-		}
+		log.Errorf("dropping trace; reason: rate-limited")
 	}
+}
+
+// decodeTraces decodes traces one by one from the given http.Request and sends them via
+// the returned channel. When it completes, it closes the channel. Any potential error
+// will be written to the http.ResponseWriter and the channel closed prematurely.
+func decodeTraces(w http.ResponseWriter, req *http.Request, v Version) (out chan pb.Trace) {
+	out = make(chan pb.Trace)
+	go func() {
+		var rd *msgp.Reader
+		size, err := strconv.ParseInt(req.Header.Get("Content-Length"), 10, 64)
+		if err != nil {
+			rd = msgp.NewReader(req.Body)
+		} else {
+			rd = msgp.NewReaderSize(req.Body, int(size))
+		}
+		items, err := rd.ReadArrayHeader()
+		if err != nil {
+			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
+			return
+		}
+		for i := uint32(0); i < items; i++ {
+			var trace pb.Trace
+			if err := trace.DecodeMsg(rd); err != nil {
+				httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
+				return
+			}
+			out <- trace
+		}
+		close(out)
+	}()
+	return out
 }
 
 // handleServices handle a request with a list of several services

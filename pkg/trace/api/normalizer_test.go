@@ -253,7 +253,7 @@ func TestSpecialZipkinRootSpan(t *testing.T) {
 func TestNormalizeTraceEmpty(t *testing.T) {
 	trace := pb.Trace{}
 
-	err := normalizeTrace(trace)
+	err := NormalizeTrace(trace)
 	assert.Error(t, err)
 }
 
@@ -266,7 +266,7 @@ func TestNormalizeTraceTraceIdMismatch(t *testing.T) {
 
 	trace := pb.Trace{span1, span2}
 
-	err := normalizeTrace(trace)
+	err := NormalizeTrace(trace)
 	assert.Error(t, err)
 }
 
@@ -278,7 +278,7 @@ func TestNormalizeTraceInvalidSpan(t *testing.T) {
 
 	trace := pb.Trace{span1, span2}
 
-	err := normalizeTrace(trace)
+	err := NormalizeTrace(trace)
 	assert.Error(t, err)
 }
 
@@ -289,7 +289,7 @@ func TestNormalizeTraceDuplicateSpanID(t *testing.T) {
 
 	trace := pb.Trace{span1, span2}
 
-	err := normalizeTrace(trace)
+	err := NormalizeTrace(trace)
 	assert.Error(t, err)
 }
 
@@ -301,7 +301,7 @@ func TestNormalizeTrace(t *testing.T) {
 
 	trace := pb.Trace{span1, span2}
 
-	err := normalizeTrace(trace)
+	err := NormalizeTrace(trace)
 	assert.NoError(t, err)
 }
 

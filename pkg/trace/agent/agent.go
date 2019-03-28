@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -131,10 +132,20 @@ func (a *Agent) Run() {
 	a.PrioritySampler.Run()
 	a.EventProcessor.Start()
 
+	ts := a.Receiver.Stats.GetTagStats(info.Tags{})
+
 	for {
 		select {
 		case t := <-a.Receiver.Out:
-			a.Process(t)
+			err := api.NormalizeTrace(t)
+			if err != nil {
+				atomic.AddInt64(&ts.TracesDropped, 1)
+				atomic.AddInt64(&ts.SpansDropped, int64(len(t)))
+
+				log.Errorf(fmt.Sprintf("dropping trace; reason: %s", err))
+			} else {
+				a.Process(t)
+			}
 		case <-watchdogTicker.C:
 			a.watchdog()
 		case <-a.ctx.Done():
