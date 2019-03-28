@@ -17,6 +17,7 @@ import (
 )
 
 // #include <datadog_agent_six.h>
+// char *getStringAddr(char **array, unsigned int idx);
 import "C"
 
 // stickyLock is a convenient wrapper to interact with the Python GIL
@@ -98,6 +99,23 @@ func (sl *stickyLock) getPythonError() (string, error) {
 	}
 
 	return C.GoString(C.get_error(six)), nil
+}
+
+// cStringArrayToSlice returns a slice with the contents of the char **tags.
+func cStringArrayToSlice(array **C.char) []string {
+	if array != nil {
+		goTags := []string{}
+		for i := 0; ; i++ {
+			// Work around go vet raising issue about unsafe pointer
+			tagPtr := C.getStringAddr(array, C.uint(i))
+			if tagPtr == nil {
+				return goTags
+			}
+			tag := C.GoString(tagPtr)
+			goTags = append(goTags, tag)
+		}
+	}
+	return nil
 }
 
 // Get the rightmost component of a module path like foo.bar.baz

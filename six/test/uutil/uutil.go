@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/six/test/common"
 )
@@ -14,7 +15,7 @@ import (
 // #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
 // #include <datadog_agent_six.h>
 //
-// extern void getSubprocessOutput(char **argv, int argc, int raise, char** retval);
+// extern void getSubprocessOutput(char **, char **, char **, int*, char **);
 //
 // static void init_utilTests(six_t *six) {
 //    set_get_subprocess_output_cb(six, getSubprocessOutput);
@@ -68,6 +69,7 @@ except Exception as e:
 `, call, tmpfile.Name()))
 
 	ret := C.run_simple_string(six, code) == 1
+	resetTest()
 	if !ret {
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
@@ -77,8 +79,27 @@ except Exception as e:
 	return strings.TrimSpace(string(output)), err
 }
 
+func charArrayToSlice(array **C.char) (res []string) {
+	pTags := uintptr(unsafe.Pointer(array))
+	ptrSize := unsafe.Sizeof(*array)
+
+	for i := uintptr(0); ; i++ {
+		tagPtr := *(**C.char)(unsafe.Pointer(pTags + ptrSize*i))
+		if tagPtr == nil {
+			return
+		}
+		tag := C.GoString(tagPtr)
+		res = append(res, tag)
+	}
+}
+
 //export getSubprocessOutput
-func getSubprocessOutput(argv **C.char, argc, raise C.int, retval **C.char) {
-	fmt.Fprintln(os.Stderr, "gso")
-	*retval = C.CString(string("/tmp"))
+func getSubprocessOutput(cargs **C.char, cstdout **C.char, cstderr **C.char, cretCode *C.int, cexception **C.char) {
+	args = charArrayToSlice(cargs)
+	*cstdout = C.CString(stdout)
+	*cstderr = C.CString(stderr)
+	*cretCode = C.int(retCode)
+	if setException {
+		*cexception = C.CString(exception)
+	}
 }
