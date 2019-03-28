@@ -49,21 +49,22 @@ func init() {
 
 // Server represent a Dogstatsd server
 type Server struct {
-	listeners         []listeners.StatsdListener
-	packetsIn         chan listeners.Packets
-	Statistics        *util.Stats
-	Started           bool
-	packetPool        *listeners.PacketPool
-	stopChan          chan bool
-	health            *health.Handle
-	metricPrefix      string
-	defaultHostname   string
-	histToDist        bool
-	histToDistPrefix  string
-	extraTags         []string
-	debugMetricsStats bool
-	metricsStats      map[string]metricStat
-	statsLock         sync.Mutex
+	listeners             []listeners.StatsdListener
+	packetsIn             chan listeners.Packets
+	Statistics            *util.Stats
+	Started               bool
+	packetPool            *listeners.PacketPool
+	stopChan              chan bool
+	health                *health.Handle
+	metricPrefix          string
+	metricPrefixBlacklist []string
+	defaultHostname       string
+	histToDist            bool
+	histToDistPrefix      string
+	extraTags             []string
+	debugMetricsStats     bool
+	metricsStats          map[string]metricStat
+	statsLock             sync.Mutex
 }
 
 // metricStat holds how many times a metric has been
@@ -123,6 +124,7 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 	if metricPrefix != "" && !strings.HasSuffix(metricPrefix, ".") {
 		metricPrefix = metricPrefix + "."
 	}
+	metricPrefixBlacklist := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
 
 	defaultHostname, err := util.GetHostname()
 	if err != nil {
@@ -135,20 +137,21 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 	extraTags := config.Datadog.GetStringSlice("dogstatsd_tags")
 
 	s := &Server{
-		Started:           true,
-		Statistics:        stats,
-		packetsIn:         packetsChannel,
-		listeners:         tmpListeners,
-		packetPool:        packetPool,
-		stopChan:          make(chan bool),
-		health:            health.Register("dogstatsd-main"),
-		metricPrefix:      metricPrefix,
-		defaultHostname:   defaultHostname,
-		histToDist:        histToDist,
-		histToDistPrefix:  histToDistPrefix,
-		extraTags:         extraTags,
-		debugMetricsStats: metricsStats,
-		metricsStats:      make(map[string]metricStat),
+		Started:               true,
+		Statistics:            stats,
+		packetsIn:             packetsChannel,
+		listeners:             tmpListeners,
+		packetPool:            packetPool,
+		stopChan:              make(chan bool),
+		health:                health.Register("dogstatsd-main"),
+		metricPrefix:          metricPrefix,
+		metricPrefixBlacklist: metricPrefixBlacklist,
+		defaultHostname:       defaultHostname,
+		histToDist:            histToDist,
+		histToDistPrefix:      histToDistPrefix,
+		extraTags:             extraTags,
+		debugMetricsStats:     metricsStats,
+		metricsStats:          make(map[string]metricStat),
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -293,7 +296,7 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 			dogstatsdEventPackets.Add(1)
 			events = append(events, event)
 		} else {
-			sample, err := parseMetricMessage(message, s.metricPrefix, s.defaultHostname)
+			sample, err := parseMetricMessage(message, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
 			if err != nil {
 				log.Errorf("Dogstatsd: error parsing metrics: %s", err)
 				dogstatsdMetricParseErrors.Add(1)
