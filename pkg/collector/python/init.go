@@ -27,6 +27,16 @@ import (
 #cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
 
+// helpers
+
+char *getStringAddr(char **array, unsigned int idx) {
+	return array[idx];
+}
+
+//
+// datadog_agent module
+//
+
 void GetVersion(char **);
 void GetHostname(char **);
 void GetClusterName(char **);
@@ -43,6 +53,20 @@ void initDatadogAgentModule(six_t *six) {
 	set_log_cb(six, LogMessage);
 	set_get_config_cb(six, GetConfig);
 	set_set_external_tags_cb(six, SetExternalTags);
+}
+
+//
+// aggregator module
+//
+
+void SubmitMetric(char *, metric_type_t, char *, float, char **, int, char *);
+void SubmitServiceCheck(char *, char *, int, char **, int, char *, char *);
+void SubmitEvent(char *, event_t *, int);
+
+void initAggregatorModule(six_t *six) {
+	set_submit_metric_cb(six, SubmitMetric);
+	set_submit_service_check_cb(six, SubmitServiceCheck);
+	set_submit_event_cb(six, SubmitEvent);
 }
 */
 import "C"
@@ -135,6 +159,7 @@ func Initialize(paths ...string) error {
 	// TODO: query PythonHome
 
 	C.initDatadogAgentModule(six)
+	C.initAggregatorModule(six)
 	return nil
 }
 

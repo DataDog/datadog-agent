@@ -17,7 +17,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestSubmitMetric(t *testing.T) {
-	out, err := run(`aggregator.submit_metric(None, 'id', aggregator.GAUGE, 'name', -99.0, ['foo', 'bar'], 'myhost')`)
+	out, err := run(`aggregator.submit_metric(None, 'id', aggregator.GAUGE, 'name', -99.0, ['foo', 21, 'bar', ["hey"]], 'myhost')`)
 
 	if err != nil {
 		t.Fatal(err)
@@ -49,7 +49,7 @@ func TestSubmitMetric(t *testing.T) {
 }
 
 func TestSubmitServiceCheck(t *testing.T) {
-	out, err := run(`aggregator.submit_service_check(None, 'id', 'my.service.check', 1, ['foo', 'bar'], 'myhost', 'A message!')`)
+	out, err := run(`aggregator.submit_service_check(None, 'id', 'my.service.check', 1, ['foo', 21, 'bar', ["hey"]], 'myhost', 'A message!')`)
 
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +91,7 @@ func TestSubmitEvent(t *testing.T) {
 		'alert_type': 'foo',
 		'source_type_name': 'test',
 		'event_object': 'myhost',
-		'tags': ['foo', 'bar'],
+		'tags': ['foo', 21, 'bar', ["hey"]],
 		'priority': 'high',
 		'aggregation_key': 'aggregate',
 	}
