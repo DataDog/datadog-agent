@@ -12,7 +12,7 @@ var StandardJMXIntegrations = map[string]struct{}{
 	"kafka":       {},
 }
 
-// StandardStatsdPrefixes is a list of the statsd prefixes used by the agent and it's components
+// StandardStatsdPrefixes is a list of the statsd prefixes used by the agent and its components
 var StandardStatsdPrefixes = []string{
 	"datadog.agent",
 	"datadog.dogstatsd",
