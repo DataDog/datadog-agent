@@ -9,6 +9,7 @@
 
 // Functions
 PyObject* GetTags(char *id, int highCard);
+PyObject* Tag(char *id, TaggerCardinality card);
 
 // _must_ be in the same order as the TaggerCardinality enum
 char* TaggerCardinalityNames[] = {
@@ -30,7 +31,7 @@ static PyObject *tag(PyObject *self, PyObject *args) {
     }
 
     PyGILState_Release(gstate);
-    return GetTags(entity, card);
+    return Tag(entity, card);
 }
 
 static PyObject *get_tags(PyObject *self, PyObject *args) {
