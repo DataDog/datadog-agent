@@ -50,12 +50,15 @@ func TestGetHostAliases(t *testing.T) {
 	lastRequests := []*http.Request{}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
-		if r.URL.Path == "/instance/hostname" {
-			io.WriteString(w, "gce-hostname.c.datadog-demo.internal")
-		} else if r.URL.Path == "/project/project-id" {
+		switch path := r.URL.Path; path {
+		case "/instance/hostname":
+			io.WriteString(w, "gce-custom-hostname.custom-domain.gce-project")
+		case "/instance/name":
+			io.WriteString(w, "gce-instance-name")
+		case "/project/project-id":
 			io.WriteString(w, "gce-project")
-		} else {
-			t.Fatalf("Unknown URL requested: %s", r.URL.Path)
+		default:
+			t.Fatalf("Unknown URL requested: %s", path)
 		}
 		lastRequests = append(lastRequests, r)
 	}))
@@ -64,7 +67,7 @@ func TestGetHostAliases(t *testing.T) {
 
 	val, err := GetHostAlias()
 	assert.Nil(t, err)
-	assert.Equal(t, "gce-hostname.gce-project", val)
+	assert.Equal(t, "gce-instance-name.gce-project", val)
 }
 
 func TestGetClusterName(t *testing.T) {
