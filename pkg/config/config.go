@@ -130,8 +130,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_name", "")
 
 	// secrets backend
-	config.BindEnv("secret_backend_command")
-	config.BindEnv("secret_backend_arguments")
+	config.BindEnvAndSetDefault("secret_backend_command", "")
+	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", 1024)
 	config.BindEnvAndSetDefault("secret_backend_timeout", 5)
 
@@ -497,7 +497,7 @@ func load(config Config, origin string) error {
 		config.GetInt("secret_backend_output_max_size"),
 	)
 
-	if config.IsSet("secret_backend_command") {
+	if config.GetString("secret_backend_command") != "" {
 		// Viper doesn't expose the final location of the file it
 		// loads. Since we are searching for 'datadog.yaml' in multiple
 		// locations we let viper determine the one to use before
