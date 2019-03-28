@@ -263,10 +263,9 @@ func (r *HTTPReceiver) sendTrace(ts *info.TagStats, trace pb.Trace) {
 // decodeTraces decodes traces one by one from the given http.Request and sends them via
 // the returned channel. When it completes, it closes the channel. Any potential error
 // will be written to the http.ResponseWriter and the channel closed prematurely.
-func decodeTraces(w http.ResponseWriter, req *http.Request, v Version) (out <-chan pb.Trace) {
-	ch := make(chan pb.Trace)
+func decodeTraces(w http.ResponseWriter, req *http.Request, v Version) (out chan pb.Trace) {
+	out = make(chan pb.Trace)
 	go func() {
-		defer close(ch)
 		var rd *msgp.Reader
 		size, err := strconv.ParseInt(req.Header.Get("Content-Length"), 10, 64)
 		if err != nil {
@@ -285,10 +284,11 @@ func decodeTraces(w http.ResponseWriter, req *http.Request, v Version) (out <-ch
 				httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
 				return
 			}
-			ch <- trace
+			out <- trace
 		}
+		close(out)
 	}()
-	return ch
+	return out
 }
 
 // handleServices handle a request with a list of several services
