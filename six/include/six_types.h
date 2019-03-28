@@ -41,14 +41,13 @@ typedef enum {
     DATADOG_AGENT_SIX_HISTORATE
 } metric_type_t;
 
-typedef struct event_t {
+typedef struct event_s {
     char *title;
     char *text;
     long ts;
     char *priority;
     char *host;
     char **tags;
-    int tags_num;
     char *alert_type;
     char *aggregation_key;
     char *source_type_name;
@@ -61,10 +60,10 @@ typedef struct event_t {
 
 // aggregator
 //
-// (id, metric_type, metric_name, value, tags, tags_len, hostname)
-typedef void (*cb_submit_metric_t)(char *, metric_type_t, char *, float, char **, int, char *);
-// (id, sc_name, status, tags, tags_len, hostname, message)
-typedef void (*cb_submit_service_check_t)(char *, char *, int, char **, int, char *, char *);
+// (id, metric_type, metric_name, value, tags, hostname)
+typedef void (*cb_submit_metric_t)(char *, metric_type_t, char *, float, char **, char *);
+// (id, sc_name, status, tags, hostname, message)
+typedef void (*cb_submit_service_check_t)(char *, char *, int, char **, char *, char *);
 // (id, event)
 typedef void (*cb_submit_event_t)(char *, event_t *);
 
