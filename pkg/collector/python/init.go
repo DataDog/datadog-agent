@@ -27,6 +27,8 @@ import (
 #cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
 
+#include <stdlib.h>
+
 // helpers
 
 char *getStringAddr(char **array, unsigned int idx) {
@@ -34,7 +36,20 @@ char *getStringAddr(char **array, unsigned int idx) {
 }
 
 //
+// init free method
+//
+// On windows we need to free memory in the same DLL where it was allocated.
+// This allows six to free memory returned by Go callbacks.
+//
+
+void initCgoFree(six_t *six) {
+	set_cgo_free_cb(six, free);
+}
+
+//
 // datadog_agent module
+//
+// This also init "util" module who expose the same "headers" function
 //
 
 void GetVersion(char **);
@@ -68,6 +83,17 @@ void initAggregatorModule(six_t *six) {
 	set_submit_service_check_cb(six, SubmitServiceCheck);
 	set_submit_event_cb(six, SubmitEvent);
 }
+
+//
+// _util module
+//
+
+void GetSubprocessOutput(char **, int, char **, char **, int*, char **);
+
+void initUtilModule(six_t *six) {
+	set_get_subprocess_output_cb(six, GetSubprocessOutput);
+}
+
 */
 import "C"
 
@@ -158,8 +184,10 @@ func Initialize(paths ...string) error {
 	// TODO: query PythonPath
 	// TODO: query PythonHome
 
+	C.initCgoFree(six)
 	C.initDatadogAgentModule(six)
 	C.initAggregatorModule(six)
+	C.initUtilModule(six)
 	return nil
 }
 
