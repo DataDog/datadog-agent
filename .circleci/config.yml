@@ -38,9 +38,6 @@ templates:
           - v2-repo-{{ .Revision }}
     - save_cache: &save_source
         key: v2-repo-{{ .Revision }}
-    - run: &enter_venv
-        name: add virtualenv to bashrc
-        command: echo "source /go/src/github.com/DataDog/datadog-agent/venv/bin/activate" >> $BASH_ENV
 
 jobs:
   checkout_code:
@@ -58,15 +55,11 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
-          name: setup virtual env
-          command: virtualenv /go/src/github.com/DataDog/datadog-agent/venv
-      - run: *enter_venv
-      - run:
           name: setup python deps
-          command: source ./venv/bin/activate && pip install -r requirements.txt
+          command: pip install -r requirements.txt
       - run:
           name: grab go deps
-          command: source ./venv/bin/activate && inv deps
+          command: inv deps
       - run:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only
@@ -186,7 +179,7 @@ jobs:
 
 workflows:
   version: 2
-  build_test_deploy:
+  test_and_build:
     jobs:
       - checkout_code
       - dependencies:
