@@ -85,8 +85,8 @@ typedef void (*cb_log_t)(char *, int);
 typedef void (*cb_set_external_tags_t)(char *, char *, char **);
 
 // _util
-// (argv, argc, raise, output)
-typedef void (*cb_get_subprocess_output_t)(char **, int, int, char **);
+// (argv, argc, raise, stdout, stderr, ret_code, exception)
+typedef void (*cb_get_subprocess_output_t)(char **, char **, char **, int *, char **);
 
 // CGO API
 //

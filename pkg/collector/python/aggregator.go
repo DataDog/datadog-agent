@@ -18,28 +18,8 @@ import (
 #include <datadog_agent_six.h>
 #cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
-
-char *getStringAddr(char **array, unsigned int idx);
 */
 import "C"
-
-// extractTags returns a slice with the contents of the char **tags.
-func extractTags(tags **C.char) []string {
-	if tags != nil {
-		goTags := []string{}
-
-		for i := 0; ; i++ {
-			// Work around go vet raising issue about unsafe pointer
-			tagPtr := C.getStringAddr(tags, C.uint(i))
-			if tagPtr == nil {
-				return goTags
-			}
-			tag := C.GoString(tagPtr)
-			goTags = append(goTags, tag)
-		}
-	}
-	return nil
-}
 
 // SubmitMetric is the method exposed to Python scripts to submit metrics
 //export SubmitMetric
@@ -55,7 +35,7 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 	_name := C.GoString(metricName)
 	_value := float64(value)
 	_hostname := C.GoString(hostname)
-	_tags := extractTags(tags)
+	_tags := cStringArrayToSlice(tags)
 
 	switch metricType {
 	case C.DATADOG_AGENT_SIX_GAUGE:
@@ -88,7 +68,7 @@ func SubmitServiceCheck(checkID *C.char, scName *C.char, status C.int, tags **C.
 
 	_name := C.GoString(scName)
 	_status := metrics.ServiceCheckStatus(status)
-	_tags := extractTags(tags)
+	_tags := cStringArrayToSlice(tags)
 	_hostname := C.GoString(hostname)
 	_message := C.GoString(message)
 
@@ -119,7 +99,7 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 		Text:           eventParseString(event.text, "msg_text"),
 		Priority:       metrics.EventPriority(eventParseString(event.priority, "priority")),
 		Host:           eventParseString(event.host, "host"),
-		Tags:           extractTags(event.tags),
+		Tags:           cStringArrayToSlice(event.tags),
 		AlertType:      metrics.EventAlertType(eventParseString(event.alert_type, "alert_type")),
 		AggregationKey: eventParseString(event.aggregation_key, "aggregation_key"),
 		SourceTypeName: eventParseString(event.source_type_name, "source_type_name"),
