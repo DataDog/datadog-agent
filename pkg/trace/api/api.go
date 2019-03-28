@@ -229,21 +229,21 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		for trace := range decodeTraces(w, req, v) {
 			r.sendTrace(ts, trace)
 		}
+		r.replyTraces(v, w)
 	default:
 		traces, ok := getTraces(v, w, req)
 		if !ok {
 			return
 		}
+		r.replyTraces(v, w)
 		for _, trace := range traces {
 			r.sendTrace(ts, trace)
 		}
 	}
-
 	bytesRead := req.Body.(*LimitedReader).Count
 	if bytesRead > 0 {
 		atomic.AddInt64(&ts.TracesBytes, int64(bytesRead))
 	}
-	r.replyTraces(v, w)
 }
 
 func (r *HTTPReceiver) sendTrace(ts *info.TagStats, trace pb.Trace) {
