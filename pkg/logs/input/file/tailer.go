@@ -29,10 +29,11 @@ const defaultCloseTimeout = 60 * time.Second
 
 // Tailer tails one file and sends messages to an output channel
 type Tailer struct {
-	path     string
-	fullpath string
-	file     *os.File
-	tags     []string
+	path           string
+	fullpath       string
+	file           *os.File
+	isWildcardPath bool
+	tags           []string
 
 	readOffset    int64
 	decodedOffset int64
@@ -51,7 +52,7 @@ type Tailer struct {
 }
 
 // NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
+func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration, isWildcardPath bool) *Tailer {
 	var parser logParser.Parser
 	if source.GetSourceType() == config.ContainerdType {
 		parser = containerdFileParser
@@ -59,15 +60,16 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 		parser = logParser.NoopParser
 	}
 	return &Tailer{
-		path:          path,
-		outputChan:    outputChan,
-		decoder:       decoder.InitializeDecoder(source, parser),
-		source:        source,
-		readOffset:    0,
-		sleepDuration: sleepDuration,
-		closeTimeout:  defaultCloseTimeout,
-		stop:          make(chan struct{}, 1),
-		done:          make(chan struct{}, 1),
+		path:           path,
+		outputChan:     outputChan,
+		decoder:        decoder.InitializeDecoder(source, parser),
+		source:         source,
+		readOffset:     0,
+		sleepDuration:  sleepDuration,
+		closeTimeout:   defaultCloseTimeout,
+		stop:           make(chan struct{}, 1),
+		done:           make(chan struct{}, 1),
+		isWildcardPath: isWildcardPath,
 	}
 }
 
@@ -101,7 +103,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	}
 
 	// adds metadata to enable users to filter logs by filename
-	t.tags = []string{fmt.Sprintf("filename:%s", filepath.Base(t.path))}
+	t.tags = t.buildTailerTags()
 
 	log.Info("Opening ", t.path)
 	f, err := openFile(fullpath)
@@ -115,6 +117,15 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	t.decodedOffset = ret
 
 	return nil
+}
+
+// buildTailerTags groups the file tag, directory (if wildcard path) and user tags
+func (t *Tailer) buildTailerTags() []string {
+	tags := []string{fmt.Sprintf("filename:%s", filepath.Base(t.path))}
+	if t.isWildcardPath {
+		tags = append(tags, fmt.Sprintf("dirname:%s", filepath.Dir(t.path)))
+	}
+	return tags
 }
 
 // readForever lets the tailer tail the content of a file

@@ -240,5 +240,5 @@ func (s *Scanner) restartTailerAfterFileRotation(tailer *Tailer, file *File) boo
 
 // createTailer returns a new initialized tailer
 func (s *Scanner) createTailer(file *File, outputChan chan *message.Message) *Tailer {
-	return NewTailer(outputChan, file.Source, file.Path, s.tailerSleepDuration)
+	return NewTailer(outputChan, file.Source, file.Path, s.tailerSleepDuration, file.IsWildcardPath)
 }

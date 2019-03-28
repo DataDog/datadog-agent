@@ -81,6 +81,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 	files := fileProvider.FilesToTail(logSources)
 
 	suite.Equal(1, len(files))
+	suite.False(files[0].IsWildcardPath)
 	suite.Equal(fmt.Sprintf("%s/1/1.log", suite.testDir), files[0].Path)
 	suite.Equal(make([]string, 0), logSources[0].Messages.GetMessages())
 }
@@ -93,6 +94,9 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	files := fileProvider.FilesToTail(logSources)
 
 	suite.Equal(3, len(files))
+	suite.True(files[0].IsWildcardPath)
+	suite.True(files[1].IsWildcardPath)
+	suite.True(files[2].IsWildcardPath)
 	suite.Equal(fmt.Sprintf("%s/1/3.log", suite.testDir), files[0].Path)
 	suite.Equal(fmt.Sprintf("%s/1/2.log", suite.testDir), files[1].Path)
 	suite.Equal(fmt.Sprintf("%s/1/1.log", suite.testDir), files[2].Path)
@@ -113,6 +117,8 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWi
 	files := fileProvider.FilesToTail(logSources)
 
 	suite.Equal(2, len(files))
+	suite.True(files[0].IsWildcardPath)
+	suite.True(files[1].IsWildcardPath)
 	suite.Equal(fmt.Sprintf("%s/2/1.log", suite.testDir), files[0].Path)
 	suite.Equal(fmt.Sprintf("%s/1/1.log", suite.testDir), files[1].Path)
 	suite.Equal([]string{"2 files tailed out of 2 files matching"}, logSources[0].Messages.GetMessages())
@@ -126,6 +132,9 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 	files := fileProvider.FilesToTail(logSources)
 
 	suite.Equal(3, len(files))
+	suite.True(files[0].IsWildcardPath)
+	suite.True(files[1].IsWildcardPath)
+	suite.True(files[2].IsWildcardPath)
 	suite.Equal(fmt.Sprintf("%s/1/3.log", suite.testDir), files[0].Path)
 	suite.Equal(fmt.Sprintf("%s/1/2.log", suite.testDir), files[1].Path)
 	suite.Equal(fmt.Sprintf("%s/1/1.log", suite.testDir), files[2].Path)
@@ -145,6 +154,9 @@ func (suite *ProviderTestSuite) TestWildcardPathsAreSorted() {
 	logSources := suite.newLogSources(path)
 	files := fileProvider.FilesToTail(logSources)
 	suite.Equal(5, len(files))
+	for i := 0; i < len(files); i++ {
+		suite.Assert().True(files[i].IsWildcardPath)
+	}
 	suite.Equal(fmt.Sprintf("%s/1/3.log", suite.testDir), files[0].Path)
 	suite.Equal(fmt.Sprintf("%s/2/2.log", suite.testDir), files[1].Path)
 	suite.Equal(fmt.Sprintf("%s/1/2.log", suite.testDir), files[2].Path)

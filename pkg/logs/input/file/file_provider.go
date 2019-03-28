@@ -24,8 +24,9 @@ const openFilesLimitWarningType = "open_files_limit_warning"
 
 // File represents a file to tail
 type File struct {
-	Path   string
-	Source *config.LogSource
+	Path           string
+	IsWildcardPath bool
+	Source         *config.LogSource
 }
 
 // NewFile returns a new File
@@ -63,9 +64,10 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 		source := sources[i]
 		tailedFileCounter := 0
 		files, err := p.CollectFiles(source)
+		isWildcardPath := p.containsWildcard(source.Config.Path)
 		if err != nil {
 			source.Status.Error(err)
-			if p.containsWildcard(source.Config.Path) {
+			if isWildcardPath {
 				source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("%d files tailed out of %d files matching", tailedFileCounter, len(files)))
 			}
 			if shouldLogErrors {
@@ -75,6 +77,7 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 		}
 		for j := 0; j < len(files) && len(filesToTail) < p.filesLimit; j++ {
 			file := files[j]
+			file.IsWildcardPath = isWildcardPath
 			filesToTail = append(filesToTail, file)
 			tailedFileCounter++
 		}
@@ -91,7 +94,7 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 			status.RemoveGlobalWarning(openFilesLimitWarningType)
 		}
 
-		if p.containsWildcard(source.Config.Path) {
+		if isWildcardPath {
 			source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("%d files tailed out of %d files matching", tailedFileCounter, len(files)))
 		}
 	}
