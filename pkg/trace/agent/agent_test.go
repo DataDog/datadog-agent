@@ -588,17 +588,22 @@ func formatTrace(t pb.Trace) pb.Trace {
 }
 
 func BenchmarkThroughput(b *testing.B) {
-	if _, ok := os.LookupEnv("DD_TRACE_TEST_PRIVATE_DATA"); !ok {
+	env, ok := os.LookupEnv("DD_TRACE_TEST_FOLDER")
+	if !ok {
 		b.SkipNow()
 	}
 
 	ddlog.SetupDatadogLogger(seelog.Disabled, "") // disable logging
 
-	b.Run("39KB/10", benchThroughput("src/github.com/DataDog/trace-agent-test/payloads/10traces.msgp"))
-	b.Run("1.1MB/100", benchThroughput("src/github.com/DataDog/trace-agent-test/payloads/100traces.msgp"))
-	b.Run("1.1MB/1951", benchThroughput("src/github.com/DataDog/trace-agent-test/payloads/26.msgp"))
-	b.Run("2.2MB/4161", benchThroughput("src/github.com/DataDog/trace-agent-test/payloads/10.msgp"))
-	b.Run("6.6MB/500", benchThroughput("src/github.com/DataDog/trace-agent-test/payloads/500traces.msgp"))
+	folder := filepath.Join(env, "benchmarks")
+	filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
+		ext := filepath.Ext(path)
+		if ext != ".msgp" {
+			return nil
+		}
+		b.Run(info.Name(), benchThroughput(path))
+		return nil
+	})
 }
 
 func benchThroughput(file string) func(*testing.B) {
