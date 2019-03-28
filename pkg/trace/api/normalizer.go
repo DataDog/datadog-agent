@@ -127,7 +127,7 @@ func normalize(s *pb.Span) error {
 	return nil
 }
 
-// NormalizeTrace takes a trace and
+// normalizeTrace takes a trace and
 // * rejects the trace if there is a trace ID discrepancy between 2 spans
 // * rejects the trace if two spans have the same span_id
 // * rejects empty traces
@@ -135,7 +135,7 @@ func normalize(s *pb.Span) error {
 // * return the normalized trace and an error:
 //   - nil if the trace can be accepted
 //   - an error string if the trace needs to be dropped
-func NormalizeTrace(t pb.Trace) error {
+func normalizeTrace(t pb.Trace) error {
 	if len(t) == 0 {
 		return errors.New("empty trace")
 	}

@@ -145,8 +145,8 @@ func TestLegacyReceiver(t *testing.T) {
 				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
 				assert.Equal(uint64(52), span.SpanID)
-				assert.Equal("fennel_IS amazing!", span.Service)
-				assert.Equal("something &&<@# that should be a metric!", span.Name)
+				assert.Equal("fennel_is_amazing", span.Service)
+				assert.Equal("something_that_should_be_a_metric", span.Name)
 				assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 				assert.Equal("192.168.0.1", span.Meta["http.host"])
 				assert.Equal(41.99, span.Metrics["http.monitor"])
@@ -208,8 +208,8 @@ func TestReceiverJSONDecoder(t *testing.T) {
 				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
 				assert.Equal(uint64(52), span.SpanID)
-				assert.Equal("fennel_IS amazing!", span.Service)
-				assert.Equal("something &&<@# that should be a metric!", span.Name)
+				assert.Equal("fennel_is_amazing", span.Service)
+				assert.Equal("something_that_should_be_a_metric", span.Name)
 				assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 				assert.Equal("192.168.0.1", span.Meta["http.host"])
 				assert.Equal(41.99, span.Metrics["http.monitor"])
@@ -275,8 +275,8 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(52), span.SpanID)
-					assert.Equal("fennel_IS amazing!", span.Service)
-					assert.Equal("something &&<@# that should be a metric!", span.Name)
+					assert.Equal("fennel_is_amazing", span.Service)
+					assert.Equal("something_that_should_be_a_metric", span.Name)
 					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 					assert.Equal("192.168.0.1", span.Meta["http.host"])
 					assert.Equal(41.99, span.Metrics["http.monitor"])
@@ -297,8 +297,8 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(52), span.SpanID)
-					assert.Equal("fennel_IS amazing!", span.Service)
-					assert.Equal("something &&<@# that should be a metric!", span.Name)
+					assert.Equal("fennel_is_amazing", span.Service)
+					assert.Equal("something_that_should_be_a_metric", span.Name)
 					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 					assert.Equal("192.168.0.1", span.Meta["http.host"])
 					assert.Equal(41.99, span.Metrics["http.monitor"])

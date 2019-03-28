@@ -1,33 +1,28 @@
 package agent
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"math"
 	"net/http"
-	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-	"github.com/tinylib/msgp/msgp"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 )
 
 type mockSamplerEngine struct {
@@ -585,163 +580,4 @@ func formatTrace(t pb.Trace) pb.Trace {
 		Truncate(span)
 	}
 	return t
-}
-
-func BenchmarkThroughput(b *testing.B) {
-	env, ok := os.LookupEnv("DD_TRACE_TEST_FOLDER")
-	if !ok {
-		b.SkipNow()
-	}
-
-	ddlog.SetupDatadogLogger(seelog.Disabled, "") // disable logging
-
-	folder := filepath.Join(env, "benchmarks")
-	filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
-		ext := filepath.Ext(path)
-		if ext != ".msgp" {
-			return nil
-		}
-		b.Run(info.Name(), benchThroughput(path))
-		return nil
-	})
-}
-
-func benchThroughput(file string) func(*testing.B) {
-	return func(b *testing.B) {
-		data, count, err := tracesFromFile(file)
-		if err != nil {
-			b.Fatal(err)
-		}
-		cfg := config.New()
-		cfg.Endpoints[0].APIKey = "irrelevant"
-
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		http.DefaultServeMux = &http.ServeMux{}
-		agnt := NewAgent(ctx, cfg)
-		defer cancelFunc()
-
-		// start the agent without the trace writer; we will be draining
-		// the write channel ourselves in the benchmarks.
-		startMinimalAgent(ctx, b, agnt)
-
-		// drain every other channel to avoid blockage.
-		exit := make(chan bool)
-		go func() {
-			defer close(exit)
-			for {
-				select {
-				case <-agnt.ServiceExtractor.outServices:
-				case <-agnt.Concentrator.OutStats:
-				case <-exit:
-					return
-				}
-			}
-		}()
-
-		b.ResetTimer()
-		b.SetBytes(int64(len(data)))
-
-		for i := 0; i < b.N; i++ {
-			req, err := http.NewRequest("PUT", "http://localhost:8126/v0.4/traces", bytes.NewReader(data))
-			if err != nil {
-				b.Fatal(err)
-			}
-			req.Header.Set("Content-Type", "application/msgpack")
-			w := httptest.NewRecorder()
-
-			// create the request by calling directly into the Handler;
-			// we are not interested in benchmarking HTTP latency. This
-			// also ensures we avoid potential connection failures that
-			// would make the benchmarks inconsistent.
-			http.DefaultServeMux.ServeHTTP(w, req)
-			if w.Code != 200 {
-				b.Fatalf("%d: %v", i, w.Body.String())
-			}
-
-			var got int
-			timeout := time.After(1 * time.Second)
-		loop:
-			for {
-				select {
-				case <-agnt.tracePkgChan:
-					got++
-					if got == count {
-						// processed everything!
-						break loop
-					}
-				case <-timeout:
-					// taking too long...
-					b.Fatalf("time out at %d/%d", got, count)
-					break loop
-				}
-			}
-		}
-
-		exit <- true
-		<-exit
-	}
-}
-
-// startAgentWithoutTraceWriter starts everything in the given agent except the trace writer.
-// It is used in benchmarks where the benchmark awaits on the trace writer channel.
-func startMinimalAgent(ctx context.Context, b *testing.B, agnt *Agent) {
-	agnt.Receiver.Run()
-	agnt.ScoreSampler.Run()
-	agnt.ErrorsScoreSampler.Run()
-	agnt.PrioritySampler.Run()
-	agnt.EventProcessor.Start()
-
-	go func() {
-		for {
-			select {
-			case t := <-agnt.Receiver.Out:
-				agnt.Process(t)
-			case <-agnt.ctx.Done():
-				if err := agnt.Receiver.Stop(); err != nil {
-					b.Fatal(err)
-				}
-				agnt.ScoreSampler.Stop()
-				agnt.ErrorsScoreSampler.Stop()
-				agnt.PrioritySampler.Stop()
-				agnt.EventProcessor.Stop()
-				return
-			}
-		}
-	}()
-}
-
-// tracesFromFile extracts raw msgpack data from the given file, modifying each trace
-// to have sampling.priority=2 to guarantee consistency. It also returns the amount of
-// traces found and any error in obtaining the information.
-func tracesFromFile(file string) (raw []byte, count int, err error) {
-	if file[0] != '/' {
-		file = filepath.Join(os.Getenv("GOPATH"), file)
-	}
-	in, err := os.Open(file)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer in.Close()
-	// prepare the traces in this file by adding sampling.priority=2
-	// everywhere to ensure consistent sampling assumptions and results.
-	var traces pb.Traces
-	if err := msgp.Decode(in, &traces); err != nil {
-		return nil, 0, err
-	}
-	for _, t := range traces {
-		count++
-		for _, s := range t {
-			if s.Metrics == nil {
-				s.Metrics = map[string]float64{"_sampling_priority_v1": 2}
-			} else {
-				s.Metrics["_sampling_priority_v1"] = 2
-			}
-		}
-	}
-	// re-encode the modified payload
-	var data bytes.Buffer
-	if err := msgp.Encode(&data, traces); err != nil {
-		return nil, 0, err
-	}
-	return data.Bytes(), count, nil
 }
