@@ -66,6 +66,51 @@ void _set_submit_event_cb(cb_submit_event_t cb) {
     cb_submit_event = cb;
 }
 
+static char **py_tag_to_c(PyObject *py_tags) {
+    char **tags = NULL;
+    char *err = NULL;
+    PyObject *py_tags_list = NULL; // new reference
+
+    int len = PySequence_Length(py_tags);
+    if (!len)
+        return NULL;
+
+    py_tags_list = PySequence_Fast(py_tags, err); // new reference
+    if (py_tags_list == NULL) {
+        goto done;
+    }
+
+    // TODO: handle malloc error
+    tags = malloc(sizeof(*tags) * (len+1));
+    int nb_valid_tag = 0;
+    int i;
+    for (i = 0; i < len; i++) {
+        // `item` is borrowed, no need to decref
+        PyObject *item = PySequence_Fast_GET_ITEM(py_tags_list, i);
+
+        char *ctag = as_string(item);
+        if (ctag == NULL) {
+            continue;
+        }
+        tags[nb_valid_tag] = ctag;
+        nb_valid_tag++;
+    }
+    tags[nb_valid_tag] = NULL;
+
+done:
+    free(err);
+    Py_XDECREF(py_tags_list);
+    return tags;
+}
+
+static void free_tags(char **tags) {
+    int i;
+    for (i = 0; tags[i] != NULL; i++) {
+        free(tags[i]);
+    }
+    free(tags);
+}
+
 static PyObject *submit_metric(PyObject *self, PyObject *args) {
     if (cb_submit_metric == NULL) {
         Py_RETURN_NONE;
@@ -73,8 +118,6 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
 
     PyObject *check = NULL; // borrowed
     PyObject *py_tags = NULL; // borrowed
-    PyObject *py_tags_list = NULL; // new reference
-    char *err = NULL;
     char *name = NULL;
     char *hostname = NULL;
     char *check_id = NULL;
@@ -87,27 +130,14 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
         goto done;
     }
 
-    int len = PySequence_Length(py_tags);
-    if (len) {
-        py_tags_list = PySequence_Fast(py_tags, err); // new reference
-        if (py_tags_list == NULL) {
-            goto done;
-        }
+    if ((tags = py_tag_to_c(py_tags)) == NULL)
+        goto error;
 
-        tags = malloc(len * sizeof(char *));
-        int i;
-        for (i = 0; i < len; i++) {
-            // `item` is borrowed, no need to decref
-            PyObject *item = PySequence_Fast_GET_ITEM(py_tags_list, i);
-            tags[i] = as_string(item);
-        }
-    }
+    cb_submit_metric(check_id, mt, name, value, tags, hostname);
 
-    cb_submit_metric(check_id, mt, name, value, tags, len, hostname);
+    free_tags(tags);
 
 done:
-    free(err);
-    Py_XDECREF(py_tags_list);
     Py_RETURN_NONE;
 }
 
@@ -116,10 +146,11 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args) {
         Py_RETURN_NONE;
     }
 
+    // acquiring GIL to be able to raise exception
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
     PyObject *check = NULL; // borrowed
     PyObject *py_tags = NULL; // borrowed
-    PyObject *py_tags_list = NULL; // new reference
-    char *err = NULL;
     char *name = NULL;
     int status;
     char *hostname = NULL;
@@ -132,27 +163,14 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args) {
         goto done;
     }
 
-    int len = PySequence_Length(py_tags);
-    if (len) {
-        py_tags_list = PySequence_Fast(py_tags, err); // new reference
-        if (py_tags_list == NULL) {
-            goto done;
-        }
+    if ((tags = py_tag_to_c(py_tags)) == NULL)
+        goto error;
 
-        tags = malloc(len * sizeof(char *));
-        int i;
-        for (i = 0; i < len; i++) {
-            // `item` is borrowed, no need to decref
-            PyObject *item = PySequence_Fast_GET_ITEM(py_tags_list, i);
-            tags[i] = as_string(item);
-        }
-    }
+    cb_submit_service_check(check_id, name, status, tags, hostname, message);
 
-    cb_submit_service_check(check_id, name, status, tags, len, hostname, message);
+    free_tags(tags);
 
 done:
-    free(err);
-    Py_XDECREF(py_tags_list);
     Py_RETURN_NONE;
 }
 
@@ -164,9 +182,7 @@ static PyObject *submit_event(PyObject *self, PyObject *args) {
     PyObject *check = NULL; // borrowed
     PyObject *event_dict = NULL; // borrowed
     PyObject *py_tags = NULL; // borrowed
-    PyObject *py_tags_list = NULL; // new reference
     char *check_id = NULL;
-    char *err = NULL;
     event_t *ev = NULL;
 
     // aggregator.submit_event(self, check_id, event)
@@ -178,6 +194,7 @@ static PyObject *submit_event(PyObject *self, PyObject *args) {
         goto done;
     }
 
+    // TODO: handle malloc error
     ev = (event_t *)malloc(sizeof(event_t));
     // notice: PyDict_GetItemString returns a borrowed ref
     ev->title = as_string(PyDict_GetItemString(event_dict, "msg_title"));
@@ -190,32 +207,17 @@ static PyObject *submit_event(PyObject *self, PyObject *args) {
     ev->source_type_name = as_string(PyDict_GetItemString(event_dict, "source_type_name"));
     ev->event_type = as_string(PyDict_GetItemString(event_dict, "event_type"));
 
-    int len = 0;
     py_tags = PyDict_GetItemString(event_dict, "tags");
-    if (py_tags != NULL && py_tags != Py_None) {
-        len = PySequence_Length(py_tags);
-    }
-
-    if (len) {
-        ev->tags_num = len;
-        py_tags_list = PySequence_Fast(py_tags, err); // new reference
-        if (py_tags_list == NULL) {
-            goto done;
-        }
-
-        ev->tags = malloc(len * sizeof(char *));
-        int i;
-        for (i = 0; i < len; i++) {
-            // `item` is borrowed, no need to decref
-            PyObject *item = PySequence_Fast_GET_ITEM(py_tags_list, i);
-            ev->tags[i] = as_string(item);
-        }
+    ev->tags = py_tag_to_c(py_tags);
+    if (ev->tags == NULL) {
+        goto done;
     }
 
     cb_submit_event(check_id, ev);
 
+    free_tags(ev->tags);
+
 done:
-    free(err);
-    Py_XDECREF(py_tags_list);
+    free(ev);
     Py_RETURN_NONE;
 }

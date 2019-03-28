@@ -15,8 +15,8 @@ import (
 // #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
 // #include <datadog_agent_six.h>
 //
-// extern void submitMetric(char *, metric_type_t, char *, float, char **, int, char *);
-// extern void submitServiceCheck(char *, char *, int, char **, int, char *, char *);
+// extern void submitMetric(char *, metric_type_t, char *, float, char **, char *);
+// extern void submitServiceCheck(char *, char *, int, char **, char *, char *);
 // extern void submitEvent(char*, event_t*);
 //
 // static void initAggregatorTests(six_t *six) {
@@ -113,37 +113,48 @@ except Exception as e:
 	return string(output), err
 }
 
+func charArrayToSlice(array **C.char) (res []string) {
+	pTags := uintptr(unsafe.Pointer(array))
+	ptrSize := unsafe.Sizeof(*array)
+
+	for i := uintptr(0); ; i++ {
+		tagPtr := *(**C.char)(unsafe.Pointer(pTags + ptrSize*i))
+		if tagPtr == nil {
+			return
+		}
+		tag := C.GoString(tagPtr)
+		res = append(res, tag)
+	}
+}
+
 //export submitMetric
-func submitMetric(id *C.char, mt C.metric_type_t, mname *C.char, val C.float, t **C.char, tagsLen C.int, hname *C.char) {
+func submitMetric(id *C.char, mt C.metric_type_t, mname *C.char, val C.float, t **C.char, hname *C.char) {
 	checkID = C.GoString(id)
 	metricType = int(mt)
 	name = C.GoString(mname)
 	value = float64(val)
 	hostname = C.GoString(hname)
 	if t != nil {
-		for _, s := range (*[1 << 30]*C.char)(unsafe.Pointer(t))[:tagsLen:tagsLen] {
-			tags = append(tags, C.GoString(s))
-		}
+		tags = append(tags, charArrayToSlice(t)...)
 	}
 }
 
 //export submitServiceCheck
-func submitServiceCheck(id *C.char, name *C.char, level C.int, t **C.char, tagsLen C.int, hname *C.char, message *C.char) {
+func submitServiceCheck(id *C.char, name *C.char, level C.int, t **C.char, hname *C.char, message *C.char) {
 	checkID = C.GoString(id)
 	scLevel = int(level)
 	scName = C.GoString(name)
 	hostname = C.GoString(hname)
 	scMessage = C.GoString(message)
 	if t != nil {
-		for _, s := range (*[1 << 30]*C.char)(unsafe.Pointer(t))[:tagsLen:tagsLen] {
-			tags = append(tags, C.GoString(s))
-		}
+		tags = append(tags, charArrayToSlice(t)...)
 	}
 }
 
 //export submitEvent
 func submitEvent(id *C.char, ev *C.event_t) {
 	checkID = C.GoString(id)
+
 	_event = &event{}
 	if ev.title != nil {
 		_event.title = C.GoString(ev.title)
@@ -172,8 +183,6 @@ func submitEvent(id *C.char, ev *C.event_t) {
 	}
 
 	if ev.tags != nil {
-		for _, s := range (*[1 << 30]*C.char)(unsafe.Pointer(ev.tags))[:ev.tags_num:ev.tags_num] {
-			_event.tags = append(_event.tags, C.GoString(s))
-		}
+		_event.tags = append(_event.tags, charArrayToSlice(ev.tags)...)
 	}
 }
