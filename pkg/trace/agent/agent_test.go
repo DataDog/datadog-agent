@@ -617,7 +617,7 @@ func benchThroughput(file string) func(*testing.B) {
 
 		// start the agent without the trace writer; we will be draining
 		// the write channel ourselves in the benchmarks.
-		startAgentWithoutTraceWriter(ctx, b, agnt)
+		startMinimalAgent(ctx, b, agnt)
 
 		// drain every other channel to avoid blockage.
 		exit := make(chan bool)
@@ -679,12 +679,8 @@ func benchThroughput(file string) func(*testing.B) {
 
 // startAgentWithoutTraceWriter starts everything in the given agent except the trace writer.
 // It is used in benchmarks where the benchmark awaits on the trace writer channel.
-func startAgentWithoutTraceWriter(ctx context.Context, b *testing.B, agnt *Agent) {
+func startMinimalAgent(ctx context.Context, b *testing.B, agnt *Agent) {
 	agnt.Receiver.Run()
-	agnt.StatsWriter.Start()
-	agnt.ServiceMapper.Start()
-	agnt.ServiceWriter.Start()
-	agnt.Concentrator.Start()
 	agnt.ScoreSampler.Run()
 	agnt.ErrorsScoreSampler.Run()
 	agnt.PrioritySampler.Run()
@@ -699,10 +695,6 @@ func startAgentWithoutTraceWriter(ctx context.Context, b *testing.B, agnt *Agent
 				if err := agnt.Receiver.Stop(); err != nil {
 					b.Fatal(err)
 				}
-				agnt.Concentrator.Stop()
-				agnt.StatsWriter.Stop()
-				agnt.ServiceMapper.Stop()
-				agnt.ServiceWriter.Stop()
 				agnt.ScoreSampler.Stop()
 				agnt.ErrorsScoreSampler.Stop()
 				agnt.PrioritySampler.Stop()
