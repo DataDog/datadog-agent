@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"strconv"
 	"sync"
@@ -22,8 +23,7 @@ import (
 )
 
 const (
-	backoffUnit           = 2 * time.Second
-	backoffMax            = 30 * time.Second
+	maxExpBackoffCount    = 7
 	connectionTimeout     = 20 * time.Second
 	statusConnectionError = "connection_error"
 )
@@ -56,7 +56,7 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 		}
 	})
 
-	var retries int
+	var retries uint
 	var err error
 	for {
 		if err != nil {
@@ -149,13 +149,17 @@ func (cm *ConnectionManager) handleServerClose(conn net.Conn) {
 	}
 }
 
-// backoff lets the connection manager sleep a bit
-func (cm *ConnectionManager) backoff(ctx context.Context, retries int) {
-	backoffDuration := backoffUnit * time.Duration(retries)
-	if backoffDuration > backoffMax {
-		backoffDuration = backoffMax
+// backoff implements a randomized exponential backoff in case of connection failure
+// each invocation will trigger a sleep between [2^(retries-1), 2^retries) second
+// the exponent is capped at 7, which translates to max sleep between ~1min and ~2min
+func (cm *ConnectionManager) backoff(ctx context.Context, retries uint) {
+	if retries > maxExpBackoffCount {
+		retries = maxExpBackoffCount
 	}
-	time.Sleep(backoffDuration)
+
+	backoffMax := 1 << retries
+	backoffMin := 1 << (retries - 1)
+	backoffDuration := time.Duration(backoffMin+rand.Intn(backoffMax-backoffMin)) * time.Second
 
 	ctx, cancel := context.WithTimeout(ctx, backoffDuration)
 	defer cancel()

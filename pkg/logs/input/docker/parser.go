@@ -144,7 +144,7 @@ func min(a, b int) int {
 	return b
 }
 
-// test if the entire message is in the form of escaped new line
+// isEmptyMessage tests if the entire message is in the form of escaped new line
 // i.e. \\n  or \\r or \\r\\n
 func isEmptyMessage(content []byte) bool {
 	if len(content) == 2 && content[0] == '\\' {
