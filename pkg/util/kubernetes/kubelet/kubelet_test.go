@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -182,6 +183,8 @@ func (suite *KubeletTestSuite) SetupTest() {
 	ResetGlobalKubeUtil()
 	ResetCache()
 
+	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
+
 	mockConfig.Set("kubelet_client_crt", "")
 	mockConfig.Set("kubelet_client_key", "")
 	mockConfig.Set("kubelet_client_ca", "")
@@ -191,6 +194,7 @@ func (suite *KubeletTestSuite) SetupTest() {
 	mockConfig.Set("kubernetes_kubelet_host", "")
 	mockConfig.Set("kubernetes_http_kubelet_port", 10250)
 	mockConfig.Set("kubernetes_https_kubelet_port", 10255)
+	mockConfig.Set("kubernetes_pod_expiration_duration", 15*60)
 }
 
 func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
@@ -786,6 +790,78 @@ func (suite *KubeletTestSuite) TestGetKubeletHostFromConfig() {
 	ips, hostnames = getKubeletHostFromConfig(mockConfig.GetString("kubernetes_kubelet_host"), ctx)
 	assert.Equal(suite.T(), ips, []string([]string(nil)))
 	assert.Equal(suite.T(), hostnames, []string([]string(nil)))
+}
+
+func (suite *KubeletTestSuite) TestPodListNoExpire() {
+	mockConfig := config.Mock()
+	mockConfig.Set("kubernetes_pod_expiration_duration", 0)
+
+	kubelet, err := newDummyKubelet("./testdata/podlist_expired.json")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.Nil(suite.T(), err)
+
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubelet_auth_token_path", "")
+
+	kubeutil, err := GetKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
+	kubelet.dropRequests() // Throwing away first GETs
+
+	pods, err := kubeutil.ForceGetLocalPodList()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), pods)
+	require.Len(suite.T(), pods, 4)
+}
+
+func (suite *KubeletTestSuite) TestPodListExpire() {
+	// Fixtures contains four pods:
+	//   - dd-agent-ntepl old but running
+	//   - hello1-1550504220-ljnzx succeeded and old enough to expire
+	//   - hello5-1550509440-rlgvf succeeded but not old enough
+	//   - hello8-1550505780-kdnjx has one old container and a recent container, don't expire
+
+	mockConfig := config.Mock()
+	mockConfig.Set("kubernetes_pod_expiration_duration", 15*60)
+
+	kubelet, err := newDummyKubelet("./testdata/podlist_expired.json")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.Nil(suite.T(), err)
+
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubelet_auth_token_path", "")
+
+	kubeutil, err := GetKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
+	kubelet.dropRequests() // Throwing away first GETs
+
+	// Mock time.Now call
+	kubeutil.podUnmarshaller.timeNowFunction = func() time.Time {
+		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
+		return t
+	}
+
+	pods, err := kubeutil.ForceGetLocalPodList()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), pods)
+	require.Len(suite.T(), pods, 3)
+
+	// Test we kept the right pods
+	expectedNames := []string{"dd-agent-ntepl", "hello5-1550509440-rlgvf", "hello8-1550505780-kdnjx"}
+	var podNames []string
+	for _, p := range pods {
+		podNames = append(podNames, p.Metadata.Name)
+	}
+	assert.Equal(suite.T(), expectedNames, podNames)
 }
 
 func TestKubeletTestSuite(t *testing.T) {

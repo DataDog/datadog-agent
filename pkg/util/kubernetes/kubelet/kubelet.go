@@ -10,7 +10,6 @@ package kubelet
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"expvar"
 	"fmt"
 	"io/ioutil"
@@ -59,6 +58,7 @@ type KubeUtil struct {
 	podListCacheDuration     time.Duration
 	filter                   *containers.Filter
 	waitOnMissingContainer   time.Duration
+	podUnmarshaller          *podUnmarshaller
 }
 
 // ResetGlobalKubeUtil is a helper to remove the current KubeUtil global
@@ -78,6 +78,7 @@ func newKubeUtil() *KubeUtil {
 		kubeletApiRequestHeaders: &http.Header{},
 		rawConnectionInfo:        make(map[string]string),
 		podListCacheDuration:     config.Datadog.GetDuration("kubelet_cache_pods_duration") * time.Second,
+		podUnmarshaller:          newPodUnmarshaller(),
 	}
 
 	waitOnMissingContainer := config.Datadog.GetDuration("kubelet_wait_on_missing_container")
@@ -167,7 +168,9 @@ func (ku *KubeUtil) GetNodename() (string, error) {
 	return "", fmt.Errorf("failed to get the kubernetes nodename, pod list length: %d", len(pods))
 }
 
-// GetLocalPodList returns the list of pods running on the node
+// GetLocalPodList returns the list of pods running on the node.
+// If kubernetes_pod_expiration_duration is set, old exited pods
+// will be filtered out to keep the podlist size down: see json.go
 func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	var ok bool
 	pods := PodList{}
@@ -189,7 +192,7 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletApiEndpoint, kubeletPodPath, string(data))
 	}
 
-	err = json.Unmarshal(data, &pods)
+	err = ku.podUnmarshaller.unmarshal(data, &pods)
 	if err != nil {
 		return nil, err
 	}

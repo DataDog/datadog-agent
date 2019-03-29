@@ -236,8 +236,8 @@ api_key:
 #   logs_dd_url: <endpoint>:<port>
 #
 #   Disable the SSL encryption (default to false). This parameter should only be used when logs are
-#   forwarded locally to a proxy. It is highly recommended to then handle the SSL encryption 
-#   on the proxy side. 
+#   forwarded locally to a proxy. It is highly recommended to then handle the SSL encryption
+#   on the proxy side.
 #   logs_no_ssl: false
 #
 #   Global processing rules that are applied to all the logs. The available rules are
@@ -722,6 +722,12 @@ api_key:
 #
 # Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
 # kubelet_cache_pods_duration: 5
+#
+# As pods created by cronjobs are not removed by default, this can lead to podlists
+# growing unbounded. To avoid an impact on its memory usage, the agent ignores by
+# default all pods that exited more than 15 minutes (900 seconds) ago. This filtering
+# can be disabled altogether by setting the duration to 0.
+# kubernetes_pod_expiration_duration: 900
 #
 {{ end -}}
 {{- if .KubeApiServer }}
