@@ -70,7 +70,7 @@ type AutoConfig struct {
 // NewAutoConfig creates an AutoConfig instance.
 func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 	ac := &AutoConfig{
-		providers:          make([]*configPoller, 0, 8),
+		providers:          make([]*configPoller, 0, 9),
 		listenerCandidates: make(map[string]listeners.ServiceListenerFactory),
 		listenerRetryStop:  nil, // We'll open it if needed
 		listenerStop:       make(chan struct{}),
@@ -168,6 +168,7 @@ func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shoul
 	defer ac.m.Unlock()
 
 	for _, pd := range ac.providers {
+		log.Debugf("adding provider: %v", pd)
 		if pd.provider == provider {
 			// we already know this configuration provider, don't do anything
 
@@ -196,7 +197,7 @@ func (ac *AutoConfig) LoadAndRun() {
 // configurations found, resolving the ones it can
 func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	var resolvedConfigs []integration.Config
-
+	log.Debugf("ac.providers: %v", ac.providers)
 	for _, pd := range ac.providers {
 		cfgs, err := pd.provider.Collect()
 		if err != nil {
@@ -238,7 +239,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 			resolvedConfigs = append(resolvedConfigs, rc...)
 		}
 	}
-
+	log.Debugf("resolved configs: %v", resolvedConfigs)
 	return resolvedConfigs
 }
 
