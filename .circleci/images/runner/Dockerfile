@@ -5,7 +5,7 @@ RUN set -ex \
     && apt-get update && apt-get install -y --no-install-recommends \
         gnupg ca-certificates \
         gcc g++ make git ssh curl \
-        python-dev python3.7-dev python3-distutils \
+        python-dev python3.7-dev python3-distutils python3-pip \
         libssl-dev libsnmp-base libsnmp-dev libpq-dev snmp-mibs-downloader libsystemd-dev
 
 ENV GIMME_GO_VERSION 1.11.5
