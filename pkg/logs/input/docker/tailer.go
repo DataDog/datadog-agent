@@ -11,14 +11,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"reflect"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -32,7 +28,6 @@ import (
 
 const defaultSleepDuration = 1 * time.Second
 const readTimeout = 30 * time.Second
-const tagsUpdatePeriod = 10 * time.Second
 
 // Tailer tails logs coming from stdout and stderr of a docker container
 // Logs from stdout and stderr are multiplexed into a single channel and needs to be demultiplexed later one.
@@ -44,7 +39,7 @@ type Tailer struct {
 	reader      *safeReader
 	cli         *client.Client
 	source      *config.LogSource
-	tagProvider *tag.Provider
+	tagProvider tag.Provider
 
 	sleepDuration      time.Duration
 	shouldStop         bool
@@ -63,7 +58,7 @@ func NewTailer(cli *client.Client, containerID string, source *config.LogSource,
 		outputChan:         outputChan,
 		decoder:            decoder.InitializeDecoder(source, dockerParser),
 		source:             source,
-		tagProvider:        tag.NewProvider(dockerutil.ContainerIDToEntityName(containerID), tagsUpdatePeriod),
+		tagProvider:        tag.NewProvider(containerID),
 		cli:                cli,
 		sleepDuration:      defaultSleepDuration,
 		stop:               make(chan struct{}, 1),
@@ -99,7 +94,6 @@ func (t *Tailer) Stop() {
 // start from oldest log otherwise
 func (t *Tailer) Start(since time.Time) error {
 	log.Infof("Start tailing container: %v", ShortContainerID(t.ContainerID))
-	t.tagProvider.Start()
 	return t.tail(since.Format(config.DateFormat))
 }
 
@@ -153,7 +147,7 @@ func (t *Tailer) tail(since string) error {
 	t.source.Status.Success()
 	t.source.AddInput(t.ContainerID)
 
-	go t.keepDockerTagsUpdated()
+	t.tagProvider.Start()
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()

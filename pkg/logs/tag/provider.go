@@ -5,8 +5,29 @@
 
 package tag
 
-// Provider keeps a list of up-to-date tags for a given entity polling periodically the tagger.
-type Provider struct {
+import (
+	"reflect"
+	"sync"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+)
+
+const refreshPeriod = 10 * time.Second
+
+// Provider returns a list of up-to-date tags for a given entity.
+type Provider interface {
+	GetTags() []string
+	Start()
+	Stop()
+}
+
+// NOOP does nothing
+var NOOP Provider = &noop{}
+
+// provider caches a list of up-to-date tags for a given entity polling periodically the tagger.
+type provider struct {
 	entityName string
 	tags       []string
 	done       chan struct{}
@@ -14,8 +35,8 @@ type Provider struct {
 }
 
 // NewProvider returns a new Provider.
-func NewProvider(entityName string, refreshPeriod time.Duration) *Provider {
-	return &Provider{
+func NewProvider(entityName string) Provider {
+	return &provider{
 		entityName: entityName,
 		tags:       []string{},
 		done:       make(chan struct{}),
@@ -23,16 +44,17 @@ func NewProvider(entityName string, refreshPeriod time.Duration) *Provider {
 }
 
 // GetTags returns the list of up-to-date tags.
-func (p *Provider) GetTags() []string {
+func (p *provider) GetTags() []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.tags
 }
 
 // Start starts the polling of new tags on another go routine.
-func (p *Provider) Start() {
+func (p *provider) Start() {
 	go func() {
-		ticker := NewTicker(refreshPeriod)
+		ticker := time.NewTicker(refreshPeriod)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
@@ -41,17 +63,16 @@ func (p *Provider) Start() {
 				return
 			}
 		}
-		ticker.Stop()
 	}()
 }
 
 // Stop stops the polling of new tags.
-func (p *Provider) Stop() {
+func (p *provider) Stop() {
 	p.done <- struct{}{}
 }
 
 // updateTags updates the list of tags using tagger.
-func (p *Provider) updateTags() {
+func (p *provider) updateTags() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	tags, err := tagger.Tag(p.entityName, collectors.HighCardinality)
