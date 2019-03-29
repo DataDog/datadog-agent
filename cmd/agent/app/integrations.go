@@ -402,19 +402,19 @@ func downloadWheel(integration, version string) (string, error) {
 	// in turn call in-toto, which will in turn call Python to inspect the wheel,
 	// we will use our embedded Python.
 	// First, get the current PATH as an array.
-	path_arr := filepath.SplitList(os.Getenv("PATH"))
+	pathArr := filepath.SplitList(os.Getenv("PATH"))
 	// Get the directory of our embedded Python.
-	path_dir := filepath.Dir(pyPath)
+	pythonDir := filepath.Dir(pyPath)
 	// Prepend this dir to PATH array.
-	path_arr = append([]string{path_dir}, path_arr...)
+	pathArr = append([]string{pythonDir}, pathArr...)
 	// Build a new PATH string from the array.
-	path_str := strings.Join(path_arr, string(os.PathListSeparator))
+	pathStr := strings.Join(pathArr, string(os.PathListSeparator))
 	// Make a copy of the current environment.
 	environ := os.Environ()
 	// Walk over the copy of the environment, and replace PATH.
 	for key, value := range environ {
 		if strings.HasPrefix(value, "PATH=") {
-			environ[key] = "PATH=" + path_str
+			environ[key] = "PATH=" + pathStr
 			break
 		}
 	}
