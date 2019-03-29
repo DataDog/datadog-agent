@@ -6,6 +6,7 @@ NOTE: Changes made to this template should be reflected on the following templat
 {{printDashes .title "="}}
 
   Status date: {{.time}}
+  Agent start: {{.agent_start}}
   Pid: {{.pid}}
   {{- if .python_version }}
   Python Version: {{.python_version}}
@@ -13,7 +14,6 @@ NOTE: Changes made to this template should be reflected on the following templat
   {{- if .runnerStats.Workers}}
   Check Runners: {{.runnerStats.Workers}}
   {{end -}}
-  Agent uptime: {{.agent_uptime}}
   Log file: {{.config.log_file}}
   Log Level: {{.config.log_level}}
 

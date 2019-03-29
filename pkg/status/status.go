@@ -8,7 +8,6 @@ package status
 import (
 	"encoding/json"
 	"expvar"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -29,18 +28,6 @@ import (
 
 var startTime = time.Now()
 var timeFormat = "2006-01-02 15:04:05.000000 MST"
-
-// FormatUptime formats a duration into a human-readable, uptime-like string
-func FormatUptime(d time.Duration) string {
-	seconds := int(d.Seconds())
-	minutes := int(seconds / 60)
-	seconds -= minutes * 60
-	hours := int(minutes / 60)
-	minutes -= hours * 60
-	days := hours / 24
-	hours -= days * 24
-	return fmt.Sprintf("%d days %02d:%02d:%02d", int(days), int(hours), int(minutes), int(seconds))
-}
 
 // GetStatus grabs the status from expvar and puts it into a map
 func GetStatus() (map[string]interface{}, error) {
@@ -69,8 +56,7 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["pid"] = os.Getpid()
 	pythonVersion := host.GetPythonVersion()
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
-	uptime := time.Since(startTime)
-	stats["agent_uptime"] = FormatUptime(uptime)
+	stats["agent_start"] = startTime.Format(timeFormat)
 	stats["platform"] = platformPayload
 	stats["hostinfo"] = host.GetStatusInformation()
 	now := time.Now()
