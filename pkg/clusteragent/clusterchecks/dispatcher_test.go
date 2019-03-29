@@ -15,6 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ktypes "k8s.io/apimachinery/pkg/types"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -424,4 +427,94 @@ func TestExtraTags(t *testing.T) {
 			assert.EqualValues(t, tc.expected, dispatcher.extraTags)
 		})
 	}
+}
+
+func TestUpdateServiceChecksMap(t *testing.T) {
+	dispatcher := newDispatcher()
+	config := integration.Config{
+		Name:         "http_check",
+		Entity:       "kube_service://test",
+		ClusterCheck: true,
+		Instances:    []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
+	}
+	dispatcher.Schedule([]integration.Config{config})
+	kservices := []*v1.Service{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				ResourceVersion: "123",
+				UID:             ktypes.UID("test"),
+				Annotations: map[string]string{
+					"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
+					"ad.datadoghq.com/service.init_configs": "[{}]",
+					"ad.datadoghq.com/service.instances":    "[{tags: [\"foo:bar\", \"bar:foo\"]}]",
+				},
+				Name:      "myservice",
+				Namespace: "default",
+			},
+			Spec: v1.ServiceSpec{
+				ClusterIP: "10.0.0.1",
+				Ports: []v1.ServicePort{
+					{Name: "test1", Port: 123},
+					{Name: "test2", Port: 126},
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				ResourceVersion: "123",
+				UID:             ktypes.UID("test1"),
+				Name:            "myservice1",
+				Namespace:       "default",
+			},
+			Spec: v1.ServiceSpec{
+				ClusterIP: "10.0.0.2",
+				Ports: []v1.ServicePort{
+					{Name: "test1", Port: 123},
+					{Name: "test2", Port: 126},
+				},
+			},
+		},
+	}
+	dispatcher.updateServiceChecksMap(kservices)
+	expectedServiceMap := map[ktypes.UID]*types.Service{
+		ktypes.UID("test"): {
+			CheckName: "http_check",
+			Instances: []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
+			Namespace: "default",
+			Name:      "myservice",
+		},
+	}
+	assert.Equal(t, expectedServiceMap, dispatcher.store.serviceChecks)
+
+	requireNotLocked(t, dispatcher.store)
+}
+
+func TestUpdateEndpointsChecksMap(t *testing.T) {
+	dispatcher := newDispatcher()
+	endpointsInfo := map[string][]types.EndpointInfo{
+		"nodeName": {
+			{
+				PodUID:    ktypes.UID("podUID"),
+				IP:        "10.0.0.1",
+				Ports:     []int32{123},
+				CheckName: "http_check",
+				Instances: []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
+			},
+		},
+	}
+	expectedConfig := map[string][]integration.Config{
+		"nodeName": {
+			{
+				Name:          "http_check",
+				ADIdentifiers: []string{"podUID"},
+				ClusterCheck:  false,
+				Instances:     []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
+			},
+		},
+	}
+	err := dispatcher.updateEndpointsChecksMap(endpointsInfo)
+	assert.Nil(t, err)
+	assert.Equal(t, expectedConfig, dispatcher.store.endpointsChecks)
+
+	requireNotLocked(t, dispatcher.store)
 }

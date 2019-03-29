@@ -5,7 +5,11 @@
 
 package types
 
-import "github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+import (
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"k8s.io/apimachinery/pkg/types"
+	v1 "k8s.io/client-go/listers/core/v1"
+)
 
 // NodeStatus holds the status report from the node-agent
 type NodeStatus struct {
@@ -50,4 +54,27 @@ type Stats struct {
 	ActiveConfigs   int
 	DanglingConfigs int
 	TotalConfigs    int
+}
+
+// Listers are used to list kube services and endpoints
+type Listers struct {
+	ServicesLister  v1.ServiceLister
+	EndpointsLister v1.EndpointsLister
+}
+
+// Service is used to store data needed by endpoints
+type Service struct {
+	CheckName string
+	Instances []integration.Data
+	Namespace string
+	Name      string
+}
+
+// EndpointInfo is used to store endpoints info
+type EndpointInfo struct {
+	PodUID    types.UID
+	IP        string
+	Ports     []int32
+	CheckName string
+	Instances []integration.Data
 }

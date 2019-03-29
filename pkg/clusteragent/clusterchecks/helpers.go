@@ -8,10 +8,13 @@
 package clusterchecks
 
 import (
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
+
+const kubeServiceIDPrefix = "kube_service://"
 
 // makeConfigArray flattens a map of configs into a slice. Creating a new slice
 // allows for thread-safe usage by other external, as long as the field values in
@@ -27,4 +30,14 @@ func makeConfigArray(configMap map[string]integration.Config) []integration.Conf
 // timestampNow provides a consistent way to keep a seconds timestamp
 func timestampNow() int64 {
 	return time.Now().Unix()
+}
+
+// check if a config template represents to a service check
+func isServiceCheck(config integration.Config) bool {
+	return strings.HasPrefix(config.Entity, kubeServiceIDPrefix)
+}
+
+// retrieve service UID from entity
+func getServiceUID(config integration.Config) string {
+	return strings.TrimLeft(config.Entity, kubeServiceIDPrefix)
 }
