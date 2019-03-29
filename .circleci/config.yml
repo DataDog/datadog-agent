@@ -41,7 +41,6 @@ templates:
 
 jobs:
   checkout_code:
-    <<: *job_template
     steps:
       - checkout
       - save_cache:
