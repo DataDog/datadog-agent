@@ -6,14 +6,15 @@ NOTE: Changes made to this template should be reflected on the following templat
 {{printDashes .title "="}}
 
   Status date: {{.time}}
+  Agent start: {{.agent_start}}
   Pid: {{.pid}}
   {{- if .python_version }}
   Python Version: {{.python_version}}
   {{- end }}
-  Logs: {{.config.log_file}}
   {{- if .runnerStats.Workers}}
   Check Runners: {{.runnerStats.Workers}}
   {{end -}}
+  Log file: {{.config.log_file}}
   Log Level: {{.config.log_level}}
 
   Paths
