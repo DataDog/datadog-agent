@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -58,7 +59,7 @@ func NewTailer(cli *client.Client, containerID string, source *config.LogSource,
 		outputChan:         outputChan,
 		decoder:            decoder.InitializeDecoder(source, dockerParser),
 		source:             source,
-		tagProvider:        tag.NewProvider(containerID),
+		tagProvider:        tag.NewProvider(dockerutil.ContainerIDToEntityName(containerID)),
 		cli:                cli,
 		sleepDuration:      defaultSleepDuration,
 		stop:               make(chan struct{}, 1),

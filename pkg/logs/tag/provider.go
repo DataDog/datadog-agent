@@ -23,23 +23,23 @@ type Provider interface {
 	Stop()
 }
 
-// NOOP does nothing
-var NOOP Provider = &noop{}
+// NoopProvider does nothing
+var NoopProvider Provider = &noopProvider{}
 
 // provider caches a list of up-to-date tags for a given entity polling periodically the tagger.
 type provider struct {
-	entityName string
-	tags       []string
-	done       chan struct{}
-	mu         sync.Mutex
+	entityID string
+	tags     []string
+	done     chan struct{}
+	mu       sync.Mutex
 }
 
 // NewProvider returns a new Provider.
-func NewProvider(entityName string) Provider {
+func NewProvider(entityID string) Provider {
 	return &provider{
-		entityName: entityName,
-		tags:       []string{},
-		done:       make(chan struct{}),
+		entityID: entityID,
+		tags:     []string{},
+		done:     make(chan struct{}),
 	}
 }
 
@@ -75,7 +75,7 @@ func (p *provider) Stop() {
 func (p *provider) updateTags() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	tags, err := tagger.Tag(p.entityName, collectors.HighCardinality)
+	tags, err := tagger.Tag(p.entityID, collectors.HighCardinality)
 	if err == nil && !reflect.DeepEqual(tags, p.tags) {
 		p.tags = tags
 	}

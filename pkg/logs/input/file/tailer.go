@@ -56,13 +56,16 @@ type Tailer struct {
 // NewTailer returns an initialized Tailer
 func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration, isWildcardPath bool) *Tailer {
 	var parser logParser.Parser
-	var tagProvider tag.Provider
 	if source.GetSourceType() == config.ContainerdType {
 		parser = containerdFileParser
-		tagProvider = tag.NewProvider(source.Config.Identifier)
 	} else {
 		parser = logParser.NoopParser
-		tagProvider = tag.NOOP
+	}
+	var tagProvider tag.Provider
+	if source.Config.Identifier != "" {
+		tagProvider = tag.NewProvider(source.Config.Identifier)
+	} else {
+		tagProvider = tag.NoopProvider
 	}
 	return &Tailer{
 		path:           path,

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/tag"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -68,6 +69,7 @@ func NewTestTailer(reader io.ReadCloser, cancelFunc context.CancelFunc) *Tailer 
 		outputChan:    make(chan *message.Message, 100),
 		decoder:       nil,
 		source:        config.NewLogSource("foo", nil),
+		tagProvider:   tag.NoopProvider,
 		cli:           nil,
 		sleepDuration: defaultSleepDuration,
 		stop:          make(chan struct{}, 1),

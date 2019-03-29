@@ -12,7 +12,6 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -202,7 +201,6 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 	cfg.Type = config.FileType
 	cfg.Path = l.getPath(pod, container)
 	cfg.Identifier = container.ID
-	cfg.Tags = append(cfg.Tags, l.getTags(container)...)
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid kubernetes annotation: %v", err)
 	}
@@ -241,12 +239,6 @@ func (l *Launcher) getSourceName(pod *kubelet.Pod, container kubelet.ContainerSt
 // getPath returns the path where all the logs of the container of the pod are stored.
 func (l *Launcher) getPath(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
 	return fmt.Sprintf("%s/%s/%s/*.log", podsDirectoryPath, pod.Metadata.UID, container.Name)
-}
-
-// getTags returns all the tags of the container
-func (l *Launcher) getTags(container kubelet.ContainerStatus) []string {
-	tags, _ := tagger.Tag(container.ID, collectors.HighCardinality)
-	return tags
 }
 
 // getShortImageName returns the short image name of a container

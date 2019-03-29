@@ -5,17 +5,12 @@
 
 package tag
 
-type noop struct {
-	tags []string
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestNoopProviderShouldReturnEmptyList(t *testing.T) {
+	assert.Equal(t, 0, len(NoopProvider.GetTags()))
 }
-
-// GetTags returns an empty list of tags.
-func (p *noop) GetTags() []string {
-	return p.tags
-}
-
-// Start does nothing
-func (p *noop) Start() {}
-
-// Stop does nothing
-func (p *noop) Stop() {}
