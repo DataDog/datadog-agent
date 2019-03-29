@@ -44,6 +44,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 	tagger.Init()
 
 	config.SetupLogger(
+		config.LoggerName("test"),
 		"debug",
 		"",
 		"",
