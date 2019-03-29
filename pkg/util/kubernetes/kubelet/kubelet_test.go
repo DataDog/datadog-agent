@@ -11,7 +11,6 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
@@ -875,41 +874,4 @@ func TestKubeletTestSuite(t *testing.T) {
 		false,
 	)
 	suite.Run(t, new(KubeletTestSuite))
-}
-
-var pods PodList
-
-func BenchmarkPodListStdlib(b *testing.B) {
-	mockConfig := config.Mock()
-	mockConfig.Set("kubernetes_pod_expiration_duration", 0)
-	data, _ := ioutil.ReadFile("./testdata/hugelist.json")
-	b.ResetTimer()
-
-	for n := 0; n < b.N; n++ {
-		json.Unmarshal(data, &pods)
-	}
-}
-
-func BenchmarkPodListNoExpire(b *testing.B) {
-	mockConfig := config.Mock()
-	mockConfig.Set("kubernetes_pod_expiration_duration", 0)
-	j := newPodUnmarshaller()
-	data, _ := ioutil.ReadFile("./testdata/hugelist.json")
-	b.ResetTimer()
-
-	for n := 0; n < b.N; n++ {
-		j.unmarshal(data, &pods)
-	}
-}
-
-func BenchmarkPodListExpire(b *testing.B) {
-	mockConfig := config.Mock()
-	mockConfig.Set("kubernetes_pod_expiration_duration", 15*60)
-	j := newPodUnmarshaller()
-	data, _ := ioutil.ReadFile("./testdata/hugelist.json")
-	b.ResetTimer()
-
-	for n := 0; n < b.N; n++ {
-		j.unmarshal(data, &pods)
-	}
 }
