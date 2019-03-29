@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/tag"
 )
 
 // DefaultSleepDuration represents the amount of time the tailer waits before reading new data when no data is received
@@ -38,9 +39,10 @@ type Tailer struct {
 	readOffset    int64
 	decodedOffset int64
 
-	outputChan chan *message.Message
-	decoder    *decoder.Decoder
-	source     *config.LogSource
+	outputChan  chan *message.Message
+	decoder     *decoder.Decoder
+	source      *config.LogSource
+	tagProvider tag.Provider
 
 	sleepDuration time.Duration
 
@@ -59,11 +61,18 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 	} else {
 		parser = logParser.NoopParser
 	}
+	var tagProvider tag.Provider
+	if source.Config.Identifier != "" {
+		tagProvider = tag.NewProvider(source.Config.Identifier)
+	} else {
+		tagProvider = tag.NoopProvider
+	}
 	return &Tailer{
 		path:           path,
 		outputChan:     outputChan,
 		decoder:        decoder.InitializeDecoder(source, parser),
 		source:         source,
+		tagProvider:    tagProvider,
 		readOffset:     0,
 		sleepDuration:  sleepDuration,
 		closeTimeout:   defaultCloseTimeout,
@@ -88,6 +97,7 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	t.source.Status.Success()
 	t.source.AddInput(t.path)
 
+	t.tagProvider.Start()
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()
@@ -168,6 +178,7 @@ func (t *Tailer) StartFromBeginning() error {
 func (t *Tailer) Stop() {
 	atomic.StoreInt32(&t.didFileRotate, 0)
 	t.stop <- struct{}{}
+	t.tagProvider.Stop()
 	t.source.RemoveInput(t.path)
 	// wait for the decoder to be flushed
 	<-t.done
@@ -213,7 +224,7 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.source)
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
-		origin.SetTags(t.tags)
+		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
 		output.Origin = origin
 		t.outputChan <- output
 	}
