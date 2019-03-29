@@ -100,18 +100,30 @@
     - name: Gather facts
       setup:
     # - debug: msg={{ ansible_facts }}
-    - name: Install nmap (for ncat binary) in Ubuntu
+    - name: Install nmap (for ncat binary) and stress in Ubuntu
       become: true
       apt:
-        name: nmap
+        name: [nmap, stress]
         state: present
       when: ansible_distribution == "Ubuntu"
-    - name: Install nc (for ncat binary) and libselinux-python in Fedora
+    - name: Install nc (for ncat binary), libselinux-python and stresss in Fedora
       become: true
       yum:
-        name: [nc, libselinux-python]
+        name: [nc, libselinux-python, stress]
         state: present
       when: ansible_distribution == "Fedora"
+    - name: Install epel-release for stress in CentOS
+      become: true
+      yum:
+        name: epel-release
+        state: present
+      when: ansible_distribution == "CentOS"
+    - name: Install stress in CentOS
+      become: true
+      yum:
+        name: stress
+        state: present
+      when: ansible_distribution == "CentOS"
 
 - name: Prepare Windows Agent (pre)
   hosts: agent_win_vm
@@ -237,5 +249,47 @@
   tasks:
     - name: Connect to Ubuntu agent
       win_command: nc -w {{ max_test_time }} {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_after_start_windows }}
+      async: "{{ max_test_time }}"
+      poll: 0
+
+- name: Prepare Ubuntu Agent for blacklist inclusion test
+  hosts: agent-ubuntu
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Wait a bit for the process agent to start
+      pause:
+        seconds: 10
+    - name: Start the stress process that consumes a large amount of memory
+      shell: "/usr/bin/stress --vm 1 --vm-bytes 248M --timeout {{ max_test_time }} --verbose"
+      async: "{{ max_test_time }}"
+      poll: 0
+
+- name: Prepare Fedora Agent for blacklist inclusion test
+  hosts: agent-fedora
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Wait a bit for the process agent to start
+      pause:
+        seconds: 10
+    - name: Start the stress process that consumes a large amount of memory
+      shell: "/usr/bin/stress --vm 1 --vm-bytes 248M --timeout {{ max_test_time }} --verbose"
+      async: "{{ max_test_time }}"
+      poll: 0
+
+- name: Prepare CentOS Agent for blacklist inclusion test
+  hosts: agent-centos
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Wait a bit for the process agent to start
+      pause:
+        seconds: 10
+    - name: Start the stress process that consumes a large amount of memory
+      shell: "/usr/bin/stress --vm 1 --vm-bytes 248M --timeout {{ max_test_time }} --verbose"
       async: "{{ max_test_time }}"
       poll: 0

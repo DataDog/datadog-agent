@@ -214,7 +214,7 @@ def test_host_metrics(host):
         # Memory
         assert_metric("system.mem.total", lambda v: v > 900.0, lambda v: v > 900.0, lambda v: v > 2000.0)
         assert_metric("system.mem.usable", lambda v: 1000.0 > v > 300.0, lambda v: 1000.0 > v > 300.0, lambda v: 1800.0 > v > 600.0)
-        assert_metric("system.mem.pct_usable", lambda v: 1.0 > v > 0.5, lambda v: 1.0 > v > 0.5, lambda v: 1.0 > v > 0.4)
+        assert_metric("system.mem.pct_usable", lambda v: 1.0 > v > 0.3, lambda v: 1.0 > v > 0.3, lambda v: 1.0 > v > 0.4)
 
         # Load - only linux
         assert_metric("system.load.norm.1", lambda v: v >= 0.0, lambda v: v >= 0.0, None)
@@ -280,8 +280,9 @@ def test_topology_components(host):
                 if "TopologyComponent" in p and p["TopologyComponent"]["typeName"] == type_name and p["TopologyComponent"]["externalId"].startswith(external_id_prefix):
                     component_data = json.loads(p["TopologyComponent"]["data"])
                     if command:
-                        if component_data["command"]["args"][0] == command:
-                            return component_data
+                        if "args" in component_data["command"]:
+                            if component_data["command"]["args"][0] == command:
+                                return component_data
                     else:
                         return component_data
             return None
@@ -294,5 +295,42 @@ def test_topology_components(host):
         assert _component_data("process", "urn:process:/agent-ubuntu", "/opt/stackstate-agent/bin/agent/agent")["hostTags"] == ["os:linux"]
         assert _component_data("process", "urn:process:/agent-centos", "/opt/stackstate-agent/bin/agent/agent")["hostTags"] == ["os:linux"]
         assert _component_data("process", "urn:process:/agent-win", "\"C:\\Program Files\\StackState\\StackState Agent\\embedded\\agent.exe\"")["hostTags"] == ["os:windows"]
+
+        # assert that process filtering works correctly. Process should be filtered unless it's a top resource using process
+        def _component_filtered(type_name, external_id_prefix, command):
+            _data = _component_data(type_name, external_id_prefix, command)
+            if _data is not None:
+                if "usage:top-cpu" in _data["tags"]:
+                    return True
+                if "usage:top-mem" in _data["tags"]:
+                    return True
+                if "usage:top-io-read" in _data["tags"]:
+                    return True
+                if "usage:top-io-write" in _data["tags"]:
+                    return True
+                # component was not filtered and is not a top resource consuming process
+                return False
+            # component was correctly filtered
+            return True
+
+        # fedora specific process filtering
+        assert _component_filtered("process", "urn:process:/agent-fedora", "/usr/sbin/sshd")
+        assert _component_filtered("process", "urn:process:/agent-fedora", "/usr/sbin/dhclient")
+        assert _component_filtered("process", "urn:process:/agent-fedora", "/usr/lib/systemd/systemd-journald")
+        assert _component_filtered("process", "urn:process:/agent-fedora", "/usr/bin/stress")
+        # ubuntu specific process filtering
+        assert _component_filtered("process", "urn:process:/agent-ubuntu", "/usr/sbin/sshd")
+        assert _component_filtered("process", "urn:process:/agent-ubuntu", "/lib/systemd/systemd-journald")
+        assert _component_filtered("process", "urn:process:/agent-ubuntu", "/sbin/agetty")
+        assert _component_filtered("process", "urn:process:/agent-ubuntu", "/usr/bin/stress")
+        # windows specific process filtering
+        assert _component_filtered("process", "urn:process:/agent-win", "C:\\Windows\\system32\\svchost.exe")
+        assert _component_filtered("process", "urn:process:/agent-win", "winlogon.exe")
+        assert _component_filtered("process", "urn:process:/agent-win", "C:\\Windows\\system32\\wlms\\wlms.exe")
+        # centos specific process filtering
+        assert _component_filtered("process", "urn:process:/agent-centos", "/usr/sbin/sshd")
+        assert _component_filtered("process", "urn:process:/agent-centos", "/sbin/init")
+        assert _component_filtered("process", "urn:process:/agent-centos", "/sbin/agetty")
+        assert _component_filtered("process", "urn:process:/agent-centos", "/usr/bin/stress")
 
     util.wait_until(wait_for_components, 30, 3)
