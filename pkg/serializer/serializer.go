@@ -84,6 +84,8 @@ type MetricSerializer interface {
 type Serializer struct {
 	Forwarder forwarder.Forwarder
 
+	seriesPayloadBuilder *jsonstream.PayloadBuilder
+
 	// Those variables allow users to blacklist any kind of payload
 	// from being sent by the agent. This was introduced for
 	// environment where, for example, events or serviceChecks
@@ -102,6 +104,7 @@ type Serializer struct {
 func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
 	s := &Serializer{
 		Forwarder:            forwarder,
+		seriesPayloadBuilder: jsonstream.NewPayloadBuilder(),
 		enableEvents:         config.Datadog.GetBool("enable_payloads.events"),
 		enableSeries:         config.Datadog.GetBool("enable_payloads.series"),
 		enableServiceChecks:  config.Datadog.GetBool("enable_payloads.service_checks"),
@@ -159,7 +162,7 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 }
 
 func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarshaler) (forwarder.Payloads, http.Header, error) {
-	payloads, err := jsonstream.Payloads(payload)
+	payloads, err := s.seriesPayloadBuilder.Build(payload)
 	return payloads, jsonExtraHeadersWithCompression, err
 }
 

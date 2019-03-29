@@ -98,7 +98,7 @@ func payloadToString(payload []byte) string {
 }
 
 func TestCompressorSimple(t *testing.T) {
-	c, err := newCompressor([]byte("{["), []byte("]}"))
+	c, err := newCompressor(&bytes.Buffer{}, &bytes.Buffer{}, []byte("{["), []byte("]}"))
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
@@ -117,7 +117,8 @@ func TestOnePayloadSimple(t *testing.T) {
 		footer: "]}",
 	}
 
-	payloads, err := Payloads(m)
+	builder := NewPayloadBuilder()
+	payloads, err := builder.Build(m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
 
@@ -133,7 +134,8 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 	maxPayloadSize = 22
 	defer resetDefaults()
 
-	payloads, err := Payloads(m)
+	builder := NewPayloadBuilder()
+	payloads, err := builder.Build(m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
 
@@ -149,7 +151,8 @@ func TestTwoPayload(t *testing.T) {
 	maxPayloadSize = 22
 	defer resetDefaults()
 
-	payloads, err := Payloads(m)
+	builder := NewPayloadBuilder()
+	payloads, err := builder.Build(m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 2)
 
@@ -185,7 +188,8 @@ func TestPayloadsSeries(t *testing.T) {
 	}
 
 	originalLength := len(testSeries)
-	payloads, err := Payloads(testSeries)
+	builder := NewPayloadBuilder()
+	payloads, err := builder.Build(testSeries)
 	require.Nil(t, err)
 	var splitSeries = []metrics.Series{}
 	for _, compressedPayload := range payloads {
@@ -228,10 +232,11 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 	}
 
 	var r forwarder.Payloads
+	builder := NewPayloadBuilder()
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.
-		r, _ = Payloads(testSeries)
+		r, _ = builder.Build(testSeries)
 	}
 	// ensure we actually had to split
 	if len(r) != 2 {
