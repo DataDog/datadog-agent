@@ -36,7 +36,7 @@ import (
 )
 
 // loggerName is the name of the cluster agent logger
-const loggerName config.LoggerName = "DCA"
+const loggerName config.LoggerName = "CLUSTER"
 
 // FIXME: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
 var (
