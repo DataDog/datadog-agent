@@ -43,7 +43,7 @@ func TestGetSecurityCreds(t *testing.T) {
 		if r.URL.Path == "/iam/security-credentials/" {
 			w.Header().Set("Content-Type", "text/plain")
 			io.WriteString(w, "test-role")
-		} else if r.URL.Path == "/iam/security-credentials/test-role/" {
+		} else if r.URL.Path == "/iam/security-credentials/test-role" {
 			w.Header().Set("Content-Type", "text/plain")
 			content, err := ioutil.ReadFile("payloads/security_cred.json")
 			require.Nil(t, err, fmt.Sprintf("failed to load json in payloads/security_cred.json: %v", err))
