@@ -790,6 +790,7 @@ func (suite *KubeletTestSuite) TestGetKubeletHostFromConfig() {
 
 func TestKubeletTestSuite(t *testing.T) {
 	config.SetupLogger(
+		config.LoggerName("test"),
 		"trace",
 		"",
 		"",

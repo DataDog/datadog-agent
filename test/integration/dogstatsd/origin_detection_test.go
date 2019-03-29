@@ -13,6 +13,7 @@ import (
 
 func TestUDSOriginDetection(t *testing.T) {
 	config.SetupLogger(
+		config.LoggerName("test"),
 		"debug",
 		"",
 		"",

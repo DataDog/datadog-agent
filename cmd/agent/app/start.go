@@ -97,6 +97,7 @@ func StartAgent() error {
 		}
 
 		err = config.SetupLogger(
+			loggerName,
 			config.Datadog.GetString("log_level"),
 			logFile,
 			syslogURI,
@@ -106,6 +107,7 @@ func StartAgent() error {
 		)
 	} else {
 		err = config.SetupLogger(
+			loggerName,
 			config.Datadog.GetString("log_level"),
 			"", // no log file on android
 			"", // no syslog on android,

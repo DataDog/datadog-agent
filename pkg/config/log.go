@@ -20,17 +20,22 @@ import (
 	"github.com/cihub/seelog"
 )
 
+// LoggerName specifies the name of an instantiated logger.
+type LoggerName string
+
 const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format syntax
 
 var syslogTLSConfig *tls.Config
 
-var (
-	// LogFormatCommon specifies the common logging format.
-	LogFormatCommon = fmt.Sprintf("%%Date(%s) | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n", logDateFormat)
+// BuildCommonFormat returns the log common format seelog string
+func BuildCommonFormat(loggerName LoggerName) string {
+	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n", logDateFormat, loggerName)
+}
 
-	// LogFormatJSON specifies the common JSON format.
-	LogFormatJSON = fmt.Sprintf("{&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n", logDateFormat)
-)
+// BuildJSONFormat returns the log JSON format seelog string
+func BuildJSONFormat(loggerName LoggerName) string {
+	return fmt.Sprintf("{&quot;agent&quot;:&quot;%s&quot;,&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n", strings.ToLower(string(loggerName)), logDateFormat)
+}
 
 func getSyslogTLSKeyPair() (*tls.Certificate, error) {
 	var syslogTLSKeyPair *tls.Certificate
@@ -55,12 +60,15 @@ func getSyslogTLSKeyPair() (*tls.Certificate, error) {
 	return syslogTLSKeyPair, nil
 }
 
-// SetupLogger sets up the default logger
-func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bool) error {
+// SetupLogger sets up a logger with the specified logger name and log level
+// if a non empty logFile is provided, it will also log to the file
+// a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
+// you can also specify to log to the console and in JSON format
+func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
 	var syslog bool
 	var useTLS bool
 
-	if uri != "" { // non-blank uri enables syslog
+	if syslogURI != "" { // non-blank uri enables syslog
 		syslog = true
 
 		syslogTLSKeyPair, err := getSyslogTLSKeyPair()
@@ -99,11 +107,11 @@ func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bo
 	}
 	if syslog {
 		var syslogTemplate string
-		if uri != "" {
+		if syslogURI != "" {
 			syslogTemplate = fmt.Sprintf(
 				`<custom name="syslog" formatid="syslog-%s" data-uri="%s" data-tls="%v" />`,
 				formatID,
-				uri,
+				syslogURI,
 				useTLS,
 			)
 		} else {
@@ -116,10 +124,15 @@ func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bo
 	<formats>
 		<format id="json" format="%s"/>
 		<format id="common" format="%s"/>
-		<format id="syslog-json" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`){&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
-		<format id="syslog-common" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`) %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n" />
+		<format id="syslog-json" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(syslogRFC)+`){&quot;agent&quot;:&quot;%s&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
+		<format id="syslog-common" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(syslogRFC)+`) %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n" />
 	</formats>
-</seelog>`, LogFormatJSON, LogFormatCommon)
+</seelog>`,
+		BuildJSONFormat(loggerName),
+		BuildCommonFormat(loggerName),
+		strings.ToLower(string(loggerName)),
+		loggerName,
+	)
 
 	logger, err := seelog.LoggerFromConfigAsString(configTemplate)
 	if err != nil {
