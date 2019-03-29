@@ -51,6 +51,7 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 
 	config.SetupLogger(
+		config.LoggerName("test"),
 		"debug",
 		"",
 		"",

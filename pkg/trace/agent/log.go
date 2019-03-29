@@ -33,6 +33,9 @@ type throttledReceiver struct {
 	done chan struct{}
 }
 
+// loggerName is the name of the trace agent logger
+const loggerName coreconfig.LoggerName = "TRACE"
+
 // loggerConfigForwarder is used to forward any raw messages received by the throttled
 // receiver.
 const loggerConfigForwarder = `
@@ -113,8 +116,8 @@ func (r *throttledReceiver) AfterParse(args seelog.CustomReceiverInitArgs) error
 		loggerConfigError,
 		format,
 		logFilePath,
-		coreconfig.LogFormatJSON,
-		coreconfig.LogFormatCommon,
+		coreconfig.BuildJSONFormat(loggerName),
+		coreconfig.BuildCommonFormat(loggerName),
 	)
 	loggerError, err := seelog.LoggerFromConfigAsString(cfgError)
 	if err != nil {
@@ -227,8 +230,8 @@ func setupLogger(cfg *config.AgentConfig) error {
 		duration,
 		format == "json",
 		cfg.LogFilePath,
-		coreconfig.LogFormatJSON,
-		coreconfig.LogFormatCommon,
+		coreconfig.BuildJSONFormat(loggerName),
+		coreconfig.BuildCommonFormat(loggerName),
 	)
 	logger, err := seelog.LoggerFromConfigAsString(logConfig)
 	if err != nil {

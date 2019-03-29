@@ -35,7 +35,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-var stopCh chan struct{}
+// loggerName is the name of the cluster agent logger
+const loggerName config.LoggerName = "CLUSTER"
 
 // FIXME: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
 var (
@@ -82,6 +83,7 @@ metadata for their metrics.`,
 
 	confPath    string
 	flagNoColor bool
+	stopCh      chan struct{}
 )
 
 func init() {
@@ -115,6 +117,7 @@ func start(cmd *cobra.Command, args []string) error {
 	defer mainCtxCancel() // Calling cancel twice is safe
 
 	err = config.SetupLogger(
+		loggerName,
 		config.Datadog.GetString("log_level"),
 		logFile,
 		syslogURI,

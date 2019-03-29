@@ -866,6 +866,7 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 
 func TestKubeletTestSuite(t *testing.T) {
 	config.SetupLogger(
+		config.LoggerName("test"),
 		"trace",
 		"",
 		"",
