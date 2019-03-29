@@ -50,11 +50,12 @@
   revision = "2cfb68475274527a10701355c739f31dd404718c"
 
 [[projects]]
-  digest = "1:b22f5da83ac471bbbe2a5aa1f07c8029dc82bcbf6ff832516f035fc3a314d539"
+  digest = "1:1d7a2553b25c97fa4ee2e3d710a03c08013b3ec79a3ed9d5d7ab206ff53e2d66"
   name = "github.com/DataDog/viper"
   packages = ["."]
   pruneopts = ""
-  revision = "v1.5.0"
+  revision = "991b92b30e71a5ae48f8c2e81a95b1209549ed8d"
+  version = "v1.6.0"
 
 [[projects]]
   digest = "1:34d4c1b61fa208e523726ddb85d01b8caa8f2de0cd656d91c81b6b86daea485c"
@@ -1423,11 +1424,12 @@
   version = "v2.1.9"
 
 [[projects]]
-  digest = "1:4b4e5848dfe7f316f95f754df071bebfb40cf4482da62e17e7e1aebdf11f4918"
+  digest = "1:cedccf16b71e86db87a24f8d4c70b0a855872eb967cb906a66b95de56aefbd0d"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
   pruneopts = ""
-  revision = "d670f9405373e636a5a2765eea47fac0c9bc91a4"
+  revision = "51d6538a90f86fe93ac480b35f37b2be17fef232"
+  version = "v2.2.2"
 
 [[projects]]
   digest = "1:ba5a30c4cac85cf1d1b15f93803f16dcaa7ca7c0c22723aa3477dcd2b8a1b6d8"
