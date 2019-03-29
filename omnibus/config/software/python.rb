@@ -81,7 +81,7 @@ else
 
   dependency "vc_redist"
   source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-         :sha256 => "7c0f45993019152d46041a7db4b947b919558fdb7a8f67bcd0535bc98d42b603",
+         :sha256 => "6b9fdc51dde1ba6ae4cb698451900e1f8f1900ff1d56d9166dbeab06b10a4dce",
          :extract => :seven_zip
 
   build do
