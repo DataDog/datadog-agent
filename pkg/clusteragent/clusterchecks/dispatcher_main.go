@@ -13,10 +13,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ktypes "k8s.io/apimachinery/pkg/types"
 )
 
 // dispatcher holds the management logic for cluster-checks
@@ -24,6 +27,7 @@ type dispatcher struct {
 	store                 *clusterStore
 	nodeExpirationSeconds int64
 	extraTags             []string
+	listers               *types.Listers
 }
 
 func newDispatcher() *dispatcher {
@@ -37,6 +41,11 @@ func newDispatcher() *dispatcher {
 	clusterTagName := config.Datadog.GetString("cluster_checks.cluster_tag_name")
 	if clusterTagName != "" && clusterTagValue != "" {
 		d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
+	}
+	var err error
+	d.listers, err = newListers()
+	if err != nil {
+		log.Errorf("Cannot create listers: %s", err)
 	}
 
 	return d
@@ -53,6 +62,11 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}
+		if isServiceCheck(c) {
+			d.store.Lock()
+			d.store.serviceChecks[ktypes.UID(getServiceUID(c))] = newService(c.Name, c.Instances)
+			d.store.Unlock()
+		}
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
 			log.Warnf("Cannot patch configuration %s: %s", c.Digest(), err)
@@ -67,6 +81,11 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 	for _, c := range configs {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
+		}
+		if isServiceCheck(c) {
+			d.store.Lock()
+			delete(d.store.serviceChecks, ktypes.UID(getServiceUID(c)))
+			d.store.Unlock()
 		}
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
@@ -143,5 +162,33 @@ func (d *dispatcher) run(ctx context.Context) {
 				d.reschedule(danglingConfs)
 			}
 		}
+	}
+}
+
+func newListers() (*types.Listers, error) {
+	ac, err := apiserver.GetAPIClient()
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
+	}
+	servicesInformer := ac.InformerFactory.Core().V1().Services()
+	if servicesInformer == nil {
+		return nil, fmt.Errorf("cannot get service informer: %s", err)
+	}
+	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
+	if endpointsInformer == nil {
+		return nil, fmt.Errorf("cannot get endpoint informer: %s", err)
+	}
+	return &types.Listers{
+		ServicesLister:  servicesInformer.Lister(),
+		EndpointsLister: endpointsInformer.Lister(),
+	}, nil
+}
+
+func newService(checkName string, instances []integration.Data) *types.Service {
+	return &types.Service{
+		CheckName: checkName,
+		Instances: instances,
+		Namespace: "",
+		Name:      "",
 	}
 }
