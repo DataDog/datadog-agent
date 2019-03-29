@@ -28,9 +28,14 @@ extern std::wstring authtokenfilename;
 extern std::wstring datadogyamlfile;
 extern std::wstring confddir;
 extern std::wstring logdir;
+extern std::wstring installdir;
 
 extern std::wstring strRollbackKeyName;
 extern std::wstring strUninstallKeyName;
+
+extern std::wstring agent_exe;
+extern std::wstring trace_exe;
+extern std::wstring process_exe;
 
 // installation steps
 extern std::wstring installCreatedDDUser;

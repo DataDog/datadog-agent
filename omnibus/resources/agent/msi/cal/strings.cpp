@@ -38,11 +38,15 @@ std::wstring authtokenfilename;
 std::wstring datadogyamlfile;
 std::wstring confddir;
 std::wstring logdir;
+std::wstring installdir;
 
 std::wstring propertyCustomActionData(L"CustomActionData");
 std::wstring datadog_key_root;
 std::wstring datadog_acl_key_datadog;
 
+std::wstring agent_exe;
+std::wstring trace_exe;
+std::wstring process_exe;
 
 std::wstring* loadStrings[] = {
     &datadog_path,
@@ -118,15 +122,28 @@ void getOsStrings()
     // build up all the path-based strings
     std::wstring programfiles;
 
-    if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
+    ddRegKey ddroot;
+    std::wstring confroot;
+    if(!ddroot.getStringValue(L"ConfigRoot", programdataroot))
     {
-        programdataroot = outstr;
-        programdataroot += datadogdir;
+        if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
+        {
+            programdataroot = outstr;
+            programdataroot += datadogdir;
+        }
     }
-    if(SHGetKnownFolderPath(FOLDERID_ProgramFiles, 0, 0, &outstr) == S_OK)
+    if(!ddroot.getStringValue(L"InstallPath", installdir))
     {
-        programfiles = outstr;
+        if(SHGetKnownFolderPath(FOLDERID_ProgramFiles, 0, 0, &outstr) == S_OK)
+        {
+            programfiles = outstr;
+            installdir = programfiles + datadogdir;
+        }
     }
+    agent_exe = installdir + L"\\embedded\\agent.exe";
+    process_exe = installdir + L"\\bin\\agent\\process-agent.exe";
+    trace_exe = installdir + L"\\bin\\agent\\trace-agent.exe";
+    
     logfilename = programdataroot + logsSuffix;
     authtokenfilename = programdataroot + authTokenSuffix;
     datadogyamlfile = programdataroot + datadogyaml;

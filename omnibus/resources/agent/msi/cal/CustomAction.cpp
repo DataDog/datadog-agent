@@ -233,6 +233,8 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     }
     er = addDdUserPermsToFile(data, programdataroot);
     WcaLog(LOGMSG_STANDARD, "%d setting programdata dir perms", er);
+    er = addDdUserPermsToFile(data, installdir);
+    WcaLog(LOGMSG_STANDARD, "%d setting installdir dir perms", er);
 
     er = addDdUserPermsToFile(data, logfilename);
     WcaLog(LOGMSG_STANDARD, "%d setting log file perms", er);

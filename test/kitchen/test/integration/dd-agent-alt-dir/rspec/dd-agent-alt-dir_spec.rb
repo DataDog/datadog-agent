@@ -1,78 +1,71 @@
 require 'spec_helper'
+  
 
-def read_conf_file
-    conf_path = ""
-    if os == :windows
-      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-    else
-      conf_path = '/etc/datadog-agent/datadog.yaml'
-    end
-    f = File.read(conf_path)
-    confYaml = YAML.load(f)
-    confYaml
+def check_user_exists(name)
+  selectstatement = "powershell -command \"get-wmiobject -query \\\"Select * from Win32_UserAccount where Name='#{name}'\\\"\""
+  outp = `#{selectstatement} 2>&1`
+  outp
 end
 
+shared_examples_for 'a correctly created configuration root' do
+  # We retrieve the value defined in .kitchen.yml because there is no simple way
+  # to set env variables on the target machine or via parameters in Kitchen/Busser
+  # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
+  let(:configuration_path) {
+    if os == :windows
+      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
+    else
+      dna_json_path = "/tmp/kitchen/dna.json"
+    end
+    JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('APPLICATIONDATADIRECTORY')
+  }
+  it 'has the proper configuration root' do
+    expect(File).not_to exist("#{ENV['ProgramData']}\\DataDog")
+    expect(File).to exist("#{configuration_path}")
+  end
+end
 
-
-=begin
-Each SDDL is defined as follows (split across multiple lines here for readability, but they're
-all concatenated into one)
-O:owner_sid
-G:group_sid
-D:dacl_flags(string_ace1)(string_ace2)... (string_acen)
-S:sacl_flags(string_ace1)(string_ace2)... (string_acen)
-
-Well known SID strings we're interested in 
-SY = LOCAL_SYSTEM
-BU = Builtin Users
-BA = Builtin Administrators 
-
-So, the string O:SYG:SY indicates owner sid is LOCAL_SYSTEM group sid is SYSTEM
-Then, D: indicates what comes after is the DACL, which is a list of ACE strings
-
-Ace strings are defined as
-ace_type;ace_flags;rights;object_guid;inherit_object_guid;account_sid;(resource_attribute)
-
-Ace types include
-A = Allowed
-D = Denied
-
-Ace flags 
-ID = this ace inherited from parent
-
-rights
-GA = Generic All
-FA = File All access
-FR = File Read
-FW = File Write
-WD = Write DAC (change permissions)
-
-Putting it all together, the sddl that we expect for Datadog.yaml is
-O:SYG:SYD:(A;;FA;;;SY)(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})
-
-Owner: Local System
-Group: Local System
-
-A;;FA;;;SY grants File All Access to Local System
-A;ID;WD;;;BU grants members of the builtin users group Change Permissions; this ACE is inherited
-A;ID;FA;;;BA grants Fila All Access to Builtin Administrators; this ACE was inherited from the parent
-A;ID;FA;;;SY grants LocalSystem file AllAccess
-A;ID;FA;;;#{dd_user_id} grants the ddagentuser FileAllAccess, this ACE is inherited from the parent
-=end
+shared_examples_for 'a correctly created binary root' do
+  # We retrieve the value defined in .kitchen.yml because there is no simple way
+  # to set env variables on the target machine or via parameters in Kitchen/Busser
+  # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
+  let(:binary_path) {
+    if os == :windows
+      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
+    else
+      dna_json_path = "/tmp/kitchen/dna.json"
+    end
+    JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('PROJECTLOCATION')
+  }
+  it 'has the proper binary root' do
+    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog")
+    expect(File).to exist("#{binary_path}")
+  end
+end
 
 shared_examples_for 'an Agent with valid permissions' do
+  let(:configuration_path) {
+    if os == :windows
+      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
+    else
+      dna_json_path = "/tmp/kitchen/dna.json"
+    end
+    JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('APPLICATIONDATADIRECTORY')
+  }
+  let(:binary_path) {
+    if os == :windows
+      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
+    else
+      dna_json_path = "/tmp/kitchen/dna.json"
+    end
+    JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('PROJECTLOCATION')
+  }
   dd_user_sid = get_user_sid('ddagentuser')
   #datadog_yaml_sddl = get_sddl_for_object("c:\\programdata\\datadog\\datadog.yaml")
   it 'has proper permissions on programdata\datadog' do
-    # should have a sddl like so 
-    # O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;<sid>)
-
-    # on server 2016, it doesn't have the assigned system right, only the inherited.
-    # allow either
-    #expected_sddl = "O:SYG:SYD:(A;;FA;;;SY)(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
     expected_sddl = "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
     expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
-    actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog")
+    actual_sddl = get_sddl_for_object(configuration_path)
     equal_base = equal_sddl?(expected_sddl, actual_sddl)
     equal_2016 = equal_sddl?(expected_sddl_2016, actual_sddl)
     expect(equal_base | equal_2016).to be_truthy
@@ -86,7 +79,7 @@ shared_examples_for 'an Agent with valid permissions' do
     #expected_sddl =   "O:SYG:SYD:(A;;FA;;;SY)(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
     expected_sddl = "O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;#{dd_user_sid})"
     expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
-    actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog\\datadog.yaml")
+    actual_sddl = get_sddl_for_object("#{configuration_path}\\datadog.yaml")
     equal_base = equal_sddl?(expected_sddl, actual_sddl)
     equal_2016 = equal_sddl?(expected_sddl_2016, actual_sddl)
     expect(equal_base | equal_2016).to be_truthy
@@ -99,7 +92,7 @@ shared_examples_for 'an Agent with valid permissions' do
     # A,OICIID;FA;;;dd_user_sid = explicit right assignment of OI, CI, FA to the dd-agent user, inherited from the parent
 
     expected_sddl =      "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
-    actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog\\conf.d")
+    actual_sddl = get_sddl_for_object("#{configuration_path}\\conf.d")
 
     sddl_result = equal_sddl?(expected_sddl, actual_sddl)
     expect(sddl_result).to be_truthy
@@ -146,12 +139,6 @@ shared_examples_for 'an Agent with valid permissions' do
     uname = get_username_from_tasklist("agent.exe")
     expect(get_username_from_tasklist("agent.exe")).to eq("ddagentuser")
   end
-  it 'has trace agent running as ddagentuser' do
-    expect(get_username_from_tasklist("trace-agent.exe")).to eq("ddagentuser")
-  end
-  it 'has process agent running as local_system' do
-    expect(get_username_from_tasklist("process-agent.exe")).to eq("SYSTEM")
-  end
   secdata = get_security_settings
   it 'has proper security rights assigned' do
     expect(check_has_security_right(secdata, "SeDenyInteractiveLogonRight", "ddagentuser")).to be_truthy
@@ -162,11 +149,10 @@ shared_examples_for 'an Agent with valid permissions' do
     expect(check_is_user_in_group("ddagentuser", "Performance Monitor Users")).to be_truthy
   end
 end
-describe 'dd-agent-user-win' do
-#  it_behaves_like 'an installed Agent'
-  it_behaves_like 'a running Agent with no errors'
-  it_behaves_like 'an Agent with APM enabled'
-  it_behaves_like 'an Agent with process enabled'
+
+describe 'dd-agent-install-alternate-dir' do
+  it_behaves_like 'a correctly created configuration root'
+  it_behaves_like 'a correctly created binary root'
   it_behaves_like 'an Agent with valid permissions'
 end
   

@@ -128,6 +128,11 @@
                        Name="InstallPath"
                        Type="string"
                        Value="[PROJECTLOCATION]"/>
+        <RegistryValue Root="HKLM"
+                       Key="SOFTWARE\Datadog\Datadog Agent"
+                       Name="ConfigRoot"
+                       Type="string"
+                       Value="[APPLICATIONDATADIRECTORY]"/>
         <util:RemoveFolderEx On="uninstall" Property="PROJECTLOCATION"/>
       </Component>
       <!-- Register variables that will be used by the agent at startup -->
@@ -491,13 +496,13 @@
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
     <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall' 
-        Value='DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];_INSTALL=[_INSTALL];_UNINSTALL=[_UNINSTALL];_CHANGE=[_CHANGE];_REPAIR=[_REPAIR];_UPGRADE=[_UPGRADE];' />
+        Value='PROJECTLOCATION=[PROJECTLOCATION];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];_INSTALL=[_INSTALL];_UNINSTALL=[_UNINSTALL];_CHANGE=[_CHANGE];_REPAIR=[_REPAIR];_UPGRADE=[_UPGRADE];' />
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='check' Impersonate='no'/>
 
     <CustomAction Id='SetUninstallProperty' Return='check' Property='DoUninstall' 
-        Value='DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];_INSTALL=[_INSTALL];_UNINSTALL=[_UNINSTALL];_CHANGE=[_CHANGE];_REPAIR=[_REPAIR];_UPGRADE=[_UPGRADE];' />
+        Value='PROJECTLOCATION=[PROJECTLOCATION];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];_INSTALL=[_INSTALL];_UNINSTALL=[_UNINSTALL];_CHANGE=[_CHANGE];_REPAIR=[_REPAIR];_UPGRADE=[_UPGRADE];' />
     
     <CustomAction Id='DoUninstall' BinaryKey='wixcadll' DllEntry='DoUninstall' Execute='deferred' Return='check' Impersonate='no'/>
 

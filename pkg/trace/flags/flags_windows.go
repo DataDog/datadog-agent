@@ -15,7 +15,7 @@ var DefaultConfigPath = "c:\\programdata\\datadog\\datadog.yaml"
 func init() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
-		DefaultConfigPath = filepath.Join(pd, "Datadog", "datadog.yaml")
+		DefaultConfigPath = filepath.Join(pd, "datadog.yaml")
 	}
 }
 func registerOSSpecificFlags() {

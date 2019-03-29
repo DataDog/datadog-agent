@@ -27,7 +27,7 @@ const agent5Config = "c:\\programdata\\datadog\\datadog.conf"
 func init() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
-		DefaultLogFilePath = filepath.Join(pd, "Datadog", "logs", "trace-agent.log")
+		DefaultLogFilePath = filepath.Join(pd, "logs", "trace-agent.log")
 	}
 	_here, err := executable.Folder()
 	if err == nil {

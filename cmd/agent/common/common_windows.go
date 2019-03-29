@@ -49,9 +49,9 @@ var (
 func init() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
-		DefaultConfPath = filepath.Join(pd, "Datadog")
-		DefaultLogFile = filepath.Join(pd, "Datadog", "logs", "agent.log")
-		DefaultDCALogFile = filepath.Join(pd, "Datadog", "logs", "cluster-agent.log")
+		DefaultConfPath = pd
+		DefaultLogFile = filepath.Join(pd, "logs", "agent.log")
+		DefaultDCALogFile = filepath.Join(pd, "logs", "cluster-agent.log")
 	} else {
 		winutil.LogEventViewer(config.ServiceName, 0x8000000F, DefaultConfPath)
 	}
@@ -269,7 +269,7 @@ func ImportRegistryConfig() error {
 		log.Debugf("Setting dd_url to %s", val)
 	}
 	if val, _, err = k.GetStringValue("logs_dd_url"); err == nil && val != "" {
-		overrides["logs_dd_url"] = val
+		overrides["logs_config.logs_dd_url"] = val
 		log.Debugf("Setting logs_config.dd_url to %s", val)
 	}
 	if val, _, err = k.GetStringValue("process_dd_url"); err == nil && val != "" {

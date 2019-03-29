@@ -686,13 +686,13 @@ int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *p
 #define NUM_SERVICES 3
     serviceDef services[NUM_SERVICES] = {
         serviceDef(agentService.c_str(), L"DataDog Agent", L"Send metrics to DataDog",
-                   L"c:\\program files\\datadog\\datadog agent\\embedded\\agent.exe",
+                   agent_exe.c_str(),
                    L"winmgmt\0\0", SERVICE_AUTO_START, data.getFullUsername().c_str(), password),
         serviceDef(traceService.c_str(), L"DataDog Trace Agent", L"Send tracing metrics to DataDog",
-                   L"c:\\program files\\datadog\\datadog agent\\bin\\agent\\trace-agent.exe",
+                   trace_exe.c_str(),
                    L"datadogagent\0\0", SERVICE_DEMAND_START, data.getFullUsername().c_str(), password),
         serviceDef(processService.c_str(), L"DataDog Process Agent", L"Send process metrics to DataDog",
-                   L"c:\\program files\\datadog\\datadog agent\\bin\\agent\\process-agent.exe",
+                   process_exe.c_str(),
                    L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL)
 
     };
@@ -748,13 +748,13 @@ int uninstallServices(MSIHANDLE hInstall, CustomActionData& data) {
 #define NUM_SERVICES 3
     serviceDef services[NUM_SERVICES] = {
         serviceDef(agentService.c_str(), L"DataDog Agent", L"Send metrics to DataDog",
-                   L"c:\\program files\\datadog\\datadog agent\\embedded\\agent.exe",
+                   agent_exe.c_str(),
                    L"winmgmt\0\0", SERVICE_AUTO_START, data.getFullUsername().c_str(), NULL),
         serviceDef(traceService.c_str(), L"DataDog Trace Agent", L"Send tracing metrics to DataDog",
-                   L"c:\\program files\\datadog\\datadog agent\\bin\\agent\\trace-agent.exe",
+                   trace_exe.c_str(),
                    L"datadogagent\0\0", SERVICE_DEMAND_START, data.getFullUsername().c_str(), NULL),
         serviceDef(processService.c_str(), L"DataDog Process Agent", L"Send process metrics to DataDog",
-                   L"c:\\program files\\datadog\\datadog agent\\bin\\agent\\process-agent.exe",
+                   process_exe.c_str(),
                    L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL)
 
     };

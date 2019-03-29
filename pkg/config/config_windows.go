@@ -25,9 +25,9 @@ const ServiceName = "DatadogAgent"
 func osinit() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
-		defaultConfdPath = filepath.Join(pd, "Datadog", "conf.d")
-		defaultAdditionalChecksPath = filepath.Join(pd, "Datadog", "checks.d")
-		defaultRunPath = filepath.Join(pd, "Datadog", "run")
+		defaultConfdPath = filepath.Join(pd, "conf.d")
+		defaultAdditionalChecksPath = filepath.Join(pd, "checks.d")
+		defaultRunPath = filepath.Join(pd, "run")
 	} else {
 		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultConfdPath)
 	}
