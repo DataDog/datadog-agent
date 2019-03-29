@@ -62,7 +62,7 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 	conf := newTestReceiverConfig()
 	receiver := newTestReceiverFromConfig(conf)
 	receiver.maxRequestBodyLength = 2
-	go receiver.Run()
+	go receiver.Start()
 
 	defer func() {
 		receiver.Stop()
