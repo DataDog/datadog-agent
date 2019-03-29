@@ -53,8 +53,8 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *sampler.DynamicConfig
 	}
 }
 
-// Run starts sampling traces
-func (s *Sampler) Run() {
+// Start starts sampling traces
+func (s *Sampler) Start() {
 	go func() {
 		defer watchdog.LogOnPanic()
 		s.engine.Run()

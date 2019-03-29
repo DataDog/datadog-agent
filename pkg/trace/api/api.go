@@ -94,8 +94,8 @@ func NewHTTPReceiver(
 	}
 }
 
-// Run starts doing the HTTP server and is ready to receive traces
-func (r *HTTPReceiver) Run() {
+// Start starts doing the HTTP server and is ready to receive traces
+func (r *HTTPReceiver) Start() {
 	// FIXME[1.x]: remove all those legacy endpoints + code that goes with it
 	http.HandleFunc("/spans", r.httpHandleWithVersion(v01, r.handleTraces))
 	http.HandleFunc("/services", r.httpHandleWithVersion(v01, r.handleServices))
