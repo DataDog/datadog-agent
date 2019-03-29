@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Change the logging format to include the name of the agent logging
