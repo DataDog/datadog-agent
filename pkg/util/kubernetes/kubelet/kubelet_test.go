@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
@@ -194,7 +195,7 @@ func (suite *KubeletTestSuite) SetupTest() {
 	mockConfig.Set("kubernetes_kubelet_host", "")
 	mockConfig.Set("kubernetes_http_kubelet_port", 10250)
 	mockConfig.Set("kubernetes_https_kubelet_port", 10255)
-	mockConfig.Set("kubernetes_pod_expiration_minutes", 15)
+	mockConfig.Set("kubernetes_pod_expiration_duration", 15*60)
 }
 
 func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
@@ -794,7 +795,7 @@ func (suite *KubeletTestSuite) TestGetKubeletHostFromConfig() {
 
 func (suite *KubeletTestSuite) TestPodListNoExpire() {
 	mockConfig := config.Mock()
-	mockConfig.Set("kubernetes_pod_expiration_minutes", 0)
+	mockConfig.Set("kubernetes_pod_expiration_duration", 0)
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_expired.json")
 	require.Nil(suite.T(), err)
@@ -826,7 +827,7 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 	//   - hello8-1550505780-kdnjx has one old container and a recent container, don't expire
 
 	mockConfig := config.Mock()
-	mockConfig.Set("kubernetes_pod_expiration_minutes", 15)
+	mockConfig.Set("kubernetes_pod_expiration_duration", 15*60)
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_expired.json")
 	require.Nil(suite.T(), err)
@@ -874,4 +875,41 @@ func TestKubeletTestSuite(t *testing.T) {
 		false,
 	)
 	suite.Run(t, new(KubeletTestSuite))
+}
+
+var pods PodList
+
+func BenchmarkPodListStdlib(b *testing.B) {
+	mockConfig := config.Mock()
+	mockConfig.Set("kubernetes_pod_expiration_duration", 0)
+	data, _ := ioutil.ReadFile("./testdata/hugelist.json")
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		json.Unmarshal(data, &pods)
+	}
+}
+
+func BenchmarkPodListNoExpire(b *testing.B) {
+	mockConfig := config.Mock()
+	mockConfig.Set("kubernetes_pod_expiration_duration", 0)
+	j := newPodUnmarshaller()
+	data, _ := ioutil.ReadFile("./testdata/hugelist.json")
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		j.unmarshal(data, &pods)
+	}
+}
+
+func BenchmarkPodListExpire(b *testing.B) {
+	mockConfig := config.Mock()
+	mockConfig.Set("kubernetes_pod_expiration_duration", 15*60)
+	j := newPodUnmarshaller()
+	data, _ := ioutil.ReadFile("./testdata/hugelist.json")
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		j.unmarshal(data, &pods)
+	}
 }

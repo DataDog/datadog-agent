@@ -24,7 +24,7 @@ var jsonConfig = jsoniter.Config{
 }
 
 // podUnmarshaller handles unmarshalling and filtering the podlist contents
-// according to the kubernetes_pod_expiration_minutes setting. It uses jsoniter
+// according to the kubernetes_pod_expiration_duration setting. It uses jsoniter
 // under the hood, with a custom decoder.
 type podUnmarshaller struct {
 	jsonConfig            jsoniter.API
@@ -34,7 +34,7 @@ type podUnmarshaller struct {
 
 func newPodUnmarshaller() *podUnmarshaller {
 	pu := &podUnmarshaller{
-		podExpirationDuration: config.Datadog.GetDuration("kubernetes_pod_expiration_minutes") * time.Minute,
+		podExpirationDuration: config.Datadog.GetDuration("kubernetes_pod_expiration_duration") * time.Second,
 		timeNowFunction:       time.Now,
 	}
 

@@ -169,7 +169,7 @@ func (ku *KubeUtil) GetNodename() (string, error) {
 }
 
 // GetLocalPodList returns the list of pods running on the node.
-// If kubernetes_pod_expiration_minutes is set, old exited pods
+// If kubernetes_pod_expiration_duration is set, old exited pods
 // will be filtered out to keep the podlist size down: see json.go
 func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	var ok bool
