@@ -55,7 +55,7 @@ func Start() error {
 	endpoints, err := sender.BuildEndpoints()
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
-		status.AddGlobalWarning(invalidEndpoints, message)
+		status.AddGlobalError(invalidEndpoints, message)
 		return errors.New(message)
 	}
 
@@ -63,7 +63,7 @@ func Start() error {
 	processingRules, err := config.GlobalProcessingRules()
 	if err != nil {
 		message := fmt.Sprintf("Invalid processing rules: %v", err)
-		status.AddGlobalWarning(invalidProcessingRules, message)
+		status.AddGlobalError(invalidProcessingRules, message)
 		return errors.New(message)
 	}
 

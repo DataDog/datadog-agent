@@ -112,6 +112,7 @@ type ContainerStateRunning struct {
 
 // ContainerStateTerminated is a terminated state of a container.
 type ContainerStateTerminated struct {
-	ExitCode  int32     `json:"exitCode"`
-	StartedAt time.Time `json:"startedAt"`
+	ExitCode   int32     `json:"exitCode"`
+	StartedAt  time.Time `json:"startedAt"`
+	FinishedAt time.Time `json:"finishedAt"`
 }

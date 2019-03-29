@@ -7,7 +7,7 @@ import sys
 from datetime import date
 
 from invoke import task, Failure
-from invoke.exceptions import UnexpectedExit
+from invoke.exceptions import Exit, UnexpectedExit
 
 
 @task
@@ -33,7 +33,7 @@ def update_changelog(ctx, new_version):
     Quick task to generate the new CHANGELOG using reno when releasing a minor
     version (linux only).
     """
-    new_version_int = map(int, new_version.split("."))
+    new_version_int = list(map(int, new_version.split(".")))
 
     if len(new_version_int) != 3:
         print("Error: invalid version: {}".format(new_version_int))

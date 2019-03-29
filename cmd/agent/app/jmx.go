@@ -9,6 +9,7 @@ package app
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
@@ -144,7 +145,7 @@ func setupAgent() error {
 }
 
 func runJmxCommand(command string) error {
-	err := config.SetupLogger(jmxLogLevel, "", "", false, true, false)
+	err := config.SetupLogger(loggerName, jmxLogLevel, "", "", false, true, false)
 	if err != nil {
 		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 		return err
@@ -174,6 +175,9 @@ func runJmxCommand(command string) error {
 	}
 
 	fmt.Println("JMXFetch exited successfully. If nothing was displayed please check your configuration, flags and the JMXFetch log file.")
+	if runtime.GOOS == "windows" {
+		printWindowsUserWarning("jmx")
+	}
 	return nil
 }
 

@@ -9,9 +9,6 @@ require 'pathname'
 name 'datadog-agent'
 
 dependency 'python'
-unless windows?
-  dependency 'net-snmp-lib'
-end
 
 license "Apache-2.0"
 license_file "../LICENSE"
@@ -34,6 +31,9 @@ build do
   command "invoke agent.build --rebuild --use-embedded-libs --no-development", env: env
   if windows?
     command "invoke systray.build --rebuild --use-embedded-libs --no-development", env: env
+
+    # build the installer custom action library
+    command "invoke customaction.build"
   end
 
   if osx?

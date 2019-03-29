@@ -60,12 +60,43 @@ func TestStatusDeduplicateWarnings(t *testing.T) {
 	assert.ElementsMatch(t, []string{"Unique Warning"}, status.Warnings)
 }
 
+func TestStatusDeduplicateErrors(t *testing.T) {
+	defer Clear()
+	createSources()
+
+	AddGlobalError("bar", "Unique Error")
+	AddGlobalError("foo", "Identical Error")
+	AddGlobalError("foo", "Identical Error")
+
+	status := Get()
+	assert.ElementsMatch(t, []string{"Identical Error", "Unique Error"}, status.Errors)
+}
+
+func TestStatusDeduplicateErrorsAndWarnings(t *testing.T) {
+	defer Clear()
+	createSources()
+
+	AddGlobalWarning("bar", "Unique Warning")
+	AddGlobalWarning("foo", "Identical Warning")
+	AddGlobalWarning("foo", "Identical Warning")
+	AddGlobalError("bar", "Unique Error")
+	AddGlobalError("foo", "Identical Error")
+	AddGlobalError("foo", "Identical Error")
+
+	status := Get()
+	assert.ElementsMatch(t, []string{"Identical Error", "Unique Error"}, status.Errors)
+	assert.ElementsMatch(t, []string{"Identical Warning", "Unique Warning"}, status.Warnings)
+}
+
 func TestMetrics(t *testing.T) {
 	defer Clear()
 	Clear()
-	assert.Equal(t, metrics.LogsExpvars.String(), `{"DestinationErrors": 0, "DestinationLogsDropped": {}, "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": ""}`)
+	var expected = `{"DestinationErrors": 0, "DestinationLogsDropped": {}, "Errors": "", "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": ""}`
+	assert.Equal(t, expected, metrics.LogsExpvars.String())
 
 	createSources()
 	AddGlobalWarning("bar", "Unique Warning")
-	assert.Equal(t, metrics.LogsExpvars.String(), `{"DestinationErrors": 0, "DestinationLogsDropped": {}, "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": "Unique Warning"}`)
+	AddGlobalError("bar", "I am an error")
+	expected = `{"DestinationErrors": 0, "DestinationLogsDropped": {}, "Errors": "I am an error", "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": "Unique Warning"}`
+	assert.Equal(t, expected, metrics.LogsExpvars.String())
 }

@@ -9,13 +9,18 @@ all the components and providing the command line interface. */
 package app
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
 	// AgentCmd is the root command
 	AgentCmd = &cobra.Command{
-		Use:   "agent [command]",
+		Use:   fmt.Sprintf("%s [command]", os.Args[0]),
 		Short: "Datadog Agent at your service.",
 		Long: `
 The Datadog Agent faithfully collects events and metrics and brings them
@@ -27,6 +32,9 @@ monitoring and performance data.`,
 	confFilePath string
 	flagNoColor  bool
 )
+
+// loggerName is the name of the core agent logger
+const loggerName config.LoggerName = "CORE"
 
 func init() {
 	AgentCmd.PersistentFlags().StringVarP(&confFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")

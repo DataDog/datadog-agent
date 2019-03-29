@@ -11,19 +11,17 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"reflect"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/tag"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -31,19 +29,18 @@ import (
 
 const defaultSleepDuration = 1 * time.Second
 const readTimeout = 30 * time.Second
-const tagsUpdatePeriod = 10 * time.Second
 
 // Tailer tails logs coming from stdout and stderr of a docker container
 // Logs from stdout and stderr are multiplexed into a single channel and needs to be demultiplexed later one.
 // To multiplex logs, docker adds a header to all logs with format '[SEV][TS] [MSG]'.
 type Tailer struct {
-	ContainerID   string
-	outputChan    chan *message.Message
-	decoder       *decoder.Decoder
-	reader        *safeReader
-	cli           *client.Client
-	source        *config.LogSource
-	containerTags []string
+	ContainerID string
+	outputChan  chan *message.Message
+	decoder     *decoder.Decoder
+	reader      *safeReader
+	cli         *client.Client
+	source      *config.LogSource
+	tagProvider tag.Provider
 
 	sleepDuration      time.Duration
 	shouldStop         bool
@@ -62,6 +59,7 @@ func NewTailer(cli *client.Client, containerID string, source *config.LogSource,
 		outputChan:         outputChan,
 		decoder:            decoder.InitializeDecoder(source, dockerParser),
 		source:             source,
+		tagProvider:        tag.NewProvider(dockerutil.ContainerIDToEntityName(containerID)),
 		cli:                cli,
 		sleepDuration:      defaultSleepDuration,
 		stop:               make(chan struct{}, 1),
@@ -82,6 +80,7 @@ func (t *Tailer) Stop() {
 	log.Infof("Stop tailing container: %v", ShortContainerID(t.ContainerID))
 	t.stop <- struct{}{}
 
+	t.tagProvider.Stop()
 	t.reader.Close()
 	// no-op if already closed because of a timeout
 	t.cancelFunc()
@@ -149,7 +148,7 @@ func (t *Tailer) tail(since string) error {
 	t.source.Status.Success()
 	t.source.AddInput(t.ContainerID)
 
-	go t.keepDockerTagsUpdated()
+	t.tagProvider.Start()
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()
@@ -244,31 +243,9 @@ func (t *Tailer) forwardMessages() {
 			origin.Offset = output.Timestamp
 			t.setLastSince(output.Timestamp)
 			origin.Identifier = t.Identifier()
-			origin.SetTags(t.containerTags)
+			origin.SetTags(t.tagProvider.GetTags())
 			output.Origin = origin
 			t.outputChan <- output
-		}
-	}
-}
-
-func (t *Tailer) keepDockerTagsUpdated() {
-	t.checkForNewDockerTags()
-	ticker := time.NewTicker(tagsUpdatePeriod)
-	for range ticker.C {
-		if t.shouldStop {
-			return
-		}
-		t.checkForNewDockerTags()
-	}
-}
-
-func (t *Tailer) checkForNewDockerTags() {
-	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(t.ContainerID), collectors.HighCardinality)
-	if err != nil {
-		log.Warn(err)
-	} else {
-		if !reflect.DeepEqual(tags, t.containerTags) {
-			t.containerTags = tags
 		}
 	}
 }

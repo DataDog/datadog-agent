@@ -7,7 +7,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // serviceApp represents the app to which certain integration belongs to
@@ -119,11 +119,11 @@ const appType = "app_type"
 
 // TraceServiceExtractor extracts service metadata from top-level spans
 type TraceServiceExtractor struct {
-	outServices chan<- pb.ServicesMetadata
+	outServices chan pb.ServicesMetadata
 }
 
 // NewTraceServiceExtractor returns a new TraceServiceExtractor
-func NewTraceServiceExtractor(out chan<- pb.ServicesMetadata) *TraceServiceExtractor {
+func NewTraceServiceExtractor(out chan pb.ServicesMetadata) *TraceServiceExtractor {
 	return &TraceServiceExtractor{out}
 }
 

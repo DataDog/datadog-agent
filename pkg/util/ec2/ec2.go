@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -26,12 +27,23 @@ var (
 
 // GetInstanceID fetches the instance id for current host from the EC2 metadata API
 func GetInstanceID() (string, error) {
-	return getMetadataItem("/instance-id")
+	return getMetadataItemWithMaxLength("/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 }
 
 // GetHostname fetches the hostname for current host from the EC2 metadata API
 func GetHostname() (string, error) {
-	return getMetadataItem("/hostname")
+	return getMetadataItemWithMaxLength("/hostname", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+}
+
+func getMetadataItemWithMaxLength(endpoint string, maxLength int) (string, error) {
+	result, err := getMetadataItem(endpoint)
+	if err != nil {
+		return result, err
+	}
+	if len(result) > maxLength {
+		return "", fmt.Errorf("%v gave a response with length > to %v", endpoint, maxLength)
+	}
+	return result, err
 }
 
 func getMetadataItem(endpoint string) (string, error) {

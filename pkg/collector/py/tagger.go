@@ -18,24 +18,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
 
-// GetTags queries the agent6 tagger and returns a string array containing
-// tags for the entity. If entity not found, or tagging error, the returned
-// array is empty but valid.
-//export GetTags
-// FIXME: replace highCard with a TagCardinality
-func GetTags(id *C.char, highCard int) *C.PyObject {
+// Tag bridges towards tagger.Tag to retrieve container tags
+//export Tag
+func Tag(id *C.char, card C.TaggerCardinality) *C.PyObject {
 	goID := C.GoString(id)
-	var highCardBool bool
 	var tags []string
-	if highCard > 0 {
-		highCardBool = true
+	var cardinality collectors.TagCardinality
+
+	switch card {
+	case C.LOW_CARD:
+		cardinality = collectors.LowCardinality
+	case C.ORCHESTRATOR_CARD:
+		cardinality = collectors.OrchestratorCardinality
+	case C.HIGH_CARD:
+		cardinality = collectors.HighCardinality
 	}
 
-	if highCardBool == true {
-		tags, _ = tagger.Tag(goID, collectors.HighCardinality)
-	} else {
-		tags, _ = tagger.Tag(goID, collectors.LowCardinality)
-	}
+	tags, _ = tagger.Tag(goID, cardinality)
 	output := C.PyList_New(0)
 
 	for _, t := range tags {
@@ -47,6 +46,16 @@ func GetTags(id *C.char, highCard int) *C.PyObject {
 	}
 
 	return output
+}
+
+// GetTags is deprecated, Tag should be used now instead
+//export GetTags
+func GetTags(id *C.char, highCard int) *C.PyObject {
+	if highCard > 0 {
+		return Tag(id, C.HIGH_CARD)
+	} else {
+		return Tag(id, C.LOW_CARD)
+	}
 }
 
 func initTagger() {

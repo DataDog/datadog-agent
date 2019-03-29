@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Resolve once the DNS name given by docker and try the associated IP to reach the kubelet.
+    Prioritize HTTPS over HTTP to connect to kubelet.
+    Prioritize communication using IPs over hostnames to spare DNS servers accross the cluster.

@@ -107,12 +107,14 @@ func StopServer() {
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.String()
-		if isExternalPath(path) {
-			if err := util.ValidateDCARequest(w, r); err != nil {
-				return
+		var isValid bool
+		if !isExternalPath(path) {
+			if err := util.Validate(w, r); err == nil {
+				isValid = true
 			}
-		} else {
-			if err := util.Validate(w, r); err != nil {
+		}
+		if !isValid {
+			if err := util.ValidateDCARequest(w, r); err != nil {
 				return
 			}
 		}
@@ -124,7 +126,7 @@ func validateToken(next http.Handler) http.Handler {
 func isExternalPath(path string) bool {
 	return strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 || // support for agents < 6.5.0
 		path == "/version" ||
-		strings.HasPrefix(path, "/api/v1/tags/pod/") && len(strings.Split(path, "/")) == 8 ||
+		strings.HasPrefix(path, "/api/v1/tags/pod/") && (len(strings.Split(path, "/")) == 6 || len(strings.Split(path, "/")) == 8) ||
 		strings.HasPrefix(path, "/api/v1/tags/node/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/clusterchecks/") && len(strings.Split(path, "/")) == 6
 }

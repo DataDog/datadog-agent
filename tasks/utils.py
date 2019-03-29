@@ -60,7 +60,6 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
     ldflags = get_version_ldflags(ctx, prefix)
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs),
-        "CGO_CFLAGS_ALLOW": "-static-libgcc",  # whitelist additional flags, here a flag used for net-snmp
     }
 
     if sys.platform == 'win32':
@@ -141,14 +140,14 @@ def get_root():
     """
     Get the root of the Go project
     """
-    return check_output(['git', 'rev-parse', '--show-toplevel']).strip()
+    return check_output(['git', 'rev-parse', '--show-toplevel']).decode('utf-8').strip()
 
 
 def get_git_branch_name():
     """
     Return the name of the current git branch
     """
-    return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
+    return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).decode('utf-8').strip()
 
 
 def query_version(ctx, git_sha_length=7, prefix=None):
@@ -220,5 +219,5 @@ def load_release_versions(ctx, target_version):
         if target_version in versions:
             # windows runners don't accepts anything else than strings in the
             # environment when running a subprocess.
-            return {str(k):str(v) for k, v in versions[target_version].iteritems()}
+            return {str(k):str(v) for k, v in versions[target_version].items()}
     raise Exception("Could not find '{}' version in release.json".format(target_version))

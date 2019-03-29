@@ -162,7 +162,7 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 	if !v.IsSet("apm_config.trace_writer.flush_period_seconds") {
 		v.Set("apm_config.trace_writer.flush_period_seconds", 0.1)
 	}
-	v.Set("log_level", "info")
+	v.Set("log_level", "debug")
 	out, err := yaml.Marshal(v.AllSettings())
 	if err != nil {
 		return "", err

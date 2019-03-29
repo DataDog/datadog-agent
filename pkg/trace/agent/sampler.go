@@ -6,12 +6,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	log "github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Sampler chooses which spans to write to the API
@@ -54,8 +53,8 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *sampler.DynamicConfig
 	}
 }
 
-// Run starts sampling traces
-func (s *Sampler) Run() {
+// Start starts sampling traces
+func (s *Sampler) Start() {
 	go func() {
 		defer watchdog.LogOnPanic()
 		s.engine.Run()

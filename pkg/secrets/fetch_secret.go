@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// +build !windows
+// +build secrets
 
 package secrets
 
@@ -45,8 +45,6 @@ func execCommand(inputPayload string) ([]byte, error) {
 	}
 
 	cmd.Stdin = strings.NewReader(inputPayload)
-	// setting an empty env in case some secrets were set using the ENV (ex: API_KEY)
-	cmd.Env = []string{}
 
 	stdout := limitBuffer{
 		buf: &bytes.Buffer{},

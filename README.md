@@ -20,7 +20,7 @@ and development, is located under [the docs directory](docs) of the present repo
 
 To build the Agent you need:
  * [Go](https://golang.org/doc/install) 1.11.5 or later.
- * Python 2.7 along with development libraries.
+ * Python 2.7 or 3.x along with development libraries.
  * Python dependencies. You may install these with `pip install -r requirements.txt`
    This will also pull in [Invoke](http://www.pyinvoke.org) if not yet installed.
 
@@ -41,7 +41,7 @@ To start working on the Agent, you can build the `master` branch:
 2. cd into the project folder: `cd $GOPATH/src/github.com/DataDog/datadog-agent`.
 3. install project's dependencies: `invoke deps`.
    Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
-4. build the whole project with `invoke agent.build --build-exclude=snmp,systemd` (with `--use-venv` to use a python virtualenv)
+4. build the whole project with `invoke agent.build --build-exclude=systemd` (with `--use-venv` to use a python virtualenv)
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
 

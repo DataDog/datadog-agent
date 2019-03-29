@@ -32,6 +32,13 @@ def build(ctx, vstudio_root=None):
         print("Custom action library is only for Win32")
         raise Exit(code=1)
 
+    ver = get_version_numeric_only(ctx)
+    build_maj, build_min, build_patch = ver.split(".")
+    verprops = " /p:MAJ_VER={build_maj} /p:MIN_VER={build_min} /p:PATCH_VER={build_patch} ".format(
+            build_maj=build_maj,
+            build_min=build_min,
+            build_patch=build_patch
+        )
     cmd = ""
     if not os.getenv("VCINSTALLDIR"):
         print("VC Not installed in environment; checking other locations")
@@ -45,6 +52,7 @@ def build(ctx, vstudio_root=None):
     else:
         cmd = 'msbuild omnibus\\resources\\agent\\msi\\cal\\customaction.vcxproj /p:Configuration=Release /p:Platform=x64'
 
+    cmd += verprops
     print("Build Command: %s" % cmd)
 
     ctx.run(cmd)

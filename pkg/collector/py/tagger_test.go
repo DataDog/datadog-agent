@@ -34,7 +34,7 @@ func (c *DummyCollector) Fetch(entity string) ([]string, []string, []string, err
 	}
 }
 
-func TestGetTags(t *testing.T) {
+func TestTagger(t *testing.T) {
 	collectors.DefaultCatalog = map[string]collectors.CollectorFactory{
 		"dummy": func() collectors.Collector {
 			return &DummyCollector{}
@@ -57,7 +57,17 @@ func TestGetTags(t *testing.T) {
 	err = check.Run()
 	require.NoError(t, err)
 
-	mockSender.AssertMetricTaggedWith(t, "Gauge", "metric.low_card", []string{"test_entity:low"})
-	mockSender.AssertMetricTaggedWith(t, "Gauge", "metric.high_card", []string{"test_entity:low", "test_entity:high", "other_tag:high"})
-	mockSender.AssertMetricTaggedWith(t, "Gauge", "metric.unknown", []string{})
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "old_method.low_card", []string{"test_entity:low"})
+	mockSender.AssertMetricNotTaggedWith(t, "Gauge", "old_method.low_card", []string{"test_entity:orchestrator", "test_entity:high", "other_tag:high"})
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "old_method.high_card", []string{"test_entity:low", "test_entity:orchestrator", "test_entity:high", "other_tag:high"})
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "old_method.unknown", []string{})
+
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "new_method.low_card", []string{"test_entity:low"})
+	mockSender.AssertMetricNotTaggedWith(t, "Gauge", "new_method.low_card", []string{"test_entity:orchestrator", "test_entity:high", "other_tag:high"})
+
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "new_method.orch_card", []string{"test_entity:low", "test_entity:orchestrator"})
+	mockSender.AssertMetricNotTaggedWith(t, "Gauge", "new_method.orch_card", []string{"test_entity:high", "other_tag:high"})
+
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "new_method.high_card", []string{"test_entity:low", "test_entity:orchestrator", "test_entity:high", "other_tag:high"})
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "new_method.unknown", []string{})
 }

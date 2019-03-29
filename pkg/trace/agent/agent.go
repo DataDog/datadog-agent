@@ -5,8 +5,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	log "github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
@@ -21,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const processStatsInterval = time.Minute
@@ -110,33 +109,37 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 
 // Run starts routers routines and individual pieces then stop them when the exit order is received
 func (a *Agent) Run() {
-	// it's really important to use a ticker for this, and with a not too short
-	// interval, for this is our guarantee that the process won't start and kill
-	// itself too fast (nightmare loop)
-	watchdogTicker := time.NewTicker(a.conf.WatchdogInterval)
-	defer watchdogTicker.Stop()
+	info.UpdatePreSampler(*a.Receiver.PreSampler.Stats()) // avoid exposing 0
 
-	// update the data served by expvar so that we don't expose a 0 sample rate
-	info.UpdatePreSampler(*a.Receiver.PreSampler.Stats())
+	a.start()
+	a.loop()
+}
 
-	// TODO: unify components APIs. Use Start/Stop as non-blocking ways of controlling the blocking Run loop.
-	// Like we do with TraceWriter.
-	a.Receiver.Run()
-	a.TraceWriter.Start()
-	a.StatsWriter.Start()
-	a.ServiceMapper.Start()
-	a.ServiceWriter.Start()
-	a.Concentrator.Start()
-	a.ScoreSampler.Run()
-	a.ErrorsScoreSampler.Run()
-	a.PrioritySampler.Run()
-	a.EventProcessor.Start()
+func (a *Agent) start() {
+	for _, starter := range []interface{ Start() }{
+		a.Receiver,
+		a.TraceWriter,
+		a.StatsWriter,
+		a.ServiceMapper,
+		a.ServiceWriter,
+		a.Concentrator,
+		a.ScoreSampler,
+		a.ErrorsScoreSampler,
+		a.PrioritySampler,
+		a.EventProcessor,
+	} {
+		starter.Start()
+	}
+}
 
+func (a *Agent) loop() {
+	ticker := time.NewTicker(a.conf.WatchdogInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case t := <-a.Receiver.Out:
 			a.Process(t)
-		case <-watchdogTicker.C:
+		case <-ticker.C:
 			a.watchdog()
 		case <-a.ctx.Done():
 			log.Info("exiting")

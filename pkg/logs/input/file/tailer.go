@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/tag"
 )
 
 // DefaultSleepDuration represents the amount of time the tailer waits before reading new data when no data is received
@@ -29,17 +30,19 @@ const defaultCloseTimeout = 60 * time.Second
 
 // Tailer tails one file and sends messages to an output channel
 type Tailer struct {
-	path     string
-	fullpath string
-	file     *os.File
-	tags     []string
+	path           string
+	fullpath       string
+	file           *os.File
+	isWildcardPath bool
+	tags           []string
 
 	readOffset    int64
 	decodedOffset int64
 
-	outputChan chan *message.Message
-	decoder    *decoder.Decoder
-	source     *config.LogSource
+	outputChan  chan *message.Message
+	decoder     *decoder.Decoder
+	source      *config.LogSource
+	tagProvider tag.Provider
 
 	sleepDuration time.Duration
 
@@ -51,23 +54,31 @@ type Tailer struct {
 }
 
 // NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
+func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration, isWildcardPath bool) *Tailer {
 	var parser logParser.Parser
 	if source.GetSourceType() == config.ContainerdType {
 		parser = containerdFileParser
 	} else {
 		parser = logParser.NoopParser
 	}
+	var tagProvider tag.Provider
+	if source.Config.Identifier != "" {
+		tagProvider = tag.NewProvider(source.Config.Identifier)
+	} else {
+		tagProvider = tag.NoopProvider
+	}
 	return &Tailer{
-		path:          path,
-		outputChan:    outputChan,
-		decoder:       decoder.InitializeDecoder(source, parser),
-		source:        source,
-		readOffset:    0,
-		sleepDuration: sleepDuration,
-		closeTimeout:  defaultCloseTimeout,
-		stop:          make(chan struct{}, 1),
-		done:          make(chan struct{}, 1),
+		path:           path,
+		outputChan:     outputChan,
+		decoder:        decoder.InitializeDecoder(source, parser),
+		source:         source,
+		tagProvider:    tagProvider,
+		readOffset:     0,
+		sleepDuration:  sleepDuration,
+		closeTimeout:   defaultCloseTimeout,
+		stop:           make(chan struct{}, 1),
+		done:           make(chan struct{}, 1),
+		isWildcardPath: isWildcardPath,
 	}
 }
 
@@ -86,6 +97,7 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	t.source.Status.Success()
 	t.source.AddInput(t.path)
 
+	t.tagProvider.Start()
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()
@@ -101,7 +113,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	}
 
 	// adds metadata to enable users to filter logs by filename
-	t.tags = []string{fmt.Sprintf("filename:%s", filepath.Base(t.path))}
+	t.tags = t.buildTailerTags()
 
 	log.Info("Opening ", t.path)
 	f, err := openFile(fullpath)
@@ -115,6 +127,15 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	t.decodedOffset = ret
 
 	return nil
+}
+
+// buildTailerTags groups the file tag, directory (if wildcard path) and user tags
+func (t *Tailer) buildTailerTags() []string {
+	tags := []string{fmt.Sprintf("filename:%s", filepath.Base(t.path))}
+	if t.isWildcardPath {
+		tags = append(tags, fmt.Sprintf("dirname:%s", filepath.Dir(t.path)))
+	}
+	return tags
 }
 
 // readForever lets the tailer tail the content of a file
@@ -157,6 +178,7 @@ func (t *Tailer) StartFromBeginning() error {
 func (t *Tailer) Stop() {
 	atomic.StoreInt32(&t.didFileRotate, 0)
 	t.stop <- struct{}{}
+	t.tagProvider.Stop()
 	t.source.RemoveInput(t.path)
 	// wait for the decoder to be flushed
 	<-t.done
@@ -202,7 +224,7 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.source)
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
-		origin.SetTags(t.tags)
+		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
 		output.Origin = origin
 		t.outputChan <- output
 	}

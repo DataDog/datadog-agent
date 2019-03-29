@@ -132,30 +132,6 @@ boolean flag value to _false_, either exporting the env var `INVOKE_USE_SYSTEM_L
 changing the `invoke.yaml` file or passing the corresponding arg to the build and
 test tasks, like `invoke build --use-system-libs=false`.
 
-
-### SNMP (Simple Network Management Protocol)
-
-The new SNMP check is written in Go, so the Agent must be built against few
-libraries.
-
-On OSX/macOS with [Homebrew](https://brew.sh):
-```
-brew install net-snmp
-```
-
-On Windows TODO
-
-On Ubuntu:
-```
-sudo apt-get install libsnmp-base libsnmp-dev snmp-mibs-downloader
-```
-
-**Please note:** the package `snmp-mibs-downloader` is only available in the
-`multiverse` Ubuntu repo and in `non-free` Debian repo. If you don't really
-need to work/debug on the SNMP integration, you could just build the agent without
-it (see [Building the Agent][building] for how to do it) and avoid the dependencies
-setup efforts altogether.
-
 ### Systemd
 
 The agent is able to collect systemd journal logs using a wrapper on the systemd utility library.

@@ -13,6 +13,12 @@ from .build_tags import get_default_build_tags
 from .utils import pkg_config_path, get_build_flags
 from .bootstrap import get_deps, process_deps
 
+#We use `basestring` in the code for compat with python2 unicode strings.
+#This makes the same code work in python3 as well.
+try:
+    basestring
+except NameError:
+    basestring = str
 
 # List of modules to ignore when running lint on Windows platform
 WIN_MODULE_WHITELIST = [
@@ -23,6 +29,7 @@ WIN_MODULE_WHITELIST = [
     "pdhhelper.go",
     "shutil.go",
     "tailer_windows.go",
+    "winsec.go"
 ]
 
 # List of paths to ignore in misspell's output

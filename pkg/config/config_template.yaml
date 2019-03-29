@@ -19,6 +19,7 @@ api_key:
 # refer to the specific check documentation for more details. Environment
 # variables DD_PROXY_HTTP, DD_PROXY_HTTPS and DD_PROXY_NO_PROXY (space-separated string)
 # will override the values set here. See https://docs.datadoghq.com/agent/proxy/.
+# For Logs proxy information, refer to the logs_config section.
 #
 # proxy:
 #   http: http://user:password@proxy_for_http:port
@@ -188,7 +189,7 @@ api_key:
 # Disable Python3 validation of python checks
 # disable_py3_validation: false
 
-# BETA: Encrypted Secrets (Linux only)
+# BETA: Encrypted Secrets
 #
 # This feature is in beta and its options or behaviour might break between
 # minor or bugfix releases of the Agent.
@@ -217,7 +218,41 @@ api_key:
 #
 # The timeout to execute the command in second
 # secret_backend_timeout: 5
-
+#
+{{ end -}}
+{{- if .LogsAgent }}
+# Logs agent
+#
+# Enable logs collection, disabled by default
+# logs_enabled: false
+#
+# logs_config:
+#
+#   Enable container log collection for all the containers (see ac_exclude to filter out containers)
+#   container_collect_all: false
+#
+#   Define the endpoint and port to hit when using a proxy for logs. The logs are forwarded in TCP
+#   therefore the proxy must be able to handle TCP connections.
+#   logs_dd_url: <endpoint>:<port>
+#
+#   Disable the SSL encryption (default to false). This parameter should only be used when logs are
+#   forwarded locally to a proxy. It is highly recommended to then handle the SSL encryption
+#   on the proxy side.
+#   logs_no_ssl: false
+#
+#   Global processing rules that are applied to all the logs. The available rules are
+#   "exclude_at_match", "include_at_match" and "mask_sequences". More information in the documentation:
+#   https://docs.datadoghq.com/logs/log_collection/?tab=tailexistingfiles#advanced-log-collection-functions
+#   processing_rules:
+#     - rule1_arg1
+#       rule1_arg2
+#     - rule2_arg1
+#       rule2_arg2
+#
+#   By default, logs are sent to port 10516 (for the US site), use this parameter
+#   to force the agent to send logs in TCP to port 443 (default is false)
+#   use_port_443: false
+#
 {{ end -}}
 {{- if .Metadata }}
 # Metadata providers, add or remove from the list to enable or disable collection.
@@ -226,6 +261,7 @@ api_key:
 # metadata_providers:
 #  - name: k8s
 #    interval: 60
+#
 {{ end -}}
 {{- if .Dogstatsd }}
 # DogStatsd
@@ -271,6 +307,12 @@ api_key:
 # might change depending on the OS.
 # dogstatsd_so_rcvbuf:
 #
+# When this flag is enabled, Dogstatsd collects basic statistics (count/last seen)
+# about the metrics it processsed. Use the agent command "dogstatsd-stats" to visualize
+# those statistics. Note that this feature slightly increase the cpu usage
+# of the dogstatsd server. Set this flag to true to activate it.
+# dogstatsd_metrics_stats_enable: false
+#
 # Additional tags to append to all metrics, events and service checks received by
 # this dogstatsd server. Useful for tagging all dogstatsd metrics reporting from
 # a single host without resorting to host tags.
@@ -288,17 +330,6 @@ api_key:
 # you can configure the namspace below. Each metric received will be prefixed
 # with the namespace before it's sent to Datadog.
 # statsd_metric_namespace:
-{{ end -}}
-{{- if .LogsAgent }}
-# Logs agent
-#
-# Logs agent is disabled by default
-# logs_enabled: false
-#
-# Enable logs collection for all containers, disabled by default
-# logs_config:
-#   container_collect_all: false
-#
 {{ end -}}
 {{- if .JMX }}
 # JMX
@@ -428,6 +459,15 @@ api_key:
 
 # Set to 'true' to disable logging to the log file
 # disable_file_logging: false
+
+# Maximum size of one log file. Use either a size (e.g. 10MB) or
+# provide value in bytes: 10485760
+# log_file_max_size: 10MB
+
+# Maximum amount of "old" log files to keep.
+# Set to 0 to not limit the number of files
+# to create.
+# log_file_max_rolls: 1
 
 # Set to 'true' to enable logging to syslog.
 # Note: Even if this option is set to 'false', the service launcher of your environment
@@ -683,6 +723,12 @@ api_key:
 # Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
 # kubelet_cache_pods_duration: 5
 #
+# As pods created by cronjobs are not removed by default, this can lead to podlists
+# growing unbounded. To avoid an impact on its memory usage, the agent ignores by
+# default all pods that exited more than 15 minutes (900 seconds) ago. This filtering
+# can be disabled altogether by setting the duration to 0.
+# kubernetes_pod_expiration_duration: 900
+#
 {{ end -}}
 {{- if .KubeApiServer }}
 # Kubernetes apiserver integration
@@ -709,7 +755,9 @@ api_key:
 #
 # To collect Kubernetes events, leader election must be enabled and collect_kubernetes_events set to true.
 # Only the leader will collect events. More details about events [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#event-collection).
+# You can change the timeout between two successful event collections (in milliseconds).
 # collect_kubernetes_events: false
+# kubernetes_event_collection_timeout: 100
 #
 #
 # Leader Election settings, more details about leader election [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#leader-election)

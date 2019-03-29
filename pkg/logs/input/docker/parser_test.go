@@ -39,6 +39,17 @@ func TestDockerStandaloneParserShouldHandleEmptyMessage(t *testing.T) {
 	assert.Equal(t, 0, len(msg.Content))
 }
 
+func TestDockerStandaloneParserShouldHandleNewlineOnlyMessage(t *testing.T) {
+	parser := dockerParser
+	emptyContent := [3]string{"\\n", "\\r", "\\r\\n"}
+
+	for _, em := range emptyContent {
+		msg, err := parser.Parse([]byte("2018-06-14T18:27:03.246999277Z " + em))
+		assert.Nil(t, err)
+		assert.Equal(t, 0, len(msg.Content))
+	}
+}
+
 func TestDockerStandaloneParserShouldHandleTtyMessage(t *testing.T) {
 	parser := dockerParser
 	msg, err := parser.Parse([]byte("2018-06-14T18:27:03.246999277Z foo"))

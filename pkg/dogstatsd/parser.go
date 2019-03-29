@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -273,7 +274,7 @@ func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, 
 	return &event, nil
 }
 
-func parseMetricMessage(message []byte, namespace string, defaultHostname string) (*metrics.MetricSample, error) {
+func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (*metrics.MetricSample, error) {
 	// daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2
 	// daemon:666|g|@0.1|#sometag:somevalue"
 
@@ -321,7 +322,15 @@ func parseMetricMessage(message []byte, namespace string, defaultHostname string
 
 	metricName := string(rawName)
 	if namespace != "" {
-		metricName = namespace + metricName
+		blacklisted := false
+		for _, prefix := range namespaceBlacklist {
+			if strings.HasPrefix(metricName, prefix) {
+				blacklisted = true
+			}
+		}
+		if !blacklisted {
+			metricName = namespace + metricName
+		}
 	}
 
 	metricType, ok := metricTypes[string(rawType)]
@@ -345,7 +354,6 @@ func parseMetricMessage(message []byte, namespace string, defaultHostname string
 		if err != nil {
 			return nil, fmt.Errorf("invalid metric value for %q", message)
 		}
-		sample.RawValue = string(rawValue)
 		sample.Value = metricValue
 	}
 

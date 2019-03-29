@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Exists reports whether the given path exists.

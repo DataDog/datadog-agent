@@ -58,7 +58,7 @@ func (c *KubeASConfig) parse(data []byte) error {
 	// default values
 	c.CollectEvent = config.Datadog.GetBool("collect_kubernetes_events")
 	c.CollectOShiftQuotas = true
-	c.EventCollectionTimeoutMs = 100
+	c.EventCollectionTimeoutMs = config.Datadog.GetInt("kubernetes_event_collection_timeout")
 
 	return yaml.Unmarshal(data, c)
 }

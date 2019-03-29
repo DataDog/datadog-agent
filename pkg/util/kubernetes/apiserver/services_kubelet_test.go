@@ -12,13 +12,16 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/api/core/v1"
+
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 func TestMapServices(t *testing.T) {
@@ -62,7 +65,7 @@ func TestMapServices(t *testing.T) {
 		nodeName        string
 		kubeletPods     []*kubelet.Pod
 		endpoints       []v1.Endpoints
-		expectedMapping ServicesMapper
+		expectedMapping apiv1.NamespacesPodsStringsSet
 	}{
 		{
 			"1 node, 1 pod, 1 service",
@@ -80,7 +83,7 @@ func TestMapServices(t *testing.T) {
 					},
 				},
 			},
-			ServicesMapper{
+			apiv1.NamespacesPodsStringsSet{
 				"foo": {"pod1_name": sets.NewString("svc1")},
 			},
 		},
@@ -110,7 +113,7 @@ func TestMapServices(t *testing.T) {
 					},
 				},
 			},
-			ServicesMapper{
+			apiv1.NamespacesPodsStringsSet{
 				"default": {"pod_name": sets.NewString("svc1")},
 				"other":   {"pod_name": sets.NewString("svc2")},
 			},
@@ -157,7 +160,7 @@ func TestMapServices(t *testing.T) {
 					},
 				},
 			},
-			ServicesMapper{
+			apiv1.NamespacesPodsStringsSet{
 				"foo": {
 					"pod1_name": sets.NewString("svc1", "svc3"),
 					"pod3_name": sets.NewString("svc2"),
@@ -168,7 +171,7 @@ func TestMapServices(t *testing.T) {
 
 	// Test the final state after all cases run to make
 	// sure mapping does not affect unlisted services
-	expectedAggregatedMapping := ServicesMapper{
+	expectedAggregatedMapping := apiv1.NamespacesPodsStringsSet{
 		"foo": {
 			"pod1_name": sets.NewString("svc1", "svc3"),
 			"pod3_name": sets.NewString("svc2"),
@@ -182,9 +185,9 @@ func TestMapServices(t *testing.T) {
 	}
 
 	mu := sync.RWMutex{}
-	var aggregatedBundle *MetadataMapperBundle
+	var aggregatedBundle *metadataMapperBundle
 
-	aggregatedBundle = newMetadataMapperBundle()
+	aggregatedBundle = newMetadataResponseBundle()
 	for i, tt := range tests {
 		endpointsList := v1.EndpointsList{Items: tt.endpoints}
 
@@ -205,7 +208,7 @@ func TestMapServices(t *testing.T) {
 	mu.RUnlock()
 
 	// Run the tests again for legacy versions of Kubernetes
-	aggregatedBundle = newMetadataMapperBundle()
+	aggregatedBundle = newMetadataResponseBundle()
 	for i, tt := range tests {
 		// Kubernetes 1.3.x does not include `NodeName`
 		var legacyEndpoints []v1.Endpoints
@@ -238,21 +241,21 @@ func TestMapServices(t *testing.T) {
 	mu.RUnlock()
 }
 
-func runMapOnRefTest(t *testing.T, nodeName string, pods []*kubelet.Pod, endpointsList v1.EndpointsList, expectedMapping ServicesMapper) {
+func runMapOnRefTest(t *testing.T, nodeName string, pods []*kubelet.Pod, endpointsList v1.EndpointsList, expectedMapping apiv1.NamespacesPodsStringsSet) {
 	runMapServicesTest(t, nodeName, pods, endpointsList, expectedMapping, false)
 }
 
-func runMapOnIPTest(t *testing.T, nodeName string, pods []*kubelet.Pod, endpointsList v1.EndpointsList, expectedMapping ServicesMapper) {
+func runMapOnIPTest(t *testing.T, nodeName string, pods []*kubelet.Pod, endpointsList v1.EndpointsList, expectedMapping apiv1.NamespacesPodsStringsSet) {
 	runMapServicesTest(t, nodeName, pods, endpointsList, expectedMapping, true)
 }
 
-func runMapServicesTest(t *testing.T, nodeName string, pods []*kubelet.Pod, endpointsList v1.EndpointsList, expectedMapping ServicesMapper, mapOnIP bool) {
+func runMapServicesTest(t *testing.T, nodeName string, pods []*kubelet.Pod, endpointsList v1.EndpointsList, expectedMapping apiv1.NamespacesPodsStringsSet, mapOnIP bool) {
 	testName := "mapOnRef"
 	if mapOnIP {
 		testName = "mapOnIP"
 	}
 	t.Run(testName, func(t *testing.T) {
-		bundle := newMetadataMapperBundle()
+		bundle := newMetadataResponseBundle()
 		bundle.mapOnIP = mapOnIP
 		err := bundle.mapServices(nodeName, pods, endpointsList)
 		require.NoError(t, err)

@@ -100,6 +100,7 @@ func (c *APIClient) LatestEvents(since string, eventReadTimeout time.Duration) (
 			watcherTimeout.Reset(eventReadTimeout)
 
 		case <-watcherTimeout.C:
+			log.Debug("Timeout reached while collecting events")
 			// No more events to read or the watch lasted more than `eventReadTimeout`.
 			// so return what was processed.
 			return added, modified, strconv.Itoa(resVersionInt), nil

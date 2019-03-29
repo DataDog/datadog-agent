@@ -50,12 +50,11 @@
   revision = "2cfb68475274527a10701355c739f31dd404718c"
 
 [[projects]]
-  digest = "1:e9ca79fa28ff0fe0271b63d2d30f4118643746610cd0d75603c7b4255a44f161"
+  digest = "1:b22f5da83ac471bbbe2a5aa1f07c8029dc82bcbf6ff832516f035fc3a314d539"
   name = "github.com/DataDog/viper"
   packages = ["."]
   pruneopts = ""
-  revision = "23ced3bc6b3751855704445e48da2c53075ade86"
-  version = "v1.4.0"
+  revision = "v1.5.0"
 
 [[projects]]
   digest = "1:34d4c1b61fa208e523726ddb85d01b8caa8f2de0cd656d91c81b6b86daea485c"
@@ -496,14 +495,6 @@
   version = "v1.4.7"
 
 [[projects]]
-  branch = "master"
-  digest = "1:288c32dd3c0cdde82a10d77b3749b85880d4e54e07472281096399bcc3c0c9fc"
-  name = "github.com/geoffgarside/ber"
-  packages = ["."]
-  pruneopts = ""
-  revision = "0b763e6b6fb1cb7422c29cd9195a3abf625651fb"
-
-[[projects]]
   digest = "1:b13707423743d41665fd23f0c36b2f37bb49c30e94adb813319c44188a51ba22"
   name = "github.com/ghodss/yaml"
   packages = ["."]
@@ -788,14 +779,6 @@
   pruneopts = ""
   revision = "1624edc4454b8682399def8740d46db5e4362ba4"
   version = "v1.1.5"
-
-[[projects]]
-  digest = "1:bf3f3d50a823d94ff1042d76d30ef35be1c12f133ca1c0699b2126c6307abaa3"
-  name = "github.com/k-sone/snmpgo"
-  packages = ["."]
-  pruneopts = ""
-  revision = "de09377ff34857b08afdc16ea8c7c2929eb1fc6e"
-  version = "v3.2.0"
 
 [[projects]]
   digest = "1:2c5ad58492804c40bdaf5d92039b0cde8b5becd2b7feeb37d7d1cc36a8aa8dbe"
@@ -1160,12 +1143,12 @@
   version = "v1.1.1"
 
 [[projects]]
-  digest = "1:d0b38ba6da419a6d4380700218eeec8623841d44a856bb57369c172fbf692ab4"
+  digest = "1:2adc43fd6d031cb1d246e409a4a2d8b5a05abf1abe68d7608d7bca8cf9eaa9e1"
   name = "github.com/spf13/cast"
   packages = ["."]
   pruneopts = ""
-  revision = "8965335b8c7107321228e3e3702cab9832751bac"
-  version = "v1.2.0"
+  revision = "1ee8c8bd14a3d768a7ff681617ed56bc6c204940"
+  source = "github.com/DataDog/cast"
 
 [[projects]]
   digest = "1:a1403cc8a94b8d7956ee5e9694badef0e7b051af289caad1cf668331e3ffa4f6"
@@ -1983,7 +1966,6 @@
     "github.com/hashicorp/consul/api",
     "github.com/hectane/go-acl",
     "github.com/json-iterator/go",
-    "github.com/k-sone/snmpgo",
     "github.com/kardianos/osext",
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/apiserver",
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd",

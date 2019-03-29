@@ -146,7 +146,7 @@ func TestTrimSingleLine(t *testing.T) {
 func TestMultiLineHandler(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
 	outputChan := make(chan *message.Message, 10)
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NoopParser)
+	h := NewMultiLineHandler(outputChan, re, 100*time.Millisecond, parser.NoopParser)
 	h.Start()
 
 	var output *message.Message

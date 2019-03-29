@@ -17,14 +17,16 @@ type Builder struct {
 	isRunning *int32
 	sources   *config.LogSources
 	warnings  *config.Messages
+	errors    *config.Messages
 }
 
 // NewBuilder returns a new builder.
-func NewBuilder(isRunning *int32, sources *config.LogSources, warnings *config.Messages) *Builder {
+func NewBuilder(isRunning *int32, sources *config.LogSources, warnings *config.Messages, errors *config.Messages) *Builder {
 	return &Builder{
 		isRunning: isRunning,
 		sources:   sources,
 		warnings:  warnings,
+		errors:    errors,
 	}
 }
 
@@ -34,6 +36,7 @@ func (b *Builder) BuildStatus() Status {
 		IsRunning:    b.getIsRunning(),
 		Integrations: b.getIntegrations(),
 		Warnings:     b.getWarnings(),
+		Errors:       b.getErrors(),
 	}
 }
 
@@ -48,6 +51,12 @@ func (b *Builder) getIsRunning() bool {
 // have been accumulated during the life cycle of the logs-agent.
 func (b *Builder) getWarnings() []string {
 	return b.warnings.GetMessages()
+}
+
+// getErrors returns all the errors messages which are responsible
+// for shutting down the logs-agent
+func (b *Builder) getErrors() []string {
+	return b.errors.GetMessages()
 }
 
 // getIntegrations returns all the information about the logs integrations.

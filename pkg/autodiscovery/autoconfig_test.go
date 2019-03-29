@@ -115,6 +115,7 @@ type AutoConfigTestSuite struct {
 func (suite *AutoConfigTestSuite) SetupSuite() {
 	suite.originalListeners = listeners.ServiceListenerFactories
 	config.SetupLogger(
+		config.LoggerName("test"),
 		"debug",
 		"",
 		"",

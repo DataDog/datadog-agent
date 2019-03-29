@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+var startTime = time.Now()
 var timeFormat = "2006-01-02 15:04:05.000000 MST"
 
 // GetStatus grabs the status from expvar and puts it into a map
@@ -55,6 +56,7 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["pid"] = os.Getpid()
 	pythonVersion := host.GetPythonVersion()
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
+	stats["agent_start"] = startTime.Format(timeFormat)
 	stats["platform"] = platformPayload
 	stats["hostinfo"] = host.GetStatusInformation()
 	now := time.Now()

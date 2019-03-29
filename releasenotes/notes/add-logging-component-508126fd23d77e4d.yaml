@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Change the logging format to include the name of the logging agent instead of appending it in the agent container logs.
+fixes:
+  - |
+    The agent container will now output valid JSON when using JSON log format.

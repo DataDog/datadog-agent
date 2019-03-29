@@ -1,4 +1,4 @@
-version: '2'
+version: '2.1'
 services:
   pause:
     image: "kubernetes/pause:latest"
@@ -12,3 +12,4 @@ services:
         HIGH_CARD_ENV: "redishighenv"
     mem_limit: 32000000
     mem_reservation: 31000000
+    pids_limit: 25

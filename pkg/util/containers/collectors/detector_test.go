@@ -66,6 +66,7 @@ func (suite *DetectorTestSuite) SetupSuite() {
 	suite.originalCatalog = defaultCatalog
 	suite.originalPriorities = collectorPriorities
 	config.SetupLogger(
+		config.LoggerName("test"),
 		"debug",
 		"",
 		"",

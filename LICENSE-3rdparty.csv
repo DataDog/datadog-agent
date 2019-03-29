@@ -43,7 +43,6 @@ core,github.com/emicklei/go-restful-swagger12,MIT
 core,github.com/evanphx/json-patch,BSD-3-Clause
 core,github.com/fatih/color,MIT
 core,github.com/fsnotify/fsnotify,BSD-3-Clause
-core,github.com/geoffgarside/ber,BSD-3-Clause
 core,github.com/ghodss/yaml,MIT
 core,github.com/godbus/dbus,BSD-2-Clause
 core,github.com/go-ini/ini,Apache-2.0
@@ -76,7 +75,6 @@ core,github.com/inconshreveable/mousetrap,Apache-2.0
 core,github.com/jmespath/go-jmespath,Apache-2.0
 core,github.com/jquery/jquery,MIT
 core,github.com/json-iterator/go,MIT
-core,github.com/k-sone/snmpgo,MIT
 core,github.com/kardianos/osext,BSD-3-Clause
 core,github.com/kubernetes-incubator/custom-metrics-apiserver,Apache-2.0
 core,k8s.io/kubernetes,Apache-2.0

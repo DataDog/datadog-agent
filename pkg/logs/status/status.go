@@ -16,6 +16,7 @@ import (
 var (
 	builder  *Builder
 	warnings *config.Messages
+	errors   *config.Messages
 )
 
 // Source provides some information about a logs source.
@@ -37,19 +38,22 @@ type Integration struct {
 type Status struct {
 	IsRunning    bool          `json:"is_running"`
 	Integrations []Integration `json:"integrations"`
+	Errors       []string      `json:"errors"`
 	Warnings     []string      `json:"warnings"`
 }
 
 // Init instantiates the builder that builds the status on the fly.
 func Init(isRunning *int32, sources *config.LogSources) {
 	warnings = config.NewMessages()
-	builder = NewBuilder(isRunning, sources, warnings)
+	errors = config.NewMessages()
+	builder = NewBuilder(isRunning, sources, warnings, errors)
 }
 
 // Clear clears the status which means it needs to be initialized again to be used.
 func Clear() {
 	builder = nil
 	warnings = nil
+	errors = nil
 }
 
 // Get returns the status of the logs-agent computed on the fly.
@@ -77,7 +81,17 @@ func RemoveGlobalWarning(key string) {
 	}
 }
 
+// AddGlobalError an error message for the status display (errors will stop the agent)
+func AddGlobalError(key string, errorMessage string) {
+	if errors != nil {
+		errors.AddMessage(key, errorMessage)
+	}
+}
+
 func init() {
+	metrics.LogsExpvars.Set("Errors", expvar.Func(func() interface{} {
+		return strings.Join(Get().Errors, ", ")
+	}))
 	metrics.LogsExpvars.Set("Warnings", expvar.Func(func() interface{} {
 		return strings.Join(Get().Warnings, ", ")
 	}))

@@ -285,7 +285,7 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 	integrations = append(integrations, goIntegrations...)
 
 	// Get jmx-checks
-	for integration := range check.JMXChecks {
+	for integration := range config.StandardJMXIntegrations {
 		integrations = append(integrations, integration)
 	}
 

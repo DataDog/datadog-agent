@@ -12,12 +12,8 @@ import (
 	"compress/zlib"
 	"errors"
 	"expvar"
-	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -61,16 +57,6 @@ var (
 
 var jsonSeparator = []byte(",")
 
-// inputBufferPool is an object pool of inputBuffers
-// buffer is pre-allocated at creation to avoid heap trash.
-// As hasRoomForItem is conservative, input buffer should not
-// grow bigger than the compressed payload size.
-var inputBufferPool = sync.Pool{
-	New: func() interface{} {
-		return bytes.NewBuffer(make([]byte, 0, maxPayloadSize))
-	},
-}
-
 // compressor is in charge of compressing items for a single payload
 type compressor struct {
 	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
@@ -85,17 +71,17 @@ type compressor struct {
 	maxZippedItemSize   int
 }
 
-func newCompressor(header, footer []byte) (*compressor, error) {
+func newCompressor(input, output *bytes.Buffer, header, footer []byte) (*compressor, error) {
 	c := &compressor{
 		header:              header,
 		footer:              footer,
-		compressed:          bytes.NewBuffer(make([]byte, 0, 1*megaByte)),
+		input:               input,
+		compressed:          output,
 		firstItem:           true,
 		maxUnzippedItemSize: maxPayloadSize - len(footer) - len(header),
 		maxZippedItemSize:   maxUncompressedSize - compression.CompressBound(len(footer)+len(header)),
 	}
 
-	c.input = inputBufferPool.Get().(*bytes.Buffer)
 	c.zipper = zlib.NewWriter(c.compressed)
 	n, err := c.zipper.Write(header)
 	c.uncompressedWritten += n
@@ -190,72 +176,16 @@ func (c *compressor) close() ([]byte, error) {
 		return nil, err
 	}
 
-	c.input.Reset()
-	inputBufferPool.Put(c.input)
+	payload := make([]byte, c.compressed.Len())
+	copy(payload, c.compressed.Bytes())
 
 	expvarsTotalPayloads.Add(1)
 	expvarsBytesIn.Add(int64(c.uncompressedWritten))
 	expvarsBytesOut.Add(int64(c.compressed.Len()))
 
-	return c.compressed.Bytes(), nil
+	return payload, nil
 }
 
 func (c *compressor) remainingSpace() int {
 	return maxPayloadSize - c.compressed.Len() - len(c.footer)
-}
-
-// Payloads serializes a metadata payload and sends it to the forwarder
-func Payloads(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
-	var output forwarder.Payloads
-	var i int
-	itemCount := m.Len()
-	expvarsTotalCalls.Add(1)
-
-	compressor, err := newCompressor(m.JSONHeader(), m.JSONFooter())
-	if err != nil {
-		return nil, err
-	}
-
-	for i < itemCount {
-		json, err := m.JSONItem(i)
-		if err != nil {
-			log.Warnf("error marshalling an item, skipping: %s", err)
-			i++
-			continue
-		}
-
-		switch compressor.addItem(json) {
-		case errPayloadFull:
-			// payload is full, we need to create a new one
-			payload, err := compressor.close()
-			if err != nil {
-				return output, err
-			}
-			output = append(output, &payload)
-			compressor, err = newCompressor(m.JSONHeader(), m.JSONFooter())
-			if err != nil {
-				return nil, err
-			}
-		case nil:
-			// All good, continue to next item
-			i++
-			expvarsTotalItems.Add(1)
-			continue
-		default:
-			// Unexpected error, drop the item
-			i++
-			log.Warnf("Dropping an item, %s: %s", m.DescribeItem(i), err)
-			expvarsItemDrops.Add(1)
-			continue
-		}
-	}
-
-	// Close last payload
-	payload, err := compressor.close()
-	if err != nil {
-		return output, err
-	}
-	output = append(output, &payload)
-
-	return output, nil
 }

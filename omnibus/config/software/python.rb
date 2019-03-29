@@ -22,7 +22,7 @@
 name "python"
 
 if ohai["platform"] != "windows"
-  default_version "2.7.15"
+  default_version "2.7.16"
 
   dependency "ncurses"
   dependency "zlib"
@@ -31,7 +31,7 @@ if ohai["platform"] != "windows"
   dependency "libsqlite3"
 
   source :url => "http://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "18617d1f15a380a919d517630a9cd85ce17ea602f9bbdc58ddc672df4b0239db"
+         :sha256 => "01da813a3600876f03f46db11cc5c408175e99f03af2ba942ef324389a83bad5"
 
   relative_path "Python-#{version}"
 
@@ -77,17 +77,16 @@ if ohai["platform"] != "windows"
   end
 
 else
-  default_version "2.7.15"
+  default_version "2.7.16"
 
   dependency "vc_redist"
   source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-         :sha256 => "e3b099206e61b1b4bf70b89c5fe5a698ba2ac465133c6b00ed998227a19c4b83",
+         :sha256 => "6b9fdc51dde1ba6ae4cb698451900e1f8f1900ff1d56d9166dbeab06b10a4dce",
          :extract => :seven_zip
 
   build do
     #
     # expand python zip into the embedded directory
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(install_dir)}\\embedded\""
-    command "SETX PYTHONPATH \"#{windows_safe_path(install_dir)}\\embedded\""
   end
 end

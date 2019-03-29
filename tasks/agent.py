@@ -39,9 +39,9 @@ DEFAULT_BUILD_TAGS = [
     "netcgo",
     "systemd",
     "process",
-    "snmp",
     "zk",
     "zlib",
+    "secrets",
 ]
 
 AGENT_CORECHECKS = [
@@ -81,7 +81,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     the values from `invoke.yaml` will be used.
 
     Example invokation:
-        inv agent.build --build-exclude=snmp,systemd
+        inv agent.build --build-exclude=systemd
     """
 
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")

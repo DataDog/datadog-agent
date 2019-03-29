@@ -7,11 +7,15 @@ package dogstatsd
 
 import (
 	"bytes"
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"net"
 	"runtime"
+	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -45,18 +49,29 @@ func init() {
 
 // Server represent a Dogstatsd server
 type Server struct {
-	listeners        []listeners.StatsdListener
-	packetsIn        chan listeners.Packets
-	Statistics       *util.Stats
-	Started          bool
-	packetPool       *listeners.PacketPool
-	stopChan         chan bool
-	health           *health.Handle
-	metricPrefix     string
-	defaultHostname  string
-	histToDist       bool
-	histToDistPrefix string
-	extraTags        []string
+	listeners             []listeners.StatsdListener
+	packetsIn             chan listeners.Packets
+	Statistics            *util.Stats
+	Started               bool
+	packetPool            *listeners.PacketPool
+	stopChan              chan bool
+	health                *health.Handle
+	metricPrefix          string
+	metricPrefixBlacklist []string
+	defaultHostname       string
+	histToDist            bool
+	histToDistPrefix      string
+	extraTags             []string
+	debugMetricsStats     bool
+	metricsStats          map[string]metricStat
+	statsLock             sync.Mutex
+}
+
+// metricStat holds how many times a metric has been
+// processed and when was the last time.
+type metricStat struct {
+	Count    uint64    `json:"count"`
+	LastSeen time.Time `json:"last_seen"`
 }
 
 // NewServer returns a running Dogstatsd server
@@ -71,6 +86,13 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 		stats = s
 		dogstatsdExpvars.Set("PacketsLastSecond", &dogstatsdPacketsLastSec)
 	}
+
+	var metricsStats bool
+	if config.Datadog.GetBool("dogstatsd_metrics_stats_enable") == true {
+		log.Info("Dogstatsd: metrics statistics will be stored.")
+		metricsStats = true
+	}
+
 	packetsChannel := make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
 	packetPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
@@ -102,6 +124,7 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 	if metricPrefix != "" && !strings.HasSuffix(metricPrefix, ".") {
 		metricPrefix = metricPrefix + "."
 	}
+	metricPrefixBlacklist := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
 
 	defaultHostname, err := util.GetHostname()
 	if err != nil {
@@ -114,18 +137,21 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 	extraTags := config.Datadog.GetStringSlice("dogstatsd_tags")
 
 	s := &Server{
-		Started:          true,
-		Statistics:       stats,
-		packetsIn:        packetsChannel,
-		listeners:        tmpListeners,
-		packetPool:       packetPool,
-		stopChan:         make(chan bool),
-		health:           health.Register("dogstatsd-main"),
-		metricPrefix:     metricPrefix,
-		defaultHostname:  defaultHostname,
-		histToDist:       histToDist,
-		histToDistPrefix: histToDistPrefix,
-		extraTags:        extraTags,
+		Started:               true,
+		Statistics:            stats,
+		packetsIn:             packetsChannel,
+		listeners:             tmpListeners,
+		packetPool:            packetPool,
+		stopChan:              make(chan bool),
+		health:                health.Register("dogstatsd-main"),
+		metricPrefix:          metricPrefix,
+		metricPrefixBlacklist: metricPrefixBlacklist,
+		defaultHostname:       defaultHostname,
+		histToDist:            histToDist,
+		histToDistPrefix:      histToDistPrefix,
+		extraTags:             extraTags,
+		debugMetricsStats:     metricsStats,
+		metricsStats:          make(map[string]metricStat),
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -270,11 +296,14 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 			dogstatsdEventPackets.Add(1)
 			events = append(events, event)
 		} else {
-			sample, err := parseMetricMessage(message, s.metricPrefix, s.defaultHostname)
+			sample, err := parseMetricMessage(message, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
 			if err != nil {
 				log.Errorf("Dogstatsd: error parsing metrics: %s", err)
 				dogstatsdMetricParseErrors.Add(1)
 				continue
+			}
+			if s.debugMetricsStats {
+				s.storeMetricStats(sample.Name)
 			}
 			if len(extraTags) > 0 {
 				sample.Tags = append(sample.Tags, extraTags...)
@@ -303,4 +332,59 @@ func (s *Server) Stop() {
 	}
 	s.health.Deregister()
 	s.Started = false
+}
+
+func (s *Server) storeMetricStats(name string) {
+	now := time.Now()
+	s.statsLock.Lock()
+	defer s.statsLock.Unlock()
+	ms := s.metricsStats[name]
+	ms.Count++
+	ms.LastSeen = now
+	s.metricsStats[name] = ms
+}
+
+// GetJSONDebugStats returns jsonified debug statistics.
+func (s *Server) GetJSONDebugStats() ([]byte, error) {
+	s.statsLock.Lock()
+	defer s.statsLock.Unlock()
+	return json.Marshal(s.metricsStats)
+}
+
+// FormatDebugStats returns a printable version of debug stats.
+func FormatDebugStats(stats []byte) (string, error) {
+	var dogStats map[string]metricStat
+	if err := json.Unmarshal(stats, &dogStats); err != nil {
+		return "", err
+	}
+
+	// put tags in order: first is the more frequent
+	order := make([]string, len(dogStats))
+	i := 0
+	for tag := range dogStats {
+		order[i] = tag
+		i++
+	}
+
+	sort.Slice(order, func(i, j int) bool {
+		return dogStats[order[i]].Count > dogStats[order[j]].Count
+	})
+
+	// write the response
+	buf := bytes.NewBuffer(nil)
+
+	header := fmt.Sprintf("%-40s | %-10s | %-20s\n", "Metric", "Count", "Last Seen")
+	buf.Write([]byte(header))
+	buf.Write([]byte(strings.Repeat("-", len(header)) + "\n"))
+
+	for _, metric := range order {
+		stats := dogStats[metric]
+		buf.Write([]byte(fmt.Sprintf("%-40s | %-10d | %-20v\n", metric, stats.Count, stats.LastSeen)))
+	}
+
+	if len(dogStats) == 0 {
+		buf.Write([]byte("No metrics processed yet."))
+	}
+
+	return buf.String(), nil
 }

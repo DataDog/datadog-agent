@@ -99,6 +99,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("additional_checksd", defaultAdditionalChecksPath)
 	config.BindEnvAndSetDefault("log_payloads", false)
 	config.BindEnvAndSetDefault("log_file", "")
+	config.BindEnvAndSetDefault("log_file_max_size", "10Mb")
+	config.BindEnvAndSetDefault("log_file_max_rolls", 1)
 	config.BindEnvAndSetDefault("log_level", "info")
 	config.BindEnvAndSetDefault("log_to_syslog", false)
 	config.BindEnvAndSetDefault("log_to_console", true)
@@ -128,8 +130,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_name", "")
 
 	// secrets backend
-	config.BindEnv("secret_backend_command")
-	config.BindEnv("secret_backend_arguments")
+	config.BindEnvAndSetDefault("secret_backend_command", "")
+	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", 1024)
 	config.BindEnvAndSetDefault("secret_backend_timeout", 5)
 
@@ -177,7 +179,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
 	// Serializer
-	config.BindEnvAndSetDefault("enable_stream_payload_serialization", false)
+	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("use_v2_api.series", false)
 	config.BindEnvAndSetDefault("use_v2_api.events", false)
 	config.BindEnvAndSetDefault("use_v2_api.service_checks", false)
@@ -214,10 +216,12 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
+	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
+	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
 	// Autoconfig
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
@@ -258,6 +262,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("kubelet_client_crt", "")
 	config.BindEnvAndSetDefault("kubelet_client_key", "")
 
+	config.BindEnvAndSetDefault("kubernetes_pod_expiration_duration", 15*60) // in seconds, default 15 minutes
 	config.BindEnvAndSetDefault("kubelet_wait_on_missing_container", 0)
 	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5) // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
@@ -278,6 +283,12 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.url", "")
 	config.BindEnvAndSetDefault("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
 	config.BindEnvAndSetDefault("metrics_port", "5000")
+
+	// Metadata endpoints
+
+	// Defines the maximum size of hostame gathered from EC2, GCE, Azure and Alibabacloud metadata endpoints.
+	// Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.
+	config.BindEnvAndSetDefault("metadata_endpoints_max_hostname_size", 255)
 
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
@@ -322,6 +333,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// send the logs to a proxy:
 	config.BindEnv("logs_config.logs_dd_url") // must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	// specific logs-agent api-key
+	config.BindEnv("logs_config.api_key")
 	config.BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
 	// send the logs to the port 443 of the logs-backend via TCP:
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
@@ -365,6 +378,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("external_metrics.aggregator", "avg")                    // aggregator used for the external metrics. Choose from [avg,sum,max,min]
 	config.BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)           // Window to query to get the metric from Datadog.
 	config.BindEnvAndSetDefault("external_metrics_provider.rollup", 30)                  // Bucket size to circumvent time aggregation side effects.
+	config.BindEnvAndSetDefault("kubernetes_event_collection_timeout", 100)              // timeout between two successful event collections in milliseconds.
 	config.BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)              // value in seconds. Default to 5 minutes
 	config.BindEnvAndSetDefault("kubernetes_informers_restclient_timeout", 60)           // value in seconds
 	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30) // value in seconds
@@ -465,10 +479,15 @@ func loadProxyFromEnv(config Config) {
 
 // Load reads configs files and initializes the config module
 func Load() error {
-	return load(Datadog, "datadog.yaml")
+	return load(Datadog, "datadog.yaml", true)
 }
 
-func load(config Config, origin string) error {
+// LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
+func LoadWithoutSecret() error {
+	return load(Datadog, "datadog.yaml", false)
+}
+
+func load(config Config, origin string, loadSecret bool) error {
 	log.Infof("config.Load()")
 	if err := config.ReadInConfig(); err != nil {
 		log.Warnf("config.load() error %v", err)
@@ -476,32 +495,34 @@ func load(config Config, origin string) error {
 	}
 	log.Infof("config.load succeeded")
 
-	// We have to init the secrets package before we can use it to decrypt
-	// anything.
-	secrets.Init(
-		config.GetString("secret_backend_command"),
-		config.GetStringSlice("secret_backend_arguments"),
-		config.GetInt("secret_backend_timeout"),
-		config.GetInt("secret_backend_output_max_size"),
-	)
+	if loadSecret {
+		// We have to init the secrets package before we can use it to decrypt
+		// anything.
+		secrets.Init(
+			config.GetString("secret_backend_command"),
+			config.GetStringSlice("secret_backend_arguments"),
+			config.GetInt("secret_backend_timeout"),
+			config.GetInt("secret_backend_output_max_size"),
+		)
 
-	if config.IsSet("secret_backend_command") {
-		// Viper doesn't expose the final location of the file it
-		// loads. Since we are searching for 'datadog.yaml' in multiple
-		// locations we let viper determine the one to use before
-		// updating it.
-		yamlConf, err := yaml.Marshal(config.AllSettings())
-		if err != nil {
-			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
-		}
+		if config.GetString("secret_backend_command") != "" {
+			// Viper doesn't expose the final location of the file it
+			// loads. Since we are searching for 'datadog.yaml' in multiple
+			// locations we let viper determine the one to use before
+			// updating it.
+			yamlConf, err := yaml.Marshal(config.AllSettings())
+			if err != nil {
+				return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
+			}
 
-		finalYamlConf, err := secrets.Decrypt(yamlConf, origin)
-		if err != nil {
-			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
-		}
-		r := bytes.NewReader(finalYamlConf)
-		if err = config.MergeConfigOverride(r); err != nil {
-			return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
+			finalYamlConf, err := secrets.Decrypt(yamlConf, origin)
+			if err != nil {
+				return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
+			}
+			r := bytes.NewReader(finalYamlConf)
+			if err = config.MergeConfigOverride(r); err != nil {
+				return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
+			}
 		}
 	}
 
