@@ -7,6 +7,8 @@ listeners:
 config_providers:
   - name: kubelet
     polling: true
+  - name: endpointschecks
+    polling: true
 
 # Enable APM by setting the DD_APM_ENABLED envvar to true, or override this configuration
 apm_config:
