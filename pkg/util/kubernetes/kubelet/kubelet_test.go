@@ -790,6 +790,7 @@ func (suite *KubeletTestSuite) TestGetKubeletHostFromConfig() {
 	ips, hostnames = getKubeletHostFromConfig(mockConfig.GetString("kubernetes_kubelet_host"), ctx)
 	assert.Equal(suite.T(), ips, []string([]string(nil)))
 	assert.Equal(suite.T(), hostnames, []string([]string(nil)))
+}
 
 func (suite *KubeletTestSuite) TestPodListNoExpire() {
 	mockConfig := config.Mock()
