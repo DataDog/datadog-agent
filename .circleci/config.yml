@@ -77,7 +77,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           name: run unit tests
           command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 4
@@ -92,7 +91,6 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
-      - run: *enter_venv
       - run:
           name: run integration tests
           command: inv -e integration-tests --race --remote-docker
@@ -102,7 +100,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           command: inv -e lint-releasenote
           name: run PR check for release note
@@ -112,7 +109,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           command: inv -e lint-teamassignment
           name: run PR check for team assignment labels
@@ -122,7 +118,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           command: inv -e lint-milestone
           name: run PR check for milestone assignment
@@ -132,7 +127,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           name: run filename linting
           command: inv -e lint-filenames
@@ -143,7 +137,6 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
-      - run: *enter_venv
       - run:
           name: run docker image tests
           command: inv -e docker.test
@@ -156,7 +149,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           name: build dogstatsd
           command: inv -e dogstatsd.build --static
@@ -169,7 +161,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           name: build puppy
           command: inv -e agent.build --puppy
