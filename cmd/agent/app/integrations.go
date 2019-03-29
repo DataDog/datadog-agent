@@ -397,10 +397,6 @@ func downloadWheel(integration, version string) (string, error) {
 
 	downloaderCmd := exec.Command(pyPath, args...)
 
-	// Change the working directory to one the Datadog Agent can read, so that we
-	// can switch to temporary working directories, and back, for in-toto.
-	downloaderCmd.Dir, _ = executable.Folder()
-
 	// We do all of the following so that when we call our downloader, which will
 	// in turn call in-toto, which will in turn call Python to inspect the wheel,
 	// we will use our embedded Python.
