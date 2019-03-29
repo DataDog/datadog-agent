@@ -333,7 +333,9 @@ func parseShortFilePath(params string) seelog.FormatterFunc {
 }
 
 func extractShortPathFromFullPath(fullPath string) string {
-	slices := strings.Split(fullPath, "/datadog-agent/")
+	// We want to trim the part containing the path of the project
+	// ie DataDog/datadog-agent/ or DataDog/datadog-process-agent/
+	slices := strings.Split(fullPath, "-agent/")
 	return slices[len(slices)-1]
 }
 

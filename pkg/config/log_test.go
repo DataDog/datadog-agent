@@ -23,6 +23,8 @@ func TestExtractShortPathFromFullPath(t *testing.T) {
 	assert.Equal(t, "pkg/collector/scheduler.go", extractShortPathFromFullPath("pkg/collector/scheduler.go"))
 	// no path
 	assert.Equal(t, "main.go", extractShortPathFromFullPath("main.go"))
+	// process agent
+	assert.Equal(t, "cmd/agent/collector.go", extractShortPathFromFullPath("/home/jenkins/workspace/process-agent-build-ddagent/go/src/github.com/DataDog/datadog-process-agent/cmd/agent/collector.go"))
 }
 
 func benchmarkLogFormat(logFormat string, b *testing.B) {
