@@ -415,7 +415,7 @@ func downloadWheel(integration, version string) (string, error) {
 	for key, value := range environ {
 		if strings.HasPrefix(value, "PATH=") {
 			environ[key] = "PATH=" + pathStr
-			break
+			// NOTE: Don't break so that we replace duplicate PATH-s, too.
 		}
 	}
 	// Now, while downloaderCmd itself won't use the new PATH, any child process,
