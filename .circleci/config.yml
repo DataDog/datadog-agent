@@ -69,6 +69,15 @@ jobs:
             make
             make install
       - run:
+          name: lint six
+          command: |
+            make clang-format
+            [[ $(git ls-files -m | wc -l) -eq 0 ]]
+      - run:
+          name: test six
+          command: |
+            make -C test run
+      - run:
           name: grab go deps
           command: inv deps
       - run:
@@ -81,7 +90,8 @@ jobs:
           <<: *save_deps
           paths:
             - /go/src/github.com/DataDog/datadog-agent/vendor
-            - /go/src/github.com/DataDog/datadog-agent/venv
+            - /go/src/github.com/DataDog/datadog-agent/six
+            - /go/src/github.com/DataDog/datadog-agent/dev
             - /go/pkg
             - /go/bin
             - /usr/local/lib/python2.7/dist-packages
