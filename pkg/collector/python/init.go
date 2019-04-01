@@ -71,10 +71,10 @@ func Initialize(paths ...string) error {
 
 	pythonHome := ""
 	if pythonVersion == 2 {
-		six = C.make2()
+		six = C.make2(C.CString(pythonHome2))
 		pythonHome = pythonHome2
 	} else if pythonVersion == 3 {
-		six = C.make3()
+		six = C.make3(C.CString(pythonHome3))
 		pythonHome = pythonHome3
 	} else {
 		return fmt.Errorf("unknown requested version of python: %d", pythonVersion)
@@ -93,7 +93,7 @@ func Initialize(paths ...string) error {
 		C.add_python_path(six, C.CString(p))
 	}
 
-	C.init(six, C.CString(pythonHome))
+	C.init(six)
 
 	if C.is_initialized(six) == 0 {
 		err := C.GoString(C.get_error(six))

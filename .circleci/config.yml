@@ -58,12 +58,14 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: setup python deps
-          command: pip install wheel -r requirements.txt
+          command: |
+            pip install wheel
+            pip install -r requirements.txt
       - run:
           name: build six
           working_directory: /go/src/github.com/DataDog/datadog-agent/six
           command: |
-            cmake . -DCMAKE_INSTALL_PREFIX:PATH=/go/src/github.com/DataDog/datadog-agent/dev
+            cmake . -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH=/go/src/github.com/DataDog/datadog-agent/dev
             make
             make install
       - run:

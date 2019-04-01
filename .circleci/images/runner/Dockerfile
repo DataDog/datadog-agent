@@ -4,11 +4,10 @@ FROM ubuntu:18.04
 RUN set -ex \
     && apt-get update && apt-get install -y --no-install-recommends \
         gnupg ca-certificates \
-        gcc g++ make git ssh curl \
+        gcc g++ make git ssh curl pkg-config \
         python-dev python-setuptools python-pip \
         python3.7-dev python3-distutils \
-        libssl-dev libsnmp-base libsnmp-dev libpq-dev snmp-mibs-downloader libsystemd-dev \
-        gnupg ca-certificates
+        libssl-dev libsnmp-base libsnmp-dev libpq-dev snmp-mibs-downloader libsystemd-dev
 
 # Golang
 ENV GIMME_GO_VERSION 1.11.5

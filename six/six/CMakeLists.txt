@@ -30,7 +30,7 @@ endif()
 set_target_properties(datadog-agent-six PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION 1
-    PUBLIC_HEADER ../include/datadog_agent_six.h
+    PUBLIC_HEADER "../include/datadog_agent_six.h;../include/six_types.h"
 )
 configure_file(datadog-agent-six.pc.in datadog-agent-six.pc @ONLY)
 target_include_directories(datadog-agent-six PRIVATE ./include)

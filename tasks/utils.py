@@ -62,8 +62,12 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs),
         "CGO_CFLAGS_ALLOW": "-static-libgcc",  # whitelist additional flags, here a flag used for net-snmp
     }
-    if 'CGO_LDFLAGS' in os.environ:
-        env['CGO_LDFLAGS'] = os.environ['CGO_LDFLAGS']
+
+    env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '')
+    env['CGO_LDFLAGS'] += " -L/go/src/github.com/DataDog/datadog-agent/dev/lib "
+
+    env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '')
+    env['CGO_CFLAGS'] += " -I/go/src/github.com/DataDog/datadog-agent/dev/include"
 
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
