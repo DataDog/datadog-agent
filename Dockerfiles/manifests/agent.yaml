@@ -42,7 +42,7 @@ spec:
           httpGet:
             path: /health
             port: 5555
-          initialDelaySeconds: 15
+          initialDelaySeconds: 30
           periodSeconds: 15
           timeoutSeconds: 5
           successThreshold: 1
