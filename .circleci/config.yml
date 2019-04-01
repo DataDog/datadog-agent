@@ -43,6 +43,7 @@ jobs:
   checkout_code:
     docker:
       - image: alpine/git:latest
+    working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
       - save_cache:
