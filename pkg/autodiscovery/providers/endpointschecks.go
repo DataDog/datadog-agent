@@ -27,7 +27,6 @@ type EndpointsChecksConfigProvider struct {
 // endpoints check configurations from the cluster-agent.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewEndpointsChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigProvider, error) {
-	log.Debug("creating endpoints checker")
 	c := &EndpointsChecksConfigProvider{}
 	var err error
 	c.nodeName, err = getNodename()
@@ -72,7 +71,6 @@ func (c *EndpointsChecksConfigProvider) Collect() ([]integration.Config, error) 
 		return nil, err
 	}
 	c.flushedConfigs = false
-	log.Debugf("Got endpoints configs: %v", reply.Configs)
 	return reply.Configs, nil
 }
 
