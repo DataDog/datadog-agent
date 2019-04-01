@@ -70,6 +70,7 @@ jobs:
             make install
       - run:
           name: lint six
+          working_directory: /go/src/github.com/DataDog/datadog-agent/six
           command: |
             make clang-format
             [[ $(git ls-files -m | wc -l) -eq 0 ]]
