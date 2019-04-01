@@ -57,11 +57,6 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
-          name: setup python deps
-          command: |
-            pip install wheel
-            pip install -r requirements.txt
-      - run:
           name: build six
           working_directory: /go/src/github.com/DataDog/datadog-agent/six
           command: |
@@ -78,8 +73,14 @@ jobs:
           name: test six
           working_directory: /go/src/github.com/DataDog/datadog-agent/six
           command: |
+            # remove base check before running tests
             pip uninstall datadog-checks-base -y
             make -C test run
+      - run:
+          name: setup python deps
+          command: |
+            pip install wheel
+            pip install -r requirements.txt
       - run:
           name: grab go deps
           command: inv deps
