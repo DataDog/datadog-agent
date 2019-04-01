@@ -30,15 +30,6 @@ extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p)
     delete p;
 }
 
-Three::Three()
-    : Six()
-    , _pythonHome(NULL)
-    , _baseClass(NULL)
-    , _pythonPaths()
-{
-    initPythonHome();
-}
-
 Three::Three(const char *python_home)
     : Six()
     , _pythonHome(NULL)
@@ -57,6 +48,7 @@ Three::~Three()
     Py_XDECREF(_baseClass);
     Py_Finalize();
 }
+
 void Three::initPythonHome(const char *pythonHome)
 {
     if (pythonHome == NULL) {
@@ -70,6 +62,7 @@ void Three::initPythonHome(const char *pythonHome)
 
     Py_SetPythonHome(_pythonHome);
 }
+
 bool Three::init()
 {
     // add custom builtins init funcs to Python inittab, one by one
@@ -271,7 +264,6 @@ done:
     return true;
 }
 
-//
 const char *Three::runCheck(SixPyObject *check)
 {
     if (check == NULL) {

@@ -25,17 +25,10 @@ extern "C" DATADOG_AGENT_SIX_API Six *create(const char *pythonHome)
 {
     return new Two(pythonHome);
 }
+
 extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p)
 {
     delete p;
-}
-
-Two::Two()
-    : Six()
-    , _baseClass(NULL)
-    , _pythonPaths()
-{
-    initPythonHome();
 }
 
 Two::Two(const char *python_home)
@@ -61,6 +54,7 @@ void Two::initPythonHome(const char *pythonHome)
 
     Py_SetPythonHome(const_cast<char *>(_pythonHome));
 }
+
 bool Two::init()
 {
 
