@@ -8,8 +8,12 @@
 
 package clusterchecks
 
-import "errors"
+import (
+	"errors"
 
-func getLeaderIPCallback() (leaderIPCallback, error) {
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+)
+
+func getLeaderIPCallback() (types.LeaderIPCallback, error) {
 	return nil, errors.New("No leader election engine compiled in")
 }

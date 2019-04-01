@@ -4,20 +4,16 @@
 // Copyright 2016-2019 Datadog, Inc.
 
 // +build clusterchecks
-// +build kubeapiserver
+// +build !kubeapiserver
 
 package clusterchecks
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
 
-func getLeaderIPCallback() (types.LeaderIPCallback, error) {
-	engine, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		return nil, err
-	}
-
-	return engine.GetLeaderIP, engine.EnsureLeaderElectionRuns()
+func newListers() (*types.Listers, error) {
+	return nil, errors.New("No kube objects listers compiled in")
 }
