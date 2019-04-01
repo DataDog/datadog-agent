@@ -237,7 +237,6 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 			resolvedConfigs = append(resolvedConfigs, rc...)
 		}
 	}
-	log.Debugf("resolved configs: %v", resolvedConfigs)
 	return resolvedConfigs
 }
 
