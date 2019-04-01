@@ -103,7 +103,6 @@ func (pd *configPoller) poll(ac *AutoConfig) {
 			ac.removeConfigTemplates(removedConfigs)
 
 			for _, config := range newConfigs {
-				log.Debugf("polled new config: %v", config)
 				config.Provider = pd.provider.String()
 				resolvedConfigs := ac.processNewConfig(config)
 				ac.schedule(resolvedConfigs)
@@ -120,7 +119,6 @@ func (pd *configPoller) collect() ([]integration.Config, []integration.Config) {
 	old := pd.configs
 
 	fetched, err := pd.provider.Collect()
-	log.Debugf("fetched: %v", fetched)
 	if err != nil {
 		log.Errorf("Unable to collect configurations from provider %s: %s", pd.provider, err)
 		return nil, nil
@@ -138,6 +136,5 @@ func (pd *configPoller) collect() ([]integration.Config, []integration.Config) {
 			removedConf = append(removedConf, c)
 		}
 	}
-	log.Debugf("new: %v, removed: %v", newConf, removedConf)
-	return newConf, removedConf
+q	return newConf, removedConf
 }
