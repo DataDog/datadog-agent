@@ -16,7 +16,6 @@
 class Three : public Six
 {
 public:
-    Three();
     Three(const char *python_home);
     ~Three();
 
