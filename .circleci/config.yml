@@ -58,13 +58,16 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: setup python deps
-          command: pip install -r requirements.txt
+          command: pip install wheel -r requirements.txt
       - run:
           name: grab go deps
           command: inv deps
       - run:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only
+          environment:
+            PYTHON_HOME_2: /usr/
+            PYTHON_HOME_3: /usr/
       - save_cache:
           <<: *save_deps
           paths:
