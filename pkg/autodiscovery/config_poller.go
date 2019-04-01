@@ -136,5 +136,5 @@ func (pd *configPoller) collect() ([]integration.Config, []integration.Config) {
 			removedConf = append(removedConf, c)
 		}
 	}
-q	return newConf, removedConf
+	return newConf, removedConf
 }
