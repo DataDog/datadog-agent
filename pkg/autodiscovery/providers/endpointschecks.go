@@ -35,7 +35,7 @@ func NewEndpointsChecksConfigProvider(cfg config.ConfigurationProviders) (Config
 		log.Errorf("Cannot get node name: %s", err)
 		return nil, err
 	}
-	c.dcaClient, err = clusteragent.GetClusterAgentClient()
+
 	err = c.initClient()
 	if err != nil {
 		log.Warnf("Cannot get dca client: %v", err)
