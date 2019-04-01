@@ -89,14 +89,12 @@ func addPodTags(configs []integration.Config) []integration.Config {
 			log.Debugf("Cannot get tags for %s: %s", entity, err)
 			continue
 		}
-		log.Debugf("Got tags for %s: %v", entity, tags)
 		for i := range config.Instances {
 			err = config.Instances[i].MergeAdditionalTags(tags)
 			if err != nil {
 				log.Debugf("Cannot merge tags for %s: %s", entity, err)
 				continue
 			}
-			log.Debugf("Merged tags for %s: %v", entity, config.Instances[i])
 		}
 	}
 	return configs

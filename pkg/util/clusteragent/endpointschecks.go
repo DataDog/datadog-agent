@@ -40,7 +40,6 @@ func (c *DCAClient) doGetEndpointsCheckConfigs(nodeName string) (types.ConfigRes
 
 	// https://host:port/api/v1/endpointschecks/configs/{nodeName}
 	rawURL := c.leaderClient.buildURL(dcaEndpointsChecksConfigsPath, nodeName)
-	log.Debugf("requesting URL: %s", rawURL)
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
 		return configs, err
