@@ -76,6 +76,7 @@ jobs:
             [[ $(git ls-files -m | wc -l) -eq 0 ]]
       - run:
           name: test six
+          working_directory: /go/src/github.com/DataDog/datadog-agent/six
           command: |
             make -C test run
       - run:
