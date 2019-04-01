@@ -4,7 +4,6 @@
 // Copyright 2016-2019 Datadog, Inc.
 
 // +build clusterchecks
-// +build kubeapiserver
 
 package clusterchecks
 

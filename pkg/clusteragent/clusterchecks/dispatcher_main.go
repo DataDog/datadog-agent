@@ -4,7 +4,6 @@
 // Copyright 2016-2019 Datadog, Inc.
 
 // +build clusterchecks
-// +build kubeapiserver
 
 package clusterchecks
 
@@ -17,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ktypes "k8s.io/apimachinery/pkg/types"
@@ -164,25 +162,6 @@ func (d *dispatcher) run(ctx context.Context) {
 			}
 		}
 	}
-}
-
-func newListers() (*types.Listers, error) {
-	ac, err := apiserver.GetAPIClient()
-	if err != nil {
-		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
-	}
-	servicesInformer := ac.InformerFactory.Core().V1().Services()
-	if servicesInformer == nil {
-		return nil, fmt.Errorf("cannot get service informer: %s", err)
-	}
-	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
-	if endpointsInformer == nil {
-		return nil, fmt.Errorf("cannot get endpoint informer: %s", err)
-	}
-	return &types.Listers{
-		ServicesLister:  servicesInformer.Lister(),
-		EndpointsLister: endpointsInformer.Lister(),
-	}, nil
 }
 
 func newService(checkName string, instances []integration.Data) *types.Service {

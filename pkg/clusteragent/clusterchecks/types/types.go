@@ -56,6 +56,10 @@ type Stats struct {
 	TotalConfigs    int
 }
 
+// LeaderIPCallback describes the leader-election method we
+// need and allows to inject a custom one for tests
+type LeaderIPCallback func() (string, error)
+
 // Listers are used to list kube services and endpoints
 type Listers struct {
 	ServicesLister  v1.ServiceLister
