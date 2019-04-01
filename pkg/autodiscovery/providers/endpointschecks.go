@@ -36,9 +36,9 @@ func NewEndpointsChecksConfigProvider(cfg config.ConfigurationProviders) (Config
 		return nil, err
 	}
 	c.dcaClient, err = clusteragent.GetClusterAgentClient()
+	err = c.initClient()
 	if err != nil {
-		log.Errorf("Cannot get dca client: %s", err)
-		return nil, err
+		log.Warnf("Cannot get dca client: %v", err)
 	}
 	return c, nil
 }
@@ -55,6 +55,12 @@ func (c *EndpointsChecksConfigProvider) IsUpToDate() (bool, error) {
 
 // Collect retrieves endpoints checks configurations the cluster-agent dispatched to this agent
 func (c *EndpointsChecksConfigProvider) Collect() ([]integration.Config, error) {
+	if c.dcaClient == nil {
+		err := c.initClient()
+		if err != nil {
+			return nil, err
+		}
+	}
 	reply, err := c.dcaClient.GetEndpointsCheckConfigs(c.nodeName)
 	if err != nil {
 		if !c.flushedConfigs {
@@ -77,6 +83,14 @@ func getNodename() (string, error) {
 		return "", err
 	}
 	return ku.GetNodename()
+}
+
+func (c *EndpointsChecksConfigProvider) initClient() error {
+	dcaClient, err := clusteragent.GetClusterAgentClient()
+	if err == nil {
+		c.dcaClient = dcaClient
+	}
+	return err
 }
 
 func init() {
