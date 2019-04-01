@@ -17,7 +17,7 @@ import (
 
 const (
 	dcaEndpointsChecksPath        = "api/v1/endpointschecks"
-	dcaEndpointsChecksConfigsPath = dcaClusterChecksPath + "/configs"
+	dcaEndpointsChecksConfigsPath = dcaEndpointsChecksPath + "/configs"
 )
 
 // GetEndpointsCheckConfigs is called by the endpointscheck config provider
@@ -38,8 +38,9 @@ func (c *DCAClient) doGetEndpointsCheckConfigs(nodeName string) (types.ConfigRes
 	var configs types.ConfigResponse
 	var err error
 
-	// https://host:port/api/v1/clusterchecks/configs/{nodeName}
+	// https://host:port/api/v1/endpointschecks/configs/{nodeName}
 	rawURL := c.leaderClient.buildURL(dcaEndpointsChecksConfigsPath, nodeName)
+	log.Debugf("requesting URL: %s", rawURL)
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
 		return configs, err
