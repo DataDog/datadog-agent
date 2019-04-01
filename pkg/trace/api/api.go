@@ -258,19 +258,10 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 				msg = msg[:150] + "... (set DEBUG log level for more info)"
 			}
 			log.Errorf(msg)
-		} else {
-			select {
-			case r.Out <- trace:
-				// if our downstream consumer is slow, we drop the trace on the floor
-				// this is a safety net against us using too much memory
-				// when clients flood us
-			default:
-				atomic.AddInt64(&ts.TracesDropped, 1)
-				atomic.AddInt64(&ts.SpansDropped, int64(spans))
-
-				log.Errorf("dropping trace; reason: rate-limited")
-			}
+			continue
 		}
+
+		r.Out <- trace
 	}
 }
 
