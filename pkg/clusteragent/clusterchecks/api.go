@@ -12,7 +12,6 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const notReadyReason = "Startup in progress"
@@ -72,12 +71,10 @@ func (h *Handler) PostStatus(nodeName string, status types.NodeStatus) (types.St
 
 // GetEndpointsConfigs returns endpoints configurations dispatched to a given node
 func (h *Handler) GetEndpointsConfigs(nodeName string) (types.ConfigResponse, error) {
-	log.Debugf("Got endpoints checks request from node: %s", nodeName)
 	configs, err := h.dispatcher.GetEndpointsConfigs(nodeName)
 	response := types.ConfigResponse{
 		Configs:    configs,
 		LastChange: 0,
 	}
-	log.Debugf("Returning result: %v", response)
 	return response, err
 }
