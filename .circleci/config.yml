@@ -78,6 +78,7 @@ jobs:
           name: test six
           working_directory: /go/src/github.com/DataDog/datadog-agent/six
           command: |
+            pip uninstall datadog-checks-base -y
             make -C test run
       - run:
           name: grab go deps
