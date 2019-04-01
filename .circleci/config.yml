@@ -41,6 +41,8 @@ templates:
 
 jobs:
   checkout_code:
+    docker:
+      - image: alpine/git:latest
     steps:
       - checkout
       - save_cache:
