@@ -83,7 +83,9 @@ jobs:
             pip install -r requirements.txt
       - run:
           name: grab go deps
-          command: inv deps
+          command: |
+            pip install -U invoke
+            inv deps
       - run:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only
