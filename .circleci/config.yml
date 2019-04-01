@@ -60,6 +60,13 @@ jobs:
           name: setup python deps
           command: pip install wheel -r requirements.txt
       - run:
+          name: build six
+          working_directory: /go/src/github.com/DataDog/datadog-agent/six
+          command: |
+            cmake . -DCMAKE_INSTALL_PREFIX:PATH=/go/src/github.com/DataDog/datadog-agent/dev
+            make
+            make install
+      - run:
           name: grab go deps
           command: inv deps
       - run:
