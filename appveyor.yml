@@ -22,6 +22,9 @@ environment:
   # GLIB-URL: http://ftp.gnome.org/pub/gnome/binaries/win64/glib/2.26/glib_2.26.1-1_win64.zip
   # PKG-CONFIG-URL: http://ftp.gnome.org/pub/gnome/binaries/win64/dependencies/pkg-config_0.23-2_win64.zip
   # GETTEXT-URL: http://ftp.gnome.org/pub/gnome/binaries/win64/dependencies/gettext-runtime_0.18.1.1-2_win64.zip
+  # TODO: Following 2 are temporary, remove when we've a better invoke task
+  PYTHON_HOME_2: C:\Python27-x64
+  PYTHON_HOME_3: C:\Python37-x64
 
 install:
   - set PATH=%APPVEYOR_BUILD_FOLDER%\six\bin;%GOPATH%\bin;%Python2_ROOT_DIR%;%Python2_ROOT_DIR%\Scripts;%Python3_ROOT_DIR%;%Python3_ROOT_DIR%\Scripts;%MSYS_ROOT%\mingw64\bin;%MSYS_ROOT%\usr\bin\;%PATH%
