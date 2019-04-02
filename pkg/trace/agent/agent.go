@@ -10,9 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
-	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
@@ -139,8 +137,6 @@ func (a *Agent) loop() {
 		select {
 		case t := <-a.Receiver.Out:
 			a.Process(t)
-		case <-ticker.C:
-			a.watchdog()
 		case <-a.ctx.Done():
 			log.Info("exiting")
 			if err := a.Receiver.Stop(); err != nil {
@@ -301,39 +297,6 @@ func (a *Agent) sample(pt ProcessedTrace) (sampled bool, rate float64) {
 	}
 
 	return sampledScore || sampledPriority, sampler.CombineRates(ratePriority, rateScore)
-}
-
-// dieFunc is used by watchdog to kill the agent; replaced in tests.
-var dieFunc = func(fmt string, args ...interface{}) {
-	osutil.Exitf(fmt, args...)
-}
-
-func (a *Agent) watchdog() {
-	var wi watchdog.Info
-	wi.CPU = watchdog.CPU()
-	wi.Mem = watchdog.Mem()
-	wi.Net = watchdog.Net()
-
-	if float64(wi.Mem.Alloc) > a.conf.MaxMemory && a.conf.MaxMemory > 0 {
-		dieFunc("exceeded max memory (current=%d, max=%d)", wi.Mem.Alloc, int64(a.conf.MaxMemory))
-	}
-	if int(wi.Net.Connections) > a.conf.MaxConnections && a.conf.MaxConnections > 0 {
-		dieFunc("exceeded max connections (current=%d, max=%d)", wi.Net.Connections, a.conf.MaxConnections)
-	}
-
-	info.UpdateWatchdogInfo(wi)
-
-	// Adjust pre-sampling dynamically
-	rate, err := sampler.CalcPreSampleRate(a.conf.MaxCPU, wi.CPU.UserAvg, a.Receiver.PreSampler.RealRate())
-	if err != nil {
-		log.Warnf("problem computing pre-sample rate: %v", err)
-	}
-	a.Receiver.PreSampler.SetRate(rate)
-	a.Receiver.PreSampler.SetError(err)
-
-	preSamplerStats := a.Receiver.PreSampler.Stats()
-	metrics.Gauge("datadog.trace_agent.presampler_rate", preSamplerStats.Rate, nil, 1)
-	info.UpdatePreSampler(*preSamplerStats)
 }
 
 func traceContainsError(trace pb.Trace) bool {

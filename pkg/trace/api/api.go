@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"runtime"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -69,6 +70,7 @@ type HTTPReceiver struct {
 
 	maxRequestBodyLength int64
 	debug                bool
+	refuse               int64 // when set to 1 agent will refuse payloads
 
 	exit chan struct{}
 }
@@ -120,7 +122,7 @@ func (r *HTTPReceiver) Start() {
 
 	go func() {
 		defer watchdog.LogOnPanic()
-		r.logStats()
+		r.loop()
 	}()
 }
 
@@ -210,9 +212,19 @@ func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
+	if atomic.LoadInt64(&r.refuse) == 1 {
+		// using too much memory
+		io.Copy(ioutil.Discard, req.Body)
+		w.WriteHeader(http.StatusNotAcceptable)
+		io.WriteString(w, "request rejected; trace-agent is past memory threshold (apm_config.max_memory)")
+		metrics.Gauge("datadog.trace_agent.receiver.refused", 1, []string{"reason:mem"}, 1)
+		return
+	}
 	if !r.PreSampler.Sample(req) {
+		// using too much CPU
 		io.Copy(ioutil.Discard, req.Body)
 		r.replyTraces(v, w)
+		metrics.Gauge("datadog.trace_agent.receiver.refused", 1, []string{"reason:cpu"}, 1)
 		return
 	}
 
@@ -299,8 +311,8 @@ func (r *HTTPReceiver) handleServices(v Version, w http.ResponseWriter, req *htt
 	r.services <- servicesMeta
 }
 
-// logStats periodically submits stats about the receiver to statsd
-func (r *HTTPReceiver) logStats() {
+// loop periodically submits stats about the receiver to statsd
+func (r *HTTPReceiver) loop() {
 	defer close(r.exit)
 
 	var lastLog time.Time
@@ -308,11 +320,15 @@ func (r *HTTPReceiver) logStats() {
 
 	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
+	tw := time.NewTicker(r.conf.WatchdogInterval)
+	defer tw.Stop()
 
 	for {
 		select {
 		case <-r.exit:
 			return
+		case now := <-tw.C:
+			r.watchdog(now)
 		case now := <-t.C:
 			metrics.Gauge("datadog.trace_agent.heartbeat", 1, nil, 1)
 
@@ -341,6 +357,42 @@ func (r *HTTPReceiver) logStats() {
 				rates := r.dynConf.RateByService.GetAll()
 				info.UpdateRateByService(rates)
 			}
+		}
+	}
+}
+
+func (r *HTTPReceiver) watchdog(now time.Time) {
+	wi := watchdog.Info{
+		Mem: watchdog.Mem(),
+		CPU: watchdog.CPU(now),
+	}
+
+	rate, err := sampler.CalcPreSampleRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.PreSampler.RealRate())
+	if err != nil {
+		log.Warnf("problem computing pre-sample rate: %v", err)
+	}
+
+	r.PreSampler.SetRate(rate)
+	r.PreSampler.SetError(err)
+
+	stats := r.PreSampler.Stats()
+	metrics.Gauge("datadog.trace_agent.presampler_rate", stats.Rate, nil, 1)
+
+	info.UpdatePreSampler(*stats)
+	info.UpdateWatchdogInfo(wi)
+
+	metrics.Gauge("datadog.trace_agent.heap_alloc", float64(wi.Mem.Alloc), nil, 1)
+
+	if float64(wi.Mem.Alloc) > r.conf.MaxMemory && r.conf.MaxMemory > 0 {
+		log.Warn("memory exceeds threshold (apm_config.max_memory), requests will be rate-limited")
+		if atomic.SwapInt64(&r.refuse, 1) != 0 {
+			// we're still not accepting requests, do a garbage collection;,
+			// potentially blocking the program here is the least of our problems
+			runtime.GC()
+		}
+	} else {
+		if atomic.SwapInt64(&r.refuse, 0) == 1 {
+			log.Warn("memory back below threshold (apm_config.max_memory), allowing requests")
 		}
 	}
 }

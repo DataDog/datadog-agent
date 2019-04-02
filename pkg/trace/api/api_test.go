@@ -730,3 +730,80 @@ func BenchmarkDecoderMsgpack(b *testing.B) {
 		_ = msgp.Decode(reader, &traces)
 	}
 }
+
+func BenchmarkWatchdog(b *testing.B) {
+	now := time.Now()
+	conf := config.New()
+	conf.Endpoints[0].APIKey = "apikey_2"
+	r := NewHTTPReceiver(conf, nil, nil, nil)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		r.watchdog(now)
+	}
+}
+
+func TestWatchdog(t *testing.T) {
+	if testing.Short() {
+		return
+	}
+
+	defaultMux := http.DefaultServeMux // restore it at the end
+	defer func() { http.DefaultServeMux = defaultMux }()
+
+	conf := config.New()
+	conf.Endpoints[0].APIKey = "apikey_2"
+	conf.MaxMemory = 1e6
+	conf.WatchdogInterval = time.Millisecond
+
+	outT := make(chan pb.Trace, 5)
+	outS := make(chan pb.ServicesMetadata, 5)
+
+	r := NewHTTPReceiver(conf, sampler.NewDynamicConfig("none"), outT, outS)
+	r.Start()
+	defer r.Stop()
+	go func() {
+		for {
+			select {
+			case <-r.Out:
+			}
+		}
+	}()
+
+	traces := pb.Traces{
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+	}
+	var body bytes.Buffer
+	if err := msgp.Encode(&body, traces); err != nil {
+		t.Fatal(err)
+	}
+	data := body.Bytes()
+
+	// first request is accepted
+	resp, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("got %d", resp.StatusCode)
+	}
+	time.Sleep(conf.WatchdogInterval)
+
+	// go over board
+	for tries := 0; tries < 100; tries++ {
+		resp, err = http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode == http.StatusNotAcceptable {
+			break // 👍
+		}
+		time.Sleep(2 * conf.WatchdogInterval)
+	}
+	if resp.StatusCode != http.StatusNotAcceptable {
+		t.Fatalf("didn't close, got %d", resp.StatusCode)
+	}
+}
