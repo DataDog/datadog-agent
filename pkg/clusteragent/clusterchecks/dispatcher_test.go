@@ -498,7 +498,10 @@ func TestUpdateEndpointsChecksMap(t *testing.T) {
 				IP:        "10.0.0.1",
 				Ports:     []int32{123},
 				CheckName: "http_check",
-				Instances: []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
+				Instances: []integration.Data{
+					integration.Data("\"url\": \"http://%%host%%\""),
+					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
+				},
 			},
 		},
 	}
@@ -508,7 +511,10 @@ func TestUpdateEndpointsChecksMap(t *testing.T) {
 				Name:          "http_check",
 				ADIdentifiers: []string{"podUID"},
 				ClusterCheck:  false,
-				Instances:     []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
+				Instances: []integration.Data{
+					integration.Data("\"url\": \"http://10.0.0.1\""),
+					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
+				},
 			},
 		},
 	}

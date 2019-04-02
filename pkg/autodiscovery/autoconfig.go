@@ -197,6 +197,7 @@ func (ac *AutoConfig) LoadAndRun() {
 func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	var resolvedConfigs []integration.Config
 	for _, pd := range ac.providers {
+
 		cfgs, err := pd.provider.Collect()
 		if err != nil {
 			log.Debugf("Unexpected error returned when collecting configurations from provider %v: %v", pd.provider, err)
@@ -237,6 +238,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 			resolvedConfigs = append(resolvedConfigs, rc...)
 		}
 	}
+
 	return resolvedConfigs
 }
 

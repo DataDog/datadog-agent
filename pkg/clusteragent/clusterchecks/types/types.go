@@ -68,17 +68,19 @@ type Listers struct {
 
 // Service is used to store data needed by endpoints
 type Service struct {
-	CheckName string
-	Instances []integration.Data
-	Namespace string
-	Name      string
+	CheckName  string
+	Instances  []integration.Data
+	InitConfig integration.Data
+	Namespace  string
+	Name       string
 }
 
 // EndpointInfo is used to store endpoints info
 type EndpointInfo struct {
-	PodUID    types.UID
-	IP        string
-	Ports     []int32
-	CheckName string
-	Instances []integration.Data
+	PodUID     types.UID
+	IP         string
+	Ports      []int32
+	CheckName  string
+	Instances  []integration.Data
+	InitConfig integration.Data
 }
