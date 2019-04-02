@@ -30,7 +30,7 @@ endif()
 set_target_properties(datadog-agent-six PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION 1
-    PUBLIC_HEADER ../include/datadog_agent_six.h
+    PUBLIC_HEADER "../include/datadog_agent_six.h;../include/six_types.h"
 )
 configure_file(datadog-agent-six.pc.in datadog-agent-six.pc @ONLY)
 target_include_directories(datadog-agent-six PRIVATE ./include)
@@ -39,10 +39,10 @@ target_include_directories(datadog-agent-six PUBLIC
 )
 
 if(NOT WIN32)
-# install target not valid because we're generating a static link LIBRARY on windows.
 find_library( LIBdl dl )
+endif()
+
 install(TARGETS datadog-agent-six
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-endif()
