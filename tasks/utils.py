@@ -64,10 +64,10 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
     }
 
     env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '')
-    env['CGO_LDFLAGS'] += " -L/go/src/github.com/DataDog/datadog-agent/dev/lib "
+    env['CGO_LDFLAGS'] += " -L{}/src/github.com/DataDog/datadog-agent/dev/lib ".format(os.environ.get('GOPATH'))
 
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '')
-    env['CGO_CFLAGS'] += " -I/go/src/github.com/DataDog/datadog-agent/dev/include"
+    env['CGO_CFLAGS'] += " -I{}/src/github.com/DataDog/datadog-agent/dev/include".format(os.environ.get('GOPATH'))
 
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"

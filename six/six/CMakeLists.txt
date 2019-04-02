@@ -39,10 +39,10 @@ target_include_directories(datadog-agent-six PUBLIC
 )
 
 if(NOT WIN32)
-# install target not valid because we're generating a static link LIBRARY on windows.
 find_library( LIBdl dl )
+endif()
+
 install(TARGETS datadog-agent-six
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-endif()
