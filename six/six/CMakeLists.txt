@@ -40,9 +40,13 @@ target_include_directories(datadog-agent-six PUBLIC
 
 if(NOT WIN32)
 find_library( LIBdl dl )
-endif()
-
 install(TARGETS datadog-agent-six
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
+else()
+install(TARGETS datadog-agent-six
+    RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+endif()
