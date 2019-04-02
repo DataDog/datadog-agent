@@ -73,8 +73,8 @@ jobs:
           name: test six
           working_directory: /go/src/github.com/DataDog/datadog-agent/six
           command: |
-            # remove base check before running tests
-            pip uninstall datadog-checks-base -y
+            # remove base check before running tests, go on if pip fails
+            pip uninstall datadog-checks-base -y || :
             make -C test run
       - run:
           name: setup python deps
