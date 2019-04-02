@@ -36,7 +36,7 @@ build: off
 
 test_script:
   - cd six
-  - cmake -G "MSYS Makefiles" -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH=%GOPATH%\src\github.com\DataDog\datadog-agent\dev .
+  - bash -c "cmake -G \"MSYS Makefiles\" -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH=$GOPATH\src\github.com\DataDog\datadog-agent\dev ."
   - bash -c "make"
   - bash -c "make install"
   - bash -c "make clang-format"
