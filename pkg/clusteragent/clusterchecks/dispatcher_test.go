@@ -482,6 +482,7 @@ func TestUpdateServiceChecksMap(t *testing.T) {
 			Instances: []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
 			Namespace: "default",
 			Name:      "myservice",
+			ClusterIP: "10.0.0.1",
 		},
 	}
 	assert.Equal(t, expectedServiceMap, dispatcher.store.serviceChecks)
@@ -495,11 +496,36 @@ func TestUpdateEndpointsChecksMap(t *testing.T) {
 		"nodeName": {
 			{
 				PodUID:    ktypes.UID("podUID"),
-				IP:        "10.0.0.1",
+				IP:        "10.0.0.2",
+				ClusterIP: "10.0.0.1",
 				Ports:     []int32{123},
 				CheckName: "http_check",
 				Instances: []integration.Data{
-					integration.Data("\"url\": \"http://%%host%%\""),
+					integration.Data("\"url\": \"http://10.0.0.1\""),
+					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
+				},
+			},
+			{
+				PodUID:    ktypes.UID("podUID1"),
+				IP:        "10.0.0.3",
+				ClusterIP: "10.0.0.1",
+				Ports:     []int32{123},
+				CheckName: "http_check",
+				Instances: []integration.Data{
+					integration.Data("\"url\": \"http://10.0.0.1\""),
+					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
+				},
+			},
+		},
+		"nodeName1": {
+			{
+				PodUID:    ktypes.UID("podUID1"),
+				IP:        "10.0.0.4",
+				ClusterIP: "10.0.0.1",
+				Ports:     []int32{123},
+				CheckName: "http_check",
+				Instances: []integration.Data{
+					integration.Data("\"url\": \"http://10.0.0.1\""),
 					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
 				},
 			},
@@ -512,7 +538,27 @@ func TestUpdateEndpointsChecksMap(t *testing.T) {
 				ADIdentifiers: []string{"podUID"},
 				ClusterCheck:  false,
 				Instances: []integration.Data{
-					integration.Data("\"url\": \"http://10.0.0.1\""),
+					integration.Data("\"url\": \"http://10.0.0.2\""),
+					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
+				},
+			},
+			{
+				Name:          "http_check",
+				ADIdentifiers: []string{"podUID1"},
+				ClusterCheck:  false,
+				Instances: []integration.Data{
+					integration.Data("\"url\": \"http://10.0.0.3\""),
+					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
+				},
+			},
+		},
+		"nodeName1": {
+			{
+				Name:          "http_check",
+				ADIdentifiers: []string{"podUID1"},
+				ClusterCheck:  false,
+				Instances: []integration.Data{
+					integration.Data("\"url\": \"http://10.0.0.4\""),
 					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
 				},
 			},

@@ -171,5 +171,6 @@ func newService(checkName string, instances []integration.Data, initConfig integ
 		InitConfig: initConfig,
 		Namespace:  "",
 		Name:       "",
+		ClusterIP:  "",
 	}
 }

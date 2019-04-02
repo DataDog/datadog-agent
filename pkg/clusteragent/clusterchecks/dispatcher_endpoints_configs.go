@@ -9,7 +9,6 @@ package clusterchecks
 
 import (
 	"bytes"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -50,9 +49,11 @@ func (d *dispatcher) updateCheckMaps() error {
 func (d *dispatcher) updateEndpointsChecksMap(endpointsInfo map[string][]types.EndpointInfo) error {
 	newEndpointsChecks := make(map[string][]integration.Config)
 	for nodeName, endpoints := range endpointsInfo {
+		resolvedConfigs := []integration.Config{}
 		for _, endpoint := range endpoints {
-			newEndpointsChecks[nodeName] = append(newEndpointsChecks[nodeName], resolveToConfig(endpoint))
+			resolvedConfigs = append(resolvedConfigs, resolveToConfig(endpoint))
 		}
+		newEndpointsChecks[nodeName] = resolvedConfigs
 	}
 	d.store.Lock()
 	d.store.endpointsChecks = newEndpointsChecks
@@ -87,6 +88,7 @@ func (d *dispatcher) updateServiceChecksMap(kservices []*v1.Service) {
 		if found {
 			d.store.serviceChecks[uid].Namespace = ksvc.Namespace
 			d.store.serviceChecks[uid].Name = ksvc.Name
+			d.store.serviceChecks[uid].ClusterIP = ksvc.Spec.ClusterIP
 		}
 	}
 }
@@ -120,6 +122,7 @@ func getEndpointInfo(kendpoints *v1.Endpoints, svc *types.Service) map[string][]
 					CheckName:  svc.CheckName,
 					Instances:  svc.Instances,
 					InitConfig: svc.InitConfig,
+					ClusterIP:  svc.ClusterIP,
 				})
 			}
 		}
@@ -137,27 +140,17 @@ func mergeEndpointsInfo(first, second map[string][]types.EndpointInfo) map[strin
 func resolveToConfig(info types.EndpointInfo) integration.Config {
 	config := integration.Config{
 		Name:          info.CheckName,
-		Instances:     info.Instances,
-		InitConfig:    info.InitConfig,
+		Instances:     make([]integration.Data, len(info.Instances)),
+		InitConfig:    make(integration.Data, len(info.InitConfig)),
 		ADIdentifiers: []string{string(info.PodUID)},
 		ClusterCheck:  false,
 		CreationTime:  integration.Before,
 	}
+	copy(config.InitConfig, info.InitConfig)
+	copy(config.Instances, info.Instances)
 	for i := 0; i < len(config.Instances); i++ {
-		vars := config.GetTemplateVariablesForInstance(i)
-		for _, v := range vars {
-			switch string(v.Name) {
-			case "host":
-				config.InitConfig = bytes.Replace(config.InitConfig, v.Raw, []byte(info.IP), -1)
-				config.Instances[i] = bytes.Replace(config.Instances[i], v.Raw, []byte(info.IP), -1)
-			case "port":
-				if len(info.Ports) > 0 {
-					port := strconv.Itoa(int(info.Ports[0]))
-					config.InitConfig = bytes.Replace(config.InitConfig, v.Raw, []byte(port), -1)
-					config.Instances[i] = bytes.Replace(config.Instances[i], v.Raw, []byte(port), -1)
-				}
-			}
-		}
+		config.InitConfig = bytes.Replace(config.InitConfig, []byte(info.ClusterIP), []byte(info.IP), -1)
+		config.Instances[i] = bytes.Replace(config.Instances[i], []byte(info.ClusterIP), []byte(info.IP), -1)
 	}
 	return config
 }
