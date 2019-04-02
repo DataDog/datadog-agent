@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Properly handle docker container logs in multiline mode in case of infrequence log messages, log file rotations or agent restart
