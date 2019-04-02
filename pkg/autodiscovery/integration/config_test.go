@@ -135,16 +135,27 @@ func TestDigest(t *testing.T) {
 	simpleConfig := &Config{
 		Name:       "foo",
 		InitConfig: Data(""),
-		Instances:  []Data{Data("{foo:bar}")},
 	}
 	assert.Equal(t, "d8cbc7186ba13533", simpleConfig.Digest())
 	simpleConfigWithLogs := &Config{
 		Name:       "foo",
 		InitConfig: Data(""),
-		Instances:  []Data{Data("{foo:bar}")},
 		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 	}
 	assert.Equal(t, "6253da85b1624771", simpleConfigWithLogs.Digest())
+	simpleConfigWithInstances := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Instances:  []Data{Data("{foo:bar}")},
+	}
+	assert.Equal(t, "148659939ea7642e", simpleConfigWithInstances.Digest())
+	simpleConfigWithInstancesAndLogs := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Instances:  []Data{Data("{foo:bar}")},
+		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
+	}
+	assert.Equal(t, "acb889a316f2b01a", simpleConfigWithInstancesAndLogs.Digest())
 }
 
 func TestGetNameForInstance(t *testing.T) {
