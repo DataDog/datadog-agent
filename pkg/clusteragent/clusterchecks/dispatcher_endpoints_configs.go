@@ -8,6 +8,9 @@
 package clusterchecks
 
 import (
+	"bytes"
+	"strconv"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,7 +51,7 @@ func (d *dispatcher) updateEndpointsChecksMap(endpointsInfo map[string][]types.E
 	newEndpointsChecks := make(map[string][]integration.Config)
 	for nodeName, endpoints := range endpointsInfo {
 		for _, endpoint := range endpoints {
-			newEndpointsChecks[nodeName] = append(newEndpointsChecks[nodeName], infoToConfig(endpoint))
+			newEndpointsChecks[nodeName] = append(newEndpointsChecks[nodeName], resolveToConfig(endpoint))
 		}
 	}
 	d.store.Lock()
@@ -111,11 +114,12 @@ func getEndpointInfo(kendpoints *v1.Endpoints, svc *types.Service) map[string][]
 			if kendpoints.Subsets[i].Addresses[j].NodeName != nil {
 				nodeName := *kendpoints.Subsets[i].Addresses[j].NodeName
 				endpointsInfo[nodeName] = append(endpointsInfo[nodeName], types.EndpointInfo{
-					PodUID:    kendpoints.Subsets[i].Addresses[j].TargetRef.UID,
-					IP:        kendpoints.Subsets[i].Addresses[j].IP,
-					Ports:     ports,
-					CheckName: svc.CheckName,
-					Instances: svc.Instances,
+					PodUID:     kendpoints.Subsets[i].Addresses[j].TargetRef.UID,
+					IP:         kendpoints.Subsets[i].Addresses[j].IP,
+					Ports:      ports,
+					CheckName:  svc.CheckName,
+					Instances:  svc.Instances,
+					InitConfig: svc.InitConfig,
 				})
 			}
 		}
@@ -130,12 +134,30 @@ func mergeEndpointsInfo(first, second map[string][]types.EndpointInfo) map[strin
 	return first
 }
 
-func infoToConfig(info types.EndpointInfo) integration.Config {
-	return integration.Config{
+func resolveToConfig(info types.EndpointInfo) integration.Config {
+	config := integration.Config{
 		Name:          info.CheckName,
 		Instances:     info.Instances,
+		InitConfig:    info.InitConfig,
 		ADIdentifiers: []string{string(info.PodUID)},
 		ClusterCheck:  false,
 		CreationTime:  integration.Before,
 	}
+	for i := 0; i < len(config.Instances); i++ {
+		vars := config.GetTemplateVariablesForInstance(i)
+		for _, v := range vars {
+			switch string(v.Name) {
+			case "host":
+				config.InitConfig = bytes.Replace(config.InitConfig, v.Raw, []byte(info.IP), -1)
+				config.Instances[i] = bytes.Replace(config.Instances[i], v.Raw, []byte(info.IP), -1)
+			case "port":
+				if len(info.Ports) > 0 {
+					port := strconv.Itoa(int(info.Ports[0]))
+					config.InitConfig = bytes.Replace(config.InitConfig, v.Raw, []byte(port), -1)
+					config.Instances[i] = bytes.Replace(config.Instances[i], v.Raw, []byte(port), -1)
+				}
+			}
+		}
+	}
+	return config
 }
