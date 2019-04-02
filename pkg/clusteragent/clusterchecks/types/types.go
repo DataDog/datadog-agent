@@ -73,6 +73,7 @@ type Service struct {
 	InitConfig integration.Data
 	Namespace  string
 	Name       string
+	ClusterIP  string
 }
 
 // EndpointInfo is used to store endpoints info
@@ -81,6 +82,7 @@ type EndpointInfo struct {
 	IP         string
 	Ports      []int32
 	CheckName  string
+	ClusterIP  string
 	Instances  []integration.Data
 	InitConfig integration.Data
 }
