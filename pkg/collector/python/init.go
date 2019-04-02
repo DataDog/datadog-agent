@@ -24,6 +24,25 @@ import (
 
 // #include "datadog_agent_six.h"
 // #cgo LDFLAGS: -ldatadog-agent-six -ldl
+/*
+void GetVersion(char **);
+void GetHostname(char **);
+void GetClusterName(char **);
+void Headers(char **);
+void GetConfig(char*, char **);
+void LogMessage(char *, int);
+void SetExternalTags(char *, char *, char **);
+
+void initDatadogAgentModule(six_t *six) {
+	set_get_version_cb(six, GetVersion);
+	set_get_hostname_cb(six, GetHostname);
+	set_get_clustername_cb(six, GetClusterName);
+	set_headers_cb(six, Headers);
+	set_log_cb(six, LogMessage);
+	set_get_config_cb(six, GetConfig);
+	set_set_external_tags_cb(six, SetExternalTags);
+}
+*/
 import "C"
 
 var (
@@ -71,10 +90,10 @@ func Initialize(paths ...string) error {
 
 	pythonHome := ""
 	if pythonVersion == 2 {
-		six = C.make2()
+		six = C.make2(C.CString(pythonHome2))
 		pythonHome = pythonHome2
 	} else if pythonVersion == 3 {
-		six = C.make3()
+		six = C.make3(C.CString(pythonHome3))
 		pythonHome = pythonHome3
 	} else {
 		return fmt.Errorf("unknown requested version of python: %d", pythonVersion)
@@ -93,7 +112,7 @@ func Initialize(paths ...string) error {
 		C.add_python_path(six, C.CString(p))
 	}
 
-	C.init(six, C.CString(pythonHome))
+	C.init(six)
 
 	if C.is_initialized(six) == 0 {
 		err := C.GoString(C.get_error(six))
@@ -113,6 +132,8 @@ func Initialize(paths ...string) error {
 
 	// TODO: query PythonPath
 	// TODO: query PythonHome
+
+	C.initDatadogAgentModule(six)
 	return nil
 }
 
