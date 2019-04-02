@@ -58,12 +58,11 @@ def update_changelog(ctx, new_version):
 
     # removing releasenotes from bugfix on the old minor.
     previous_minor = "%s.%s" % (new_version_int[0], new_version_int[1] - 1)
-    try:
-        log_result = ctx.run("git log {}.0...remotes/origin/{}.x --name-only | \
-                grep releasenotes/notes/".format(previous_minor, previous_minor))
-        ctx.run("git rm --ignore-unmatch {}".format(log_result.stdin))
-    except UnexpectedExit:
-        pass  # non-zero exit code means no matches - nothing to do
+    log_result = ctx.run("git log {}.0...remotes/origin/{}.x --name-only | \
+            grep releasenotes/notes/ || true".format(previous_minor, previous_minor))
+    log_result = log_result.stdout.replace('\n', ' ').strip()
+    if len(log_result) > 0:
+        ctx.run("git rm --ignore-unmatch {}".format(log_result))
 
     # generate the new changelog
     ctx.run("reno report \
