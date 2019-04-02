@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	common "../common"
+	common "github.com/DataDog/datadog-agent/six/test/common"
 )
 
 // #cgo CFLAGS: -I../../include

@@ -14,7 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
-	common "../common"
+	common "github.com/DataDog/datadog-agent/six/test/common"
 )
 
 var (
