@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	common "../common"
+	common "github.com/DataDog/datadog-agent/six/test/common"
 )
 
 func TestMain(m *testing.M) {
