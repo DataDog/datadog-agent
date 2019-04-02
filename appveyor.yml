@@ -36,9 +36,11 @@ cache:
 build: off
 
 test_script:
+  - cd six
   - cmake -G "MSYS Makefiles" -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH=%GOPATH%\src\github.com\DataDog\datadog-agent\dev .
   - bash -c "make clang-format"
   - bash -c "make && make -C test run"
+  - cd ..
   - inv -e deps
   - inv -e test --coverage --race --profile --fail-on-fmt
   - codecov -f profile.cov -F windows
