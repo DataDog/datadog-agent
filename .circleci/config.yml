@@ -17,6 +17,9 @@ templates:
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
+    environment:
+      PYTHON_HOME_2: /usr/
+      PYTHON_HOME_3: /usr/
 
   step_templates:
     - restore_cache: &restore_deps
@@ -89,9 +92,6 @@ jobs:
       - run:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only
-          environment:
-            PYTHON_HOME_2: /usr/
-            PYTHON_HOME_3: /usr/
       - save_cache:
           <<: *save_deps
           paths:
