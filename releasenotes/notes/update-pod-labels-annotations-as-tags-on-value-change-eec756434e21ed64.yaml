@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Allow tracking pod labels and annotations value change to update labes/annotations_as_tags

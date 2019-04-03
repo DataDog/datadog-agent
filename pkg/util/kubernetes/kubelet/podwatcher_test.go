@@ -46,6 +46,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
+		tagsDigests:    make(map[string]digests),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -85,6 +86,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
+		tagsDigests:    make(map[string]digests),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -120,6 +122,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
+		tagsDigests:    make(map[string]digests),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -157,6 +160,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
+		tagsDigests:    make(map[string]digests),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -219,6 +223,88 @@ func (suite *PodwatcherTestSuite) TestPullChanges() {
 	require.Nil(suite.T(), err)
 	<-kubelet.Requests // Throwing away /pods GET
 	require.Len(suite.T(), pods, 7)
+}
+
+func (suite *PodwatcherTestSuite) TestPodWatcherLabelsValueChange() {
+	sourcePods, err := loadPodsFixture("./testdata/podlist_1.8-2.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 7)
+
+	watcher := &PodWatcher{
+		lastSeen:       make(map[string]time.Time),
+		tagsDigests:    make(map[string]digests),
+		expiryDuration: 5 * time.Minute,
+	}
+	twoPods := sourcePods[:2]
+	changes, err := watcher.computeChanges(twoPods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 2)
+
+	twoPods[0].Metadata.Labels["label1"] = "value1"
+	changes, err = watcher.computeChanges(twoPods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 1)
+
+	changes, err = watcher.computeChanges(twoPods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 0)
+
+	twoPods[0].Metadata.Labels["label1"] = "newvalue1"
+	changes, err = watcher.computeChanges(twoPods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 1)
+
+	delete(twoPods[0].Metadata.Labels, "label1")
+	changes, err = watcher.computeChanges(twoPods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 1)
+
+	twoPods[0].Metadata.Labels["newlabel1"] = "newvalue1"
+	twoPods[1].Metadata.Labels["label1"] = "value1"
+	changes, err = watcher.computeChanges(twoPods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 2)
+}
+
+func (suite *PodwatcherTestSuite) TestPodWatcherAnnotationsValueChange() {
+	sourcePods, err := loadPodsFixture("./testdata/podlist_1.8-2.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 7)
+
+	watcher := &PodWatcher{
+		lastSeen:       make(map[string]time.Time),
+		tagsDigests:    make(map[string]digests),
+		expiryDuration: 5 * time.Minute,
+	}
+	twoPods := sourcePods[:2]
+	changes, err := watcher.computeChanges(twoPods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 2)
+
+	twoPods[0].Metadata.Annotations["annotation1"] = "value1"
+	changes, err = watcher.computeChanges(twoPods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 1)
+
+	changes, err = watcher.computeChanges(twoPods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 0)
+
+	twoPods[0].Metadata.Annotations["annotation1"] = "newvalue1"
+	changes, err = watcher.computeChanges(twoPods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 1)
+
+	delete(twoPods[0].Metadata.Annotations, "annotation1")
+	changes, err = watcher.computeChanges(twoPods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 1)
+
+	twoPods[0].Metadata.Annotations["newannotation1"] = "newvalue1"
+	twoPods[1].Metadata.Annotations["annotation1"] = "value1"
+	changes, err = watcher.computeChanges(twoPods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 2)
 }
 
 func TestPodwatcherTestSuite(t *testing.T) {

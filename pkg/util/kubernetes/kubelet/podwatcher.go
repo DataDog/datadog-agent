@@ -8,6 +8,9 @@
 package kubelet
 
 import (
+	"hash/fnv"
+	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -21,6 +24,12 @@ type PodWatcher struct {
 	kubeUtil       *KubeUtil
 	expiryDuration time.Duration
 	lastSeen       map[string]time.Time
+	tagsDigests    map[string]digests
+}
+
+type digests struct {
+	labels      string
+	annotations string
 }
 
 // NewPodWatcher creates a new watcher. User call must then trigger PullChanges
@@ -33,6 +42,7 @@ func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 	watcher := &PodWatcher{
 		kubeUtil:       kubeutil,
 		lastSeen:       make(map[string]time.Time),
+		tagsDigests:    make(map[string]digests),
 		expiryDuration: expiryDuration,
 	}
 	return watcher, nil
@@ -65,11 +75,15 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 
 		podEntity := PodUIDToEntityName(pod.Metadata.UID)
 		newStaticPod := false
-		_, found := w.lastSeen[podEntity]
+		_, foundPod := w.lastSeen[podEntity]
+
+		if !foundPod {
+			w.tagsDigests[podEntity] = digests{labels: digestMap(pod.Metadata.Labels), annotations: digestMap(pod.Metadata.Annotations)}
+		}
 
 		// static pods are included specifically because they won't have any container
 		// as they're not updated in the pod list after creation
-		if isPodStatic(pod) == true && found == false {
+		if isPodStatic(pod) == true && foundPod == false {
 			newStaticPod = true
 		}
 
@@ -79,12 +93,23 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 		// Detect new containers
 		newContainer := false
 		for _, container := range pod.Status.Containers {
-			if _, found := w.lastSeen[container.ID]; found == false {
+			if _, foundContainer := w.lastSeen[container.ID]; foundContainer == false {
 				newContainer = true
 			}
 			w.lastSeen[container.ID] = now
 		}
-		if newStaticPod || newContainer {
+
+		// Detect changes in labels and annotations values
+		newLabelsOrAnnotations := false
+		labelsDigest := digestMap(pod.Metadata.Labels)
+		annotationsDigest := digestMap(pod.Metadata.Annotations)
+		if foundPod && (labelsDigest != w.tagsDigests[podEntity].labels || annotationsDigest != w.tagsDigests[podEntity].annotations) {
+			// update digests
+			w.tagsDigests[podEntity] = digests{labels: labelsDigest, annotations: annotationsDigest}
+			newLabelsOrAnnotations = true
+		}
+
+		if newStaticPod || newContainer || newLabelsOrAnnotations {
 			updatedPods = append(updatedPods, pod)
 		}
 	}
@@ -121,4 +146,25 @@ func (w *PodWatcher) Expire() ([]string, error) {
 // Returns a nil pointer if not found.
 func (w *PodWatcher) GetPodForEntityID(entityID string) (*Pod, error) {
 	return w.kubeUtil.GetPodForEntityID(entityID)
+}
+
+// digestMap return a unique hash for a map
+// used to track changes in labels and annotations values
+func digestMap(m map[string]string) string {
+	if m == nil {
+		return ""
+	}
+
+	// to store the keys in slice in sorted order
+	var keys []string
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	h := fnv.New64()
+	for _, k := range keys {
+		h.Write([]byte(m[k]))
+	}
+	return strconv.FormatUint(h.Sum64(), 16)
 }
