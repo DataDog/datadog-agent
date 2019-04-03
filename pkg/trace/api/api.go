@@ -376,12 +376,13 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 	r.PreSampler.SetError(err)
 
 	stats := r.PreSampler.Stats()
-	metrics.Gauge("datadog.trace_agent.presampler_rate", stats.Rate, nil, 1)
 
 	info.UpdatePreSampler(*stats)
 	info.UpdateWatchdogInfo(wi)
 
 	metrics.Gauge("datadog.trace_agent.heap_alloc", float64(wi.Mem.Alloc), nil, 1)
+	metrics.Gauge("datadog.trace_agent.cpu_percent", wi.CPU.UserAvg*100, nil, 1)
+	metrics.Gauge("datadog.trace_agent.presampler_rate", stats.Rate, nil, 1)
 
 	if float64(wi.Mem.Alloc) > r.conf.MaxMemory && r.conf.MaxMemory > 0 {
 		log.Warn("memory exceeds threshold (apm_config.max_memory), requests will be rate-limited")
