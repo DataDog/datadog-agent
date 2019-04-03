@@ -206,9 +206,9 @@ workflows:
       - dependencies:
           requires:
             - checkout_code
-      # - unit_tests:
-      #     requires:
-      #       - dependencies
+      - unit_tests:
+          requires:
+            - dependencies
       # - integration_tests:
       #     requires:
       #       - dependencies

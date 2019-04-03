@@ -19,10 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-/*
-#cgo LDFLAGS: -ldatadog-agent-six -ldl
-#include "datadog_agent_six.h"
-*/
+// #include <datadog_agent_six.h>
 import (
 	"C"
 )
@@ -127,15 +124,14 @@ func SetExternalTags(hostname *C.char, sourceType *C.char, tags **C.char) {
 	stype := C.GoString(sourceType)
 	tagsStrings := []string{}
 
-	pTags := uintptr(unsafe.Pointer(tags))
-	ptrSize := unsafe.Sizeof(*tags)
-
-	for i := uintptr(0); ; i++ {
-		tagPtr := *(**C.char)(unsafe.Pointer(pTags + ptrSize*i))
-		if tagPtr == nil {
+	pStart := unsafe.Pointer(tags)
+	size := unsafe.Sizeof(*tags)
+	for i := 0; ; i++ {
+		pTag := *(**C.char)(unsafe.Pointer(uintptr(pStart) + size*uintptr(i)))
+		if pTag == nil {
 			break
 		}
-		tag := C.GoString(tagPtr)
+		tag := C.GoString(pTag)
 		tagsStrings = append(tagsStrings, tag)
 	}
 

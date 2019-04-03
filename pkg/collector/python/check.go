@@ -24,7 +24,7 @@ import (
 )
 
 // #include <stdlib.h>
-// #include "datadog_agent_six.h"
+// #include <datadog_agent_six.h>
 import "C"
 
 // PythonCheck represents a Python check, implements `Check` interface
