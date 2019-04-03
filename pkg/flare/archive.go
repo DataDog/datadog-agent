@@ -495,7 +495,7 @@ func zipHealth(tempDir, hostname string) error {
 }
 
 func zipStackTraces(tempDir, hostname string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
 	client := http.Client{}
