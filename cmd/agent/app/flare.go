@@ -113,10 +113,11 @@ func requestFlare(caseID string) error {
 		}
 	}
 
-	response, e := flare.SendFlare(filePath, caseID, customerEmail)
+	response, err := flare.SendFlare(filePath, caseID, customerEmail)
 	fmt.Println(response)
-	if e != nil {
-		return e
+	if err != nil {
+		fmt.Println(err)
+		fmt.Fprintln(color.Output, fmt.Sprintf("Error uploading. (You can still use %s)", color.YellowString(filePath)))
 	}
 	return nil
 }
