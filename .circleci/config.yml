@@ -96,11 +96,11 @@ jobs:
           <<: *save_deps
           paths:
             - /go/src/github.com/DataDog/datadog-agent/vendor
-            - /go/src/github.com/DataDog/datadog-agent/six
             - /go/src/github.com/DataDog/datadog-agent/dev
             - /go/pkg
             - /go/bin
             - /usr/local/lib/python2.7/dist-packages
+            - /usr/local/bin
 
   unit_tests:
     <<: *job_template
