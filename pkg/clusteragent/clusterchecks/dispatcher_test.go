@@ -483,6 +483,7 @@ func TestUpdateServiceChecksMap(t *testing.T) {
 			Namespace: "default",
 			Name:      "myservice",
 			ClusterIP: "10.0.0.1",
+			Entity:    "kube_service://test",
 		},
 	}
 	assert.Equal(t, expectedServiceMap, dispatcher.store.serviceChecks)
@@ -504,6 +505,7 @@ func TestUpdateEndpointsChecksMap(t *testing.T) {
 					integration.Data("\"url\": \"http://10.0.0.1\""),
 					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
 				},
+				ServiceEntity: "kube_service://test",
 			},
 			{
 				PodUID:    ktypes.UID("podUID1"),
@@ -515,6 +517,7 @@ func TestUpdateEndpointsChecksMap(t *testing.T) {
 					integration.Data("\"url\": \"http://10.0.0.1\""),
 					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
 				},
+				ServiceEntity: "kube_service://test",
 			},
 		},
 		"nodeName1": {
@@ -528,6 +531,7 @@ func TestUpdateEndpointsChecksMap(t *testing.T) {
 					integration.Data("\"url\": \"http://10.0.0.1\""),
 					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
 				},
+				ServiceEntity: "kube_service://test",
 			},
 		},
 	}
@@ -535,7 +539,7 @@ func TestUpdateEndpointsChecksMap(t *testing.T) {
 		"nodeName": {
 			{
 				Name:          "http_check",
-				ADIdentifiers: []string{"podUID"},
+				ADIdentifiers: []string{"podUID", "kube_service://test"},
 				ClusterCheck:  false,
 				Instances: []integration.Data{
 					integration.Data("\"url\": \"http://10.0.0.2\""),
@@ -544,7 +548,7 @@ func TestUpdateEndpointsChecksMap(t *testing.T) {
 			},
 			{
 				Name:          "http_check",
-				ADIdentifiers: []string{"podUID1"},
+				ADIdentifiers: []string{"podUID1", "kube_service://test"},
 				ClusterCheck:  false,
 				Instances: []integration.Data{
 					integration.Data("\"url\": \"http://10.0.0.3\""),
@@ -555,7 +559,7 @@ func TestUpdateEndpointsChecksMap(t *testing.T) {
 		"nodeName1": {
 			{
 				Name:          "http_check",
-				ADIdentifiers: []string{"podUID1"},
+				ADIdentifiers: []string{"podUID1", "kube_service://test"},
 				ClusterCheck:  false,
 				Instances: []integration.Data{
 					integration.Data("\"url\": \"http://10.0.0.4\""),

@@ -74,15 +74,17 @@ type Service struct {
 	Namespace  string
 	Name       string
 	ClusterIP  string
+	Entity     string
 }
 
 // EndpointInfo is used to store endpoints info
 type EndpointInfo struct {
-	PodUID     types.UID
-	IP         string
-	Ports      []int32
-	CheckName  string
-	ClusterIP  string
-	Instances  []integration.Data
-	InitConfig integration.Data
+	PodUID        types.UID
+	ServiceEntity string
+	IP            string
+	Ports         []int32
+	CheckName     string
+	ClusterIP     string
+	Instances     []integration.Data
+	InitConfig    integration.Data
 }

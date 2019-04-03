@@ -63,7 +63,7 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		}
 		if isServiceCheck(c) {
 			d.store.Lock()
-			d.store.serviceChecks[ktypes.UID(getServiceUID(c))] = newService(c.Name, c.Instances, c.InitConfig)
+			d.store.serviceChecks[ktypes.UID(getServiceUID(c))] = newService(c)
 			d.store.Unlock()
 		}
 		patched, err := d.patchConfiguration(c)
@@ -164,11 +164,12 @@ func (d *dispatcher) run(ctx context.Context) {
 	}
 }
 
-func newService(checkName string, instances []integration.Data, initConfig integration.Data) *types.Service {
+func newService(c integration.Config) *types.Service {
 	return &types.Service{
-		CheckName:  checkName,
-		Instances:  instances,
-		InitConfig: initConfig,
+		CheckName:  c.Name,
+		Instances:  c.Instances,
+		InitConfig: c.InitConfig,
+		Entity:     c.Entity,
 		Namespace:  "",
 		Name:       "",
 		ClusterIP:  "",
