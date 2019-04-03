@@ -20,7 +20,7 @@ import (
 func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	var err error
 	metadataByNsPods := apiv1.NewNamespacesPodsStringsSet()
-	if !c.clusterAgentEnabled {
+	if c.clusterAgentEnabled {
 		var nodeName string
 		nodeName, err = c.kubeUtil.GetNodename()
 		if err != nil {
