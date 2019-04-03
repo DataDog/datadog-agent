@@ -116,13 +116,14 @@ func getEndpointInfo(kendpoints *v1.Endpoints, svc *types.Service) map[string][]
 			if kendpoints.Subsets[i].Addresses[j].NodeName != nil {
 				nodeName := *kendpoints.Subsets[i].Addresses[j].NodeName
 				endpointsInfo[nodeName] = append(endpointsInfo[nodeName], types.EndpointInfo{
-					PodUID:     kendpoints.Subsets[i].Addresses[j].TargetRef.UID,
-					IP:         kendpoints.Subsets[i].Addresses[j].IP,
-					Ports:      ports,
-					CheckName:  svc.CheckName,
-					Instances:  svc.Instances,
-					InitConfig: svc.InitConfig,
-					ClusterIP:  svc.ClusterIP,
+					PodUID:        kendpoints.Subsets[i].Addresses[j].TargetRef.UID,
+					IP:            kendpoints.Subsets[i].Addresses[j].IP,
+					Ports:         ports,
+					CheckName:     svc.CheckName,
+					Instances:     svc.Instances,
+					InitConfig:    svc.InitConfig,
+					ClusterIP:     svc.ClusterIP,
+					ServiceEntity: svc.Entity,
 				})
 			}
 		}
@@ -142,7 +143,7 @@ func resolveToConfig(info types.EndpointInfo) integration.Config {
 		Name:          info.CheckName,
 		Instances:     make([]integration.Data, len(info.Instances)),
 		InitConfig:    make(integration.Data, len(info.InitConfig)),
-		ADIdentifiers: []string{string(info.PodUID)},
+		ADIdentifiers: []string{string(info.PodUID), info.ServiceEntity},
 		ClusterCheck:  false,
 		CreationTime:  integration.Before,
 	}
