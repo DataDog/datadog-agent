@@ -43,8 +43,8 @@ type DCAClient struct {
 	// used to setup the DCAClient
 	initRetry retry.Retrier
 
-	ClusterAgentAPIEndpoint       string // ${SCHEME}://${clusterAgentHost}:${PORT}
-	ClusterAgentVersion           string // Version of the cluster-agent we're connected to
+	ClusterAgentAPIEndpoint       string          // ${SCHEME}://${clusterAgentHost}:${PORT}
+	ClusterAgentVersion           version.Version // Version of the cluster-agent we're connected to
 	clusterAgentAPIClient         *http.Client
 	clusterAgentAPIRequestHeaders http.Header
 	leaderClient                  *leaderClient
@@ -100,7 +100,7 @@ func (c *DCAClient) init() error {
 	if err != nil {
 		return err
 	}
-	log.Infof("Successfully connected to the Datadog Cluster Agent %v", c.ClusterAgentVersion)
+	log.Infof("Successfully connected to the Datadog Cluster Agent %s", c.ClusterAgentVersion.String())
 
 	// Clone the http client in a new client with built-in redirect handler
 	c.leaderClient = newLeaderClient(c.clusterAgentAPIClient, c.ClusterAgentAPIEndpoint)
@@ -171,7 +171,7 @@ func getClusterAgentEndpoint() (string, error) {
 }
 
 // GetVersion fetches the version of the Cluster Agent. Used in the agent status command.
-func (c *DCAClient) GetVersion() (string, error) {
+func (c *DCAClient) GetVersion() (version.Version, error) {
 	const dcaVersionPath = "version"
 	var version version.Version
 	var err error
@@ -181,33 +181,28 @@ func (c *DCAClient) GetVersion() (string, error) {
 
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
-		return "", err
+		return version, err
 	}
 	req.Header = c.clusterAgentAPIRequestHeaders
 
 	resp, err := c.clusterAgentAPIClient.Do(req)
 	if err != nil {
-		return "", err
+		return version, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+		return version, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return version, err
 	}
 
 	err = json.Unmarshal(body, &version)
 
-	if err != nil {
-		return "", err
-	}
-
-	dcaVersion := fmt.Sprintf("%+v", version)
-	return dcaVersion, nil
+	return version, err
 }
 
 // GetNodeLabels returns the node labels from the Cluster Agent.

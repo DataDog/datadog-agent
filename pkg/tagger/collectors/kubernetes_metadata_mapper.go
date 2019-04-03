@@ -21,16 +21,18 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	var err error
 	metadataByNsPods := apiv1.NewNamespacesPodsStringsSet()
 	if c.clusterAgentEnabled {
-		var nodeName string
-		nodeName, err = c.kubeUtil.GetNodename()
-		if err != nil {
-			log.Errorf("Could not retrieve the Nodename, err: %v", err)
-			return nil
-		}
-		metadataByNsPods, err = c.dcaClient.GetPodsMetadataForNode(nodeName)
-		if err != nil {
-			log.Errorf("Could not pull the metadata map of pods on node %s from the Datadog Cluster Agent: %s", nodeName, err.Error())
-			return nil
+		if c.dcaClient.ClusterAgentVersion.Major >= 1 && c.dcaClient.ClusterAgentVersion.Minor >= 3 {
+			var nodeName string
+			nodeName, err = c.kubeUtil.GetNodename()
+			if err != nil {
+				log.Errorf("Could not retrieve the Nodename, err: %v", err)
+				return nil
+			}
+			metadataByNsPods, err = c.dcaClient.GetPodsMetadataForNode(nodeName)
+			if err != nil {
+				log.Debugf("Could not pull the metadata map of pods on node %s from the Datadog Cluster Agent: %s", nodeName, err.Error())
+				return nil
+			}
 		}
 	}
 	var tagInfo []*TagInfo
@@ -64,8 +66,14 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 				log.Errorf("Could not fetch cluster level tags for the pod %s: %s", po.Metadata.Name, err.Error())
 				continue
 			}
-		} else {
+		} else if c.dcaClient.ClusterAgentVersion.Major >= 1 && c.dcaClient.ClusterAgentVersion.Minor >= 3 {
 			metadataNames = metadataByNsPods[po.Metadata.Namespace][po.Metadata.Name].List()
+		} else {
+			metadataNames, err = c.dcaClient.GetKubernetesMetadataNames(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
+			if err != nil {
+				log.Debugf("Could not pull the metadata map of po %s on node %s from the Datadog Cluster Agent: %s", po.Metadata.Name, po.Spec.NodeName, err.Error())
+				continue
+			}
 		}
 		for _, tagDCA := range metadataNames {
 			log.Tracef("Tagging %s with %s", po.Metadata.Name, tagDCA)

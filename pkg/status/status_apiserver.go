@@ -47,6 +47,6 @@ func getDCAStatus() map[string]string {
 		clusterAgentDetails["ConnectionError"] = err.Error()
 		return clusterAgentDetails
 	}
-	clusterAgentDetails["Version"] = ver
+	clusterAgentDetails["Version"] = ver.String()
 	return clusterAgentDetails
 }
