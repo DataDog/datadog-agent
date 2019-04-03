@@ -20,6 +20,7 @@ templates:
     environment:
       PYTHON_HOME_2: /usr/
       PYTHON_HOME_3: /usr/
+      LD_LIBRARY_PATH: $GOPATH/src/github.com/DataDog/datadog-agent/dev/lib
 
   step_templates:
     - restore_cache: &restore_deps
