@@ -42,7 +42,7 @@ log_level: info`
 	assert.Nil(t, err)
 	err = w.Flush()
 	assert.Nil(t, err)
-	assert.Equal(t, len(redacted), n)
+	assert.Equal(t, len(input), n)
 	assert.Equal(t, redacted, buf.String())
 
 }
@@ -74,7 +74,7 @@ instances:
 	assert.Nil(t, err)
 	err = w.Flush()
 	assert.Nil(t, err)
-	assert.Equal(t, len(redacted), n)
+	assert.Equal(t, len(clear), n)
 	assert.Equal(t, redacted, buf.String())
 }
 
@@ -108,7 +108,7 @@ log_level: info`
 	assert.Nil(t, err)
 	err = w.Flush()
 	assert.Nil(t, err)
-	assert.Equal(t, len(redacted), n)
+	assert.Equal(t, len(input), n)
 	assert.Equal(t, redacted, buf.String())
 
 }
