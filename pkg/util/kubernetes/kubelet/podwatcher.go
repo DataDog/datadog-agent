@@ -136,6 +136,7 @@ func (w *PodWatcher) Expire() ([]string, error) {
 	if len(expiredContainers) > 0 {
 		for _, id := range expiredContainers {
 			delete(w.lastSeen, id)
+			delete(w.tagsDigests, id)
 		}
 	}
 	return expiredContainers, nil
@@ -161,7 +162,6 @@ func digestMap(m map[string]string) string {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-
 	h := fnv.New64()
 	for _, k := range keys {
 		h.Write([]byte(m[k]))
