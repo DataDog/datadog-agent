@@ -196,13 +196,13 @@ jobs:
 workflows:
   version: 2
   test_and_build:
-    filters:
-      branches:
-        only:
-          - master
-          - agent-py2-py3
     jobs:
-      - checkout_code
+      - checkout_code:
+          filters:
+            branches:
+              only:
+                - master
+                - agent-py2-py3
       - dependencies:
           requires:
             - checkout_code
