@@ -48,6 +48,10 @@ type TraceWriter struct {
 	events        []*pb.Span
 	spansInBuffer int
 
+	// bytesInBuffer approximates the size of the buffered traces based
+	// on msgpack's Msgsize estimation.
+	bytesInBuffer int
+
 	sender payloadSender
 	exit   chan struct{}
 }
@@ -185,6 +189,7 @@ func (w *TraceWriter) appendTrace(trace pb.Trace) {
 
 	w.traces = append(w.traces, traceutil.APITrace(trace))
 	w.spansInBuffer += numSpans
+	w.bytesInBuffer += trace.Msgsize()
 }
 
 func (w *TraceWriter) appendEvents(events []*pb.Span) {
@@ -267,6 +272,8 @@ func (w *TraceWriter) resetBuffer() {
 	w.traces = w.traces[:0]
 	w.events = w.events[:0]
 	w.spansInBuffer = 0
+	atomic.AddInt64(&info.InflightBytes, -int64(w.bytesInBuffer))
+	w.bytesInBuffer = 0
 }
 
 func (w *TraceWriter) updateInfo() {

@@ -9,6 +9,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
 
+// InflightBytes represents an approximation of the number of bytes that are currently
+// being processed by the agent. The size is based on an upper bound estimate of the
+// size of traces being processed, as msgpack. It is meant to be a heuristic for evaluating
+// the trace agent's load.
+//
+// This variable is not safe for concurrent use. Use the atomic package to read it.
+var InflightBytes int64
+
 // ReceiverStats is used to store all the stats per tags.
 type ReceiverStats struct {
 	sync.RWMutex
@@ -153,6 +161,8 @@ func (ts *TagStats) publish() {
 	metrics.Count("datadog.trace_agent.receiver.services_bytes", servicesBytes, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.events_extracted", eventsExtracted, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
+
+	metrics.Gauge("datadog.trace_agent.inflight_bytes", float64(atomic.LoadInt64(&InflightBytes)), tags, 1)
 }
 
 // Stats holds the metrics that will be reported every 10s by the agent.

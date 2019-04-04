@@ -235,10 +235,9 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	// We get the address of the struct holding the stats associated to the tags
 	ts := r.Stats.GetTagStats(tags)
 
-	bytesRead := req.Body.(*LimitedReader).Count
-	if bytesRead > 0 {
-		atomic.AddInt64(&ts.TracesBytes, int64(bytesRead))
-	}
+	bytesRead := int64(req.Body.(*LimitedReader).Count)
+	atomic.AddInt64(&ts.TracesBytes, bytesRead)
+	atomic.AddInt64(&info.InflightBytes, int64(traces.Msgsize()))
 
 	// normalize data
 	for _, trace := range traces {
