@@ -152,7 +152,7 @@ func (w *PodWatcher) GetPodForEntityID(entityID string) (*Pod, error) {
 // digestMap return a unique hash for a map
 // used to track changes in labels and annotations values
 func digestMap(m map[string]string) string {
-	if m == nil {
+	if len(m) == 0 {
 		return ""
 	}
 
