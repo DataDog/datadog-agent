@@ -38,7 +38,6 @@ const (
 type PollerConfig struct {
 	gcPeriodSeconds int
 	refreshPeriod   int
-	batchWindow     int
 }
 
 type metricsBatch struct {
@@ -80,17 +79,15 @@ func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInter
 
 	gcPeriodSeconds := config.Datadog.GetInt("hpa_watcher_gc_period")
 	refreshPeriod := config.Datadog.GetInt("external_metrics_provider.refresh_period")
-	batchWindow := config.Datadog.GetInt("external_metrics_provider.batch_window")
 
-	if gcPeriodSeconds <= 0 || refreshPeriod <= 0 || batchWindow <= 0 {
+	if gcPeriodSeconds <= 0 || refreshPeriod <= 0 {
 		return nil, fmt.Errorf("tickers must be strictly positive in the AutoscalersController"+
-			" [GC: %d s, Refresh: %d s, Batchwindow: %d s]", gcPeriodSeconds, refreshPeriod, batchWindow)
+			" [GC: %d s, Refresh: %d s]", gcPeriodSeconds, refreshPeriod)
 	}
 
 	h.poller = PollerConfig{
 		gcPeriodSeconds: gcPeriodSeconds,
 		refreshPeriod:   refreshPeriod,
-		batchWindow:     batchWindow,
 	}
 
 	// Setup the client to process the HPA and metrics
@@ -142,7 +139,6 @@ func (h *AutoscalersController) Run(stopCh <-chan struct{}) {
 func (c *AutoscalersController) processingLoop() {
 	tickerHPARefreshProcess := time.NewTicker(time.Duration(c.poller.refreshPeriod) * time.Second)
 	gcPeriodSeconds := time.NewTicker(time.Duration(c.poller.gcPeriodSeconds) * time.Second)
-	batchFreq := time.NewTicker(time.Duration(c.poller.batchWindow) * time.Second)
 
 	go func() {
 		for {
@@ -159,11 +155,6 @@ func (c *AutoscalersController) processingLoop() {
 					continue
 				}
 				c.gc()
-			case <-batchFreq.C:
-				err := c.pushToGlobalStore()
-				if err != nil {
-					log.Errorf("Error storing the list of External Metrics to the ConfigMap: %v", err)
-				}
 			}
 		}
 	}()
