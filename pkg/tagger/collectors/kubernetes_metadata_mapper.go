@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"fmt"
 	"strings"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
@@ -19,20 +20,18 @@ import (
 
 func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	var err error
-	metadataByNsPods := apiv1.NewNamespacesPodsStringsSet()
-	if c.clusterAgentEnabled {
-		if c.dcaClient.ClusterAgentVersion.Major >= 1 && c.dcaClient.ClusterAgentVersion.Minor >= 3 {
-			var nodeName string
-			nodeName, err = c.kubeUtil.GetNodename()
-			if err != nil {
-				log.Errorf("Could not retrieve the Nodename, err: %v", err)
-				return nil
-			}
-			metadataByNsPods, err = c.dcaClient.GetPodsMetadataForNode(nodeName)
-			if err != nil {
-				log.Debugf("Could not pull the metadata map of pods on node %s from the Datadog Cluster Agent: %s", nodeName, err.Error())
-				return nil
-			}
+	var metadataByNsPods apiv1.NamespacesPodsStringsSet
+	if c.clusterAgentEnabled && c.dcaClient.ClusterAgentVersion.Major >= 1 && c.dcaClient.ClusterAgentVersion.Minor >= 3 {
+		var nodeName string
+		nodeName, err = c.kubeUtil.GetNodename()
+		if err != nil {
+			log.Errorf("Could not retrieve the Nodename, err: %v", err)
+			return nil
+		}
+		metadataByNsPods, err = c.dcaClient.GetPodsMetadataForNode(nodeName)
+		if err != nil {
+			log.Debugf("Could not pull the metadata map of pods on node %s from the Datadog Cluster Agent: %s", nodeName, err.Error())
+			return nil
 		}
 	}
 	var tagInfo []*TagInfo
@@ -60,20 +59,9 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		}
 
 		tagList := utils.NewTagList()
-		if !c.clusterAgentEnabled {
-			metadataNames, err = apiserver.GetPodMetadataNames(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
-			if err != nil {
-				log.Errorf("Could not fetch cluster level tags for the pod %s: %s", po.Metadata.Name, err.Error())
-				continue
-			}
-		} else if c.dcaClient.ClusterAgentVersion.Major >= 1 && c.dcaClient.ClusterAgentVersion.Minor >= 3 {
-			metadataNames = metadataByNsPods[po.Metadata.Namespace][po.Metadata.Name].List()
-		} else {
-			metadataNames, err = c.dcaClient.GetKubernetesMetadataNames(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
-			if err != nil {
-				log.Debugf("Could not pull the metadata map of po %s on node %s from the Datadog Cluster Agent: %s", po.Metadata.Name, po.Spec.NodeName, err.Error())
-				continue
-			}
+		metadataNames, err = c.getMetadaNames(metadataByNsPods, po)
+		if err != nil {
+			log.Errorf("Could not fetch tags, %v", err)
 		}
 		for _, tagDCA := range metadataNames {
 			log.Tracef("Tagging %s with %s", po.Metadata.Name, tagDCA)
@@ -109,6 +97,29 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		}
 	}
 	return tagInfo
+}
+
+func (c *KubeMetadataCollector) getMetadaNames(metadataByNsPods apiv1.NamespacesPodsStringsSet, po *kubelet.Pod) ([]string, error) {
+	if !c.clusterAgentEnabled {
+		metadataNames, err := apiserver.GetPodMetadataNames(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
+		if err != nil {
+			err = fmt.Errorf("Could not fetch cluster level tags of pod: %s, %v", po.Metadata.Name, err)
+		}
+		return metadataNames, err
+	}
+
+	if metadataByNsPods != nil {
+		if data, ok := metadataByNsPods[po.Metadata.Namespace][po.Metadata.Name]; ok && data != nil {
+			return data.List(), nil
+		}
+		return nil, nil
+	}
+
+	metadataNames, err := c.dcaClient.GetKubernetesMetadataNames(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
+	if err != nil {
+		err = fmt.Errorf("Could not pull the metadata map of pod %s on node %s, %v", po.Metadata.Name, po.Spec.NodeName, err)
+	}
+	return metadataNames, err
 }
 
 // addToCacheMetadataMapping is acting like the DCA at the node level.
