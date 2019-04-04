@@ -180,6 +180,11 @@ func (c *NTPCheck) queryOffset() (float64, error) {
 			log.Infof("There was an error querying the ntp host %s: %s", host, err)
 			continue
 		}
+		err = response.Validate()
+		if err != nil {
+			log.Infof("The ntp response is not valid for host %s: %s", host, err)
+			continue
+		}
 		offsets = append(offsets, response.ClockOffset.Seconds())
 	}
 

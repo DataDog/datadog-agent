@@ -33,6 +33,13 @@ func testNTPQueryError(host string, opt ntp.QueryOptions) (*ntp.Response, error)
 	return nil, fmt.Errorf("test error from NTP")
 }
 
+func testNTPQueryInvalid(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+	return &ntp.Response{
+		ClockOffset: time.Duration(offset) * time.Second,
+		Stratum:     20,
+	}, nil
+}
+
 func testNTPQuery(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
 	return &ntp.Response{
 		ClockOffset: time.Duration(offset) * time.Second,
@@ -105,6 +112,34 @@ func TestNTPError(t *testing.T) {
 	var ntpInitCfg = []byte("")
 
 	ntpQuery = testNTPQueryError
+	defer func() { ntpQuery = ntp.QueryWithOptions }()
+
+	ntpCheck := new(NTPCheck)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+
+	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+
+	mockSender.On("ServiceCheck",
+		"ntp.in_sync",
+		metrics.ServiceCheckUnknown,
+		"",
+		[]string(nil),
+		mock.AnythingOfType("string")).Return().Times(1)
+
+	mockSender.On("Commit").Return().Times(1)
+	ntpCheck.Run()
+
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 0)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
+	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestNTPInvalid(t *testing.T) {
+	var ntpCfg = []byte(ntpCfgString)
+	var ntpInitCfg = []byte("")
+
+	ntpQuery = testNTPQueryInvalid
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
