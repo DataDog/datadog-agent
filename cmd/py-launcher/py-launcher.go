@@ -16,8 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// #include "datadog_agent_six.h"
-// #cgo LDFLAGS: -ldatadog-agent-six -ldl
+/*
+#include "datadog_agent_six.h"
+#cgo !windows LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
+#cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
+*/
 import "C"
 
 func main() {
