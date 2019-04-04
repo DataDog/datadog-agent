@@ -22,9 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// #include "datadog_agent_six.h"
-// #cgo LDFLAGS: -ldatadog-agent-six -ldl
 /*
+#include <datadog_agent_six.h>
+#cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
+#cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
+
 void GetVersion(char **);
 void GetHostname(char **);
 void GetClusterName(char **);
@@ -88,13 +90,12 @@ func sendTelemetry(pythonVersion int) {
 func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetInt("python_version")
 
-	pythonHome := ""
 	if pythonVersion == 2 {
 		six = C.make2(C.CString(pythonHome2))
-		pythonHome = pythonHome2
+		PythonHome = pythonHome2
 	} else if pythonVersion == 3 {
 		six = C.make3(C.CString(pythonHome3))
-		pythonHome = pythonHome3
+		PythonHome = pythonHome3
 	} else {
 		return fmt.Errorf("unknown requested version of python: %d", pythonVersion)
 	}
@@ -102,8 +103,8 @@ func Initialize(paths ...string) error {
 	if runtime.GOOS == "windows" {
 		_here, _ := executable.Folder()
 		// on windows, override the hardcoded path set during compile time, but only if that path points to nowhere
-		if _, err := os.Stat(filepath.Join(pythonHome, "lib", "python2.7")); os.IsNotExist(err) {
-			pythonHome = _here
+		if _, err := os.Stat(filepath.Join(PythonHome, "lib", "python2.7")); os.IsNotExist(err) {
+			PythonHome = _here
 		}
 	}
 

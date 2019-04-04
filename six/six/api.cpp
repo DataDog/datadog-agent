@@ -92,6 +92,7 @@ void destroy(six_t *six)
             return;
         }
         destroy(AS_TYPE(Six, six));
+        six_backend = NULL;
     }
 }
 
@@ -99,7 +100,7 @@ void destroy(six_t *six)
 six_t *make2(const char *python_home)
 {
     if (six_backend != NULL) {
-        std::cerr << "Six alrady initialized!" << std::endl;
+        std::cerr << "Six already initialized!" << std::endl;
         return NULL;
     }
     // load library
@@ -126,7 +127,7 @@ six_t *make2(const char *python_home)
 six_t *make3(const char *python_home)
 {
     if (six_backend != NULL) {
-        std::cerr << "Six alrady initialized!" << std::endl;
+        std::cerr << "Six already initialized!" << std::endl;
         return NULL;
     }
 
@@ -162,6 +163,7 @@ void destroy(six_t *six)
             return;
         }
         destroy(AS_TYPE(Six, six));
+        six_backend = NULL;
     }
 }
 #endif
