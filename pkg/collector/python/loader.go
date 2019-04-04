@@ -27,7 +27,7 @@ import (
 )
 
 // #include <stdlib.h>
-// #include "datadog_agent_six.h"
+// #include <datadog_agent_six.h>
 import "C"
 
 var (

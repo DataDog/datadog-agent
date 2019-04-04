@@ -16,7 +16,7 @@ import (
 	"unsafe"
 )
 
-// #include "datadog_agent_six.h"
+// #include <datadog_agent_six.h>
 import "C"
 
 // stickyLock is a convenient wrapper to interact with the Python GIL
