@@ -108,9 +108,9 @@ func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 }
 
 func getInformerFactory() (informers.SharedInformerFactory, error) {
-	timeoutSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
+	//timeoutSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
-	client, err := getKubeClient(timeoutSeconds * time.Second)
+	client, err := getKubeClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
 		return nil, err
