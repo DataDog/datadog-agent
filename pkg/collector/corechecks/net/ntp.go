@@ -28,7 +28,7 @@ const ntpCheckName = "ntp"
 var (
 	ntpExpVar = expvar.NewFloat("ntpOffset")
 	// for testing purpose
-	ntpQuery = ntp.Query
+	ntpQuery = ntp.QueryWithOptions
 )
 
 // NTPCheck only has sender and config
@@ -175,12 +175,12 @@ func (c *NTPCheck) queryOffset() (float64, error) {
 	offsets := []float64{}
 
 	for _, host := range c.cfg.instance.Hosts {
-		response, err := ntpQuery(host, c.cfg.instance.Version)
+		response, err := ntpQuery(host, ntp.QueryOptions{Version: c.cfg.instance.Version})
 		if err != nil {
 			log.Infof("There was an error querying the ntp host %s: %s", host, err)
-		} else {
-			offsets = append(offsets, response.ClockOffset.Seconds())
+			continue
 		}
+		offsets = append(offsets, response.ClockOffset.Seconds())
 	}
 
 	if len(offsets) == 0 {

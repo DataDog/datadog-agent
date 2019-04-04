@@ -20,7 +20,7 @@
 
 [[constraint]]
   name = "github.com/beevik/ntp"
-  revision = "cb3dae3a7588ae35829eb5724df611cd75152fba"
+  version = "~0.2.0"
 
 [[constraint]]
   name = "github.com/cihub/seelog"
