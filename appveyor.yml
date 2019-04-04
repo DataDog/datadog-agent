@@ -23,7 +23,7 @@ environment:
   PYTHON_HOME_3: C:\Python37-x64
 
 install:
-  - set PATH=%APPVEYOR_BUILD_FOLDER%\six\bin;%GOPATH%\bin;%Python2_ROOT_DIR%;%Python2_ROOT_DIR%\Scripts;%Python3_ROOT_DIR%;%Python3_ROOT_DIR%\Scripts;%MSYS_ROOT%\mingw64\bin;%MSYS_ROOT%\usr\bin\;%PATH%
+  - set PATH=%APPVEYOR_BUILD_FOLDER%\dev\lib;%GOPATH%\bin;%Python2_ROOT_DIR%;%Python2_ROOT_DIR%\Scripts;%Python3_ROOT_DIR%;%Python3_ROOT_DIR%\Scripts;%MSYS_ROOT%\mingw64\bin;%MSYS_ROOT%\usr\bin\;%PATH%
   - git clone --depth 1 https://github.com/datadog/integrations-core
   - "%PIP2% install codecov -r requirements.txt"
 
@@ -36,7 +36,7 @@ build: off
 
 test_script:
   - cd six
-  - bash -c "cmake -G \"MSYS Makefiles\" -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH=$GOPATH\src\github.com\DataDog\datadog-agent\dev ."
+  - cmake -G "MSYS Makefiles" -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH=%APPVEYOR_BUILD_FOLDER%\dev .
   - bash -c "make"
   - bash -c "make install"
   - bash -c "make clang-format"
@@ -47,5 +47,5 @@ test_script:
   - codecov -f profile.cov -F windows
 
 # uncomment to debug builds
-# on_finish:
-#  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
+on_finish:
+ - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
