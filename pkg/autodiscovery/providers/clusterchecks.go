@@ -21,7 +21,7 @@ const defaultGraceDuration = 60 * time.Second
 // ClusterChecksConfigProvider implements the ConfigProvider interface
 // for the cluster check feature.
 type ClusterChecksConfigProvider struct {
-	dcaClient      *clusteragent.DCAClient
+	dcaClient      clusteragent.DCAClientInterface
 	graceDuration  time.Duration
 	heartbeat      time.Time
 	lastChange     int64

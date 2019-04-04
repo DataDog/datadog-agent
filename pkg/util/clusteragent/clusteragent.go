@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -38,13 +39,27 @@ var globalClusterAgentClient *DCAClient
 
 type metadataNames []string
 
+// DCAClientInterface  is required to query the API of Datadog cluster agent
+type DCAClientInterface interface {
+	Version() version.Version
+	ClusterAgentAPIEndpoint() string
+
+	GetVersion() (version.Version, error)
+	GetNodeLabels(nodeName string) (map[string]string, error)
+	GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error)
+	GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error)
+
+	PostClusterCheckStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error)
+	GetClusterCheckConfigs(nodeName string) (types.ConfigResponse, error)
+}
+
 // DCAClient is required to query the API of Datadog cluster agent
 type DCAClient struct {
 	// used to setup the DCAClient
 	initRetry retry.Retrier
 
-	ClusterAgentAPIEndpoint       string // ${SCHEME}://${clusterAgentHost}:${PORT}
-	ClusterAgentVersion           string // Version of the cluster-agent we're connected to
+	clusterAgentAPIEndpoint       string          // ${SCHEME}://${clusterAgentHost}:${PORT}
+	ClusterAgentVersion           version.Version // Version of the cluster-agent we're connected to
 	clusterAgentAPIClient         *http.Client
 	clusterAgentAPIRequestHeaders http.Header
 	leaderClient                  *leaderClient
@@ -57,7 +72,7 @@ func resetGlobalClusterAgentClient() {
 }
 
 // GetClusterAgentClient returns or init the DCAClient
-func GetClusterAgentClient() (*DCAClient, error) {
+func GetClusterAgentClient() (DCAClientInterface, error) {
 	if globalClusterAgentClient == nil {
 		globalClusterAgentClient = &DCAClient{}
 		globalClusterAgentClient.initRetry.SetupRetrier(&retry.Config{
@@ -78,7 +93,7 @@ func GetClusterAgentClient() (*DCAClient, error) {
 func (c *DCAClient) init() error {
 	var err error
 
-	c.ClusterAgentAPIEndpoint, err = getClusterAgentEndpoint()
+	c.clusterAgentAPIEndpoint, err = getClusterAgentEndpoint()
 	if err != nil {
 		return err
 	}
@@ -100,12 +115,22 @@ func (c *DCAClient) init() error {
 	if err != nil {
 		return err
 	}
-	log.Infof("Successfully connected to the Datadog Cluster Agent %v", c.ClusterAgentVersion)
+	log.Infof("Successfully connected to the Datadog Cluster Agent %s", c.ClusterAgentVersion.String())
 
 	// Clone the http client in a new client with built-in redirect handler
-	c.leaderClient = newLeaderClient(c.clusterAgentAPIClient, c.ClusterAgentAPIEndpoint)
+	c.leaderClient = newLeaderClient(c.clusterAgentAPIClient, c.clusterAgentAPIEndpoint)
 
 	return nil
+}
+
+// Version returns ClusterAgentVersion already stored in the DCAClient
+func (c *DCAClient) Version() version.Version {
+	return c.ClusterAgentVersion
+}
+
+// ClusterAgentAPIEndpoint returns the Agent API Endpoint URL as a string
+func (c *DCAClient) ClusterAgentAPIEndpoint() string {
+	return c.clusterAgentAPIEndpoint
 }
 
 // getClusterAgentEndpoint provides a validated https endpoint from configuration keys in datadog.yaml:
@@ -171,43 +196,38 @@ func getClusterAgentEndpoint() (string, error) {
 }
 
 // GetVersion fetches the version of the Cluster Agent. Used in the agent status command.
-func (c *DCAClient) GetVersion() (string, error) {
+func (c *DCAClient) GetVersion() (version.Version, error) {
 	const dcaVersionPath = "version"
 	var version version.Version
 	var err error
 
 	// https://host:port/version
-	rawURL := fmt.Sprintf("%s/%s", c.ClusterAgentAPIEndpoint, dcaVersionPath)
+	rawURL := fmt.Sprintf("%s/%s", c.clusterAgentAPIEndpoint, dcaVersionPath)
 
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
-		return "", err
+		return version, err
 	}
 	req.Header = c.clusterAgentAPIRequestHeaders
 
 	resp, err := c.clusterAgentAPIClient.Do(req)
 	if err != nil {
-		return "", err
+		return version, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+		return version, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return version, err
 	}
 
 	err = json.Unmarshal(body, &version)
 
-	if err != nil {
-		return "", err
-	}
-
-	dcaVersion := fmt.Sprintf("%+v", version)
-	return dcaVersion, nil
+	return version, err
 }
 
 // GetNodeLabels returns the node labels from the Cluster Agent.
@@ -217,7 +237,7 @@ func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
 	var labels map[string]string
 
 	// https://host:port/api/v1/tags/node/{nodeName}
-	rawURL := fmt.Sprintf("%s/%s/%s", c.ClusterAgentAPIEndpoint, dcaNodeMeta, nodeName)
+	rawURL := fmt.Sprintf("%s/%s/%s", c.clusterAgentAPIEndpoint, dcaNodeMeta, nodeName)
 
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
@@ -274,7 +294,7 @@ func (c *DCAClient) GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPod
 		}
 	}
 	*/
-	rawURL := fmt.Sprintf("%s/%s/%s", c.ClusterAgentAPIEndpoint, dcaMetadataPath, nodeName)
+	rawURL := fmt.Sprintf("%s/%s/%s", c.clusterAgentAPIEndpoint, dcaMetadataPath, nodeName)
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
 		return nil, err
@@ -320,7 +340,7 @@ func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]
 	}
 
 	// https://host:port/api/v1/metadata/{nodeName}/{ns}/{pod-[0-9a-z]+}
-	rawURL := fmt.Sprintf("%s/%s/%s/%s/%s", c.ClusterAgentAPIEndpoint, dcaMetadataPath, nodeName, ns, podName)
+	rawURL := fmt.Sprintf("%s/%s/%s/%s/%s", c.clusterAgentAPIEndpoint, dcaMetadataPath, nodeName, ns, podName)
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
 		return metadataNames, err
