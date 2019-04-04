@@ -4,12 +4,6 @@ version: 2
 # see https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
 # and https://learnxinyminutes.com/docs/yaml/
 
-general:
-  branches:
-    only:
-      - master
-      - agent-py2-py3
-
 templates:
   job_template: &job_template
     docker:
@@ -202,6 +196,11 @@ jobs:
 workflows:
   version: 2
   test_and_build:
+    filters:
+      branches:
+        only:
+          - master
+          - agent-py2-py3
     jobs:
       - checkout_code
       - dependencies:
