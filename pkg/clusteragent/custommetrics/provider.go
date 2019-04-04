@@ -57,7 +57,7 @@ func NewDatadogProvider(client dynamic.Interface, mapper apimeta.RESTMapper, sto
 
 func (p *datadogProvider) externalMetricsSetter() {
 	log.Infof("Starting async loop to collect External Metrics")
-	tick := time.NewTicker(time.Duration(p.maxAge))
+	tick := time.NewTicker(time.Duration(p.maxAge) * time.Second)
 	out := time.NewTimer(60 * time.Second)
 	for {
 		select {
@@ -130,6 +130,11 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 
 // GetExternalMetric is called by the PodAutoscaler Controller to get the value of the external metric it is currently evaluating.
 func (p *datadogProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
+
+	if time.Now().Unix()-p.timestamp > 2*p.maxAge {
+		return nil, fmt.Errorf("external metrics are outdated")
+	}
+
 	matchingMetrics := []external_metrics.ExternalMetricValue{}
 	for _, metric := range p.externalMetrics {
 		metricFromDatadog := external_metrics.ExternalMetricValue{
