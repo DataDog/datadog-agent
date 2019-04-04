@@ -40,7 +40,7 @@ func getDCAStatus() map[string]string {
 		clusterAgentDetails["DetectionError"] = err.Error()
 		return clusterAgentDetails
 	}
-	clusterAgentDetails["Endpoint"] = dcaCl.ClusterAgentAPIEndpoint
+	clusterAgentDetails["Endpoint"] = dcaCl.ClusterAgentAPIEndpoint()
 
 	ver, err := dcaCl.GetVersion()
 	if err != nil {
