@@ -103,7 +103,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			fmt.Fprintln(color.Output,
-				fmt.Sprintf("%s not existing, no config files to import.",
+				fmt.Sprintf("%s does not exist, no config files to import.",
 					color.BlueString(filepath.Join(oldConfigDir, "conf.d"))),
 			)
 		} else {
@@ -159,7 +159,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			fmt.Fprintln(color.Output,
-				fmt.Sprintf("%s not existing, no auto_conf files to import.",
+				fmt.Sprintf("%s does not exist, no auto_conf files to import.",
 					color.BlueString(filepath.Join(oldConfigDir, "conf.d", "auto_conf"))),
 			)
 		} else {
