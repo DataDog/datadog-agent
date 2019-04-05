@@ -8,7 +8,9 @@
         <br>Check Workers: {{.runnerStats.Workers}}
       {{end}}
       <br>Agent start: {{.agent_start}}
-      <br>Log File: {{.config.log_file}}
+      {{- if .config.log_file}}
+        <br>Log File: {{.config.log_file}}
+      {{end}}
       <br>Log Level: {{.config.log_level}}
       <br>Config File: {{if .conf_file}}{{.conf_file}}
                        {{else}}There is no config file
