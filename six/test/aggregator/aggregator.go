@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/six/test/common"
@@ -99,7 +100,7 @@ try:
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
-		f.write("{}\n".format(e))
+		f.write("{}: {}\n".format(type(e).__name__, e))
 `, call, tmpfile.Name()))
 
 	ret := C.run_simple_string(six, code) == 1
@@ -110,7 +111,7 @@ except Exception as e:
 	var output []byte
 	output, err = ioutil.ReadFile(tmpfile.Name())
 
-	return string(output), err
+	return strings.TrimSpace(string(output)), err
 }
 
 func charArrayToSlice(array **C.char) (res []string) {

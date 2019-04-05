@@ -117,7 +117,101 @@ func TestSetExternalTags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "hostname,source_type,tag1,tag2\nhostname2,source_type2,tag3,tag4\n" {
+	if out != "hostname,source_type,tag1,tag2\nhostname2,source_type2,tag3,tag4" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
+
+func TestSetExternalTagsNotList(t *testing.T) {
+	code := `
+	datadog_agent.set_external_tags({})
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: tags must be a list" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
+
+func TestSetExternalTagsNotTuple(t *testing.T) {
+	code := `
+	datadog_agent.set_external_tags([{}, {}])
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: external host tags list must contain only tuples" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
+
+func TestSetExternalTagsInvalidHostname(t *testing.T) {
+	code := `
+	tags = [
+		(123, {'source_type': ['tag1', 'tag2']}),
+		(456, {'source_type2': ['tag3', 'tag4']}),
+	]
+	datadog_agent.set_external_tags(tags)
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: hostname is not a valid string" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
+
+func TestSetExternalTagsNotDict(t *testing.T) {
+	code := `
+	tags = [
+		("hostname", ('source_type', ['tag1', 'tag2'])),
+		("hostname2", ('source_type2', ['tag3', 'tag4'])),
+	]
+	datadog_agent.set_external_tags(tags)
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: second elem of the host tags tuple must be a dict" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
+
+func TestSetExternalTagInvalidSourceType(t *testing.T) {
+	code := `
+	tags = [
+		('hostname', {'source_type': ['tag1', 'tag2']}),
+		('hostname2', {123: ['tag3', 'tag4']}),
+	]
+	datadog_agent.set_external_tags(tags)
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: source_type is not a valid string" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
+
+func TestSetExternalTagInvalidTagsList(t *testing.T) {
+	code := `
+	tags = [
+		('hostname', {'source_type': {'tag1': 'tag2'}}),
+		('hostname2', {'source_type2': ['tag3', 'tag4']}),
+	]
+	datadog_agent.set_external_tags(tags)
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: dict value must be a list of tags" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 }

@@ -251,17 +251,19 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
 
     // function expects only one positional arg containing a list
     if (!PyArg_ParseTuple(args, "O", &input_list)) {
+        PyErr_SetString(PyExc_TypeError, "wrong parameters type");
         PyGILState_Release(gstate);
-        Py_RETURN_NONE;
+        return NULL;
     }
 
     // if not a list, set an error
     if (!PyList_Check(input_list)) {
-        PyErr_SetString(PyExc_TypeError, "function arg must be a list");
+        PyErr_SetString(PyExc_TypeError, "tags must be a list");
         PyGILState_Release(gstate);
-        Py_RETURN_NONE;
+        return NULL;
     }
 
+    int error = 0;
     char *hostname = NULL;
     char *source_type = NULL;
     int input_len = PyList_Size(input_list);
@@ -272,21 +274,21 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
         // list must contain only tuples in form ('hostname', {'source_type': ['tag1', 'tag2']},)
         if (!PyTuple_Check(tuple)) {
             PyErr_SetString(PyExc_TypeError, "external host tags list must contain only tuples");
-            goto done;
+            goto error;
         }
 
         // first elem is the hostname
         hostname = as_string(PyTuple_GetItem(tuple, 0));
         if (hostname == NULL) {
             PyErr_SetString(PyExc_TypeError, "hostname is not a valid string");
-            goto done;
+            goto error;
         }
 
         // second is a dictionary
         PyObject *dict = PyTuple_GetItem(tuple, 1);
         if (!PyDict_Check(dict)) {
             PyErr_SetString(PyExc_TypeError, "second elem of the host tags tuple must be a dict");
-            goto done;
+            goto error;
         }
 
         // dict contains only 1 key, if dict is empty don't do anything
@@ -300,12 +302,12 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
         source_type = as_string(key);
         if (source_type == NULL) {
             PyErr_SetString(PyExc_TypeError, "source_type is not a valid string");
-            goto done;
+            goto error;
         }
 
         if (!PyList_Check(value)) {
-            PyErr_SetString(PyExc_TypeError, "dict value must be a list of tags ");
-            goto done;
+            PyErr_SetString(PyExc_TypeError, "dict value must be a list of tags");
+            goto error;
         }
 
         // allocate an array of char* to store the tags we'll send to the Go function
@@ -313,7 +315,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
         int tags_len = PyList_Size(value);
         if(!(tags = (char **)malloc(sizeof(*tags)*tags_len+1))) {
             PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
-            goto done;
+            goto error;
         }
         tags[tags_len] = NULL;
 
@@ -335,7 +337,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
                 free(tags);
                 // raise an exception
                 PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
-                goto done;
+                goto error;
             }
             tags[actual_size] = tag;
             actual_size++;
@@ -357,5 +359,13 @@ done:
     if (source_type)
         free(source_type);
     PyGILState_Release(gstate);
+
+    // we need to return NULL to raise the exception set by PyErr_SetString
+    if (error)
+        return NULL;
     Py_RETURN_NONE;
+
+error:
+    error = 1;
+    goto done;
 }
