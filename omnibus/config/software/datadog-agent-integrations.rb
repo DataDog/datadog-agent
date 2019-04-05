@@ -15,15 +15,18 @@ if linux?
   # add nfsiostat script
   dependency 'unixodbc'
   dependency 'nfsiostat'
-end
-
-unless windows?
   # need kerberos for hdfs
   dependency 'libkrb5'
 end
 
 relative_path 'integrations-core'
 whitelist_file "embedded/lib/python2.7"
+
+if osx?
+  # on macOS, the Kerberos shared libraries are provided with the base system
+  # and the pykerberos package expects to be linked against them rather than `libkrb5`
+  whitelist_file "Kerberos"
+end
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
