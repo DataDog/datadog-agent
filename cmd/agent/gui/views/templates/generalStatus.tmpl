@@ -194,7 +194,7 @@
       {{- end }}
       {{- if .errors }}
 
-        <span class="warning stat_subtitle">Errors</span>
+        <span class="error stat_subtitle">Errors</span>
         <span class="stat_subdata">
         {{- range $error := .errors }}
           {{ $error }}</br>
