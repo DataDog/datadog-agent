@@ -24,12 +24,7 @@ type PodWatcher struct {
 	kubeUtil       *KubeUtil
 	expiryDuration time.Duration
 	lastSeen       map[string]time.Time
-	tagsDigests    map[string]digests
-}
-
-type digests struct {
-	labels      string
-	annotations string
+	tagsDigest     map[string]string
 }
 
 // NewPodWatcher creates a new watcher. User call must then trigger PullChanges
@@ -42,7 +37,7 @@ func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 	watcher := &PodWatcher{
 		kubeUtil:       kubeutil,
 		lastSeen:       make(map[string]time.Time),
-		tagsDigests:    make(map[string]digests),
+		tagsDigest:     make(map[string]string),
 		expiryDuration: expiryDuration,
 	}
 	return watcher, nil
@@ -78,7 +73,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 		_, foundPod := w.lastSeen[podEntity]
 
 		if !foundPod {
-			w.tagsDigests[podEntity] = digests{labels: digestMap(pod.Metadata.Labels), annotations: digestMap(pod.Metadata.Annotations)}
+			w.tagsDigest[podEntity] = digestPodMeta(pod.Metadata)
 		}
 
 		// static pods are included specifically because they won't have any container
@@ -101,11 +96,10 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 
 		// Detect changes in labels and annotations values
 		newLabelsOrAnnotations := false
-		labelsDigest := digestMap(pod.Metadata.Labels)
-		annotationsDigest := digestMap(pod.Metadata.Annotations)
-		if foundPod && (labelsDigest != w.tagsDigests[podEntity].labels || annotationsDigest != w.tagsDigests[podEntity].annotations) {
-			// update digests
-			w.tagsDigests[podEntity] = digests{labels: labelsDigest, annotations: annotationsDigest}
+		newTagsDigest := digestPodMeta(pod.Metadata)
+		if foundPod && newTagsDigest != w.tagsDigest[podEntity] {
+			// update tags digest
+			w.tagsDigest[podEntity] = newTagsDigest
 			newLabelsOrAnnotations = true
 		}
 
@@ -136,7 +130,7 @@ func (w *PodWatcher) Expire() ([]string, error) {
 	if len(expiredContainers) > 0 {
 		for _, id := range expiredContainers {
 			delete(w.lastSeen, id)
-			delete(w.tagsDigests, id)
+			delete(w.tagsDigest, id)
 		}
 	}
 	return expiredContainers, nil
@@ -149,9 +143,18 @@ func (w *PodWatcher) GetPodForEntityID(entityID string) (*Pod, error) {
 	return w.kubeUtil.GetPodForEntityID(entityID)
 }
 
-// digestMap return a unique hash for a map
+// digestPodMeta return a unique hash for a pod labels
+// and annotations
+func digestPodMeta(meta PodMetadata) string {
+	h := fnv.New64()
+	h.Write([]byte(digestMapValues(meta.Labels)))
+	h.Write([]byte(digestMapValues(meta.Annotations)))
+	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+// digestMapValues return a unique hash for a map values
 // used to track changes in labels and annotations values
-func digestMap(m map[string]string) string {
+func digestMapValues(m map[string]string) string {
 	if len(m) == 0 {
 		return ""
 	}

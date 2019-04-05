@@ -46,7 +46,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
-		tagsDigests:    make(map[string]digests),
+		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -86,7 +86,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
-		tagsDigests:    make(map[string]digests),
+		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -122,7 +122,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
-		tagsDigests:    make(map[string]digests),
+		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -130,7 +130,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 	require.Nil(suite.T(), err)
 	// 7 pods (including 2 statics) + 5 container statuses (static pods don't report these)
 	require.Len(suite.T(), watcher.lastSeen, 12)
-	require.Len(suite.T(), watcher.tagsDigests, 7)
+	require.Len(suite.T(), watcher.tagsDigest, 7)
 
 	expire, err := watcher.Expire()
 	require.Nil(suite.T(), err)
@@ -152,8 +152,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 	require.Len(suite.T(), expire, 1)
 	require.Equal(suite.T(), testContainerID, expire[0])
 	require.Len(suite.T(), watcher.lastSeen, 11)
-	// 0 pods expired, we'll have all the 7 pods entities in tagsDigests
-	require.Len(suite.T(), watcher.tagsDigests, 7)
+	// 0 pods expired, we'll have all the 7 pods entities in tagsDigest
+	require.Len(suite.T(), watcher.tagsDigest, 7)
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
@@ -163,14 +163,14 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
-		tagsDigests:    make(map[string]digests),
+		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
 
 	_, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), watcher.lastSeen, 12)
-	require.Len(suite.T(), watcher.tagsDigests, 7)
+	require.Len(suite.T(), watcher.tagsDigest, 7)
 
 	expire, err := watcher.Expire()
 	require.Nil(suite.T(), err)
@@ -188,7 +188,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 	_, err = watcher.computeChanges(sourcePods[0:5])
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), watcher.lastSeen, 12)
-	require.Len(suite.T(), watcher.tagsDigests, 7)
+	require.Len(suite.T(), watcher.tagsDigest, 7)
 
 	// That one should expire, we'll have 9 entities left
 	expire, err = watcher.Expire()
@@ -204,8 +204,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 		assert.Contains(suite.T(), expire, expectedEntity)
 	}
 	require.Len(suite.T(), watcher.lastSeen, 9)
-	// Two pods expired, we'll have 7 - 2 pods entities in tagsDigests
-	require.Len(suite.T(), watcher.tagsDigests, 5)
+	// Two pods expired, we'll have 7 - 2 pods entities in tagsDigest
+	require.Len(suite.T(), watcher.tagsDigest, 5)
 }
 
 func (suite *PodwatcherTestSuite) TestPullChanges() {
@@ -239,7 +239,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherLabelsValueChange() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
-		tagsDigests:    make(map[string]digests),
+		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
 	twoPods := sourcePods[:2]
@@ -280,7 +280,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherAnnotationsValueChange() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
-		tagsDigests:    make(map[string]digests),
+		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
 	twoPods := sourcePods[:2]
