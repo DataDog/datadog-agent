@@ -683,7 +683,7 @@ func (ku *KubeUtil) setKubeletHost(hosts *connectionInfo, httpsPort, httpPort in
 		connectionErrors = append(connectionErrors, errors...)
 	}
 
-	log.Debugf("All connection attempts to the Kubelet failed.")
+	log.Debug("All connection attempts to the Kubelet failed.")
 	return fmt.Errorf("cannot set a valid kubelet host: cannot connect to kubelet using any of the given hosts: %v %v, Errors: %v", hosts.ips, hosts.hostnames, connectionErrors)
 }
 
