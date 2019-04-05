@@ -143,8 +143,9 @@ func (w *PodWatcher) GetPodForEntityID(entityID string) (*Pod, error) {
 	return w.kubeUtil.GetPodForEntityID(entityID)
 }
 
-// digestPodMeta return a unique hash for a pod labels
-// and annotations
+// digestPodMeta returns a unique hash of pod labels
+// and annotations.
+// it hashes labels then annotations and makes a single hash of both maps
 func digestPodMeta(meta PodMetadata) string {
 	h := fnv.New64()
 	h.Write([]byte(digestMapValues(meta.Labels)))
@@ -152,8 +153,10 @@ func digestPodMeta(meta PodMetadata) string {
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 
-// digestMapValues return a unique hash for a map values
+// digestMapValues returns a unique hash of map values
 // used to track changes in labels and annotations values
+// it takes into consideration the random keys order in a map
+// by hashing the values after sorting the keys
 func digestMapValues(m map[string]string) string {
 	if len(m) == 0 {
 		return ""
