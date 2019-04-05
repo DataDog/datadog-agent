@@ -55,20 +55,18 @@ PyObject *subprocess_output(PyObject *self, PyObject *args) {
 
     cmd_raise_on_empty = NULL;
     if (!PyArg_ParseTuple(args, "O|O:get_subprocess_output", &cmd_args, &cmd_raise_on_empty)) {
-        PyGILState_Release(gstate);
-        Py_RETURN_NONE;
+        PyErr_SetString(PyExc_TypeError, "wrong parameters type");
+        goto error;
     }
 
     if (!PyList_Check(cmd_args)) {
         PyErr_SetString(PyExc_TypeError, "command args not a list");
-        PyGILState_Release(gstate);
-        Py_RETURN_NONE;
+        goto error;
     }
 
     if (cmd_raise_on_empty != NULL && !PyBool_Check(cmd_raise_on_empty)) {
         PyErr_SetString(PyExc_TypeError, "bad raise_on_empty_argument - should be bool");
-        PyGILState_Release(gstate);
-        Py_RETURN_NONE;
+        goto error;
     }
 
     if (cmd_raise_on_empty != NULL) {
@@ -78,17 +76,15 @@ PyObject *subprocess_output(PyObject *self, PyObject *args) {
     subprocess_args_sz = PyList_Size(cmd_args);
     if (!(subprocess_args = (char **)malloc(sizeof(char *) * subprocess_args_sz))) {
         PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
-        PyGILState_Release(gstate);
-        Py_RETURN_NONE;
+        goto error;
     }
 
     for (i = 0; i < subprocess_args_sz; i++) {
         subprocess_arg = as_string(PyList_GetItem(cmd_args, i));
         if (subprocess_arg == NULL) {
-            PyErr_SetString(PyExc_Exception, "unable to parse arguments to cgo/go-land");
             free(subprocess_args);
-            PyGILState_Release(gstate);
-            Py_RETURN_NONE;
+            PyErr_SetString(PyExc_TypeError, "command argument must be valid strings");
+            goto error;
         }
         subprocess_args[i] = subprocess_arg;
     }
@@ -107,4 +103,9 @@ PyObject *subprocess_output(PyObject *self, PyObject *args) {
         pyOutput = PyStringFromCString(output);
     }
     return pyOutput;
+
+error:
+    PyGILState_Release(gstate);
+    // we need to return NULL to raise the exception set by PyErr_SetString
+    return NULL;
 }
