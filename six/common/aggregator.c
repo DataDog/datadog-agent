@@ -71,9 +71,17 @@ static char **py_tag_to_c(PyObject *py_tags) {
     char *err = NULL;
     PyObject *py_tags_list = NULL; // new reference
 
-    int len = PySequence_Length(py_tags);
-    if (!len)
+    if (!PySequence_Check(py_tags)) {
+        PyErr_SetString(PyExc_TypeError, "tags must be a sequence");
         return NULL;
+    }
+
+    int len = PySequence_Length(py_tags);
+    if (len == 0) {
+        tags = malloc(sizeof(*tags));
+        tags[0] = NULL;
+        return tags;
+    }
 
     py_tags_list = PySequence_Fast(py_tags, err); // new reference
     if (py_tags_list == NULL) {
@@ -116,6 +124,8 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
         Py_RETURN_NONE;
     }
 
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
     PyObject *check = NULL; // borrowed
     PyObject *py_tags = NULL; // borrowed
     char *name = NULL;
@@ -127,7 +137,8 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
 
     // Python call: aggregator.submit_metric(self, check_id, aggregator.metric_type.GAUGE, name, value, tags, hostname)
     if (!PyArg_ParseTuple(args, "OsisfOs", &check, &check_id, &mt, &name, &value, &py_tags, &hostname)) {
-        goto done;
+        PyErr_SetString(PyExc_TypeError, "wrong parameters type");
+        goto error;
     }
 
     if ((tags = py_tag_to_c(py_tags)) == NULL)
@@ -137,8 +148,13 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
 
     free_tags(tags);
 
-done:
+    PyGILState_Release(gstate);
     Py_RETURN_NONE;
+
+error:
+    PyGILState_Release(gstate);
+    // we need to return NULL to raise the exception set by PyErr_SetString
+    return NULL;
 }
 
 static PyObject *submit_service_check(PyObject *self, PyObject *args) {
@@ -160,7 +176,8 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args) {
 
     // aggregator.submit_service_check(self, check_id, name, status, tags, hostname, message)
     if (!PyArg_ParseTuple(args, "OssiOss", &check, &check_id, &name, &status, &py_tags, &hostname, &message)) {
-        goto done;
+        PyErr_SetString(PyExc_TypeError, "wrong parameters type");
+        goto error;
     }
 
     if ((tags = py_tag_to_c(py_tags)) == NULL)
@@ -170,14 +187,21 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args) {
 
     free_tags(tags);
 
-done:
+    PyGILState_Release(gstate);
     Py_RETURN_NONE;
+
+error:
+    PyGILState_Release(gstate);
+    // we need to return NULL to raise the exception set by PyErr_SetString
+    return NULL;
 }
 
 static PyObject *submit_event(PyObject *self, PyObject *args) {
     if (cb_submit_event == NULL) {
         Py_RETURN_NONE;
     }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
 
     PyObject *check = NULL; // borrowed
     PyObject *event_dict = NULL; // borrowed
@@ -187,11 +211,17 @@ static PyObject *submit_event(PyObject *self, PyObject *args) {
 
     // aggregator.submit_event(self, check_id, event)
     if (!PyArg_ParseTuple(args, "OsO", &check, &check_id, &event_dict)) {
-        goto done;
+        PyErr_SetString(PyExc_TypeError, "wrong parameters type");
+        PyGILState_Release(gstate);
+        // returning NULL to raise error
+        return NULL;
     }
 
     if (!PyDict_Check(event_dict)) {
-        goto done;
+        PyErr_SetString(PyExc_TypeError, "event must be a dict");
+        PyGILState_Release(gstate);
+        // returning NULL to raise error
+        return NULL;
     }
 
     // TODO: handle malloc error
@@ -210,14 +240,17 @@ static PyObject *submit_event(PyObject *self, PyObject *args) {
     py_tags = PyDict_GetItemString(event_dict, "tags");
     ev->tags = py_tag_to_c(py_tags);
     if (ev->tags == NULL) {
-        goto done;
+        free(ev);
+        PyGILState_Release(gstate);
+        // we need to return NULL to raise the exception set by PyErr_SetString
+        return NULL;
     }
 
     cb_submit_event(check_id, ev);
 
     free_tags(ev->tags);
 
-done:
     free(ev);
+    PyGILState_Release(gstate);
     Py_RETURN_NONE;
 }

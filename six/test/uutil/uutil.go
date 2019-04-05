@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	common "github.com/DataDog/datadog-agent/six/test/common"
 )
@@ -63,7 +64,7 @@ try:
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
-		f.write("{}\n".format(e))
+		f.write("{}: {}\n".format(type(e).__name__, e))
 `, call, tmpfile.Name()))
 
 	ret := C.run_simple_string(six, code) == 1
@@ -73,7 +74,7 @@ except Exception as e:
 
 	output, err := ioutil.ReadFile(tmpfile.Name())
 
-	return string(output), err
+	return strings.TrimSpace(string(output)), err
 }
 
 //export getSubprocessOutput
