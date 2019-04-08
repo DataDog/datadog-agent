@@ -24,5 +24,5 @@ var (
 )
 
 func authorizedUser() bool {
-	return (os.Geteuid() != 0)
+	return true
 }
