@@ -8,7 +8,7 @@ require 'pathname'
 
 name 'datadog-agent'
 
-dependency 'python'
+dependency 'datadog-agent-six'
 unless windows?
   dependency 'net-snmp-lib'
 end
