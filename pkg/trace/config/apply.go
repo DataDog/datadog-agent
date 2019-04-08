@@ -142,24 +142,28 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			log.Infof("'site' and 'apm_dd_url' are both set, using endpoint: %q", host)
 		}
 	}
-	for url, keys := range config.Datadog.GetStringMapStringSlice("apm_config.additional_endpoints") {
-		if len(keys) == 0 {
-			log.Errorf("'additional_endpoints' entries must have at least one API key present")
-			continue
-		}
-		for _, key := range keys {
-			c.Endpoints = append(c.Endpoints, &Endpoint{Host: url, APIKey: key})
+	if config.Datadog.IsSet("apm_config.additional_endpoints") {
+		for url, keys := range config.Datadog.GetStringMapStringSlice("apm_config.additional_endpoints") {
+			if len(keys) == 0 {
+				log.Errorf("'additional_endpoints' entries must have at least one API key present")
+				continue
+			}
+			for _, key := range keys {
+				c.Endpoints = append(c.Endpoints, &Endpoint{Host: url, APIKey: key})
+			}
 		}
 	}
 
-	proxyList := config.Datadog.GetStringSlice("proxy.no_proxy")
-	noProxy := make(map[string]bool, len(proxyList))
-	for _, host := range proxyList {
-		// map of hosts that need to be skipped by proxy
-		noProxy[host] = true
-	}
-	for _, e := range c.Endpoints {
-		e.NoProxy = noProxy[e.Host]
+	if config.Datadog.IsSet("proxy.no_proxy") {
+		proxyList := config.Datadog.GetStringSlice("proxy.no_proxy")
+		noProxy := make(map[string]bool, len(proxyList))
+		for _, host := range proxyList {
+			// map of hosts that need to be skipped by proxy
+			noProxy[host] = true
+		}
+		for _, e := range c.Endpoints {
+			e.NoProxy = noProxy[e.Host]
+		}
 	}
 	if addr := config.Datadog.GetString("proxy.https"); addr != "" {
 		url, err := url.Parse(addr)
