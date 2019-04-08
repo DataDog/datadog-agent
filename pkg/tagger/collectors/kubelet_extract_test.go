@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet
 
@@ -26,6 +26,7 @@ func TestParsePods(t *testing.T) {
 				Name:  "dd-agent",
 			},
 		},
+		Phase: "Running",
 	}
 	dockerContainerSpec := kubelet.Spec{
 		Containers: []kubelet.ContainerSpec{
@@ -50,6 +51,7 @@ func TestParsePods(t *testing.T) {
 				Name:  "filter",
 			},
 		},
+		Phase: "Pending",
 	}
 	dockerTwoContainersSpec := kubelet.Spec{
 		Containers: []kubelet.ContainerSpec{
@@ -73,6 +75,7 @@ func TestParsePods(t *testing.T) {
 				Name:  "redis-master",
 			},
 		},
+		Phase: "Running",
 	}
 	criContainerSpec := kubelet.Spec{
 		Containers: []kubelet.ContainerSpec{
@@ -124,10 +127,13 @@ func TestParsePods(t *testing.T) {
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{
+					"pod_name:dd-agent-rc-qd876",
 				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"pod_name:dd-agent-rc-qd876",
 					"display_container_name:dd-agent_dd-agent-rc-qd876",
 				},
 			}},
@@ -158,10 +164,12 @@ func TestParsePods(t *testing.T) {
 					LowCardTags: []string{
 						"kube_namespace:default",
 						"kube_daemon_set:dd-agent-rc",
+						"pod_phase:pending",
 					},
-					HighCardTags: []string{
+					OrchestratorCardTags: []string{
 						"pod_name:dd-agent-rc-qd876",
 					},
+					HighCardTags: []string{},
 				},
 				{
 					Source: "kubelet",
@@ -173,10 +181,13 @@ func TestParsePods(t *testing.T) {
 						"image_tag:latest5",
 						"image_name:datadog/docker-dd-agent",
 						"short_image:docker-dd-agent",
+						"pod_phase:pending",
+					},
+					OrchestratorCardTags: []string{
+						"pod_name:dd-agent-rc-qd876",
 					},
 					HighCardTags: []string{
 						"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-						"pod_name:dd-agent-rc-qd876",
 						"display_container_name:dd-agent_dd-agent-rc-qd876",
 					},
 				},
@@ -190,10 +201,13 @@ func TestParsePods(t *testing.T) {
 						"image_tag:latest",
 						"image_name:datadog/docker-filter",
 						"short_image:docker-filter",
+						"pod_phase:pending",
+					},
+					OrchestratorCardTags: []string{
+						"pod_name:dd-agent-rc-qd876",
 					},
 					HighCardTags: []string{
 						"container_id:ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-						"pod_name:dd-agent-rc-qd876",
 						"display_container_name:filter_dd-agent-rc-qd876",
 					},
 				},
@@ -223,7 +237,9 @@ func TestParsePods(t *testing.T) {
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
+					"pod_phase:running",
 				},
+				OrchestratorCardTags: []string{},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 				},
@@ -253,10 +269,13 @@ func TestParsePods(t *testing.T) {
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{
+					"kube_replica_set:frontend-2891696001",
 				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"kube_replica_set:frontend-2891696001",
 				},
 			}},
 		},
@@ -284,10 +303,13 @@ func TestParsePods(t *testing.T) {
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{
+					"kube_replica_set:front-end-768dd754b7",
 				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"kube_replica_set:front-end-768dd754b7",
 				},
 			}},
 		},
@@ -324,7 +346,9 @@ func TestParsePods(t *testing.T) {
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
+					"pod_phase:running",
 				},
+				OrchestratorCardTags: []string{},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
@@ -342,9 +366,11 @@ func TestParsePods(t *testing.T) {
 						"pod-template-hash": "490794276",
 					},
 					Annotations: map[string]string{
-						"noTag":     "don't collect",
-						"GitCommit": "ea38b55f07e40b68177111a2bff1e918132fd5fb",
-						"OwnerTeam": "Kenafeh",
+						"noTag":                          "don't collect",
+						"GitCommit":                      "ea38b55f07e40b68177111a2bff1e918132fd5fb",
+						"OwnerTeam":                      "Kenafeh",
+						"ad.datadoghq.com/tags":          `{"pod_template_version": "1.0.0"}`,
+						"ad.datadoghq.com/dd-agent.tags": `{"agent_version": "6.9.0"}`,
 					},
 				},
 				Status: dockerContainerStatus,
@@ -369,7 +395,11 @@ func TestParsePods(t *testing.T) {
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
+					"pod_template_version:1.0.0",
+					"agent_version:6.9.0",
+					"pod_phase:running",
 				},
+				OrchestratorCardTags: []string{},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
@@ -390,12 +420,18 @@ func TestParsePods(t *testing.T) {
 			},
 			labelsAsTags: map[string]string{},
 			expectedInfo: []*TagInfo{{
-				Source:      "kubelet",
-				Entity:      dockerEntityID,
-				LowCardTags: []string{"kube_container_name:dd-agent", "oshift_deployment_config:gitlab-ce"},
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"kube_container_name:dd-agent",
+					"oshift_deployment_config:gitlab-ce",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{
+					"oshift_deployment:gitlab-ce-1",
+				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"oshift_deployment:gitlab-ce-1",
 				},
 			}},
 		},
@@ -424,13 +460,54 @@ func TestParsePods(t *testing.T) {
 					"image_name:gcr.io/google_containers/redis",
 					"image_tag:e2e",
 					"short_image:redis",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{
+					"kube_replica_set:redis-master-546dc4865f",
+					"pod_name:redis-master-bpnn6",
 				},
 				HighCardTags: []string{
-					"pod_name:redis-master-bpnn6",
 					"display_container_name:redis-master_redis-master-bpnn6",
 					"container_id:acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1",
-					"kube_replica_set:redis-master-546dc4865f",
 				},
+			}},
+		},
+		{
+			desc: "pod labels as tags with wildcards",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Labels: map[string]string{
+						"component":         "kube-proxy",
+						"tier":              "node",
+						"k8s-app":           "kubernetes-dashboard",
+						"pod-template-hash": "490794276",
+					},
+				},
+				Status: dockerContainerStatus,
+				Spec:   dockerContainerSpec,
+			},
+			labelsAsTags: map[string]string{
+				"*":         "foo_%%label%%",
+				"component": "component",
+			},
+			annotationsAsTags: map[string]string{},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"foo_component:kube-proxy",
+					"component:kube-proxy",
+					"foo_tier:node",
+					"foo_k8s-app:kubernetes-dashboard",
+					"foo_pod-template-hash:490794276",
+					"image_name:datadog/docker-dd-agent",
+					"image_tag:latest5",
+					"kube_container_name:dd-agent",
+					"short_image:docker-dd-agent",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"},
 			}},
 		},
 	} {

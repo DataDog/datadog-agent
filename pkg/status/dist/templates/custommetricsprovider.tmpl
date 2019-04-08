@@ -1,0 +1,35 @@
+Custom Metrics Server
+=====================
+  {{- if .custommetrics.Error }}
+  Error: {{ .custommetrics.Error }}
+  {{ else }}
+  {{- if .custommetrics.Disabled }}
+  Disabled: {{ .custommetrics.Disabled }}
+  {{ else }}
+  ConfigMap name: {{ .custommetrics.Cmname }}
+  {{ if .custommetrics.StoreError }}
+  Error: {{ .custommetrics.StoreError }}
+  {{ else }}
+  External Metrics
+  ----------------
+    {{- if .custommetrics.External.ListError }}
+    Error: {{ .custommetrics.External.ListError }}
+    {{ else }}
+    Total: {{ .custommetrics.External.Total }}
+    Valid: {{ .custommetrics.External.Valid }}
+    {{ range $metric := .custommetrics.External.Metrics }}
+    {{- range $name, $value := $metric }}
+    {{- if or (eq $name "hpa") (eq $name "labels") }}
+    {{$name}}:
+    {{- range $k, $v := $value }}
+    - {{$k}}: {{$v}}
+    {{- end -}}
+    {{else}}
+    {{$name}}: {{$value}}
+    {{- end }}
+    {{- end }}
+    {{ end }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+  {{- end }}

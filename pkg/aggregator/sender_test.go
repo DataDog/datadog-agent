@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package aggregator
 
@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	// 3p
 
@@ -21,6 +22,7 @@ import (
 )
 
 func resetAggregator() {
+	recurrentSeries = metrics.Series{}
 	aggregatorInstance = nil
 	aggregatorInit = sync.Once{}
 	senderInstance = nil
@@ -131,6 +133,125 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 
 	assert.Equal(t, "testhostname", checksender.defaultHostname)
 	assert.Equal(t, false, checksender.defaultHostnameDisabled)
+}
+
+func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
+	resetAggregator()
+	InitAggregator(nil, "testhostname", "")
+
+	senderMetricSampleChan := make(chan senderMetricSample, 10)
+	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
+	eventChan := make(chan metrics.Event, 10)
+	checkSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan)
+
+	// no custom tags
+	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType)
+	sms := <-senderMetricSampleChan
+	assert.Nil(t, sms.metricSample.Tags)
+
+	// only tags added by the check
+	checkTags := []string{"check:tag1", "check:tag2"}
+	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType)
+	sms = <-senderMetricSampleChan
+	assert.Equal(t, checkTags, sms.metricSample.Tags)
+
+	// simulate tags in the configuration file
+	customTags := []string{"custom:tag1", "custom:tag2"}
+	checkSender.SetCheckCustomTags(customTags)
+	assert.Len(t, checkSender.checkTags, 2)
+
+	// only tags coming from the configuration file
+	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType)
+	sms = <-senderMetricSampleChan
+	assert.Equal(t, customTags, sms.metricSample.Tags)
+
+	// tags added by the check + tags coming from the configuration file
+	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType)
+	sms = <-senderMetricSampleChan
+	assert.Equal(t, append(checkTags, customTags...), sms.metricSample.Tags)
+}
+
+func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
+	resetAggregator()
+	InitAggregator(nil, "testhostname", "")
+
+	senderMetricSampleChan := make(chan senderMetricSample, 10)
+	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
+	eventChan := make(chan metrics.Event, 10)
+	checkSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan)
+
+	// no custom tags
+	checkSender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", nil, "test message")
+	sc := <-serviceCheckChan
+	assert.Nil(t, sc.Tags)
+
+	// only tags added by the check
+	checkTags := []string{"check:tag1", "check:tag2"}
+	checkSender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
+	sc = <-serviceCheckChan
+	assert.Equal(t, checkTags, sc.Tags)
+
+	// simulate tags in the configuration file
+	customTags := []string{"custom:tag1", "custom:tag2"}
+	checkSender.SetCheckCustomTags(customTags)
+	assert.Len(t, checkSender.checkTags, 2)
+
+	// only tags coming from the configuration file
+	checkSender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", nil, "test message")
+	sc = <-serviceCheckChan
+	assert.Equal(t, customTags, sc.Tags)
+
+	// tags added by the check + tags coming from the configuration file
+	checkSender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
+	sc = <-serviceCheckChan
+	assert.Equal(t, append(checkTags, customTags...), sc.Tags)
+}
+
+func TestGetSenderAddCheckCustomTagsEvent(t *testing.T) {
+	resetAggregator()
+	InitAggregator(nil, "testhostname", "")
+
+	senderMetricSampleChan := make(chan senderMetricSample, 10)
+	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
+	eventChan := make(chan metrics.Event, 10)
+	checkSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan)
+
+	event := metrics.Event{
+		Title: "title",
+		Host:  "testhostname",
+		Ts:    time.Now().Unix(),
+		Text:  "text",
+		Tags:  nil,
+	}
+
+	// no custom tags
+	checkSender.Event(event)
+	e := <-eventChan
+	assert.Nil(t, e.Tags)
+
+	// only tags added by the check
+	checkTags := []string{"check:tag1", "check:tag2"}
+	event.Tags = checkTags
+	checkSender.Event(event)
+	e = <-eventChan
+	assert.Equal(t, checkTags, e.Tags)
+
+	// simulate tags in the configuration file
+	customTags := []string{"custom:tag1", "custom:tag2"}
+	checkSender.SetCheckCustomTags(customTags)
+	assert.Len(t, checkSender.checkTags, 2)
+
+	// only tags coming from the configuration file
+	event.Tags = nil
+	checkSender.Event(event)
+	e = <-eventChan
+	assert.Equal(t, customTags, e.Tags)
+
+	// tags added by the check + tags coming from the configuration file
+	event.Tags = checkTags
+	checkSender.Event(event)
+	e = <-eventChan
+	assert.Equal(t, append(checkTags, customTags...), e.Tags)
 }
 
 func TestCheckSenderInterface(t *testing.T) {

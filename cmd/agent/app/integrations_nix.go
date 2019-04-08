@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build !windows
 // +build cpython
@@ -11,8 +11,6 @@ package app
 import (
 	"os"
 	"path/filepath"
-
-	"github.com/StackVista/stackstate-agent/pkg/util/executable"
 )
 
 const (
@@ -20,24 +18,12 @@ const (
 )
 
 var (
-	relPyPath            = filepath.Join("..", "..", "embedded", "bin", pythonBin)
-	relTufConfigFilePath = filepath.Join("..", "..", tufConfigFile)
-	relTufPipCache       = filepath.Join("..", "..", "repositories", "cache")
+	relPyPath              = filepath.Join("..", "..", "embedded", "bin", pythonBin)
+	relChecksPath          = filepath.Join("..", "..", "embedded", "lib", "python2.7", "site-packages", "datadog_checks")
+	relReqAgentReleasePath = filepath.Join("..", "..", reqAgentReleaseFile)
+	relConstraintsPath     = filepath.Join("..", "..", constraintsFile)
 )
 
 func authorizedUser() bool {
 	return (os.Geteuid() != 0)
-}
-
-func getTUFPipCachePath() (string, error) {
-	here, _ := executable.Folder()
-	cPath := filepath.Join(here, relTufPipCache)
-
-	if _, err := os.Stat(cPath); err != nil {
-		if os.IsNotExist(err) {
-			return cPath, err
-		}
-	}
-
-	return cPath, nil
 }

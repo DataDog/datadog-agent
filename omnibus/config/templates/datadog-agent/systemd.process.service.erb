@@ -2,15 +2,17 @@
 Description="Stackstate Process Agent"
 After=network.target stackstate-agent.service
 BindsTo=stackstate-agent.service
-StartLimitIntervalSec=10
-StartLimitBurst=5
 
 [Service]
 Type=simple
 PIDFile=<%= install_dir %>/run/process-agent.pid
 User=root
 Restart=on-failure
-ExecStart=<%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/stackstate.yaml --pid=<%= install_dir %>/run/process-agent.pid
+ExecStart=<%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/stackstate.yaml --network-config=<%= etc_dir %>/network-tracer.yaml --pid=<%= install_dir %>/run/process-agent.pid
+# Since systemd 229, should be in [Unit] but in order to support systemd <229,
+# it is also supported to have it here.
+StartLimitInterval=10
+StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target

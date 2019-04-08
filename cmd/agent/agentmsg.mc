@@ -111,3 +111,10 @@ Severity=Informational
 Language=English
 The service %1 service is initiating shutdown.
 .
+
+MessageId=15
+SymbolicName=MSG_WARNING_PROGRAMDATA_ERROR
+Severity=Warning
+Language=English
+Unable to determine the location of Program Data using the default value %1.
+.

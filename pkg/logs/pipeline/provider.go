@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package pipeline
 
@@ -9,10 +9,10 @@ import (
 	"sync/atomic"
 
 	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
+	"github.com/StackVista/stackstate-agent/pkg/logs/client"
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/message"
 	"github.com/StackVista/stackstate-agent/pkg/logs/restart"
-	"github.com/StackVista/stackstate-agent/pkg/logs/sender"
 )
 
 // Provider provides message channels
@@ -27,18 +27,20 @@ type provider struct {
 	numberOfPipelines int
 	auditor           *auditor.Auditor
 	outputChan        chan *message.Message
-	endpoints         *config.Endpoints
+	processingRules   []*config.ProcessingRule
+	endpoints         *client.Endpoints
 
 	pipelines            []*Pipeline
 	currentPipelineIndex int32
-	destinationsContext  *sender.DestinationsContext
+	destinationsContext  *client.DestinationsContext
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, endpoints *config.Endpoints, destinationsContext *sender.DestinationsContext) Provider {
+func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) Provider {
 	return &provider{
 		numberOfPipelines:   numberOfPipelines,
 		auditor:             auditor,
+		processingRules:     processingRules,
 		endpoints:           endpoints,
 		pipelines:           []*Pipeline{},
 		destinationsContext: destinationsContext,
@@ -51,7 +53,7 @@ func (p *provider) Start() {
 	p.outputChan = p.auditor.Channel()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.endpoints, p.destinationsContext)
+		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}

@@ -9,24 +9,23 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/metrics"
 )
 
-func TestSourceAreGroupedByIntegrations(t *testing.T) {
-	sources := config.NewLogSources()
-	go func() {
-		sources := sources.GetAddedForType("foo")
-		for range sources {
-			// ensure that another component is consuming the channel to prevent
-			// the producer to get stuck.
-		}
-	}()
-	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}))
-	sources.AddSource(config.NewLogSource("bar", &config.LogsConfig{Type: "foo"}))
-	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}))
+func createSources() *config.LogSources {
+	return CreateSources([]*config.LogSource{
+		config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
+		config.NewLogSource("bar", &config.LogsConfig{Type: "foo"}),
+		config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
+	})
+}
 
-	Initialize(sources)
+func TestSourceAreGroupedByIntegrations(t *testing.T) {
+	defer Clear()
+	createSources()
 
 	status := Get()
 	assert.Equal(t, true, status.IsRunning)
@@ -45,28 +44,28 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 }
 
 func TestStatusDeduplicateWarnings(t *testing.T) {
-	sources := config.NewLogSources()
-	go func() {
-		sources := sources.GetAddedForType("foo")
-		for range sources {
-			// ensure that another component is consuming the channel to prevent
-			// the producer to get stuck.
-		}
-	}()
-	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}))
-	sources.AddSource(config.NewLogSource("bar", &config.LogsConfig{Type: "foo"}))
-	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}))
+	defer Clear()
+	createSources()
 
-	Initialize(sources)
-
-	logSources := sources.GetSources()
-	assert.Equal(t, 3, len(logSources))
-
-	logSources[0].Messages.AddWarning("bar", "Unique Warning")
-	for _, source := range logSources {
-		source.Messages.AddWarning("foo", "Identical Warning")
-	}
+	AddGlobalWarning("bar", "Unique Warning")
+	AddGlobalWarning("foo", "Identical Warning")
+	AddGlobalWarning("foo", "Identical Warning")
+	AddGlobalWarning("foo", "Identical Warning")
 
 	status := Get()
-	assert.ElementsMatch(t, []string{"Identical Warning", "Unique Warning"}, status.Messages)
+	assert.ElementsMatch(t, []string{"Identical Warning", "Unique Warning"}, status.Warnings)
+
+	RemoveGlobalWarning("foo")
+	status = Get()
+	assert.ElementsMatch(t, []string{"Unique Warning"}, status.Warnings)
+}
+
+func TestMetrics(t *testing.T) {
+	defer Clear()
+	Clear()
+	assert.Equal(t, metrics.LogsExpvars.String(), `{"DestinationErrors": 0, "DestinationLogsDropped": {}, "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": ""}`)
+
+	createSources()
+	AddGlobalWarning("bar", "Unique Warning")
+	assert.Equal(t, metrics.LogsExpvars.String(), `{"DestinationErrors": 0, "DestinationLogsDropped": {}, "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": "Unique Warning"}`)
 }

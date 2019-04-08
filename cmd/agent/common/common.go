@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // Package common provides a set of common symbols needed by different packages,
 // to avoid circular dependencies.
 package common
 
 import (
+	"context"
 	"path/filepath"
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery"
@@ -34,6 +35,12 @@ var (
 
 	// Forwarder is the global forwarder instance
 	Forwarder forwarder.Forwarder
+
+	// MainCtx is the main agent context passed to components
+	MainCtx context.Context
+
+	// MainCtxCancel cancels the main agent context
+	MainCtxCancel context.CancelFunc
 
 	// utility variables
 	_here, _ = executable.Folder()

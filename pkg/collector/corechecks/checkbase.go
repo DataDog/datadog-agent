@@ -32,6 +32,9 @@ import (
 // Integration warnings are handled via the Warn and Warnf methods
 // that forward the warning to the logger and send the warning to
 // the collector for display in the status page and the web UI.
+//
+// If custom tags are set in the instance configuration, they will
+// be automatically appended to each send done by this check.
 type CheckBase struct {
 	checkName      string
 	checkID        check.ID
@@ -84,12 +87,23 @@ func (c *CheckBase) CommonConfigure(instance integration.Data) error {
 		}
 		s.DisableDefaultHostname(true)
 	}
+
+	// Set custom tags configured for this check
+	if len(commonOptions.Tags) > 0 {
+		s, err := aggregator.GetSender(c.checkID)
+		if err != nil {
+			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+			return err
+		}
+		s.SetCheckCustomTags(commonOptions.Tags)
+	}
+
 	return nil
 }
 
 // Warn sends an integration warning to logs + agent status.
 func (c *CheckBase) Warn(v ...interface{}) error {
-	w := log.Warn(v)
+	w := log.Warn(v...)
 	c.latestWarnings = append(c.latestWarnings, w)
 
 	return w
@@ -97,7 +111,7 @@ func (c *CheckBase) Warn(v ...interface{}) error {
 
 // Warnf sends an integration warning to logs + agent status.
 func (c *CheckBase) Warnf(format string, params ...interface{}) error {
-	w := log.Warnf(format, params)
+	w := log.Warnf(format, params...)
 	c.latestWarnings = append(c.latestWarnings, w)
 
 	return w

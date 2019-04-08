@@ -1,0 +1,91 @@
+{
+	"Cluster": "pierrem-test-fargate",
+	"TaskARN": "arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
+	"Family": "redis-datadog",
+	"Revision": "1",
+	"DesiredStatus": "RUNNING",
+	"KnownStatus": "RUNNING",
+	"Containers": [{
+		"DockerId": "e8d4a9a20a0d931f8f632ec166b3f71a6ff00450aa7e99607f650e586df7d068",
+		"Name": "dd-agent",
+		"DockerName": "ecs-redis-datadog-1-dd-agent-8085fa82d1d3ada5a601",
+		"Image": "datadog/docker-dd-agent:latest",
+		"ImageID": "sha256:433a6611eda07d174fde678200684d02bfd899d54c840ec602a59806a323b3e0",
+		"Labels": {
+			"com.amazonaws.ecs.cluster": "pierrem-test-fargate",
+			"com.amazonaws.ecs.container-name": "dd-agent",
+			"com.amazonaws.ecs.task-arn": "arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
+			"com.amazonaws.ecs.task-definition-family": "redis-datadog",
+			"com.amazonaws.ecs.task-definition-version": "1"
+		},
+		"DesiredStatus": "RUNNING",
+		"KnownStatus": "RUNNING",
+		"Limits": {
+			"CPU": 100,
+			"Memory": 256
+		},
+		"CreatedAt": "2017-11-22T17:59:46.13450365Z",
+		"StartedAt": "2017-11-22T17:59:46.702879205Z",
+		"Type": "NORMAL",
+		"Networks": [{
+			"NetworkMode": "awsvpc",
+			"IPv4Addresses": ["10.0.0.92"]
+		}]
+	}, {
+		"DockerId": "c912d0f0f204360ee90ce67c0d083c3514975f149b854f38a48deac611e82e48",
+		"Name": "redis",
+		"DockerName": "ecs-redis-datadog-1-redis-ce99d29f8ce998ed4a00",
+		"Image": "redis:latest",
+		"ImageID": "sha256:8f2e175b3bd129fd9416df32a0e51f36632e3ab82c5608b4030590ad79f0be12",
+		"Labels": {
+			"com.amazonaws.ecs.cluster": "pierrem-test-fargate",
+			"com.amazonaws.ecs.container-name": "redis",
+			"com.amazonaws.ecs.task-arn": "arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
+			"com.amazonaws.ecs.task-definition-family": "redis-datadog",
+			"com.amazonaws.ecs.task-definition-version": "1"
+		},
+		"DesiredStatus": "RUNNING",
+		"KnownStatus": "RUNNING",
+		"Limits": {
+			"CPU": 100,
+			"Memory": 256
+		},
+		"CreatedAt": "2017-11-22T17:59:46.136226499Z",
+		"StartedAt": "2017-11-22T17:59:46.680058585Z",
+		"Type": "NORMAL",
+		"Networks": [{
+			"NetworkMode": "awsvpc",
+			"IPv4Addresses": ["10.0.0.92"]
+		}]
+	}, {
+		"DockerId": "39e13ccc425e7777187a603fe33f466a18515030707c4063de1dc1b63d14d411",
+		"Name": "~internal~ecs~pause",
+		"DockerName": "ecs-redis-datadog-1-internalecspause-a2df9cefc2938ec19e01",
+		"Image": "amazon/amazon-ecs-pause:0.1.0",
+		"ImageID": "",
+		"Labels": {
+			"com.amazonaws.ecs.cluster": "pierrem-test-fargate",
+			"com.amazonaws.ecs.container-name": "~internal~ecs~pause",
+			"com.amazonaws.ecs.task-arn": "arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
+			"com.amazonaws.ecs.task-definition-family": "redis-datadog",
+			"com.amazonaws.ecs.task-definition-version": "1"
+		},
+		"DesiredStatus": "RESOURCES_PROVISIONED",
+		"KnownStatus": "RESOURCES_PROVISIONED",
+		"Limits": {
+			"CPU": 0,
+			"Memory": 0
+		},
+		"CreatedAt": "2017-11-22T17:59:44.393341638Z",
+		"StartedAt": "2017-11-22T17:59:44.686850724Z",
+		"Type": "CNI_PAUSE",
+		"Networks": [{
+			"NetworkMode": "awsvpc",
+			"IPv4Addresses": ["10.0.0.92"]
+		}]
+	}],
+	"Limits": {
+		"CPU": 0,
+		"Memory": 0
+	}
+}

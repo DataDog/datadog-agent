@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -148,6 +148,44 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			list, err = store.ListAllExternalMetricValues()
 			require.NoError(t, err)
 			assert.Empty(t, list)
+		})
+	}
+}
+
+func TestExternalMetricValueKeyFunc(t *testing.T) {
+	test := []struct {
+		desc   string
+		emval  ExternalMetricValue
+		output string
+	}{
+		{
+			desc: "default case",
+			emval: ExternalMetricValue{
+				MetricName: "foo",
+				HPA: ObjectReference{
+					Name:      "bar",
+					Namespace: "default",
+				},
+			},
+			output: "external_metric-default-bar-foo",
+		},
+		{
+			desc: "custom case",
+			emval: ExternalMetricValue{
+				MetricName: "FoO",
+				HPA: ObjectReference{
+					Name:      "bar",
+					Namespace: "DefauLt",
+				},
+			},
+			output: "external_metric-DefauLt-bar-FoO",
+		},
+	}
+
+	for i, tt := range test {
+		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
+			out := externalMetricValueKeyFunc(tt.emval)
+			assert.Equal(t, tt.output, out)
 		})
 	}
 }

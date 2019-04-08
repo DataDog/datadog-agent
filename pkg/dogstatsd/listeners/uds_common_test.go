@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build !windows
 // UDS won't work in windows
@@ -56,7 +56,8 @@ func TestNewUDSListener(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(dir) // clean up
 	socketPath := filepath.Join(dir, "dsd.socket")
-	config.Datadog.Set("dogstatsd_socket", socketPath)
+	mockConfig := config.Mock()
+	mockConfig.Set("dogstatsd_socket", socketPath)
 
 	t.Run("fail_file_exists", func(tt *testing.T) {
 		testFileExistsNewUDSListener(tt, socketPath)
@@ -75,8 +76,9 @@ func TestStartStopUDSListener(t *testing.T) {
 	defer os.RemoveAll(dir) // clean up
 	socketPath := filepath.Join(dir, "dsd.socket")
 
-	config.Datadog.Set("dogstatsd_socket", socketPath)
-	config.Datadog.Set("dogstatsd_origin_detection", false)
+	mockConfig := config.Mock()
+	mockConfig.Set("dogstatsd_socket", socketPath)
+	mockConfig.Set("dogstatsd_origin_detection", false)
 	s, err := NewUDSListener(nil, packetPoolUDS)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
@@ -97,13 +99,14 @@ func TestUDSReceive(t *testing.T) {
 	defer os.RemoveAll(dir) // clean up
 	socketPath := filepath.Join(dir, "dsd.socket")
 
-	config.Datadog.Set("dogstatsd_socket", socketPath)
-	config.Datadog.Set("dogstatsd_origin_detection", false)
+	mockConfig := config.Mock()
+	mockConfig.Set("dogstatsd_socket", socketPath)
+	mockConfig.Set("dogstatsd_origin_detection", false)
 
 	var contents = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
 
-	packetChannel := make(chan *Packet)
-	s, err := NewUDSListener(packetChannel, packetPoolUDS)
+	packetsChannel := make(chan Packets)
+	s, err := NewUDSListener(packetsChannel, packetPoolUDS)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -115,8 +118,10 @@ func TestUDSReceive(t *testing.T) {
 	conn.Write(contents)
 
 	select {
-	case packet := <-packetChannel:
+	case packets := <-packetsChannel:
+		packet := packets[0]
 		assert.NotNil(t, packet)
+		assert.Equal(t, 1, len(packets))
 		assert.Equal(t, packet.Contents, contents)
 		assert.Equal(t, packet.Origin, "")
 	case <-time.After(2 * time.Second):

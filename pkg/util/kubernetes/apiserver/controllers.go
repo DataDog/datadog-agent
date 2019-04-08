@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -29,6 +29,10 @@ var controllerCatalog = map[string]controllerFuncs{
 	"autoscalers": {
 		func() bool { return config.Datadog.GetBool("external_metrics_provider.enabled") },
 		startAutoscalersController,
+	},
+	"services": {
+		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
+		startServicesInformer,
 	},
 }
 
@@ -86,6 +90,14 @@ func startAutoscalersController(ctx ControllerContext) error {
 		return err
 	}
 	go autoscalersController.Run(ctx.StopCh)
+
+	return nil
+}
+
+func startServicesInformer(ctx ControllerContext) error {
+	// Just start the shared informer, the autodiscovery
+	// components will access it when needed.
+	go ctx.InformerFactory.Core().V1().Services().Informer().Run(ctx.StopCh)
 
 	return nil
 }

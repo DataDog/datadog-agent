@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package flare
 
@@ -70,8 +70,13 @@ func getWhitelistedEnvvars() []string {
 	var found []string
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)
+		key := strings.ToUpper(parts[0])
+		if strings.Contains(key, "_KEY") {
+			// `_key`-suffixed env vars are sensitive: don't track them
+			continue
+		}
 		for _, whitelisted := range envVarWhiteList {
-			if parts[0] == whitelisted {
+			if key == whitelisted {
 				found = append(found, envvar)
 				continue
 			}

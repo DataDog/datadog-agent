@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package aggregator
 
@@ -35,6 +35,7 @@ type Sender interface {
 	Event(e metrics.Event)
 	GetMetricStats() map[string]int64
 	DisableDefaultHostname(disable bool)
+	SetCheckCustomTags(tags []string)
 }
 
 type metricStats struct {
@@ -61,6 +62,7 @@ type checkSender struct {
 	smsOut                  chan<- senderMetricSample
 	serviceCheckOut         chan<- metrics.ServiceCheck
 	eventOut                chan<- metrics.Event
+	checkTags               []string
 }
 
 type senderMetricSample struct {
@@ -152,6 +154,12 @@ func (s *checkSender) DisableDefaultHostname(disable bool) {
 	s.defaultHostnameDisabled = disable
 }
 
+// SetCheckCustomTags stores the tags set in the check configuration file.
+// They will be appended to each send (metric, event and service)
+func (s *checkSender) SetCheckCustomTags(tags []string) {
+	s.checkTags = tags
+}
+
 // Commit commits the metric samples that were added during a check run
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
@@ -191,6 +199,8 @@ func (s *checkSender) SendRawMetricSample(sample *metrics.MetricSample) {
 }
 
 func (s *checkSender) sendMetricSample(metric string, value float64, hostname string, tags []string, mType metrics.MetricType) {
+	tags = append(tags, s.checkTags...)
+
 	log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
 
 	metricSample := &metrics.MetricSample{
@@ -267,7 +277,7 @@ func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheck
 		Status:    status,
 		Host:      hostname,
 		Ts:        time.Now().Unix(),
-		Tags:      tags,
+		Tags:      append(tags, s.checkTags...),
 		Message:   message,
 	}
 
@@ -284,6 +294,8 @@ func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheck
 
 // Event submits an event
 func (s *checkSender) Event(e metrics.Event) {
+	e.Tags = append(e.Tags, s.checkTags...)
+
 	log.Trace("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
 
 	if e.Host == "" && !s.defaultHostnameDisabled {

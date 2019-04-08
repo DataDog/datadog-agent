@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -24,7 +24,7 @@ func makeConfigArray(configMap map[string]integration.Config) []integration.Conf
 	return configSlice
 }
 
-// timestampNow provides a consistent way to keep a timestamp
+// timestampNow provides a consistent way to keep a seconds timestamp
 func timestampNow() int64 {
 	return time.Now().Unix()
 }

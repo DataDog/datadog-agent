@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build cpython
 
@@ -41,7 +41,7 @@ func SubmitMetric(check *C.PyObject, checkID *C.char, mt C.MetricType, name *C.c
 
 	_name := C.GoString(name)
 	_value := float64(value)
-	_tags, err := extractTags(tags)
+	_tags, err := extractTags(tags, goCheckID)
 	if err != nil {
 		log.Error(err)
 		return nil
@@ -85,7 +85,7 @@ func SubmitServiceCheck(check *C.PyObject, checkID *C.char, name *C.char, status
 
 	_name := C.GoString(name)
 	_status := metrics.ServiceCheckStatus(status)
-	_tags, err := extractTags(tags)
+	_tags, err := extractTags(tags, goCheckID)
 	if err != nil {
 		log.Error(err)
 		return nil
@@ -118,7 +118,7 @@ func SubmitEvent(check *C.PyObject, checkID *C.char, event *C.PyObject) *C.PyObj
 		return C._none()
 	}
 
-	_event, err := extractEventFromDict(event)
+	_event, err := extractEventFromDict(event, goCheckID)
 	if err != nil {
 		log.Error(err)
 		return nil
@@ -132,7 +132,7 @@ func SubmitEvent(check *C.PyObject, checkID *C.char, event *C.PyObject) *C.PyObj
 // extractEventFromDict returns an `Event` populated with the fields of the passed event py object
 // The caller needs to check the returned `error`, any non-nil value indicates that the error flag is set
 // on the python interpreter.
-func extractEventFromDict(event *C.PyObject) (metrics.Event, error) {
+func extractEventFromDict(event *C.PyObject, checkID string) (metrics.Event, error) {
 	// Extract all string values
 	// Values that should be extracted from the python event dict as strings
 	eventStringValues := map[string]string{
@@ -191,7 +191,7 @@ func extractEventFromDict(event *C.PyObject) (metrics.Event, error) {
 
 	tags := C.PyDict_GetItemString(event, pyKey) // borrowed ref
 	if tags != nil {
-		_tags, err := extractTags(tags)
+		_tags, err := extractTags(tags, checkID)
 		if err != nil {
 			return _event, err
 		}
@@ -204,7 +204,7 @@ func extractEventFromDict(event *C.PyObject) (metrics.Event, error) {
 // extractTags returns a slice with the contents of the passed non-nil py object.
 // The caller needs to check the returned `error`, any non-nil value indicates that the error flag is set
 // on the python interpreter.
-func extractTags(tags *C.PyObject) (_tags []string, err error) {
+func extractTags(tags *C.PyObject, checkID string) (_tags []string, err error) {
 	if !isNone(tags) {
 		if int(C.PySequence_Check(tags)) == 0 {
 			log.Errorf("Submitted `tags` is not a sequence, ignoring tags")
@@ -226,7 +226,9 @@ func extractTags(tags *C.PyObject) (_tags []string, err error) {
 		for i = 0; i < C.PySequence_Fast_Get_Size(seq); i++ {
 			item := C.PySequence_Fast_Get_Item(seq, i) // `item` is borrowed, no need to decref
 			if int(C._PyString_Check(item)) == 0 {
-				log.Errorf("One of the submitted tag is not a string, ignoring it")
+				typeName := C.GoString(C._object_type(item))
+				stringRepr := stringRepresentation(item)
+				log.Infof("One of the submitted tags for the check with ID %s is not a string but a %s: %s, ignoring it", checkID, typeName, stringRepr)
 				continue
 			}
 			// at this point we're sure that `item` is a string, no further error checking needed
@@ -239,6 +241,17 @@ func extractTags(tags *C.PyObject) (_tags []string, err error) {
 
 func isNone(o *C.PyObject) bool {
 	return int(C._is_none(o)) != 0
+}
+
+func stringRepresentation(o *C.PyObject) string {
+	repr := C._PyObject_Repr(o)
+	if repr != nil {
+		defer C.Py_DecRef(repr)
+		return C.GoString(C.PyString_AsString(repr))
+	}
+	// error flag is set, not interesting to us so we can simply clear it
+	C.PyErr_Clear()
+	return ""
 }
 
 func initAPI() {

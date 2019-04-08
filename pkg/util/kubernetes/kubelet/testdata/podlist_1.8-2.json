@@ -557,7 +557,8 @@
         "annotations": {
           "kubernetes.io/config.seen": "2018-02-01T14:11:54.674242999+01:00",
           "kubernetes.io/config.source": "api",
-          "kubernetes.io/created-by": "{\"kind\":\"SerializedReference\",\"apiVersion\":\"v1\",\"reference\":{\"kind\":\"ReplicaSet\",\"namespace\":\"default\",\"name\":\"nginx-99d8b564\",\"uid\":\"7977f3ec-0751-11e8-a2b8-000c29dea4f6\",\"apiVersion\":\"extensions\",\"resourceVersion\":\"3995\"}}\n"
+          "kubernetes.io/created-by": "{\"kind\":\"SerializedReference\",\"apiVersion\":\"v1\",\"reference\":{\"kind\":\"ReplicaSet\",\"namespace\":\"default\",\"name\":\"nginx-99d8b564\",\"uid\":\"7977f3ec-0751-11e8-a2b8-000c29dea4f6\",\"apiVersion\":\"extensions\",\"resourceVersion\":\"3995\"}}\n",
+          "ad.datadoghq.com/tolerate-unready": "true"
         },
         "ownerReferences": [
           {
@@ -643,7 +644,7 @@
           },
           {
             "type": "Ready",
-            "status": "True",
+            "status": "False",
             "lastProbeTime": null,
             "lastTransitionTime": "2018-02-01T13:12:17Z"
           },
@@ -783,6 +784,150 @@
           }
         ],
         "qosClass": "BestEffort"
+      }
+    },
+    {
+      "status": {
+          "phase": "Pending",
+          "conditions": [
+              {
+                  "status": "True",
+                  "lastProbeTime": null,
+                  "type": "PodScheduled",
+                  "lastTransitionTime": "2018-02-13T16:10:24Z"
+              }
+          ]
+      },
+      "spec": {
+          "dnsPolicy": "ClusterFirst",
+          "securityContext": {},
+          "nodeName": "gke-haissam-default-pool-be5066f1-wnvn",
+          "schedulerName": "default-scheduler",
+          "hostNetwork": true,
+          "terminationGracePeriodSeconds": 30,
+          "restartPolicy": "Always",
+          "volumes": [
+              {
+                  "hostPath": {
+                      "path": "/usr/share/ca-certificates",
+                      "type": ""
+                  },
+                  "name": "usr-ca-certs"
+              },
+              {
+                  "hostPath": {
+                      "path": "/etc/ssl/certs",
+                      "type": ""
+                  },
+                  "name": "etc-ssl-certs"
+              },
+              {
+                  "hostPath": {
+                      "path": "/var/lib/kube-proxy/kubeconfig",
+                      "type": "FileOrCreate"
+                  },
+                  "name": "kubeconfig"
+              },
+              {
+                  "hostPath": {
+                      "path": "/var/log",
+                      "type": ""
+                  },
+                  "name": "varlog"
+              },
+              {
+                  "hostPath": {
+                      "path": "/run/xtables.lock",
+                      "type": "FileOrCreate"
+                  },
+                  "name": "iptableslock"
+              },
+              {
+                  "hostPath": {
+                      "path": "/lib/modules",
+                      "type": ""
+                  },
+                  "name": "lib-modules"
+              }
+          ],
+          "tolerations": [
+              {
+                  "operator": "Exists",
+                  "effect": "NoExecute"
+              },
+              {
+                  "operator": "Exists",
+                  "effect": "NoSchedule"
+              }
+          ],
+          "containers": [
+              {
+                  "terminationMessagePath": "/dev/termination-log",
+                  "name": "kube-proxy",
+                  "image": "gcr.io/google_containers/kube-proxy:v1.9.2-gke.1",
+                  "volumeMounts": [
+                      {
+                          "readOnly": true,
+                          "mountPath": "/etc/ssl/certs",
+                          "name": "etc-ssl-certs"
+                      },
+                      {
+                          "readOnly": true,
+                          "mountPath": "/usr/share/ca-certificates",
+                          "name": "usr-ca-certs"
+                      },
+                      {
+                          "mountPath": "/var/log",
+                          "name": "varlog"
+                      },
+                      {
+                          "mountPath": "/var/lib/kube-proxy/kubeconfig",
+                          "name": "kubeconfig"
+                      },
+                      {
+                          "mountPath": "/run/xtables.lock",
+                          "name": "iptableslock"
+                      },
+                      {
+                          "readOnly": true,
+                          "mountPath": "/lib/modules",
+                          "name": "lib-modules"
+                      }
+                  ],
+                  "terminationMessagePolicy": "File",
+                  "command": [
+                      "/bin/sh",
+                      "-c",
+                      "exec kube-proxy --master=https://35.189.248.80 --kubeconfig=/var/lib/kube-proxy/kubeconfig --cluster-cidr=10.8.0.0/14 --resource-container=\"\" --oom-score-adj=-998 --v=2 --feature-gates=ExperimentalCriticalPodAnnotation=true --iptables-sync-period=1m --iptables-min-sync-period=10s --ipvs-sync-period=1m --ipvs-min-sync-period=10s 1>>/var/log/kube-proxy.log 2>&1"
+                  ],
+                  "imagePullPolicy": "IfNotPresent",
+                  "securityContext": {
+                      "privileged": true
+                  },
+                  "resources": {
+                      "requests": {
+                          "cpu": "100m"
+                      }
+                  }
+              }
+          ]
+      },
+      "metadata": {
+          "name": "kube-proxy-gke-haissam-default-pool-be5066f1-wnvn",
+          "labels": {
+              "tier": "node",
+              "component": "kube-proxy"
+          },
+          "namespace": "kube-system",
+          "creationTimestamp": null,
+          "annotations": {
+              "scheduler.alpha.kubernetes.io/critical-pod": "",
+              "kubernetes.io/config.hash": "260c2b1d43b094af6d6b4ccba082c2db",
+              "kubernetes.io/config.source": "http",
+              "kubernetes.io/config.seen": "2018-02-13T16:10:19.507814572Z"
+          },
+          "selfLink": "/api/v1/namespaces/kube-system/pods/kube-proxy-gke-haissam-default-pool-be5066f1-wnvn",
+          "uid": "260c2b1d43b094af6d6b4ccba082c2db"
       }
     }
   ]

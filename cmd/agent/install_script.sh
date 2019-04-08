@@ -66,6 +66,10 @@ if [ -n "$STS_API_KEY" ]; then
     api_key=$STS_API_KEY
 fi
 
+if [ -n "$STS_SITE" ]; then
+    site="$STS_SITE"
+fi
+
 if [ -n "$STS_URL" ]; then
     sts_url=$STS_URL
 fi
@@ -159,6 +163,9 @@ elif [ $OS = "Debian" ]; then
     if [ ! -z "$cache_output" ]; then
       $sudo_cmd apt-get install -y dirmngr
     fi
+    printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
+    $sudo_cmd sh -c "echo 'deb https://apt.${repo_url}/ stable 6' > /etc/apt/sources.list.d/datadog.list"
+    $sudo_cmd apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 382E94DE
 
     print_blu "* Configuring APT package sources for StackState\n"
     $sudo_cmd sh -c "echo 'deb $DEBIAN_REPO $code_name main' > /etc/apt/sources.list.d/stackstate.list"

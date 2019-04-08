@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2018 Datadog, Inc.
+# Copyright 2016-2019 Datadog, Inc.
 
 require "./lib/ostools.rb"
 
@@ -21,10 +21,9 @@ else
   maintainer 'StackState <info@stackstate.com>'
 end
 
-build_version do
-  source :git
-  output_format :dd_agent_format
-end
+# build_version is computed by an invoke command/function.
+# We can't call it directly from there, we pass it through the environment instead.
+build_version ENV['PACKAGE_VERSION']
 
 build_iteration 1
 
@@ -84,8 +83,8 @@ package :msi do
   wix_light_extension 'WixUtilExtension'
   extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\stackstate-agent\\extra_package_files"
   additional_sign_files [
-      "#{install_dir}\\bin\\agent\\trace-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
+      "#{Omnibus::Config.source_dir()}\\stackstate-agent\\src\\github.com\\StackVista\\stackstate-agent\\bin\\agent\\trace-agent.exe",
+      "#{Omnibus::Config.source_dir()}\\stackstate-agent\\src\\github.com\\StackVista\\stackstate-agent\\bin\\agent\\agent.exe"
     ]
   if ENV['SIGN_WINDOWS']
     signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
@@ -109,7 +108,7 @@ if linux?
   dependency 'curl'
 end
 
-dependency 'cacerts_override' # [VS] _override
+dependency 'cacerts'
 # creates required build directories
 dependency 'datadog-agent-prepare'
 
@@ -123,11 +122,12 @@ dependency 'datadog-agent'
 # Additional software
 dependency 'pip'
 dependency 'datadog-agent-integrations'
+dependency 'datadog-a7'
+dependency 'datadog-agent-env-check'
 dependency 'jmxfetch'
 
 # External agents
-dependency 'datadog-trace-agent'
-dependency 'datadog-process-agent'
+dependency 'datadog-process-agent' # Includes network-tracer
 
 if osx?
   dependency 'datadog-agent-mac-app'
@@ -154,6 +154,7 @@ dependency 'datadog-agent-finalize'
 if linux?
   extra_package_file '/etc/init/stackstate-agent.conf'
   extra_package_file '/etc/init/stackstate-agent-process.conf'
+  extra_package_file '/etc/init/stackstate-agent-network.conf'
   extra_package_file '/etc/init/stackstate-agent-trace.conf'
   systemd_directory = "/usr/lib/systemd/system"
   if debian?
@@ -166,6 +167,7 @@ if linux?
   end
   extra_package_file "#{systemd_directory}/stackstate-agent.service"
   extra_package_file "#{systemd_directory}/stackstate-agent-process.service"
+  extra_package_file "#{systemd_directory}/stackstate-agent-network.service"
   extra_package_file "#{systemd_directory}/stackstate-agent-trace.service"
   extra_package_file '/etc/stackstate-agent/'
   extra_package_file '/usr/bin/sts-agent'

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -240,7 +240,8 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 
 // Inspect detect the container ID we are running in and returns the inspect contents.
 func (d *DockerUtil) InspectSelf() (types.ContainerJSON, error) {
-	cID, _, err := metrics.ReadCgroupsForPath("/proc/self/cgroup")
+	prefix := config.Datadog.GetString("container_cgroup_prefix")
+	cID, _, err := metrics.ReadCgroupsForPath("/proc/self/cgroup", prefix)
 	if err != nil {
 		return types.ContainerJSON{}, err
 	}

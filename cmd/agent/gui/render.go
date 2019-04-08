@@ -25,10 +25,6 @@ func init() {
 	fmap["status"] = displayStatus
 }
 
-const (
-	timeFormat = "2006-01-02 15:04:05.000000 UTC"
-)
-
 // Data is a struct used for filling templates
 type Data struct {
 	Name       string

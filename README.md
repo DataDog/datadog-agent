@@ -15,17 +15,18 @@ and development, is located under [the docs directory](docs) of the present repo
 ## Getting started
 
 To build the Agent you need:
- * [Go](https://golang.org/doc/install) 1.10.2 or later.
+ * [Go](https://golang.org/doc/install) 1.11.5 or later.
  * Python 2.7 along with development libraries.
  * Python dependencies. You may install these with `pip install -r requirements.txt`
    This will also pull in [Invoke](http://www.pyinvoke.org) if not yet installed.
 
 **Note:** you may want to use a python virtual environment to avoid polluting your
-      system-wide python environment with the agent build/dev dependencies.
+      system-wide python environment with the agent build/dev dependencies. By default, this environment is only used for dev dependencies listed in `requirements.txt`, if you want the agent to use the virtual environment's interpreter and libraries instead of the system python's ones,
+      add `--use-venv` to the build command.
 
 **Note:** You may have previously installed `invoke` via brew on MacOS, or `pip` in
       any other platform. We recommend you use the version pinned in the requirements
-      file for a smooth development/build experience. 
+      file for a smooth development/build experience.
 
 Builds and tests are orchestrated with `invoke`, type `invoke --list` on a shell
 to see the available tasks.
@@ -36,7 +37,7 @@ To start working on the Agent, you can build the `master` branch:
 2. cd into the project folder: `cd $GOPATH/src/github.com/StackVista/stackstate-agent`.
 3. install project's dependencies: `invoke deps`.
    Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
-4. build the whole project with `invoke agent.build --build-exclude=snmp,systemd`
+4. build the whole project with `invoke agent.build --build-exclude=snmp,systemd` (with `--use-venv` to use a python virtualenv)
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
 

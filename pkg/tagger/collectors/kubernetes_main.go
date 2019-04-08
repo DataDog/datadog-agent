@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver,kubelet
 
@@ -69,7 +69,7 @@ func (c *KubeMetadataCollector) Pull() error {
 	// Time constraints, get the delta in seconds to display it in the logs:
 	timeDelta := c.lastUpdate.Add(c.updateFreq).Unix() - time.Now().Unix()
 	if timeDelta > 0 {
-		log.Tracef("skipping, next effective Pull will be in %s seconds", timeDelta)
+		log.Tracef("skipping, next effective Pull will be in %d seconds", timeDelta)
 		return nil
 	}
 
@@ -91,16 +91,16 @@ func (c *KubeMetadataCollector) Pull() error {
 
 // Fetch fetches tags for a given entity by iterating on the whole podlist and
 // the metadataMapper
-func (c *KubeMetadataCollector) Fetch(entity string) ([]string, []string, error) {
-	var lowCards, highCards []string
+func (c *KubeMetadataCollector) Fetch(entity string) ([]string, []string, []string, error) {
+	var lowCards, orchestratorCards, highCards []string
 
 	pod, err := c.kubeUtil.GetPodForEntityID(entity)
 	if err != nil {
-		return lowCards, highCards, err
+		return lowCards, orchestratorCards, highCards, err
 	}
 
 	if kubelet.IsPodReady(pod) == false {
-		return lowCards, highCards, errors.NewNotFound(entity)
+		return lowCards, orchestratorCards, highCards, errors.NewNotFound(entity)
 	}
 
 	pods := []*kubelet.Pod{pod}
@@ -116,10 +116,10 @@ func (c *KubeMetadataCollector) Fetch(entity string) ([]string, []string, error)
 	c.infoOut <- tagInfos
 	for _, info := range tagInfos {
 		if info.Entity == entity {
-			return info.LowCardTags, info.HighCardTags, nil
+			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, nil
 		}
 	}
-	return lowCards, highCards, errors.NewNotFound(entity)
+	return lowCards, orchestratorCards, highCards, errors.NewNotFound(entity)
 }
 
 func kubernetesFactory() Collector {

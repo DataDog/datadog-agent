@@ -1,17 +1,19 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package sender
 
 import (
 	"testing"
 
+	"github.com/StackVista/stackstate-agent/pkg/logs/client"
+
 	"github.com/stretchr/testify/assert"
 
+	"github.com/StackVista/stackstate-agent/pkg/logs/client/mock"
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/message"
-	"github.com/StackVista/stackstate-agent/pkg/logs/sender/mock"
 )
 
 func newMessage(content []byte, source *config.LogSource, status string) *message.Message {
@@ -29,11 +31,11 @@ func TestSender(t *testing.T) {
 	input := make(chan *message.Message, 1)
 	output := make(chan *message.Message, 1)
 
-	destinationsCtx := NewDestinationsContext()
+	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 
-	destination := AddrToDestination(l.Addr(), destinationsCtx)
-	destinations := NewDestinations(destination, nil)
+	destination := client.AddrToDestination(l.Addr(), destinationsCtx)
+	destinations := client.NewDestinations(destination, nil)
 
 	sender := NewSender(input, output, destinations)
 	sender.Start()
@@ -46,6 +48,42 @@ func TestSender(t *testing.T) {
 
 	assert.True(t, ok)
 	assert.Equal(t, message, expectedMessage)
+
+	sender.Stop()
+	destinationsCtx.Stop()
+}
+
+func TestSenderNotBlockedByAdditional(t *testing.T) {
+	l := mock.NewMockLogsIntake(t)
+	defer l.Close()
+
+	source := config.NewLogSource("", &config.LogsConfig{})
+
+	input := make(chan *message.Message, 1)
+	output := make(chan *message.Message, 1)
+
+	destinationsCtx := client.NewDestinationsContext()
+	destinationsCtx.Start()
+
+	mainDestination := client.AddrToDestination(l.Addr(), destinationsCtx)
+	// This destination doesn't exists
+	additionalDestination := client.NewDestination(client.Endpoint{Host: "dont.exist.local", Port: 0}, destinationsCtx)
+	destinations := client.NewDestinations(mainDestination, []*client.Destination{additionalDestination})
+
+	sender := NewSender(input, output, destinations)
+	sender.Start()
+
+	expectedMessage1 := newMessage([]byte("fake line"), source, "")
+	input <- expectedMessage1
+	message, ok := <-output
+	assert.True(t, ok)
+	assert.Equal(t, message, expectedMessage1)
+
+	expectedMessage2 := newMessage([]byte("fake line 2"), source, "")
+	input <- expectedMessage2
+	message, ok = <-output
+	assert.True(t, ok)
+	assert.Equal(t, message, expectedMessage2)
 
 	sender.Stop()
 	destinationsCtx.Stop()

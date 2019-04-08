@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package config
 
@@ -107,10 +107,10 @@ func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bo
 
 	configTemplate += fmt.Sprintf(`</outputs>
 	<formats>
-		<format id="json" format="{&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%File&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
-		<format id="common" format="%%Date(%s) | %%LEVEL | (%%File:%%Line in %%FuncShort) | %%Msg%%n"/>
-		<format id="syslog-json" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`){&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%RelFile&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
-		<format id="syslog-common" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`) %%LEVEL | (%%File:%%Line in %%FuncShort) | %%Msg%%n" />
+		<format id="json" format="{&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
+		<format id="common" format="%%Date(%s) | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n"/>
+		<format id="syslog-json" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`){&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
+		<format id="syslog-common" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`) %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n" />
 	</formats>
 </seelog>`, logDateFormat, logDateFormat)
 
@@ -126,10 +126,12 @@ func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bo
 
 // ErrorLogWriter is a Writer that logs all written messages with the global seelog logger
 // at an error level
-type ErrorLogWriter struct{}
+type ErrorLogWriter struct {
+	AdditionalDepth int
+}
 
 func (s *ErrorLogWriter) Write(p []byte) (n int, err error) {
-	seelog.Error(string(p))
+	log.ErrorStackDepth(s.AdditionalDepth, strings.TrimSpace(string(p)))
 	return len(p), nil
 }
 
@@ -304,7 +306,19 @@ func (s *SyslogReceiver) Close() error {
 	return nil
 }
 
+func parseShortFilePath(params string) seelog.FormatterFunc {
+	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+		return extractShortPathFromFullPath(context.FullPath())
+	}
+}
+
+func extractShortPathFromFullPath(fullPath string) string {
+	slices := strings.Split(fullPath, "/datadog-agent/")
+	return slices[len(slices)-1]
+}
+
 func init() {
 	seelog.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter)
+	seelog.RegisterCustomFormatter("ShortFilePath", parseShortFilePath)
 	seelog.RegisterReceiver("syslog", &SyslogReceiver{})
 }

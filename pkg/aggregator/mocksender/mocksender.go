@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package mocksender
 
@@ -51,6 +51,7 @@ func (m *MockSender) SetupAcceptAll() {
 	m.On("Event", mock.AnythingOfType("metrics.Event")).Return()
 	m.On("GetMetricStats", mock.AnythingOfType("map[string]int64")).Return()
 	m.On("DisableDefaultHostname", mock.AnythingOfType("bool")).Return()
+	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()
 	m.On("Commit").Return()
 }
 

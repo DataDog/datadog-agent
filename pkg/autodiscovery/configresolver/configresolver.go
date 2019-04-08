@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package configresolver
 
@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"unicode"
 
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
@@ -40,6 +39,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		MetricConfig:  tpl.MetricConfig,
 		LogsConfig:    tpl.LogsConfig,
 		ADIdentifiers: tpl.ADIdentifiers,
+		ClusterCheck:  tpl.ClusterCheck,
 		Provider:      tpl.Provider,
 		Entity:        svc.GetEntity(),
 		CreationTime:  svc.GetCreationTime(),
@@ -55,15 +55,14 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		// Copy original content from template
 		vars := tpl.GetTemplateVariablesForInstance(i)
 		for _, v := range vars {
-			name, key := parseTemplateVar(v)
-			if f, found := templateVariables[string(name)]; found {
-				resolvedVar, err := f(key, svc)
+			if f, found := templateVariables[string(v.Name)]; found {
+				resolvedVar, err := f(v.Key, svc)
 				if err != nil {
 					return integration.Config{}, err
 				}
 				// init config vars are replaced by the first found
-				resolvedConfig.InitConfig = bytes.Replace(resolvedConfig.InitConfig, v, resolvedVar, -1)
-				resolvedConfig.Instances[i] = bytes.Replace(resolvedConfig.Instances[i], v, resolvedVar, -1)
+				resolvedConfig.InitConfig = bytes.Replace(resolvedConfig.InitConfig, v.Raw, resolvedVar, -1)
+				resolvedConfig.Instances[i] = bytes.Replace(resolvedConfig.Instances[i], v.Raw, resolvedVar, -1)
 			}
 		}
 		err = resolvedConfig.Instances[i].MergeAdditionalTags(tags)
@@ -177,21 +176,4 @@ func getEnvvar(tplVar []byte, svc listeners.Service) ([]byte, error) {
 		return nil, fmt.Errorf("failed to retrieve envvar %s, skipping service %s", tplVar, svc.GetEntity())
 	}
 	return []byte(value), nil
-}
-
-// parseTemplateVar extracts the name of the var
-// and the key (or index if it can be cast to an int)
-func parseTemplateVar(v []byte) (name, key []byte) {
-	stripped := bytes.Map(func(r rune) rune {
-		if unicode.IsSpace(r) || r == '%' {
-			return -1
-		}
-		return r
-	}, v)
-	parts := bytes.SplitN(stripped, []byte("_"), 2)
-	name = parts[0]
-	if len(parts) == 2 {
-		return name, parts[1]
-	}
-	return name, []byte("")
 }

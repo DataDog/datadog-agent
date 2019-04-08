@@ -38,6 +38,14 @@ az ad sp create-for-rbac --name <name>
 
 Then create a file called `azureid.sh` and export the relevant settings into environment variables:
 
+The subscription ID is retrieved from the azure portal, by starting a azure shell. --or-- the "id" returned from `az account list`
+
+The AZURE_CLIENT_ID is returned as the appId from the above command
+
+the AZURE_CLIENT_SECRET is returned as the password from the above command
+
+the AZURE_TENANT_ID is returned as tenant from the above command --or-- the "tenantId" returned from `az account list`
+
 ```
 export AZURE_CLIENT_ID="$AZURE_CLIENT_ID"
 export AZURE_CLIENT_SECRET="$AZURE_CLIENT_SECRET"

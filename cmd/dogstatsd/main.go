@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 //go:generate go run ../../pkg/config/render_config.go dogstatsd ../../pkg/config/config_template.yaml ./dist/dogstatsd.yaml
 
 package main
 
 import (
+	"context"
 	_ "expvar"
 	"fmt"
 	"net/http"
@@ -20,11 +21,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
+	"github.com/StackVista/stackstate-agent/pkg/api/healthprobe"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/dogstatsd"
 	"github.com/StackVista/stackstate-agent/pkg/forwarder"
 	"github.com/StackVista/stackstate-agent/pkg/metadata"
 	"github.com/StackVista/stackstate-agent/pkg/serializer"
+	"github.com/StackVista/stackstate-agent/pkg/status/health"
 	"github.com/StackVista/stackstate-agent/pkg/tagger"
 	"github.com/StackVista/stackstate-agent/pkg/util"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
@@ -80,6 +83,10 @@ func init() {
 }
 
 func start(cmd *cobra.Command, args []string) error {
+	// Main context passed to components
+	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
+	defer mainCtxCancel() // Calling cancel twice is safe
+
 	configFound := false
 
 	// a path to the folder containing the config file was passed
@@ -129,6 +136,16 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Setup healthcheck port
+	var healthPort = config.Datadog.GetInt("health_port")
+	if healthPort > 0 {
+		err := healthprobe.Serve(mainCtx, healthPort)
+		if err != nil {
+			return log.Errorf("Error starting health port, exiting: %v", err)
+		}
+		log.Debugf("Health check listening on port %d", healthPort)
+	}
+
 	// setup the forwarder
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
@@ -163,14 +180,11 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// container tagging initialisation if origin detection is on
 	if config.Datadog.GetBool("dogstatsd_origin_detection") {
-		err = tagger.Init()
-		if err != nil {
-			log.Criticalf("Unable to start tagging system: %s", err)
-		}
+		tagger.Init()
 	}
 
 	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")
-	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannels())
+	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetBufferedChannels())
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return nil
@@ -182,6 +196,18 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Block here until we receive the interrupt signal
 	<-signalCh
+
+	// retrieve the agent health before stopping the components
+	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetStatusNonBlocking()
+	if err != nil {
+		log.Warnf("Dogstatsd health unknown: %s", err)
+	} else if len(health.Unhealthy) > 0 {
+		log.Warnf("Some components were unhealthy: %v", health.Unhealthy)
+	}
+
+	// gracefully shut down any component
+	mainCtxCancel()
 
 	if metaScheduler != nil {
 		metaScheduler.Stop()

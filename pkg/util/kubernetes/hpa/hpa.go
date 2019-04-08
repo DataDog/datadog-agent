@@ -21,15 +21,23 @@ func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics
 	for _, metricSpec := range hpa.Spec.Metrics {
 		switch metricSpec.Type {
 		case autoscalingv2.ExternalMetricSourceType:
-			emList = append(emList, custommetrics.ExternalMetricValue{
+			if metricSpec.External == nil {
+				log.Errorf("Missing required \"external\" section in the %s/%s HPA, skipping processing", hpa.Namespace, hpa.Name)
+				continue
+			}
+
+			em := custommetrics.ExternalMetricValue{
 				MetricName: metricSpec.External.MetricName,
 				HPA: custommetrics.ObjectReference{
 					Name:      hpa.Name,
 					Namespace: hpa.Namespace,
 					UID:       string(hpa.UID),
 				},
-				Labels: metricSpec.External.MetricSelector.MatchLabels,
-			})
+			}
+			if metricSpec.External.MetricSelector != nil {
+				em.Labels = metricSpec.External.MetricSelector.MatchLabels
+			}
+			emList = append(emList, em)
 		default:
 			log.Debugf("Unsupported metric type %s", metricSpec.Type)
 		}
@@ -65,4 +73,10 @@ func DiffExternalMetrics(informerList []*autoscalingv2.HorizontalPodAutoscaler, 
 		}
 	}
 	return
+}
+
+// AutoscalerMetricsUpdate will return true if the applied configuration of the Autoscaler has changed.
+// We only care about updates of the metrics or their scopes.
+func AutoscalerMetricsUpdate(new, old *autoscalingv2.HorizontalPodAutoscaler) bool {
+	return old.Annotations["kubectl.kubernetes.io/last-applied-configuration"] != new.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
 }

@@ -27,7 +27,7 @@ variables (see Invoke docs for more details).
 
 ### Note
 
-We don't want to pollute your system-wide python installation, so a python virtual
+We don't want to pollute your system-wide python installation, so a python 2.7 virtual
 environment is recommended (though optional). It will help keep an isolated development
 environment and ensure a clean system python.
 
@@ -41,7 +41,7 @@ environment and ensure a clean system python.
 
 ## Golang
 
-You must install [go](https://golang.org/doc/install) version 1.10.2 or above. Make
+You must install [go](https://golang.org/doc/install) version 1.11.5 or above. Make
 sure that `$GOPATH/bin` is in your `$PATH` otherwise Invoke cannot use any
 additional tool it might need.
 

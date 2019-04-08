@@ -1,14 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package app
 
 import (
+	"context"
 	"fmt"
 	"runtime"
-	"strings"
 	"time"
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
@@ -23,6 +23,7 @@ import (
 	"github.com/StackVista/stackstate-agent/cmd/agent/common"
 	"github.com/StackVista/stackstate-agent/cmd/agent/gui"
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
+	"github.com/StackVista/stackstate-agent/pkg/api/healthprobe"
 	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/dogstatsd"
@@ -55,7 +56,6 @@ var (
 		Deprecated: "Use \"run\" instead to start the Agent",
 		RunE:       start,
 	}
-	overrideVars = map[string]string{}
 )
 
 func init() {
@@ -73,28 +73,14 @@ func start(cmd *cobra.Command, args []string) error {
 
 // StartAgent Initializes the agent process
 func StartAgent() error {
+	// Main context passed to components
+	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
 	// Global Agent configuration
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
 		log.Errorf("Failed to setup config %v", err)
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
-	// if we're on android, allow some of the settings to be overridden
-	// by the android service (variables to be passedin via Intents)
-	if runtime.GOOS == "android" {
-		log.Debugf("OS is android, checking OS vars")
-		if overrideVars != nil && len(overrideVars) != 0 {
-			if val, ok := overrideVars["apikey"]; ok {
-				config.Datadog.Set("api_key", val)
-			}
-			if val, ok := overrideVars["hostname"]; ok {
-				config.Datadog.Set("hostname", val)
-			}
-			if val, ok := overrideVars["tags"]; ok {
-				config.Datadog.Set("tags", strings.Split(val, ","))
-			}
-		}
 	}
 
 	// Setup logger
@@ -137,6 +123,16 @@ func StartAgent() error {
 	// Setup expvar server
 	var port = config.Datadog.GetString("expvar_port")
 	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+
+	// Setup healthcheck port
+	var healthPort = config.Datadog.GetInt("health_port")
+	if healthPort > 0 {
+		err := healthprobe.Serve(common.MainCtx, healthPort)
+		if err != nil {
+			return log.Errorf("Error starting health port, exiting: %v", err)
+		}
+		log.Debugf("Health check listening on port %d", healthPort)
+	}
 
 	if pidfilePath != "" {
 		err = pidfile.WritePID(pidfilePath)
@@ -192,7 +188,7 @@ func StartAgent() error {
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		common.DSD, err = dogstatsd.NewServer(agg.GetChannels())
+		common.DSD, err = dogstatsd.NewServer(agg.GetBufferedChannels())
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		}
@@ -234,12 +230,19 @@ func StartAgent() error {
 
 // setupMetadataCollection initializes the metadata scheduler and its collectors based on the config
 func setupMetadataCollection(s *serializer.Serializer, hostname string) error {
+	addDefaultResourcesCollector := true
 	common.MetadataScheduler = metadata.NewScheduler(s, hostname)
 	var C []config.MetadataProviders
 	err := config.Datadog.UnmarshalKey("metadata_providers", &C)
 	if err == nil {
 		log.Debugf("Adding configured providers to the metadata collector")
 		for _, c := range C {
+			if c.Name == "host" || c.Name == "agent_checks" {
+				continue
+			}
+			if c.Name == "resources" {
+				addDefaultResourcesCollector = false
+			}
 			if c.Interval == 0 {
 				log.Infof("Interval of metadata provider '%v' set to 0, skipping provider", c.Name)
 				continue
@@ -254,6 +257,21 @@ func setupMetadataCollection(s *serializer.Serializer, hostname string) error {
 		}
 	} else {
 		log.Errorf("Unable to parse metadata_providers config: %v", err)
+	}
+	// Should be always true, except in some edge cases (multiple agents per host)
+	err = common.MetadataScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
+	if err != nil {
+		return log.Error("Host metadata is supposed to be always available in the catalog!")
+	}
+	err = common.MetadataScheduler.AddCollector("agent_checks", agentChecksMetadataCollectorInterval*time.Second)
+	if err != nil {
+		return log.Error("Agent Checks metadata is supposed to be always available in the catalog!")
+	}
+	if addDefaultResourcesCollector && runtime.GOOS == "linux" {
+		err = common.MetadataScheduler.AddCollector("resources", defaultResourcesMetadataCollectorInterval*time.Second)
+		if err != nil {
+			log.Warn("Could not add resources metadata provider: ", err)
+		}
 	}
 
 	return nil
@@ -271,6 +289,8 @@ func StopAgent() {
 	}
 
 	// gracefully shut down any component
+	common.MainCtxCancel()
+
 	if common.DSD != nil {
 		common.DSD.Stop()
 	}
@@ -290,12 +310,4 @@ func StopAgent() {
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
 	log.Flush()
-}
-
-// SetOverrides provides an externally accessible method for
-// overriding config variables.  Used by Android to set
-// the various config options from intent extras
-func SetOverrides(vars map[string]string) {
-	confFilePath = "datadog.yaml"
-	overrideVars = vars
 }

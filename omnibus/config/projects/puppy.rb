@@ -1,38 +1,42 @@
-#
-# Copyright 2016 Datadog
-#
-# All Rights Reserved.
-#
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https:#www.datadoghq.com/).
+# Copyright 2016-2019 Datadog, Inc.
+
 require "./lib/ostools.rb"
 
-name 'stackstate-puppy'
-if windows?
-  # Windows doesn't want our e-mail address :(
-  maintainer 'StackState Inc.'
-else
-  maintainer 'StackState info@stackstate.com'
-end
+name 'puppy'
+package_name 'stackstate-puppy'
+
 homepage 'http://www.stackstate.com'
+
 if ohai['platform'] == "windows"
   # Note: this is not the final install dir, not even the default one, just a convenient
   # spaceless dir in which the agent will be built.
   # Omnibus doesn't quote the Git commands it launches unfortunately, which makes it impossible
   # to put a space here...
-  install_dir "C:/opt/stackstate-agent6/"
+  install_dir "C:/opt/stackstate-agent/"
+  maintainer 'StackState Inc.' # Windows doesn't want our e-mail address :(
 else
   install_dir '/opt/stackstate-agent6'
+  maintainer 'StackState <info@stackstate.com>'
 end
 
-build_version do
-  source :git, from_dependency: 'stackstate-puppy'
-  output_format :dd_agent_format
-end
+# build_version is computed by an invoke command/function.
+# We can't call it directly from there, we pass it through the environment instead.
+build_version ENV['PACKAGE_VERSION']
 
 build_iteration 1
 
 description 'StackState Monitoring Agent
  The StackState Monitoring Agent is a lightweight process that monitors system
- processes and services'
+ processes and services, and sends information back to your Datadog account.
+ .
+ This package installs and runs the advanced Agent daemon, which queues and
+ forwards metrics from your applications as well as system services.
+ .
+ See http://www.stackstate.com for more information
+'
 
 # ------------------------------------
 # Generic package information
@@ -47,54 +51,6 @@ package :deb do
   priority 'extra'
 end
 
-# .rpm specific flags
-package :rpm do
-  vendor 'StackState info@stackstate.com'
-  epoch 1
-  dist_tag ''
-  license 'Simplified BSD License'
-  category 'System Environment/Daemons'
-  priority 'extra'
-  if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
-    signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
-  end
-end
-
-# OSX .pkg specific flags
-package :pkg do
-  identifier 'com.stackstate.agent'
-  #signing_identity 'Developer ID Installer: StackState, Inc. (JKFCB4CN7C)'
-end
-compress :dmg do
-  window_bounds '200, 200, 750, 600'
-  pkg_position '10, 10'
-end
-
-# Windows .msi specific flags
-package :msi do
-  # previous upgrade code was used for older installs, and generated
-  # per-user installs.  Changing upgrade code, and switching to
-  # per-machine
-  per_user_upgrade_code = '82210ed1-bbe4-4051-aa15-002ea31dde15'
-
-  # For a consistent package management, please NEVER change this code
-  upgrade_code '0c50421b-aefb-4f15-a809-7af256d608a5'
-  bundle_msi true
-  bundle_theme true
-  wix_candle_extension 'WixUtilExtension'
-  wix_light_extension 'WixUtilExtension'
-  if ENV['SIGN_WINDOWS']
-    signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
-  end
-  parameters({
-    'InstallDir' => install_dir,
-    'InstallFiles' => "#{Omnibus::Config.source_dir()}/stackstate-agent/stackstate-agent/packaging/stackstate-agent/win32/install_files",
-    'BinFiles' => "#{Omnibus::Config.source_dir()}/stackstate-agent/stackstate-agent/bin/agent",
-    'DistFiles' => "#{Omnibus::Config.source_dir()}/stackstate-agent/stackstate-agent/pkg/collector/dist",
-    'PerUserUpgradeCode' => per_user_upgrade_code
-  })
-end
-
 # ------------------------------------
 # OS specific DSLs and dependencies
 # ------------------------------------
@@ -106,15 +62,12 @@ if linux?
     extra_package_file '/lib/systemd/system/stackstate-agent6.service'
   end
 
-  if redhat? || suse?
-    extra_package_file '/lib/systemd/system/stackstate-agent6.service'
-  end
-
   # Example configuration files for the agent and the checks
   extra_package_file '/etc/stackstate-agent/stackstate.yaml.example'
+  extra_package_file '/etc/stackstate-agent/conf.d/'
 
-  # Custom checks directory
-  extra_package_file '/etc/stackstate-agent/checks.d'
+  # Logs directory
+  extra_package_file '/var/log/datadog/'
 end
 
 # ------------------------------------
@@ -126,10 +79,6 @@ dependency 'preparation'
 
 # Datadog agent
 dependency 'datadog-puppy'
-
-if windows?
-  dependency 'datadog-upgrade-helper'
-end
 
 # version manifest file
 dependency 'version-manifest'

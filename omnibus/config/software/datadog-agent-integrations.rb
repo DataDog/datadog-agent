@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2018 Datadog, Inc.
+# Copyright 2016-2019 Datadog, Inc.
 
 require './lib/ostools.rb'
 require 'json'
@@ -14,7 +14,13 @@ dependency 'protobuf-py'
 
 if linux?
   # add nfsiostat script
+  dependency 'unixodbc'
   dependency 'nfsiostat'
+end
+
+unless windows?
+  # need kerberos for hdfs
+  dependency 'libkrb5'
 end
 
 relative_path 'integrations-core'
@@ -42,9 +48,17 @@ blacklist = [
   'ntp',  # provided as a go check by the core agent
   'cisco_aci' # temporary issues with certificate
 ]
+blacklist_req = Array.new
+
+if suse?
+  blacklist.push('aerospike')  # Temporarily blacklist Aerospike until builder supports new dependency
+  blacklist_req.push(/^aerospike==/)  # Temporarily blacklist Aerospike until builder supports new dependency
+end
 
 core_constraints_file = 'core_constraints.txt'
+final_constraints_file = 'final_constraints.txt'
 agent_requirements_file = 'agent_requirements.txt'
+agent_requirements_in = 'agent_requirements.in'
 
 build do
   # The dir for the confs
@@ -57,34 +71,6 @@ build do
 
   # Install the checks and generate the global requirements file
   block do
-
-    # required by TUF for meta
-    if windows?
-      tuf_repo = windows_safe_path("#{install_dir}/etc/stackstate-agent/repositories/")
-      tuf_repo_meta = windows_safe_path("#{tuf_repo}/public-integrations-core/metadata/")
-    else
-      tuf_repo = "#{install_dir}/repositories/"
-      tuf_repo_meta = "#{tuf_repo}/public-integrations-core/metadata/"
-    end
-
-    # Add TUF metadata
-    mkdir windows_safe_path("#{tuf_repo}/cache")
-    mkdir windows_safe_path("#{tuf_repo_meta}/current")
-    mkdir windows_safe_path("#{tuf_repo_meta}/previous")
-    if windows?
-      file = File.read(windows_safe_path("#{project_dir}/.public-tuf-config.json"))
-      tuf_config = JSON.parse(file)
-      tuf_config['repositories_dir'] = 'c:\\ProgramData\\Datadog\\repositories'
-      erb source: "public-tuf-config.json.erb",
-          dest: "#{install_dir}/public-tuf-config.json",
-          mode: 0640,
-          vars: { tuf_config: tuf_config }
-      copy_file windows_safe_path("#{project_dir}/.tuf-root.json"), windows_safe_path("#{install_dir}/etc/stackstate-agent/root.json")
-    else
-      copy windows_safe_path("#{project_dir}/.public-tuf-config.json"), windows_safe_path("#{install_dir}/public-tuf-config.json")
-      copy windows_safe_path("#{project_dir}/.tuf-root.json"), windows_safe_path("#{tuf_repo_meta}/current/root.json")
-    end
-
     all_reqs_file = File.open("#{project_dir}/check_requirements.txt", 'w+')
     # FIX THIS these dependencies have to be grabbed from somewhere
     all_reqs_file.puts "pympler==0.5 --hash=sha256:7d16c4285f01dcc647f69fb6ed4635788abc7a7cb7caa0065d763f4ce3d21c0f"
@@ -93,18 +79,22 @@ build do
 
     all_reqs_file.close
 
+    nix_build_env = {
+      "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
+      "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
+      "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
+      "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
+      "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
+    }
+
     # Install all the requirements
     # Install all the build requirements
-     if windows?
-       pip_args = "install --require-hashes -r #{project_dir}/check_requirements.txt"
-       command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{pip_args}"
-     else
-       build_env = {
-         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-         "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
-       }
-       pip "install --require-hashes -r #{project_dir}/check_requirements.txt", :env => build_env
-     end
+    if windows?
+      pip_args = "install --require-hashes -r #{project_dir}/check_requirements.txt"
+      command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{pip_args}"
+    else
+      pip "install --require-hashes -r #{project_dir}/check_requirements.txt", :env => nix_build_env
+    end
 
     # Set frozen requirements (save to var, and to file)
     # HACK: we need to do this like this due to the well known issues with omnibus
@@ -123,11 +113,7 @@ build do
       pip_args = "install pip-tools==#{PIPTOOLS_VERSION}"
       command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{pip_args}"
     else
-      build_env = {
-        "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-        "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
-      }
-      pip "install pip-tools==#{PIPTOOLS_VERSION}", :env => build_env
+      pip "install pip-tools==#{PIPTOOLS_VERSION}", :env => nix_build_env
     end
 
     # Windows pip workaround to support globs
@@ -136,17 +122,44 @@ build do
     python_pip_req = "pip install -c #{windows_safe_path(project_dir)}\\#{core_constraints_file} --no-deps --require-hashes -r"
     python_pip_uninstall = "pip uninstall -y"
 
+    if windows?
+      static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\#{agent_requirements_in}"
+      static_reqs_filtered_file = "#{windows_safe_path(project_dir)}\\#{agent_requirements_in}"
+    else
+      static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/#{agent_requirements_in}"
+      static_reqs_filtered_file = "#{project_dir}/#{agent_requirements_in}"
+    end
+
+    # Remove any blacklisted requirements from the static-environment req file
+    requirements = Array.new
+    File.open("#{static_reqs_in_file}", 'r+').readlines().each do |line|
+      blacklist_flag = false
+      blacklist_req.each do |blacklist_regex|
+        re = Regexp.new(blacklist_regex).freeze
+        if re.match line
+          blacklist_flag = true
+        end
+      end
+
+      if !blacklist_flag
+        requirements.push(line)
+      end
+    end
+
+    erb source: "static_requirements.txt.erb",
+        dest: "#{static_reqs_filtered_file}",
+        mode: 0640,
+        vars: { requirements: requirements }
+
     # Install the static environment requirements that the Agent and all checks will use
     if windows?
       command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_base")
-      command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\agent_requirements.in")
+      command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_downloader --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\"")
+      command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_filtered_file}")
     else
-      build_env = {
-        "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-        "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
-      }
-      pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{project_dir}/datadog_checks_base/datadog_checks/base/data/agent_requirements.in")
+      pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :cwd => "#{project_dir}/datadog_checks_downloader"
+      pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_filtered_file}")
     end
 
     # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
@@ -165,8 +178,11 @@ build do
     if windows?
       command("#{python_bin} -m #{python_pip_req} #{windows_safe_path(install_dir)}\\#{agent_requirements_file}")
     else
-      pip "install -c #{project_dir}/#{core_constraints_file} --require-hashes --no-deps -r #{install_dir}/#{agent_requirements_file}"
+      pip "install -c #{project_dir}/#{core_constraints_file} --require-hashes --no-deps -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
     end
+    # Create a constraint file after installing all the core dependencies and before any integration
+    # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
+    pip "freeze > #{install_dir}/#{final_constraints_file}"
 
     # Ship requirements-agent-release.txt file containing the versions of every check shipped with the agent
     # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
@@ -229,11 +245,7 @@ build do
       if windows?
         command("#{python_bin} -m #{python_pip_no_deps}\\#{check}")
       else
-        build_env = {
-          "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-          "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
-        }
-        pip "install --no-deps .", :env => build_env, :cwd => "#{project_dir}/#{check}"
+        pip "install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
       end
     end
   end
