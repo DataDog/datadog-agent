@@ -8,7 +8,6 @@
 package app
 
 import (
-	"os"
 	"path/filepath"
 )
 
