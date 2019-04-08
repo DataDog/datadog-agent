@@ -7,7 +7,6 @@ ifthenelse
     {
         foreground { /initlog.sh "network-tracer exited with code ${1}, disabling" }
         foreground { /bin/s6-svc -d /var/run/s6/services/network/ }
-        foreground { /bin/s6-svc -d /var/run/s6/services/network/log }
     }
     {
         foreground { /initlog.sh "network-tracer exited with code ${1}, signal ${2}, restarting in 2 seconds" }
