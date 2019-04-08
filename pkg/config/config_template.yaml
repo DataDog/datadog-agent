@@ -334,9 +334,6 @@ api_key:
 {{- if .JMX }}
 # JMX
 #
-# jmx_pipe_path:
-# jmx_pipe_name: dd-auto_discovery
-#
 # If you only run Autodiscovery tests, jmxfetch might fail to pick up custom_jar_paths
 # set in the check templates. If that is the case, you can force custom jars here.
 # jmx_custom_jars:
@@ -811,9 +808,9 @@ api_key:
 #   dd_agent_bin:
 #   Overrides of the environment we pass to fetch the hostname. The default is usually fine.
 #   dd_agent_env:
-#   Hide sensitive data on the Live Processes page, default value: true  
+#   Hide sensitive data on the Live Processes page, default value: true
 #   scrub_args: true
-#   Define your own list of sensitive data to be merged with the default one 
+#   Define your own list of sensitive data to be merged with the default one
 #   custom_sensitive_words: ['personal_key', '*token', 'sql*', *pass*d*']
 {{ end -}}
 

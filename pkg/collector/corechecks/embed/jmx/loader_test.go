@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,9 +36,6 @@ func TestLoadCheckConfig(t *testing.T) {
 	}
 
 	defer os.RemoveAll(tmp) // clean up
-
-	mockConfig := config.Mock()
-	mockConfig.Set("jmx_pipe_path", tmp)
 
 	jl, err := NewJMXCheckLoader()
 	assert.Nil(t, err)
