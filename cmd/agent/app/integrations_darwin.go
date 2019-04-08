@@ -26,3 +26,7 @@ var (
 func authorizedUser() bool {
 	return true
 }
+
+func isIntegrationUser() bool {
+	return true
+}
