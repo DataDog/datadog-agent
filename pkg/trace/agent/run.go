@@ -25,6 +25,11 @@ to your datadog.yaml. Exiting...`
 
 // Run is the entrypoint of our code, which starts the agent.
 func Run(ctx context.Context) {
+	if flags.Version {
+		fmt.Print(info.VersionString())
+		return
+	}
+
 	cfg, err := config.Load(flags.ConfigPath)
 	if err != nil {
 		osutil.Exitf("%v", err)
@@ -32,11 +37,6 @@ func Run(ctx context.Context) {
 	err = info.InitInfo(cfg) // for expvar & -info option
 	if err != nil {
 		osutil.Exitf("%v", err)
-	}
-
-	if flags.Version {
-		fmt.Print(info.VersionString())
-		return
 	}
 
 	if flags.Info {
