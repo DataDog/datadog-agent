@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// +build !windows !darwin
 // +build cpython
 
 package app
@@ -26,8 +25,4 @@ var (
 
 func authorizedUser() bool {
 	return (os.Geteuid() != 0)
-}
-
-func isIntegrationUser() bool {
-	return true
 }
