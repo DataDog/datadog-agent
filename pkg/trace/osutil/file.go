@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/flags"
+	"github.com/StackVista/stackstate-agent/pkg/trace/flags"
 	log "github.com/cihub/seelog"
 )
 

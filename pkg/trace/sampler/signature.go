@@ -4,7 +4,7 @@ import (
 	"hash/fnv"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
 )
 
 // Signature is a hash representation of trace or a service, used to identify

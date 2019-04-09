@@ -10,8 +10,8 @@ package clusterchecks
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/StackVista/stackstate-agent/pkg/util/cache"
 )
 
 const handlerCacheKey = "cluster_checks_handler"

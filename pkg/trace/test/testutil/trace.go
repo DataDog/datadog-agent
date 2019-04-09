@@ -3,7 +3,7 @@ package testutil
 import (
 	"math/rand"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
 )
 
 // genNextLevel generates a new level for the trace tree structure,

@@ -1,6 +1,6 @@
 package sampler
 
-import "github.com/DataDog/datadog-agent/pkg/trace/pb"
+import "github.com/StackVista/stackstate-agent/pkg/trace/pb"
 
 // ScoreEngine is the main component of the sampling logic
 type ScoreEngine struct {

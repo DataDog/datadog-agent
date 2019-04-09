@@ -17,7 +17,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
+	"github.com/StackVista/stackstate-agent/pkg/util/winutil/pdhutil"
 
 	"golang.org/x/sys/windows"
 )

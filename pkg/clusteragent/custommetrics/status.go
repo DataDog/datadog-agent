@@ -12,8 +12,8 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/common"
 )
 
 // GetStatus returns status info for the Custom Metrics Server.

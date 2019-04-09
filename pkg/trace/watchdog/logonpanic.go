@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/trace/metrics"
 	log "github.com/cihub/seelog"
 )
 

@@ -14,10 +14,10 @@ import (
 	"expvar"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/compression"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/StackVista/stackstate-agent/pkg/forwarder"
 	"github.com/StackVista/stackstate-agent/pkg/serializer/marshaler"
+	"github.com/StackVista/stackstate-agent/pkg/util/compression"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 const (

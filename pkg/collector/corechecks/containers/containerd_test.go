@@ -22,10 +22,10 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	containersutil "github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/StackVista/stackstate-agent/pkg/aggregator/mocksender"
+	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
+	"github.com/StackVista/stackstate-agent/pkg/metrics"
+	containersutil "github.com/StackVista/stackstate-agent/pkg/util/containers"
 )
 
 // TestCollectTags checks the collectTags method

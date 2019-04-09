@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/StackVista/stackstate-agent/pkg/trace/test/testutil"
 )
 
 // payloadConstructedHandlerArgs encodes the arguments passed to a PayloadConstructedHandler call.

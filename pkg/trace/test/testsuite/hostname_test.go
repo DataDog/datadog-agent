@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/test"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
+	"github.com/StackVista/stackstate-agent/pkg/trace/sampler"
+	"github.com/StackVista/stackstate-agent/pkg/trace/test"
+	"github.com/StackVista/stackstate-agent/pkg/trace/test/testutil"
 )
 
 func TestMain(m *testing.M) {

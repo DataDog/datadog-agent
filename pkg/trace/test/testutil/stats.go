@@ -3,7 +3,7 @@ package testutil
 import (
 	"encoding/json"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/StackVista/stackstate-agent/pkg/trace/stats"
 )
 
 var defaultAggregators = []string{"service", "resource"}

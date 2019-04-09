@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	containerdutil "github.com/StackVista/stackstate-agent/pkg/util/containerd"
 )
 
 type mockItf struct {

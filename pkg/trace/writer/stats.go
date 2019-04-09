@@ -5,12 +5,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
+	"github.com/StackVista/stackstate-agent/pkg/trace/config"
+	"github.com/StackVista/stackstate-agent/pkg/trace/info"
+	"github.com/StackVista/stackstate-agent/pkg/trace/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/trace/stats"
+	"github.com/StackVista/stackstate-agent/pkg/trace/watchdog"
+	writerconfig "github.com/StackVista/stackstate-agent/pkg/trace/writer/config"
 	log "github.com/cihub/seelog"
 )
 

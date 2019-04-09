@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/StackVista/stackstate-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -8,7 +8,7 @@
 
 package clusterchecks
 
-import "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
+import "github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/leaderelection"
 
 func getLeaderIPCallback() (leaderIPCallback, error) {
 	engine, err := leaderelection.GetLeaderEngine()

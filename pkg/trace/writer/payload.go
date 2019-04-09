@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-agent/pkg/trace/writer/backoff"
-	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
+	"github.com/StackVista/stackstate-agent/pkg/trace/watchdog"
+	"github.com/StackVista/stackstate-agent/pkg/trace/writer/backoff"
+	writerconfig "github.com/StackVista/stackstate-agent/pkg/trace/writer/config"
 	log "github.com/cihub/seelog"
 )
 

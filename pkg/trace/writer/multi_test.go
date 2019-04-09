@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/writer/config"
+	"github.com/StackVista/stackstate-agent/pkg/trace/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/trace/test/testutil"
+	"github.com/StackVista/stackstate-agent/pkg/trace/writer/config"
 	"github.com/stretchr/testify/assert"
 )
 

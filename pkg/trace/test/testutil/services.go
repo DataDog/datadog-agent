@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
 )
 
 // RandomServices generates random services metadata

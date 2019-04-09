@@ -5,8 +5,8 @@ package metrics
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/StackVista/stackstate-agent/pkg/trace/config"
 )
 
 // StatsClient represents a client capable of sending stats to some stat endpoint.

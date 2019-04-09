@@ -3,7 +3,7 @@ package writer
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/writer/config"
+	"github.com/StackVista/stackstate-agent/pkg/trace/writer/config"
 )
 
 var _ payloadSender = (*multiSender)(nil)
