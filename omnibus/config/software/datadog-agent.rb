@@ -13,9 +13,7 @@ dependency 'python'
 license "Apache-2.0"
 license_file "../LICENSE"
 
-source path: '..',
-       # Ignore folders holding big unused artifacts to speed up the copy
-       options: { exclude: ['bin', 'omnibus/pkg', 'Dockerfiles'] }
+source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do

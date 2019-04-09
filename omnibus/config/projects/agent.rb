@@ -114,22 +114,18 @@ dependency 'cacerts'
 # creates required build directories
 dependency 'datadog-agent-prepare'
 
+# Datadog agent
+dependency 'datadog-agent'
+
 # Additional software
 dependency 'pip'
+dependency 'datadog-agent-integrations'
 dependency 'datadog-a7'
 dependency 'datadog-agent-env-check'
-
 dependency 'jmxfetch'
-
-# Integrations-core
-dependency 'datadog-agent-integrations'
 
 # External agents
 dependency 'datadog-process-agent' # Includes network-tracer
-
-# Datadog agent, keep it last to
-# speed up repeated builds
-dependency 'datadog-agent'
 
 if osx?
   dependency 'datadog-agent-mac-app'

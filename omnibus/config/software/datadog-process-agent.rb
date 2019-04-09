@@ -5,7 +5,6 @@
 
 name "datadog-process-agent"
 always_build true
-
 require "./lib/ostools.rb"
 
 process_agent_version = ENV['PROCESS_AGENT_VERSION']
