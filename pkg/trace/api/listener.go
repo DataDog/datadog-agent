@@ -14,7 +14,8 @@ type rateLimitedListener struct {
 	connLease int32 // How many connections are available for this listener before rate-limiting kicks in
 	*net.TCPListener
 
-	exit chan struct{}
+	exit   chan struct{}
+	closed uint32
 }
 
 // newRateLimitedListener returns a new wrapped listener, which is non-initialized
@@ -95,6 +96,11 @@ func (sl *rateLimitedListener) Accept() (net.Conn, error) {
 
 // Close wraps the Close method of the underlying tcp listener
 func (sl *rateLimitedListener) Close() error {
+	if !atomic.CompareAndSwapUint32(&sl.closed, 0, 1) {
+		// already closed; avoid multiple calls if we're on go1.10
+		// https://golang.org/issue/24803
+		return nil
+	}
 	sl.exit <- struct{}{}
 	<-sl.exit
 	return sl.TCPListener.Close()
