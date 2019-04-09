@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/legacy"
-	"github.com/DataDog/datadog-agent/pkg/trace/flags"
-	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
-	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/config/legacy"
+	"github.com/StackVista/stackstate-agent/pkg/trace/flags"
+	"github.com/StackVista/stackstate-agent/pkg/trace/osutil"
+	writerconfig "github.com/StackVista/stackstate-agent/pkg/trace/writer/config"
 	log "github.com/cihub/seelog"
 )
 
@@ -146,7 +146,7 @@ func New() *AgentConfig {
 		MaxConnections:   200, // in practice, rarely goes over 20
 		WatchdogInterval: time.Minute,
 
-		Ignore:                      make(map[string][]string),
+		Ignore: make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 	}

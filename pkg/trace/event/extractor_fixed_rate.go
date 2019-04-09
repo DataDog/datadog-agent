@@ -3,8 +3,8 @@ package event
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
+	"github.com/StackVista/stackstate-agent/pkg/trace/sampler"
 )
 
 // fixedRateExtractor is an event extractor that decides whether to extract APM events from spans based on
