@@ -14,7 +14,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/tagger"
 	"github.com/StackVista/stackstate-agent/pkg/tagger/collectors"
-	"github.com/DStackVista/stackstate-agent/pkg/util/kubernetes/kubelet"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/kubelet"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 

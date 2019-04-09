@@ -24,7 +24,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/tagger"
 	"github.com/StackVista/stackstate-agent/pkg/tagger/collectors"
 	"github.com/StackVista/stackstate-agent/pkg/util"
-	"github.com/DStackVista/stackstate-agent/pkg/util/containers"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	cmetrics "github.com/StackVista/stackstate-agent/pkg/util/containers/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
