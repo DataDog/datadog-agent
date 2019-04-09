@@ -49,7 +49,8 @@ def pkg_config_path(use_embedded_libs):
     return retval
 
 
-def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use_venv=False):
+def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use_venv=False,
+                    embedded_path=None):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -63,14 +64,19 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
         "CGO_CFLAGS_ALLOW": "-static-libgcc",  # whitelist additional flags, here a flag used for net-snmp
     }
 
-    env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '')
-    env['CGO_LDFLAGS'] += " -L{}/src/github.com/DataDog/datadog-agent/dev/lib ".format(os.environ.get('GOPATH'))
-
-    env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '')
-    env['CGO_CFLAGS'] += " -w -I{}/src/github.com/DataDog/datadog-agent/dev/include".format(os.environ.get('GOPATH'))
-
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
+
+    env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '')
+    env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '')
+    if embedded_path is not None:
+        libpath = os.path.join(embedded_path, 'lib')
+        includepath = os.path.join(embedded_path, 'include')
+        env['CGO_LDFLAGS'] += " -L{} ".format(libpath)
+        env['CGO_CFLAGS'] += " -w -I{} ".format(includepath)
+    else:
+        env['CGO_LDFLAGS'] += " -L{}/src/github.com/DataDog/datadog-agent/dev/lib ".format(os.environ.get('GOPATH'))
+        env['CGO_CFLAGS'] += " -w -I{}/src/github.com/DataDog/datadog-agent/dev/include".format(os.environ.get('GOPATH'))
 
     if static:
         ldflags += "-s -w -linkmode=external '-extldflags=-static' "
