@@ -7,11 +7,10 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 var diagnoseNames = []string{
-	apiserver.DiagnoseName,
+	"Kubernetes API Server availability",
 }
 
 // GetClusterAgentDiagnose dumps the connectivity checks diagnose to the writer
