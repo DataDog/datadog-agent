@@ -9,7 +9,6 @@ license_file "LICENSE"
 skip_transitive_dependency_licensing true
 
 source path: '../six'
-relative_path 'datadog-agent-six'
 
 if ohai["platform"] != "windows"
   build do
@@ -19,7 +18,7 @@ if ohai["platform"] != "windows"
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
     }
 
-    command "cmake -DBUILD_DEMO:BOOL=OFF -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DCMAKE_INSTALL_PREFIX:PATH=#{install_dir}/embedded .", :env => env
+    command "cmake -DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DBUILD_DEMO:BOOL=OFF -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DCMAKE_INSTALL_PREFIX:PATH=#{install_dir}/embedded .", :env => env
     command "make -j #{workers}"
     command "make install"
   end
