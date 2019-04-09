@@ -37,13 +37,14 @@
         <UpgradeVersion OnlyDetect='no'
                         Property='PREVIOUSFOUND'
                         Minimum='1.0.0' IncludeMinimum='yes'
-                        Maximum="99.99.99.99" IncludeMaximum='no'/>
+                        Maximum="$(var.VersionNumber)" IncludeMaximum='no'/>
     </Upgrade>
 
     <!-- This allows downgrades, and same-version reinstalls.  Otherwise,
     same version gets installed "side by side" -->
     <MajorUpgrade
-      AllowDowngrades="yes"
+      AllowDowngrades="no"
+      DowngradeErrorMessage="Automatic downgrades are not supported.  Uninstall the current version, and then reinstall the desired version."
       Schedule="afterInstallInitialize" />
 
 
@@ -362,7 +363,7 @@
       <Custom Action='FinalizeInstall' After='InstallServices'> _INSTALL </Custom>
 
       <!-- Same deal here -->
-      <Custom Action='StartDDServices' After='FinalizeInstall'> _INSTALL </Custom>
+      <Custom Action='StartDDServices' After='FinalizeInstall'> _INSTALL OR _CHANGE OR _REPAIR</Custom>
       
       <!-- only do the uninstall (which removes the user state and file perms) 
            on a full uninstall -->
