@@ -8,7 +8,8 @@ require 'json'
 
 name 'datadog-agent-integrations'
 
-dependency 'pip'
+dependency 'pip2'
+dependency 'pip3'
 dependency 'datadog-agent'
 dependency 'protobuf-py'
 
@@ -24,7 +25,6 @@ unless windows?
 end
 
 relative_path 'integrations-core'
-whitelist_file "embedded/lib/python2.7"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
