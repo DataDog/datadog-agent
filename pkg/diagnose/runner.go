@@ -49,3 +49,39 @@ func RunAll(w io.Writer) error {
 
 	return nil
 }
+
+// Run runs a specific list of connectivity checks, output it in writer
+func Run(w io.Writer, checks []string) error {
+	if w != color.Output {
+		color.NoColor = true
+	}
+
+	// Use temporarily a custom logger to our Writer
+	customLogger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg - %Ns%n")
+	if err != nil {
+		return err
+	}
+	log.RegisterAdditionalLogger("diagnose", customLogger)
+	defer log.UnregisterAdditionalLogger("diagnose")
+
+	var sortedDiagnosis []string
+	for _, checkname := range checks {
+		_, found := diagnosis.DefaultCatalog[checkname]
+		if found {
+			sortedDiagnosis = append(sortedDiagnosis, checkname)
+		}
+	}
+	sort.Strings(sortedDiagnosis)
+
+	for _, name := range sortedDiagnosis {
+		fmt.Fprintln(w, fmt.Sprintf("=== Running %s diagnosis ===", color.BlueString(name)))
+		err := diagnosis.DefaultCatalog[name]()
+		statusString := color.GreenString("PASS")
+		if err != nil {
+			statusString = color.RedString("FAIL")
+		}
+		fmt.Fprintln(w, fmt.Sprintf("===> %s\n", statusString))
+	}
+
+	return nil
+}
