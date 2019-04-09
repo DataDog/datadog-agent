@@ -15,7 +15,7 @@ import (
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/StackVista/stackstate-agent/pkg/util/winutil"
-	"github.com/StackVista/stackstateg-agent/pkg/util/winutil/pdhutil"
+	"github.com/StackVista/stackstate-agent/pkg/util/winutil/pdhutil"
 
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 )
