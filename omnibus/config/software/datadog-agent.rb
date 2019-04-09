@@ -31,9 +31,9 @@ build do
   env = with_embedded_path(env)
 
   # we assume the go deps are already installed before running omnibus
-  command "invoke agent.build --rebuild --use-embedded-libs --no-development", env: env
+  command "inv -e agent.build --rebuild --use-embedded-libs --no-development --embedded-path=#{install_dir}", env: env
   if windows?
-    command "invoke systray.build --rebuild --use-embedded-libs --no-development", env: env
+    command "inv -e systray.build --rebuild --use-embedded-libs --no-development", env: env
   end
 
   if osx?
@@ -46,11 +46,6 @@ build do
     mkdir "#{install_dir}/run/"
     mkdir "#{install_dir}/scripts/"
   end
-
-  # if windows?
-  #   mkdir "../../extra_package_files/EXAMPLECONFSLOCATION"
-  #   copy "pkg/collector/dist/conf.d/*", "../../extra_package_files/EXAMPLECONFSLOCATION"
-  # end
 
   ## build the custom action library required for the install
   if windows?
