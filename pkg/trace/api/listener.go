@@ -96,13 +96,12 @@ func (sl *rateLimitedListener) Accept() (net.Conn, error) {
 
 // Close wraps the Close method of the underlying tcp listener
 func (sl *rateLimitedListener) Close() error {
-	if atomic.LoadUint32(&sl.closed) != 0 {
+	if !atomic.CompareAndSwapUint32(&sl.closed, 0, 1) {
 		// already closed; avoid multiple calls if we're on go1.10
 		// https://golang.org/issue/24803
 		return nil
 	}
 	sl.exit <- struct{}{}
 	<-sl.exit
-	atomic.StoreUint32(&sl.closed, 1)
 	return sl.TCPListener.Close()
 }
