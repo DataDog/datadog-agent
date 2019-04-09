@@ -11,12 +11,16 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
@@ -220,6 +224,95 @@ func TestKubeMetadataCollector_getMetadaNames(t *testing.T) {
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("KubeMetadataCollector.getMetadaNames() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func TestKubeMetadataCollector_getTagInfos(t *testing.T) {
+	pods := []*kubelet.Pod{{
+		Metadata: kubelet.PodMetadata{
+			Name:      "foo",
+			Namespace: "default",
+			UID:       "foouid",
+		},
+		Spec: kubelet.Spec{
+			NodeName: "nodename",
+		},
+		Status: kubelet.Status{
+			Phase: "Running",
+			Conditions: []kubelet.Conditions{
+				{
+					Type:   "Ready",
+					Status: "True",
+				},
+			},
+		},
+	}}
+	podsCache := kubelet.PodList{
+		Items: pods,
+	}
+	cache.Cache.Set("KubeletPodListCacheKey", podsCache, 2*time.Second)
+	kubeUtilFake := &kubelet.KubeUtil{}
+
+	type fields struct {
+		kubeUtil            *kubelet.KubeUtil
+		apiClient           *apiserver.APIClient
+		infoOut             chan<- []*TagInfo
+		dcaClient           clusteragent.DCAClientInterface
+		lastUpdate          time.Time
+		updateFreq          time.Duration
+		clusterAgentEnabled bool
+	}
+	type args struct {
+		pods []*kubelet.Pod
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   []*TagInfo
+	}{
+		{
+			name: "clusterAgentEnabled enable cluster-agent 1.3.x >=",
+			args: args{
+				pods: pods,
+			},
+			fields: fields{
+				kubeUtil:            kubeUtilFake,
+				clusterAgentEnabled: true,
+				dcaClient: &FakeDCAClient{
+					LocalVersion:            version.Version{Major: 1, Minor: 3},
+					KubernetesMetadataNames: []string{"svc1", "svc2"},
+				},
+			},
+			want: []*TagInfo{
+				{
+					Source:               kubeMetadataCollectorName,
+					Entity:               kubelet.PodUIDToEntityName("foouid"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"kube_service:svc1",
+						"kube_service:svc2",
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &KubeMetadataCollector{
+				kubeUtil:            tt.fields.kubeUtil,
+				apiClient:           tt.fields.apiClient,
+				infoOut:             tt.fields.infoOut,
+				dcaClient:           tt.fields.dcaClient,
+				lastUpdate:          tt.fields.lastUpdate,
+				updateFreq:          tt.fields.updateFreq,
+				clusterAgentEnabled: tt.fields.clusterAgentEnabled,
+			}
+
+			got := c.getTagInfos(tt.args.pods)
+			assert.Equalf(t, &got, &tt.want, "KubeMetadataCollector.getTagInfos() = %v, want %v", got, tt.want)
 		})
 	}
 }
