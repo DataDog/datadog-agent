@@ -17,10 +17,10 @@ import (
 // The data is stored in the following schema:
 // {
 // 	"namespace1": {
-// 		"pod": [ "svc1", "svc2", "svc3" ]
+// 		"pod": { "svc1": {}, "svc2": {}, "svc3": {} ]
 // 	},
 //  "namespace2": {
-// 		"pod2": [ "svc1", "svc2", "svc3" ]
+// 		"pod2": [ "svc1": {}, "svc2": {}, "svc3": {} ]
 // 	}
 // }
 type NamespacesPodsStringsSet map[string]MapStringSet

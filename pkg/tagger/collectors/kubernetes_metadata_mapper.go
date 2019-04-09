@@ -66,10 +66,16 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		for _, tagDCA := range metadataNames {
 			log.Tracef("Tagging %s with %s", po.Metadata.Name, tagDCA)
 			tag = strings.Split(tagDCA, ":")
-			if len(tag) != 2 {
+			switch len(tag) {
+			case 1:
+				// c.dcaClient.GetPodsMetadataForNode returns only a list of services
+				// but not the tag key
+				tagList.AddLow("kube_service", tag[0])
+			case 2:
+				tagList.AddLow(tag[0], tag[1])
+			default:
 				continue
 			}
-			tagList.AddLow(tag[0], tag[1])
 		}
 
 		low, orchestrator, high := tagList.Compute()
