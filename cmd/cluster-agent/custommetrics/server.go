@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
+	"context"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -86,7 +87,7 @@ func (a *DatadogMetricsAdapter) makeProviderOrDie() (provider.ExternalMetricsPro
 		return nil, err
 	}
 
-	return custommetrics.NewDatadogProvider(client, mapper, store), nil
+	return custommetrics.NewDatadogProvider(context.Background(), client, mapper, store), nil
 }
 
 // Config creates the configuration containing the required parameters to communicate with the APIServer as an APIService

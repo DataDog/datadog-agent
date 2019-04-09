@@ -21,6 +21,7 @@ import (
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 	"k8s.io/metrics/pkg/apis/external_metrics"
 
+	"context"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"time"
@@ -38,12 +39,13 @@ type datadogProvider struct {
 	externalMetrics []externalMetric
 	resVersion      string
 	store           Store
+	serving         bool
 	timestamp       int64
 	maxAge          int64
 }
 
 // NewDatadogProvider creates a Custom Metrics and External Metrics Provider.
-func NewDatadogProvider(client dynamic.Interface, mapper apimeta.RESTMapper, store Store) provider.MetricsProvider {
+func NewDatadogProvider(ctx context.Context, client dynamic.Interface, mapper apimeta.RESTMapper, store Store) provider.MetricsProvider {
 	maxAge := config.Datadog.GetInt64("external_metrics_provider.local_copy_refresh_rate")
 	d := &datadogProvider{
 		client: client,
@@ -51,14 +53,32 @@ func NewDatadogProvider(client dynamic.Interface, mapper apimeta.RESTMapper, sto
 		store:  store,
 		maxAge: maxAge,
 	}
-	go d.externalMetricsSetter()
+	go d.externalMetricsSetter(ctx)
 	return d
 }
 
-func (p *datadogProvider) externalMetricsSetter() {
+type timer struct {
+	period time.Duration
+	timer  time.Timer
+}
+
+func (t *timer) resetTimer() {
+	t.timer.Stop()
+	t.timer = *time.NewTimer(t.period)
+}
+
+func createTimer(period time.Duration) *timer {
+	return &timer{period, *time.NewTimer(period)}
+}
+
+func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 	log.Infof("Starting async loop to collect External Metrics")
 	tick := time.NewTicker(time.Duration(p.maxAge) * time.Second)
-	out := time.NewTimer(60 * time.Second)
+	defer tick.Stop()
+	out := createTimer(2 * time.Duration(p.maxAge) * time.Second)
+	defer out.timer.Stop()
+	_, cancel := context.WithCancel(ctx)
+	defer cancel()
 	for {
 		select {
 		case <-tick.C:
@@ -67,6 +87,7 @@ func (p *datadogProvider) externalMetricsSetter() {
 			rawMetrics, err := p.store.ListAllExternalMetricValues()
 			if err != nil {
 				log.Errorf("Could not list the external metrics in the store: %s", err.Error())
+				p.serving = false
 				break
 			}
 
@@ -94,10 +115,14 @@ func (p *datadogProvider) externalMetricsSetter() {
 			}
 			p.externalMetrics = externalMetricsList
 			p.timestamp = metav1.Now().Unix()
+			p.serving = true
 
-			out.Reset(20 * time.Second)
-		case <-out.C:
-			log.Error("Time out collecting External Metrics from the ConfigMap")
+			out.resetTimer()
+
+		case <-out.timer.C:
+			p.serving = false
+			log.Error("Timed out collecting External Metrics, stopping async loop")
+			return
 		}
 	}
 }
@@ -120,6 +145,9 @@ func (p *datadogProvider) ListAllMetrics() []provider.CustomMetricInfo {
 
 // ListAllExternalMetrics lists the available External Metrics at the time.
 func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo {
+	if !p.serving {
+		return nil
+	}
 	var externalMetricsInfoList []provider.ExternalMetricInfo
 	log.Tracef("Listing available metrics as of %s", time.Unix(p.timestamp, 0).Format(time.RFC850))
 	for _, metric := range p.externalMetrics {
@@ -131,8 +159,8 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 // GetExternalMetric is called by the PodAutoscaler Controller to get the value of the external metric it is currently evaluating.
 func (p *datadogProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 
-	if time.Now().Unix()-p.timestamp > 2*p.maxAge {
-		return nil, fmt.Errorf("external metrics are outdated")
+	if time.Now().Unix()-p.timestamp > 2*p.maxAge || !p.serving {
+		return nil, fmt.Errorf("external metrics invalid")
 	}
 
 	matchingMetrics := []external_metrics.ExternalMetricValue{}
