@@ -443,7 +443,7 @@ func TestEventProcessorFromConfLegacy(t *testing.T) {
 		{name: "metrics/overrides/legacy", intakeSPS: 100, serviceName: "serviceC", opName: "opC", extractionRate: 1, priority: sampler.PriorityNone, expectedEPS: 100, deltaPct: 0.1, duration: 10 * time.Second},
 	} {
 		testEventProcessorFromConf(t, &config.AgentConfig{
-			MaxEPS: testMaxEPS,
+			MaxEPS:                      testMaxEPS,
 			AnalyzedRateByServiceLegacy: rateByService,
 		}, testCase)
 	}
