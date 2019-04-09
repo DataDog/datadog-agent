@@ -8,7 +8,7 @@ package pidfile
 import (
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/StackVista/stackstate-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows"
 )
 

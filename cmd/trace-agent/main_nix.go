@@ -5,8 +5,8 @@ package main
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/StackVista/stackstate-agent/pkg/trace/agent"
+	"github.com/StackVista/stackstate-agent/pkg/trace/watchdog"
 )
 
 // main is the main application entry point

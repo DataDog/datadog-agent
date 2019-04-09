@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/StackVista/stackstate-agent/pkg/util/common"
 )
 
 func TestLimitBuffer(t *testing.T) {

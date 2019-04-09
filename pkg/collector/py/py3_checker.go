@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	"github.com/StackVista/stackstate-agent/pkg/util/executable"
 )
 
 var (

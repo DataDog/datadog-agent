@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
-	"github.com/DataDog/datadog-agent/pkg/trace/flags"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/StackVista/stackstate-agent/pkg/trace/agent"
+	"github.com/StackVista/stackstate-agent/pkg/trace/flags"
+	"github.com/StackVista/stackstate-agent/pkg/trace/watchdog"
 
 	log "github.com/cihub/seelog"
 	"golang.org/x/sys/windows/svc"

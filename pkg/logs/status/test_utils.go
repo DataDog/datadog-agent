@@ -6,7 +6,7 @@
 package status
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 )
 
 // ConsumeSources ensures that another component is consuming the channel to prevent

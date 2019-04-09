@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	coreConfig "github.com/StackVista/stackstate-agent/pkg/config"
 )
 
 type ConfigTestSuite struct {

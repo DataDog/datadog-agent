@@ -21,7 +21,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
-	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	dderrors "github.com/StackVista/stackstate-agent/pkg/errors"
 )
 
 func makeLeaderCM(name, namespace, leaderIdentity string, leaseDuration int) *v1.ConfigMap {

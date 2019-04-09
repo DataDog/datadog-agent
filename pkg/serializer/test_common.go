@@ -8,7 +8,7 @@ package serializer
 import (
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/StackVista/stackstate-agent/pkg/serializer/marshaler"
 )
 
 // MockSerializer is a mock for the MetricSerializer

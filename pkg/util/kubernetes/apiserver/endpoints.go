@@ -12,7 +12,7 @@ import (
 
 	"k8s.io/api/core/v1"
 
-	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	dderrors "github.com/StackVista/stackstate-agent/pkg/errors"
 )
 
 // SearchTargetPerName returns the endpoint matching a given target name. It allows
