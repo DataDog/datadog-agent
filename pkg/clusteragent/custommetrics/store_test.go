@@ -184,7 +184,7 @@ func TestExternalMetricValueKeyFunc(t *testing.T) {
 
 	for i, tt := range test {
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
-			out := externalMetricValueKeyFunc(tt.emval)
+			out := ExternalMetricValueKeyFunc(tt.emval)
 			assert.Equal(t, tt.output, out)
 		})
 	}

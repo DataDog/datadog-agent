@@ -9,6 +9,7 @@ package apiserver
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -41,7 +42,7 @@ type PollerConfig struct {
 }
 
 type metricsBatch struct {
-	data []custommetrics.ExternalMetricValue
+	data map[string]custommetrics.ExternalMetricValue
 	m    sync.Mutex
 }
 
@@ -73,8 +74,13 @@ type AutoscalersController struct {
 // NewAutoscalersController returns a new AutoscalersController
 func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInterface, dogCl hpa.DatadogClient, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) (*AutoscalersController, error) {
 	var err error
+
+	s := metricsBatch{
+		data: make(map[string]custommetrics.ExternalMetricValue),
+	}
 	h := &AutoscalersController{
-		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
+		queue:   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
+		toStore: s,
 	}
 
 	gcPeriodSeconds := config.Datadog.GetInt("hpa_watcher_gc_period")
@@ -160,49 +166,40 @@ func (c *AutoscalersController) processingLoop() {
 	}()
 }
 
-func (h *AutoscalersController) pushToGlobalStore() error {
-	// reset the batch before submitting to avoid a discrepancy between the global store and the local one
-	h.toStore.m.Lock()
-	localStore := h.toStore.data
-	h.toStore.data = nil
-	h.toStore.m.Unlock()
-	if localStore == nil {
-		log.Trace("No batched metrics to push to the Global Store")
-		return nil
-	}
-	if !h.le.IsLeader() {
-		return nil
-	}
-	log.Debugf("Batch call pushing %v metrics", len(localStore))
-	err := h.store.SetExternalMetricValues(localStore)
-	return err
-}
-
 func (h *AutoscalersController) updateExternalMetrics() {
-	// We force a flush of the most up to date metrics that might remain in the batch
-	err := h.pushToGlobalStore()
-	if err != nil {
-		log.Errorf("Error while pushing external metrics to the store: %s", err)
-		return
-	}
-
-	// prevent some update to get into the store between ListAllExternalMetricValues
-	// and SetExternalMetricValues otherwise it would get erased
-	h.toStore.m.Lock()
-	defer h.toStore.m.Unlock()
-
+	// Grab what is available in the Global store.
 	emList, err := h.store.ListAllExternalMetricValues()
 	if err != nil {
 		log.Errorf("Error while retrieving external metrics from the store: %s", err)
 		return
 	}
+	// This could be avoided, in addition to other places, if we returned a map[string]custommetrics.ExternalMetricValue from ListAllExternalMetricValues
+	globalCache := make(map[string]custommetrics.ExternalMetricValue)
+	for _, e := range emList {
+		i := custommetrics.ExternalMetricValueKeyFunc(e)
+		globalCache[i] = e
+	}
 
-	if len(emList) == 0 {
+	// using several metrics with the same name with different labels in the same HPA is not supported.
+	h.toStore.m.Lock()
+	for i, j := range h.toStore.data {
+		if _, ok := globalCache[i]; !ok {
+			globalCache[i] = j
+		} else {
+			eq := reflect.DeepEqual(j.Labels, globalCache[i].Labels)
+			if !eq {
+				globalCache[i] = j
+			}
+		}
+	}
+	h.toStore.m.Unlock()
+
+	if len(globalCache) == 0 {
 		log.Debugf("No External Metrics to evaluate at the moment")
 		return
 	}
 
-	updated := h.hpaProc.UpdateExternalMetrics(emList)
+	updated := h.hpaProc.UpdateExternalMetrics(globalCache)
 	err = h.store.SetExternalMetricValues(updated)
 	if err != nil {
 		log.Errorf("Not able to store the updated metrics in the Global Store: %v", err)
@@ -212,7 +209,7 @@ func (h *AutoscalersController) updateExternalMetrics() {
 // gc checks if any hpas have been deleted (possibly while the Datadog Cluster Agent was
 // not running) to clean the store.
 func (h *AutoscalersController) gc() {
-	log.Infof("Starting gc run")
+	log.Infof("Starting garbage collection process on the Autoscalers")
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -229,10 +226,11 @@ func (h *AutoscalersController) gc() {
 	}
 
 	deleted := hpa.DiffExternalMetrics(list, emList)
-	if h.store.DeleteExternalMetricValues(deleted); err != nil {
+	if err = h.store.DeleteExternalMetricValues(deleted); err != nil {
 		log.Errorf("Could not delete the external metrics in the store: %v", err)
 		return
 	}
+	h.deleteFromLocalStore(deleted)
 	log.Debugf("Done GC run. Deleted %d metrics", len(deleted))
 }
 
@@ -303,10 +301,14 @@ func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
 			return ErrIsEmpty
 		}
 		new := h.hpaProc.ProcessHPAs(hpa)
-		h.toStore.m.Lock()
-		h.toStore.data = append(h.toStore.data, new...)
+		for e, i := range new {
+			// We should only insert placeholders in the local cache.
+			h.toStore.m.Lock()
+			h.toStore.data[e] = i
+			h.toStore.m.Unlock()
+		}
+
 		log.Tracef("Local batch cache of HPA is %v", h.toStore.data)
-		h.toStore.m.Unlock()
 	}
 	return err
 }
@@ -342,7 +344,11 @@ func (h *AutoscalersController) updateAutoscaler(old, obj interface{}) {
 		log.Tracef("Update received for the %s/%s, without a relevant change to the configuration", newAutoscaler.Namespace, newAutoscaler.Name)
 		return
 	}
-	log.Debugf("Updating autoscaler %s/%s with configuration: %s", newAutoscaler.Namespace, newAutoscaler.Name, newAutoscaler.Annotations)
+	// Need to delete the old object from the local cache. If the labels have changed, the syncAutoscaler would not override the old key.
+	toDelete := hpa.Inspect(oldAutoscaler)
+	h.deleteFromLocalStore(toDelete)
+
+	log.Tracef("Processing update event for autoscaler %s/%s with configuration: %s", newAutoscaler.Namespace, newAutoscaler.Name, newAutoscaler.Annotations)
 	h.enqueue(newAutoscaler)
 }
 
@@ -356,9 +362,17 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 
 	deletedHPA, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler)
 	if ok {
-		log.Debugf("Deleting Metrics from HPA %s/%s", deletedHPA.Namespace, deletedHPA.Name)
 		toDelete := hpa.Inspect(deletedHPA)
-		h.store.DeleteExternalMetricValues(toDelete)
+		h.deleteFromLocalStore(toDelete)
+		log.Debugf("Deleting %s/%s from the local cache", deletedHPA.Namespace, deletedHPA.Name)
+		if !h.le.IsLeader() {
+			return
+		}
+		log.Infof("Deleting entries of metrics from HPA %s/%s in the Global Store", deletedHPA.Namespace, deletedHPA.Name)
+		if err := h.store.DeleteExternalMetricValues(toDelete); err != nil {
+			h.queue.AddRateLimited(deletedHPA)
+			return
+		}
 		h.queue.Done(deletedHPA)
 		return
 	}
@@ -377,7 +391,12 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 
 	log.Debugf("Deleting Metrics from HPA %s/%s", deletedHPA.Namespace, deletedHPA.Name)
 	toDelete := hpa.Inspect(deletedHPA)
-	h.store.DeleteExternalMetricValues(toDelete)
+	log.Debugf("Deleting %s/%s from the local cache", deletedHPA.Namespace, deletedHPA.Name)
+	h.deleteFromLocalStore(toDelete)
+	if err := h.store.DeleteExternalMetricValues(toDelete); err != nil {
+		h.queue.AddRateLimited(deletedHPA)
+		return
+	}
 	h.queue.Done(deletedHPA)
 }
 
@@ -388,4 +407,13 @@ func (h *AutoscalersController) enqueue(obj interface{}) {
 		return
 	}
 	h.queue.AddRateLimited(key)
+}
+
+func (h *AutoscalersController) deleteFromLocalStore(toDelete []custommetrics.ExternalMetricValue) {
+	for _, d := range toDelete {
+		key := custommetrics.ExternalMetricValueKeyFunc(d)
+		h.toStore.m.Lock()
+		delete(h.toStore.data, key)
+		h.toStore.m.Unlock()
+	}
 }
