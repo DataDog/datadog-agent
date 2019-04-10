@@ -137,7 +137,7 @@ api_key:
 #  forwarder_retry_queue_max_size: 30
 
 ## @param forwarder_num_workers - integer - optional - default: 1
-## The number of workers used by the forwarder. Please note each worker opens an outbound HTTP
+## The number of workers used by the forwarder. Note that each worker opens an outbound HTTP
 ## connection towards Datadog's metrics intake at every flush.
 #
 #  forwarder_num_workers: 1
@@ -708,7 +708,7 @@ api_key:
 ## Set to 'true' to enable logging to syslog.
 ## Note: Even if this option is set to 'false', the service launcher of your environment
 ## may redirect the Agent process' stdout/stderr to syslog. In that case, if you wish
-## to disable logging to syslog entirely, please set 'log_to_console' to 'false' as well.
+## to disable logging to syslog entirely, set 'log_to_console' to 'false' as well.
 #
 #  log_to_syslog: false
 
@@ -924,7 +924,7 @@ api_key:
 
 ## @param container_cgroup_prefix - string - optional - default: /docker/
 ## On hosts with mixed workloads, non-containernized processes can
-## mistakenly be detected as containerized. Use this paramter to
+## mistakenly be detected as containerized. Use this parameter to
 ## tune the detection logic to your system and avoid false-positives.
 #
 #  container_cgroup_prefix: "/docker/"
