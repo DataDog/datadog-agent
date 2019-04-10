@@ -228,6 +228,9 @@ build_deb:
       - .omnibus
       - vendor
   script:
+    # TODO: move to builder image
+  - apt-get install bison
+    
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
   - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
