@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
@@ -312,7 +311,7 @@ func TestKubeMetadataCollector_getTagInfos(t *testing.T) {
 			}
 
 			got := c.getTagInfos(tt.args.pods)
-			assert.Equalf(t, &got, &tt.want, "KubeMetadataCollector.getTagInfos() = %v, want %v", got, tt.want)
+			assertTagInfoListEqual(t, tt.want, got)
 		})
 	}
 }
