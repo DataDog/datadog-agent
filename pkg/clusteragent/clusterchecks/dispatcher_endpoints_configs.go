@@ -64,7 +64,7 @@ func (d *dispatcher) updateEndpointsChecksMap(endpointsInfo map[string][]types.E
 func (d *dispatcher) getEndpointsInfo() (map[string][]types.EndpointInfo, error) {
 	nodesEndpointsMapping := make(map[string][]types.EndpointInfo)
 	d.store.RLock()
-	defer d.store.Unlock()
+	defer d.store.RUnlock()
 	for _, svc := range d.store.services {
 		kendpoints, err := d.listers.EndpointsLister.Endpoints(svc.Namespace).Get(svc.Name)
 		if err != nil {
