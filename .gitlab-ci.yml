@@ -136,6 +136,8 @@ unit_tests:
     - inv deps
     - inv -e agent.build --race --precompile-only
     - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubeapiserver,kubelet
+  tags:
+    - slavko_docker
 
 integration_tests:
   stage: build_and_test
