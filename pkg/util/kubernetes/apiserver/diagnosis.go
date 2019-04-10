@@ -12,11 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// DiagnoseName is used as an identifier to Kubernetes API Server connectivity check
-const DiagnoseName = "Kubernetes API Server availability"
-
 func init() {
-	diagnosis.Register(DiagnoseName, diagnose)
+	diagnosis.Register("Kubernetes API Server availability", diagnose)
 }
 
 // diagnose the API server availability
