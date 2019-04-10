@@ -51,6 +51,7 @@ type DCAClientInterface interface {
 
 	PostClusterCheckStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error)
 	GetClusterCheckConfigs(nodeName string) (types.ConfigResponse, error)
+	GetEndpointsCheckConfigs(nodeName string) (types.ConfigResponse, error)
 }
 
 // DCAClient is required to query the API of Datadog cluster agent

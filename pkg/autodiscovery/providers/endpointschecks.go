@@ -108,7 +108,7 @@ func getNodename() (string, error) {
 func (c *EndpointsChecksConfigProvider) initClient() error {
 	dcaClient, err := clusteragent.GetClusterAgentClient()
 	if err == nil {
-		c.dcaClient = dcaClient
+		c.dcaClient = dcaClient.(*clusteragent.DCAClient)
 	}
 	return err
 }
