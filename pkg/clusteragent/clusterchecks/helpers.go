@@ -8,13 +8,17 @@
 package clusterchecks
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
-const kubeServiceIDPrefix = "kube_service://"
+const (
+	kubeServiceIDPrefix = "kube_service://"
+	KubePodPrefix       = "kubernetes_pod://"
+)
 
 // makeConfigArray flattens a map of configs into a slice. Creating a new slice
 // allows for thread-safe usage by other external, as long as the field values in
@@ -40,4 +44,8 @@ func isServiceCheck(config integration.Config) bool {
 // retrieve service UID from entity
 func getServiceUID(config integration.Config) string {
 	return strings.TrimLeft(config.Entity, kubeServiceIDPrefix)
+}
+
+func getEndpointsEntity(podUID string) string {
+	return fmt.Sprintf("%s%s", KubePodPrefix, podUID)
 }

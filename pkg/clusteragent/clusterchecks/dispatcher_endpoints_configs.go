@@ -18,7 +18,7 @@ import (
 )
 
 func (d *dispatcher) GetEndpointsConfigs(nodeName string) ([]integration.Config, error) {
-	err := d.updateCheckMaps()
+	err := d.updateStore()
 	if err != nil {
 		log.Errorf("Cannot update check maps: %s", err)
 		return nil, err
@@ -26,13 +26,13 @@ func (d *dispatcher) GetEndpointsConfigs(nodeName string) ([]integration.Config,
 	return d.store.endpointsChecks[nodeName], nil
 }
 
-func (d *dispatcher) updateCheckMaps() error {
+func (d *dispatcher) updateStore() error {
 	kservices, err := d.listers.ServicesLister.List(labels.Everything())
 	if err != nil {
 		log.Errorf("Cannot list Kubernetes services: %s", err)
 		return err
 	}
-	d.updateServiceChecksMap(kservices)
+	d.updateServicesMap(kservices)
 	endpointsInfo, err := d.getEndpointsInfo()
 	if err != nil {
 		log.Errorf("Cannot get endpoints info: %s", err)
@@ -62,33 +62,33 @@ func (d *dispatcher) updateEndpointsChecksMap(endpointsInfo map[string][]types.E
 }
 
 func (d *dispatcher) getEndpointsInfo() (map[string][]types.EndpointInfo, error) {
-	endpointsInfo := make(map[string][]types.EndpointInfo)
-	d.store.Lock()
+	nodesEndpointsMapping := make(map[string][]types.EndpointInfo)
+	d.store.RLock()
 	defer d.store.Unlock()
-	for _, svc := range d.store.serviceChecks {
+	for _, svc := range d.store.services {
 		kendpoints, err := d.listers.EndpointsLister.Endpoints(svc.Namespace).Get(svc.Name)
 		if err != nil {
 			log.Errorf("Cannot get Kubernetes endpoints:%s/%s : %s", svc.Namespace, svc.Name, err)
 			return nil, err
 		}
 		if hasPodRef(kendpoints) {
-			newEndpointsInfo := getEndpointInfo(kendpoints, svc)
-			endpointsInfo = mergeEndpointsInfo(endpointsInfo, newEndpointsInfo)
+			newNodesEndpointsMapping := getEndpointInfo(kendpoints, svc)
+			nodesEndpointsMapping = unionMaps(nodesEndpointsMapping, newNodesEndpointsMapping)
 		}
 	}
-	return endpointsInfo, nil
+	return nodesEndpointsMapping, nil
 }
 
-func (d *dispatcher) updateServiceChecksMap(kservices []*v1.Service) {
+func (d *dispatcher) updateServicesMap(kservices []*v1.Service) {
 	d.store.Lock()
 	defer d.store.Unlock()
 	for _, ksvc := range kservices {
 		uid := ksvc.ObjectMeta.UID
-		_, found := d.store.serviceChecks[uid]
+		_, found := d.store.services[uid]
 		if found {
-			d.store.serviceChecks[uid].Namespace = ksvc.Namespace
-			d.store.serviceChecks[uid].Name = ksvc.Name
-			d.store.serviceChecks[uid].ClusterIP = ksvc.Spec.ClusterIP
+			d.store.services[uid].Namespace = ksvc.Namespace
+			d.store.services[uid].Name = ksvc.Name
+			d.store.services[uid].ClusterIP = ksvc.Spec.ClusterIP
 		}
 	}
 }
@@ -107,15 +107,14 @@ func hasPodRef(kendpoints *v1.Endpoints) bool {
 
 func getEndpointInfo(kendpoints *v1.Endpoints, svc *types.Service) map[string][]types.EndpointInfo {
 	endpointsInfo := make(map[string][]types.EndpointInfo)
-	ports := []int32{}
 	for i := range kendpoints.Subsets {
+		ports := []int32{}
 		for j := range kendpoints.Subsets[i].Ports {
 			ports = append(ports, kendpoints.Subsets[i].Ports[j].Port)
 		}
 		for j := range kendpoints.Subsets[i].Addresses {
-			if kendpoints.Subsets[i].Addresses[j].NodeName != nil {
-				nodeName := *kendpoints.Subsets[i].Addresses[j].NodeName
-				endpointsInfo[nodeName] = append(endpointsInfo[nodeName], types.EndpointInfo{
+			if nodeName := kendpoints.Subsets[i].Addresses[j].NodeName; nodeName != nil {
+				endpointsInfo[*nodeName] = append(endpointsInfo[*nodeName], types.EndpointInfo{
 					PodUID:        kendpoints.Subsets[i].Addresses[j].TargetRef.UID,
 					IP:            kendpoints.Subsets[i].Addresses[j].IP,
 					Ports:         ports,
@@ -131,7 +130,7 @@ func getEndpointInfo(kendpoints *v1.Endpoints, svc *types.Service) map[string][]
 	return endpointsInfo
 }
 
-func mergeEndpointsInfo(first, second map[string][]types.EndpointInfo) map[string][]types.EndpointInfo {
+func unionMaps(first, second map[string][]types.EndpointInfo) map[string][]types.EndpointInfo {
 	for k, v := range second {
 		first[k] = append(first[k], v...)
 	}
@@ -139,11 +138,13 @@ func mergeEndpointsInfo(first, second map[string][]types.EndpointInfo) map[strin
 }
 
 func resolveToConfig(info types.EndpointInfo) integration.Config {
+	entity := getEndpointsEntity(string(info.PodUID))
 	config := integration.Config{
 		Name:          info.CheckName,
+		Entity:        entity,
 		Instances:     make([]integration.Data, len(info.Instances)),
 		InitConfig:    make(integration.Data, len(info.InitConfig)),
-		ADIdentifiers: []string{string(info.PodUID), info.ServiceEntity},
+		ADIdentifiers: []string{entity, info.ServiceEntity},
 		ClusterCheck:  false,
 		CreationTime:  integration.Before,
 	}

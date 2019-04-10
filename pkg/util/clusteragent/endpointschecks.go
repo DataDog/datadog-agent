@@ -29,7 +29,7 @@ func (c *DCAClient) GetEndpointsCheckConfigs(nodeName string) (types.ConfigRespo
 	if err != nil && willRetry {
 		log.Debugf("Got error on leader, retrying via the service: %s", err)
 		c.leaderClient.resetURL()
-		return c.doGetClusterCheckConfigs(nodeName)
+		return c.doGetEndpointsCheckConfigs(nodeName)
 	}
 	return result, err
 }
