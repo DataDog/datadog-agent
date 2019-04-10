@@ -27,18 +27,3 @@ func TestRunAll(t *testing.T) {
 	assert.Contains(t, result, "=== Running failing diagnosis ===\n===> FAIL")
 	assert.Contains(t, result, "=== Running succeeding diagnosis ===\n===> PASS")
 }
-
-func TestRun(t *testing.T) {
-
-	diagnosis.Register("failing1", func() error { return errors.New("fail") })
-	diagnosis.Register("failing2", func() error { return errors.New("fail") })
-	diagnosis.Register("succeeding1", func() error { return nil })
-	diagnosis.Register("succeeding2", func() error { return nil })
-
-	w := &bytes.Buffer{}
-	Run(w, []string{"succeeding1", "failing2"})
-
-	result := w.String()
-	assert.Contains(t, result, "=== Running failing2 diagnosis ===\n===> FAIL")
-	assert.Contains(t, result, "=== Running succeeding1 diagnosis ===\n===> PASS")
-}

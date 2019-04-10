@@ -13,16 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
-
-var diagnoseNames = []string{
-	apiserver.DiagnoseName,
-}
 
 func init() {
 	ClusterAgentCmd.AddCommand(diagnoseCommand)
@@ -62,7 +57,7 @@ func doDiagnose(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
-	err = diagnose.Run(color.Output, diagnoseNames)
+	err = diagnose.RunAll(color.Output)
 	if err != nil {
 		panic(err)
 	}

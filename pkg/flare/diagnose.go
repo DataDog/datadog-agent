@@ -9,12 +9,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 )
 
-var diagnoseNames = []string{
-	"Kubernetes API Server availability",
-}
-
 // GetClusterAgentDiagnose dumps the connectivity checks diagnose to the writer
 func GetClusterAgentDiagnose(w io.Writer) error {
-	err := diagnose.Run(w, diagnoseNames)
+	err := diagnose.RunAll(w)
 	return err
 }
