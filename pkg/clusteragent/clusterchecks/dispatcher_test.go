@@ -429,7 +429,7 @@ func TestExtraTags(t *testing.T) {
 	}
 }
 
-func TestUpdateServiceChecksMap(t *testing.T) {
+func TestUpdateServicesMap(t *testing.T) {
 	dispatcher := newDispatcher()
 	config := integration.Config{
 		Name:         "http_check",
@@ -475,7 +475,7 @@ func TestUpdateServiceChecksMap(t *testing.T) {
 			},
 		},
 	}
-	dispatcher.updateServiceChecksMap(kservices)
+	dispatcher.updateServicesMap(kservices)
 	expectedServiceMap := map[ktypes.UID]*types.Service{
 		ktypes.UID("test"): {
 			CheckName: "http_check",
@@ -486,14 +486,14 @@ func TestUpdateServiceChecksMap(t *testing.T) {
 			Entity:    "kube_service://test",
 		},
 	}
-	assert.Equal(t, expectedServiceMap, dispatcher.store.serviceChecks)
+	assert.Equal(t, expectedServiceMap, dispatcher.store.services)
 
 	requireNotLocked(t, dispatcher.store)
 }
 
 func TestUpdateEndpointsChecksMap(t *testing.T) {
 	dispatcher := newDispatcher()
-	endpointsInfo := map[string][]types.EndpointInfo{
+	nodeEndpointsMapping := map[string][]types.EndpointInfo{
 		"nodeName": {
 			{
 				PodUID:    ktypes.UID("podUID"),
@@ -539,7 +539,8 @@ func TestUpdateEndpointsChecksMap(t *testing.T) {
 		"nodeName": {
 			{
 				Name:          "http_check",
-				ADIdentifiers: []string{"podUID", "kube_service://test"},
+				Entity:        "kubernetes_pod://podUID",
+				ADIdentifiers: []string{"kubernetes_pod://podUID", "kube_service://test"},
 				ClusterCheck:  false,
 				Instances: []integration.Data{
 					integration.Data("\"url\": \"http://10.0.0.2\""),
@@ -548,7 +549,8 @@ func TestUpdateEndpointsChecksMap(t *testing.T) {
 			},
 			{
 				Name:          "http_check",
-				ADIdentifiers: []string{"podUID1", "kube_service://test"},
+				Entity:        "kubernetes_pod://podUID1",
+				ADIdentifiers: []string{"kubernetes_pod://podUID1", "kube_service://test"},
 				ClusterCheck:  false,
 				Instances: []integration.Data{
 					integration.Data("\"url\": \"http://10.0.0.3\""),
@@ -559,7 +561,8 @@ func TestUpdateEndpointsChecksMap(t *testing.T) {
 		"nodeName1": {
 			{
 				Name:          "http_check",
-				ADIdentifiers: []string{"podUID1", "kube_service://test"},
+				Entity:        "kubernetes_pod://podUID1",
+				ADIdentifiers: []string{"kubernetes_pod://podUID1", "kube_service://test"},
 				ClusterCheck:  false,
 				Instances: []integration.Data{
 					integration.Data("\"url\": \"http://10.0.0.4\""),
@@ -568,7 +571,7 @@ func TestUpdateEndpointsChecksMap(t *testing.T) {
 			},
 		},
 	}
-	err := dispatcher.updateEndpointsChecksMap(endpointsInfo)
+	err := dispatcher.updateEndpointsChecksMap(nodeEndpointsMapping)
 	assert.Nil(t, err)
 	assert.Equal(t, expectedConfig, dispatcher.store.endpointsChecks)
 

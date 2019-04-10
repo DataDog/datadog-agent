@@ -63,7 +63,7 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		}
 		if isServiceCheck(c) {
 			d.store.Lock()
-			d.store.serviceChecks[ktypes.UID(getServiceUID(c))] = newService(c)
+			d.store.services[ktypes.UID(getServiceUID(c))] = newService(c)
 			d.store.Unlock()
 		}
 		patched, err := d.patchConfiguration(c)
@@ -83,7 +83,7 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 		}
 		if isServiceCheck(c) {
 			d.store.Lock()
-			delete(d.store.serviceChecks, ktypes.UID(getServiceUID(c)))
+			delete(d.store.services, ktypes.UID(getServiceUID(c)))
 			d.store.Unlock()
 		}
 		patched, err := d.patchConfiguration(c)
