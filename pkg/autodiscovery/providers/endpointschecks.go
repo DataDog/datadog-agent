@@ -8,12 +8,9 @@
 package providers
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -83,16 +80,15 @@ func addPodTags(configs []integration.Config) []integration.Config {
 		if len(config.ADIdentifiers) == 0 {
 			continue
 		}
-		entity := fmt.Sprintf("%s%s", kubelet.KubePodPrefix, config.ADIdentifiers[0])
-		tags, err := tagger.Tag(entity, collectors.OrchestratorCardinality)
+		tags, err := tagger.Tag(config.Entity, tagger.ChecksCardinality)
 		if err != nil {
-			log.Debugf("Cannot get tags for %s: %s", entity, err)
+			log.Debugf("Cannot get tags for %s: %s", config.Entity, err)
 			continue
 		}
 		for i := range config.Instances {
 			err = config.Instances[i].MergeAdditionalTags(tags)
 			if err != nil {
-				log.Debugf("Cannot merge tags for %s: %s", entity, err)
+				log.Debugf("Cannot merge tags for %s: %s", config.Entity, err)
 				continue
 			}
 		}
