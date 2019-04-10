@@ -18,18 +18,6 @@
   version = "4.7.1"
 
 [[projects]]
-  digest = "1:5c32ea0d5d63f7cccd13686901743311a8c7b54ab701371a3a1a67e412181cf9"
-  name = "github.com/DataDog/datadog-agent"
-  packages = [
-    "pkg/autodiscovery/integration",
-    "pkg/util/log",
-    "pkg/util/tmplvar",
-  ]
-  pruneopts = ""
-  revision = "e36980bb9bc7b6efd6841b26f2cd0cff45a89596"
-  version = "6.10.2"
-
-[[projects]]
   digest = "1:e64fddc819e2abc68792a743dd857c379449a56f2b9eaf030c03fb0ec19de884"
   name = "github.com/DataDog/datadog-go"
   packages = ["statsd"]
@@ -1943,7 +1931,6 @@
   analyzer-version = 1
   input-imports = [
     "github.com/DataDog/agent-payload/gogen",
-    "github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration",
     "github.com/DataDog/datadog-go/statsd",
     "github.com/DataDog/gohai/cpu",
     "github.com/DataDog/gohai/filesystem",
