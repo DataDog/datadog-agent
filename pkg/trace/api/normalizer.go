@@ -282,22 +282,18 @@ func normalizeTag(tag string) string {
 	)
 	norm := []byte(tag)
 	for i, c = range tag {
-		if chars >= maxTagLength {
-			// we've reached the maximum
-			break
-		}
 		// fast path; all letters (and colons) are ok
 		switch {
 		case c >= 'a' && c <= 'z' || c == ':':
 			chars++
 			wiping = false
-			continue
+			goto end
 		case c >= 'A' && c <= 'Z':
 			// lower-case
 			norm[i] += 'a' - 'A'
 			chars++
 			wiping = false
-			continue
+			goto end
 		}
 
 		if utf8.ValidRune(c) && unicode.IsUpper(c) {
@@ -317,7 +313,7 @@ func normalizeTag(tag string) string {
 		case chars == 0:
 			// this character can not start the string, trim
 			trim = i + utf8.RuneLen(c)
-			continue
+			goto end
 		case unicode.IsDigit(c) || c == '.' || c == '/' || c == '-':
 			chars++
 			wiping = false
@@ -331,6 +327,15 @@ func normalizeTag(tag string) string {
 				// lengthen current cut
 				wipe[len(wipe)-1][1] += utf8.RuneLen(c)
 			}
+		}
+	end:
+		if i+utf8.RuneLen(c) >= 2*maxTagLength {
+			// too many illegal characters
+			break
+		}
+		if chars >= maxTagLength {
+			// we've reached the maximum
+			break
 		}
 	}
 
