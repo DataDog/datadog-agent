@@ -65,7 +65,7 @@ build do
             move "#{install_dir}/scripts/stackstate-agent-network.service", systemd_directory
 
             # Move checks and configuration files
-            mkdir "/etc/datadog-agent"
+            mkdir "/etc/stackstate-agent"
             move "#{install_dir}/bin/agent/sts-agent", "/usr/bin/sts-agent"
             move "#{install_dir}/etc/stackstate-agent/stackstate.yaml.example", "/etc/stackstate-agent"
             move "#{install_dir}/etc/stackstate-agent/network-tracer.yaml.example", "/etc/stackstate-agent"
