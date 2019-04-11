@@ -223,7 +223,7 @@ build_deb:
     # fast.
     # It also cuts into our pipeline quotum
     #- sts-aws
-    - slavko_debug
+    - slavko_shell
   cache:
     key: "agent-build_publish_deb"
     paths:
