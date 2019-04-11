@@ -277,47 +277,47 @@ func normalizeTag(v string) string {
 	)
 	var (
 		i    int  // current byte
-		c    rune // current rune
+		r    rune // current rune
 		jump int  // tracks how much the for range will advance on the next iteration
 	)
 	tag := []byte(v)
-	for i, c = range v {
-		jump = utf8.RuneLen(c) // next iteration will be i+jump
-		if c == utf8.RuneError {
+	for i, r = range v {
+		jump = utf8.RuneLen(r) // next iteration will be i+jump
+		if r == utf8.RuneError {
 			// on invalid UTF-8, the for range advances only 1 byte;
 			// https://golang.org/ref/spec#For_range (point 2)
 			jump = 1
 		}
 		// fast path; all letters (and colons) are ok
 		switch {
-		case c >= 'a' && c <= 'z' || c == ':':
+		case r >= 'a' && r <= 'z' || r == ':':
 			chars++
 			goto end
-		case c >= 'A' && c <= 'Z':
+		case r >= 'A' && r <= 'Z':
 			// lower-case
 			tag[i] += 'a' - 'A'
 			chars++
 			goto end
 		}
 
-		if c != utf8.RuneError && unicode.IsUpper(c) {
+		if r != utf8.RuneError && unicode.IsUpper(r) {
 			// lowercase this character
-			if low := unicode.ToLower(c); utf8.RuneLen(c) == utf8.RuneLen(low) {
+			if low := unicode.ToLower(r); utf8.RuneLen(r) == utf8.RuneLen(low) {
 				// but only if the width of the lowercased character is the same;
 				// there are some rare edge-cases where this is not the case, such
 				// as \u017F (ſ)
 				utf8.EncodeRune(tag[i:], low)
-				c = low
+				r = low
 			}
 		}
 		switch {
-		case unicode.IsLetter(c):
+		case unicode.IsLetter(r):
 			chars++
 		case chars == 0:
 			// this character can not start the string, trim
 			trim = i + jump
 			goto end
-		case unicode.IsDigit(c) || c == '.' || c == '/' || c == '-':
+		case unicode.IsDigit(r) || r == '.' || r == '/' || r == '-':
 			chars++
 		default:
 			// illegal character
