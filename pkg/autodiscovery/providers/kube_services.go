@@ -31,13 +31,13 @@ const (
 	kubeEndpointIDPrefix         = "kube_endpoint://"
 )
 
-// KubeletConfigProvider implements the ConfigProvider interface for the kubelet.
+// KubeServiceConfigProvider implements the ConfigProvider interface for the apiserver.
 type KubeServiceConfigProvider struct {
 	lister   listersv1.ServiceLister
 	upToDate bool
 }
 
-// NewKubeServiceConfigProvider returns a new ConfigProvider connected to kubelet.
+// NewKubeServiceConfigProvider returns a new ConfigProvider connected to apîserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewKubeServiceConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
 	ac, err := apiserver.GetAPIClient()
