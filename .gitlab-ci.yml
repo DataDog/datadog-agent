@@ -222,7 +222,8 @@ build_deb:
     # We put the deb build on sts-aws because it runs long and we do want to have it run
     # fast.
     # It also cuts into our pipeline quotum
-    - sts-aws
+    #- sts-aws
+    - slavko_debug
   cache:
     key: "agent-build_publish_deb"
     paths:
