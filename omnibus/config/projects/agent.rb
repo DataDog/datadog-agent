@@ -154,7 +154,7 @@ dependency 'datadog-agent-finalize'
 if linux?
   extra_package_file '/etc/init/stackstate-agent.conf'
   extra_package_file '/etc/init/stackstate-agent-process.conf'
-  extra_package_file '/etc/init/stackstate-agent-network.conf'
+  #[VS] extra_package_file '/etc/init/stackstate-agent-network.conf'
   extra_package_file '/etc/init/stackstate-agent-trace.conf'
   systemd_directory = "/usr/lib/systemd/system"
   if debian?
