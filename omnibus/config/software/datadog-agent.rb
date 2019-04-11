@@ -31,7 +31,7 @@ build do
   env = with_embedded_path(env)
 
   # we assume the go deps are already installed before running omnibus
-  command "inv -e agent.build --rebuild --use-embedded-libs --no-development --embedded-path=#{install_dir}", env: env
+  command "inv -e agent.build --rebuild --use-embedded-libs --no-development --embedded-path=#{install_dir}/embedded", env: env
   if windows?
     command "inv -e systray.build --rebuild --use-embedded-libs --no-development", env: env
   end

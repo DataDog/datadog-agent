@@ -117,9 +117,8 @@ dependency 'datadog-agent'
 
 # Additional software
 dependency 'cacerts'
-dependency 'datadog-agent-integrations'
 dependency 'datadog-a7'
-dependency 'datadog-agent-env-check'
+dependency 'datadog-agent-integrations'
 if osx?
   dependency 'datadog-agent-mac-app'
 end
@@ -127,12 +126,6 @@ end
 # External agents
 dependency 'datadog-process-agent' # Includes network-tracer
 dependency 'jmxfetch'
-
-# Remove pyc/pyo files from package
-# should be built after all the other python-related software defs
-unless osx?
-  dependency 'py-compiled-cleanup'
-end
 
 # version manifest file
 dependency 'version-manifest'

@@ -1,0 +1,13 @@
+diff -ur protobuf-3.5.1/python/setup.py protobuf-3.5.1-patched/python/setup.py
+--- protobuf-3.5.1/python/setup.py	2017-12-18 22:53:23.000000000 +0100
++++ protobuf-3.5.1-patched/python/setup.py	2018-04-23 11:08:20.000000000 +0200
+@@ -180,7 +180,8 @@
+     compile_static_ext = get_option_from_sys_argv('--compile_static_extension')
+     extra_compile_args = ['-Wno-write-strings',
+                           '-Wno-invalid-offsetof',
+-                          '-Wno-sign-compare']
++                          '-Wno-sign-compare',
++                          '-g0',]
+     libraries = ['protobuf']
+     extra_objects = None
+     if compile_static_ext:
