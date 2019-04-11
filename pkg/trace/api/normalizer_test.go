@@ -427,6 +427,8 @@ func TestNormalizeTag(t *testing.T) {
 		{in: "tag:1/2.3", out: "tag:1/2.3"},
 		{in: "---fun:k####y_ta@#g/1_@@#", out: "fun:k_y_ta_g/1"},
 		{in: "AlsO:œ#@ö))œk", out: "also:œ_ö_œk"},
+		{in: "test\x99\x8faaa", out: "test_aaa"},
+		{in: "test\x99\x8f", out: "test"},
 		{in: strings.Repeat("a", 888), out: strings.Repeat("a", 200)},
 		{
 			in: func() string {
