@@ -331,7 +331,8 @@ func normalizeTag(v string) string {
 		}
 	end:
 		if i+jump >= 2*maxTagLength {
-			// too many illegal characters
+			// bail early if the tag contains a lot of non-letter/digit characters.
+			// If a tag is test🍣🍣[...]🍣, then it's unlikely to be a properly formatted tag
 			break
 		}
 		if chars >= maxTagLength {
