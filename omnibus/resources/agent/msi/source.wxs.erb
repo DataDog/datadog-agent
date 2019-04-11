@@ -37,13 +37,14 @@
         <UpgradeVersion OnlyDetect='no'
                         Property='PREVIOUSFOUND'
                         Minimum='1.0.0' IncludeMinimum='yes'
-                        Maximum="$(var.VersionNumber)" IncludeMaximum='no'/>
+                        Maximum="$(var.VersionNumber)" IncludeMaximum='yes'/>
     </Upgrade>
 
     <!-- This allows downgrades, and same-version reinstalls.  Otherwise,
     same version gets installed "side by side" -->
     <MajorUpgrade
       AllowDowngrades="no"
+      AllowSameVersionUpgrades="yes"
       DowngradeErrorMessage="Automatic downgrades are not supported.  Uninstall the current version, and then reinstall the desired version."
       Schedule="afterInstallInitialize" />
 
@@ -341,6 +342,8 @@
     </DirectoryRef>
 
     <InstallExecuteSequence>
+      <Custom Action='WixCloseApplications' Before='RemoveFiles'> </Custom>
+
       <!-- go ahead and always stop the services; if they're not installed (new install) it won't have any impact -->
 
       <!-- always stop the services, regardless of what's going on -->
