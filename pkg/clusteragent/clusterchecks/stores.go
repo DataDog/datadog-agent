@@ -26,7 +26,7 @@ type clusterStore struct {
 	digestToNode    map[string]string               // Node running a config
 	nodes           map[string]*nodeStore           // All nodes known to the cluster-agent
 	danglingConfigs map[string]integration.Config   // Configs we could not dispatch to any node
-	services        map[ktypes.UID]*types.Service   // Services that have scheduled checks, needed to retrieve correspondent endpoints
+	services        *types.ServicesCache            // Services that have scheduled checks, needed to retrieve correspondent endpoints
 	endpointsChecks map[string][]integration.Config // Endpoints checks to be consumed by node agents
 }
 
@@ -43,7 +43,10 @@ func (s *clusterStore) reset() {
 	s.digestToNode = make(map[string]string)
 	s.nodes = make(map[string]*nodeStore)
 	s.danglingConfigs = make(map[string]integration.Config)
-	s.services = make(map[ktypes.UID]*types.Service)
+	s.services = &types.ServicesCache{
+		Service:      make(map[ktypes.UID]*types.ServiceInfo),
+		UpdateNeeded: false,
+	}
 	s.endpointsChecks = make(map[string][]integration.Config)
 }
 

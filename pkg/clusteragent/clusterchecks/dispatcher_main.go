@@ -61,9 +61,13 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}
-		if isServiceCheck(c) {
+		if isServiceCheck(c) && c.EndpointsChecksEnabled {
 			d.store.Lock()
-			d.store.services[ktypes.UID(getServiceUID(c))] = newService(c)
+			// Add a new service in the cache
+			d.store.services.Service[ktypes.UID(getServiceUID(c))] = newServiceInfo(c)
+			// A new kube service check is scheduled
+			// we need to update cache later when dispatching endpoints
+			d.store.services.UpdateNeeded = true
 			d.store.Unlock()
 		}
 		patched, err := d.patchConfiguration(c)
@@ -81,9 +85,9 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}
-		if isServiceCheck(c) {
+		if isServiceCheck(c) && c.EndpointsChecksEnabled {
 			d.store.Lock()
-			delete(d.store.services, ktypes.UID(getServiceUID(c)))
+			delete(d.store.services.Service, ktypes.UID(getServiceUID(c)))
 			d.store.Unlock()
 		}
 		patched, err := d.patchConfiguration(c)
@@ -164,8 +168,9 @@ func (d *dispatcher) run(ctx context.Context) {
 	}
 }
 
-func newService(c integration.Config) *types.Service {
-	return &types.Service{
+// newServiceInfo initializes a ServiceInfo struct from a config
+func newServiceInfo(c integration.Config) *types.ServiceInfo {
+	return &types.ServiceInfo{
 		CheckName:  c.Name,
 		Instances:  c.Instances,
 		InitConfig: c.InitConfig,

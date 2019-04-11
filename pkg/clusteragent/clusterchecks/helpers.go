@@ -36,16 +36,17 @@ func timestampNow() int64 {
 	return time.Now().Unix()
 }
 
-// check if a config template represents to a service check
+// isServiceCheck checks if a config template represents to a service check
 func isServiceCheck(config integration.Config) bool {
 	return strings.HasPrefix(config.Entity, kubeServiceIDPrefix)
 }
 
-// retrieve service UID from entity
+// getServiceUID retrieves service UID from entity
 func getServiceUID(config integration.Config) string {
 	return strings.TrimLeft(config.Entity, kubeServiceIDPrefix)
 }
 
+// getEndpointsEntity returns endpoints entity
 func getEndpointsEntity(podUID string) string {
 	return fmt.Sprintf("%s%s", KubePodPrefix, podUID)
 }

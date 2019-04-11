@@ -45,11 +45,12 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Name:          "http_check",
-					ADIdentifiers: []string{"kube_service://test"},
-					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					ClusterCheck:  true,
+					Name:                   "http_check",
+					ADIdentifiers:          []string{"kube_service://test"},
+					InitConfig:             integration.Data("{}"),
+					Instances:              []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					ClusterCheck:           true,
+					EndpointsChecksEnabled: true,
 				},
 			},
 		},
@@ -96,11 +97,12 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Name:          "http_check",
-					ADIdentifiers: []string{"kube_service://test"},
-					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					ClusterCheck:  true,
+					Name:                   "http_check",
+					ADIdentifiers:          []string{"kube_service://test"},
+					InitConfig:             integration.Data("{}"),
+					Instances:              []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					ClusterCheck:           true,
+					EndpointsChecksEnabled: true,
 				},
 				{
 					Name:          "etcd",
@@ -147,11 +149,12 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Name:          "http_check",
-					ADIdentifiers: []string{"kube_service://test"},
-					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					ClusterCheck:  true,
+					Name:                   "http_check",
+					ADIdentifiers:          []string{"kube_service://test"},
+					InitConfig:             integration.Data("{}"),
+					Instances:              []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					ClusterCheck:           true,
+					EndpointsChecksEnabled: true,
 				},
 			},
 		},
@@ -186,6 +189,14 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			cfgs, _ := parseServiceAnnotations([]*v1.Service{tc.service})
 			assert.EqualValues(t, tc.expectedOut, cfgs)
+
+			tmp := ProviderCatalog["endpointschecks"]
+			delete(ProviderCatalog, "endpointschecks")
+			cfgs, _ = parseServiceAnnotations([]*v1.Service{tc.service})
+			for _, cfg := range cfgs {
+				assert.False(t, cfg.EndpointsChecksEnabled)
+			}
+			ProviderCatalog["endpointschecks"] = tmp
 		})
 	}
 }

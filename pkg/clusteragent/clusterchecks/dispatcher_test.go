@@ -429,15 +429,22 @@ func TestExtraTags(t *testing.T) {
 	}
 }
 
-func TestUpdateServicesMap(t *testing.T) {
+func TestUpdateServices(t *testing.T) {
 	dispatcher := newDispatcher()
-	config := integration.Config{
-		Name:         "http_check",
-		Entity:       "kube_service://test",
-		ClusterCheck: true,
-		Instances:    []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
+	config1 := integration.Config{
+		Name:                   "http_check",
+		Entity:                 "kube_service://test",
+		ClusterCheck:           true,
+		EndpointsChecksEnabled: true,
+		Instances:              []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
 	}
-	dispatcher.Schedule([]integration.Config{config})
+	config2 := integration.Config{
+		Name:                   "http_check",
+		Entity:                 "kube_service://test",
+		ClusterCheck:           true,
+		EndpointsChecksEnabled: false,
+		Instances:              []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
+	}
 	kservices := []*v1.Service{
 		{
 			ObjectMeta: metav1.ObjectMeta{
@@ -475,8 +482,7 @@ func TestUpdateServicesMap(t *testing.T) {
 			},
 		},
 	}
-	dispatcher.updateServicesMap(kservices)
-	expectedServiceMap := map[ktypes.UID]*types.Service{
+	expectedServiceInfo := map[ktypes.UID]*types.ServiceInfo{
 		ktypes.UID("test"): {
 			CheckName: "http_check",
 			Instances: []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
@@ -486,7 +492,28 @@ func TestUpdateServicesMap(t *testing.T) {
 			Entity:    "kube_service://test",
 		},
 	}
-	assert.Equal(t, expectedServiceMap, dispatcher.store.services)
+
+	// UpdateNeeded is initilized to false
+	assert.Equal(t, false, dispatcher.store.services.UpdateNeeded)
+
+	// Schedule a kube service check
+	dispatcher.Schedule([]integration.Config{config1, config2})
+	// should ignore config2 because endpoints checks are disabled
+	assert.Len(t, dispatcher.store.services.Service, 1)
+	// should set UpdateNeeded to true
+	assert.Equal(t, true, dispatcher.store.services.UpdateNeeded)
+
+	// Update cache
+	dispatcher.updateServices(kservices)
+	assert.Equal(t, expectedServiceInfo, dispatcher.store.services.Service)
+	// should set UpdateNeeded to false afer making updates
+	assert.Equal(t, false, dispatcher.store.services.UpdateNeeded)
+
+	// Unschedule a kube service check
+	dispatcher.Unschedule([]integration.Config{config1})
+	assert.NotContains(t, dispatcher.store.services.Service, ktypes.UID("test"))
+	// no need to make updates when a service is unscheduled
+	assert.Equal(t, false, dispatcher.store.services.UpdateNeeded)
 
 	requireNotLocked(t, dispatcher.store)
 }
