@@ -63,7 +63,7 @@ type AutoscalersController struct {
 	autoscalers chan interface{}
 
 	toStore   metricsBatch
-	hpaProc   *hpa.Processor
+	hpaProc   hpa.ProcessorInterface
 	store     custommetrics.Store
 	clientSet kubernetes.Interface
 	poller    PollerConfig

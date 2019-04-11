@@ -27,6 +27,11 @@ type DatadogClient interface {
 	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
 }
 
+type ProcessorInterface interface {
+	UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue)
+	ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) map[string]custommetrics.ExternalMetricValue
+}
+
 // Processor embeds the configuration to refresh metrics from Datadog and process HPA structs to ExternalMetrics.
 type Processor struct {
 	externalMaxAge time.Duration

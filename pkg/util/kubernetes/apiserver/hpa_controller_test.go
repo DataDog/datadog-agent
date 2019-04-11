@@ -9,6 +9,7 @@ package apiserver
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -87,6 +88,24 @@ type fakeDatadogClient struct {
 	queryMetricsFunc func(from, to int64, query string) ([]datadog.Series, error)
 }
 
+type fakeProcessor struct {
+	updateMetricFunc func(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue)
+	processFunc      func(hpa *autoscalingv2.HorizontalPodAutoscaler) map[string]custommetrics.ExternalMetricValue
+}
+
+func (h *fakeProcessor) UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue) {
+	if h.updateMetricFunc != nil {
+		return h.updateMetricFunc(emList)
+	}
+	return nil
+}
+func (h *fakeProcessor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) map[string]custommetrics.ExternalMetricValue {
+	if h.processFunc != nil {
+		return h.processFunc(hpa)
+	}
+	return nil
+}
+
 func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
 	if d.queryMetricsFunc != nil {
 		return d.queryMetricsFunc(from, to, query)
@@ -128,6 +147,115 @@ func makeAnnotations(metricName string, labels map[string]string) map[string]str
 				}
 			}"`, metricName, labels),
 	}
+}
+
+// TestupdateExternalMetrics checks the reconciliation between the local cache and the global store logic
+func TestUpdate(t *testing.T) {
+	name := custommetrics.GetConfigmapName()
+	store, client := newFakeConfigMapStore(t, "default", name, nil)
+	d := &fakeDatadogClient{}
+
+	p := &fakeProcessor{
+		updateMetricFunc: func(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue) {
+			updated = make(map[string]custommetrics.ExternalMetricValue)
+			for id, m := range emList {
+				m.Valid = true
+				updated[id] = m
+			}
+			return updated
+		},
+	}
+
+	hctrl, _ := newFakeAutoscalerController(client, alwaysLeader, hpa.DatadogClient(d))
+	hctrl.poller.refreshPeriod = 600
+	hctrl.poller.gcPeriodSeconds = 600
+	hctrl.autoscalers = make(chan interface{}, 1)
+	foo := hpa.ProcessorInterface(p)
+	hctrl.hpaProc = foo
+
+	// Fresh start with no activity. Both the local cache and the Global Store are empty.
+	hctrl.updateExternalMetrics()
+	metrics, err := store.ListAllExternalMetricValues()
+	require.NoError(t, err)
+	require.Len(t, metrics, 0)
+
+	// Start the DCA with already existing Data
+	// Check if nothing in local store and Global Store is full we update the Global Store metrics correctly
+	metricsToStore := map[string]custommetrics.ExternalMetricValue{
+		"external_metric-default-foo-metric1": {
+			MetricName: "metric1",
+			Labels:     map[string]string{"foo": "bar"},
+			HPA: custommetrics.ObjectReference{
+				Name:      "foo",
+				Namespace: "default",
+			},
+			Value: 1.3,
+			Valid: true,
+		},
+	}
+	store.SetExternalMetricValues(metricsToStore)
+	// Check that the store is up to date
+	metrics, err = store.ListAllExternalMetricValues()
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	hctrl.toStore.m.Lock()
+	require.Len(t, hctrl.toStore.data, 0)
+	hctrl.toStore.m.Unlock()
+
+	hctrl.updateExternalMetrics()
+
+	metrics, err = store.ListAllExternalMetricValues()
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	hctrl.toStore.m.Lock()
+	require.Len(t, hctrl.toStore.data, 0)
+	hctrl.toStore.m.Unlock()
+
+	// Fresh start
+	// Check if local store is not empty
+	hctrl.toStore.m.Lock()
+	hctrl.toStore.data["external_metric-default-foo-metric2"] = custommetrics.ExternalMetricValue{
+		MetricName: "metric2",
+		Labels:     map[string]string{"foo": "bar"},
+		HPA: custommetrics.ObjectReference{
+			Name:      "foo",
+			Namespace: "default",
+		},
+	}
+	require.Len(t, hctrl.toStore.data, 1)
+	hctrl.toStore.m.Unlock()
+
+	hctrl.updateExternalMetrics()
+	metrics, err = store.ListAllExternalMetricValues()
+	require.NoError(t, err)
+	require.Len(t, metrics, 2)
+
+	// DCA becomes leader
+	// Check that if there is conflicting info from the local store and the Global Store that we merge correctly
+	// Check conflict on metric name and labels
+	hctrl.toStore.m.Lock()
+	hctrl.toStore.data["external_metric-default-foo-metric2"] = custommetrics.ExternalMetricValue{
+		MetricName: "metric2",
+		Labels:     map[string]string{"foo": "baz"},
+		HPA: custommetrics.ObjectReference{
+			Name:      "foo",
+			Namespace: "default",
+		},
+	}
+	require.Len(t, hctrl.toStore.data, 1)
+	hctrl.toStore.m.Unlock()
+	hctrl.updateExternalMetrics()
+	metrics, err = store.ListAllExternalMetricValues()
+	require.NoError(t, err)
+	require.Len(t, metrics, 2)
+
+	for _, m := range metrics {
+		require.True(t, m.Valid)
+		if m.MetricName == "metric2" {
+			require.True(t, reflect.DeepEqual(m.Labels, map[string]string{"foo": "baz"}))
+		}
+	}
+
 }
 
 // TestAutoscalerController is an integration test of the AutoscalerController
