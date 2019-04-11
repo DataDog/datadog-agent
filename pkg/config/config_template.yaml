@@ -4,8 +4,8 @@
 ###############################
 
 ## @param api_key - string - required
-## The Datadog api key to associate your Agent's data with your organization.
-## Can be found here: https://app.datadoghq.com/account/settings
+## The Datadog API key to associate your Agent's data with your organization.
+## Create a new API key here: https://app.datadoghq.com/account/settings
 #
 api_key:
 
@@ -65,7 +65,7 @@ api_key:
 
 ## @param tag_value_split_separator - list of key:value elements - optional
 ## Split tag values according to a given separator. Only applies to host tags,
-## tags coming from container integrations. It does not apply to tags on dogstatsd metrics,
+## and tags coming from container integrations. It does not apply to tags on dogstatsd metrics,
 ## and tags collected by other integrations.
 ##
 ## Example use-case:
@@ -166,7 +166,7 @@ api_key:
 #  confd_path: <CHECK_CONFIGURATION_FOLDER_PATH>
 
 ## @param additional_checksd - string - optional
-## Additional path where to search for Python checks. By default, uses the checks.d folder
+## Additional path indicating where to search for Python checks. By default, uses the checks.d folder
 ## located in the Agent configuration folder.
 #
 #  additional_checksd: <CHECKD_FOLDER_PATH>
@@ -200,7 +200,7 @@ api_key:
 ## running the number of check runners instances concurrently.
 ## Setting the value to 1 would result in checks running sequentially.
 ##
-## This is a sensitive setting and we do NOT recommend changing the default number
+## This is a sensitive setting, and we do NOT recommend changing the default number
 ## of check runners in the general case. The level of concurrency has effects on
 ## the Agent's: RSS memory, CPU load, resource contention overhead, etc.
 #
@@ -237,15 +237,15 @@ api_key:
 #  disable_py3_validation: false
 
 ## @param secret_backend_command - string - optional
-## The Agent can call an external command to fetch secrets. The command is executed maximum
+## The Agent can call an external command to fetch secrets. It executes the command a maximum of
 ## once per instance containing an encrypted password.
-## Secrets are cached by the Agent, this avoid executing again the secret_backend_command to fetch an
-## already known secret (useful when combine with Autodiscovery). This feature is still in beta.
+## The Agent caches Secrets to avoid executing the secret_backend_command multiple times to fetch an
+## already known secret (useful when combined with Autodiscovery). This feature is still in beta.
 ##
 ## For more information see: https://github.com/DataDog/datadog-agent/blob/master/docs/agent/secrets.md
 ##
 ## secret_backend_command is the path to the script to execute. The script must belong to the same user used
-## to run the Agent. Executable right must be given to the Agent and no rights for 'group' or 'other'.
+## to run the Agent. The Agent must have executable rights, and no rights for 'group' or 'other'.
 #
 #  secret_backend_command: <COMMAND_PATH>
 
@@ -403,7 +403,7 @@ api_key:
 
   ## @param intervals - custom object - optional - default: 10s for normal checks and 2s for others.
   ## The interval, in seconds, at which the Agent runs each check. If you want consistent
-  ## behavior between real-time you may set the Container/ProcessRT intervals to 10.
+  ## behavior between real-time, set the `container_realtime` and `process_realtime` intervals to 10.
   #
   #  intervals:
   #    container: 10
@@ -548,7 +548,7 @@ api_key:
 
 ## @param dogstatsd_so_rcvbuf - integer - optional
 ## The number of bytes allocated to DogStatsD's socket receive buffer (POSIX system only).
-## By default, this value is set by the system. If you need to increase the size of this buffer
+## By default, the system sets this value. If you need to increase the size of this buffer
 ## but keep the OS default value the same, you can set DogStatsD's receive buffer size here.
 ## The maximum accepted value might change depending on the OS.
 #
@@ -1078,7 +1078,7 @@ api_key:
 #  kubelet_client_ca: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 
 ## @param kubelet_auth_token_path - string - optional
-## If authentication is needed, the Agent uses the pod's serviceaccount's
+## If authentication is needed, the Agent uses the pod's service account's
 ## credentials. If you want to use a different account, or are running the Agent
 ## on the host, set a custom token file path here.
 #
@@ -1120,10 +1120,10 @@ api_key:
 ####################################################
 
 ## @param kubernetes_kubeconfig_path - string - optional
-## When running in a pod, the Agent automatically uses the pod's serviceaccount
-## to authenticate with the apiserver.
+## When running in a pod, the Agent automatically uses the pod's service account
+## to authenticate with the API server.
 ## Provide the path to a custom KubeConfig file if you wish to install the Agent out of a pod
-## or customise connection parameters.
+## or customize connection parameters.
 ## See https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/
 #
 #  kubernetes_kubeconfig_path: <KUBECONFIG_FILE_PATH>
