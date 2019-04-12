@@ -8,6 +8,8 @@
 ---
 enhancements:
   - |
-    On Windows, allows agent to be installed to nonstandard directories.
-    Uses AKPPLICATIONDATADIRECTORY to set the root of the configuration file tree,
-    and PROJECTLOCATION to set the root of the binary tree
+    On Windows, allows Agent to be installed to nonstandard directories.
+    Uses APPLICATIONDATADIRECTORY to set the root of the configuration file tree,
+    and PROJECTLOCATION to set the root of the binary tree. Please refer to
+    the `docs <https://docs.datadoghq.com/agent/basic_agent_usage/windows>`_
+    for more details

@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-deprecations:
+upgrade:
   - |
     The Windows installer will no longer allow direct downgrades; if
     a downgrade is required, the user must uninstall the newer version
