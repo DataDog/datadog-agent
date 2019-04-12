@@ -19,7 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// #include <datadog_agent_six.h>
+/*
+#include <datadog_agent_six.h>
+#cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
+#cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
+*/
 import (
 	"C"
 )

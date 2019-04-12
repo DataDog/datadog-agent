@@ -17,7 +17,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestSubmitMetric(t *testing.T) {
-	out, err := run(`aggregator.submit_metric(None, 'id', aggregator.GAUGE, 'name', -99.0, ['foo', 'bar'], 'myhost')`)
+	out, err := run(`aggregator.submit_metric(None, 'id', aggregator.GAUGE, 'name', -99.0, ['foo', 21, 'bar', ["hey"]], 'myhost')`)
 
 	if err != nil {
 		t.Fatal(err)
@@ -48,8 +48,34 @@ func TestSubmitMetric(t *testing.T) {
 	}
 }
 
+func TestSubmitMetricParsingError(t *testing.T) {
+	out, err := run(`
+	aggregator.submit_metric(None, 21, aggregator.GAUGE, 'name', -99.0, ['foo', 21, 'bar', ["hey"]], 'myhost')
+	`)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: wrong parameters type" {
+		t.Errorf("wrong printed value: '%s'", out)
+	}
+}
+
+func TestSubmitMetricTagsError(t *testing.T) {
+	out, err := run(`
+	aggregator.submit_metric(None, 'id', aggregator.GAUGE, 'name', -99.0, 123, 'myhost')
+	`)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: tags must be a sequence" {
+		t.Errorf("wrong printed value: '%s'", out)
+	}
+}
+
 func TestSubmitServiceCheck(t *testing.T) {
-	out, err := run(`aggregator.submit_service_check(None, 'id', 'my.service.check', 1, ['foo', 'bar'], 'myhost', 'A message!')`)
+	out, err := run(`aggregator.submit_service_check(None, 'id', 'my.service.check', 1, ['foo', 21, 'bar', ["hey"]], 'myhost', 'A message!')`)
 
 	if err != nil {
 		t.Fatal(err)
@@ -80,6 +106,28 @@ func TestSubmitServiceCheck(t *testing.T) {
 	}
 }
 
+func TestSubmitServiceCheckParsingError(t *testing.T) {
+	out, err := run(`aggregator.submit_service_check(None, 123, 'my.service.check', 1, ['foo', 21, 'bar', ["hey"]], 'myhost', 'A message!')`)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: wrong parameters type" {
+		t.Errorf("wrong printed value: '%s'", out)
+	}
+}
+
+func TestSubmitServiceCheckTagsError(t *testing.T) {
+	out, err := run(`aggregator.submit_service_check(None, 'id', 'my.service.check', 1, 123, 'myhost', 'A message!')`)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: tags must be a sequence" {
+		t.Errorf("wrong printed value: '%s'", out)
+	}
+}
+
 func TestSubmitEvent(t *testing.T) {
 	code := `
 	ev = {
@@ -91,7 +139,7 @@ func TestSubmitEvent(t *testing.T) {
 		'alert_type': 'foo',
 		'source_type_name': 'test',
 		'event_object': 'myhost',
-		'tags': ['foo', 'bar'],
+		'tags': ['foo', 21, 'bar', ["hey"]],
 		'priority': 'high',
 		'aggregation_key': 'aggregate',
 	}
@@ -139,5 +187,61 @@ func TestSubmitEvent(t *testing.T) {
 	}
 	if _event.tags[0] != "foo" || _event.tags[1] != "bar" {
 		t.Fatalf("Unexpected tags: %v", _event.tags)
+	}
+}
+
+func TestEventCheckEventNotDict(t *testing.T) {
+	code := `
+	ev = "some event"
+	aggregator.submit_event(None, 'submit_event_id', ev)
+	`
+	out, err := run(code)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: event must be a dict" {
+		t.Errorf("wrong printed value: '%s'", out)
+	}
+}
+
+func TestEventCheckParsingError(t *testing.T) {
+	code := `
+	aggregator.submit_event(None, 21, {})
+	`
+	out, err := run(code)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: wrong parameters type" {
+		t.Errorf("wrong printed value: '%s'", out)
+	}
+}
+
+func TestEventCheckTagsError(t *testing.T) {
+	code := `
+	ev = {
+		'timestamp': 123456,
+		'event_type': 'my.event',
+		'host': 'myhost',
+		'msg_text': 'Event message',
+		'msg_title': 'Event title',
+		'alert_type': 'foo',
+		'source_type_name': 'test',
+		'event_object': 'myhost',
+		'tags': 123,
+		'priority': 'high',
+		'aggregation_key': 'aggregate',
+	}
+	aggregator.submit_event(None, 'submit_event_id', ev)
+	`
+	out, err := run(code)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: tags must be a sequence" {
+		t.Errorf("wrong printed value: '%s'", out)
 	}
 }

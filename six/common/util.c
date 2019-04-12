@@ -39,7 +39,5 @@ void Py2_init_util() {
 // headers entry point is provided in the `datadog_agent module.
 
 PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs) {
-    PyObject *ret = NULL;
-    ret = _public_headers(self, args, kwargs);
-    return ret;
+    return _public_headers(self, args, kwargs);
 }
