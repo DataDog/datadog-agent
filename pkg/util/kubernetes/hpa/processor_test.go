@@ -9,17 +9,16 @@ package hpa
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	datadog "gopkg.in/zorkian/go-datadog-api.v2"
+	"gopkg.in/zorkian/go-datadog-api.v2"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"reflect"
 )
 
 type fakeDatadogClient struct {
@@ -175,17 +174,19 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 }
 
 func TestProcessor_ProcessHPAs(t *testing.T) {
-	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	metricName := "requests_per_s"
 	tests := []struct {
 		desc     string
 		metrics  autoscalingv2.HorizontalPodAutoscaler
-		series   []datadog.Series
-		expected []custommetrics.ExternalMetricValue
+		expected map[string]custommetrics.ExternalMetricValue
 	}{
 		{
 			"process valid hpa external metric",
 			autoscalingv2.HorizontalPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+					Name:      "foo",
+				},
 				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
 					Metrics: []autoscalingv2.MetricSpec{
 						{
@@ -202,53 +203,8 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 					},
 				},
 			},
-			[]datadog.Series{
-				{
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						makePoints(1531492452000, 12),
-						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
-						makePoints(0, 23),
-					},
-					Scope: makePtr("dcos_version:1.9.4"),
-				},
-			},
-			[]custommetrics.ExternalMetricValue{
-				{
-					MetricName: "requests_per_s",
-					Labels:     map[string]string{"dcos_version": "1.9.4"},
-					Value:      14,
-					Valid:      true,
-				},
-			},
-		},
-		{
-			"process invalid hpa external metric",
-			autoscalingv2.HorizontalPodAutoscaler{
-				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
-					Metrics: []autoscalingv2.MetricSpec{
-						{
-							Type: autoscalingv2.ExternalMetricSourceType,
-							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: metricName,
-								MetricSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"dcos_version": "1.9.4",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			[]datadog.Series{
-				{
-					Metric: &metricName,
-					Points: nil,
-				},
-			},
-			[]custommetrics.ExternalMetricValue{
-				{
+			map[string]custommetrics.ExternalMetricValue{
+				"external_metric-default-foo-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"dcos_version": "1.9.4"},
 					Value:      0,
@@ -259,12 +215,16 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 		{
 			"process hpa external metrics",
 			autoscalingv2.HorizontalPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+					Name:      "foo",
+				},
 				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
 					Metrics: []autoscalingv2.MetricSpec{
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: metricName,
+								MetricName: "m1",
 								MetricSelector: &metav1.LabelSelector{
 									MatchLabels: map[string]string{
 										"dcos_version": "1.9.4",
@@ -275,21 +235,10 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: metricName,
+								MetricName: "m2",
 								MetricSelector: &metav1.LabelSelector{
 									MatchLabels: map[string]string{
 										"dcos_version": "2.1.9",
-									},
-								},
-							},
-						},
-						{
-							Type: autoscalingv2.ExternalMetricSourceType,
-							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: metricName,
-								MetricSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"dcos_version": "3.1.1",
 									},
 								},
 							},
@@ -308,54 +257,20 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 					},
 				},
 			},
-			[]datadog.Series{
-				{
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						makePoints(1531492452000, 22),
-						makePoints(penTime, 12),
-						makePoints(0, 14),
-					},
-					Scope: makePtr("dcos_version:1.9.4"),
-				}, {
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						makePoints(1531492452000, 22),
-						makePoints(penTime, 13), // Validate that there are 2 different entries for the metric metricName as there are 2 different scopes
-						makePoints(0, 16),
-					},
-					Scope: makePtr("dcos_version:2.1.9"),
-				},
-				{
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						makePoints(1531492452000, 22),
-						makePoints(1531492442000, 13), // old timestamp (over maxAge) - Keep the value, set to false
-						makePoints(1531492432000, 10),
-					},
-					Scope: makePtr("dcos_version:3.1.1"),
-				},
-			},
-			[]custommetrics.ExternalMetricValue{
-				{
-					MetricName: "requests_per_s",
+			map[string]custommetrics.ExternalMetricValue{
+				"external_metric-default-foo-m1": {
+					MetricName: "m1",
 					Labels:     map[string]string{"dcos_version": "1.9.4"},
-					Value:      12,
-					Valid:      true,
-				},
-				{
-					MetricName: "requests_per_s",
-					Labels:     map[string]string{"dcos_version": "2.1.9"},
-					Value:      13,
-					Valid:      true,
-				},
-				{
-					MetricName: "requests_per_s",
-					Labels:     map[string]string{"dcos_version": "3.1.1"},
-					Value:      13,
+					Value:      0,
 					Valid:      false,
 				},
-				{
+				"external_metric-default-foo-m2": {
+					MetricName: "m2",
+					Labels:     map[string]string{"dcos_version": "2.1.9"},
+					Value:      0,
+					Valid:      false,
+				},
+				"external_metric-default-foo-m3": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"dcos_version": "4.1.1"},
 					Value:      0, // If Datadog does not even return the metric, store it as invalid with Value = 0
@@ -367,24 +282,13 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
-			datadogClient := &fakeDatadogClient{
-				queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
-
-					return tt.series, nil
-				},
-			}
+			datadogClient := &fakeDatadogClient{}
 			hpaCl := &Processor{datadogClient: datadogClient, externalMaxAge: maxAge}
 
 			externalMetrics := hpaCl.ProcessHPAs(&tt.metrics)
-
-			// Timestamps are always set to time.Now() so we cannot assert the value
-			// in a unit test.
-			strippedTs := make([]custommetrics.ExternalMetricValue, 0)
-			for _, m := range externalMetrics {
-				m.Timestamp = 0
-				strippedTs = append(strippedTs, m)
+			for id, m := range externalMetrics {
+				require.True(t, reflect.DeepEqual(m, externalMetrics[id]))
 			}
-			assert.ElementsMatch(t, tt.expected, strippedTs)
 		})
 	}
 }

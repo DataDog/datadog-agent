@@ -108,7 +108,6 @@ func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 }
 
 func getInformerFactory() (informers.SharedInformerFactory, error) {
-	//timeoutSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
 	client, err := getKubeClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
