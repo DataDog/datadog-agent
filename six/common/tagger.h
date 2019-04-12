@@ -23,7 +23,7 @@ extern "C" {
 void Py2_init_tagger();
 #endif
 
-void _set_get_tags_cb(cb_get_tags_t);
+void _set_tags_cb(cb_tags_t);
 
 #ifdef __cplusplus
 }

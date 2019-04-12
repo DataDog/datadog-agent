@@ -15,7 +15,6 @@ static cb_submit_event_t cb_submit_event = NULL;
 static PyObject *submit_metric(PyObject *self, PyObject *args);
 static PyObject *submit_service_check(PyObject *self, PyObject *args);
 static PyObject *submit_event(PyObject *self, PyObject *args);
-void add_constants(PyObject *);
 
 static PyMethodDef methods[] = {
     { "submit_metric", (PyCFunction)submit_metric, METH_VARARGS, "Submit metrics." },
@@ -23,6 +22,16 @@ static PyMethodDef methods[] = {
     { "submit_event", (PyCFunction)submit_event, METH_VARARGS, "Submit events." },
     { NULL, NULL } // guards
 };
+
+static void add_constants(PyObject *m) {
+    PyModule_AddIntConstant(m, "GAUGE", DATADOG_AGENT_SIX_GAUGE);
+    PyModule_AddIntConstant(m, "RATE", DATADOG_AGENT_SIX_RATE);
+    PyModule_AddIntConstant(m, "COUNT", DATADOG_AGENT_SIX_COUNT);
+    PyModule_AddIntConstant(m, "MONOTONIC_COUNT", DATADOG_AGENT_SIX_MONOTONIC_COUNT);
+    PyModule_AddIntConstant(m, "COUNTER", DATADOG_AGENT_SIX_COUNTER);
+    PyModule_AddIntConstant(m, "HISTOGRAM", DATADOG_AGENT_SIX_HISTOGRAM);
+    PyModule_AddIntConstant(m, "HISTORATE", DATADOG_AGENT_SIX_HISTORATE);
+}
 
 #ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, AGGREGATOR_MODULE_NAME, NULL, -1, methods };
@@ -43,16 +52,6 @@ void Py2_init_aggregator() {
     add_constants(module);
 }
 #endif
-
-void add_constants(PyObject *m) {
-    PyModule_AddIntConstant(m, "GAUGE", DATADOG_AGENT_SIX_GAUGE);
-    PyModule_AddIntConstant(m, "RATE", DATADOG_AGENT_SIX_RATE);
-    PyModule_AddIntConstant(m, "COUNT", DATADOG_AGENT_SIX_COUNT);
-    PyModule_AddIntConstant(m, "MONOTONIC_COUNT", DATADOG_AGENT_SIX_MONOTONIC_COUNT);
-    PyModule_AddIntConstant(m, "COUNTER", DATADOG_AGENT_SIX_COUNTER);
-    PyModule_AddIntConstant(m, "HISTOGRAM", DATADOG_AGENT_SIX_HISTOGRAM);
-    PyModule_AddIntConstant(m, "HISTORATE", DATADOG_AGENT_SIX_HISTORATE);
-}
 
 void _set_submit_metric_cb(cb_submit_metric_t cb) {
     cb_submit_metric = cb;

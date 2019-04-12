@@ -66,7 +66,7 @@ public:
     void setCGOFreeCb(cb_cgo_free_t);
 
     // tagger
-    void setGetTagsCb(cb_get_tags_t);
+    void setTagsCb(cb_tags_t);
 
     // kubeutil
     void setGetConnectionInfoCb(cb_get_connection_info_t);

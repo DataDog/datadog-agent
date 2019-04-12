@@ -94,6 +94,16 @@ void initUtilModule(six_t *six) {
 	set_get_subprocess_output_cb(six, GetSubprocessOutput);
 }
 
+//
+// tagger module
+//
+
+char **Tags(char **, int);
+
+void initTaggerModule(six_t *six) {
+	set_tags_cb(six, Tags);
+}
+
 */
 import "C"
 
@@ -188,6 +198,7 @@ func Initialize(paths ...string) error {
 	C.initDatadogAgentModule(six)
 	C.initAggregatorModule(six)
 	C.initUtilModule(six)
+	C.initTaggerModule(six)
 	return nil
 }
 

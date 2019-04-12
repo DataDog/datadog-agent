@@ -41,6 +41,12 @@ typedef enum {
     DATADOG_AGENT_SIX_HISTORATE
 } metric_type_t;
 
+typedef enum {
+    DATADOG_AGENT_SIX_TAGGER_LOW = 0,
+    DATADOG_AGENT_SIX_TAGGER_ORCHESTRATOR,
+    DATADOG_AGENT_SIX_TAGGER_HIGH,
+} TaggerCardinality;
+
 typedef struct event_s {
     char *title;
     char *text;
@@ -95,7 +101,7 @@ typedef void (*cb_cgo_free_t)(void *);
 // tagger
 //
 // (id, highCard)
-typedef void (*cb_get_tags_t)(char *, int, char **);
+typedef char **(*cb_tags_t)(char *, int);
 
 // kubeutil
 //

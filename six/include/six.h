@@ -78,7 +78,7 @@ public:
     virtual void setCGOFreeCb(cb_cgo_free_t) = 0;
 
     // tagger API
-    virtual void setGetTagsCb(cb_get_tags_t) = 0;
+    virtual void setTagsCb(cb_tags_t) = 0;
 
     // kubeutil API
     virtual void setGetConnectionInfoCb(cb_get_connection_info_t) = 0;

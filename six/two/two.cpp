@@ -586,9 +586,9 @@ void Two::setCGOFreeCb(cb_cgo_free_t cb)
     _set_cgo_free_cb(cb);
 }
 
-void Two::setGetTagsCb(cb_get_tags_t cb)
+void Two::setTagsCb(cb_tags_t cb)
 {
-    _set_get_tags_cb(cb);
+    _set_tags_cb(cb);
 }
 
 void Two::setGetConnectionInfoCb(cb_get_connection_info_t cb)
