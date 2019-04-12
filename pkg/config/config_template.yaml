@@ -753,7 +753,7 @@ api_key:
 ## @param config_providers - List of custom object - optional
 ## The providers the Agent should call to collect checks configurations. Available providers are:
 ##   * kubelet - The kubelet provider handles templates embedded in pod annotations.
-##   * docker -  The docker provider handles templates embedded in container labels.
+##   * docker -  The Docker provider handles templates embedded in container labels.
 ##   * clusterchecks - The clustercheck provider retrieves cluster-level check configurations from the cluster-agent.
 ##   * kube_services - The kube_services provider watches Kubernetes services for cluster-checks
 ##
@@ -823,8 +823,8 @@ api_key:
 
 ## @param listeners - list of key:value elements - optional
 ## Choose "auto" if you want to let the Agent find any relevant listener on your host
-## At the moment, the only auto listener supported is docker
-## If you have already set docker anywhere in the listeners, the auto listener is ignored
+## At the moment, the only auto listener supported is Docker
+## If you have already set Docker anywhere in the listeners, the auto listener is ignored
 #
 #  listeners:
 #    - name: auto
@@ -859,7 +859,7 @@ api_key:
 #  exclude_pause_container: true
 
 ## @param docker_query_timeout - integer - optional - default: 5
-## Set the default timeout value when connecting to the docker daemon.
+## Set the default timeout value when connecting to the Docker daemon.
 #
 #  docker_query_timeout: 5
 
@@ -935,7 +935,7 @@ api_key:
 
 ## @param docker_labels_as_tags - list of key:value elements - optional
 ## The Agent can extract container label values and set them as metric tags values associated to a <TAG_KEY>.
-## If you prefix your tag name with `+`, it will only be added to high cardinality metrics (docker check).
+## If you prefix your tag name with `+`, it will only be added to high cardinality metrics (Docker check).
 #
 #  docker_labels_as_tags:
 #    <LABEL_NAME>: <TAG_KEY>
@@ -943,7 +943,7 @@ api_key:
 
 ## @param docker_env_as_tags - list of key:value elements - optional
 ## The Agent can extract environment variables values and set them as metric tags values associated to a <TAG_KEY>.
-## If you prefix your tag name with `+`, it will only be added to high cardinality metrics (docker check).
+## If you prefix your tag name with `+`, it will only be added to high cardinality metrics (Docker check).
 #
 #  docker_env_as_tags:
 #    <ENVVAR_NAME>: <TAG_KEY>
