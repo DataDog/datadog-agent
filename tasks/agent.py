@@ -292,7 +292,7 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
         # make sure bundle install starts from a clean state
         try:
             os.remove("Gemfile.lock")
-        except FileNotFoundError:
+        except Exception:
             pass
 
         env = load_release_versions(ctx, release_version)
