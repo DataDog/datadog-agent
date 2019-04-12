@@ -34,8 +34,8 @@ type DatadogMetricsAdapter struct {
 	basecmd.AdapterBase
 }
 
-// StartServer creates and start a k8s custom metrics API server
-func StartServer(ctx context.Context) error {
+// RunServer creates and start a k8s custom metrics API server
+func RunServer(ctx context.Context) error {
 	cmd = &DatadogMetricsAdapter{}
 	cmd.Flags()
 
@@ -125,9 +125,9 @@ func (o *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 	}, nil
 }
 
-// StopServer closes the connection and the server
+// ClearServerResources closes the connection and the server
 // stops listening to new commands.
-func StopServer() {
+func ClearServerResources() {
 	if stopCh != nil {
 		close(stopCh)
 	}

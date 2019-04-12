@@ -299,12 +299,12 @@ func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
 			return ErrIsEmpty
 		}
 		new := h.hpaProc.ProcessHPAs(hpa)
+		h.toStore.m.Lock()
 		for e, i := range new {
 			// We should only insert placeholders in the local cache.
-			h.toStore.m.Lock()
 			h.toStore.data[e] = i
-			h.toStore.m.Unlock()
 		}
+		h.toStore.m.Unlock()
 
 		log.Tracef("Local batch cache of HPA is %v", h.toStore.data)
 	}
@@ -368,10 +368,9 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 		}
 		log.Infof("Deleting entries of metrics from HPA %s/%s in the Global Store", deletedHPA.Namespace, deletedHPA.Name)
 		if err := h.store.DeleteExternalMetricValues(toDelete); err != nil {
-			h.queue.AddRateLimited(deletedHPA)
+			h.enqueue(deletedHPA)
 			return
 		}
-		h.queue.Done(deletedHPA)
 		return
 	}
 
@@ -392,10 +391,9 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 	log.Debugf("Deleting %s/%s from the local cache", deletedHPA.Namespace, deletedHPA.Name)
 	h.deleteFromLocalStore(toDelete)
 	if err := h.store.DeleteExternalMetricValues(toDelete); err != nil {
-		h.queue.AddRateLimited(deletedHPA)
+		h.enqueue(deletedHPA)
 		return
 	}
-	h.queue.Done(deletedHPA)
 }
 
 func (h *AutoscalersController) enqueue(obj interface{}) {
@@ -408,10 +406,10 @@ func (h *AutoscalersController) enqueue(obj interface{}) {
 }
 
 func (h *AutoscalersController) deleteFromLocalStore(toDelete []custommetrics.ExternalMetricValue) {
+	h.toStore.m.Lock()
 	for _, d := range toDelete {
 		key := custommetrics.ExternalMetricValueKeyFunc(d)
-		h.toStore.m.Lock()
 		delete(h.toStore.data, key)
-		h.toStore.m.Unlock()
 	}
+	h.toStore.m.Unlock()
 }

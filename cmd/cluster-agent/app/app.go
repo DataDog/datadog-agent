@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"sync"
 )
 
 // loggerName is the name of the cluster agent logger
@@ -203,14 +204,21 @@ func start(cmd *cobra.Command, args []string) error {
 	if err = api.StartServer(sc); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
-
+	wg := sync.WaitGroup{}
 	// HPA Process
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		// Start the k8s custom metrics server. This is a blocking call
-		err = custommetrics.StartServer(mainCtx)
-		if err != nil {
-			log.Errorf("Could not start the custom metrics API server: %s", err.Error())
-		}
+		var errServer error
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			errServ := custommetrics.RunServer(mainCtx)
+			defer custommetrics.ClearServerResources()
+			if errServ != nil {
+				log.Errorf("Error in the External Metrics API Server: %v", errServer)
+			}
+		}()
 	}
 
 	// Block here until we receive the interrupt signal
@@ -227,10 +235,9 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Cancel the main context to stop components
 	mainCtxCancel()
+	// wait for the External Metrics Server to stop properly
+	wg.Wait()
 
-	if config.Datadog.GetBool("external_metrics_provider.enabled") {
-		custommetrics.StopServer()
-	}
 	if stopCh != nil {
 		close(stopCh)
 	}
