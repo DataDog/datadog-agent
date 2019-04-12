@@ -144,7 +144,7 @@ before_script:
 # source_test
 #
 
-.agent_test_variables: &agent_build_variables
+.agent_test_variables: &agent_test_variables
   PYTHON_HOME_2: /usr/
   PYTHON_HOME_3: /usr/
 
