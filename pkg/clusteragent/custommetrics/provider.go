@@ -75,15 +75,18 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 	log.Infof("Starting async loop to collect External Metrics")
 	tick := time.NewTicker(time.Duration(p.maxAge) * time.Second)
 	defer tick.Stop()
-	out := createTimer(2 * time.Duration(p.maxAge) * time.Second)
+	out := createTimer(3 * time.Duration(p.maxAge) * time.Second)
 	defer out.timer.Stop()
-	_, cancel := context.WithCancel(ctx)
+
+	// If we exceed 3 retries trying to access the ConfigMap, we permafail and stop trying to refresh the External Metrics.
+	ctxCancel, cancel := context.WithCancel(ctx)
 	defer cancel()
+
 	for {
 		select {
 		case <-tick.C:
 			var externalMetricsList []externalMetric
-
+			// TODO as we implement a more resilient logic to access a potentially deleted CM, we should pass in ctxCancel in case of permafail.
 			rawMetrics, err := p.store.ListAllExternalMetricValues()
 			if err != nil {
 				log.Errorf("Could not list the external metrics in the store: %s", err.Error())
@@ -120,8 +123,11 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 			out.resetTimer()
 
 		case <-out.timer.C:
+			cancel()
+
+		case <-ctxCancel.Done():
 			p.serving = false
-			log.Error("Timed out collecting External Metrics, stopping async loop")
+			log.Error("Received instruction to Terminate collection of External Metrics, stopping async loop")
 			return
 		}
 	}

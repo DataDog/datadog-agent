@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"reflect"
 )
 
 type fakeDatadogClient struct {
@@ -57,14 +58,14 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 	metricName := "requests_per_s"
 	tests := []struct {
 		desc     string
-		metrics  []custommetrics.ExternalMetricValue
+		metrics  map[string]custommetrics.ExternalMetricValue
 		series   []datadog.Series
-		expected []custommetrics.ExternalMetricValue
+		expected map[string]custommetrics.ExternalMetricValue
 	}{
 		{
 			"update invalid metric",
-			[]custommetrics.ExternalMetricValue{
-				{
+			map[string]custommetrics.ExternalMetricValue{
+				"id1": {
 					MetricName: metricName,
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
@@ -81,8 +82,8 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 					Scope: makePtr("foo:bar"),
 				},
 			},
-			[]custommetrics.ExternalMetricValue{
-				{
+			map[string]custommetrics.ExternalMetricValue{
+				"id1": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"foo": "bar"},
 					Value:      14,
@@ -92,8 +93,8 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 		},
 		{
 			"do not update valid sparse metric",
-			[]custommetrics.ExternalMetricValue{
-				{
+			map[string]custommetrics.ExternalMetricValue{
+				"id2": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"2foo": "bar"},
 					Valid:      true,
@@ -110,8 +111,8 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 					Scope: makePtr("2foo:bar"),
 				},
 			},
-			[]custommetrics.ExternalMetricValue{
-				{
+			map[string]custommetrics.ExternalMetricValue{
+				"id2": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"2foo": "bar"},
 					Value:      14,
@@ -131,26 +132,29 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 			hpaCl := &Processor{datadogClient: datadogClient, externalMaxAge: maxAge}
 
 			externalMetrics := hpaCl.UpdateExternalMetrics(tt.metrics)
+			fmt.Println(externalMetrics)
 			// Timestamps are always set to time.Now() so we cannot assert the value
 			// in a unit test.
-			strippedTs := make([]custommetrics.ExternalMetricValue, 0)
-			for _, m := range externalMetrics {
+			strippedTs := make(map[string]custommetrics.ExternalMetricValue)
+			for id, m := range externalMetrics {
 				m.Timestamp = 0
-				strippedTs = append(strippedTs, m)
+				strippedTs[id] = m
 			}
-
-			assert.ElementsMatch(t, tt.expected, strippedTs)
+			fmt.Println(strippedTs)
+			for id, m := range tt.expected {
+				require.True(t, reflect.DeepEqual(m, strippedTs[id]))
+			}
 		})
 	}
 
 	// Test that Datadog not responding yields invaldation.
-	emList := []custommetrics.ExternalMetricValue{
-		{
+	emList := map[string]custommetrics.ExternalMetricValue{
+		"id1": {
 			MetricName: metricName,
 			Labels:     map[string]string{"foo": "bar"},
 			Valid:      true,
 		},
-		{
+		"id2": {
 			MetricName: metricName,
 			Labels:     map[string]string{"bar": "baz"},
 			Valid:      true,
@@ -385,84 +389,6 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 	}
 }
 
-func TestProcessor_Batching(t *testing.T) {
-	metricName := "requests_per_s"
-	tests := []struct {
-		desc             string
-		metrics          []custommetrics.ExternalMetricValue
-		series           []datadog.Series
-		expectedNumCalls int
-	}{
-		{
-			"multiple metrics to update",
-			[]custommetrics.ExternalMetricValue{
-				{
-					MetricName: "requests_per_s",
-					Labels:     map[string]string{"foo": "bar"},
-					Valid:      false,
-				},
-				{
-					MetricName: "requests_per_s",
-					Labels:     map[string]string{"foo": "baz"},
-					Valid:      false,
-				},
-				{
-					MetricName: "requests_per_s",
-					Labels:     map[string]string{"foo": "foobar"},
-					Valid:      false,
-				},
-			},
-			[]datadog.Series{
-				{
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						makePoints(1531492452000, 12),
-						makePoints(0, 14),
-					},
-					Scope: makePtr("foo:bar"),
-				},
-			},
-			1,
-		},
-		{
-			"one metric to update",
-			[]custommetrics.ExternalMetricValue{
-				{
-					MetricName: "requests_per_s",
-					Labels:     map[string]string{"foo": "bar"},
-					Valid:      true,
-				},
-			},
-			[]datadog.Series{
-				{
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						makePoints(1431492452000, 12),
-						makePoints(1431492453000, 14),
-					},
-					Scope: makePtr("foo:bar"),
-				},
-			},
-			1,
-		},
-	}
-
-	for i, tt := range tests {
-		var batchCallsNum int
-		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
-			datadogClient := &fakeDatadogClient{
-				queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
-					batchCallsNum++
-					return tt.series, nil
-				},
-			}
-			hpaCl := &Processor{datadogClient: datadogClient, externalMaxAge: maxAge}
-			hpaCl.UpdateExternalMetrics(tt.metrics)
-			assert.Equal(t, tt.expectedNumCalls, batchCallsNum)
-		})
-	}
-}
-
 // Test that we consistently get the same key.
 func TestGetKey(t *testing.T) {
 	tests := []struct {
@@ -505,13 +431,13 @@ func TestGetKey(t *testing.T) {
 }
 
 func TestInvalidate(t *testing.T) {
-	eml := []custommetrics.ExternalMetricValue{
-		{
+	eml := map[string]custommetrics.ExternalMetricValue{
+		"foo": {
 			MetricName: "foo",
 			Valid:      false,
 			Timestamp:  12,
 		},
-		{
+		"bar": {
 			MetricName: "bar",
 			Valid:      true,
 			Timestamp:  1300,

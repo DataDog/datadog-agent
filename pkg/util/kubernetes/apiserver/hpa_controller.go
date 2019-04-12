@@ -75,13 +75,11 @@ type AutoscalersController struct {
 func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInterface, dogCl hpa.DatadogClient, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) (*AutoscalersController, error) {
 	var err error
 
-	s := metricsBatch{
-		data: make(map[string]custommetrics.ExternalMetricValue),
-	}
 	h := &AutoscalersController{
-		queue:   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
-		toStore: s,
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
 	}
+
+	h.toStore.data = make(map[string]custommetrics.ExternalMetricValue)
 
 	gcPeriodSeconds := config.Datadog.GetInt("hpa_watcher_gc_period")
 	refreshPeriod := config.Datadog.GetInt("external_metrics_provider.refresh_period")

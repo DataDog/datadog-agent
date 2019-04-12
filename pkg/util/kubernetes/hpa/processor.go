@@ -110,6 +110,7 @@ func (p *Processor) validateExternalMetric(emList map[string]custommetrics.Exter
 }
 
 func invalidate(emList map[string]custommetrics.ExternalMetricValue) (invList map[string]custommetrics.ExternalMetricValue) {
+	invList = make(map[string]custommetrics.ExternalMetricValue)
 	for id, e := range emList {
 		e.Valid = false
 		e.Timestamp = metav1.Now().Unix()
