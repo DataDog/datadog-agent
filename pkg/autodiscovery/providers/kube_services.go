@@ -150,7 +150,6 @@ func valuesDiffer(first, second map[string]string, prefix string) bool {
 
 func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, error) {
 	var configs []integration.Config
-	endpointsChecksEnabled := endpointsChecksEnabled()
 	for _, svc := range services {
 		if svc == nil || svc.ObjectMeta.UID == "" {
 			log.Debug("Ignoring a nil service")
@@ -168,23 +167,13 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 		// All configurations are cluster checks
 		for i := range svcConf {
 			svcConf[i].ClusterCheck = true
-			svcConf[i].EndpointsChecksEnabled = endpointsChecksEnabled
-		}
-		for i := range endptConf {
-			endptConf[i].ClusterCheck = true
+			svcConf[i].EndpointsChecks = endptConf
 		}
 		configs = append(configs, svcConf...)
 		configs = append(configs, endptConf...)
 	}
 
 	return configs, nil
-}
-
-// endpointsChecksEnabled checks if endpoints checks are enabled
-// based on the ProviderCatalog, extra_config_providers
-func endpointsChecksEnabled() bool {
-	_, found := ProviderCatalog["endpointschecks"]
-	return found
 }
 
 func init() {

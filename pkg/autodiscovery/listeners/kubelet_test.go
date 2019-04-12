@@ -244,7 +244,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
 		ports, err := service.GetPorts()
 		assert.Nil(t, err)
-		assert.Equal(t, []ContainerPort{}, ports)
+		assert.Equal(t, []ContainerPort{{1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1337, "footcpport"}, {1339, "fooudpport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
 	default:

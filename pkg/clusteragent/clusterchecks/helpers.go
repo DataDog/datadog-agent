@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	kubeServiceIDPrefix = "kube_service://"
-	KubePodPrefix       = "kubernetes_pod://"
+	kubeServiceIDPrefix  = "kube_service://"
+	KubePodPrefix        = "kubernetes_pod://"
+	kubeEndpointIDPrefix = "kube_endpoint://"
 )
 
 // makeConfigArray flattens a map of configs into a slice. Creating a new slice
@@ -36,8 +37,8 @@ func timestampNow() int64 {
 	return time.Now().Unix()
 }
 
-// isServiceCheck checks if a config template represents to a service check
-func isServiceCheck(config integration.Config) bool {
+// isKubeServiceCheck checks if a config template represents to a service check
+func isKubeServiceCheck(config integration.Config) bool {
 	return strings.HasPrefix(config.Entity, kubeServiceIDPrefix)
 }
 
@@ -46,7 +47,30 @@ func getServiceUID(config integration.Config) string {
 	return strings.TrimLeft(config.Entity, kubeServiceIDPrefix)
 }
 
-// getEndpointsEntity returns endpoints entity
-func getEndpointsEntity(podUID string) string {
+// getPodEntity returns pod entity
+func getPodEntity(podUID string) string {
 	return fmt.Sprintf("%s%s", KubePodPrefix, podUID)
+}
+
+func getNameAndNamespaceFromADIDs(configs []integration.Config) (string, string) {
+	for _, config := range configs {
+		for _, adID := range config.ADIdentifiers {
+			namespace, name := getNameAndNameSpaceFromString(adID)
+			if namespace != "" && name != "" {
+				return namespace, name
+			}
+		}
+	}
+	return "", ""
+}
+
+func getNameAndNameSpaceFromString(s string) (string, string) {
+	if !strings.HasPrefix(s, kubeEndpointIDPrefix) {
+		return "", ""
+	}
+	split := strings.Split(s, "/")
+	if len(split) == 4 {
+		return split[2], split[3]
+	}
+	return "", ""
 }

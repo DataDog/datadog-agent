@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ktypes "k8s.io/apimachinery/pkg/types"
+	v1 "k8s.io/client-go/listers/core/v1"
 )
 
 // dispatcher holds the management logic for cluster-checks
@@ -26,7 +27,7 @@ type dispatcher struct {
 	store                 *clusterStore
 	nodeExpirationSeconds int64
 	extraTags             []string
-	listers               *types.Listers
+	endpointsLister       v1.EndpointsLister
 }
 
 func newDispatcher() *dispatcher {
@@ -42,9 +43,9 @@ func newDispatcher() *dispatcher {
 		d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
 	}
 	var err error
-	d.listers, err = newListers()
+	d.endpointsLister, err = newEndpointsLister()
 	if err != nil {
-		log.Errorf("Cannot create listers: %s", err)
+		log.Errorf("Cannot create endpoints lister: %s", err)
 	}
 
 	return d
@@ -61,13 +62,11 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}
-		if isServiceCheck(c) && c.EndpointsChecksEnabled {
+		if isKubeServiceCheck(c) && len(c.EndpointsChecks) > 0 {
 			d.store.Lock()
-			// Add a new service in the cache
-			d.store.services.Service[ktypes.UID(getServiceUID(c))] = newServiceInfo(c)
-			// A new kube service check is scheduled
-			// we need to update cache later when dispatching endpoints
-			d.store.services.UpdateNeeded = true
+			// A kube service has EndpointsChecks enabled
+			// should be added to endpointsCache
+			d.store.endpointsCache[ktypes.UID(getServiceUID(c))] = newEndpointsInfo(c)
 			d.store.Unlock()
 		}
 		patched, err := d.patchConfiguration(c)
@@ -85,9 +84,10 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}
-		if isServiceCheck(c) && c.EndpointsChecksEnabled {
+		if isKubeServiceCheck(c) && len(c.EndpointsChecks) > 0 {
 			d.store.Lock()
-			delete(d.store.services.Service, ktypes.UID(getServiceUID(c)))
+			// remove the service from endpoints cache
+			delete(d.store.endpointsCache, ktypes.UID(getServiceUID(c)))
 			d.store.Unlock()
 		}
 		patched, err := d.patchConfiguration(c)
@@ -169,14 +169,16 @@ func (d *dispatcher) run(ctx context.Context) {
 }
 
 // newServiceInfo initializes a ServiceInfo struct from a config
-func newServiceInfo(c integration.Config) *types.ServiceInfo {
-	return &types.ServiceInfo{
-		CheckName:  c.Name,
-		Instances:  c.Instances,
-		InitConfig: c.InitConfig,
-		Entity:     c.Entity,
-		Namespace:  "",
-		Name:       "",
-		ClusterIP:  "",
+func newEndpointsInfo(c integration.Config) *types.EndpointsInfo {
+	var namespace string
+	var name string
+	if len(c.EndpointsChecks) > 0 {
+		namespace, name = getNameAndNamespaceFromADIDs(c.EndpointsChecks)
+	}
+	return &types.EndpointsInfo{
+		ServiceEntity: c.Entity,
+		Namespace:     namespace,
+		Name:          name,
+		Configs:       c.EndpointsChecks,
 	}
 }

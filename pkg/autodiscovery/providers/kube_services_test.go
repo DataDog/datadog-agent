@@ -45,12 +45,11 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Name:                   "http_check",
-					ADIdentifiers:          []string{"kube_service://test"},
-					InitConfig:             integration.Data("{}"),
-					Instances:              []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					ClusterCheck:           true,
-					EndpointsChecksEnabled: true,
+					Name:          "http_check",
+					ADIdentifiers: []string{"kube_service://test"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					ClusterCheck:  true,
 				},
 			},
 		},
@@ -74,12 +73,12 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 					ADIdentifiers: []string{"kube_endpoint://default/myservice"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"prometheus_url\":\"http://%%host%%:2379/metrics\",\"use_preview\":\"true\"}")},
-					ClusterCheck:  true,
+					ClusterCheck:  false,
 				},
 			},
 		},
 		{
-			name: "valid service end endpoints annotations",
+			name: "valid service and endpoints annotations",
 			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					UID:       types.UID("test"),
@@ -97,19 +96,27 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Name:                   "http_check",
-					ADIdentifiers:          []string{"kube_service://test"},
-					InitConfig:             integration.Data("{}"),
-					Instances:              []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					ClusterCheck:           true,
-					EndpointsChecksEnabled: true,
+					Name:          "http_check",
+					ADIdentifiers: []string{"kube_service://test"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					ClusterCheck:  true,
+					EndpointsChecks: []integration.Config{
+						{
+							Name:          "etcd",
+							ADIdentifiers: []string{"kube_endpoint://default/myservice"},
+							InitConfig:    integration.Data("{}"),
+							Instances:     []integration.Data{integration.Data("{\"prometheus_url\":\"http://%%host%%:2379/metrics\",\"use_preview\":\"true\"}")},
+							ClusterCheck:  false,
+						},
+					},
 				},
 				{
 					Name:          "etcd",
 					ADIdentifiers: []string{"kube_endpoint://default/myservice"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"prometheus_url\":\"http://%%host%%:2379/metrics\",\"use_preview\":\"true\"}")},
-					ClusterCheck:  true,
+					ClusterCheck:  false,
 				},
 			},
 		},
@@ -149,12 +156,11 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Name:                   "http_check",
-					ADIdentifiers:          []string{"kube_service://test"},
-					InitConfig:             integration.Data("{}"),
-					Instances:              []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					ClusterCheck:           true,
-					EndpointsChecksEnabled: true,
+					Name:          "http_check",
+					ADIdentifiers: []string{"kube_service://test"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					ClusterCheck:  true,
 				},
 			},
 		},
@@ -181,7 +187,7 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 					ADIdentifiers: []string{"kube_endpoint://default/myservice"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"prometheus_url\":\"http://%%host%%:2379/metrics\",\"use_preview\":\"true\"}")},
-					ClusterCheck:  true,
+					ClusterCheck:  false,
 				},
 			},
 		},
@@ -189,14 +195,6 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			cfgs, _ := parseServiceAnnotations([]*v1.Service{tc.service})
 			assert.EqualValues(t, tc.expectedOut, cfgs)
-
-			tmp := ProviderCatalog["endpointschecks"]
-			delete(ProviderCatalog, "endpointschecks")
-			cfgs, _ = parseServiceAnnotations([]*v1.Service{tc.service})
-			for _, cfg := range cfgs {
-				assert.False(t, cfg.EndpointsChecksEnabled)
-			}
-			ProviderCatalog["endpointschecks"] = tmp
 		})
 	}
 }

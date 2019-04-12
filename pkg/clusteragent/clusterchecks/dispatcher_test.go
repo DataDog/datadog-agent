@@ -15,14 +15,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	ktypes "k8s.io/apimachinery/pkg/types"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	v1 "k8s.io/api/core/v1"
+	ktypes "k8s.io/apimachinery/pkg/types"
 )
 
 func generateIntegration(name string) integration.Config {
@@ -429,178 +428,95 @@ func TestExtraTags(t *testing.T) {
 	}
 }
 
-func TestUpdateServices(t *testing.T) {
-	dispatcher := newDispatcher()
-	config1 := integration.Config{
-		Name:                   "http_check",
-		Entity:                 "kube_service://test",
-		ClusterCheck:           true,
-		EndpointsChecksEnabled: true,
-		Instances:              []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
-	}
-	config2 := integration.Config{
-		Name:                   "http_check",
-		Entity:                 "kube_service://test",
-		ClusterCheck:           true,
-		EndpointsChecksEnabled: false,
-		Instances:              []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
-	}
-	kservices := []*v1.Service{
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				ResourceVersion: "123",
-				UID:             ktypes.UID("test"),
-				Annotations: map[string]string{
-					"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
-					"ad.datadoghq.com/service.init_configs": "[{}]",
-					"ad.datadoghq.com/service.instances":    "[{tags: [\"foo:bar\", \"bar:foo\"]}]",
-				},
-				Name:      "myservice",
-				Namespace: "default",
-			},
-			Spec: v1.ServiceSpec{
-				ClusterIP: "10.0.0.1",
-				Ports: []v1.ServicePort{
-					{Name: "test1", Port: 123},
-					{Name: "test2", Port: 126},
-				},
-			},
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				ResourceVersion: "123",
-				UID:             ktypes.UID("test1"),
-				Name:            "myservice1",
-				Namespace:       "default",
-			},
-			Spec: v1.ServiceSpec{
-				ClusterIP: "10.0.0.2",
-				Ports: []v1.ServicePort{
-					{Name: "test1", Port: 123},
-					{Name: "test2", Port: 126},
+func TestGetEndpointsInfo(t *testing.T) {
+	nodename1 := "nodename1"
+	nodename2 := "nodename2"
+	nodename3 := "nodename3"
+	kendpoints1 := &v1.Endpoints{
+		Subsets: []v1.EndpointSubset{
+			{
+				Addresses: []v1.EndpointAddress{
+					{IP: "10.0.0.1", Hostname: "testhost1", NodeName: &nodename1, TargetRef: &v1.ObjectReference{
+						UID: ktypes.UID("pod-uid-1"),
+					}},
+					{IP: "10.0.0.2", Hostname: "testhost2", NodeName: &nodename2, TargetRef: &v1.ObjectReference{
+						UID: ktypes.UID("pod-uid-2"),
+					}},
+					{IP: "10.0.0.3", Hostname: "testhost3", NodeName: &nodename3, TargetRef: &v1.ObjectReference{
+						UID: ktypes.UID("pod-uid-3"),
+					}},
 				},
 			},
 		},
 	}
-	expectedServiceInfo := map[ktypes.UID]*types.ServiceInfo{
-		ktypes.UID("test"): {
-			CheckName: "http_check",
-			Instances: []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
-			Namespace: "default",
-			Name:      "myservice",
-			ClusterIP: "10.0.0.1",
-			Entity:    "kube_service://test",
-		},
-	}
-
-	// UpdateNeeded is initilized to false
-	assert.Equal(t, false, dispatcher.store.services.UpdateNeeded)
-
-	// Schedule a kube service check
-	dispatcher.Schedule([]integration.Config{config1, config2})
-	// should ignore config2 because endpoints checks are disabled
-	assert.Len(t, dispatcher.store.services.Service, 1)
-	// should set UpdateNeeded to true
-	assert.Equal(t, true, dispatcher.store.services.UpdateNeeded)
-
-	// Update cache
-	dispatcher.updateServices(kservices)
-	assert.Equal(t, expectedServiceInfo, dispatcher.store.services.Service)
-	// should set UpdateNeeded to false afer making updates
-	assert.Equal(t, false, dispatcher.store.services.UpdateNeeded)
-
-	// Unschedule a kube service check
-	dispatcher.Unschedule([]integration.Config{config1})
-	assert.NotContains(t, dispatcher.store.services.Service, ktypes.UID("test"))
-	// no need to make updates when a service is unscheduled
-	assert.Equal(t, false, dispatcher.store.services.UpdateNeeded)
-
-	requireNotLocked(t, dispatcher.store)
-}
-
-func TestUpdateEndpointsChecksMap(t *testing.T) {
-	dispatcher := newDispatcher()
-	nodeEndpointsMapping := map[string][]types.EndpointInfo{
-		"nodeName": {
+	kendpoints2 := &v1.Endpoints{
+		Subsets: []v1.EndpointSubset{
 			{
-				PodUID:    ktypes.UID("podUID"),
-				IP:        "10.0.0.2",
-				ClusterIP: "10.0.0.1",
-				Ports:     []int32{123},
-				CheckName: "http_check",
-				Instances: []integration.Data{
-					integration.Data("\"url\": \"http://10.0.0.1\""),
-					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
-				},
-				ServiceEntity: "kube_service://test",
-			},
-			{
-				PodUID:    ktypes.UID("podUID1"),
-				IP:        "10.0.0.3",
-				ClusterIP: "10.0.0.1",
-				Ports:     []int32{123},
-				CheckName: "http_check",
-				Instances: []integration.Data{
-					integration.Data("\"url\": \"http://10.0.0.1\""),
-					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
-				},
-				ServiceEntity: "kube_service://test",
-			},
-		},
-		"nodeName1": {
-			{
-				PodUID:    ktypes.UID("podUID1"),
-				IP:        "10.0.0.4",
-				ClusterIP: "10.0.0.1",
-				Ports:     []int32{123},
-				CheckName: "http_check",
-				Instances: []integration.Data{
-					integration.Data("\"url\": \"http://10.0.0.1\""),
-					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
-				},
-				ServiceEntity: "kube_service://test",
-			},
-		},
-	}
-	expectedConfig := map[string][]integration.Config{
-		"nodeName": {
-			{
-				Name:          "http_check",
-				Entity:        "kubernetes_pod://podUID",
-				ADIdentifiers: []string{"kubernetes_pod://podUID", "kube_service://test"},
-				ClusterCheck:  false,
-				Instances: []integration.Data{
-					integration.Data("\"url\": \"http://10.0.0.2\""),
-					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
-				},
-			},
-			{
-				Name:          "http_check",
-				Entity:        "kubernetes_pod://podUID1",
-				ADIdentifiers: []string{"kubernetes_pod://podUID1", "kube_service://test"},
-				ClusterCheck:  false,
-				Instances: []integration.Data{
-					integration.Data("\"url\": \"http://10.0.0.3\""),
-					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
-				},
-			},
-		},
-		"nodeName1": {
-			{
-				Name:          "http_check",
-				Entity:        "kubernetes_pod://podUID1",
-				ADIdentifiers: []string{"kubernetes_pod://podUID1", "kube_service://test"},
-				ClusterCheck:  false,
-				Instances: []integration.Data{
-					integration.Data("\"url\": \"http://10.0.0.4\""),
-					integration.Data("tags: [\"foo:bar\", \"bar:foo\"]"),
+				Addresses: []v1.EndpointAddress{
+					{IP: "10.0.0.1", Hostname: "testhost1", NodeName: &nodename1, TargetRef: &v1.ObjectReference{
+						UID: ktypes.UID("pod-uid-1"),
+					}},
+					{IP: "10.0.0.2", Hostname: "testhost2", NodeName: &nodename2, TargetRef: &v1.ObjectReference{
+						UID: ktypes.UID("pod-uid-2"),
+					}},
+					{IP: "10.0.0.3", Hostname: "testhost3", NodeName: &nodename2, TargetRef: &v1.ObjectReference{
+						UID: ktypes.UID("pod-uid-3"),
+					}},
 				},
 			},
 		},
 	}
-	err := dispatcher.updateEndpointsChecksMap(nodeEndpointsMapping)
-	assert.Nil(t, err)
-	assert.Equal(t, expectedConfig, dispatcher.store.endpointsChecks)
+	endpointsInfo := &types.EndpointsInfo{
+		Namespace:     "default",
+		Name:          "myservice",
+		ServiceEntity: "kube_service://myservice-uid",
+		Configs: []integration.Config{
+			{
+				ADIdentifiers: []string{"kube_endpoint://default/myservice"},
+			},
+		},
+	}
+	expectedResult1 := map[string][]integration.Config{
+		"nodename1": {
+			{
+				ADIdentifiers: []string{"kube_endpoint://default/myservice", "kubernetes_pod://pod-uid-1", "kube_service://myservice-uid"},
+			},
+		},
+		"nodename2": {
+			{
+				ADIdentifiers: []string{"kube_endpoint://default/myservice", "kubernetes_pod://pod-uid-2", "kube_service://myservice-uid"},
+			},
+		},
+		"nodename3": {
+			{
+				ADIdentifiers: []string{"kube_endpoint://default/myservice", "kubernetes_pod://pod-uid-3", "kube_service://myservice-uid"},
+			},
+		},
+	}
+	expectedResult2 := map[string][]integration.Config{
+		"nodename1": {
+			{
+				ADIdentifiers: []string{"kube_endpoint://default/myservice", "kubernetes_pod://pod-uid-1", "kube_service://myservice-uid"},
+			},
+		},
+		"nodename2": {
+			{
+				ADIdentifiers: []string{"kube_endpoint://default/myservice", "kubernetes_pod://pod-uid-2", "kube_service://myservice-uid"},
+			},
+			{
+				ADIdentifiers: []string{"kube_endpoint://default/myservice", "kubernetes_pod://pod-uid-3", "kube_service://myservice-uid"},
+			},
+		},
+	}
 
-	requireNotLocked(t, dispatcher.store)
+	result := getEndpointsInfo(kendpoints1, endpointsInfo)
+	assert.Len(t, result, len(expectedResult1))
+	assert.Equal(t, expectedResult1["nodename1"], result["nodename1"])
+	assert.Equal(t, expectedResult1["nodename2"], result["nodename2"])
+	assert.Equal(t, expectedResult1["nodename3"], result["nodename3"])
+
+	result = getEndpointsInfo(kendpoints2, endpointsInfo)
+	assert.Len(t, result, len(expectedResult2))
+	assert.Equal(t, expectedResult2["nodename1"], result["nodename1"])
+	assert.Equal(t, expectedResult2["nodename2"], result["nodename2"])
 }

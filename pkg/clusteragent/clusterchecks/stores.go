@@ -22,12 +22,12 @@ import (
 type clusterStore struct {
 	sync.RWMutex
 	active          bool
-	digestToConfig  map[string]integration.Config   // All configurations to dispatch
-	digestToNode    map[string]string               // Node running a config
-	nodes           map[string]*nodeStore           // All nodes known to the cluster-agent
-	danglingConfigs map[string]integration.Config   // Configs we could not dispatch to any node
-	services        *types.ServicesCache            // Services that have scheduled checks, needed to retrieve correspondent endpoints
-	endpointsChecks map[string][]integration.Config // Endpoints checks to be consumed by node agents
+	digestToConfig  map[string]integration.Config       // All configurations to dispatch
+	digestToNode    map[string]string                   // Node running a config
+	nodes           map[string]*nodeStore               // All nodes known to the cluster-agent
+	danglingConfigs map[string]integration.Config       // Configs we could not dispatch to any node
+	endpointsCache  map[ktypes.UID]*types.EndpointsInfo // TODO
+	endpointsChecks map[string][]integration.Config     // Endpoints checks to be consumed by node agents
 }
 
 func newClusterStore() *clusterStore {
@@ -43,10 +43,7 @@ func (s *clusterStore) reset() {
 	s.digestToNode = make(map[string]string)
 	s.nodes = make(map[string]*nodeStore)
 	s.danglingConfigs = make(map[string]integration.Config)
-	s.services = &types.ServicesCache{
-		Service:      make(map[ktypes.UID]*types.ServiceInfo),
-		UpdateNeeded: false,
-	}
+	s.endpointsCache = make(map[ktypes.UID]*types.EndpointsInfo)
 	s.endpointsChecks = make(map[string][]integration.Config)
 }
 

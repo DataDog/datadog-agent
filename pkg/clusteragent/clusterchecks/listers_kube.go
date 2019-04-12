@@ -11,25 +11,19 @@ package clusterchecks
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	v1 "k8s.io/client-go/listers/core/v1"
 )
 
-func newListers() (*types.Listers, error) {
+// newEndpointsLister return a kube endpoints lister
+func newEndpointsLister() (v1.EndpointsLister, error) {
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
-	}
-	servicesInformer := ac.InformerFactory.Core().V1().Services()
-	if servicesInformer == nil {
-		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
 	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
 	if endpointsInformer == nil {
 		return nil, fmt.Errorf("cannot get endpoint informer: %s", err)
 	}
-	return &types.Listers{
-		ServicesLister:  servicesInformer.Lister(),
-		EndpointsLister: endpointsInformer.Lister(),
-	}, nil
+	return endpointsInformer.Lister(), nil
 }

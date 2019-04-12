@@ -8,17 +8,15 @@
 package clusterchecks
 
 import (
-	"bytes"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/labels"
 )
 
+// GetEndpointsConfigs provides configs of endpoints checks queried by node name
 func (d *dispatcher) GetEndpointsConfigs(nodeName string) ([]integration.Config, error) {
-	err := d.updateStore()
+	err := d.updateEndpointsChecks()
 	if err != nil {
 		log.Errorf("Cannot update check maps: %s", err)
 		return nil, err
@@ -26,88 +24,33 @@ func (d *dispatcher) GetEndpointsConfigs(nodeName string) ([]integration.Config,
 	return d.store.endpointsChecks[nodeName], nil
 }
 
-func (d *dispatcher) updateStore() error {
-	d.store.RLock()
-	updateNeeded := d.store.services.UpdateNeeded
-	d.store.RUnlock()
-
-	// Update services cache only when needed
-	if updateNeeded {
-		kservices, err := d.listers.ServicesLister.List(labels.Everything())
+// updateEndpointsChecks updates endpoints configs by listing *v1.Endpoints objects
+// that have endpoints checks enabled
+func (d *dispatcher) updateEndpointsChecks() error {
+	nodesEndpointsMapping := make(map[string][]integration.Config)
+	d.store.Lock()
+	defer d.store.Unlock()
+	for _, epInfo := range d.store.endpointsCache {
+		namespace := epInfo.Namespace
+		name := epInfo.Name
+		if namespace == "" || name == "" {
+			log.Warnf("Empty namespace %s or name %s for Endpoints related to %s, configs will not be processed", namespace, name, epInfo.ServiceEntity)
+			continue
+		}
+		kendpoints, err := d.endpointsLister.Endpoints(namespace).Get(name)
 		if err != nil {
-			log.Errorf("Cannot list Kubernetes services: %s", err)
+			log.Errorf("Cannot get Kubernetes endpoints:%s/%s : %s", namespace, name, err)
 			return err
 		}
-		d.updateServices(kservices)
-	}
-
-	// Update endpoints cache
-	endpointsInfo, err := d.getEndpointsInfo()
-	if err != nil {
-		log.Errorf("Cannot get endpoints info: %s", err)
-		return err
-	}
-	err = d.updateEndpointsChecksMap(endpointsInfo)
-	if err != nil {
-		log.Errorf("Cannot update endpoints checks: %s", err)
-		return err
-	}
-	return nil
-}
-
-// updateEndpointsChecksMap updates the stored endpoints data
-func (d *dispatcher) updateEndpointsChecksMap(endpointsInfo map[string][]types.EndpointInfo) error {
-	newEndpointsChecks := make(map[string][]integration.Config)
-	for nodeName, endpoints := range endpointsInfo {
-		resolvedConfigs := []integration.Config{}
-		for _, endpoint := range endpoints {
-			resolvedConfigs = append(resolvedConfigs, resolveToConfig(endpoint))
-		}
-		newEndpointsChecks[nodeName] = resolvedConfigs
-	}
-	d.store.Lock()
-	d.store.endpointsChecks = newEndpointsChecks
-	d.store.Unlock()
-	return nil
-}
-
-// getEndpointsInfo returns a map of node names and their correspondent endpoints
-// the function uses the cached services to list Endpoints objects by Namespace and Name
-func (d *dispatcher) getEndpointsInfo() (map[string][]types.EndpointInfo, error) {
-	nodesEndpointsMapping := make(map[string][]types.EndpointInfo)
-	d.store.RLock()
-	defer d.store.RUnlock()
-	for _, svc := range d.store.services.Service {
-		kendpoints, err := d.listers.EndpointsLister.Endpoints(svc.Namespace).Get(svc.Name)
-		if err != nil {
-			log.Errorf("Cannot get Kubernetes endpoints:%s/%s : %s", svc.Namespace, svc.Name, err)
-			return nil, err
-		}
 		if hasPodRef(kendpoints) {
-			newNodesEndpointsMapping := getOneEndpointInfo(kendpoints, svc)
+			newNodesEndpointsMapping := getEndpointsInfo(kendpoints, epInfo)
 			nodesEndpointsMapping = unionMaps(nodesEndpointsMapping, newNodesEndpointsMapping)
 		}
 	}
-	return nodesEndpointsMapping, nil
-}
 
-// updateServices update the current services cache by adding Namespaces, Names, and ClusterIPs
-// from kube *v1.Service objects
-// the function should be called when d.store.services.UpdateNeeded is set to true
-func (d *dispatcher) updateServices(kservices []*v1.Service) {
-	d.store.Lock()
-	defer d.store.Unlock()
-	for _, ksvc := range kservices {
-		uid := ksvc.ObjectMeta.UID
-		if _, found := d.store.services.Service[uid]; found {
-			d.store.services.Service[uid].Namespace = ksvc.Namespace
-			d.store.services.Service[uid].Name = ksvc.Name
-			d.store.services.Service[uid].ClusterIP = ksvc.Spec.ClusterIP
-		}
-	}
-	// Cache update is done, set UpdateNeeded to false
-	// UpdateNeeded will be set to true when a new service check is scheduled
-	d.store.services.UpdateNeeded = false
+	d.store.endpointsChecks = nodesEndpointsMapping
+
+	return nil
 }
 
 // hasPodRef checks if an Endpoints object is backed by pod
@@ -123,62 +66,48 @@ func hasPodRef(kendpoints *v1.Endpoints) bool {
 	return false
 }
 
-// getOneEndpointInfo returns a map of node names and their correspondent endpoints info
-// from a *v1.Endpoints object and its correspondent service *types.ServiceInfo object
-// *types.ServiceInfo is used to enrich the EndpointInfo with the service config
-func getOneEndpointInfo(kendpoints *v1.Endpoints, svc *types.ServiceInfo) map[string][]types.EndpointInfo {
-	nodesEndpointsMapping := make(map[string][]types.EndpointInfo)
+// getEndpointsInfo returns a map of node names and their correspondent endpoints configs
+// from a *v1.Endpoints object and its correspondent service *types.EndpointsInfo object
+func getEndpointsInfo(kendpoints *v1.Endpoints, epInfo *types.EndpointsInfo) map[string][]integration.Config {
+	nodesEndpointsMapping := make(map[string][]integration.Config)
 	for i := range kendpoints.Subsets {
-		ports := []int32{}
-		for j := range kendpoints.Subsets[i].Ports {
-			ports = append(ports, kendpoints.Subsets[i].Ports[j].Port)
-		}
 		for j := range kendpoints.Subsets[i].Addresses {
 			if nodeName := kendpoints.Subsets[i].Addresses[j].NodeName; nodeName != nil {
-				nodesEndpointsMapping[*nodeName] = append(nodesEndpointsMapping[*nodeName], types.EndpointInfo{
-					PodUID:        kendpoints.Subsets[i].Addresses[j].TargetRef.UID,
-					IP:            kendpoints.Subsets[i].Addresses[j].IP,
-					Ports:         ports,
-					CheckName:     svc.CheckName,
-					Instances:     svc.Instances,
-					InitConfig:    svc.InitConfig,
-					ClusterIP:     svc.ClusterIP,
-					ServiceEntity: svc.Entity,
-				})
+				podUID := string(kendpoints.Subsets[i].Addresses[j].TargetRef.UID)
+				for _, config := range epInfo.Configs {
+					nodesEndpointsMapping[*nodeName] = append(nodesEndpointsMapping[*nodeName], updateADIdentifiers(config, podUID, epInfo.ServiceEntity))
+				}
 			}
 		}
 	}
 	return nodesEndpointsMapping
 }
 
+// updateADIdentifiers generates a config template for an endpoints
+// object backed by a given pod, it uses the generic endpoints config got
+// from the kube service and add pod entity and kube service entity as AD identifiers
+func updateADIdentifiers(config integration.Config, podUID, svcEntity string) integration.Config {
+	configCopy := integration.Config{
+		Name:            config.Name,
+		Instances:       config.Instances,
+		InitConfig:      config.InitConfig,
+		MetricConfig:    config.MetricConfig,
+		LogsConfig:      config.LogsConfig,
+		ADIdentifiers:   []string{},
+		ClusterCheck:    config.ClusterCheck,
+		Provider:        config.Provider,
+		EndpointsChecks: config.EndpointsChecks,
+	}
+	configCopy.ADIdentifiers = append(configCopy.ADIdentifiers, config.ADIdentifiers...)
+	configCopy.ADIdentifiers = append(configCopy.ADIdentifiers, getPodEntity(podUID))
+	configCopy.ADIdentifiers = append(configCopy.ADIdentifiers, svcEntity)
+	return configCopy
+}
+
 // unionMaps returns the union of two maps
-func unionMaps(first, second map[string][]types.EndpointInfo) map[string][]types.EndpointInfo {
+func unionMaps(first, second map[string][]integration.Config) map[string][]integration.Config {
 	for k, v := range second {
 		first[k] = append(first[k], v...)
 	}
 	return first
-}
-
-// resolveToConfig creates and integration.Config from types.EndpointInfo
-// since info in EndpointInfo is retrieved from a ServiceInfo object
-// the function replaces ClusterIP by the actual endpoint IP in the
-// InitConfig and Instances fields
-func resolveToConfig(info types.EndpointInfo) integration.Config {
-	entity := getEndpointsEntity(string(info.PodUID))
-	config := integration.Config{
-		Name:          info.CheckName,
-		Entity:        entity,
-		Instances:     make([]integration.Data, len(info.Instances)),
-		InitConfig:    make(integration.Data, len(info.InitConfig)),
-		ADIdentifiers: []string{entity, info.ServiceEntity},
-		ClusterCheck:  false,
-		CreationTime:  integration.Before,
-	}
-	copy(config.InitConfig, info.InitConfig)
-	copy(config.Instances, info.Instances)
-	for i := 0; i < len(config.Instances); i++ {
-		config.InitConfig = bytes.Replace(config.InitConfig, []byte(info.ClusterIP), []byte(info.IP), -1)
-		config.Instances[i] = bytes.Replace(config.Instances[i], []byte(info.ClusterIP), []byte(info.IP), -1)
-	}
-	return config
 }

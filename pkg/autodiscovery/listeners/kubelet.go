@@ -155,8 +155,21 @@ func (l *KubeletListener) createPodService(pod *kubelet.Pod, firstRun bool) {
 		log.Errorf("Unable to get pod %s IP", pod.Metadata.Name)
 	}
 
-	// Ports: Pods don't have ports
-	ports := []ContainerPort{}
+	// Ports: adding all pod's containers ports
+	var ports []ContainerPort
+	for _, container := range pod.Spec.Containers {
+		for _, port := range container.Ports {
+			ports = append(ports, ContainerPort{port.ContainerPort, port.Name})
+		}
+	}
+	sort.Slice(ports, func(i, j int) bool {
+		return ports[i].Port < ports[j].Port
+	})
+
+	if len(ports) == 0 {
+		// Port might not be specified in pod spec
+		log.Debugf("No ports found for pod %s", pod.Metadata.Name)
+	}
 
 	svc := KubePodService{
 		entity:        entity,
