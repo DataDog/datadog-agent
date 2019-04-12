@@ -54,8 +54,8 @@ These features are disabled by default for security or performance reasons, you 
 Send custom metrics via [the statsd protocol](https://docs.datadoghq.com/developers/dogstatsd/):
 
 - `DD_DOGSTATSD_NON_LOCAL_TRAFFIC`: listen to dogstatsd packets from other containers, required to send custom metrics
-- `DD_HISTOGRAM_PERCENTILES`: histogram percentiles to compute, separated by spaces. The default is "0.95"
-- `DD_HISTOGRAM_AGGREGATES`: histogram aggregates to compute, separated by spaces. The default is "max median avg count"
+- `DD_HISTOGRAM_PERCENTILES`: histogram percentiles to compute, separated by commas. The default is `"0.95"`
+- `DD_HISTOGRAM_AGGREGATES`: histogram aggregates to compute, separated by commas. The default is `"max, median, avg, count"`
 - `DD_DOGSTATSD_SOCKET`: path to the unix socket to listen to. Must be in a `rw` mounted volume.
 - `DD_DOGSTATSD_ORIGIN_DETECTION`: enable container detection and tagging for unix socket metrics. Running in host PID mode (e.g. with --pid=host) is required.
 - `DD_DOGSTATSD_TAGS`: Additional tags to append to all metrics, events and service checks received by this dogstatsd server, for example: `["env:golden", "group:retrievers"]`.
