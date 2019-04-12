@@ -510,10 +510,10 @@ api_key:
 #
 #  bind_host: localhost
 
-## @param dogstatsd_socket - string - optional - default: /var/run/dogstatsd/dsd.sock
+## @param dogstatsd_socket - string - optional - default: ""
 ## Listen for Dogstatsd metrics on a Unix Socket (*nix only). Set to a valid filesystem path to enable.
 #
-#  dogstatsd_socket: /var/run/dogstatsd/dsd.sock
+#  dogstatsd_socket: ""
 
 ## @param dogstatsd_origin_detection - boolean - optional - default: false
 ## When using Unix Socket, DogStatsD can tag metrics with container metadata.
@@ -568,23 +568,23 @@ api_key:
 #  dogstatsd_tags:
 #    - <TAG_KEY>:<TAG_VALUE>
 
-## @param statsd_forward_host - string - optional
+## @param statsd_forward_host - string - optional - default: ""
 ## Forward every packet received by the DogStatsD server to another statsd server.
 ## WARNING: Make sure that forwarded packets are regular statsd packets and not "DogStatsD" packets,
 ## as your other statsd server might not be able to handle them.
 #
-#  statsd_forward_host: <STATSD_SERVER_ADDRESS>
+#  statsd_forward_host: ""
 
-## @param statsd_forward_port - integer - optional - default: 8125
+## @param statsd_forward_port - integer - optional - default: 0
 ## Port or the "statsd_forward_host" to forward StatsD packet to.
 #
-#  statsd_forward_port: 8125
+#  statsd_forward_port: 0
 
-## @param statsd_metric_namespace - string - optional
+## @param statsd_metric_namespace - string - optional - default: ""
 ## Set a namespace for all StatsD metrics coming from this host.
 ## Each metric received is prefixed with the namespace before it's sent to Datadog.
 #
-#  statsd_metric_namespace: <STATSD_METRIC_NAMESAPCE>
+#  statsd_metric_namespace: ""
 
 {{ end -}}
 {{- if .Metadata }}
