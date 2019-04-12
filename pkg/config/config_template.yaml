@@ -288,36 +288,36 @@ api_key:
   ## @param container_collect_all - boolean - optional - default: false
   ## Enable container log collection for all the containers (see ac_exclude to filter out containers)
   #
-  #  container_collect_all: false
+  # container_collect_all: false
 
   ## @param logs_dd_url - string - optional
   ## Define the endpoint and port to hit when using a proxy for logs. The logs are forwarded in TCP
   ## therefore the proxy must be able to handle TCP connections.
   #
-  #  logs_dd_url: <ENDPOINT>:<PORT>
+  # logs_dd_url: <ENDPOINT>:<PORT>
 
   ## @param logs_no_ssl - boolean - optional - default: false
   ## Disable the SSL encryption. This parameter should only be used when logs are
   ## forwarded locally to a proxy. It is highly recommended to then handle the SSL encryption
   ## on the proxy side.
   #
-  #  logs_no_ssl: false
+  # logs_no_ssl: false
 
   ## @param processing_rules - list of custom objects - optional
   ## Global processing rules that are applied to all the logs. The available rules are
   ## "exclude_at_match", "include_at_match" and "mask_sequences". More information in Datadog documentation:
   ## https://docs.datadoghq.com/logs/log_collection/#global-processing-rules
   #
-  #  processing_rules:
-  #    - type: <RULE_TYPE>
-  #      name: <RULE_NAME>
-  #      pattern: <RULE_PATTERN>
+  # processing_rules:
+  #   - type: <RULE_TYPE>
+  #     name: <RULE_NAME>
+  #     pattern: <RULE_PATTERN>
 
   ## @param use_port_443 - boolean - optional - default: false
   ## By default, logs are sent to port 10516 (for the US site), use this parameter
   #  to force the Agent to send logs in TCP to port 443 for the EU site
   #
-  #  use_port_443: false
+  # use_port_443: false
 
 {{ end -}}
 {{- if .TraceAgent }}
@@ -336,43 +336,43 @@ api_key:
   ## @param enabled - boolean - optional - default: true
   ## Set to true to enable the APM Agent.
   #
-  #  enabled: true
+  # enabled: true
 
   ## @param env - string - optional - default: none
   ## The environment tag that Traces should be tagged with.
   ## Inherits from "env" tag if "none" is applied here.
   #
-  #  env: none
+  # env: none
 
   ## @param receiver_port - integer - optional - default: 8126
   ## The port that the trace receiver should listen on.
   #
-  #  receiver_port: 8126
+  # receiver_port: 8126
 
   ## @param apm_non_local_traffic - boolean - optional - default: false
   ## Set to true so the Trace Agent listens for non local traffic,
   ## i.e if Traces are being sent to this Agent from another host/container
   #
-  #  apm_non_local_traffic: false
+  # apm_non_local_traffic: false
 
   ## @param extra_sample_rate - float - optional - default: 1.0
   ## Extra global sample rate to apply on all the traces
   ## This sample rate is combined to the sample rate from the sampler logic, still promoting interesting traces.
   ## From 1 (no extra rate) to 0 (don't sample at all)
   #
-  #  extra_sample_rate: 1.0
+  # extra_sample_rate: 1.0
 
   ## @param max_traces_per_second - integer - optional - default: 10
   ## Maximum number of traces per second to sample. The limit is applied over an average over
   ## a few minutes ; much bigger spikes are possible. Set to 0 to disable the limit.
   #
-  #  max_traces_per_second: 10
+  # max_traces_per_second: 10
 
   ## @param ignore_resources - list of strings - optional
   ## A blacklist of regular expressions can be provided to disable certain traces based on their resource name
   ## all entries must be surrounded by double quotes and separated by commas.
   #
-  #  ignore_resources: ["(GET|POST) /healthcheck"]
+  # ignore_resources: ["(GET|POST) /healthcheck"]
 
 {{ end -}}
 {{- if .ProcessAgent }}
@@ -394,68 +394,68 @@ api_key:
   ##    * "true"     : The Agent collects containers and processes information.
   ##    * "disabled" : The Agent process collection is disabled.
   #
-  #  enabled: "true"
+  # enabled: "true"
 
   ## @param log_file - string - optional
   ## The full path to the file where process-agent logs are written.
   #
-  #  log_file: <PROCESS_LOG_FILE_PATH>
+  # log_file: <PROCESS_LOG_FILE_PATH>
 
   ## @param intervals - custom object - optional - default: 10s for normal checks and 2s for others.
   ## The interval, in seconds, at which the Agent runs each check. If you want consistent
   ## behavior between real-time, set the `container_realtime` and `process_realtime` intervals to 10.
   #
-  #  intervals:
-  #    container: 10
-  #    container_realtime: 2
-  #    process: 10
-  #    process_realtime: 2
+  # intervals:
+  #   container: 10
+  #   container_realtime: 2
+  #   process: 10
+  #   process_realtime: 2
 
   ## @param blacklist_patterns - list of strings - optional
   ## A list of regex patterns that exclude processes if matched.
   #
-  #  blacklist_patterns:
-  #    - <REGEX>
+  # blacklist_patterns:
+  #   - <REGEX>
 
   ## @param queue_size - integer - optional - default: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
   ## How many check results to buffer in memory when POST fails.
   #
-  #  queue_size: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  # queue_size: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
   ## @param max_proc_fds - integer - optional - default: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
   ## The maximum number of file descriptors to open when collecting net connections.
   ## Only change if you are running out of file descriptors from the Agent.
   #
-  #  max_proc_fds: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  # max_proc_fds: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
   ## @param max_per_message - integer - optional - default: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
   ## The maximum number of processes or containers per message.
   #
-  #  max_per_message: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  # max_per_message: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
   ## @param dd_agent_bin - string - optional - default: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
   ## Overrides the path to the Agent bin used for getting the hostname.
   #
-  #  dd_agent_bin: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  # dd_agent_bin: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
   ## @param dd_agent_env - string - optional - default: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
   ## Overrides of the environment we pass to fetch the hostname.
   #
-  #  dd_agent_env: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  # dd_agent_env: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
   ## @param scrub_args - boolean - optional - default: true
   ## Hide sensitive data on the Live Processes page.
   #
-  #  scrub_args: true
+  # scrub_args: true
 
   ## @param custom_sensitive_words - list of strings - optional
   ## Define your own list of sensitive data to be merged with the default one.
   #
-  #  custom_sensitive_words:
-  #    - 'personal_key'
-  #    - '*token'
-  #    - 'sql*'
-  #    - '*pass*d*'
+  # custom_sensitive_words:
+  #   - 'personal_key'
+  #   - '*token'
+  #   - 'sql*'
+  #   - '*pass*d*'
 
 {{ end -}}
 {{- if .NetworkTracer }}
@@ -474,17 +474,17 @@ api_key:
   ## @param enabled - boolean - optional - default: false
   ## Set to true to enable the Network Tracer.
   #
-  #  enabled: false
+  # enabled: false
 
   ## @param nettracer_socket - string - optional - default: /opt/datadog-agent/run/nettracer.sock
   ## The full path to the location of the unix socket where network traces are accessed.
   #
-  #  nettracer_socket: /opt/datadog-agent/run/nettracer.sock
+  # nettracer_socket: /opt/datadog-agent/run/nettracer.sock
 
   ## @param log_file - string - optional - default: /var/log/datadog/network-tracer.log
   ## The full path to the file where network-tracer logs are written.
   #
-  #  log_file: /var/log/datadog/network-tracer.log
+  # log_file: /var/log/datadog/network-tracer.log
 
 {{ end -}}
 {{- if .Dogstatsd }}
@@ -888,32 +888,32 @@ api_key:
   ## @param enabled - boolean - optional - default: false
   ## Set to true to enable the dispatching logic on the leader cluster-agent.
   #
-  #  enabled: false
+  # enabled: false
 
   ## @param node_expiration_timeout - integer - optional - default: 30
   ## Set "node_expiration_timeout" time in second after which Node-agents that have not
   ## queried the cluster-agent are deleted, and their checks re-dispatched to other nodes.
   #
-  #  node_expiration_timeout: 30
+  # node_expiration_timeout: 30
 
   ## @param warmup_duration - integer - optional - default: 30
   ## Set the "warmup_duration" duration in second for the cluster-agent to wait for all
   ## node-agents to report to it before dispatching configurations.
   #
-  #  warmup_duration: 30
+  # warmup_duration: 30
 
   ## @param cluster_tag_name - string - optional - default: cluster_name
   ## If a cluster_name value is set or autodetected, a "<CLUSTER_NAME>" tag is added
   ## to all cluster-check configurations sent to the node-agents.
   ## Set a custom tag name here, or disable it by setting an empty name.
   #
-  #  cluster_tag_name: cluster_name
+  # cluster_tag_name: cluster_name
 
   ## @param extra_tags - list of key:value elements - optional
   ## Set a list of additionnal tags can to be added to every cluster-check configuration.
   #
-  #  extra_tags:
-  #    - <TAG_KEY>:<TAG_VALUE>
+  # extra_tags:
+  #   - <TAG_KEY>:<TAG_VALUE>
 
 {{ end -}}
 {{- if .DockerTagging }}
