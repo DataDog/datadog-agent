@@ -290,7 +290,10 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
 
     with ctx.cd("omnibus"):
         # make sure bundle install starts from a clean state
-        ctx.run ("rm -f Gemfile.lock")
+        try:
+            os.remove("Gemfile.lock")
+        except FileNotFoundError:
+            pass
 
         env = load_release_versions(ctx, release_version)
         cmd = "bundle install"
