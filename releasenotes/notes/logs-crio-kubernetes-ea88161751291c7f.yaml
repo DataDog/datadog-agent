@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Now support cri-o as container for log collection on Kubernetes.
+    Now support CRI-O container runtime for log collection on Kubernetes.
