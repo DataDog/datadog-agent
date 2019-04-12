@@ -92,8 +92,10 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
         venv_prefix = os.getenv('VIRTUAL_ENV')
         ldflags += "-X {}/pkg/collector/py.pythonHome={} ".format(REPO_PATH, venv_prefix)
 
-    ldflags += "-X {}/pkg/collector/python.pythonHome2={} ".format(REPO_PATH, os.environ['PYTHON_HOME_2'])
-    ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, os.environ['PYTHON_HOME_3'])
+    if 'PYTHON_HOME_2' in os.environ:
+        ldflags += "-X {}/pkg/collector/python.pythonHome2={} ".format(REPO_PATH, os.environ['PYTHON_HOME_2'])
+    if 'PYTHON_HOME_3' in os.environ:
+        ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, os.environ['PYTHON_HOME_3'])
 
     if os.environ.get("DELVE"):
         gcflags = "-N -l"
