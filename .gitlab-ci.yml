@@ -163,6 +163,7 @@ run_tests_deb-x64:
     - cd $SRC_PATH
     - pip install wheel
     - pip install -r requirements.txt
+    - inv deps
   script:
     - inv -e test --race --profile --cpus 4
 
