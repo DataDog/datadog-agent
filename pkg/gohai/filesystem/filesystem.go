@@ -3,8 +3,8 @@
 package filesystem
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -12,53 +12,26 @@ import (
 )
 
 func getFileSystemInfo() (interface{}, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
 	/* Grab filesystem data from df	*/
-	cmd := exec.Command("df", dfOptions...)
+	cmd := exec.CommandContext(ctx, "df", dfOptions...)
 
-	outCh := make(chan []byte, 1)
-	errCh := make(chan error, 1)
-
-	var out interface{}
-	var err error
-
-	go func() {
-		_out, _err := cmd.Output()
-		if _err != nil {
-			errCh <- fmt.Errorf("df failed to collect filesystem data: %s", _err)
-			return
-		}
-		outCh <- _out
-	}()
-
-WAIT:
-	for {
-		select {
-		case res := <-outCh:
-			if res != nil {
-				out, err = parseDfOutput(string(res))
-			} else {
-				out, err = nil, fmt.Errorf("df failed to collect filesystem data")
-			}
-			break WAIT
-		case err = <-errCh:
-			out = nil
-			break WAIT
-		case <-time.After(2 * time.Second):
-			// Kill the process if it takes too long
-			if killErr := cmd.Process.Kill(); killErr != nil {
-				log.Fatal("failed to kill:", killErr)
-				// Force goroutine to exit
-				<-outCh
-			}
-		}
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("df failed to collect filesystem data: %s", err)
 	}
-
-	return out, err
+	if out != nil {
+		return parseDfOutput(string(out))
+	}
+	return nil, fmt.Errorf("df failed to collect filesystem data")
 }
 
 func parseDfOutput(out string) (interface{}, error) {
 	lines := strings.Split(out, "\n")
-	var fileSystemInfo []interface{} = make([]interface{}, len(lines)-2)
+	var fileSystemInfo = make([]interface{}, len(lines)-2)
 	for i, line := range lines[1:] {
 		values := regexp.MustCompile("\\s+").Split(line, expectedLength)
 		if len(values) == expectedLength {
