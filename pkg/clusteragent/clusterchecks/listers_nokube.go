@@ -11,9 +11,9 @@ package clusterchecks
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	v1 "k8s.io/client-go/listers/core/v1"
 )
 
-func newListers() (*types.Listers, error) {
+func newEndpointsLister() (v1.EndpointsLister, error) {
 	return nil, errors.New("No kube objects listers compiled in")
 }
