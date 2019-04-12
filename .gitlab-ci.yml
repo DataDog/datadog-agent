@@ -66,6 +66,7 @@ dependencies_clear_cache_windows:
   script:
     - "if exist %WIN_CI_PROJECT_DIR%\vendor rd /s/q %WIN_CI_PROJECT_DIR%\vendor"
     - "if exist %WIN_CI_PROJECT_DIR%\venv rd /s/q %WIN_CI_PROJECT_DIR%\venv"
+    - "if exist C:\opt\stackstate-agent rd /s/q C:\opt\stackstate-agent"
 
 deps:
   stage: prepare
