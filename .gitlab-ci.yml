@@ -147,6 +147,7 @@ before_script:
 .agent_test_variables: &agent_test_variables
   PYTHON_HOME_2: /usr/
   PYTHON_HOME_3: /usr/
+  LD_LIBRARY_PATH: $SRC_PATH/dev/lib
 
 # run tests for deb-x64
 run_tests_deb-x64:
