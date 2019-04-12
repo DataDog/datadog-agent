@@ -14,7 +14,6 @@ const (
 	TCPType          = "tcp"
 	UDPType          = "udp"
 	FileType         = "file"
-	ContainerdType   = "containerd"
 	DockerType       = "docker"
 	JournaldType     = "journald"
 	WindowsEventType = "windows_event"

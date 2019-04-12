@@ -9,6 +9,15 @@ import (
 	"sync"
 )
 
+// SourceType used for log line parsing logic.
+// TODO: remove this logic.
+type SourceType string
+
+const (
+	// KubernetesSourceType kubernetes source type
+	KubernetesSourceType SourceType = "kubernetes"
+)
+
 // LogSource holds a reference to an integration name and a log configuration, and allows to track errors and
 // successful operations on it. Both name and configuration are static for now and determined at creation time.
 // Changing the status is designed to be thread safe.
@@ -22,7 +31,7 @@ type LogSource struct {
 	// sourceType is the type of the source that we are tailing whereas Config.Type is the type of the tailer
 	// that reads log lines for this source. E.g, a sourceType == containerd and Config.Type == file means that
 	// the agent is tailing a file to read logs of a containerd container
-	sourceType string
+	sourceType SourceType
 }
 
 // NewLogSource creates a new log source.
@@ -63,14 +72,14 @@ func (s *LogSource) GetInputs() []string {
 }
 
 // SetSourceType sets a format that give information on how the source lines should be parsed
-func (s *LogSource) SetSourceType(sourceType string) {
+func (s *LogSource) SetSourceType(sourceType SourceType) {
 	s.lock.Lock()
 	s.sourceType = sourceType
 	s.lock.Unlock()
 }
 
 // GetSourceType returns the sourceType used by this source
-func (s *LogSource) GetSourceType() string {
+func (s *LogSource) GetSourceType() SourceType {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.sourceType

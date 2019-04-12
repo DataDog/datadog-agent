@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-package file
+package kubernetes
 
 import (
 	"testing"
@@ -14,40 +14,37 @@ import (
 
 var containerdHeaderOut = "2018-09-20T11:54:11.753589172Z stdout F"
 
-func TestGetContainerdSeverity(t *testing.T) {
-	assert.Equal(t, message.StatusInfo, getContainerdStatus([]byte("stdout")))
-	assert.Equal(t, message.StatusError, getContainerdStatus([]byte("stderr")))
-	assert.Equal(t, message.StatusInfo, getContainerdStatus([]byte("")))
+func TestGetKubernetesSeverity(t *testing.T) {
+	assert.Equal(t, message.StatusInfo, getStatus([]byte("stdout")))
+	assert.Equal(t, message.StatusError, getStatus([]byte("stderr")))
+	assert.Equal(t, message.StatusInfo, getStatus([]byte("")))
 }
 
-func TestContainerdParserShouldSucceedWithValidInput(t *testing.T) {
-	parser := containerdFileParser
+func TestParserShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := containerdHeaderOut + " " + "anything"
-	containerdMsg, err := parser.Parse([]byte(validMessage))
+	containerdMsg, err := Parser.Parse([]byte(validMessage))
 	assert.Nil(t, err)
 	assert.Equal(t, message.StatusInfo, containerdMsg.GetStatus())
 	assert.Equal(t, []byte("anything"), containerdMsg.Content)
 }
 
-func TestContainerdParserShouldHandleEmptyMessage(t *testing.T) {
-	parser := containerdFileParser
-	msg, err := parser.Parse([]byte(containerdHeaderOut))
+func TestParserShouldHandleEmptyMessage(t *testing.T) {
+	msg, err := Parser.Parse([]byte(containerdHeaderOut))
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(msg.Content))
 }
 
-func TestContainerdParserShouldFailWithInvalidInput(t *testing.T) {
-	parser := containerdFileParser
+func TestParserShouldFailWithInvalidInput(t *testing.T) {
 	// Only timestamp
 	var err error
 	log := []byte("2018-09-20T11:54:11.753589172Z foo")
-	msg, err := parser.Parse(log)
+	msg, err := Parser.Parse(log)
 	assert.NotNil(t, err)
 	assert.Equal(t, log, msg.Content)
 
 	// Missing timestamp but with 3 spaces, the message is valid
 	// FIXME: We might want to handle that
 	log = []byte("stdout F foo bar")
-	_, err = parser.Parse(log)
+	_, err = Parser.Parse(log)
 	assert.Nil(t, err)
 }
