@@ -155,6 +155,14 @@ run_tests_deb-x64:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     <<: *agent_test_variables
+  before_script:
+    - cd $SRC_PATH/six
+    - cmake . -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH=$SRC_PATH/dev
+    - make
+    - make install
+    - cd $SRC_PATH
+    - pip install wheel
+    - pip install -r requirements.txt
   script:
     - inv -e test --race --profile --cpus 4
 
