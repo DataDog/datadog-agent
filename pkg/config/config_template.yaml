@@ -1,7 +1,7 @@
 {{ if .Common }}
-###############################
-## Agent Basic Configuration ##
-###############################
+#########################
+## Basic Configuration ##
+#########################
 
 ## @param api_key - string - required
 ## The Datadog API key to associate your Agent's data with your organization.
@@ -48,11 +48,11 @@ api_key:
 #
 #  hostname: <HOSTNAME_NAME>
 
-## @param hostname_fqdn - boolean - optional - default: true
+## @param hostname_fqdn - boolean - optional - default: false
 ## Make the Agent use "hostname -f" on unix-based systems as a last resort
 ## way of determining the hostname instead of Golang "os.Hostname()"
 #
-#  hostname_fqdn: true
+#  hostname_fqdn: false
 
 ## @param tags  - list of key:value elements - optional
 ## List of host tags to attach to every metric, event and service check emitted by this Agent.
@@ -80,13 +80,13 @@ api_key:
 #  tag_value_split_separator:
 #    - <TAG_KEY>: <SEPARATOR>
 
-## @param checks_tag_cardinality - string - optional - default: orchestrator
+## @param checks_tag_cardinality - string - optional - default: low
 ## Configure the level of granularity of tags to send for checks metrics and events. Choices are:
 ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
 ##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
 ##   * high: add tags about high-cardinality objects (individual containers, user IDs in requests, ...)
 #
-#  checks_tag_cardinality: orchestrator
+#  checks_tag_cardinality: low
 
 ## @param dogstatsd_tag_cardinality - string - optional - default: low
 ## Configure the level of granularity of tags to send for DogStatsD metrics and events. Choices are:
@@ -155,9 +155,9 @@ api_key:
 {{ end }}
 {{- if .Agent }}
 
-###############################
-## Agent Extra Configuration ##
-###############################
+############################
+## Advanced Configuration ##
+############################
 
 ## @param confd_path - string - optional
 ## The path containing check configuration files. By default, uses the conf.d folder
@@ -223,13 +223,13 @@ api_key:
 #
 #  server_timeout: 15
 
-## @param procfs_path - string - optional - default: /proc
+## @param procfs_path - string - optional - default: /host/proc
 ## Some environments may have the procfs file system mounted in a miscellaneous
 ## location. The procfs_path configuration parameter provides a mechanism to
-## override the standard default location: '/proc' - this setting trickles down to
+## override the standard default location: '/host/proc' - this setting trickles down to
 ## integrations and affect their behavior if they rely on the psutil python package.
 #
-#  procfs_path: /proc
+#  procfs_path: /host/proc
 
 ## @param disable_py3_validation - boolean - optional - default: false
 ## Disable Python3 validation of python checks.
@@ -269,9 +269,9 @@ api_key:
 {{ end -}}
 {{- if .LogsAgent }}
 
-#########################################
-## Logs Collection Agent Configuration ##
-#########################################
+###################################
+## Logs Collection Configuration ##
+###################################
 
 ## @param logs_enabled - boolean - optional - default: false
 ## Enable Datadog Agent logs collection by setting logs_enabled to true.
@@ -322,9 +322,9 @@ api_key:
 {{ end -}}
 {{- if .TraceAgent }}
 
-###############################
-## Trace Agent Configuration ##
-###############################
+####################################
+## Trace Collection Configuration ##
+####################################
 
 ## @param apm_config - custom object - optional
 ## Enter specific configurations for your trace collection.
@@ -333,10 +333,10 @@ api_key:
 #
 #  apm_config:
 
-  ## @param enabled - boolean - optional - default: false
+  ## @param enabled - boolean - optional - default: true
   ## Set to true to enable the APM Agent.
   #
-  #  enabled: false
+  #  enabled: true
 
   ## @param env - string - optional - default: none
   ## The environment tag that Traces should be tagged with.
@@ -377,9 +377,9 @@ api_key:
 {{ end -}}
 {{- if .ProcessAgent }}
 
-############################################
-## Process Collection Agent Configuration ##
-############################################
+######################################
+## Process Collection Configuration ##
+######################################
 
 ## @param process_config - custom object - optional
 ## Enter specific configurations for your Process data collection.
@@ -460,9 +460,9 @@ api_key:
 {{ end -}}
 {{- if .NetworkTracer }}
 
-########################################
-## Network Tracer Agent Configuration ##
-########################################
+##################################
+## Network Tracer Configuration ##
+##################################
 
 ## @param network_tracer_config - custom object - optional
 ## Beta Agent - XXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -489,9 +489,9 @@ api_key:
 {{ end -}}
 {{- if .Dogstatsd }}
 
-##################################
-## DogSatsD Agent Configuration ##
-##################################
+############################
+## DogSatsD Configuration ##
+############################
 
 ## @param use_dogstatsd - boolean - optional - default: true
 ## Set this option to false to disable the Agent DogStatsD server.
@@ -546,13 +546,13 @@ api_key:
 #
 #  dogstatsd_stats_port: 5000
 
-## @param dogstatsd_so_rcvbuf - integer - optional
+## @param dogstatsd_so_rcvbuf - integer - optional - default: 0
 ## The number of bytes allocated to DogStatsD's socket receive buffer (POSIX system only).
 ## By default, the system sets this value. If you need to increase the size of this buffer
 ## but keep the OS default value the same, you can set DogStatsD's receive buffer size here.
 ## The maximum accepted value might change depending on the OS.
 #
-#  dogstatsd_so_rcvbuf: <NUMBER_OF_ALLOCATED_BYTES>
+#  dogstatsd_so_rcvbuf: 0
 
 ## @param dogstatsd_metrics_stats_enable - boolean - optoinal - default: false
 ## Set this parameter to true to have DogStatsD collects basic statistics (count/last seen)
@@ -580,7 +580,7 @@ api_key:
 #
 #  statsd_forward_port: 8125
 
-## @param statsd_metric_namespace - string - otpional
+## @param statsd_metric_namespace - string - optional
 ## Set a namespace for all StatsD metrics coming from this host.
 ## Each metric received is prefixed with the namespace before it's sent to Datadog.
 #
@@ -601,9 +601,9 @@ api_key:
 {{ end -}}
 {{- if .JMX }}
 
-#############################
-## JMX Agent Configuration ##
-#############################
+#######################
+## JMX Configuration ##
+#######################
 
 ## @param jmx_custom_jars - list of strings - optional
 ## If you only run Autodiscovery tests, jmxfetch might fail to pick up custom_jar_paths
@@ -662,9 +662,9 @@ api_key:
 {{ end -}}
 {{- if .Logging }}
 
-#################################
-## Agent Logging Configuration ##
-#################################
+###########################
+## Logging Configuration ##
+###########################
 
 ## @param log_level - string - optional - default: info
 ## Minum log level of the Datadog Agent
@@ -741,9 +741,9 @@ api_key:
 {{ end -}}
 {{- if .Autoconfig }}
 
-####################################
-## Autoconfig Agent Configuration ##
-####################################
+##############################
+## Autoconfig Configuration ##
+##############################
 
 ## @param autoconf_template_dir - string - optional - default: /datadog/check_configs
 ## Directory containing configuration templates for Autoconfig.
@@ -804,9 +804,9 @@ api_key:
 {{ end -}}
 {{- if .Autodiscovery }}
 
-#######################################
-## Agent Autodiscovery Configuration ##
-#######################################
+###########################################
+## Container Autodiscovery Configuration ##
+###########################################
 
 ## @param container_cgroup_root - string - optional - default: /host/sys/fs/cgroup/
 ## Change the root directory to look at to get cgroup statistics.
@@ -984,7 +984,7 @@ api_key:
 #
 #  ecs_agent_container_name: ecs-agent
 
-## @param ecs_agent_container_name - string - optional - default: http://localhost:51678
+## @param ecs_agent_url - string - optional - default: http://localhost:51678
 ## The ECS Agent container should be autodetected when running with the
 ## default (ecs-agent) name. If not, change the container name the
 ## Agent should look for with ecs_agent_container_name, or force a fixed url here:
@@ -998,12 +998,13 @@ api_key:
 ## CRI integration Configuration ##
 ###################################
 
-## @param cri_socket_path - string - optional - default: /var/run/containerd/containerd.sock
+## @param cri_socket_path - string - optional - default: ""
 ## To activate the CRI check, indicate the path of the CRI socket you're using
 ## and mount it in the container if needed.
+## If left empty, the CRI check is disabled.
 ## see: https://docs.datadoghq.com/integrations/cri/
 #
-#  cri_socket_path: /var/run/containerd/containerd.sock
+#  cri_socket_path: ""
 
 ## @param cri_connection_timeout - integer - optional - default: 5
 ## Configure the initial connection timeout in seconds.
@@ -1072,7 +1073,7 @@ api_key:
 #
 #  kubelet_tls_verify: true
 
-## @param kubelet_client_ca - string - optional
+## @param kubelet_client_ca - string - optional - default: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 ## XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 #
 #  kubelet_client_ca: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
@@ -1094,12 +1095,12 @@ api_key:
 #
 #  kubelet_client_key: <CLIENT_KEY_FILE_PATH>
 
-## @param kubelet_wait_on_missing_container - integer - optional - default: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+## @param kubelet_wait_on_missing_container - integer - optional - default: 0
 ## On some kubelet versions, containers can take up to a second to
 ## register in the podlist. This option allows to wait for up to a given
 ## number of seconds (in 250ms chunks) when a container does not exist in the podlist.
 #
-#  kubelet_wait_on_missing_container: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+#  kubelet_wait_on_missing_container: 0
 
 ## @param kubelet_cache_pods_duration - integer - optional - default: 5
 ## Polling frequency in seconds of the Agent to the kubelet "/pods" endpoint.
@@ -1119,16 +1120,16 @@ api_key:
 ## Kubernetes apiserver integration Configuration ##
 ####################################################
 
-## @param kubernetes_kubeconfig_path - string - optional
+## @param kubernetes_kubeconfig_path - string - optional - default: ""
 ## When running in a pod, the Agent automatically uses the pod's service account
 ## to authenticate with the API server.
 ## Provide the path to a custom KubeConfig file if you wish to install the Agent out of a pod
 ## or customize connection parameters.
 ## See https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/
 #
-#  kubernetes_kubeconfig_path: <KUBECONFIG_FILE_PATH>
+#  kubernetes_kubeconfig_path: ""
 
-## @param kubernetes_apiserver_use_protobuf - boolean - otpional - default: false
+## @param kubernetes_apiserver_use_protobuf - boolean - optional - default: false
 ## By default, communication with the apiserver is in json format. Setting the following
 ## option to true allows communication in the binary protobuf format.
 #
