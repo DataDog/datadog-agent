@@ -11,7 +11,7 @@ ENV BUNDLER_VERSION=1.15.3
 
 RUN yum -y install curl-devel expat-devel gettext-devel perl-ExtUtils-MakeMaker \
                    gcc make openssl-devel bzip2 bzip2-devel readline-devel \
-                   zlib-devel patch gcc-c++ file rpm-build
+                   zlib-devel patch gcc-c++ file rpm-build openssh-clients byacc
 
 # Provide systemd header files needed to build the agent systemd module (journald log collector)
 RUN curl "https://codeload.github.com/systemd/systemd/tar.gz/v$SYSTEMD_VERSION" -o "systemd-$SYSTEMD_VERSION.tar.gz" \
@@ -90,3 +90,7 @@ RUN mkdir -p "$GEM_HOME" "$BUNDLE_BIN" \
     && chmod 777 "$GEM_HOME" "$BUNDLE_BIN"
 
 RUN git config --global user.email "gitlab@stackstate" && git config --global user.name "Gitlab Stackstate"
+
+RUN pip install awscli boto3 sa-rpm-s3
+
+RUN yum -y install net-snmp-devel python-deltarpm yum-utils libtool rpm-sign createrepo
