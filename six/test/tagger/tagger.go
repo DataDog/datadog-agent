@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
+	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/six/test/common"
 )
@@ -11,12 +13,14 @@ import (
 // #cgo CFLAGS: -I../../include
 // #cgo !windows LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
 // #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
+//
+// #include <stdlib.h>
 // #include <datadog_agent_six.h>
 //
-// extern void getTags(char*, int, char **);
+// extern char **Tags(char*, int);
 //
 // static void initTaggerTests(six_t *six) {
-//    set_get_tags_cb(six, getTags);
+//    set_tags_cb(six, Tags);
 // }
 import "C"
 
@@ -62,7 +66,7 @@ try:
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
-		f.write("{}\n".format(e))
+		f.write("{}: {}\n".format(type(e).__name__, e))
 `, call, tmpfile.Name()))
 
 	ret := C.run_simple_string(six, code) == 1
@@ -72,22 +76,40 @@ except Exception as e:
 
 	output, err := ioutil.ReadFile(tmpfile.Name())
 
-	return string(output), err
+	return strings.TrimSpace(string(output)), err
 }
 
-//export getTags
-func getTags(id *C.char, highCard C.int, in **C.char) {
+//export Tags
+func Tags(id *C.char, cardinality C.int) **C.char {
 	goId := C.GoString(id)
 
-	switch goId {
-	case "base":
-		// return different dummy value depending on highCard
-		if highCard == 0 {
-			*in = C.CString("[\"a\",\"b\",\"c\"]")
-		} else {
-			*in = C.CString("[\"A\",\"B\",\"C\"]")
-		}
-	default:
-		*in = C.CString("[]")
+	length := 4
+	cTags := C.malloc(C.size_t(length) * C.size_t(unsafe.Sizeof(uintptr(0))))
+	// convert the C array to a Go Array so we can index it
+	indexTag := (*[1<<29 - 1]*C.char)(cTags)[:length:length]
+	indexTag[length-1] = nil
+
+	if goId != "base" {
+		return nil
 	}
+
+	// dummy value for each cardinality value
+	switch cardinality {
+	case C.DATADOG_AGENT_SIX_TAGGER_LOW:
+		indexTag[0] = C.CString("a")
+		indexTag[1] = C.CString("b")
+		indexTag[2] = C.CString("c")
+	case C.DATADOG_AGENT_SIX_TAGGER_HIGH:
+		indexTag[0] = C.CString("A")
+		indexTag[1] = C.CString("B")
+		indexTag[2] = C.CString("C")
+	case C.DATADOG_AGENT_SIX_TAGGER_ORCHESTRATOR:
+		indexTag[0] = C.CString("1")
+		indexTag[1] = C.CString("2")
+		indexTag[2] = C.CString("3")
+	default:
+		C.free(cTags)
+		return nil
+	}
+	return (**C.char)(cTags)
 }

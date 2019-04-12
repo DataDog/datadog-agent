@@ -362,9 +362,9 @@ void set_cgo_free_cb(six_t *six, cb_cgo_free_t cb)
 /*
  * tagger API
  */
-void set_get_tags_cb(six_t *six, cb_get_tags_t cb)
+void set_tags_cb(six_t *six, cb_tags_t cb)
 {
-    AS_TYPE(Six, six)->setGetTagsCb(cb);
+    AS_TYPE(Six, six)->setTagsCb(cb);
 }
 
 /*

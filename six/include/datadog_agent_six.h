@@ -73,7 +73,7 @@ DATADOG_AGENT_SIX_API void set_get_subprocess_output_cb(six_t *six, cb_get_subpr
 DATADOG_AGENT_SIX_API void set_cgo_free_cb(six_t *, cb_cgo_free_t);
 
 // TAGGER API
-DATADOG_AGENT_SIX_API void set_get_tags_cb(six_t *, cb_get_tags_t);
+DATADOG_AGENT_SIX_API void set_tags_cb(six_t *, cb_tags_t);
 
 // KUBEUTIL API
 DATADOG_AGENT_SIX_API void set_get_connection_info_cb(six_t *, cb_get_connection_info_t);
