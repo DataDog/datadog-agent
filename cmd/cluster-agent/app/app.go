@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/fatih/color"
@@ -33,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"sync"
 )
 
 // loggerName is the name of the cluster agent logger
@@ -208,15 +208,13 @@ func start(cmd *cobra.Command, args []string) error {
 	// HPA Process
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		// Start the k8s custom metrics server. This is a blocking call
-		var errServer error
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
 			errServ := custommetrics.RunServer(mainCtx)
-			defer custommetrics.ClearServerResources()
 			if errServ != nil {
-				log.Errorf("Error in the External Metrics API Server: %v", errServer)
+				log.Errorf("Error in the External Metrics API Server: %v", errServ)
 			}
 		}()
 	}
