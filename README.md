@@ -6,7 +6,7 @@ Gohai is a tool which collects an inventory of system information. It aims to im
 
 ## Usage
 
-Gohai will build and install with `go get`. We require at least Go 1.5.
+Gohai will build and install with `go get`. We require at least Go 1.7.
 
 ```sh
 go get github.com/DataDog/gohai
