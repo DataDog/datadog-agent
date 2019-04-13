@@ -63,9 +63,9 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 			continue // Ignore non cluster-check configs
 		}
 		if isKubeServiceCheck(c) && len(c.EndpointsChecks) > 0 {
+			// A kube service that requires endpoints checks will be scheduled,
+			// endpoints cache should be updated with the new checks.
 			d.store.Lock()
-			// A kube service has EndpointsChecks enabled
-			// should be added to endpointsCache
 			d.store.endpointsCache[ktypes.UID(getServiceUID(c))] = newEndpointsInfo(c)
 			d.store.Unlock()
 		}
@@ -86,7 +86,7 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 		}
 		if isKubeServiceCheck(c) && len(c.EndpointsChecks) > 0 {
 			d.store.Lock()
-			// remove the service from endpoints cache
+			// Remove the cached endpoints checks of the service
 			delete(d.store.endpointsCache, ktypes.UID(getServiceUID(c)))
 			d.store.Unlock()
 		}
@@ -168,7 +168,8 @@ func (d *dispatcher) run(ctx context.Context) {
 	}
 }
 
-// newServiceInfo initializes a ServiceInfo struct from a config
+// newEndpointsInfo initializes an EndpointsInfo struct from a service config.
+// Needed by the endpoints configs dispatching logic to validate the checks.
 func newEndpointsInfo(c integration.Config) *types.EndpointsInfo {
 	var namespace string
 	var name string

@@ -71,7 +71,7 @@ func (h *Handler) PostStatus(nodeName string, status types.NodeStatus) (types.St
 
 // GetEndpointsConfigs returns endpoints configurations dispatched to a given node
 func (h *Handler) GetEndpointsConfigs(nodeName string) (types.ConfigResponse, error) {
-	configs, err := h.dispatcher.GetEndpointsConfigs(nodeName)
+	configs, err := h.dispatcher.getEndpointsConfigs(nodeName)
 	response := types.ConfigResponse{
 		Configs:    configs,
 		LastChange: 0,

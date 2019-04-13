@@ -37,12 +37,12 @@ func timestampNow() int64 {
 	return time.Now().Unix()
 }
 
-// isKubeServiceCheck checks if a config template represents to a service check
+// isKubeServiceCheck checks if a config template represents a service check
 func isKubeServiceCheck(config integration.Config) bool {
 	return strings.HasPrefix(config.Entity, kubeServiceIDPrefix)
 }
 
-// getServiceUID retrieves service UID from entity
+// getServiceUID retrieves service UID from service config
 func getServiceUID(config integration.Config) string {
 	return strings.TrimLeft(config.Entity, kubeServiceIDPrefix)
 }
@@ -52,11 +52,16 @@ func getPodEntity(podUID string) string {
 	return fmt.Sprintf("%s%s", KubePodPrefix, podUID)
 }
 
+// getNameAndNamespaceFromADIDs extracts namespace
+// and name from endpoints configs AD identifiers.
 func getNameAndNamespaceFromADIDs(configs []integration.Config) (string, string) {
 	for _, config := range configs {
 		for _, adID := range config.ADIdentifiers {
-			namespace, name := getNameAndNameSpaceFromString(adID)
+			namespace, name := getNameAndNamespaceFromEntity(adID)
 			if namespace != "" && name != "" {
+				// All configs in the slice share the same namespace and name
+				// and contain the same kube_endpoint AD identifier.
+				// Return the first valid namespace and name found.
 				return namespace, name
 			}
 		}
@@ -64,11 +69,13 @@ func getNameAndNamespaceFromADIDs(configs []integration.Config) (string, string)
 	return "", ""
 }
 
-func getNameAndNameSpaceFromString(s string) (string, string) {
+// getNameAndNamespaceFromEntity parses endpoints entity
+// string to extract namespace and name.
+func getNameAndNamespaceFromEntity(s string) (string, string) {
 	if !strings.HasPrefix(s, kubeEndpointIDPrefix) {
 		return "", ""
 	}
-	split := strings.Split(s, "/")
+	split := strings.Split(s, "/") // Format: kube_endpoint://namespace/name
 	if len(split) == 4 {
 		return split[2], split[3]
 	}

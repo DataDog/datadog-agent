@@ -10,7 +10,6 @@ package providers
 import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -35,7 +34,6 @@ func NewEndpointsChecksConfigProvider(cfg config.ConfigurationProviders) (Config
 		log.Errorf("Cannot get node name: %s", err)
 		return nil, err
 	}
-
 	err = c.initClient()
 	if err != nil {
 		log.Warnf("Cannot get dca client: %v", err)
@@ -72,30 +70,10 @@ func (c *EndpointsChecksConfigProvider) Collect() ([]integration.Config, error) 
 		return nil, err
 	}
 	c.flushedConfigs = false
-	return addPodTags(reply.Configs), nil
+	return reply.Configs, nil
 }
 
-func addPodTags(configs []integration.Config) []integration.Config {
-	for _, config := range configs {
-		if len(config.ADIdentifiers) == 0 {
-			continue
-		}
-		tags, err := tagger.Tag(config.Entity, tagger.ChecksCardinality)
-		if err != nil {
-			log.Debugf("Cannot get tags for %s: %s", config.Entity, err)
-			continue
-		}
-		for i := range config.Instances {
-			err = config.Instances[i].MergeAdditionalTags(tags)
-			if err != nil {
-				log.Debugf("Cannot merge tags for %s: %s", config.Entity, err)
-				continue
-			}
-		}
-	}
-	return configs
-}
-
+// getNodename retrieves current node name from kubelet.
 func getNodename() (string, error) {
 	ku, err := kubelet.GetKubeUtil()
 	if err != nil {
@@ -105,6 +83,7 @@ func getNodename() (string, error) {
 	return ku.GetNodename()
 }
 
+// initClient initializes a cluster agent client.
 func (c *EndpointsChecksConfigProvider) initClient() error {
 	dcaClient, err := clusteragent.GetClusterAgentClient()
 	if err == nil {

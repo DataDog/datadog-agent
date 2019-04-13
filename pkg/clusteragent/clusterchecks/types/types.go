@@ -58,8 +58,7 @@ type Stats struct {
 // need and allows to inject a custom one for tests
 type LeaderIPCallback func() (string, error)
 
-// EndpointsInfo is used to store the collected info of an endpoint
-// used to store and update config for endpoints
+// EndpointsInfo is used to store the collected info of endpoints.
 type EndpointsInfo struct {
 	Namespace     string
 	Name          string

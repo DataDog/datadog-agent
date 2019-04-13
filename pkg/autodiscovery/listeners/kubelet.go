@@ -155,7 +155,7 @@ func (l *KubeletListener) createPodService(pod *kubelet.Pod, firstRun bool) {
 		log.Errorf("Unable to get pod %s IP", pod.Metadata.Name)
 	}
 
-	// Ports: adding all pod's containers ports
+	// Ports: adding all ports of pod's containers
 	var ports []ContainerPort
 	for _, container := range pod.Spec.Containers {
 		for _, port := range container.Ports {

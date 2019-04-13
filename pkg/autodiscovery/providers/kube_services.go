@@ -167,6 +167,10 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 		// All configurations are cluster checks
 		for i := range svcConf {
 			svcConf[i].ClusterCheck = true
+			// Add endpoints check templates extracted from
+			// endpoints annotations to the service config.
+			// The cluster agent will validate and dispatch
+			// these templates to node agents.
 			svcConf[i].EndpointsChecks = endptConf
 		}
 		configs = append(configs, svcConf...)

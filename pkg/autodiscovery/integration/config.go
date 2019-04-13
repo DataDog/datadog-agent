@@ -47,7 +47,7 @@ type Config struct {
 	Provider        string       `json:"provider"`       // the provider that issued the config
 	Entity          string       `json:"-"`              // the id of the entity (optional)
 	ClusterCheck    bool         `json:"cluster_check"`  // cluster-check configuration flag
-	EndpointsChecks []Config     `json:"-"`              // endpoints checks configs related to a service
+	EndpointsChecks []Config     `json:"-"`              // endpoints check configs related to a service
 	CreationTime    CreationTime `json:"-"`              // creation time of service
 }
 
@@ -259,6 +259,9 @@ func (c *Config) Digest() string {
 	h.Write([]byte(c.InitConfig))
 	for _, i := range c.ADIdentifiers {
 		h.Write([]byte(i))
+	}
+	for _, i := range c.EndpointsChecks {
+		h.Write([]byte(i.Digest()))
 	}
 	h.Write([]byte(c.LogsConfig))
 

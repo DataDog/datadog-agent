@@ -26,7 +26,7 @@ type clusterStore struct {
 	digestToNode    map[string]string                   // Node running a config
 	nodes           map[string]*nodeStore               // All nodes known to the cluster-agent
 	danglingConfigs map[string]integration.Config       // Configs we could not dispatch to any node
-	endpointsCache  map[ktypes.UID]*types.EndpointsInfo // TODO
+	endpointsCache  map[ktypes.UID]*types.EndpointsInfo // Endpoints configs and info retrieved from services configs, keys are services UIDs
 	endpointsChecks map[string][]integration.Config     // Endpoints checks to be consumed by node agents
 }
 

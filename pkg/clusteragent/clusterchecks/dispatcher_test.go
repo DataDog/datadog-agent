@@ -428,7 +428,7 @@ func TestExtraTags(t *testing.T) {
 	}
 }
 
-func TestGetEndpointsInfo(t *testing.T) {
+func TestBuildEndpointsChecks(t *testing.T) {
 	nodename1 := "nodename1"
 	nodename2 := "nodename2"
 	nodename3 := "nodename3"
@@ -509,13 +509,13 @@ func TestGetEndpointsInfo(t *testing.T) {
 		},
 	}
 
-	result := getEndpointsInfo(kendpoints1, endpointsInfo)
+	result := buildEndpointsChecks(kendpoints1, endpointsInfo)
 	assert.Len(t, result, len(expectedResult1))
 	assert.Equal(t, expectedResult1["nodename1"], result["nodename1"])
 	assert.Equal(t, expectedResult1["nodename2"], result["nodename2"])
 	assert.Equal(t, expectedResult1["nodename3"], result["nodename3"])
 
-	result = getEndpointsInfo(kendpoints2, endpointsInfo)
+	result = buildEndpointsChecks(kendpoints2, endpointsInfo)
 	assert.Len(t, result, len(expectedResult2))
 	assert.Equal(t, expectedResult2["nodename1"], result["nodename1"])
 	assert.Equal(t, expectedResult2["nodename2"], result["nodename2"])

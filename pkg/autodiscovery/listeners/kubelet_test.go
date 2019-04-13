@@ -232,7 +232,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.FailNow(t, "fourth service not in channel")
 	}
 
-	// Fifth container is filtered out
+	// Fifth container is filtered out, should receive the pod service
 	select {
 	case service := <-services:
 		assert.Equal(t, "kubernetes_pod://mock-pod-uid", string(service.GetEntity()))
