@@ -57,4 +57,7 @@ Set-ItemProperty -Path $UserKey -Name "IsInstalled" -Value 0
 
 Creating refreshed gitlab image for fleet
 
-1. Switch terraform workspace to image
+For target image do not forget to run  EC2LaunchSettings, there choose "Shutdown with SysPrep"
+
+Also check if technical user expiration is turned off ( lusrmgr.msc )
+

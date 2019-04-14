@@ -54,10 +54,20 @@
         state: present
         version: 2.4.3.1
 
-    - name: Install msys2
+    - name: Install msys2 (1/2)
       win_chocolatey:
         name: msys2
         state: present
+        timeout: 90
+        register: msys_try1
+        ignore_errors: true
+        until: msys_try1.finished
+
+    - name: Install msys2 (2/2)
+      win_chocolatey:
+        name: msys2
+        state: present
+        when: msys_try1 is failed
 
     - name: Install python virtualwrapper
       win_shell: pip install virtualenvwrapper-win
