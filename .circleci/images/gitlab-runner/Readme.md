@@ -61,3 +61,9 @@ For target image do not forget to run  EC2LaunchSettings, there choose "Shutdown
 
 Also check if technical user expiration is turned off ( lusrmgr.msc )
 
+Check if issue   https://gitlab.com/gitlab-org/gitlab-runner/issues/3422  is still open
+(soon will be year annivesary ). If yes, you need to add 
+```toml
+environment = ["GIT_SSL_NO_VERIFY=true"]
+```
+
