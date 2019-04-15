@@ -128,11 +128,6 @@ func (c *APMCheck) run() error {
 
 // Configure the APMCheck
 func (c *APMCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	// handle the case when apm agent is disabled via the old `datadog.conf` file
-	if enabled := config.Datadog.GetBool("apm_enabled"); !enabled {
-		return fmt.Errorf("APM agent disabled through main configuration file")
-	}
-
 	var checkConf apmCheckConf
 	if err := yaml.Unmarshal(data, &checkConf); err != nil {
 		return err
