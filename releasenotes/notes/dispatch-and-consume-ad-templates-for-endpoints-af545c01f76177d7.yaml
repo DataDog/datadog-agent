@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Perform checks on kubernetes service endpoints.
+    The Cluster Agent auto-discovers check config templates
+    then exposes them to node Agents via its API.
+    Node Agents consume templates via the endpoints checks
+    config provider which queries the Cluster Agent API to
+    retrieve config templates and then schedule the checks.
