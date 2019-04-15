@@ -100,6 +100,11 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
 			configs = append(configs, c...)
 		}
 	}
+
+	for _, config := range configs {
+		config.Source = "KubeletConfigProvider"
+	}
+
 	return configs, nil
 }
 

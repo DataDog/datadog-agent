@@ -36,6 +36,7 @@ type PythonCheck struct {
 	config       *python.PyObject
 	interval     time.Duration
 	lastWarnings []error
+	configSource string
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -133,6 +134,11 @@ func (c *PythonCheck) Version() string {
 	return c.version
 }
 
+// ConfigSource returns the yaml file that contains this integration's config
+func (c *PythonCheck) ConfigSource() string {
+	return c.configSource
+}
+
 // GetWarnings grabs the last warnings from the struct
 func (c *PythonCheck) GetWarnings() []error {
 	warnings := c.lastWarnings
@@ -199,7 +205,7 @@ func (c *PythonCheck) getInstance(args, kwargs *python.PyObject) (*python.PyObje
 }
 
 // Configure the Python check from YAML data
-func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Data) error {
+func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Data, configSource string) error {
 	// Generate check ID
 	c.id = check.Identify(c, data, initConfig)
 
@@ -296,6 +302,7 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 
 	c.instance = instance
 	c.config = kwargs
+	c.configSource = configSource
 
 	return nil
 }

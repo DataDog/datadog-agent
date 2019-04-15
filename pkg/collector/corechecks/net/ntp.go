@@ -112,8 +112,10 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 }
 
 // Configure configure the data from the yaml
-func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	err := c.CommonConfigure(data)
+func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data,
+	configSource string) error {
+
+	err := c.CommonConfigure(data, configSource)
 	if err != nil {
 		return err
 	}

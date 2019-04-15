@@ -48,7 +48,7 @@ func TestNTPOK(t *testing.T) {
 	defer func() { ntpQuery = ntp.Query }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -78,7 +78,7 @@ func TestNTPCritical(t *testing.T) {
 	defer func() { ntpQuery = ntp.Query }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -107,7 +107,7 @@ func TestNTPError(t *testing.T) {
 	defer func() { ntpQuery = ntp.Query }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -136,7 +136,7 @@ func TestNTPNegativeOffsetCritical(t *testing.T) {
 	defer func() { ntpQuery = ntp.Query }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -176,7 +176,7 @@ hosts:
 	defer func() { ntpQuery = ntp.Query }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -216,7 +216,7 @@ hosts:
 	defer func() { ntpQuery = ntp.Query }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -248,7 +248,7 @@ hosts:
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(testedConfig, []byte(""))
+	ntpCheck.Configure(testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -265,7 +265,7 @@ hosts:
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(testedConfig, []byte(""))
+	ntpCheck.Configure(testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -277,7 +277,7 @@ host: time.dogo
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(testedConfig, []byte(""))
+	ntpCheck.Configure(testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -291,7 +291,7 @@ hosts:
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(testedConfig, []byte(""))
+	ntpCheck.Configure(testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -301,7 +301,7 @@ func TestDefaultHostConfig(t *testing.T) {
 	testedConfig := []byte(``)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(testedConfig, []byte(""))
+	ntpCheck.Configure(testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }

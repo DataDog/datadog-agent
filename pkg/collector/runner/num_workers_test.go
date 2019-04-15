@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	python "github.com/sbinet/go-python"
@@ -35,9 +36,11 @@ type stickyLock struct {
 	locked uint32 // Flag set to 1 if the lock is locked, 0 otherwise
 }
 
-func (nc *NumWorkersCheck) String() string  { return nc.name }
-func (nc *NumWorkersCheck) Version() string { return "" }
-func (nc *NumWorkersCheck) ID() check.ID    { return check.ID(nc.String()) }
+func (nc *NumWorkersCheck) String() string                                             { return nc.name }
+func (nc *NumWorkersCheck) Version() string                                            { return "" }
+func (nc *NumWorkersCheck) ID() check.ID                                               { return check.ID(nc.String()) }
+func (nc *NumWorkersCheck) Configure(integration.Data, integration.Data, string) error { return nil }
+func (nc *NumWorkersCheck) ConfigSource() string                                       { return "test" }
 func (nc *NumWorkersCheck) Run() error {
 	if *pythonCheck {
 		e := runPythonCheck() // BUG: this panics occasionally
@@ -204,8 +207,8 @@ func runPythonCheck() error {
 	runtime.UnlockOSThread()
 
 	// Acquire a PythonCheck instance
-	check := py.NewPythonCheck("runner_test", checkClass)              // acquires its own stickyLock
-	e := check.Configure([]byte(config), []byte("foo_init: bar_init")) // acquires its own stickyLock
+	check := py.NewPythonCheck("runner_test", checkClass)                      // acquires its own stickyLock
+	e := check.Configure([]byte(config), []byte("foo_init: bar_init"), "test") // acquires its own stickyLock
 	if check == nil || e != nil {
 		return fmt.Errorf("Unable to acquire check instance")
 	}

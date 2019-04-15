@@ -12,6 +12,7 @@
           {{- range $CheckInstances }}
             <span class="stat_subdata">
                 Instance ID: {{.CheckID}} {{status .}}<br>
+                Config source: {{.ConfigSource}}<br>
                 Total Runs: {{humanize .TotalRuns}}<br>
                 Metric Samples: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
                 Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}<br>

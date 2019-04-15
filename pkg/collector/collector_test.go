@@ -23,12 +23,13 @@ type TestCheck struct {
 	stop     chan bool
 }
 
-func (c *TestCheck) Stop()                                     { c.stop <- true }
-func (c *TestCheck) Configure(a, b integration.Data) error     { return nil }
-func (c *TestCheck) Interval() time.Duration                   { return 1 * time.Minute }
-func (c *TestCheck) Run() error                                { <-c.stop; return nil }
-func (c *TestCheck) GetWarnings() []error                      { return []error{} }
-func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
+func (c *TestCheck) Stop()                                                      { c.stop <- true }
+func (c *TestCheck) Configure(integration.Data, integration.Data, string) error { return nil }
+func (c *TestCheck) ConfigSource() string                                       { return "test" }
+func (c *TestCheck) Interval() time.Duration                                    { return 1 * time.Minute }
+func (c *TestCheck) Run() error                                                 { <-c.stop; return nil }
+func (c *TestCheck) GetWarnings() []error                                       { return []error{} }
+func (c *TestCheck) GetMetricStats() (map[string]int64, error)                  { return make(map[string]int64), nil }
 func (c *TestCheck) ID() check.ID {
 	if c.uniqueID != "" {
 		return c.uniqueID
@@ -109,12 +110,12 @@ func (suite *CollectorTestSuite) TestReloadCheck() {
 	_, err := suite.c.RunCheck(ch)
 
 	// check doesn't exist
-	err = suite.c.ReloadCheck("foo", empty, empty)
+	err = suite.c.ReloadCheck("foo", empty, empty, "test")
 	assert.NotNil(suite.T(), err)
 	assert.Equal(suite.T(), "cannot find a check with ID foo", err.Error())
 
 	// all good
-	err = suite.c.ReloadCheck("TestCheck", empty, empty)
+	err = suite.c.ReloadCheck("TestCheck", empty, empty, "test")
 	assert.Nil(suite.T(), err)
 }
 

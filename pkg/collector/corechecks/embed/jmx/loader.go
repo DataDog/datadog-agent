@@ -40,6 +40,7 @@ func splitConfig(config integration.Config) []integration.Config {
 			MetricConfig:  config.MetricConfig,
 			Name:          config.Name,
 			Provider:      config.Provider,
+			Source:        config.Source,
 		}
 		configs = append(configs, c)
 	}

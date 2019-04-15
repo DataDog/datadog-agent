@@ -46,7 +46,7 @@ func TestFhCheckLinux(t *testing.T) {
 	t.Logf("Testing from file %s", fileNrHandle) // To pass circle ci tests
 
 	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(nil, nil)
+	fileHandleCheck.Configure(nil, nil, "test")
 
 	mock := mocksender.NewMockSender(fileHandleCheck.ID())
 

@@ -56,7 +56,7 @@ func getCheckInstance(moduleName, className string) (*PythonCheck, error) {
 
 	checkClass := getClass(moduleName, className)
 	check := NewPythonCheck(moduleName, checkClass)
-	err := check.Configure([]byte("foo_instance: bar_instance"), []byte("foo_init: bar_init"))
+	err := check.Configure([]byte("foo_instance: bar_instance"), []byte("foo_init: bar_init"), "test")
 	return check, err
 }
 
@@ -150,17 +150,17 @@ func TestStr(t *testing.T) {
 func TestInterval(t *testing.T) {
 	c, _ := getCheckInstance("testcheck", "TestCheck")
 	assert.Equal(t, check.DefaultCheckInterval, c.Interval())
-	c.Configure([]byte("min_collection_interval: 1"), []byte("foo: bar"))
+	c.Configure([]byte("min_collection_interval: 1"), []byte("foo: bar"), "test")
 	assert.Equal(t, time.Duration(1)*time.Second, c.Interval())
 }
 
 func TestName(t *testing.T) {
 	c, _ := getCheckInstance("testcheck", "TestCheck")
-	c.Configure([]byte("name: test"), []byte("foo: bar"))
+	c.Configure([]byte("name: test"), []byte("foo: bar"), "test")
 	assert.Equal(t, string(c.ID()), "testcheck:test:bb22958a762de21b")
 
 	c, _ = getCheckInstance("testcheck", "TestCheck")
-	c.Configure([]byte("foo: bar"), []byte("foo: bar"))
+	c.Configure([]byte("foo: bar"), []byte("foo: bar"), "test")
 	assert.Equal(t, string(c.ID()), "testcheck:2144e63501a5cc65")
 }
 
@@ -278,7 +278,7 @@ func BenchmarkConcurrentRun(b *testing.B) {
 		class := getClass("testcheck", "TestCheck")
 		for pb.Next() {
 			check := NewPythonCheck("testcheck", class)
-			err := check.Configure([]byte("foo: bar"), []byte("foo: bar"))
+			err := check.Configure([]byte("foo: bar"), []byte("foo: bar"), "test")
 			if err != nil {
 				panic(err)
 			}

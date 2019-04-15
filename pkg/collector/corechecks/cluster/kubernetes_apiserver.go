@@ -64,8 +64,8 @@ func (c *KubeASConfig) parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check.
-func (k *KubeASCheck) Configure(config, initConfig integration.Data) error {
-	err := k.CommonConfigure(config)
+func (k *KubeASCheck) Configure(config, initConfig integration.Data, configSource string) error {
+	err := k.CommonConfigure(config, configSource)
 	if err != nil {
 		return err
 	}

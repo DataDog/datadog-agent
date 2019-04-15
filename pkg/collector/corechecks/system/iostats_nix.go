@@ -38,8 +38,8 @@ type IOCheck struct {
 }
 
 // Configure the IOstats check
-func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	err := c.commonConfigure(data, initConfig)
+func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data, configSource string) error {
+	err := c.commonConfigure(data, initConfig, configSource)
 	return err
 }
 

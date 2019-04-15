@@ -116,8 +116,8 @@ func (c *CPUCheck) Run() error {
 }
 
 // Configure the CPU check doesn't need configuration
-func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	if err := c.CommonConfigure(data); err != nil {
+func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data, configSource string) error {
+	if err := c.CommonConfigure(data, configSource); err != nil {
 		return err
 	}
 

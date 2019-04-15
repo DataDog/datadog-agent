@@ -61,8 +61,8 @@ func (c *CRIConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (c *CRICheck) Configure(config, initConfig integration.Data) error {
-	err := c.CommonConfigure(config)
+func (c *CRICheck) Configure(config, initConfig integration.Data, configSource string) error {
+	err := c.CommonConfigure(config, configSource)
 	if err != nil {
 		return err
 	}

@@ -48,6 +48,7 @@ type Config struct {
 	Entity        string       `json:"-"`              // the id of the entity (optional)
 	ClusterCheck  bool         `json:"cluster_check"`  // cluster-check configuration flag
 	CreationTime  CreationTime `json:"-"`              // creation time of service
+	Source        string       `json:"-"`              // the place this config was read from
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data

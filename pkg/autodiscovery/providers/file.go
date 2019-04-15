@@ -244,7 +244,7 @@ func (c *FileConfigProvider) collectDir(parentPath string, folder os.FileInfo) c
 // GetIntegrationConfigFromFile returns an instance of integration.Config if `fpath` points to a valid config file
 func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error) {
 	cf := configFormat{}
-	config := integration.Config{Name: name}
+	config := integration.Config{Name: name, Source: fpath}
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications

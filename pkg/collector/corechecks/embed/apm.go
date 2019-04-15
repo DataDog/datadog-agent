@@ -32,11 +32,12 @@ type apmCheckConf struct {
 
 // APMCheck keeps track of the running command
 type APMCheck struct {
-	binPath     string
-	commandOpts []string
-	running     uint32
-	stop        chan struct{}
-	stopDone    chan struct{}
+	binPath      string
+	commandOpts  []string
+	running      uint32
+	stop         chan struct{}
+	stopDone     chan struct{}
+	configSource string
 }
 
 func (c *APMCheck) String() string {
@@ -45,6 +46,10 @@ func (c *APMCheck) String() string {
 
 func (c *APMCheck) Version() string {
 	return ""
+}
+
+func (c *APMCheck) ConfigSource() string {
+	return c.configSource
 }
 
 // Run executes the check with retries
@@ -127,7 +132,7 @@ func (c *APMCheck) run() error {
 }
 
 // Configure the APMCheck
-func (c *APMCheck) Configure(data integration.Data, initConfig integration.Data) error {
+func (c *APMCheck) Configure(data integration.Data, initConfig integration.Data, configSource string) error {
 	// handle the case when apm agent is disabled via the old `datadog.conf` file
 	if enabled := config.Datadog.GetBool("apm_enabled"); !enabled {
 		return fmt.Errorf("APM agent disabled through main configuration file")
@@ -164,6 +169,8 @@ func (c *APMCheck) Configure(data integration.Data, initConfig integration.Data)
 	if _, err := os.Stat(configFile); !os.IsNotExist(err) {
 		c.commandOpts = append(c.commandOpts, fmt.Sprintf("-config=%s", configFile))
 	}
+
+	c.configSource = configSource
 
 	return nil
 }

@@ -4,6 +4,7 @@
   <span class="stat_subtitle">Instance {{add $i 1}}</span>
     <span class="stat_data">
         Instance ID: {{.CheckID}}<br>
+        Config source: {{.ConfigSource}}<br>
         Total Runs: {{humanize .TotalRuns}}<br>
         Metric Samples: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
         Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}<br>

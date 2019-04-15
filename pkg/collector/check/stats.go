@@ -15,6 +15,7 @@ type Stats struct {
 	CheckName            string
 	CheckVersion         string
 	CheckID              ID
+	ConfigSource         string
 	TotalRuns            uint64
 	TotalErrors          uint64
 	TotalWarnings        uint64
@@ -39,6 +40,7 @@ func NewStats(c Check) *Stats {
 		CheckID:      c.ID(),
 		CheckName:    c.String(),
 		CheckVersion: c.Version(),
+		ConfigSource: c.ConfigSource(),
 	}
 }
 

@@ -89,7 +89,7 @@ func sampler(samples []map[string]disk.IOCountersStat, names ...string) (map[str
 func TestIOCheckDM(t *testing.T) {
 	ioCounters = ioSamplerDM
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil)
+	ioCheck.Configure(nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
@@ -112,7 +112,7 @@ func TestIOCheck(t *testing.T) {
 
 	ioCounters = ioSampler
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil)
+	ioCheck.Configure(nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
@@ -175,7 +175,7 @@ func TestIOCheck(t *testing.T) {
 func TestIOCheckBlacklist(t *testing.T) {
 	ioCounters = ioSampler
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil)
+	ioCheck.Configure(nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 

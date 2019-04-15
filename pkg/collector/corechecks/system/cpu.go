@@ -78,8 +78,8 @@ func (c *CPUCheck) Run() error {
 }
 
 // Configure the CPU check
-func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	err := c.CommonConfigure(data)
+func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data, configSource string) error {
+	err := c.CommonConfigure(data, configSource)
 	if err != nil {
 		return err
 	}

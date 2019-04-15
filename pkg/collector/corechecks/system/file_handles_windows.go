@@ -44,8 +44,8 @@ func (c *fhCheck) Run() error {
 }
 
 // The check doesn't need configuration
-func (c *fhCheck) Configure(data integration.Data, initConfig integration.Data) (err error) {
-	if err := c.CommonConfigure(data); err != nil {
+func (c *fhCheck) Configure(data integration.Data, initConfig integration.Data, configSource string) (err error) {
+	if err := c.CommonConfigure(data, configSource); err != nil {
 		return err
 	}
 

@@ -30,7 +30,7 @@ func newJMXCheck(config integration.Config) *JMXCheck {
 		name:   config.Name,
 		id:     check.ID(fmt.Sprintf("%v_%v", config.Name, config.Digest())),
 	}
-	check.Configure(config.InitConfig, config.MetricConfig)
+	check.Configure(config.InitConfig, config.MetricConfig, config.Source)
 
 	return check
 }
@@ -64,7 +64,11 @@ func (c *JMXCheck) Version() string {
 	return ""
 }
 
-func (c *JMXCheck) Configure(config integration.Data, initConfig integration.Data) error {
+func (c *JMXCheck) ConfigSource() string {
+	return c.config.Source
+}
+
+func (c *JMXCheck) Configure(config integration.Data, initConfig integration.Data, configSource string) error {
 	return nil
 }
 
