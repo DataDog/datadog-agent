@@ -74,9 +74,14 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
         includepath = os.path.join(embedded_path, 'include')
         env['CGO_LDFLAGS'] += " -L{} ".format(libpath)
         env['CGO_CFLAGS'] += " -w -I{} ".format(includepath)
+        ldflags += "-X {}/pkg/collector/python.pythonHome2={} ".format(REPO_PATH, os.environ['PYTHON_HOME_2'])
+        ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, os.environ['PYTHON_HOME_3'])
     else:
-        env['CGO_LDFLAGS'] += " -L{}/src/github.com/DataDog/datadog-agent/dev/lib ".format(os.environ.get('GOPATH'))
-        env['CGO_CFLAGS'] += " -w -I{}/src/github.com/DataDog/datadog-agent/dev/include".format(os.environ.get('GOPATH'))
+        local_dev_path = "{}/src/github.com/DataDog/datadog-agent/dev/lib".format(os.environ.get('GOPATH'))
+        env['CGO_LDFLAGS'] += " -L{}/lib ".format(local_dev_path)
+        env['CGO_CFLAGS'] += " -w -I{}/include".format(local_dev_path)
+        ldflags += "-X {}/pkg/collector/python.pythonHome2={} ".format(REPO_PATH, local_dev_path)
+        ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, local_dev_path)
 
     if static:
         ldflags += "-s -w -linkmode=external '-extldflags=-static' "
@@ -91,11 +96,6 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
     elif use_venv and os.getenv('VIRTUAL_ENV'):
         venv_prefix = os.getenv('VIRTUAL_ENV')
         ldflags += "-X {}/pkg/collector/py.pythonHome={} ".format(REPO_PATH, venv_prefix)
-
-    if 'PYTHON_HOME_2' in os.environ:
-        ldflags += "-X {}/pkg/collector/python.pythonHome2={} ".format(REPO_PATH, os.environ['PYTHON_HOME_2'])
-    if 'PYTHON_HOME_3' in os.environ:
-        ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, os.environ['PYTHON_HOME_3'])
 
     if os.environ.get("DELVE"):
         gcflags = "-N -l"
