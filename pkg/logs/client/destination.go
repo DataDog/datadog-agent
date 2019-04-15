@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -19,6 +20,12 @@ const (
 	chanSize      = 100
 	warningPeriod = 1000
 )
+
+// API key / message separator
+const separator = " "
+
+// The maximum duration after which a connection get reset.
+var connLifetime = time.Hour
 
 // FramingError represents a kind of error that can occur when a log can not properly
 // be transformed into a frame.
@@ -45,16 +52,15 @@ type Destination struct {
 	connManager         *ConnectionManager
 	destinationsContext *DestinationsContext
 	conn                net.Conn
+	connExpirationTime  time.Time
 	inputChan           chan []byte
 	once                sync.Once
-	warningCounter      int
 }
 
 // NewDestination returns a new destination.
 func NewDestination(endpoint Endpoint, destinationsContext *DestinationsContext) *Destination {
-	prefix := endpoint.APIKey + string(' ')
 	return &Destination{
-		prefixer:            newPrefixer(prefix),
+		prefixer:            newPrefixer(endpoint.APIKey + " "),
 		delimiter:           NewDelimiter(endpoint.UseProto),
 		connManager:         NewConnectionManager(endpoint),
 		destinationsContext: destinationsContext,
@@ -64,6 +70,11 @@ func NewDestination(endpoint Endpoint, destinationsContext *DestinationsContext)
 // Send transforms a message into a frame and sends it to a remote server,
 // returns an error if the operation failed.
 func (d *Destination) Send(payload []byte) error {
+	if d.isConnectionExpired() {
+		// reset the connection to make sure the load is evenly spread
+		// and the agent can target new nodes.
+		d.closeConnection()
+	}
 	if d.conn == nil {
 		var err error
 
@@ -72,6 +83,8 @@ func (d *Destination) Send(payload []byte) error {
 		if d.conn, err = d.connManager.NewConnection(ctx); err != nil {
 			return err
 		}
+
+		d.connExpirationTime = time.Now().Add(connLifetime)
 	}
 
 	content := d.prefixer.apply(payload)
@@ -82,16 +95,15 @@ func (d *Destination) Send(payload []byte) error {
 
 	_, err = d.conn.Write(frame)
 	if err != nil {
-		d.connManager.CloseConnection(d.conn)
-		d.conn = nil
+		d.closeConnection()
 		return err
 	}
 
 	return nil
 }
 
-// SendAsync sends a message to the destination without blocking. If the channel is full, the incoming messages will be
-// dropped
+// SendAsync sends a message to the destination without blocking,
+// if the channel is full, the incoming messages will be dropped.
 func (d *Destination) SendAsync(payload []byte) {
 	host := d.connManager.endpoint.Host
 	d.once.Do(func() {
@@ -123,4 +135,17 @@ func (d *Destination) runAsync() {
 			return
 		}
 	}
+}
+
+// closeConnection closes the connection.
+func (d *Destination) closeConnection() {
+	d.connManager.CloseConnection(d.conn)
+	d.conn = nil
+	d.connExpirationTime = time.Time{}
+}
+
+// isConnectionExpired returns true if the connection is expired,
+// i.e. if it has been created a long time ago.
+func (d *Destination) isConnectionExpired() bool {
+	return d.connExpirationTime != time.Time{} && d.connExpirationTime.Before(time.Now())
 }
