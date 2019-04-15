@@ -77,7 +77,7 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
         ldflags += "-X {}/pkg/collector/python.pythonHome2={} ".format(REPO_PATH, os.environ['PYTHON_HOME_2'])
         ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, os.environ['PYTHON_HOME_3'])
     else:
-        local_dev_path = "{}/src/github.com/DataDog/datadog-agent/dev/lib".format(os.environ.get('GOPATH'))
+        local_dev_path = "{}/src/github.com/DataDog/datadog-agent/dev".format(os.environ.get('GOPATH'))
         env['CGO_LDFLAGS'] += " -L{}/lib ".format(local_dev_path)
         env['CGO_CFLAGS'] += " -w -I{}/include".format(local_dev_path)
         ldflags += "-X {}/pkg/collector/python.pythonHome2={} ".format(REPO_PATH, local_dev_path)
