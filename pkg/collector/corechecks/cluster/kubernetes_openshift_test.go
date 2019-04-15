@@ -29,7 +29,7 @@ func TestReportClusterQuotas(t *testing.T) {
 	var instanceCfg = []byte("")
 	var initCfg = []byte("")
 	kubeASCheck := KubernetesASFactory().(*KubeASCheck)
-	err = kubeASCheck.Configure(instanceCfg, initCfg)
+	err = kubeASCheck.Configure(instanceCfg, initCfg, "test")
 	require.NoError(t, err)
 
 	mocked := mocksender.NewMockSender(kubeASCheck.ID())

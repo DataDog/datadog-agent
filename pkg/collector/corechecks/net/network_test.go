@@ -64,7 +64,7 @@ func (n *fakeNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
 
 func TestDefaultConfiguration(t *testing.T) {
 	check := NetworkCheck{}
-	check.Configure([]byte(``), []byte(``))
+	check.Configure([]byte(``), []byte(``), "test")
 
 	assert.Equal(t, false, check.config.instance.CollectConnectionState)
 	assert.Equal(t, []string(nil), check.config.instance.ExcludedInterfaces)
@@ -80,7 +80,7 @@ excluded_interfaces:
     - lo0
 excluded_interface_re: "eth.*"
 `)
-	err := check.Configure(rawInstanceConfig, []byte(``))
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 
 	assert.Nil(t, err)
 	assert.Equal(t, true, check.config.instance.CollectConnectionState)
@@ -266,7 +266,7 @@ func TestNetworkCheck(t *testing.T) {
 collect_connection_state: true
 `)
 
-	err := networkCheck.Configure(rawInstanceConfig, []byte(``))
+	err := networkCheck.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
@@ -378,7 +378,7 @@ excluded_interfaces:
     - lo0
 `)
 
-	networkCheck.Configure(rawInstanceConfig, []byte(``))
+	networkCheck.Configure(rawInstanceConfig, []byte(``), "test")
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
 
@@ -448,7 +448,7 @@ func TestExcludedInterfacesRe(t *testing.T) {
 excluded_interface_re: "eth[0-9]"
 `)
 
-	err := networkCheck.Configure(rawInstanceConfig, []byte(``))
+	err := networkCheck.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
