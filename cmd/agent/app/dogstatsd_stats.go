@@ -10,11 +10,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/util/input"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -95,8 +97,16 @@ func requestDogstatsdStats() error {
 	}
 
 	if dsdStatsFilePath != "" {
+		// if the file is already existing, ask for a confirmation.
+		if _, err := os.Stat(dsdStatsFilePath); err == nil {
+			if !input.AskForConfirmation(fmt.Sprintf("'%s' existing, do you wan't to overwrite it?", dsdStatsFilePath)) {
+				fmt.Println("Canceling.")
+				return nil
+			}
+		}
+
 		if err := ioutil.WriteFile(dsdStatsFilePath, []byte(s), 0644); err != nil {
-			fmt.Println("Error while writing the output:", err)
+			fmt.Println("Error while writing the file (is the location writable by the dd-agent user?):", err)
 		} else {
 			fmt.Println("Dogstatsd stats written in:", dsdStatsFilePath)
 		}
