@@ -205,10 +205,6 @@ run_security_scan_test:
 # binary_build
 #
 
-.agent_build_variables: &agent_build_variables
-  PYTHON_HOME_2: /opt/datadog-agent/embedded/lib
-  PYTHON_HOME_3: /opt/datadog-agent/embedded/lib
-
 # build dogstatsd static for deb-x64
 build_dogstatsd_static-deb_x64:
   stage: binary_build
@@ -305,7 +301,6 @@ agent_deb-x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
-    <<: *agent_build_variables
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   script:
     # remove artifacts from previous pipelines that may come from the cache
@@ -360,7 +355,6 @@ agent_rpm-x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
-    <<: *agent_build_variables
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   script:
     # remove artifacts from previous pipelines that may come from the cache
