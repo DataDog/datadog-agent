@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -573,6 +574,7 @@ func TestReceiverPreSamplerCancel(t *testing.T) {
 	client := &http.Client{Transport: &http.Transport{
 		MaxIdleConnsPerHost: 100,
 	}}
+	var sampled uint64
 	for i := 0; i < 3; i++ {
 		wg.Add(1)
 		go func() {
@@ -587,13 +589,25 @@ func TestReceiverPreSamplerCancel(t *testing.T) {
 				assert.Nil(err)
 				assert.NotNil(resp)
 				if resp != nil {
-					assert.Equal(http.StatusOK, resp.StatusCode)
+					slurp, err := ioutil.ReadAll(resp.Body)
+					assert.NoError(err)
+					resp.Body.Close()
+					switch resp.StatusCode {
+					case http.StatusNotAcceptable:
+						atomic.AddUint64(&sampled, 1)
+						assert.Contains(string(slurp), "request rejected; trace-agent is past cpu threshold (apm_config.max_cpu_percent:")
+					case http.StatusOK:
+						// OK
+					}
 				}
 			}
 			wg.Done()
 		}()
 	}
 	wg.Wait()
+	if sampled == 0 {
+		assert.Fail("did not presample")
+	}
 }
 
 func TestErrorLogger(t *testing.T) {
