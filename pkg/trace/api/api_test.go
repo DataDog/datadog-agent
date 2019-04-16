@@ -55,19 +55,12 @@ func newTestReceiverConfig() *config.AgentConfig {
 func TestReceiverRequestBodyLength(t *testing.T) {
 	assert := assert.New(t)
 
-	// save the global mux aside, we don't want to break other tests
-	defaultMux := http.DefaultServeMux
-	http.DefaultServeMux = http.NewServeMux()
-
 	conf := newTestReceiverConfig()
 	receiver := newTestReceiverFromConfig(conf)
 	receiver.maxRequestBodyLength = 2
 	go receiver.Start()
 
-	defer func() {
-		receiver.Stop()
-		http.DefaultServeMux = defaultMux
-	}()
+	defer receiver.Stop()
 
 	url := fmt.Sprintf("http://%s:%d/v0.4/traces",
 		conf.ReceiverHost, conf.ReceiverPort)
