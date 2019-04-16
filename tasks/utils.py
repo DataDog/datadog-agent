@@ -49,7 +49,8 @@ def pkg_config_path(use_embedded_libs):
     return retval
 
 
-def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use_venv=False):
+def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use_venv=False,
+                    embedded_path=None):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -62,18 +63,26 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs),
     }
 
-    env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '')
-    env['CGO_LDFLAGS'] += " -L{}/src/github.com/DataDog/datadog-agent/dev/lib ".format(os.environ.get('GOPATH'))
-
-    env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '')
-    env['CGO_CFLAGS'] += " -w -I{}/src/github.com/DataDog/datadog-agent/dev/include".format(os.environ.get('GOPATH'))
-
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
 
+    if embedded_path is None:
+        # fall back to local dev path
+        embedded_path = "{}/src/github.com/DataDog/datadog-agent/dev".format(os.environ.get('GOPATH'))
+
+    env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '')
+    env['CGO_LDFLAGS'] += " -L{}/lib ".format(embedded_path)
+    env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '')
+    env['CGO_CFLAGS'] += " -w -I{}/include".format(embedded_path)
+
+    # Set PYTHONHOME: env vars take precedence, useful on CI systems
+    pythonhome2 = os.environ.get('PYTHON_HOME_2', embedded_path)
+    pythonhome3 = os.environ.get('PYTHON_HOME_3', embedded_path)
+    ldflags += "-X {}/pkg/collector/python.pythonHome2={} ".format(REPO_PATH, pythonhome2)
+    ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, pythonhome3)
+
     if static:
         ldflags += "-s -w -linkmode=external '-extldflags=-static' "
-        #env["CGO_ENABLED"] = "0"
     elif use_embedded_libs:
         embedded_lib_path = ctx.run("pkg-config --variable=libdir python-2.7",
                                     env=env, hide=True).stdout.strip()
@@ -84,9 +93,6 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
     elif use_venv and os.getenv('VIRTUAL_ENV'):
         venv_prefix = os.getenv('VIRTUAL_ENV')
         ldflags += "-X {}/pkg/collector/py.pythonHome={} ".format(REPO_PATH, venv_prefix)
-
-    ldflags += "-X {}/pkg/collector/python.pythonHome2={} ".format(REPO_PATH, os.environ['PYTHON_HOME_2'])
-    ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, os.environ['PYTHON_HOME_3'])
 
     if os.environ.get("DELVE"):
         gcflags = "-N -l"

@@ -15,11 +15,7 @@
 # limitations under the License.
 #
 
-# This software definition is identical to the omnibus-software one,
-# it was copied here to enable the `-fPIC` cflag on linux.
-# TODO: Consolidate with the omnibus-software definition as soon as the
-# change has been tested on Agent 5 as well.
-name "python"
+name "python2"
 
 if ohai["platform"] != "windows"
   default_version "2.7.16"
@@ -36,29 +32,23 @@ if ohai["platform"] != "windows"
   relative_path "Python-#{version}"
 
   env = {
-    "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -g -pipe",
+    "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -g -pipe -fPIC",
     "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
   }
 
-  if linux?
-    # Emit position-independent code (Agent can't be forced to build and be healthy with --no-pie,
-    # and allows building the Agent on ARM)
-    env["CFLAGS"] += " -fPIC"
-  end
-
   python_configure = ["./configure",
-                      "--enable-universalsdk=/",
                       "--prefix=#{install_dir}/embedded"]
 
   if mac_os_x?
     python_configure.push("--enable-ipv6",
                           "--with-universal-archs=intel",
-                          "--enable-shared")
+                          "--enable-shared",
+                          "--without-gcc",
+                          "CC=clang",
+                          "MACOSX_DEPLOYMENT_TARGET=10.12")
   elsif linux?
     python_configure.push("--enable-unicode=ucs4")
   end
-
-  python_configure.push("--with-dbmliborder=")
 
   build do
     ship_license "PSFL"
@@ -70,9 +60,11 @@ if ohai["platform"] != "windows"
     command "make install", :env => env
     delete "#{install_dir}/embedded/lib/python2.7/test"
 
-    # There exists no configure flag to tell Python to not compile readline support :(
+
     block do
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python2.7/lib-dynload/readline.*"))
+      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python2.7/lib-dynload/gdbm.so"))
+      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python2.7/lib-dynload/dbm.so"))
     end
   end
 
@@ -83,10 +75,10 @@ else
   source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
          :sha256 => "6b9fdc51dde1ba6ae4cb698451900e1f8f1900ff1d56d9166dbeab06b10a4dce",
          :extract => :seven_zip
-
+  
   build do
     #
     # expand python zip into the embedded directory
-    command "XCOPY /YEHIR *.* \"#{windows_safe_path(install_dir)}\\embedded\""
+    command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_2_embedded)}\""
   end
 end
