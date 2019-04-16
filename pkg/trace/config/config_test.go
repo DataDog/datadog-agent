@@ -165,7 +165,7 @@ func TestFullIniConfig(t *testing.T) {
 	assert.Equal("host.ip", c.StatsdHost)
 	assert.Equal("/path/to/file", c.LogFilePath)
 	assert.Equal("debug", c.LogLevel)
-	assert.False(c.LogThrottlingEnabled)
+	assert.False(c.LogThrottling) // turns off when log_level is "debug"
 	assert.True(c.SkipSSLValidation)
 
 	assert.Equal(map[string]float64{
@@ -257,7 +257,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal("mymachine", c.Hostname)
 	assert.Equal("https://user:password@proxy_for_https:1234", c.ProxyURL.String())
 	assert.True(c.SkipSSLValidation)
-	assert.Equal("debug", c.LogLevel)
+	assert.Equal("info", c.LogLevel)
 	assert.Equal(18125, c.StatsdPort)
 	assert.False(c.Enabled)
 	assert.Equal("abc", c.LogFilePath)
@@ -271,6 +271,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.EqualValues(123.4, c.MaxMemory)
 	assert.Equal(12, c.MaxConnections)
 	assert.Equal("0.0.0.0", c.ReceiverHost)
+	assert.True(c.LogThrottling)
 
 	noProxy := true
 	if _, ok := os.LookupEnv("NO_PROXY"); ok {
