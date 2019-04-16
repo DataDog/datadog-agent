@@ -217,7 +217,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(http.StatusNotAcceptable)
 		io.WriteString(w, fmt.Sprintf("request rejected; trace-agent is past memory threshold (apm_config.max_memory: %.0f bytes)", r.conf.MaxMemory))
-		metrics.Count("datadog.trace_agent.receiver.refused", 1, []string{"reason:mem"}, 1)
+		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, []string{"reason:mem"}, 1)
 		return
 	}
 	if !r.PreSampler.Sample(req) {
@@ -225,7 +225,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(http.StatusNotAcceptable)
 		io.WriteString(w, fmt.Sprintf("request rejected; trace-agent is past cpu threshold (apm_config.max_cpu_percent: %.1f)", r.conf.MaxCPU*100))
-		metrics.Count("datadog.trace_agent.receiver.refused", 1, []string{"reason:cpu"}, 1)
+		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, []string{"reason:cpu"}, 1)
 		return
 	}
 
