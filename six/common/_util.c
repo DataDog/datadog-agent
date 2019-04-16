@@ -4,8 +4,8 @@
 // Copyright 2019 Datadog, Inc.
 #include "_util.h"
 
-#include <sixstrings.h>
 #include <cgo_free.h>
+#include <sixstrings.h>
 #include <stdio.h>
 
 // must be set by the caller
@@ -14,8 +14,9 @@ static cb_get_subprocess_output_t cb_get_subprocess_output = NULL;
 static PyObject *subprocess_output(PyObject *self, PyObject *args);
 
 // Exceptions
-PyObject* SubprocessOutputEmptyError;
-void addSubprocessException(PyObject *m) {
+PyObject *SubprocessOutputEmptyError;
+void addSubprocessException(PyObject *m)
+{
     SubprocessOutputEmptyError = PyErr_NewException("_util.SubprocessOutputEmptyError", NULL, NULL);
     Py_INCREF(SubprocessOutputEmptyError);
     PyModule_AddObject(m, "SubprocessOutputEmptyError", SubprocessOutputEmptyError);
@@ -32,7 +33,8 @@ static PyMethodDef methods[] = {
 #ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, _UTIL_MODULE_NAME, NULL, -1, methods };
 
-PyMODINIT_FUNC PyInit__util(void) {
+PyMODINIT_FUNC PyInit__util(void)
+{
     PyObject *m = PyModule_Create(&module_def);
     addSubprocessException(m);
     return m;
@@ -43,17 +45,20 @@ PyMODINIT_FUNC PyInit__util(void) {
 // in Python2 keep the object alive for the program lifetime
 static PyObject *module;
 
-void Py2_init__util() {
+void Py2_init__util()
+{
     module = Py_InitModule(_UTIL_MODULE_NAME, methods);
     addSubprocessException(module);
 }
 #endif
 
-void _set_get_subprocess_output_cb(cb_get_subprocess_output_t cb) {
+void _set_get_subprocess_output_cb(cb_get_subprocess_output_t cb)
+{
     cb_get_subprocess_output = cb;
 }
 
-static void raiseEmptyOutputError() {
+static void raiseEmptyOutputError()
+{
     PyObject *utilModule = PyImport_ImportModule("_util");
     if (utilModule == NULL) {
         PyErr_SetString(PyExc_TypeError, "error: no module '_util'");
@@ -72,8 +77,8 @@ static void raiseEmptyOutputError() {
     Py_DecRef(utilModule);
 }
 
-
-PyObject *subprocess_output(PyObject *self, PyObject *args) {
+PyObject *subprocess_output(PyObject *self, PyObject *args)
+{
     if (!cb_get_subprocess_output)
         Py_RETURN_NONE;
 
@@ -118,7 +123,8 @@ PyObject *subprocess_output(PyObject *self, PyObject *args) {
 
         if (subprocess_arg == NULL) {
             // cleanup
-            for (int j = 0; j < i; j++)
+            int j;
+            for (j = 0; j < i; j++)
                 free(subprocess_args[j]);
             free(subprocess_args);
 
@@ -167,7 +173,7 @@ PyObject *subprocess_output(PyObject *self, PyObject *args) {
 
     PyObject *pyStderr = NULL;
     if (c_stderr) {
-        pyStderr= PyStringFromCString(c_stderr);
+        pyStderr = PyStringFromCString(c_stderr);
         cgo_free(c_stderr);
     } else {
         Py_INCREF(Py_None);

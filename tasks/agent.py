@@ -74,7 +74,7 @@ PUPPY_CORECHECKS = [
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, use_embedded_libs=False, development=True, precompile_only=False,
-          skip_assets=False, use_venv=False):
+          skip_assets=False, use_venv=False, embedded_path=None):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -86,7 +86,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
-    ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs, use_venv=use_venv)
+    ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs, use_venv=use_venv,
+                                            embedded_path=embedded_path)
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
@@ -288,6 +289,12 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
         overrides_cmd = "--override=" + " ".join(overrides)
 
     with ctx.cd("omnibus"):
+        # make sure bundle install starts from a clean state
+        try:
+            os.remove("Gemfile.lock")
+        except Exception:
+            pass
+
         env = load_release_versions(ctx, release_version)
         cmd = "bundle install"
         if gem_path:
