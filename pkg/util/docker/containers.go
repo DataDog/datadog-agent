@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"regexp"
 	"strings"
 	"time"
@@ -137,16 +138,17 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.C
 
 		entityID := ContainerIDToEntityName(c.ID)
 		container := &containers.Container{
-			Type:     "Docker",
-			ID:       c.ID,
-			EntityID: entityID,
-			Name:     c.Names[0],
-			Image:    image,
-			ImageID:  c.ImageID,
-			Created:  c.Created,
-			State:    c.State,
-			Excluded: excluded,
-			Health:   parseContainerHealth(c.Status),
+			Type:        "Docker",
+			ID:          c.ID,
+			EntityID:    entityID,
+			Name:        c.Names[0],
+			Image:       image,
+			ImageID:     c.ImageID,
+			Created:     c.Created,
+			State:       c.State,
+			Excluded:    excluded,
+			Health:      parseContainerHealth(c.Status),
+			AddressList: parseContainerNetworkAddresses(c.Ports, c.NetworkSettings, c.Names[0]),
 		}
 
 		ret = append(ret, container)
@@ -180,6 +182,54 @@ func parseContainerHealth(status string) string {
 		return ""
 	}
 	return all[0][1]
+}
+
+// parseContainerNetworkAddresses converts docker ports
+// and network settings into a list of NetworkAddress
+func parseContainerNetworkAddresses(ports []types.Port, netSettings *types.SummaryNetworkSettings, container string) []containers.NetworkAddress {
+	addrList := []containers.NetworkAddress{}
+	tempAddrList := []containers.NetworkAddress{}
+	for _, port := range ports {
+		if isExposed(port) {
+			IP := net.ParseIP(port.IP)
+			if IP == nil {
+				log.Warnf("Unable to parse IP: %v for container: %s", port.IP, container)
+				continue
+			}
+			addrList = append(addrList, containers.NetworkAddress{
+				IP:       IP,                   // Host IP, since the port is exposed
+				Port:     int(port.PublicPort), // Exposed port
+				Protocol: port.Type,
+			})
+		} else {
+			// Port is not exposed, cache it and retieve IPs from network settings
+			tempAddrList = append(tempAddrList, containers.NetworkAddress{
+				Port:     int(port.PrivatePort),
+				Protocol: port.Type,
+			})
+		}
+	}
+	for _, network := range netSettings.Networks {
+		IP := net.ParseIP(network.IPAddress)
+		if IP == nil {
+			log.Warnf("Unable to parse IP: %v for container: %s", network.IPAddress, container)
+			continue
+		}
+		for _, addr := range tempAddrList {
+			// Add IP to the cached and not exposed ports
+			addrList = append(addrList, containers.NetworkAddress{
+				IP:       IP,
+				Port:     int(addr.Port),
+				Protocol: addr.Protocol,
+			})
+		}
+	}
+	return addrList
+}
+
+// isExposed returns if a docker port is exposed to the host
+func isExposed(port types.Port) bool {
+	return port.PublicPort > 0 && port.IP != ""
 }
 
 // cleanupCaches removes cache entries for unknown containers and images
