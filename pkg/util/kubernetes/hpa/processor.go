@@ -27,6 +27,7 @@ type DatadogClient interface {
 	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
 }
 
+// ProcessorInterface is used to easily mock the interface for testing
 type ProcessorInterface interface {
 	UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue)
 	ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) map[string]custommetrics.ExternalMetricValue

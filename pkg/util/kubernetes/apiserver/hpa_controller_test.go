@@ -461,10 +461,10 @@ func TestAutoscalerControllerGC(t *testing.T) {
 		{
 			caseName: "hpa exists for metric",
 			metrics: map[string]custommetrics.ExternalMetricValue{
-				"external_metric-default-fobo-requests_per_s": {
+				"external_metric-default-foo-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"bar": "baz"},
-					HPA:        custommetrics.ObjectReference{Name: "fobo", Namespace: "default", UID: "1111"},
+					HPA:        custommetrics.ObjectReference{Name: "foo", Namespace: "default", UID: "1111"},
 					Timestamp:  12,
 					Value:      1,
 					Valid:      false,
@@ -472,7 +472,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 			},
 			hpa: &v2beta1.HorizontalPodAutoscaler{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "fobo",
+					Name:      "foo",
 					Namespace: "default",
 					UID:       "1111",
 				},
@@ -494,7 +494,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"bar": "baz"},
-					HPA:        custommetrics.ObjectReference{Name: "fobo", Namespace: "default", UID: "1111"},
+					HPA:        custommetrics.ObjectReference{Name: "foo", Namespace: "default", UID: "1111"},
 					Timestamp:  12,
 					Value:      1,
 					Valid:      false,
@@ -504,10 +504,10 @@ func TestAutoscalerControllerGC(t *testing.T) {
 		{
 			caseName: "no hpa for metric",
 			metrics: map[string]custommetrics.ExternalMetricValue{
-				"external_metric-default-fobo-requests_per_s_b": {
+				"external_metric-default-foo-requests_per_s_b": {
 					MetricName: "requests_per_s_b",
 					Labels:     map[string]string{"bar": "baz"},
-					HPA:        custommetrics.ObjectReference{Name: "fobo", Namespace: "default", UID: "1111"},
+					HPA:        custommetrics.ObjectReference{Name: "foo", Namespace: "default", UID: "1111"},
 					Timestamp:  12,
 					Value:      1,
 					Valid:      false,
