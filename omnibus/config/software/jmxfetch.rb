@@ -8,9 +8,8 @@ name "jmxfetch"
 jmxfetch_version = ENV['JMXFETCH_VERSION']
 jmxfetch_hash = ENV['JMXFETCH_HASH']
 
-if jmxfetch_version.nil? || jmxfetch_version.empty?
-  jmxfetch_version = '0.27.0'
-  jmxfetch_hash = "52aabf81abb4e42adcb28164b263f01b293dda1c686f845d133ebcd128f8b2ee"
+if jmxfetch_version.nil? || jmxfetch_version.empty? || jmxfetch_hash.nil? || jmxfetch_hash.empty?
+  raise "Please specify JMXFETCH_VERSION and JMXFETCH_HASH env vars to build."
 end
 
 default_version jmxfetch_version
@@ -25,6 +24,6 @@ relative_path "jmxfetch"
 build do
   ship_license "https://raw.githubusercontent.com/DataDog/jmxfetch/master/LICENSE"
   mkdir jar_dir
-  copy "jmxfetch-#{jmxfetch_version}-jar-with-dependencies.jar", jar_dir
-  block { File.chmod(0644, "#{jar_dir}/jmxfetch-#{jmxfetch_version}-jar-with-dependencies.jar") }
+  copy "jmxfetch-#{jmxfetch_version}-jar-with-dependencies.jar", "#{jar_dir}/jmxfetch.jar"
+  block { File.chmod(0644, "#{jar_dir}/jmxfetch.jar") }
 end
