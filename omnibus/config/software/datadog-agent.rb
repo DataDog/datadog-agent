@@ -28,12 +28,11 @@ build do
   env = with_embedded_path(env)
 
   # we assume the go deps are already installed before running omnibus
-  command "inv -e agent.build --rebuild --use-embedded-libs --no-development --embedded-path=#{install_dir}/embedded", env: env
   if windows?
-    command "invoke systray.build --rebuild --use-embedded-libs --no-development", env: env
-
-    # build the installer custom action library
-    command "invoke customaction.build"
+    command "inv -e agent.build --six-root=#{Omnibus::Config.source_dir()}/datadog-agent-six --rebuild --use-embedded-libs --no-development --embedded-path=#{install_dir}/embedded", env: env
+    command "inv -e systray.build --rebuild --use-embedded-libs --no-development", env: env
+  else
+    command "inv -e agent.build --rebuild --use-embedded-libs --no-development --embedded-path=#{install_dir}/embedded", env: env
   end
 
   if osx?

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -170,11 +171,18 @@ func sendTelemetry(pythonVersion int) {
 func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetInt("python_version")
 
+	if runtime.GOOS == "windows" {
+		_here, _ := executable.Folder()
+		pythonHome2 = filepath.Join(_here, "..", "embedded2")
+		pythonHome3 = filepath.Join(_here, "..", "embedded3")
+	}
 	if pythonVersion == 2 {
 		six = C.make2(C.CString(pythonHome2))
+		log.Infof("Initializing six with python2 %s", pythonHome2)
 		PythonHome = pythonHome2
 	} else if pythonVersion == 3 {
 		six = C.make3(C.CString(pythonHome3))
+		log.Infof("Initializing six with python3 %s", pythonHome3)
 		PythonHome = pythonHome3
 	} else {
 		return fmt.Errorf("unknown requested version of python: %d", pythonVersion)
