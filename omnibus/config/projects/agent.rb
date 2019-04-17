@@ -14,6 +14,8 @@ if ohai['platform'] == "windows"
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
   install_dir "C:/opt/datadog-agent/"
+  python_2_embedded "#{install_dir}/embedded2"
+  python_3_embedded "#{install_dir}/embedded3"
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
   install_dir '/opt/datadog-agent'
@@ -116,7 +118,12 @@ dependency 'datadog-agent-prepare'
 dependency 'datadog-agent'
 
 # Additional software
-dependency 'cacerts'
+if windows?
+  dependency 'cacerts_py2'
+  dependency 'cacerts_py3'
+else
+  dependency 'cacerts'
+end
 dependency 'datadog-a7'
 dependency 'datadog-agent-integrations'
 if osx?
