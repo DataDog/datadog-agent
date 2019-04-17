@@ -64,7 +64,7 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		}
 		if isKubeServiceCheck(c) && len(c.EndpointsChecks) > 0 {
 			// A kube service that requires endpoints checks will be scheduled,
-			// endpoints cache should be updated with the new checks.
+			// endpoints cache must be updated with the new checks.
 			d.store.Lock()
 			d.store.endpointsCache[ktypes.UID(getServiceUID(c))] = newEndpointsInfo(c)
 			d.store.Unlock()

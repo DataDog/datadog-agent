@@ -15,7 +15,7 @@ import (
 )
 
 // getEndpointsConfigs provides configs templates of endpoints checks queried by node name.
-// Exposed to node agents by the cluster agent api server.
+// Exposed to node agents by the cluster agent api.
 func (d *dispatcher) getEndpointsConfigs(nodeName string) ([]integration.Config, error) {
 	err := d.updateEndpointsChecks()
 	if err != nil {
@@ -26,7 +26,7 @@ func (d *dispatcher) getEndpointsConfigs(nodeName string) ([]integration.Config,
 }
 
 // updateEndpointsChecks updates stored endpoints configs.
-// The function validates cached configs by listing their correspondent
+// The function validates cached configs by listing their corresponding
 // *v1.Endpoints objects and checking if endpoints are backed by pods,
 // if validated, store them as endpoints checks with their correspendent node name.
 // Listing the *v1.Endpoints object keeps pods' UIDs updated as they will
@@ -72,9 +72,9 @@ func hasPodRef(kendpoints *v1.Endpoints) bool {
 }
 
 // buildEndpointsChecks returns a map of node names as keys with their
-// correspondent endpoints configs as values.
+// corresponding endpoints configs as values.
 // The function gets node names and pod uids from the *v1.Endpoints object.
-// The function adds the correspendent pod uid and service entity as AD identifiers
+// The function adds the corresponding pod uid and service entity as AD identifiers
 // to the validated config templates using updateADIdentifiers.
 func buildEndpointsChecks(kendpoints *v1.Endpoints, epInfo *types.EndpointsInfo) map[string][]integration.Config {
 	nodesEndpointsMapping := make(map[string][]integration.Config)
