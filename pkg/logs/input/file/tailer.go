@@ -14,11 +14,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	logParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
+	lineParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/input/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/tag"
 )
@@ -55,11 +56,12 @@ type Tailer struct {
 
 // NewTailer returns an initialized Tailer
 func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration, isWildcardPath bool) *Tailer {
-	var parser logParser.Parser
-	if source.GetSourceType() == config.ContainerdType {
-		parser = containerdFileParser
+	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
+	var parser lineParser.Parser
+	if source.GetSourceType() == config.KubernetesSourceType {
+		parser = kubernetes.Parser
 	} else {
-		parser = logParser.NoopParser
+		parser = lineParser.NoopParser
 	}
 	var tagProvider tag.Provider
 	if source.Config.Identifier != "" {

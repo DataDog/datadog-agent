@@ -37,13 +37,15 @@
         <UpgradeVersion OnlyDetect='no'
                         Property='PREVIOUSFOUND'
                         Minimum='1.0.0' IncludeMinimum='yes'
-                        Maximum="99.99.99.99" IncludeMaximum='no'/>
+                        Maximum="$(var.VersionNumber)" IncludeMaximum='yes'/>
     </Upgrade>
 
     <!-- This allows downgrades, and same-version reinstalls.  Otherwise,
     same version gets installed "side by side" -->
     <MajorUpgrade
-      AllowDowngrades="yes"
+      AllowDowngrades="no"
+      AllowSameVersionUpgrades="yes"
+      DowngradeErrorMessage="Automatic downgrades are not supported.  Uninstall the current version, and then reinstall the desired version."
       Schedule="afterInstallInitialize" />
 
 
@@ -62,14 +64,6 @@
 
     <Property Id="DDAGENTUSER_NAME" />
     <Property Id="DDAGENTUSER_PASSWORD"  />
-
-    <!-- truth table for installer varables (install vs uninstall vs repair vs upgrade) https://stackoverflow.com/a/17608049/1721136 -->
-    <!-- Set some helpful properties for what sort of install execution this is -->
-    <SetProperty Id="_INSTALL"   After="FindRelatedProducts" Value="1"><![CDATA[Installed="" ]]></SetProperty>
-    <SetProperty Id="_UNINSTALL" After="FindRelatedProducts" Value="1"><![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]></SetProperty>
-    <SetProperty Id="_CHANGE"    After="FindRelatedProducts" Value="1"><![CDATA[Installed<>"" AND REINSTALL="" AND UPGRADINGPRODUCTCODE="" AND REMOVE=""]]></SetProperty>
-    <SetProperty Id="_REPAIR"    After="FindRelatedProducts" Value="1"><![CDATA[Installed<>"" AND REINSTALL="ALL"]]></SetProperty>
-    <SetProperty Id="_UPGRADE"   After="FindRelatedProducts" Value="1"><![CDATA[UPGRADINGPRODUCTCODE<>""]]></SetProperty>
 
      <PropertyRef Id="WIX_ACCOUNT_ADMINISTRATORS" />
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
@@ -348,6 +342,8 @@
     </DirectoryRef>
 
     <InstallExecuteSequence>
+      <Custom Action='WixCloseApplications' Before='RemoveFiles'> </Custom>
+
       <!-- go ahead and always stop the services; if they're not installed (new install) it won't have any impact -->
 
       <!-- always stop the services, regardless of what's going on -->
@@ -358,18 +354,18 @@
            installer is called twice; the existing (previously installed) 
            installer is called with _UPGRADE, and then the new installer  
            is called with _INSTALL -->
-      <Custom Action='SetFinalizeProperty' Before='FinalizeInstall'> _INSTALL </Custom>
-      <Custom Action='FinalizeInstall' After='InstallServices'> _INSTALL </Custom>
+      <Custom Action='SetFinalizeProperty' Before='FinalizeInstall'> <![CDATA[Installed="" ]]> </Custom>
+      <Custom Action='FinalizeInstall' After='InstallServices'>      <![CDATA[Installed="" ]]> </Custom>
 
       <!-- Same deal here -->
-      <Custom Action='StartDDServices' After='FinalizeInstall'> _INSTALL </Custom>
+      <Custom Action='StartDDServices' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL" ]]></Custom>
       
       <!-- only do the uninstall (which removes the user state and file perms) 
            on a full uninstall -->
-      <Custom Action='SetUninstallProperty' Before='DoUninstall'> _UNINSTALL </Custom>
-      <Custom Action='DoUninstall' Before='InstallFinalize'> _UNINSTALL </Custom>
+      <Custom Action='SetUninstallProperty' Before='DoUninstall'> <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
+      <Custom Action='DoUninstall' Before='InstallFinalize'>      <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
 
-      <Custom Action='DoRollback' Before='FinalizeInstall'> NOT _UNINSTALL </Custom>
+      <Custom Action='DoRollback' Before='FinalizeInstall'>       <![CDATA[REMOVE<>"ALL" OR UPGRADINGPRODUCTCODE<>""]]> </Custom>
     </InstallExecuteSequence>
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
@@ -496,13 +492,13 @@
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
     <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall' 
-        Value='PROJECTLOCATION=[PROJECTLOCATION];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];_INSTALL=[_INSTALL];_UNINSTALL=[_UNINSTALL];_CHANGE=[_CHANGE];_REPAIR=[_REPAIR];_UPGRADE=[_UPGRADE];' />
+        Value='PROJECTLOCATION=[PROJECTLOCATION];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];' />
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='check' Impersonate='no'/>
 
     <CustomAction Id='SetUninstallProperty' Return='check' Property='DoUninstall' 
-        Value='PROJECTLOCATION=[PROJECTLOCATION];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];_INSTALL=[_INSTALL];_UNINSTALL=[_UNINSTALL];_CHANGE=[_CHANGE];_REPAIR=[_REPAIR];_UPGRADE=[_UPGRADE];' />
+        Value='PROJECTLOCATION=[PROJECTLOCATION];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];' />
     
     <CustomAction Id='DoUninstall' BinaryKey='wixcadll' DllEntry='DoUninstall' Execute='deferred' Return='check' Impersonate='no'/>
 

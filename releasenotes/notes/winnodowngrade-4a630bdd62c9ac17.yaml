@@ -6,10 +6,8 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+upgrade:
   - |
-    On Windows, allows Agent to be installed to nonstandard directories.
-    Uses APPLICATIONDATADIRECTORY to set the root of the configuration file tree,
-    and PROJECTLOCATION to set the root of the binary tree. Please refer to
-    the `docs <https://docs.datadoghq.com/agent/basic_agent_usage/windows>`_
-    for more details
+    The Windows installer will no longer allow direct downgrades; if
+    a downgrade is required, the user must uninstall the newer version
+    and install the older version.

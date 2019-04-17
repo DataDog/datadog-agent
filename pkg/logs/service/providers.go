@@ -13,4 +13,5 @@ import (
 const (
 	Docker     = containers.RuntimeNameDocker
 	Containerd = containers.RuntimeNameContainerd
+	CRIO       = containers.RuntimeNameCRIO
 )

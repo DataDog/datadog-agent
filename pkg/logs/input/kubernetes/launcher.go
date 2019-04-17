@@ -35,6 +35,8 @@ type Launcher struct {
 	dockerRemovedServices     chan *service.Service
 	containerdAddedServices   chan *service.Service
 	containerdRemovedServices chan *service.Service
+	crioAddedServices         chan *service.Service
+	crioRemovedServices       chan *service.Service
 	collectAll                bool
 }
 
@@ -67,6 +69,8 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 	launcher.dockerRemovedServices = services.GetRemovedServices(service.Docker)
 	launcher.containerdAddedServices = services.GetAddedServices(service.Containerd)
 	launcher.containerdRemovedServices = services.GetRemovedServices(service.Containerd)
+	launcher.crioAddedServices = services.GetAddedServices(service.CRIO)
+	launcher.crioRemovedServices = services.GetRemovedServices(service.CRIO)
 	return launcher, nil
 }
 
@@ -110,6 +114,10 @@ func (l *Launcher) run() {
 			l.addSource(service)
 		case service := <-l.containerdRemovedServices:
 			l.removeSource(service)
+		case service := <-l.crioAddedServices:
+			l.addSource(service)
+		case service := <-l.crioRemovedServices:
+			l.removeSource(service)
 		case <-l.stopped:
 			log.Info("Kubernetes launcher stopped")
 			return
@@ -145,7 +153,14 @@ func (l *Launcher) addSource(svc *service.Service) {
 		return
 	}
 
-	source.SetSourceType(svc.Type)
+	switch svc.Type {
+	case service.Docker:
+		// docker uses the NJSON format as opposed to other container runtimes
+		// to write log lines to files so there is no need for the custom kubernetes parser.
+		break
+	default:
+		source.SetSourceType(config.KubernetesSourceType)
+	}
 
 	l.sourcesByContainer[svc.GetEntityID()] = source
 	l.sources.AddSource(source)

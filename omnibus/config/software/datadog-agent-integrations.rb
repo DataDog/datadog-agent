@@ -15,9 +15,6 @@ if linux?
   # add nfsiostat script
   dependency 'unixodbc'
   dependency 'nfsiostat'
-end
-
-unless windows?
   # need kerberos for hdfs
   dependency 'libkrb5'
 end

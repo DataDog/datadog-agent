@@ -28,7 +28,7 @@ type KubeMetadataCollector struct {
 	kubeUtil  *kubelet.KubeUtil
 	apiClient *apiserver.APIClient
 	infoOut   chan<- []*TagInfo
-	dcaClient *clusteragent.DCAClient
+	dcaClient clusteragent.DCAClientInterface
 	// used to set a custom delay
 	lastUpdate time.Time
 	updateFreq time.Duration

@@ -26,7 +26,7 @@ The agent is highly customizable, here are the most used environment variables:
 - `DD_SITE`: Destination site for your metrics, traces, and logs. Valid options are datadoghq.com for the Datadog US site, and datadoghq.eu for the Datadog EU site.
 - `DD_HOSTNAME`: hostname to use for metrics (if autodetection fails)
 - `DD_TAGS`: host tags, separated by spaces. For example: `simple-tag-0 tag-key-1:tag-value-1`
-- `DD_CHECK_RUNNERS`: the agent runs all checks in sequence by default (default value = `1` runner). If you need to run a high number of checks (or slow checks) the `collector-queue` component might fall behind and fail the healthcheck. You can increase the number of runners to run checks in parallel
+- `DD_CHECK_RUNNERS`: the agent runs all checks concurrently by default (default value = `4` runners). To run the checks sequentially, set the value to `1`. If you need to run a high number of checks (or slow checks) the `collector-queue` component might fall behind and fail the healthcheck. You can increase the number of runners to run checks in parallel
 
 #### Proxies
 
@@ -58,6 +58,7 @@ Send custom metrics via [the statsd protocol](https://docs.datadoghq.com/develop
 - `DD_HISTOGRAM_AGGREGATES`: histogram aggregates to compute, separated by spaces. The default is "max median avg count"
 - `DD_DOGSTATSD_SOCKET`: path to the unix socket to listen to. Must be in a `rw` mounted volume.
 - `DD_DOGSTATSD_ORIGIN_DETECTION`: enable container detection and tagging for unix socket metrics. Running in host PID mode (e.g. with --pid=host) is required.
+- `DD_DOGSTATSD_TAGS`: Additional tags to append to all metrics, events and service checks received by this dogstatsd server, for example: `["env:golden", "group:retrievers"]`.
 
 #### Tagging
 
