@@ -31,6 +31,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -875,4 +876,47 @@ func TestKubeletTestSuite(t *testing.T) {
 		false,
 	)
 	suite.Run(t, new(KubeletTestSuite))
+}
+
+func TestSearchPodForContainerID(t *testing.T) {
+	k := newKubeUtil()
+
+	containerFoo := ContainerStatus{
+		Name:  "fooName",
+		Image: "fooImage",
+		ID:    "docker://fooID",
+	}
+	containerBar := ContainerStatus{
+		Name:  "barName",
+		Image: "barImage",
+		ID:    "docker://barID",
+	}
+	pod := &Pod{
+		Metadata: PodMetadata{
+			Name:      "podName",
+			Namespace: "podNamespace",
+			UID:       "podUID",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/fooName.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
+			},
+		},
+		Status: Status{
+			Containers: []ContainerStatus{containerFoo, containerBar},
+		},
+	}
+
+	serviceFoo := &service.Service{
+		Type:       "docker",
+		Identifier: "fooID",
+	}
+	serviceBaz := &service.Service{
+		Type:       "docker",
+		Identifier: "bazID",
+	}
+
+	container, _ := k.GetStatusForContainerID(pod, serviceFoo.GetEntityID())
+	assert.Equal(t, containerFoo, container)
+
+	_, err := k.GetStatusForContainerID(pod, serviceBaz.GetEntityID())
+	assert.EqualError(t, err, "Container docker://bazID not found")
 }

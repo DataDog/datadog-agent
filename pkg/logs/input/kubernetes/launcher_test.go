@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
 func TestGetSource(t *testing.T) {
@@ -125,47 +124,6 @@ func TestGetSourceAddContainerdParser(t *testing.T) {
 	source, err := launcher.getSource(pod, container)
 	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
-}
-
-func TestSearchContainer(t *testing.T) {
-	containerFoo := kubelet.ContainerStatus{
-		Name:  "fooName",
-		Image: "fooImage",
-		ID:    "docker://fooID",
-	}
-	containerBar := kubelet.ContainerStatus{
-		Name:  "barName",
-		Image: "barImage",
-		ID:    "docker://barID",
-	}
-	pod := &kubelet.Pod{
-		Metadata: kubelet.PodMetadata{
-			Name:      "podName",
-			Namespace: "podNamespace",
-			UID:       "podUID",
-			Annotations: map[string]string{
-				"ad.datadoghq.com/fooName.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
-			},
-		},
-		Status: kubelet.Status{
-			Containers: []kubelet.ContainerStatus{containerFoo, containerBar},
-		},
-	}
-
-	serviceFoo := &service.Service{
-		Type:       "docker",
-		Identifier: "fooID",
-	}
-	serviceBaz := &service.Service{
-		Type:       "docker",
-		Identifier: "bazID",
-	}
-
-	container, _ := searchContainer(serviceFoo, pod)
-	assert.Equal(t, containerFoo, container)
-
-	_, err := searchContainer(serviceBaz, pod)
-	assert.EqualError(t, err, "Container docker://bazID not found")
 }
 
 func TestContainerCollectAll(t *testing.T) {

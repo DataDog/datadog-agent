@@ -104,6 +104,16 @@ func (c *Config) IsTemplate() bool {
 	return len(c.ADIdentifiers) > 0
 }
 
+// IsCheckConfig returns true if the config is a node-agent check configuration,
+func (c *Config) IsCheckConfig() bool {
+	return c.ClusterCheck == false && len(c.Instances) > 0
+}
+
+// IsLogConfig returns true if config contains a logs config.
+func (c *Config) IsLogConfig() bool {
+	return c.LogsConfig != nil
+}
+
 // AddMetrics adds metrics to a check configuration
 func (c *Config) AddMetrics(metrics Data) error {
 	var rawInitConfig RawMap

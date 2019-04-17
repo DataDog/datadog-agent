@@ -48,6 +48,10 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
 
+	if resolvedConfig.IsCheckConfig() && !svc.IsReady() {
+		return resolvedConfig, errors.New("unable to resolve, service not ready")
+	}
+
 	tags, err := svc.GetTags()
 	if err != nil {
 		return resolvedConfig, err

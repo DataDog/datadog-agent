@@ -46,6 +46,7 @@ type KubeContainerService struct {
 	hosts         map[string]string
 	ports         []ContainerPort
 	creationTime  integration.CreationTime
+	ready         bool
 }
 
 // KubePodService registers pod as a Service, implements and store results from the Service interface for the Kubelet listener
@@ -75,9 +76,10 @@ func NewKubeletListener() (ServiceListener, error) {
 		watcher:  watcher,
 		filter:   filter,
 		services: make(map[string]Service),
-		ticker:   time.NewTicker(15 * time.Second),
-		stop:     make(chan bool),
-		health:   health.Register("ad-kubeletlistener"),
+		// FIXME make it configurable
+		ticker: time.NewTicker(1 * time.Second),
+		stop:   make(chan bool),
+		health: health.Register("ad-kubeletlistener"),
 	}, nil
 }
 
@@ -128,9 +130,15 @@ func (l *KubeletListener) Stop() {
 
 func (l *KubeletListener) processNewPods(pods []*kubelet.Pod, firstRun bool) {
 	for _, pod := range pods {
-		// Ignore pending/failed/succeeded/unknown states
-		if pod.Status.Phase == "Running" {
-			for _, container := range pod.Status.Containers {
+		// We ignore the state of the pod but only taking containers with ids
+		// into consideration (not pending)
+		for _, container := range pod.Status.InitContainers {
+			if container.ID != "" {
+				l.createService(container.ID, pod, firstRun)
+			}
+		}
+		for _, container := range pod.Status.Containers {
+			if container.ID != "" {
 				l.createService(container.ID, pod, firstRun)
 			}
 			l.createPodService(pod, firstRun)
@@ -196,12 +204,13 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 	svc := KubeContainerService{
 		entity:       entity,
 		creationTime: crTime,
+		ready:        kubelet.IsPodReady(pod),
 	}
 	podName := pod.Metadata.Name
 
 	// AD Identifiers
 	var containerName string
-	for _, container := range pod.Status.Containers {
+	for _, container := range append(pod.Status.InitContainers, pod.Status.Containers...) {
 		if container.ID == svc.entity {
 			if l.filter.IsExcluded(container.Name, container.Image) {
 				log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, container.Image)
@@ -332,6 +341,11 @@ func (s *KubeContainerService) GetCreationTime() integration.CreationTime {
 	return s.creationTime
 }
 
+// IsReady returns if the service is ready
+func (s *KubeContainerService) IsReady() bool {
+	return s.ready
+}
+
 // GetEntity returns the unique entity name linked to that service
 func (s *KubePodService) GetEntity() string {
 	return s.entity
@@ -370,4 +384,9 @@ func (s *KubePodService) GetHostname() (string, error) {
 // GetCreationTime returns the creation time of the container compare to the agent start.
 func (s *KubePodService) GetCreationTime() integration.CreationTime {
 	return s.creationTime
+}
+
+// IsReady returns if the service is ready
+func (s *KubePodService) IsReady() bool {
+	return true
 }

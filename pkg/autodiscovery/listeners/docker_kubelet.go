@@ -95,3 +95,13 @@ func (s *DockerKubeletService) GetPorts() ([]ContainerPort, error) {
 	s.Ports = ports
 	return ports, nil
 }
+
+// IsReady returns if the service is ready
+func (s *DockerKubeletService) IsReady() bool {
+	pod, err := s.getPod()
+	if err != nil {
+		return false
+	}
+
+	return kubelet.IsPodReady(pod)
+}

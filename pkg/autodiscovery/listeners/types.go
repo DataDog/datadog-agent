@@ -33,6 +33,7 @@ type Service interface {
 	GetPid() (int, error)                      // process identifier
 	GetHostname() (string, error)              // hostname.domainname for the entity
 	GetCreationTime() integration.CreationTime // created before or after the agent start
+	IsReady() bool                             // is the service ready to serve checks
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling

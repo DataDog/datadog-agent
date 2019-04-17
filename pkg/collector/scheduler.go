@@ -72,7 +72,7 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 // Unschedule unschedules checks matching configs
 func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !isCheckConfig(config) {
+		if !config.IsCheckConfig() {
 			// skip non check configs.
 			continue
 		}
@@ -173,7 +173,7 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 
 	var allChecks []check.Check
 	for _, config := range configs {
-		if !isCheckConfig(config) {
+		if !config.IsCheckConfig() {
 			// skip non check configs.
 			continue
 		}
@@ -193,11 +193,6 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 	}
 
 	return allChecks
-}
-
-// isCheckConfig returns true if the config is a node-agent check configuration,
-func isCheckConfig(config integration.Config) bool {
-	return config.ClusterCheck == false && len(config.Instances) > 0
 }
 
 // GetLoaderErrors returns the check loader errors
