@@ -189,7 +189,7 @@ func parseContainerHealth(status string) string {
 func parseContainerNetworkAddresses(ports []types.Port, netSettings *types.SummaryNetworkSettings, container string) []containers.NetworkAddress {
 	addrList := []containers.NetworkAddress{}
 	tempAddrList := []containers.NetworkAddress{}
-	if netSettings == nil || netSettings.Networks == nil || len(netSettings.Networks) == 0 {
+	if netSettings == nil || len(netSettings.Networks) == 0 {
 		log.Debugf("No network settings available from docker")
 		return addrList
 	}
