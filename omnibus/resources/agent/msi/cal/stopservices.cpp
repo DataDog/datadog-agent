@@ -676,6 +676,60 @@ public:
         CloseServiceHandle(hService);
         return retval;
     }
+    DWORD verify(SC_HANDLE hMgr)
+    {
+        SC_HANDLE hService = OpenService(hMgr, this->svcName, SC_MANAGER_ALL_ACCESS);
+        if (!hService) {
+            return GetLastError();
+        }
+        DWORD retval = 0;
+#define QUERY_BUF_SIZE 8192
+        //////
+        // from 6.11 to 6.12, the location of the service binary changed.  Check the location
+        // vs the expected location, and change if it's different
+        char * buf = new char[QUERY_BUF_SIZE];
+        memset(buf, 0, QUERY_BUF_SIZE);
+        QUERY_SERVICE_CONFIGW *cfg = (QUERY_SERVICE_CONFIGW*) buf;
+        DWORD needed = 0;
+        if(!QueryServiceConfigW(hService, cfg, QUERY_BUF_SIZE, &needed)){
+            // shouldn't ever fail.  WE're supplying the largest possible buffer
+            // according to the docs.
+            retval = GetLastError();
+            WcaLog(LOGMSG_STANDARD, "Failed to query service status %d\n", retval);
+            goto done_verify;
+        }
+        if(_wcsicmp(cfg->lpBinaryPathName, this->lpBinaryPathName) == 0) {
+            // nothing to do, already correctly configured
+            WcaLog(LOGMSG_STANDARD, "Service path already correct");
+        } else {
+            BOOL bRet = ChangeServiceConfigW(hService,
+                                            SERVICE_NO_CHANGE,
+                                            SERVICE_NO_CHANGE,
+                                            SERVICE_NO_CHANGE,
+                                            this->lpBinaryPathName,
+                                            NULL,
+                                            NULL,
+                                            NULL,
+                                            NULL,
+                                            NULL,
+                                            NULL);
+            if(!bRet) {
+                retval = GetLastError();
+                WcaLog(LOGMSG_STANDARD, "Failed to update service config %d\n", retval);
+                goto done_verify;
+            }
+            WcaLog(LOGMSG_STANDARD, "Updated path for existing service");
+        }
+
+    done_verify:
+        CloseServiceHandle(hService);
+        if(buf) {
+            delete [] buf;
+        }
+
+        return retval;
+
+    }
 };
 
 int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *password) {
@@ -779,4 +833,48 @@ int uninstallServices(MSIHANDLE hInstall, CustomActionData& data) {
     WcaLog(LOGMSG_STANDARD, "done uinstalling services");
     CloseServiceHandle(hScManager);
     return retval;
+}
+int verifyServices(MSIHANDLE hInstall, CustomActionData& data) 
+{
+    SC_HANDLE hScManager = NULL;
+    SC_HANDLE hService = NULL;
+    int retval = 0;
+    // Get a handle to the SCM database. 
+#define NUM_SERVICES 3
+    serviceDef services[NUM_SERVICES] = {
+        serviceDef(agentService.c_str(), L"DataDog Agent", L"Send metrics to DataDog",
+                   agent_exe.c_str(),
+                   L"winmgmt\0\0", SERVICE_AUTO_START, data.getFullUsername().c_str(), NULL),
+        serviceDef(traceService.c_str(), L"DataDog Trace Agent", L"Send tracing metrics to DataDog",
+                   trace_exe.c_str(),
+                   L"datadogagent\0\0", SERVICE_DEMAND_START, data.getFullUsername().c_str(), NULL),
+        serviceDef(processService.c_str(), L"DataDog Process Agent", L"Send process metrics to DataDog",
+                   process_exe.c_str(),
+                   L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL)
+
+    };
+    WcaLog(LOGMSG_STANDARD, "Installing services");
+    hScManager = OpenSCManager(
+        NULL,                    // local computer
+        NULL,                    // ServicesActive database 
+        SC_MANAGER_ALL_ACCESS);  // full access rights 
+
+    if (NULL == hScManager)
+    {
+        WcaLog(LOGMSG_STANDARD, "OpenSCManager failed (%d)\n", GetLastError());
+        return -1;
+    }
+    for (int i = 0; i < NUM_SERVICES; i++) {
+        WcaLog(LOGMSG_STANDARD, "updating service %d", i);
+        retval = services[i].verify(hScManager);
+        if (retval != 0) {
+            WcaLog(LOGMSG_STANDARD, "Failed to verify service %d %d 0x%x, rolling back", i, retval, retval);
+            break;
+        }
+    }
+    WcaLog(LOGMSG_STANDARD, "done updating services");
+   
+    CloseServiceHandle(hScManager);
+    return retval;
+
 }

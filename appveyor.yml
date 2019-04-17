@@ -45,7 +45,7 @@ test_script:
   - bash -c "make -C test run"
   - cd ..
   - inv -e deps
-  - inv -e test --coverage --profile --fail-on-fmt
+  - inv -e test --coverage --profile --fail-on-fmt --six-root=%APPVEYOR_BUILD_FOLDER%\dev
   - codecov -f profile.cov -F windows
 
 # uncomment to debug builds

@@ -31,7 +31,7 @@ func init() {
 	}
 	_here, err := executable.Folder()
 	if err == nil {
-		defaultDDAgentBin = filepath.Join(_here, "..", "..", "embedded", "agent.exe")
+		defaultDDAgentBin = filepath.Join(_here, "..", "bin", "agent.exe")
 	}
 
 }

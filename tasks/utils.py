@@ -50,7 +50,7 @@ def pkg_config_path(use_embedded_libs):
 
 
 def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use_venv=False,
-                    embedded_path=None):
+                    embedded_path=None, six_root=None):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -71,9 +71,14 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
         embedded_path = "{}/src/github.com/DataDog/datadog-agent/dev".format(os.environ.get('GOPATH'))
 
     env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '')
-    env['CGO_LDFLAGS'] += " -L{}/lib ".format(embedded_path)
+    if six_root is None:
+        env['CGO_LDFLAGS'] += " -L{}/lib ".format(embedded_path)
+    else:
+        env['CGO_LDFLAGS'] += " -L{}/six ".format(six_root)
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '')
     env['CGO_CFLAGS'] += " -w -I{}/include".format(embedded_path)
+    if six_root is not None:
+        env['CGO_CFLAGS'] += " -I{}/include".format(six_root)
 
     # Set PYTHONHOME: env vars take precedence, useful on CI systems
     pythonhome2 = os.environ.get('PYTHON_HOME_2', embedded_path)
