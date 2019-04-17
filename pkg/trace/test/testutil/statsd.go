@@ -3,6 +3,7 @@ package testutil
 import (
 	"math"
 	"sync"
+	"time"
 )
 
 // StatsClientGaugeArgs represents arguments to a StatsClient Gauge method call.
@@ -88,6 +89,11 @@ func (c *TestStatsClient) Histogram(name string, value float64, tags []string, r
 	defer c.mu.Unlock()
 	c.HistogramCalls = append(c.HistogramCalls, StatsClientHistogramArgs{Name: name, Value: value, Tags: tags, Rate: rate})
 	return c.HistogramErr
+}
+
+// Timing records a call to a Timing operation.
+func (c *TestStatsClient) Timing(name string, value time.Duration, tags []string, rate float64) error {
+	panic("(TestStatsClient).Timing is not implemented")
 }
 
 // GetCountSummaries computes summaries for all names supplied as parameters to Count calls.

@@ -132,6 +132,7 @@ func (ts *TagStats) publish() {
 	servicesBytes := atomic.LoadInt64(&ts.ServicesBytes)
 	eventsExtracted := atomic.LoadInt64(&ts.EventsExtracted)
 	eventsSampled := atomic.LoadInt64(&ts.EventsSampled)
+	requestsMade := atomic.LoadInt64(&ts.PayloadAccepted)
 
 	// Publish the stats
 	tags := ts.Tags.toArray()
@@ -153,6 +154,7 @@ func (ts *TagStats) publish() {
 	metrics.Count("datadog.trace_agent.receiver.services_bytes", servicesBytes, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.events_extracted", eventsExtracted, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.payload_accepted", requestsMade, tags, 1)
 }
 
 // Stats holds the metrics that will be reported every 10s by the agent.
@@ -190,6 +192,8 @@ type Stats struct {
 	EventsExtracted int64
 	// EventsSampled is the total number of APM events sampled.
 	EventsSampled int64
+	// PayloadAccepted counts the number of payloads that have been accepted by the HTTP handler.
+	PayloadAccepted int64
 }
 
 func (s *Stats) update(recent *Stats) {
@@ -209,6 +213,7 @@ func (s *Stats) update(recent *Stats) {
 	atomic.AddInt64(&s.ServicesBytes, atomic.LoadInt64(&recent.ServicesBytes))
 	atomic.AddInt64(&s.EventsExtracted, atomic.LoadInt64(&recent.EventsExtracted))
 	atomic.AddInt64(&s.EventsSampled, atomic.LoadInt64(&recent.EventsSampled))
+	atomic.AddInt64(&s.PayloadAccepted, atomic.LoadInt64(&recent.PayloadAccepted))
 }
 
 func (s *Stats) reset() {
@@ -228,6 +233,7 @@ func (s *Stats) reset() {
 	atomic.StoreInt64(&s.ServicesBytes, 0)
 	atomic.StoreInt64(&s.EventsExtracted, 0)
 	atomic.StoreInt64(&s.EventsSampled, 0)
+	atomic.StoreInt64(&s.PayloadAccepted, 0)
 }
 
 func (s *Stats) isEmpty() bool {

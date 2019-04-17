@@ -151,7 +151,7 @@ func TestLegacyReceiver(t *testing.T) {
 				assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 				assert.Equal("192.168.0.1", span.Meta["http.host"])
 				assert.Equal(41.99, span.Metrics["http.monitor"])
-			default:
+			case <-time.After(time.Second):
 				t.Fatalf("no data received")
 			}
 
@@ -214,7 +214,7 @@ func TestReceiverJSONDecoder(t *testing.T) {
 				assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 				assert.Equal("192.168.0.1", span.Meta["http.host"])
 				assert.Equal(41.99, span.Metrics["http.monitor"])
-			default:
+			case <-time.After(time.Second):
 				t.Fatalf("no data received")
 			}
 
@@ -281,7 +281,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 					assert.Equal("192.168.0.1", span.Meta["http.host"])
 					assert.Equal(41.99, span.Metrics["http.monitor"])
-				default:
+				case <-time.After(time.Second):
 					t.Fatalf("no data received")
 				}
 
@@ -303,7 +303,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 					assert.Equal("192.168.0.1", span.Meta["http.host"])
 					assert.Equal(41.99, span.Metrics["http.monitor"])
-				default:
+				case <-time.After(time.Second):
 					t.Fatalf("no data received")
 				}
 
@@ -593,7 +593,7 @@ func TestReceiverPreSamplerCancel(t *testing.T) {
 					assert.NoError(err)
 					resp.Body.Close()
 					switch resp.StatusCode {
-					case http.StatusNotAcceptable:
+					case http.StatusTooManyRequests:
 						atomic.AddUint64(&sampled, 1)
 						assert.Contains(string(slurp), "request rejected; trace-agent is past cpu threshold (apm_config.max_cpu_percent:")
 					case http.StatusOK:
@@ -812,12 +812,12 @@ func TestWatchdog(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if resp.StatusCode == http.StatusNotAcceptable {
+		if resp.StatusCode == http.StatusTooManyRequests {
 			break // 👍
 		}
 		time.Sleep(2 * conf.WatchdogInterval)
 	}
-	if resp.StatusCode != http.StatusNotAcceptable {
+	if resp.StatusCode != http.StatusTooManyRequests {
 		t.Fatalf("didn't close, got %d", resp.StatusCode)
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -72,6 +73,7 @@ type HTTPReceiver struct {
 	debug                bool
 	refuse               int64 // when set to 1 agent will refuse payloads
 
+	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
 }
 
@@ -167,10 +169,14 @@ func (r *HTTPReceiver) Stop() error {
 
 	r.PreSampler.Stop()
 
-	expiry := time.Now().Add(20 * time.Second) // give it 20 seconds
+	expiry := time.Now().Add(5 * time.Second) // give it 5 seconds
 	ctx, cancel := context.WithDeadline(context.Background(), expiry)
 	defer cancel()
-	return r.server.Shutdown(ctx)
+	if err := r.server.Shutdown(ctx); err != nil {
+		return err
+	}
+	r.wg.Wait()
+	return nil
 }
 
 func (r *HTTPReceiver) httpHandle(fn http.HandlerFunc) http.HandlerFunc {
@@ -215,7 +221,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	if atomic.LoadInt64(&r.refuse) == 1 {
 		// using too much memory
 		io.Copy(ioutil.Discard, req.Body)
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusTooManyRequests)
 		io.WriteString(w, fmt.Sprintf("request rejected; trace-agent is past memory threshold (apm_config.max_memory: %.0f bytes)", r.conf.MaxMemory))
 		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, []string{"reason:mem"}, 1)
 		return
@@ -223,7 +229,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	if !r.PreSampler.Sample(req) {
 		// using too much CPU
 		io.Copy(ioutil.Discard, req.Body)
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusTooManyRequests)
 		io.WriteString(w, fmt.Sprintf("request rejected; trace-agent is past cpu threshold (apm_config.max_cpu_percent: %.1f)", r.conf.MaxCPU*100))
 		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, []string{"reason:cpu"}, 1)
 		return
@@ -234,30 +240,37 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		return
 	}
 
-	// We successfully decoded the payload
 	r.replyTraces(v, w)
 
-	// We parse the tags from the header
-	tags := info.Tags{
+	ts := r.Stats.GetTagStats(info.Tags{
 		Lang:          req.Header.Get("Datadog-Meta-Lang"),
 		LangVersion:   req.Header.Get("Datadog-Meta-Lang-Version"),
 		Interpreter:   req.Header.Get("Datadog-Meta-Lang-Interpreter"),
 		TracerVersion: req.Header.Get("Datadog-Meta-Tracer-Version"),
-	}
+	})
 
-	// We get the address of the struct holding the stats associated to the tags
-	ts := r.Stats.GetTagStats(tags)
+	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
+	atomic.AddInt64(&ts.TracesBytes, int64(req.Body.(*LimitedReader).Count))
+	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
-	bytesRead := req.Body.(*LimitedReader).Count
-	if bytesRead > 0 {
-		atomic.AddInt64(&ts.TracesBytes, int64(bytesRead))
-	}
+	r.wg.Add(1)
+	go func() {
+		defer func() {
+			r.wg.Done()
+			watchdog.LogOnPanic()
+		}()
+		r.processTraces(ts, traces)
+	}()
+}
 
-	// normalize data
+func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
+	now := time.Now()
+	defer func() {
+		metrics.Timing("datadog.trace_agent.receiver.process_traces_ms", time.Since(now), nil, 1)
+	}()
 	for _, trace := range traces {
 		spans := len(trace)
 
-		atomic.AddInt64(&ts.TracesReceived, 1)
 		atomic.AddInt64(&ts.SpansReceived, int64(spans))
 
 		err := normalizeTrace(trace)

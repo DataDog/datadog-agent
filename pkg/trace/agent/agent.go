@@ -138,7 +138,7 @@ func (a *Agent) loop() {
 		case t := <-a.Receiver.Out:
 			a.Process(t)
 		case <-a.ctx.Done():
-			log.Info("exiting")
+			log.Info("Exiting...")
 			if err := a.Receiver.Stop(); err != nil {
 				log.Error(err)
 			}
