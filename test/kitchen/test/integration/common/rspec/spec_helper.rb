@@ -28,7 +28,7 @@ end
 
 def agent_command
   if os == :windows
-    '"C:\\Program Files\\Datadog\\Datadog Agent\\embedded\\agent.exe"'
+    '"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"'
   else
     "sudo datadog-agent"
   end
@@ -439,7 +439,7 @@ shared_examples_for 'an Agent that is removed' do
     if os != :windows
       agent_path = '/usr/bin/datadog-agent'
     else
-      agent_path = "C:\\Program Files\\Datadog\\Datadog Agent\\embedded\\agent.exe"
+      agent_path = "C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
     end
     expect(File).not_to exist(agent_path)
   end

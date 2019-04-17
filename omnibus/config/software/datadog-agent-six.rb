@@ -27,10 +27,12 @@ else
     env = {
         "Python2_ROOT_DIR" => "#{windows_safe_path(python_2_embedded)}",
         "Python3_ROOT_DIR" => "#{windows_safe_path(python_3_embedded)}",
+        "CMAKE_INSTALL_PREFIX" => "#{windows_safe_path(python_2_embedded)}"
     }
 
-    command "cmake -G \"Unix Makefiles\" .", :env => env
+    command "cmake -G \"Unix Makefiles\" -DCMAKE_INSTALL_PREFIX:PATH=#{windows_safe_path(python_2_embedded)} .", :env => env
     command "make -j #{workers}"
-    command "make install"
+    command "mv bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
+
   end
 end

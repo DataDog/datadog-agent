@@ -233,6 +233,14 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
         keyRollback.setStringValue(installInstalledServices.c_str(), L"true");
         keyInstall.setStringValue(installInstalledServices.c_str(), L"true");
 
+    } else {
+        WcaLog(LOGMSG_STANDARD, "updating existing service record");
+        int ret = verifyServices(hInstall, data);
+        if (ret != 0) {
+            WcaLog(LOGMSG_STANDARD, "Failed to updated existing services");
+            er = ERROR_INSTALL_FAILURE;
+            goto LExit;
+        }
     }
     er = addDdUserPermsToFile(data, programdataroot);
     WcaLog(LOGMSG_STANDARD, "%d setting programdata dir perms", er);

@@ -202,7 +202,7 @@
     <!-- Let's ship our dist folder with the service and gui executables -->
     <DirectoryRef Id="PROJECTLOCATION">
       <!-- put the agent in the embedded folder so that it can find the python DLLS -->
-      <Directory Id="DIST" Name="embedded">
+      <Directory Id="BIN" Name="bin">
         <!-- Windows service declaration for Datadog Agent -->
         <Component Id="DATADOGAGENTSERVICE" Guid="BCFAD885-5C69-49D3-99CB-494D14E87AAE">
           <File Id="agent.exe"
@@ -223,8 +223,19 @@
 
 
         </Component>
-      </Directory>
-      <Directory Id="BIN" Name="bin">
+        <Component Id="SIXDLLS" Guid="E81FBBB0-7BB9-4D52-A5F1-36A2123E6979">
+          <File Id="twodll"
+                Name="libdatadog-agent-two.dll"
+                Vital="yes"
+                KeyPath="yes"
+                DiskId="1"
+                Source="$(var.BinFiles)/libdatadog-agent-two.dll"/>
+          <File Id="threedll"
+                Name="libdatadog-agent-three.dll"
+                Vital="yes"
+                DiskId="1"
+                Source="$(var.BinFiles)/libdatadog-agent-three.dll"/>
+        </Component>
         <Directory Id="AGENT" Name="agent">
           <!-- Windows service declaration for APM agent -->
           <Component Id="DATADOGAPMSERVICE" Guid="a8e611fa-aedb-4c16-969c-bb827af0bd53">
@@ -379,6 +390,7 @@
       <ComponentRef Id="REGISTRYDIRECTORY" />
       <ComponentRef Id="ApplicationShortcut" />
       <ComponentRef Id="DATADOGAGENTSERVICE" />
+      <ComponentRef Id="SIXDLLS" />
       <ComponentRef Id="DATADOGAPMSERVICE" />
       <ComponentRef Id="DATADOGPROCESSSERVICE" />
       <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />
