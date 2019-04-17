@@ -282,7 +282,7 @@ func (j *JMXFetch) Stop() error {
 	} else {
 		// Windows
 		if err := ioutil.WriteFile(j.exitFilePath, nil, 0644); err != nil {
-			log.Warnf("Could not signal JMXFetch to exit, killing instead", err)
+			log.Warnf("Could not signal JMXFetch to exit, killing instead: %v", err)
 			return j.cmd.Process.Kill()
 		}
 	}
