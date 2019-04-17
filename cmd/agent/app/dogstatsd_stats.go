@@ -96,22 +96,23 @@ func requestDogstatsdStats() error {
 		}
 	}
 
-	if dsdStatsFilePath != "" {
-		// if the file is already existing, ask for a confirmation.
-		if _, err := os.Stat(dsdStatsFilePath); err == nil {
-			if !input.AskForConfirmation(fmt.Sprintf("'%s' existing, do you wan't to overwrite it?", dsdStatsFilePath)) {
-				fmt.Println("Canceling.")
-				return nil
-			}
-		}
-
-		if err := ioutil.WriteFile(dsdStatsFilePath, []byte(s), 0644); err != nil {
-			fmt.Println("Error while writing the file (is the location writable by the dd-agent user?):", err)
-		} else {
-			fmt.Println("Dogstatsd stats written in:", dsdStatsFilePath)
-		}
-	} else {
+	if dsdStatsFilePath == "" {
 		fmt.Println(s)
+		return nil
+	}
+
+	// if the file is already existing, ask for a confirmation.
+	if _, err := os.Stat(dsdStatsFilePath); err == nil {
+		if !input.AskForConfirmation(fmt.Sprintf("'%s' existing, do you wan't to overwrite it? [Y/N]", dsdStatsFilePath)) {
+			fmt.Println("Canceling.")
+			return nil
+		}
+	}
+
+	if err := ioutil.WriteFile(dsdStatsFilePath, []byte(s), 0644); err != nil {
+		fmt.Println("Error while writing the file (is the location writable by the dd-agent user?):", err)
+	} else {
+		fmt.Println("Dogstatsd stats written in:", dsdStatsFilePath)
 	}
 
 	return nil
