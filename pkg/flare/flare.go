@@ -32,6 +32,7 @@ type flareResponse struct {
 // SendFlareWithHostname sends a flare with a set hostname
 func SendFlareWithHostname(archivePath string, caseID string, email string, hostname string) (string, error) {
 	bodyReader, bodyWriter := io.Pipe()
+	defer bodyReader.Close()
 	writer := multipart.NewWriter(bodyWriter)
 
 	//Write stuff to the pipe will block until it is read from the other end, so we don't load everything in memory
