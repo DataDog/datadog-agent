@@ -52,14 +52,10 @@ if ohai["platform"] != "windows"
 
   build do
     ship_license "PSFL"
-    patch :source => "python-2.7.11-avoid-allocating-thunks-in-ctypes.patch" if linux?
-    patch :source => "python-2.7.11-fix-platform-ubuntu.diff" if linux?
-
     command python_configure.join(" "), :env => env
     command "make -j #{workers}", :env => env
     command "make install", :env => env
     delete "#{install_dir}/embedded/lib/python2.7/test"
-
 
     block do
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python2.7/lib-dynload/readline.*"))
@@ -75,7 +71,7 @@ else
   source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
          :sha256 => "6b9fdc51dde1ba6ae4cb698451900e1f8f1900ff1d56d9166dbeab06b10a4dce",
          :extract => :seven_zip
-  
+
   build do
     #
     # expand python zip into the embedded directory
