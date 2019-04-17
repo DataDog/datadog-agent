@@ -16,9 +16,7 @@ int parseArgs(PyObject *args, char **id, int *cardinality)
     PyGILState_STATE gstate = PyGILState_Ensure();
 
     if (!PyArg_ParseTuple(args, "si", id, cardinality)) {
-        PyErr_SetString(PyExc_TypeError, "wrong parameters type");
         PyGILState_Release(gstate);
-        // we need to return NULL to raise the exception set by PyErr_SetString
         return 0;
     }
     PyGILState_Release(gstate);

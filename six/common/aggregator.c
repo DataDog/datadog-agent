@@ -136,7 +136,6 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
 
     // Python call: aggregator.submit_metric(self, check_id, aggregator.metric_type.GAUGE, name, value, tags, hostname)
     if (!PyArg_ParseTuple(args, "OsisfOs", &check, &check_id, &mt, &name, &value, &py_tags, &hostname)) {
-        PyErr_SetString(PyExc_TypeError, "wrong parameters type");
         goto error;
     }
 
@@ -152,7 +151,6 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
 
 error:
     PyGILState_Release(gstate);
-    // we need to return NULL to raise the exception set by PyErr_SetString
     return NULL;
 }
 
@@ -175,7 +173,6 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args) {
 
     // aggregator.submit_service_check(self, check_id, name, status, tags, hostname, message)
     if (!PyArg_ParseTuple(args, "OssiOss", &check, &check_id, &name, &status, &py_tags, &hostname, &message)) {
-        PyErr_SetString(PyExc_TypeError, "wrong parameters type");
         goto error;
     }
 
@@ -191,7 +188,6 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args) {
 
 error:
     PyGILState_Release(gstate);
-    // we need to return NULL to raise the exception set by PyErr_SetString
     return NULL;
 }
 
@@ -210,7 +206,6 @@ static PyObject *submit_event(PyObject *self, PyObject *args) {
 
     // aggregator.submit_event(self, check_id, event)
     if (!PyArg_ParseTuple(args, "OsO", &check, &check_id, &event_dict)) {
-        PyErr_SetString(PyExc_TypeError, "wrong parameters type");
         PyGILState_Release(gstate);
         // returning NULL to raise error
         return NULL;

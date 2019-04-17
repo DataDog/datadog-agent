@@ -3,6 +3,7 @@ package testaggregator
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"testing"
 )
 
@@ -56,7 +57,7 @@ func TestSubmitMetricParsingError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "TypeError: wrong parameters type" {
+	if matched, err := regexp.Match("TypeError: argument 2 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("wrong printed value: '%s'", out)
 	}
 }
@@ -112,7 +113,7 @@ func TestSubmitServiceCheckParsingError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "TypeError: wrong parameters type" {
+	if matched, err := regexp.Match("TypeError: argument 1 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("wrong printed value: '%s'", out)
 	}
 }
@@ -214,7 +215,7 @@ func TestEventCheckParsingError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "TypeError: wrong parameters type" {
+	if matched, err := regexp.Match("TypeError: argument 2 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("wrong printed value: '%s'", out)
 	}
 }
