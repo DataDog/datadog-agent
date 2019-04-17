@@ -11,24 +11,28 @@
 
 static six_t *six;
 
-void get_tags(char *id, int highCard, char **data)
+char **get_tags(char *id, int highCard)
 {
     printf("I'm extending Python tagger.get_tags:\n");
     printf("id: %s\n", id);
     printf("highCard: %d\n", highCard);
 
-    *data = _strdup("[\"tag1\",\"tag2\",\"tag3\"]");
-    return;
+    char **data = malloc(sizeof(*data) * 4);
+    data[0] = strdup("tag1");
+    data[1] = strdup("tag2");
+    data[2] = strdup("tag3");
+    data[3] = NULL;
+    return data;
 }
 
-void submitMetric(char *id, metric_type_t mt, char *name, float val, char **tags, int tags_num, char *hostname)
+void submitMetric(char *id, metric_type_t mt, char *name, float val, char **tags,  char *hostname)
 {
     printf("I'm extending Python providing aggregator.submit_metric:\n");
     printf("Check id: %s\n", id);
     printf("Metric '%s': %f\n", name, val);
     printf("Tags:\n");
     int i;
-    for (i = 0; i < tags_num; i++) {
+    for (i = 0; tags[i]; i++) {
         printf(" %s", tags[i]);
     }
     printf("\n");
@@ -94,7 +98,7 @@ int main(int argc, char *argv[])
 
     // set submitMetric callback
     set_submit_metric_cb(six, submitMetric);
-    set_get_tags_cb(six, get_tags);
+    set_tags_cb(six, get_tags);
 
     if (!init(six)) {
         printf("Error initializing six: %s\n", get_error(six));

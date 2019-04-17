@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	common "github.com/DataDog/datadog-agent/six/test/common"
 )
@@ -13,7 +14,7 @@ import (
 // #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
 // #include <datadog_agent_six.h>
 //
-// extern void is_excluded(char *, char*, int*);
+// extern int is_excluded(char *, char*);
 //
 // static void initContainersTests(six_t *six) {
 //    set_is_excluded_cb(six, is_excluded);
@@ -68,7 +69,7 @@ try:
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
-		f.write("{}\n".format(e))
+		f.write("{}: {}\n".format(type(e).__name__, e))
 `, call, tmpfile.Name()))
 
 	ret := C.run_simple_string(six, code) == 1
@@ -78,14 +79,13 @@ except Exception as e:
 
 	output, err := ioutil.ReadFile(tmpfile.Name())
 
-	return string(output), err
+	return strings.TrimSpace(string(output)), err
 }
 
 //export is_excluded
-func is_excluded(name *C.char, image *C.char, out *C.int) {
+func is_excluded(name *C.char, image *C.char) C.int {
 	if C.GoString(name) == "foo" {
-		*out = 1
-	} else {
-		*out = 0
+		return 1
 	}
+	return 0
 }

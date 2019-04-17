@@ -104,6 +104,15 @@ void initTaggerModule(six_t *six) {
 	set_tags_cb(six, Tags);
 }
 
+//
+// containers module
+//
+
+int IsContainerExcluded(char *, char *);
+
+void initContainersModule(six_t *six) {
+	set_is_excluded_cb(six, IsContainerExcluded);
+}
 */
 import "C"
 
@@ -199,6 +208,8 @@ func Initialize(paths ...string) error {
 	C.initAggregatorModule(six)
 	C.initUtilModule(six)
 	C.initTaggerModule(six)
+	initContainerFilter() // special init for the container go code
+	C.initContainersModule(six)
 	return nil
 }
 
