@@ -29,14 +29,14 @@ Upgrade Notes
 - APM: logging format has been changed to match the format of the core agent.
 
 - Metrics coming through dogstatsd with the following internal prefixes: ``activemq``, ``activemq_58``,
-  ``cassandra``, ``jvm`, ``presto``, ``solr``, ``tomcat``, ``kafka``, ``datadog.trace_agent``,
+  ``cassandra``, ``jvm``, ``presto``, ``solr``, ``tomcat``, ``kafka``, ``datadog.trace_agent``,
   ``datadog.process``, ``datadog.agent``, ``datadog.dogstatsd`` are no longer affected by the
   ``statsd_metric_namespace`` option.
 
 - Removed the internal ability to send logs to a specific logset at agent level.
 
 - On Windows, the Datadog Agent now runs as a non-privileged user
-  (ddagentuser by default) rather than LOCAL_SYSTEM.
+  (ddagentuser by default) rather than LOCAL_SYSTEM. Please refer to our `dedicated docs <https://docs.datadoghq.com/agent/faq/windows-agent-ddagent-user/>`_ for more information
 
 - The Windows installer will no longer allow direct downgrades; if
   a downgrade is required, the user must uninstall the newer version
