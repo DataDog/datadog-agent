@@ -52,6 +52,10 @@ if ohai["platform"] != "windows"
 
   build do
     ship_license "PSFL"
+
+    patch :source => "avoid-allocating-thunks-in-ctypes.patch" if linux?
+    patch :source => "fix-platform-ubuntu.diff" if linux?
+
     command python_configure.join(" "), :env => env
     command "make -j #{workers}", :env => env
     command "make install", :env => env
