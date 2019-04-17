@@ -2,6 +2,209 @@
 Release Notes
 =============
 
+.. _Release Notes_6.11.0:
+
+6.11.0
+======
+
+.. _Release Notes_6.11.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-04-17
+
+- Please refer to the `6.11.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6110>`_ for the list of changes on the Core Checks.
+
+- Please refer to the `6.11.0 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.11.0>`_ for the list of changes on the Process Agent.
+
+
+.. _Release Notes_6.11.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- APM: move flush notifications from level "INFO" to "DEBUG"
+
+- APM: logging format has been changed to match the format of the core agent.
+
+- Metrics coming through dogstatsd with the following internal prefixes: ``activemq``, ``activemq_58``,
+  ``cassandra``, ``jvm`, ``presto``, ``solr``, ``tomcat``, ``kafka``, ``datadog.trace_agent``,
+  ``datadog.process``, ``datadog.agent``, ``datadog.dogstatsd`` are no longer affected by the
+  ``statsd_metric_namespace`` option.
+
+- Removed the internal ability to send logs to a specific logset at agent level.
+
+- On Windows, the Datadog Agent now runs as a non-privileged user
+  (ddagentuser by default) rather than LOCAL_SYSTEM.
+
+- The Windows installer will no longer allow direct downgrades; if
+  a downgrade is required, the user must uninstall the newer version
+  and install the older version.
+
+
+.. _Release Notes_6.11.0_New Features:
+
+New Features
+------------
+
+- Secrets beta feature is now available on windows allowing users to pull
+  secrets from secret management services.
+
+- APM: JSON logging is now supported using the `log_format_json: true` setting.
+
+- Collect container thread count and thread limit
+
+- JMXFetch upgraded to 0.27.0. See `0.27.0  <https://github.com/DataDog/jmxfetch/releases/tag/0.27.0>`_ for more details.
+
+- The agent now ignores pod that exited more than 15 minutes ago to
+  reduce its resource footprint when pods are not garbage-collected.
+  This is configurable with the kubernetes_pod_expiration_duration option.
+
+- Now support CRI-O container runtime for log collection on Kubernetes.
+
+- Automatically add a "dirname" tag representing the directory of logs tailed from a wildcard path.
+
+
+.. _Release Notes_6.11.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- AutoDiscovery can now monitor unready pods.
+  It looks for a new pod annotation "ad.datadoghq.com/tolerate-unready"
+  which, if set to `true` will make AutoDiscovery monitor that pod
+  regardless of its readiness state.
+
+- Add the ability for the ``datadog-agent check`` command to have Python checks start
+  an `interactive debugging session <https://docs.python.org/2/library/pdb.html>`_.
+
+- Change the logging format to include the name of the logging agent instead of appending it in the agent container logs.
+
+- Add /metrics to the bare endpoints the agent can access.
+  This is required to support querying endpoints protected by
+  RBAC, by kube-rbac-proxy for instance.
+
+- APM: errors reported by the receiver's HTTP server are now
+  shown in the logs.
+
+- APM: slightly improved normalization error logs.
+
+- On Windows, allows Agent to be installed to nonstandard directories.
+  Uses APPLICATIONDATADIRECTORY to set the root of the configuration file tree,
+  and PROJECTLOCATION to set the root of the binary tree. Please refer to
+  the `docs <https://docs.datadoghq.com/agent/basic_agent_usage/windows>`_
+  for more details
+
+- In order to decrease the number of API DCA requests,
+  The Agent now uses a different API endpoint to call
+  the DCA's API only once in order to retrieve the Pods
+  metadata.
+
+- Host metadata payloads are now zlib-compressed
+
+- Log file size and number of rotation is now configurable.
+
+- Add a command `dogstatsd-stats` to the agent to get
+  basic stats about the processed metrics.
+
+- Support JSON arrays within environment variables, in addition to space separated
+  values.
+
+- On Google Compute Engine, the Agent now reports `<instance_name>.<project_id>`
+  as a host alias instead of `<hostname_prefix>.<prefix_id>`, which improves the
+  uniqueness and relevance of the host alias when the GCE instance has a custom hostname.
+
+- The import command doesn't stop anymore when there is no ``conf.d`` or
+  ``auto_conf`` directory.
+
+- Kubernetes event collection timeout can now be configured.
+
+- Improve status page by splitting errors and warnings from the Logs agent
+
+- Secrets are no longer decrypted in agent command when it's not needed
+  (commands like hostname, launchgui, configuration ...). This reduce the
+  number of times the 'secret_command_backend' executable will be called.
+
+- Improved memory efficiency on hosts sending very high numbers of metrics.
+
+- Resolve once the DNS name given by docker and try the associated IP to reach the kubelet.
+  Prioritize HTTPS over HTTP to connect to kubelet.
+  Prioritize communication using IPs over hostnames to spare DNS servers accross the cluster.
+
+
+.. _Release Notes_6.11.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Removal of largely unused go SNMP check. SNMP support still
+  provided by the python variant.
+
+
+.. _Release Notes_6.11.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix an auto-discovery annotation value parsing limitation in version 6
+  compared to version 5.
+  Now, ``ad.datadoghq.com/*.instances`` annotation key supports value like ``[[{"foo":"bar1"}, {"foo":"bar2"}], {"name":"bar3"}]``
+
+- The agent container will now output valid JSON when using JSON log format.
+
+- APM: Multiple value "Content-Type" headers are now parsed correctly
+  for media type in the HTTP receiver.
+
+- APM: always reply with correct Content-Type in API responses.
+
+- APM: when a span's resource is empty, the error "`Resource` can not be empty"
+  will be returned instead of the wrong "`Resource` is invalid UTF-8".
+
+- APM: sensitive information is now scrubbed from logs.
+
+- APM: Fix issue with `--version` flag when API key is unset.
+
+- APM: Ensure UTF-8 characters are not cut mid-way when truncating
+  span fields.
+
+- Metrics coming through dogstatsd with the following internal prefixes: ``activemq``, ``activemq_58``,
+  ``cassandra``, ``jvm`, ``presto``, ``solr``, ``tomcat``, ``kafka``, ``datadog.trace_agent``,
+  ``datadog.process``, ``datadog.agent``, ``datadog.dogstatsd`` are no longer affected by the
+  ``statsd_metric_namespace`` option.
+
+- Fixes ec2 tags collection when datadog agent is deployed
+  into a kubernetes cluster along with kube2iam.
+
+- Fixes bug in which upgrading from agent5 doesn't correctly import the configuration
+
+- Fix a race condition in gohai that could make the Agent crash while collecting
+  the host's filesystem metadata
+
+- Hostnames containing characters that are invalid for a filename no longer prevent the agent
+  from generating a flare.
+
+- Allow macOS users to invoke the `datadog-agent integration` command as root since the installation directory is owned by root.
+
+- Change to a randomized exponential backoff in case of connection failure
+
+- Ignore empty logs_dd_url to fall back on default config for logs agent.
+
+- Detect and handle Docker logs with only header and empty content
+
+- To mitigate issues with the hostname detection on AKS, hostnames gathered from
+  the metadata endpoints of AWS, GCE, Azure, and Alibaba cloud are no longer considered
+  valid if their length exceeds 255 characters.
+
+
+.. _Release Notes_6.11.0_Other Notes:
+
+Other Notes
+-----------
+
+- Bump embedded Python to 2.7.16
+
+
 6.10.2
 ======
 
