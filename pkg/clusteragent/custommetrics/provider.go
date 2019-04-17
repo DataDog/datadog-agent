@@ -39,7 +39,7 @@ type datadogProvider struct {
 	externalMetrics []externalMetric
 	resVersion      string
 	store           Store
-	serving         bool
+	isServing       bool
 	timestamp       int64
 	maxAge          int64
 }
@@ -90,7 +90,7 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 			rawMetrics, err := p.store.ListAllExternalMetricValues()
 			if err != nil {
 				log.Errorf("Could not list the external metrics in the store: %s", err.Error())
-				p.serving = false
+				p.isServing = false
 				break
 			}
 
@@ -118,16 +118,17 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 			}
 			p.externalMetrics = externalMetricsList
 			p.timestamp = metav1.Now().Unix()
-			p.serving = true
+			p.isServing = true
 
 			out.resetTimer()
 
 		case <-out.timer.C:
+			log.Error("Timeout while processing the collection of external metrics")
 			cancel()
 
 		case <-ctxCancel.Done():
-			p.serving = false
-			log.Error("Received instruction to Terminate collection of External Metrics, stopping async loop")
+			p.isServing = false
+			log.Infof("Received instruction to terminate collection of External Metrics, stopping async loop")
 			return
 		}
 	}
@@ -151,7 +152,7 @@ func (p *datadogProvider) ListAllMetrics() []provider.CustomMetricInfo {
 
 // ListAllExternalMetrics lists the available External Metrics at the time.
 func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo {
-	if !p.serving {
+	if !p.isServing {
 		return nil
 	}
 	var externalMetricsInfoList []provider.ExternalMetricInfo
@@ -165,7 +166,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 // GetExternalMetric is called by the PodAutoscaler Controller to get the value of the external metric it is currently evaluating.
 func (p *datadogProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 
-	if time.Now().Unix()-p.timestamp > 2*p.maxAge || !p.serving {
+	if !p.isServing || time.Now().Unix()-p.timestamp > 2*p.maxAge {
 		return nil, fmt.Errorf("external metrics invalid")
 	}
 

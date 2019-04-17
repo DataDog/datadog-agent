@@ -98,7 +98,7 @@ func TestListAllExternalMetrics(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			dp := datadogProvider{
 				externalMetrics: test.cached,
-				serving:         true,
+				isServing:       true,
 			}
 			output := dp.ListAllExternalMetrics()
 			require.Equal(t, len(test.cached), len(output))
@@ -266,7 +266,7 @@ func TestGetExternalMetric(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			dp := datadogProvider{
 				externalMetrics: test.metricsStored,
-				serving:         true,
+				isServing:       true,
 				maxAge:          math.MaxInt32, // to avoid flackiness
 			}
 			output, err := dp.GetExternalMetric(test.compared.namespace, test.compared.labels.AsSelector(), test.compared.name)

@@ -184,8 +184,7 @@ func (h *AutoscalersController) updateExternalMetrics() {
 		if _, ok := globalCache[i]; !ok {
 			globalCache[i] = j
 		} else {
-			eq := reflect.DeepEqual(j.Labels, globalCache[i].Labels)
-			if !eq {
+			if !reflect.DeepEqual(j.Labels, globalCache[i].Labels) {
 				globalCache[i] = j
 			}
 		}
@@ -300,9 +299,9 @@ func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
 		}
 		new := h.hpaProc.ProcessHPAs(hpa)
 		h.toStore.m.Lock()
-		for e, i := range new {
+		for metric, value := range new {
 			// We should only insert placeholders in the local cache.
-			h.toStore.data[e] = i
+			h.toStore.data[metric] = value
 		}
 		h.toStore.m.Unlock()
 
