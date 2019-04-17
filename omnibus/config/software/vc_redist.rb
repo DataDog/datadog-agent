@@ -13,6 +13,6 @@ build do
   # as a DLL, we need to redistribute the CRT DLLS.  We (now) need the DLLS in
   # both embedded and dist, as we have executables in each of those directories
   # that require them.
-  command "XCOPY /YEH .\\*.* \"#{windows_safe_path(install_dir)}\\embedded\" /IR"
+  command "XCOPY /YEH .\\*.* \"#{windows_safe_path(python_2_embedded)}\" /IR"
 
 end

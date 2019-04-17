@@ -26,3 +26,4 @@ if ENV["S3_OMNIBUS_CACHE_BUCKET"]
     s3_instance_profile true
   end
 end
+use_git_caching false

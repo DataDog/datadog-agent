@@ -44,7 +44,7 @@ DEFAULT_TEST_TARGETS = [
 @task()
 def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
     race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False,
-    cpus=0, timeout=120):
+    cpus=0, timeout=120, six_root=None):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -85,7 +85,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
 
-    ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
+    ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs, six_root=six_root)
 
     if profile:
         test_profiler = TestProfiler()
