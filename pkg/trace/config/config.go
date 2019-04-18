@@ -104,6 +104,7 @@ type AgentConfig struct {
 	// transaction analytics
 	AnalyzedRateByServiceLegacy map[string]float64
 	AnalyzedSpansByService      map[string]map[string]float64
+	DefaultAnalyzedRate         float64
 
 	// infrastructure agent binary
 	DDAgentBin string // DDAgentBin will be "" for Agent5 scenarios

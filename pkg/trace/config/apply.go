@@ -286,6 +286,11 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		}
 	}
 
+	// undocumeted
+	if config.Datadog.IsSet("apm_config.default_analyzed_rate") {
+		c.DefaultAnalyzedRate = config.Datadog.GetFloat64("apm_config.default_analyzed_rate")
+	}
+
 	// undocumented
 	if config.Datadog.IsSet("apm_config.dd_agent_bin") {
 		c.DDAgentBin = config.Datadog.GetString("apm_config.dd_agent_bin")

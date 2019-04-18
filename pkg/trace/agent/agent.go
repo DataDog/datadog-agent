@@ -353,6 +353,8 @@ func eventProcessorFromConf(conf *config.AgentConfig) *event.Processor {
 		extractors = append(extractors, event.NewFixedRateExtractor(conf.AnalyzedSpansByService))
 	} else if len(conf.AnalyzedRateByServiceLegacy) > 0 {
 		extractors = append(extractors, event.NewLegacyExtractor(conf.AnalyzedRateByServiceLegacy))
+	} else if conf.DefaultAnalyzedRate > 0 {
+		extractors = append(extractors, event.NewFallbackExtractor(conf.DefaultAnalyzedRate))
 	}
 
 	return event.NewProcessor(extractors, conf.MaxEPS)
