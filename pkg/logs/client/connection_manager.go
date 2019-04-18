@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -128,7 +129,7 @@ func (cm *ConnectionManager) address() string {
 // CloseConnection closes a connection on the client side
 func (cm *ConnectionManager) CloseConnection(conn net.Conn) {
 	conn.Close()
-	log.Info("Connection closed")
+	log.Debug("Connection closed")
 }
 
 // handleServerClose lets the connection manager detect when a connection
@@ -141,6 +142,8 @@ func (cm *ConnectionManager) handleServerClose(conn net.Conn) {
 		_, err := conn.Read(buff)
 		if err == io.EOF {
 			cm.CloseConnection(conn)
+			return
+		} else if isClosedConnError(err) {
 			return
 		} else if err != nil {
 			log.Warn(err)
@@ -164,4 +167,10 @@ func (cm *ConnectionManager) backoff(ctx context.Context, retries uint) {
 	ctx, cancel := context.WithTimeout(ctx, backoffDuration)
 	defer cancel()
 	<-ctx.Done()
+}
+
+// isConnClosedError returns true if the error is related to a closed connection,
+// for more details, see: https://golang.org/src/internal/poll/fd.go#L18.
+func isClosedConnError(err error) bool {
+	return strings.Contains(err.Error(), "use of closed network connection")
 }

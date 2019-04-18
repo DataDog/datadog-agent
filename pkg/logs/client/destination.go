@@ -27,9 +27,9 @@ const separator = " "
 
 var (
 	// The maximum duration after which a connection get reset.
-	connLifetimeInHours = 12 * time.Hour
+	connLifetimeInHours = 2 * time.Hour
 	// The width of the connection-reset spread.
-	connLifetimeSpread = 120
+	connLifetimeSpread = 5
 	// The time unit of the spread.
 	connLifetimeSpreadUnit = time.Minute
 )
@@ -80,9 +80,11 @@ func (d *Destination) Send(payload []byte) error {
 	if d.isConnectionExpired() {
 		// reset the connection to make sure the load is evenly spread
 		// and the agent can target new nodes.
+		log.Debug("Connection is expired")
 		d.closeConnection()
 	}
 	if d.conn == nil {
+		log.Debug("Opening a new connection")
 		if err := d.openConnection(); err != nil {
 			return err
 		}
@@ -96,6 +98,7 @@ func (d *Destination) Send(payload []byte) error {
 
 	_, err = d.conn.Write(frame)
 	if err != nil {
+		log.Debug("Closing the connection")
 		d.closeConnection()
 		return err
 	}
