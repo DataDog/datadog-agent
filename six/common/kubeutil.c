@@ -11,10 +11,10 @@
 static cb_get_connection_info_t cb_get_connection_info = NULL;
 
 // forward declarations
-static PyObject *get_connection_info(PyObject *self, PyObject *args);
+static PyObject *get_connection_info();
 
 static PyMethodDef methods[] = {
-    { "get_connection_info", get_connection_info, METH_VARARGS, "Get kubelet connection information." },
+    { "get_connection_info", (PyCFunction)get_connection_info, METH_NOARGS, "Get kubelet connection information." },
     { NULL, NULL } // guards
 };
 
@@ -42,12 +42,11 @@ void _set_get_connection_info_cb(cb_get_connection_info_t cb)
     cb_get_connection_info = cb;
 }
 
-PyObject *get_connection_info(PyObject *self, PyObject *args)
+PyObject *get_connection_info()
 {
     // callback must be set
-    if (cb_get_connection_info == NULL) {
+    if (cb_get_connection_info == NULL)
         Py_RETURN_NONE;
-    }
 
     char *data = NULL;
     cb_get_connection_info(&data);
@@ -59,8 +58,7 @@ PyObject *get_connection_info(PyObject *self, PyObject *args)
     cgo_free(data);
 
     if (conn_info_dict == NULL || !PyDict_Check(conn_info_dict)) {
-        Py_RETURN_NONE;
+        return PyDict_New();
     }
-
     return conn_info_dict;
 }

@@ -35,3 +35,21 @@ func TestGetConnectionInfo(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 }
+
+func TestGetConnectionInfoNoKubeutil(t *testing.T) {
+	returnNull = true
+	defer func() { returnNull = false }()
+
+	code := fmt.Sprintf(`
+	d = kubeutil.get_connection_info()
+	with open(r'%s', 'w') as f:
+		f.write("{}".format(d))
+	`, tmpfile.Name())
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "{}" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}

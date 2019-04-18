@@ -22,8 +22,9 @@ import (
 import "C"
 
 var (
-	six     *C.six_t
-	tmpfile *os.File
+	six        *C.six_t
+	tmpfile    *os.File
+	returnNull bool
 )
 
 func setUp() error {
@@ -78,6 +79,10 @@ except Exception as e:
 
 //export getConnectionInfo
 func getConnectionInfo(in **C.char) {
+	if returnNull {
+		return
+	}
+
 	h := map[string]string{
 		"FooKey": "FooValue",
 		"BarKey": "BarValue",
