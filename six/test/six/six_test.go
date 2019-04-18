@@ -106,3 +106,22 @@ func TestGetIntegrationsList(t *testing.T) {
 		t.Fatalf("Expected %v, got %v", expected, res)
 	}
 }
+
+func TestSetModuleAttrString(t *testing.T) {
+	setModuleAttrString("sys", "test", "hello")
+
+	code := fmt.Sprintf(`
+import sys
+with open(r'%s', 'w') as f:
+	f.write(getattr(sys, "test", "attr 'test' not set"))`, tmpfile.Name())
+
+	output, err := runString(code)
+
+	if err != nil {
+		t.Fatalf("`run_simple_string` error: %v", err)
+	}
+
+	if output != "hello" {
+		t.Errorf("Unexpected printed value: '%s'", output)
+	}
+}

@@ -43,6 +43,7 @@ public:
     void free(void *);
     virtual void decref(SixPyObject *) = 0;
     virtual void incref(SixPyObject *) = 0;
+    virtual void set_module_attr_string(char *module, char *attr, char *value) = 0;
 
     // Public Const API
     virtual bool isInitialized() const = 0;

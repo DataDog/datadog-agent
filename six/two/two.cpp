@@ -526,6 +526,22 @@ void Two::incref(SixPyObject *obj)
     Py_XINCREF(reinterpret_cast<SixPyObject *>(obj));
 }
 
+void Two::set_module_attr_string(char *module, char *attr, char *value)
+{
+    PyObject *py_module = PyImport_ImportModule(module);
+    if (!py_module) {
+        setError("error importing python '" + std::string(module) + "' module: " + _fetchPythonError());
+        return;
+    }
+
+    PyObject *py_value = PyStringFromCString(value);
+    if (PyObject_SetAttrString(py_module, attr, py_value) != 0)
+        setError("error setting the '" + std::string(module)+ "." + std::string(attr) + "' attribute: " + _fetchPythonError());
+
+    Py_XDECREF(py_module);
+    Py_XDECREF(py_value);
+}
+
 void Two::setSubmitMetricCb(cb_submit_metric_t cb)
 {
     _set_submit_metric_cb(cb);

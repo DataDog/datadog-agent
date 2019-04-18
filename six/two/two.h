@@ -32,6 +32,7 @@ public:
     const char *runCheck(SixPyObject *check);
     void decref(SixPyObject *obj);
     void incref(SixPyObject *obj);
+    void set_module_attr_string(char *module, char *attr, char *value);
 
     // const API
     bool isInitialized() const;
