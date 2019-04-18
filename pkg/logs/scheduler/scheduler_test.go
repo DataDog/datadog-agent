@@ -35,7 +35,7 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 	logSource := <-logSourcesStream
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
-	assert.Equal(t, "", logSource.GetSourceType())
+	assert.Equal(t, config.SourceType(""), logSource.GetSourceType())
 	assert.Equal(t, "foo", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
@@ -84,7 +84,7 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	logSource := <-logSourcesStream
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
-	assert.Equal(t, "", logSource.GetSourceType())
+	assert.Equal(t, config.SourceType(""), logSource.GetSourceType())
 	assert.Equal(t, "foo", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, config.DockerType, logSource.Config.Type)

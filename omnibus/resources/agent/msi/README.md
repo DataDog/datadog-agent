@@ -56,3 +56,16 @@ The following configuration command line options are available when installing t
   * Sets the **process_dd_url** variable in the **process_config** section in datadog.yaml to _string_. 
 * TRACE_DD_URL="_string_"
   * Sets the **apm_dd_url** variable in the **apm_config** section in datadog.yaml to _string_. 
+* DDAGENTUSER_NAME="_username_"
+  * Creates/uses _username_ as user context for running the agent
+* DDAGENTUSER_PASSWORD="_password_"
+  * Specifies password to assign to ddagentuser, or use for existing ddagentuser
+  * Must be provided for domain server installs
+* APPLICATIONDATADIRECTORY="_path_"
+  * Specifies the directory to use for the configuration file directory tree
+  * Replaces default _c:\programdata\datadog_
+  * Must only be provided on initial install; not valid for upgrades
+* PROJECTLOCATION="_path_"
+  * Specifies the directory to use for the binary file directory tree
+  * Replaces default _c:\Program Files\Datadog\Datadog Agent_
+  * Must only be provided on initial install; not valid for upgrades

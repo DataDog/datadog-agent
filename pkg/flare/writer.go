@@ -8,6 +8,7 @@ package flare
 import (
 	"bufio"
 	"errors"
+	"io"
 	"io/ioutil"
 	"os"
 
@@ -95,7 +96,11 @@ func (f *RedactingWriter) Write(p []byte) (int, error) {
 		n, err = f.target.Write(cleaned)
 	}
 
-	return n, err
+	if n != len(cleaned) {
+		err = io.ErrShortWrite
+	}
+
+	return len(p), err
 }
 
 //Truncate truncates the file of the target file to the specified size

@@ -131,6 +131,9 @@ void getOsStrings()
             programdataroot = outstr;
             programdataroot += datadogdir;
         }
+        if(programdataroot.back() != L'\\'){
+            programdataroot += L"\\";
+        }
     }
     if(!ddroot.getStringValue(L"InstallPath", installdir))
     {
@@ -139,16 +142,19 @@ void getOsStrings()
             programfiles = outstr;
             installdir = programfiles + datadogdir;
         }
+        if(installdir.back() != L'\\'){
+            installdir += L"\\";
+        }
     }
-    agent_exe = installdir + L"\\embedded\\agent.exe";
-    process_exe = installdir + L"\\bin\\agent\\process-agent.exe";
-    trace_exe = installdir + L"\\bin\\agent\\trace-agent.exe";
-    
     logfilename = programdataroot + logsSuffix;
     authtokenfilename = programdataroot + authTokenSuffix;
     datadogyamlfile = programdataroot + datadogyaml;
     confddir = programdataroot + confdsuffix;
     logdir = programdataroot + logsdirsuffix;
+
+    agent_exe = installdir + L"embedded\\agent.exe";
+    process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=" + programdataroot + L"datadog.yaml" ;
+    trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=" + programdataroot + L"datadog.yaml" ;
 
     datadog_acl_key_datadog = datadog_acl_key_datadog_base + datadog_path;
 

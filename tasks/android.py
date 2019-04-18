@@ -89,9 +89,9 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     pwd = os.getcwd()
     os.chdir("cmd/agent/android")
     if sys.platform == 'win32':
-        cmd = "gradlew.bat build"
+        cmd = "gradlew.bat --no-daemon build"
     else:
-        cmd = "./gradlew build"
+        cmd = "./gradlew --no-daemon build"
     ctx.run(cmd)
     os.chdir(pwd)
     ver = get_version(ctx, include_git=True, git_sha_length=7)

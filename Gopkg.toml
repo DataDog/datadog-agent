@@ -20,7 +20,7 @@
 
 [[constraint]]
   name = "github.com/beevik/ntp"
-  revision = "cb3dae3a7588ae35829eb5724df611cd75152fba"
+  version = "~0.2.0"
 
 [[constraint]]
   name = "github.com/cihub/seelog"
@@ -124,7 +124,7 @@
 
 [[constraint]]
   name = "github.com/DataDog/viper"
-  revision = "v1.5.0"
+  version = "~v1.6.0"
 
 [[constraint]]
   name = "github.com/coreos/go-systemd"
@@ -136,8 +136,7 @@
 
 [[constraint]]
   name = "gopkg.in/yaml.v2"
-  # branch = "v2"
-  revision = "d670f9405373e636a5a2765eea47fac0c9bc91a4"
+  version = "~v2.2.2"
 
 [[constraint]]
   name = "gopkg.in/zorkian/go-datadog-api.v2"

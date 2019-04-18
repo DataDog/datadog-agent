@@ -170,19 +170,19 @@ func ImportRegistryConfig() error {
 
 	var val string
 
-	if val, _, err = k.GetStringValue("api_key"); err == nil {
+	if val, _, err = k.GetStringValue("api_key"); err == nil && val != "" {
 		overrides["api_key"] = val
 		log.Debug("Setting API key")
 	} else {
 		log.Debug("API key not found, not setting")
 	}
-	if val, _, err = k.GetStringValue("tags"); err == nil {
+	if val, _, err = k.GetStringValue("tags"); err == nil && val != "" {
 		overrides["tags"] = strings.Split(val, ",")
 		log.Debugf("Setting tags %s", val)
 	} else {
 		log.Debug("Tags not found, not setting")
 	}
-	if val, _, err = k.GetStringValue("hostname"); err == nil {
+	if val, _, err = k.GetStringValue("hostname"); err == nil && val != "" {
 		overrides["hostname"] = val
 		log.Debugf("Setting hostname %s", val)
 	} else {
