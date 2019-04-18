@@ -253,17 +253,10 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	atomic.AddInt64(&ts.TracesBytes, int64(req.Body.(*LimitedReader).Count))
 	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
-	r.wg.Add(1)
-	go func() {
-		defer func() {
-			r.wg.Done()
-			watchdog.LogOnPanic()
-		}()
-		r.processTraces(ts, traces)
-	}()
+	r.processTraces(ts, traces)
 }
 
-func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
+func (r *HTTPReceiver)  processTraces(ts *info.TagStats, traces pb.Traces) {
 	now := time.Now()
 	defer func() {
 		metrics.Timing("datadog.trace_agent.receiver.process_traces_ms", time.Since(now), nil, 1)
@@ -287,7 +280,16 @@ func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
 			continue
 		}
 
-		r.Out <- trace
+		select {
+		case r.Out <- trace:
+			// if our downstream consumer is slow, we drop the trace on the floor
+			// this is a safety net against us using too much memory
+			// when clients flood us
+		default:
+			atomic.AddInt64(&ts.TracesDropped, 1)
+			atomic.AddInt64(&ts.SpansDropped, int64(spans))
+			log.Errorf("dropping trace; reason: too-many-traces")
+		}
 	}
 }
 

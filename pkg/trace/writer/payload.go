@@ -3,6 +3,7 @@ package writer
 import (
 	"container/list"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
@@ -135,6 +136,11 @@ func (s *queuableSender) Monitor() <-chan monitorEvent {
 
 // send will send the provided payload without any checks.
 func (s *queuableSender) doSend(payload *payload) (sendStats, error) {
+	now := time.Now()
+	defer func() {
+		metrics.Timing("datadog.trace_agent.sender.send.time", time.Since(now), nil, 1)
+	}()
+
 	if payload == nil {
 		return sendStats{}, nil
 	}

@@ -149,6 +149,11 @@ func (w *TraceWriter) Stop() {
 }
 
 func (w *TraceWriter) handleSampledTrace(sampledTrace *TracePackage) {
+	now := time.Now()
+	defer func() {
+		metrics.Timing("datadog.trace_agent.writer.handleSampledTrace.time", time.Since(now), nil, 1)
+	}()
+
 	if sampledTrace == nil || sampledTrace.Empty() {
 		log.Debug("Ignoring empty sampled trace")
 		return
@@ -202,6 +207,11 @@ func (w *TraceWriter) flushDueToMaxSpansPerPayload() {
 }
 
 func (w *TraceWriter) flush() {
+	now := time.Now()
+	defer func() {
+		metrics.Timing("datadog.trace_agent.writer.flush.time", time.Since(now), nil, 1)
+	}()
+
 	numTraces := len(w.traces)
 	numEvents := len(w.events)
 
