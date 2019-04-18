@@ -10,7 +10,7 @@ ALL_TAGS = set([
     "apm",
     "clusterchecks",
     "consul",
-    "python",
+    "cpython",
     "cri",
     "containerd",
     "docker",
