@@ -2,6 +2,7 @@
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-2019 Datadog, Inc.
+
 require "./lib/ostools.rb"
 
 name 'agent'
@@ -109,6 +110,7 @@ if linux?
   dependency 'curl'
 end
 
+dependency 'cacerts'
 # creates required build directories
 dependency 'datadog-agent-prepare'
 
@@ -116,16 +118,24 @@ dependency 'datadog-agent-prepare'
 dependency 'datadog-agent'
 
 # Additional software
-dependency 'cacerts'
-dependency 'datadog-a7'
+dependency 'pip'
 dependency 'datadog-agent-integrations'
+dependency 'datadog-a7'
+dependency 'datadog-agent-env-check'
+dependency 'jmxfetch'
+
+# External agents
+dependency 'datadog-process-agent' # Includes network-tracer
+
 if osx?
   dependency 'datadog-agent-mac-app'
 end
 
-# External agents
-dependency 'datadog-process-agent' # Includes network-tracer
-dependency 'jmxfetch'
+# Remove pyc/pyo files from package
+# should be built after all the other python-related software defs
+unless osx?
+  dependency 'py-compiled-cleanup'
+end
 
 # version manifest file
 dependency 'version-manifest'
@@ -136,6 +146,7 @@ dependency 'version-manifest'
 # process where we operate outside the omnibus install dir, thus the need of
 # the `extra_package_file` directive.
 # This must be the last dependency in the project.
+
 dependency 'datadog-agent-finalize'
 
 if linux?
