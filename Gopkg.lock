@@ -147,11 +147,12 @@
   version = "v1.12.79"
 
 [[projects]]
-  digest = "1:6be42bbbddbfee4a16898ac880e57f98db1a458c45059ff0fbb95a5824143ad9"
+  digest = "1:69cd4c6b99da8496362f344d4ef292bb353877a91b998935a44eab294b593a20"
   name = "github.com/beevik/ntp"
   packages = ["."]
   pruneopts = ""
-  revision = "cb3dae3a7588ae35829eb5724df611cd75152fba"
+  revision = "62c80a04de2086884d8296004b6d74ee1846c582"
+  version = "v0.2.0"
 
 [[projects]]
   branch = "master"
@@ -1268,14 +1269,18 @@
   digest = "1:1b5927d8f58faa4702a58cee18096fe7aa4c074dcd20f3b5c60d23a18059676d"
   name = "golang.org/x/net"
   packages = [
+    "bpf",
     "context",
     "context/ctxhttp",
     "http/httpguts",
     "http2",
     "http2/hpack",
     "idna",
+    "internal/iana",
+    "internal/socket",
     "internal/socks",
     "internal/timeseries",
+    "ipv4",
     "proxy",
     "trace",
     "websocket",

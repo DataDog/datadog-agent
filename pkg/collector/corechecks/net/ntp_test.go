@@ -29,13 +29,21 @@ timeout: 5
 	offset = 10
 )
 
-func testNTPQueryError(host string, version int) (*ntp.Response, error) {
+func testNTPQueryError(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
 	return nil, fmt.Errorf("test error from NTP")
 }
 
-func testNTPQuery(host string, version int) (*ntp.Response, error) {
+func testNTPQueryInvalid(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
 	return &ntp.Response{
 		ClockOffset: time.Duration(offset) * time.Second,
+		Stratum:     20,
+	}, nil
+}
+
+func testNTPQuery(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+	return &ntp.Response{
+		ClockOffset: time.Duration(offset) * time.Second,
+		Stratum:     1,
 	}, nil
 }
 
@@ -45,7 +53,7 @@ func TestNTPOK(t *testing.T) {
 
 	offset = 21
 	ntpQuery = testNTPQuery
-	defer func() { ntpQuery = ntp.Query }()
+	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
 	ntpCheck.Configure(ntpCfg, ntpInitCfg)
@@ -75,7 +83,7 @@ func TestNTPCritical(t *testing.T) {
 
 	offset = 100
 	ntpQuery = testNTPQuery
-	defer func() { ntpQuery = ntp.Query }()
+	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
 	ntpCheck.Configure(ntpCfg, ntpInitCfg)
@@ -104,7 +112,35 @@ func TestNTPError(t *testing.T) {
 	var ntpInitCfg = []byte("")
 
 	ntpQuery = testNTPQueryError
-	defer func() { ntpQuery = ntp.Query }()
+	defer func() { ntpQuery = ntp.QueryWithOptions }()
+
+	ntpCheck := new(NTPCheck)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+
+	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+
+	mockSender.On("ServiceCheck",
+		"ntp.in_sync",
+		metrics.ServiceCheckUnknown,
+		"",
+		[]string(nil),
+		mock.AnythingOfType("string")).Return().Times(1)
+
+	mockSender.On("Commit").Return().Times(1)
+	ntpCheck.Run()
+
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 0)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
+	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestNTPInvalid(t *testing.T) {
+	var ntpCfg = []byte(ntpCfgString)
+	var ntpInitCfg = []byte("")
+
+	ntpQuery = testNTPQueryInvalid
+	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
 	ntpCheck.Configure(ntpCfg, ntpInitCfg)
@@ -133,7 +169,7 @@ func TestNTPNegativeOffsetCritical(t *testing.T) {
 
 	offset = -100
 	ntpQuery = testNTPQuery
-	defer func() { ntpQuery = ntp.Query }()
+	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
 	ntpCheck.Configure(ntpCfg, ntpInitCfg)
@@ -167,13 +203,14 @@ hosts:
 	var ntpInitCfg = []byte("")
 
 	offset = 1
-	ntpQuery = func(host string, version int) (*ntp.Response, error) {
+	ntpQuery = func(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
 		o, _ := strconv.Atoi(host)
 		return &ntp.Response{
 			ClockOffset: time.Duration(o) * time.Second,
+			Stratum:     15,
 		}, nil
 	}
-	defer func() { ntpQuery = ntp.Query }()
+	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
 	ntpCheck.Configure(ntpCfg, ntpInitCfg)
@@ -207,13 +244,14 @@ hosts:
 	var ntpInitCfg = []byte("")
 
 	offset = 1
-	ntpQuery = func(host string, version int) (*ntp.Response, error) {
+	ntpQuery = func(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
 		o, _ := strconv.Atoi(host)
 		return &ntp.Response{
 			ClockOffset: time.Duration(o) * time.Second,
+			Stratum:     15,
 		}, nil
 	}
-	defer func() { ntpQuery = ntp.Query }()
+	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
 	ntpCheck.Configure(ntpCfg, ntpInitCfg)
