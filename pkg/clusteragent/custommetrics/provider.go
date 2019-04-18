@@ -8,8 +8,10 @@
 package custommetrics
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -34,23 +36,101 @@ type datadogProvider struct {
 	client dynamic.Interface
 	mapper apimeta.RESTMapper
 
-	values          map[provider.CustomMetricInfo]int64
 	externalMetrics []externalMetric
 	resVersion      string
 	store           Store
+	isServing       bool
 	timestamp       int64
 	maxAge          int64
 }
 
 // NewDatadogProvider creates a Custom Metrics and External Metrics Provider.
-func NewDatadogProvider(client dynamic.Interface, mapper apimeta.RESTMapper, store Store) provider.MetricsProvider {
+func NewDatadogProvider(ctx context.Context, client dynamic.Interface, mapper apimeta.RESTMapper, store Store) provider.MetricsProvider {
 	maxAge := config.Datadog.GetInt64("external_metrics_provider.local_copy_refresh_rate")
-	return &datadogProvider{
+	d := &datadogProvider{
 		client: client,
 		mapper: mapper,
-		values: make(map[provider.CustomMetricInfo]int64),
 		store:  store,
 		maxAge: maxAge,
+	}
+	go d.externalMetricsSetter(ctx)
+	return d
+}
+
+type timer struct {
+	period time.Duration
+	timer  time.Timer
+}
+
+func (t *timer) resetTimer() {
+	t.timer.Stop()
+	t.timer = *time.NewTimer(t.period)
+}
+
+func createTimer(period time.Duration) *timer {
+	return &timer{period, *time.NewTimer(period)}
+}
+
+func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
+	log.Infof("Starting async loop to collect External Metrics")
+	tick := time.NewTicker(time.Duration(p.maxAge) * time.Second)
+	defer tick.Stop()
+	out := createTimer(3 * time.Duration(p.maxAge) * time.Second)
+	defer out.timer.Stop()
+
+	// If we exceed 3 retries trying to access the ConfigMap, we permafail and stop trying to refresh the External Metrics.
+	ctxCancel, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	for {
+		select {
+		case <-tick.C:
+			var externalMetricsList []externalMetric
+			// TODO as we implement a more resilient logic to access a potentially deleted CM, we should pass in ctxCancel in case of permafail.
+			rawMetrics, err := p.store.ListAllExternalMetricValues()
+			if err != nil {
+				log.Errorf("Could not list the external metrics in the store: %s", err.Error())
+				p.isServing = false
+				break
+			}
+
+			for _, metric := range rawMetrics {
+				// Only metrics that exist in Datadog and available are eligible to be evaluated in the HPA process.
+				if !metric.Valid {
+					continue
+				}
+				var extMetric externalMetric
+				extMetric.info = provider.ExternalMetricInfo{
+					Metric: metric.MetricName,
+				}
+				// Avoid overflowing when trying to get a 10^3 precision
+				q, err := resource.ParseQuantity(fmt.Sprintf("%v", metric.Value))
+				if err != nil {
+					log.Errorf("Could not parse the metric value: %v into the exponential format", metric.Value)
+					continue
+				}
+				extMetric.value = external_metrics.ExternalMetricValue{
+					MetricName:   metric.MetricName,
+					MetricLabels: metric.Labels,
+					Value:        q,
+				}
+				externalMetricsList = append(externalMetricsList, extMetric)
+			}
+			p.externalMetrics = externalMetricsList
+			p.timestamp = metav1.Now().Unix()
+			p.isServing = true
+
+			out.resetTimer()
+
+		case <-out.timer.C:
+			log.Error("Timeout while processing the collection of external metrics")
+			cancel()
+
+		case <-ctxCancel.Done():
+			p.isServing = false
+			log.Infof("Received instruction to terminate collection of External Metrics, stopping async loop")
+			return
+		}
 	}
 }
 
@@ -70,70 +150,27 @@ func (p *datadogProvider) ListAllMetrics() []provider.CustomMetricInfo {
 	return nil
 }
 
-// ListAllExternalMetrics is called every 30 seconds, although this is configurable on the API Server's end.
+// ListAllExternalMetrics lists the available External Metrics at the time.
 func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo {
+	if !p.isServing {
+		return nil
+	}
 	var externalMetricsInfoList []provider.ExternalMetricInfo
-	var externalMetricsList []externalMetric
-
-	copyAge := metav1.Now().Unix() - p.timestamp
-	if copyAge < p.maxAge {
-		log.Tracef("Local copy is recent enough, not querying the GlobalStore. Remaining %d seconds before next sync", p.maxAge-copyAge)
-		for _, in := range p.externalMetrics {
-			externalMetricsInfoList = append(externalMetricsInfoList, in.info)
-		}
-		return externalMetricsInfoList
+	log.Tracef("Listing available metrics as of %s", time.Unix(p.timestamp, 0).Format(time.RFC850))
+	for _, metric := range p.externalMetrics {
+		externalMetricsInfoList = append(externalMetricsInfoList, metric.info)
 	}
-
-	log.Debugf("Local copy of external metrics from the global store is outdated by %d seconds, resyncing now", copyAge-p.maxAge)
-	rawMetrics, err := p.store.ListAllExternalMetricValues()
-	if err != nil {
-		log.Errorf("Could not list the external metrics in the store: %s", err.Error())
-		return externalMetricsInfoList
-	}
-
-	for _, metric := range rawMetrics {
-		// Only metrics that exist in Datadog and available are eligible to be evaluated in the HPA process.
-		if !metric.Valid {
-			continue
-		}
-		var extMetric externalMetric
-		extMetric.info = provider.ExternalMetricInfo{
-			Metric: metric.MetricName,
-		}
-		// Avoid overflowing when trying to get a 10^3 precision
-		q, err := resource.ParseQuantity(fmt.Sprintf("%v", metric.Value))
-		if err != nil {
-			log.Errorf("Could not parse the metric value: %v into the exponential format", metric.Value)
-			continue
-		}
-		extMetric.value = external_metrics.ExternalMetricValue{
-			MetricName:   metric.MetricName,
-			MetricLabels: metric.Labels,
-			Value:        q,
-		}
-		externalMetricsList = append(externalMetricsList, extMetric)
-
-		externalMetricsInfoList = append(externalMetricsInfoList, provider.ExternalMetricInfo{
-			Metric: metric.MetricName,
-		})
-	}
-	p.externalMetrics = externalMetricsList
-	p.timestamp = metav1.Now().Unix()
-	log.Debugf("ListAllExternalMetrics returns %d metrics", len(externalMetricsInfoList))
 	return externalMetricsInfoList
 }
 
-// GetExternalMetric is called every 30 seconds as a result of:
-// - The registering of the External Metrics Provider
-// - The creation of a HPA manifest with an External metrics type.
-// - The validation of the metrics against Datadog
-// Every replica answering to a ListAllExternalMetrics will populate its cache with a copy of the global cache.
-// If the copy does not exist or is too old (>1 HPA controller default run cycle) we refresh it.
+// GetExternalMetric is called by the PodAutoscaler Controller to get the value of the external metric it is currently evaluating.
 func (p *datadogProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
+
+	if !p.isServing || time.Now().Unix()-p.timestamp > 2*p.maxAge {
+		return nil, fmt.Errorf("external metrics invalid")
+	}
+
 	matchingMetrics := []external_metrics.ExternalMetricValue{}
-
-	p.ListAllExternalMetrics() // get up to date values from the cache or the Global Store
-
 	for _, metric := range p.externalMetrics {
 		metricFromDatadog := external_metrics.ExternalMetricValue{
 			MetricName:   metric.info.Metric,
@@ -151,7 +188,7 @@ func (p *datadogProvider) GetExternalMetric(namespace string, metricSelector lab
 			matchingMetrics = append(matchingMetrics, metricValue)
 		}
 	}
-	log.Tracef("External metrics returned: %#v", matchingMetrics)
+	log.Debugf("External metrics returned: %#v", matchingMetrics)
 	return &external_metrics.ExternalMetricValueList{
 		Items: matchingMetrics,
 	}, nil

@@ -48,18 +48,18 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 
 	tests := []struct {
 		desc     string
-		metrics  []ExternalMetricValue
+		metrics  map[string]ExternalMetricValue
 		expected []ExternalMetricValue
 	}{
 		{
 			"same metric with different hpas and labels",
-			[]ExternalMetricValue{
-				{
+			map[string]ExternalMetricValue{
+				"external_metric-default-foo-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
 					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
 				},
-				{
+				"external_metric-default-bar-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
 					HPA:        ObjectReference{Name: "bar", Namespace: "default"},
@@ -80,13 +80,13 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 		},
 		{
 			"same metric with different owners and same labels",
-			[]ExternalMetricValue{
-				{
+			map[string]ExternalMetricValue{
+				"external_metric-default-foo-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
 					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
 				},
-				{
+				"external_metric-default-bar-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
 					HPA:        ObjectReference{Name: "bar", Namespace: "default"},
@@ -106,14 +106,14 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			},
 		},
 		{
-			"same metric with same owners and different labels",
-			[]ExternalMetricValue{
-				{
-					MetricName: "requests_per_s",
+			"different metric with same owners and different labels",
+			map[string]ExternalMetricValue{
+				"external_metric-default-foo-requests_per_s_2": {
+					MetricName: "requests_per_s_2",
 					Labels:     map[string]string{"role": "frontend"},
 					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
 				},
-				{
+				"external_metric-default-foo-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
 					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
@@ -123,6 +123,10 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
+					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+				}, {
+					MetricName: "requests_per_s_2",
+					Labels:     map[string]string{"role": "frontend"},
 					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
 				},
 			},
@@ -184,7 +188,7 @@ func TestExternalMetricValueKeyFunc(t *testing.T) {
 
 	for i, tt := range test {
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
-			out := externalMetricValueKeyFunc(tt.emval)
+			out := ExternalMetricValueKeyFunc(tt.emval)
 			assert.Equal(t, tt.output, out)
 		})
 	}
