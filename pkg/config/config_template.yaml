@@ -55,7 +55,7 @@ api_key:
 # hostname_fqdn: false
 
 ## @param tags  - list of key:value elements - optional
-## List of host tags to attach to every metric, event and service check emitted by this Agent.
+## List of host tags to attach to every metric, event, logs, traces, and service check emitted by this Agent.
 ##
 ## Learn more about tagging: https://docs.datadoghq.com/tagging/
 #
@@ -85,6 +85,8 @@ api_key:
 ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
 ##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
 ##   * high: add tags about high-cardinality objects (individual containers, user IDs in requests, ...)
+## WARNING: sending container tags for checks metrics may create more metrics
+## (one per container instead of one per host). This may impact your custom metrics billing.
 #
 # checks_tag_cardinality: low
 
@@ -93,6 +95,9 @@ api_key:
 ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
 ##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
 ##   * high: add tags about high-cardinality objects (individual containers, user IDs in requests, ...)
+##
+## WARNING: sending container tags for dogstatsd metrics may create more metrics
+## (one per container instead of one per host). This may impact your custom metrics billing.
 #
 # dogstatsd_tag_cardinality: low
 
@@ -223,13 +228,13 @@ api_key:
 #
 # server_timeout: 15
 
-## @param procfs_path - string - optional - default: /host/proc
+## @param procfs_path - string - optional
 ## Some environments may have the procfs file system mounted in a miscellaneous
 ## location. The procfs_path configuration parameter provides a mechanism to
-## override the standard default location: '/host/proc' - this setting trickles down to
+## override the standard default location: '/proc' - this setting trickles down to
 ## integrations and affect their behavior if they rely on the psutil python package.
 #
-# procfs_path: /host/proc
+# procfs_path: <PROCFS_PATH>
 
 ## @param disable_py3_validation - boolean - optional - default: false
 ## Disable Python3 validation of python checks.
@@ -237,15 +242,10 @@ api_key:
 # disable_py3_validation: false
 
 ## @param secret_backend_command - string - optional
-## The Agent can call an external command to fetch secrets. It executes the command a maximum of
-## once per instance containing an encrypted password.
-## The Agent caches Secrets to avoid executing the secret_backend_command multiple times to fetch an
-## already known secret (useful when combined with Autodiscovery). This feature is still in beta.
+## `secret_backend_command` is the path to the script to execute.
+## The executable must have specific rights that differ on Windows and Linux.
 ##
 ## For more information see: https://github.com/DataDog/datadog-agent/blob/master/docs/agent/secrets.md
-##
-## secret_backend_command is the path to the script to execute. The script must belong to the same user used
-## to run the Agent. The Agent must have executable rights, and no rights for 'group' or 'other'.
 #
 # secret_backend_command: <COMMAND_PATH>
 
@@ -315,7 +315,7 @@ api_key:
 
   ## @param use_port_443 - boolean - optional - default: false
   ## By default, logs are sent to port 10516 (for the US site), use this parameter
-  #  to force the Agent to send logs in TCP to port 443 for the EU site
+  ## to force the Agent to send logs in TCP to port 443.
   #
   # use_port_443: false
 
@@ -395,6 +395,11 @@ api_key:
   ##    * "disabled" : The Agent process collection is disabled.
   #
   # enabled: "true"
+
+  ## @param expvar_port - string - optional - default: 6062
+  ## Port for the debug endpoints for the process-agent.
+  #
+  # expvar_port: 6062
 
   ## @param log_file - string - optional
   ## The full path to the file where process-agent logs are written.
@@ -667,12 +672,12 @@ api_key:
 ###########################
 
 ## @param log_level - string - optional - default: info
-## Minum log level of the Datadog Agent
+## Minum log level of the Datadog Agent.
 #
 # log_level: info
 
 ## @param log_file - string - optional
-## Path of the log file for the Datadog Agent
+## Path of the log file for the Datadog Agent.
 ## See https://docs.datadoghq.com/agent/guide/agent-log-files/
 #
 # log_file: <AGENT_LOG_FILE_PATH>
@@ -933,7 +938,7 @@ api_key:
 ## Docker tag extraction ##
 ###########################
 
-## @param docker_labels_as_tags - list of key:value elements - optional
+## @param docker_labels_as_tags - map - optional
 ## The Agent can extract container label values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with `+`, it will only be added to high cardinality metrics (Docker check).
 #
@@ -941,7 +946,7 @@ api_key:
 #   <LABEL_NAME>: <TAG_KEY>
 #   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
 
-## @param docker_env_as_tags - list of key:value elements - optional
+## @param docker_env_as_tags - map - optional
 ## The Agent can extract environment variables values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with `+`, it will only be added to high cardinality metrics (Docker check).
 #
@@ -955,7 +960,7 @@ api_key:
 ## Kubernetes tag extraction ##
 ###############################
 
-## @param kubernetes_pod_labels_as_tags - list of key:value elements - optional
+## @param kubernetes_pod_labels_as_tags - map - optional
 ## The Agent can extract pod labels values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with +, it will only be added to high cardinality metrics.
 #
@@ -963,7 +968,7 @@ api_key:
 #   <POD_LABEL>: <TAG_KEY>
 #   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
 
-## @param kubernetes_pod_annotations_as_tags - list of key:value elements - optional
+## @param kubernetes_pod_annotations_as_tags - map - optional
 ## The Agent can extract annotations values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with +, it will only be added to high cardinality metrics.
 #
@@ -1176,7 +1181,7 @@ api_key:
 #
 # leader_lease_duration: 60
 
-## @param kubernetes_node_labels_as_tags - list of key:value elements - optional
+## @param kubernetes_node_labels_as_tags - map - optional
 ## Configure node labels that should be collected and their name as host tags.
 ## Note: Some of these labels are redundant with metadata collected by cloud provider crawlers (AWS, GCE, Azure)
 #
