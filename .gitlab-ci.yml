@@ -738,7 +738,7 @@ kitchen_ubuntu:
 # run dd-agent-testing on suse
 kitchen_suse:
   stage: testkitchen_testing
-  allow_failure: false
+  allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   <<: *run_when_testkitchen_triggered
   before_script:
