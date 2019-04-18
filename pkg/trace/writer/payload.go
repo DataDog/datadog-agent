@@ -171,10 +171,8 @@ func (s *queuableSender) Run() {
 	for {
 		select {
 		case payload := <-s.in:
-			if stats, err := s.sendOrQueue(payload); err != nil {
-				log.Debugf("Error while sending or queueing payload. err=%v", err)
-				s.notifyError(payload, err, stats)
-			}
+			// TODO: error handling
+			go s.doSend(payload)
 		case <-s.backoffTimer.ReceiveTick():
 			s.flushQueue()
 		case <-s.syncBarrier:
