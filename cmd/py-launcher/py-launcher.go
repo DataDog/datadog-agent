@@ -8,25 +8,17 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"strings"
+	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/sbinet/go-python"
 )
-
-/*
-#include "datadog_agent_six.h"
-#cgo !windows LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
-#cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
-*/
-import "C"
 
 func main() {
 	var conf = flag.String("conf", "", "option path to datadog.yaml")
 	var pythonScript = flag.String("py", "", "python script to run")
-	var pythonPath = flag.String("path", "", "comma separated list of path to add to PYTHONPATH")
 	flag.Parse()
 
 	flag.Usage = func() {
@@ -50,22 +42,21 @@ func main() {
 		}
 	}
 
-	paths := strings.Split(*pythonPath, ",")
-	python.Initialize(paths...)
+	runtime.LockOSThread()
+	py.Initialize()
+	gstate := python.PyGILState_Ensure()
 
-	pySix := python.GetSix()
-	six := (*C.six_t)(pySix)
-	pythonCode, err := ioutil.ReadFile(*pythonScript)
+	python.PySys_SetArgv(append([]string{*pythonScript}, flag.Args()...))
+	err := python.PyRun_SimpleFile(*pythonScript)
 	if err != nil {
-		fmt.Printf("Could not read %s: %s\n", *pythonScript, err)
+		fmt.Printf("%s\n", err)
+	}
+
+	python.PyGILState_Release(gstate)
+	runtime.UnlockOSThread()
+
+	if err != nil {
 		os.Exit(1)
 	}
-	state := C.ensure_gil(six)
-	res := C.run_simple_string(six, C.CString(string(pythonCode)))
-	C.release_gil(six, state)
-	if res == 0 {
-		fmt.Printf("Error while running python script: %s\n", C.GoString(C.get_error(six)))
-	}
-
-	python.Destroy()
+	os.Exit(0)
 }
