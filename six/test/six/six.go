@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/six/test/common"
 )
@@ -66,6 +67,13 @@ func runString(code string) (string, error) {
 	return string(output), err
 }
 
+func fetchError() error {
+	if C.has_error(six) == 1 {
+		return fmt.Errorf(C.GoString(C.get_error(six)))
+	}
+	return nil
+}
+
 func getError() string {
 	// following is supposed to raise an error
 	C.get_class(six, C.CString("foo"), nil, nil)
@@ -104,7 +112,7 @@ func getFakeCheck() (string, error) {
 		return "", fmt.Errorf(C.GoString(C.get_error(six)))
 	}
 
-	return C.GoString(version), nil
+	return C.GoString(version), fetchError()
 }
 
 func runFakeCheck() (string, error) {
@@ -113,11 +121,40 @@ func runFakeCheck() (string, error) {
 	var check *C.six_pyobject_t
 	var version *C.char
 
-	C.get_class(six, C.CString("datadog_checks.fake_check"), &module, &class)
+	C.get_class(six, C.CString("fake_check"), &module, &class)
 	C.get_attr_string(six, module, C.CString("__version__"), &version)
 	C.get_check(six, class, C.CString(""), C.CString("[{fake_check: \"/\"}]"), C.CString("checkID"), C.CString("fake_check"), &check)
 
-	return C.GoString(C.run_check(six, check)), nil
+	return C.GoString(C.run_check(six, check)), fetchError()
+}
+
+func runFakeGetWarnings() ([]string, error) {
+	var module *C.six_pyobject_t
+	var class *C.six_pyobject_t
+	var check *C.six_pyobject_t
+
+	C.get_class(six, C.CString("fake_check"), &module, &class)
+	C.get_check(six, class, C.CString(""), C.CString("[{fake_check: \"/\"}]"), C.CString("checkID"), C.CString("fake_check"), &check)
+
+	warns := C.get_checks_warnings(six, check)
+	if warns == nil {
+		return nil, fmt.Errorf("get_checks_warnings return NULL: %s", C.GoString(C.get_error(six)))
+	}
+
+	pWarns := uintptr(unsafe.Pointer(warns))
+	ptrSize := unsafe.Sizeof(warns)
+
+	warnings := []string{}
+	for i := uintptr(0); ; i++ {
+		warnPtr := *(**C.char)(unsafe.Pointer(pWarns + ptrSize*i))
+		if warnPtr == nil {
+			break
+		}
+		warn := C.GoString(warnPtr)
+		warnings = append(warnings, warn)
+	}
+
+	return warnings, nil
 }
 
 func getIntegrationList() ([]string, error) {
