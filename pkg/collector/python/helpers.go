@@ -103,18 +103,18 @@ func (sl *stickyLock) getPythonError() (string, error) {
 	return C.GoString(C.get_error(six)), nil
 }
 
-// cStringArrayToSlice returns a slice with the contents of the char **tags.
+// cStringArrayToSlice returns a slice with the contents of the char **tags (the function will not free 'array').
 func cStringArrayToSlice(array **C.char) []string {
 	if array != nil {
-		goTags := []string{}
+		res := []string{}
 		for i := 0; ; i++ {
 			// Work around go vet raising issue about unsafe pointer
-			tagPtr := C.getStringAddr(array, C.uint(i))
-			if tagPtr == nil {
-				return goTags
+			strPtr := C.getStringAddr(array, C.uint(i))
+			if strPtr == nil {
+				return res
 			}
-			tag := C.GoString(tagPtr)
-			goTags = append(goTags, tag)
+			str := C.GoString(strPtr)
+			res = append(res, str)
 		}
 	}
 	return nil
