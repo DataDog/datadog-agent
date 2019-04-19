@@ -53,6 +53,7 @@ func (p *provider) GetTags() []string {
 // Start starts the polling of new tags on another go routine.
 func (p *provider) Start() {
 	go func() {
+		p.updateTags()
 		ticker := time.NewTicker(refreshPeriod)
 		defer ticker.Stop()
 		for {
