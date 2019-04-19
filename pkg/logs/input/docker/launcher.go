@@ -66,8 +66,8 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 	// between Docker and Kubernetes
 	launcher.addedSources = sources.GetAddedForType(config.DockerType)
 	launcher.removedSources = sources.GetRemovedForType(config.DockerType)
-	launcher.addedServices = services.GetAddedServices(service.Docker)
-	launcher.removedServices = services.GetRemovedServices(service.Docker)
+	launcher.addedServices = services.GetAddedServicesForType(config.DockerType)
+	launcher.removedServices = services.GetRemovedServicesForType(config.DockerType)
 	return launcher, nil
 }
 

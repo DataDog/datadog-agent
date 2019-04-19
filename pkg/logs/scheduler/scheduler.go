@@ -198,12 +198,7 @@ func (s *Scheduler) toService(config integration.Config) (*service.Service, erro
 	if err != nil {
 		return nil, err
 	}
-	switch provider {
-	case service.Docker, service.Containerd, service.CRIO:
-		return service.NewService(provider, identifier, s.getCreationTime(config)), nil
-	default:
-		return nil, fmt.Errorf("%v is not supported yet", provider)
-	}
+	return service.NewService(provider, identifier, s.getCreationTime(config)), nil
 }
 
 // parseEntity breaks down an entity into a service provider and a service identifier.
