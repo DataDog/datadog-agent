@@ -33,7 +33,6 @@ var kubeletCacheKey = cache.BuildAgentKey("py", "kubeutil", "connection_info")
 func GetKubeletConnectionInfo(payload *C.char) {
 	var creds map[string]string
 	var ok bool
-	dict := C.PyDict_New()
 
 	if cached, hit := cache.Cache.Get(kubeletCacheKey); hit {
 		log.Debug("cache hit for kubelet connection info")
