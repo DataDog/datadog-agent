@@ -93,6 +93,18 @@ func TestRunCheck(t *testing.T) {
 	}
 }
 
+func TestGetCheckWarnings(t *testing.T) {
+	res, err := runFakeGetWarnings()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if res[0] != "warning 1" || res[1] != "warning 2" || res[2] != "warning 3" {
+		t.Fatal(res)
+	}
+}
+
 func TestGetIntegrationsList(t *testing.T) {
 	res, err := getIntegrationList()
 

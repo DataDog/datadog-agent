@@ -295,6 +295,31 @@ done:
     return ret;
 }
 
+char **Three::getCheckWarnings(SixPyObject *check)
+{
+    if (check == NULL)
+        return NULL;
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+    char func_name[] = "get_warnings";
+    PyObject *warns_list = PyObject_CallMethod(py_check, func_name, NULL);
+    if (warns_list == NULL) {
+        setError("error invoking 'get_warnings' method: " + _fetchPythonError());
+        return NULL;
+    }
+
+    Py_ssize_t numWarnings = PyList_Size(warns_list);
+    char **warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
+    warnings[numWarnings] = NULL;
+
+    for (Py_ssize_t idx = 0; idx < numWarnings; idx++) {
+        PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
+        warnings[idx] = as_string(warn);
+    }
+    Py_XDECREF(warns_list);
+    return warnings;
+}
+
 // return new reference
 PyObject *Three::_importFrom(const char *module, const char *name)
 {

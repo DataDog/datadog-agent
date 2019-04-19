@@ -30,6 +30,7 @@ public:
                   const char *check_id_str, const char *check_name, const char *agent_config_str, SixPyObject *&check);
 
     const char *runCheck(SixPyObject *check);
+    char **getCheckWarnings(SixPyObject *check);
     void decref(SixPyObject *obj);
     void incref(SixPyObject *obj);
     void set_module_attr_string(char *module, char *attr, char *value);

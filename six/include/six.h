@@ -39,6 +39,7 @@ public:
         = 0;
 
     virtual const char *runCheck(SixPyObject *check) = 0;
+    virtual char **getCheckWarnings(SixPyObject *check) = 0;
     void clearError();
     void free(void *);
     virtual void decref(SixPyObject *) = 0;
