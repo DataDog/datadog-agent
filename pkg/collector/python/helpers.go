@@ -16,8 +16,11 @@ import (
 	"unsafe"
 )
 
-// #include <datadog_agent_six.h>
-// char *getStringAddr(char **array, unsigned int idx);
+/*
+#include <stdlib.h>
+#include <datadog_agent_six.h>
+char *getStringAddr(char **array, unsigned int idx);
+*/
 import "C"
 
 // stickyLock is a convenient wrapper to interact with the Python GIL
@@ -328,11 +331,11 @@ func SetPythonPsutilProcPath(procPath string) error {
 	defer glock.unlock()
 
 	module := C.CString(psutilModule)
-	defer C.Free(module)
+	defer C.free(unsafe.Pointer(module))
 	attrName := C.CString(psutilProcPath)
-	defer C.Free(attrName)
+	defer C.free(unsafe.Pointer(attrName))
 	attrValue := C.CString(procPath)
-	defer C.Free(attrValue)
+	defer C.free(unsafe.Pointer(attrValue))
 
 	C.set_module_attr_string(six, module, attrName, attrValue)
 	return getSixError()

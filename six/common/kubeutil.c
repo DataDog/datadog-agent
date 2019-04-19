@@ -42,7 +42,7 @@ void _set_get_connection_info_cb(cb_get_connection_info_t cb)
     cb_get_connection_info = cb;
 }
 
-PyObject *get_connection_info()
+PyObject *get_connection_info(PyObject *self, PyObject *args)
 {
     // callback must be set
     if (cb_get_connection_info == NULL)

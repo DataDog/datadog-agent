@@ -30,19 +30,19 @@ var kubeletCacheKey = cache.BuildAgentKey("py", "kubeutil", "connection_info")
 // The dict is empty if the kubelet was not detected. The call to kubeutil is cached for 5 minutes.
 // See the documentation of kubelet.GetRawConnectionInfo for dict contents.
 //export GetKubeletConnectionInfo
-func GetKubeletConnectionInfo(payload *C.char) {
-	var creds map[string]string
+func GetKubeletConnectionInfo(payload **C.char) {
+	var creds string
 	var ok bool
 
 	if cached, hit := cache.Cache.Get(kubeletCacheKey); hit {
 		log.Debug("cache hit for kubelet connection info")
 		if creds, ok = cached.(string); !ok {
 			log.Error("invalid cache format, forcing a cache miss")
-			creds = nil
+			creds = ""
 		}
 	}
 
-	if creds == nil { // Cache miss
+	if creds == "" { // Cache miss
 		log.Debug("cache miss for kubelet connection info")
 		kubeutil, err := kubelet.GetKubeUtil()
 		if err != nil {
@@ -52,9 +52,9 @@ func GetKubeletConnectionInfo(payload *C.char) {
 		}
 
 		// At this point, we have valid credentials to get
-		creds = kubeutil.GetRawConnectionInfo()
+		connections := kubeutil.GetRawConnectionInfo()
 
-		data, err := json.Marshal(creds)
+		data, err := json.Marshal(connections)
 		if err != nil {
 			log.Errorf("could not serialized kubelet connections (%s): %s", creds, err)
 			return
