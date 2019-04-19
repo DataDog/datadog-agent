@@ -110,6 +110,7 @@ type queueablePayloadSender struct {
 	MaxAge            int   `mapstructure:"max_age_seconds"`
 	MaxQueuedBytes    int64 `mapstructure:"max_bytes"`
 	MaxQueuedPayloads int   `mapstructure:"max_payloads"`
+	MaxInflightPayloads int   `mapstructure:"max_inflight_payloads"`
 	BackoffDuration   int   `mapstructure:"exp_backoff_max_duration_seconds"`
 	BackoffBase       int   `mapstructure:"exp_backoff_base_milliseconds"`
 	BackoffGrowth     int   `mapstructure:"exp_backoff_growth_base"`
@@ -408,6 +409,10 @@ func readQueueablePayloadSenderConfigYaml(yc queueablePayloadSender) writerconfi
 
 	if yc.MaxQueuedPayloads != 0 {
 		c.MaxQueuedPayloads = yc.MaxQueuedPayloads
+	}
+
+	if yc.MaxInflightPayloads != 0 {
+		c.MaxInflightPayloads = yc.MaxInflightPayloads
 	}
 
 	c.ExponentialBackoff = readExponentialBackoffConfigYaml(yc)

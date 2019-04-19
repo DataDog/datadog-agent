@@ -11,6 +11,7 @@ type QueuablePayloadSenderConf struct {
 	MaxAge             time.Duration
 	MaxQueuedBytes     int64
 	MaxQueuedPayloads  int
+	MaxInflightPayloads  int
 	ExponentialBackoff backoff.ExponentialConfig
 }
 
@@ -20,6 +21,7 @@ func DefaultQueuablePayloadSenderConf() QueuablePayloadSenderConf {
 		MaxAge:             20 * time.Minute,
 		MaxQueuedBytes:     64 * 1024 * 1024, // 64 MB
 		MaxQueuedPayloads:  -1,               // Unlimited
+		MaxInflightPayloads:  1,
 		ExponentialBackoff: backoff.DefaultExponentialConfig(),
 	}
 }

@@ -1,6 +1,9 @@
 package backoff
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 // Timer represents a timer that implements some backOff strategy that can adapt to number of schedulings.
 type Timer interface {
@@ -24,6 +27,7 @@ type CustomTimer struct {
 
 	tickChannel chan time.Time
 	timer       *time.Timer
+	mux sync.RWMutex
 }
 
 // NewCustomTimer creates a new custom timer using the provided delay provider.
@@ -36,6 +40,9 @@ func NewCustomTimer(delayProvider DelayProvider) *CustomTimer {
 
 // ScheduleRetry schedules the next retry tick according to the delay provider, returning retry num and retry delay.
 func (t *CustomTimer) ScheduleRetry(err error) (int, time.Duration) {
+	t.mux.Lock()
+	defer t.mux.Unlock()
+
 	t.Stop()
 	t.currentDelay = t.delayProvider(t.numRetries, err)
 
@@ -50,11 +57,15 @@ func (t *CustomTimer) ScheduleRetry(err error) (int, time.Duration) {
 
 // CurrentDelay returns the delay of the current or last ticked retry.
 func (t *CustomTimer) CurrentDelay() time.Duration {
+	t.mux.RLock()
+	defer t.mux.RUnlock()
 	return t.currentDelay
 }
 
 // NumRetries returns the number of tries since this timer was last reset.
 func (t *CustomTimer) NumRetries() int {
+	t.mux.RLock()
+	defer t.mux.RUnlock()
 	return t.numRetries
 }
 
@@ -66,12 +77,16 @@ func (t *CustomTimer) ReceiveTick() <-chan time.Time {
 // Reset stops and resets the number of retries counter of this timer.
 func (t *CustomTimer) Reset() {
 	t.Stop()
+	t.mux.Lock()
+	defer t.mux.Unlock()
 	t.numRetries = 0
 	t.currentDelay = 0
 }
 
 // Stop prevents any current scheduled retry from ticking.
 func (t *CustomTimer) Stop() {
+	t.mux.Lock()
+	defer t.mux.Unlock()
 	if t.timer != nil {
 		t.timer.Stop()
 	}

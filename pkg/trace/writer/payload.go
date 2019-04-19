@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
@@ -79,6 +80,7 @@ type queuableSender struct {
 	queuedPayloads    *list.List
 	queuing           bool
 	currentQueuedSize int64
+	mux sync.Mutex
 
 	backoffTimer backoff.Timer
 
@@ -89,7 +91,11 @@ type queuableSender struct {
 	monitorCh chan monitorEvent
 	endpoint  endpoint
 
-	exit chan struct{}
+	// limit how many payloads we send in parallel from the agent to our service
+	inflightPayloads chan struct{}
+	wg sync.WaitGroup
+
+	exit             chan struct{}
 }
 
 // newDefaultSender constructs a new queuableSender with default configuration to send payloads to the
@@ -104,6 +110,7 @@ func newSender(e endpoint, conf writerconfig.QueuablePayloadSenderConf) *queuabl
 	return &queuableSender{
 		conf:           conf,
 		queuedPayloads: list.New(),
+		inflightPayloads: make(chan struct{}, conf.MaxInflightPayloads),
 		backoffTimer:   backoff.NewCustomExponentialTimer(conf.ExponentialBackoff),
 		in:             make(chan *payload),
 		monitorCh:      make(chan monitorEvent),
@@ -123,6 +130,7 @@ func (s *queuableSender) Stop() {
 	<-s.exit
 	close(s.in)
 	close(s.monitorCh)
+	close(s.inflightPayloads)
 }
 
 func (s *queuableSender) setEndpoint(e endpoint) {
@@ -164,6 +172,8 @@ func (s *queuableSender) Start() {
 	}()
 }
 
+
+
 // Run executes the queuableSender main logic synchronously.
 func (s *queuableSender) Run() {
 	defer close(s.exit)
@@ -171,17 +181,24 @@ func (s *queuableSender) Run() {
 	for {
 		select {
 		case payload := <-s.in:
-			// TODO: error handling
-			go s.doSend(payload)
+			// enforce max inflight payloads with way to wait for them all to finish
+			s.inflightPayloads <- struct{}{}
+			s.wg.Add(1)
+			go func() {
+				s.sendOrQueue(payload)
+				s.wg.Done()
+				<-s.inflightPayloads
+			}()
 		case <-s.backoffTimer.ReceiveTick():
-			s.flushQueue()
+			s.flushRetryQueue()
 		case <-s.syncBarrier:
 			// TODO: Is there a way of avoiding this? I want Promises in Go :(((
 			// This serves as a barrier (assuming syncBarrier is an unbuffered channel). Used for testing
 			continue
 		case <-s.exit:
 			log.Info("exiting payload sender, try flushing whatever is left")
-			s.flushQueue()
+			s.wg.Wait()
+			s.flushRetryQueue()
 			return
 		}
 	}
@@ -193,37 +210,33 @@ func (s *queuableSender) NumQueuedPayloads() int {
 }
 
 // sendOrQueue sends the provided payload or queues it if this sender is currently queueing payloads.
-func (s *queuableSender) sendOrQueue(payload *payload) (sendStats, error) {
-	var stats sendStats
-
-	if payload == nil {
-		return stats, nil
+func (s *queuableSender) sendOrQueue(payload *payload) {
+	if s.queuing {
+		s.enqueue(payload)
+		return
 	}
 
-	var err error
-
-	if !s.queuing {
-		if stats, err = s.doSend(payload); err != nil {
-			if _, ok := err.(*retriableError); ok {
-				// If error is retriable, start a queue and schedule a retry
-				retryNum, delay := s.backoffTimer.ScheduleRetry(err)
-				log.Debugf("Got retriable error. Starting a queue. delay=%s, err=%v", delay, err)
-				s.notifyRetry(payload, err, delay, retryNum)
-				return stats, s.enqueue(payload)
-			}
+	if stats, err := s.doSend(payload); err != nil {
+		if _, ok := err.(*retriableError); ok {
+			// If error is retriable, start a queue and schedule a retry
+			retryNum, delay := s.backoffTimer.ScheduleRetry(err)
+			log.Debugf("Got retriable error. Starting a queue. delay=%s, err=%v", delay, err)
+			s.notifyRetry(payload, err, delay, retryNum)
+			s.enqueue(payload)
 		} else {
-			// If success, notify
-			log.Tracef("Successfully sent direct payload: %v", payload)
-			s.notifySuccess(payload, stats)
+			log.Debugf("Error while sending or queueing payload. err=%v", err)
+			s.notifyError(payload, err, stats)
 		}
 	} else {
-		return stats, s.enqueue(payload)
+		log.Tracef("Successfully sent direct payload: %v", payload)
+		s.notifySuccess(payload, stats)
 	}
-
-	return stats, err
 }
 
 func (s *queuableSender) enqueue(payload *payload) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
 	if !s.queuing {
 		s.queuing = true
 	}
@@ -260,7 +273,10 @@ func (s *queuableSender) enqueue(payload *payload) error {
 	return nil
 }
 
-func (s *queuableSender) flushQueue() error {
+func (s *queuableSender) flushRetryQueue() error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
 	log.Debugf("Attempting to flush queue with %d payloads", s.NumQueuedPayloads())
 
 	// Start by discarding payloads that are too old

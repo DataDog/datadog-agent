@@ -105,6 +105,7 @@ func (c *testPayloadSender) Run() {
 	for {
 		select {
 		case payload := <-c.in:
+			// replace with c.sendOrQueue(payload)
 			stats, err := c.doSend(payload)
 
 			if err != nil {
