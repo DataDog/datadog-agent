@@ -240,24 +240,24 @@ func pip(args []string, stdout io.Writer, stderr io.Writer) error {
 	pipCmd := exec.Command(pythonPath, args...)
 
 	// forward the standard output to stdout
-	pip_stdout, err := pipCmd.StdoutPipe()
+	pipStdout, err := pipCmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
 	go func() {
-		in := bufio.NewScanner(pip_stdout)
+		in := bufio.NewScanner(pipStdout)
 		for in.Scan() {
 			fmt.Fprintf(stdout, "%s\n", in.Text())
 		}
 	}()
 
 	// forward the standard error to stderr
-	pip_stderr, err := pipCmd.StderrPipe()
+	pipStderr, err := pipCmd.StderrPipe()
 	if err != nil {
 		return err
 	}
 	go func() {
-		in := bufio.NewScanner(pip_stderr)
+		in := bufio.NewScanner(pipStderr)
 		for in.Scan() {
 			fmt.Fprintf(stderr, "%s\n", color.RedString(in.Text()))
 		}
