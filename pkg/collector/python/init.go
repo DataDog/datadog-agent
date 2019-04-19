@@ -221,6 +221,7 @@ func Initialize(paths ...string) error {
 	initContainerFilter() // special init for the container go code
 	C.initContainersModule(six)
 	C.initkubeutilModule(six)
+
 	return nil
 }
 
