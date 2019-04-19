@@ -80,7 +80,7 @@ type queuableSender struct {
 	queuedPayloads    *list.List
 	queuing           bool
 	currentQueuedSize int64
-	mux sync.Mutex
+	mux               sync.Mutex
 
 	backoffTimer backoff.Timer
 
@@ -93,9 +93,9 @@ type queuableSender struct {
 
 	// limit how many payloads we send in parallel from the agent to our service
 	inflightPayloads chan struct{}
-	wg sync.WaitGroup
+	wg               sync.WaitGroup
 
-	exit             chan struct{}
+	exit chan struct{}
 }
 
 // newDefaultSender constructs a new queuableSender with default configuration to send payloads to the
@@ -108,14 +108,14 @@ func newDefaultSender(e endpoint) *queuableSender {
 // the provided endpoint.
 func newSender(e endpoint, conf writerconfig.QueuablePayloadSenderConf) *queuableSender {
 	return &queuableSender{
-		conf:           conf,
-		queuedPayloads: list.New(),
+		conf:             conf,
+		queuedPayloads:   list.New(),
 		inflightPayloads: make(chan struct{}, conf.MaxInflightPayloads),
-		backoffTimer:   backoff.NewCustomExponentialTimer(conf.ExponentialBackoff),
-		in:             make(chan *payload),
-		monitorCh:      make(chan monitorEvent),
-		endpoint:       e,
-		exit:           make(chan struct{}),
+		backoffTimer:     backoff.NewCustomExponentialTimer(conf.ExponentialBackoff),
+		in:               make(chan *payload),
+		monitorCh:        make(chan monitorEvent),
+		endpoint:         e,
+		exit:             make(chan struct{}),
 	}
 }
 
@@ -171,8 +171,6 @@ func (s *queuableSender) Start() {
 		s.Run()
 	}()
 }
-
-
 
 // Run executes the queuableSender main logic synchronously.
 func (s *queuableSender) Run() {

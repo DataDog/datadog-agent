@@ -27,7 +27,7 @@ type CustomTimer struct {
 
 	tickChannel chan time.Time
 	timer       *time.Timer
-	mux sync.RWMutex
+	mux         sync.RWMutex
 }
 
 // NewCustomTimer creates a new custom timer using the provided delay provider.

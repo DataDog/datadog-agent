@@ -107,13 +107,13 @@ type statsWriter struct {
 }
 
 type queueablePayloadSender struct {
-	MaxAge            int   `mapstructure:"max_age_seconds"`
-	MaxQueuedBytes    int64 `mapstructure:"max_bytes"`
-	MaxQueuedPayloads int   `mapstructure:"max_payloads"`
+	MaxAge              int   `mapstructure:"max_age_seconds"`
+	MaxQueuedBytes      int64 `mapstructure:"max_bytes"`
+	MaxQueuedPayloads   int   `mapstructure:"max_payloads"`
 	MaxInflightPayloads int   `mapstructure:"max_inflight_payloads"`
-	BackoffDuration   int   `mapstructure:"exp_backoff_max_duration_seconds"`
-	BackoffBase       int   `mapstructure:"exp_backoff_base_milliseconds"`
-	BackoffGrowth     int   `mapstructure:"exp_backoff_growth_base"`
+	BackoffDuration     int   `mapstructure:"exp_backoff_max_duration_seconds"`
+	BackoffBase         int   `mapstructure:"exp_backoff_base_milliseconds"`
+	BackoffGrowth       int   `mapstructure:"exp_backoff_growth_base"`
 }
 
 func (c *AgentConfig) applyDatadogConfig() error {

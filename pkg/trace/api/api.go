@@ -260,9 +260,10 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			watchdog.LogOnPanic()
 		}()
 		r.processTraces(ts, traces)
-	}()}
+	}()
+}
 
-func (r *HTTPReceiver)  processTraces(ts *info.TagStats, traces pb.Traces) {
+func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
 	now := time.Now()
 	defer func() {
 		metrics.Timing("datadog.trace_agent.receiver.process_traces_ms", time.Since(now), nil, 1)
