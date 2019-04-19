@@ -17,13 +17,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewLauncher returns a new container launcher.
-// By default, it returns a docker launcher that uses the docker socket to collect logs.
-// The docker launcher can be used both on a non kubernetes and kubernetes environment.
-// When a docker launcher cannot be initialized properly, the launcher will attempt to
-// initialize a kubernetes launcher which will tail logs files (in '/var/log/pods') of all
-// the containers running on the kubernetes cluster and matching the autodiscovery configuration.
+// NewLauncher returns a new container launcher depending on the environment.
+// As a user can run on Kubernetes and mount both '/var/log/pods'
+// and the docker socket to collect metrics,
+// we first attempt to initialize the kubernetes launcher
+// and fallback to the docker launcher if the initialization failed.
 func NewLauncher(collectAll bool, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
+	// attempt to initialize a kubernetes launcher
+	log.Info("Trying to initialize kubernetes launcher")
+	kubernetesLauncher, err := kubernetes.NewLauncher(sources, services, collectAll)
+	if err == nil {
+		log.Info("Kubernetes launcher initialized")
+		return kubernetesLauncher
+	}
+	log.Infof("Could not setup the kubernetes launcher: %v", err)
+
 	// attempt to initialize a docker launcher
 	log.Info("Trying to initialize docker launcher")
 	launcher, err := docker.NewLauncher(sources, services, pipelineProvider, registry)
@@ -33,14 +41,6 @@ func NewLauncher(collectAll bool, sources *config.LogSources, services *service.
 	}
 	log.Infof("Could not setup the docker launcher: %v", err)
 
-	// attempt to initialize a kubernetes launcher
-	log.Info("Trying to initialize kubernetes launcher")
-	kubernetesLauncher, err := kubernetes.NewLauncher(sources, services, collectAll)
-	if err == nil {
-		log.Info("Kubernetes launcher initialized")
-		return kubernetesLauncher
-	}
-	log.Infof("Could not setup the kubernetes launcher: %v", err)
 	log.Infof("Container logs won't be collected")
 	return NewNoopLauncher()
 }
