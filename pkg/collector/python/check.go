@@ -23,8 +23,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// #include <stdlib.h>
-// #include <datadog_agent_six.h>
+/*
+#include <stdlib.h>
+#include <datadog_agent_six.h>
+
+char *getStringAddr(char **array, unsigned int idx);
+*/
 import "C"
 
 // PythonCheck represents a Python check, implements `Check` interface
@@ -120,31 +124,30 @@ func (c *PythonCheck) GetWarnings() []error {
 // getPythonWarnings grabs the last warnings from the python check
 func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 	/**
-	This function must be run before the GIL is unlocked, otherwise it will return nothing.
+	This function is run with the GIL locked by runCheck
 	**/
 
-	// TODO: get warnings from check through six
+	pyWarnings := C.get_checks_warnings(six, c.instance)
+	if pyWarnings == nil {
+		if err := getSixError(); err != nil {
+			log.Errorf("error while collecting python check's warnings: %s", err)
+		}
+		return nil
+	}
 
 	warnings := []error{}
-	//emptyTuple := python.PyTuple_New(0)
-	//defer emptyTuple.DecRef()
-	//ws := c.instance.CallMethod("get_warnings", emptyTuple)
-	//if ws == nil {
-	//	pyErr, err := gstate.getPythonError()
-	//	if err != nil {
-	//		log.Errorf("An error occurred while grabbing python check and couldn't be formatted: %v", err)
-	//	}
-	//	log.Infof("Python error: %v", pyErr)
-	//	return warnings
-	//}
-	//defer ws.DecRef()
-	//numWarnings := python.PyList_Size(ws)
-	//idx := 0
-	//for idx < numWarnings {
-	//	w := python.PyList_GetItem(ws, idx) // borrowed ref
-	//	warnings = append(warnings, fmt.Errorf("%v", python.PyString_AsString(w)))
-	//	idx++
-	//}
+	for i := 0; ; i++ {
+		// Work around go vet raising issue about unsafe pointer
+		warnPtr := C.getStringAddr(pyWarnings, C.uint(i))
+		if warnPtr == nil {
+			break
+		}
+		warn := C.GoString(warnPtr)
+		warnings = append(warnings, errors.New(warn))
+		C.six_free(six, unsafe.Pointer(warnPtr))
+	}
+	C.six_free(six, unsafe.Pointer(pyWarnings))
+
 	return warnings
 }
 

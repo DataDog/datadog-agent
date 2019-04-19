@@ -242,6 +242,11 @@ const char *run_check(six_t *six, six_pyobject_t *check)
     return AS_TYPE(Six, six)->runCheck(AS_TYPE(SixPyObject, check));
 }
 
+char **get_checks_warnings(six_t *six, six_pyobject_t *check)
+{
+    return AS_TYPE(Six, six)->getCheckWarnings(AS_TYPE(SixPyObject, check));
+}
+
 /*
  * error API
  */
