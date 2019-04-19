@@ -184,6 +184,7 @@ func (r *HTTPReceiver) Stop() error {
 		return err
 	}
 	r.wg.Wait()
+	close(r.Out)
 	return nil
 }
 

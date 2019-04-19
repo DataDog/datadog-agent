@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -109,11 +110,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 func (a *Agent) Run() {
 	info.UpdatePreSampler(*a.Receiver.PreSampler.Stats()) // avoid exposing 0
 
-	a.start()
-	a.loop()
-}
-
-func (a *Agent) start() {
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
 		a.TraceWriter,
@@ -128,15 +124,34 @@ func (a *Agent) start() {
 	} {
 		starter.Start()
 	}
+
+	n := 1
+	if config.HasFeature("parallel_process") {
+		n = runtime.NumCPU()
+	}
+	for i := 0; i < n; i++ {
+		go a.work()
+	}
+
+	a.loop()
+}
+
+func (a *Agent) work() {
+	for {
+		select {
+		case t, ok := <-a.Receiver.Out:
+			if !ok {
+				return
+			}
+			a.Process(t)
+		}
+	}
+
 }
 
 func (a *Agent) loop() {
-	ticker := time.NewTicker(a.conf.WatchdogInterval)
-	defer ticker.Stop()
 	for {
 		select {
-		case t := <-a.Receiver.Out:
-			a.Process(t)
 		case <-a.ctx.Done():
 			log.Info("Exiting...")
 			if err := a.Receiver.Stop(); err != nil {
