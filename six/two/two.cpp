@@ -536,7 +536,8 @@ void Two::set_module_attr_string(char *module, char *attr, char *value)
 
     PyObject *py_value = PyStringFromCString(value);
     if (PyObject_SetAttrString(py_module, attr, py_value) != 0)
-        setError("error setting the '" + std::string(module)+ "." + std::string(attr) + "' attribute: " + _fetchPythonError());
+        setError("error setting the '" + std::string(module) + "." + std::string(attr)
+                 + "' attribute: " + _fetchPythonError());
 
     Py_XDECREF(py_module);
     Py_XDECREF(py_value);
