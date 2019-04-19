@@ -30,6 +30,15 @@ type StatsClientHistogramArgs struct {
 	Rate  float64
 }
 
+// StatsClientTimingArgs represents arguments to a StatsClient Timing method call.
+type StatsClientTimingArgs struct {
+	Name  string
+	Value time.Duration
+	Tags  []string
+	Rate  float64
+}
+
+
 // CountSummary contains a summary of all Count method calls to a particular StatsClient for a particular key.
 type CountSummary struct {
 	Calls []StatsClientCountArgs
@@ -53,6 +62,8 @@ type TestStatsClient struct {
 	CountCalls     []StatsClientCountArgs
 	HistogramErr   error
 	HistogramCalls []StatsClientHistogramArgs
+	TimingErr error
+	TimingCalls []StatsClientTimingArgs
 }
 
 // Reset resets client's internal records.
@@ -93,7 +104,10 @@ func (c *TestStatsClient) Histogram(name string, value float64, tags []string, r
 
 // Timing records a call to a Timing operation.
 func (c *TestStatsClient) Timing(name string, value time.Duration, tags []string, rate float64) error {
-	panic("(TestStatsClient).Timing is not implemented")
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.TimingCalls = append(c.TimingCalls, StatsClientTimingArgs{Name: name, Value: value, Tags: tags, Rate: rate})
+	return c.TimingErr
 }
 
 // GetCountSummaries computes summaries for all names supplied as parameters to Count calls.
