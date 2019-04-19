@@ -545,9 +545,20 @@ func benchThroughput(file string) func(*testing.B) {
 		// start the agent without the trace and stats writers; we will be draining
 		// these channels ourselves in the benchmarks, plus we don't want the writers
 		// resource usage to show up in the results.
-		agnt.start()
 		agnt.tracePkgChan = make(chan *writer.TracePackage)
-		go agnt.loop()
+		go agnt.Run()
+
+		// wait for receiver to start:
+		for {
+			resp, err := http.Get("http://localhost:8126/v0.4/traces")
+			if err != nil {
+				time.Sleep(time.Millisecond)
+				continue
+			}
+			if resp.StatusCode == 400 {
+				break
+			}
+		}
 
 		// drain every other channel to avoid blockage.
 		exit := make(chan bool)

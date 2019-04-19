@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -110,6 +111,9 @@ func (a *Agent) Run() {
 	info.UpdatePreSampler(*a.Receiver.PreSampler.Stats()) // avoid exposing 0
 
 	a.start()
+	for i := 0; i < runtime.NumCPU()*2; i++ {
+		go a.work()
+	}
 	a.loop()
 }
 
@@ -130,13 +134,21 @@ func (a *Agent) start() {
 	}
 }
 
-func (a *Agent) loop() {
-	ticker := time.NewTicker(a.conf.WatchdogInterval)
-	defer ticker.Stop()
+func (a *Agent) work() {
 	for {
 		select {
 		case t := <-a.Receiver.Out:
 			a.Process(t)
+		case <-a.ctx.Done():
+			return
+		}
+	}
+
+}
+
+func (a *Agent) loop() {
+	for {
+		select {
 		case <-a.ctx.Done():
 			log.Info("Exiting...")
 			if err := a.Receiver.Stop(); err != nil {

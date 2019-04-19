@@ -206,7 +206,7 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 	if span.Resource == "" {
 		return
 	}
-	result, err := o.sql.obfuscate(span.Resource)
+	result, err := newSQLObfuscator().obfuscate(span.Resource)
 	if err != nil || result == "" {
 		// we have an error, discard the SQL to avoid polluting user resources.
 		log.Debugf("Error parsing SQL query: %q", span.Resource)
