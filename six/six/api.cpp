@@ -280,6 +280,11 @@ void six_incref(six_t *six, six_pyobject_t *obj)
     AS_TYPE(Six, six)->incref(AS_TYPE(SixPyObject, obj));
 }
 
+void set_module_attr_string(six_t *six, char *module, char *attr, char *value)
+{
+    AS_TYPE(Six, six)->set_module_attr_string(module, attr, value);
+}
+
 /*
  * aggregator API
  */

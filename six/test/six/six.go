@@ -1,10 +1,11 @@
 package testsix
 
-// #cgo CFLAGS: -I../../include
-// #cgo !windows LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl -lstdc++
-// #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
-// #include <datadog_agent_six.h>
-//
+/*
+#cgo CFLAGS: -I../../include
+#cgo !windows LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl -lstdc++
+#cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
+#include <datadog_agent_six.h>
+*/
 import "C"
 
 import (
@@ -130,4 +131,8 @@ func getIntegrationList() ([]string, error) {
 	}
 
 	return out, nil
+}
+
+func setModuleAttrString(module string, attr string, value string) {
+	C.set_module_attr_string(six, C.CString(module), C.CString(attr), C.CString(value))
 }

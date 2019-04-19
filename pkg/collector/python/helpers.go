@@ -42,11 +42,10 @@ type stickyLock struct {
 }
 
 const (
-	pyMemModule           = "utils.py_mem"
-	pyMemSummaryFunc      = "get_mem_stats"
-	pyPkgModule           = "utils.py_packages"
-	pyPsutilProcPath      = "psutil.PROCFS_PATH"
-	pyIntegrationListFunc = "get_datadog_wheels"
+	//pyMemModule           = "utils.py_mem"
+	//pyMemSummaryFunc      = "get_mem_stats"
+	psutilModule   = "psutil"
+	psutilProcPath = "PROCFS_PATH"
 )
 
 var (
@@ -323,35 +322,18 @@ func GetPythonIntegrationList() ([]string, error) {
 	return ddPythonPackages, nil
 }
 
-//// SetPythonPsutilProcPath sets python psutil.PROCFS_PATH
-//func SetPythonPsutilProcPath(procPath string) error {
-//	glock := newStickyLock()
-//	defer glock.unlock()
-//
-//	ns := strings.Split(pyPsutilProcPath, ".")
-//	pyPsutilModule := ns[0]
-//	psutilModule := python.PyImport_ImportModule(pyPsutilModule)
-//	if psutilModule == nil {
-//		pyErr, err := glock.getPythonError()
-//
-//		if err != nil {
-//			return fmt.Errorf("Error importing python psutil module: %v", err)
-//		}
-//		return errors.New(pyErr)
-//	}
-//	defer psutilModule.DecRef()
-//
-//	pyProcPath := python.PyString_FromString(procPath)
-//	defer pyProcPath.DecRef()
-//
-//	ret := psutilModule.SetAttrString(ns[1], pyProcPath)
-//	if ret == -1 {
-//		pyErr, err := glock.getPythonError()
-//
-//		if err != nil {
-//			return fmt.Errorf("An error setting the psutil procfs path: %v", err)
-//		}
-//		return errors.New(pyErr)
-//	}
-//	return nil
-//}
+// SetPythonPsutilProcPath sets python psutil.PROCFS_PATH
+func SetPythonPsutilProcPath(procPath string) error {
+	glock := newStickyLock()
+	defer glock.unlock()
+
+	module := C.CString(psutilModule)
+	defer C.Free(module)
+	attrName := C.CString(psutilProcPath)
+	defer C.Free(attrName)
+	attrValue := C.CString(procPath)
+	defer C.Free(attrValue)
+
+	C.set_module_attr_string(six, module, attrName, attrValue)
+	return getSixError()
+}
