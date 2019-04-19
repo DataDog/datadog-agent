@@ -3,6 +3,7 @@ package testtagger
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"testing"
 )
 
@@ -70,7 +71,7 @@ func TestGetTagsErrorType(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "TypeError: wrong parameters type" {
+	if matched, err := regexp.Match("TypeError: argument 1 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 }
@@ -156,7 +157,7 @@ func TestTagsErrorType(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "TypeError: wrong parameters type" {
+	if matched, err := regexp.Match("TypeError: argument 1 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 }

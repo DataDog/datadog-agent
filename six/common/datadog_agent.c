@@ -125,7 +125,7 @@ PyObject *get_config(PyObject *self, PyObject *args)
 
     char *key;
     if (!PyArg_ParseTuple(args, "s", &key)) {
-        Py_RETURN_NONE;
+        return NULL;
     }
 
     char *data = NULL;
@@ -236,7 +236,7 @@ static PyObject *log_message(PyObject *self, PyObject *args)
 
     // datadog_agent.log(message, log_level)
     if (!PyArg_ParseTuple(args, "si", &message, &log_level)) {
-        Py_RETURN_NONE;
+        return NULL;
     }
 
     cb_log(message, log_level);
@@ -251,7 +251,6 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
 
     // function expects only one positional arg containing a list
     if (!PyArg_ParseTuple(args, "O", &input_list)) {
-        PyErr_SetString(PyExc_TypeError, "wrong parameters type");
         PyGILState_Release(gstate);
         return NULL;
     }

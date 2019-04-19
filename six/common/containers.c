@@ -13,7 +13,7 @@ static cb_is_excluded_t cb_is_excluded = NULL;
 static PyObject *is_excluded(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
-    { "is_excluded", is_excluded, METH_VARARGS, "Returns whether a container is ecluded per name and image." },
+    { "is_excluded", (PyCFunction)is_excluded, METH_VARARGS, "Returns whether a container is excluded per name and image." },
     { NULL, NULL } // guards
 };
 
@@ -44,26 +44,17 @@ void _set_is_excluded_cb(cb_is_excluded_t cb)
 PyObject *is_excluded(PyObject *self, PyObject *args)
 {
     // callback must be set
-    if (cb_is_excluded == NULL) {
+    if (cb_is_excluded == NULL)
         Py_RETURN_NONE;
-    }
 
     char *name;
     char *image;
-    int result = 0; // false
+    if (!PyArg_ParseTuple(args, "ss", &name, &image))
+        return NULL;
 
-    // containers.is_excluded(name, image)
-    if (!PyArg_ParseTuple(args, "ss", &name, &image)) {
-        Py_RETURN_NONE;
-    }
+    int result = cb_is_excluded(name, image);
 
-    cb_is_excluded(name, image, &result);
-
-    if (result > 0) {
-        Py_INCREF(Py_True);
-        return Py_True;
-    }
-
-    Py_INCREF(Py_False);
-    return Py_False;
+    if (result > 0)
+        Py_RETURN_TRUE;
+    Py_RETURN_FALSE;
 }

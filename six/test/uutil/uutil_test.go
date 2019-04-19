@@ -40,7 +40,7 @@ func TestSubprocessOutputWrongArg(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "TypeError: wrong parameters type" {
+	if out != "TypeError: get_subprocess_output() takes at least 1 argument (0 given)" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 }

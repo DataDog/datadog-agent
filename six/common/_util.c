@@ -96,7 +96,6 @@ PyObject *subprocess_output(PyObject *self, PyObject *args)
     PyGILState_STATE gstate = PyGILState_Ensure();
 
     if (!PyArg_ParseTuple(args, "O|O:get_subprocess_output", &cmd_args, &cmd_raise_on_empty)) {
-        PyErr_SetString(PyExc_TypeError, "wrong parameters type");
         goto error;
     }
 
