@@ -207,9 +207,16 @@ func (s *queuableSender) NumQueuedPayloads() int {
 	return s.queuedPayloads.Len()
 }
 
+func (s *queuableSender) isQueueing() bool {
+	// TODO: RWMutex
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.queuing
+}
+
 // sendOrQueue sends the provided payload or queues it if this sender is currently queueing payloads.
 func (s *queuableSender) sendOrQueue(payload *payload) {
-	if s.queuing {
+	if s.isQueueing() {
 		s.enqueue(payload)
 		return
 	}
