@@ -113,6 +113,16 @@ int IsContainerExcluded(char *, char *);
 void initContainersModule(six_t *six) {
 	set_is_excluded_cb(six, IsContainerExcluded);
 }
+
+//
+// kubeutil module
+//
+
+void GetKubeletConnectionInfo(char *);
+
+void initkubeutilModule(six_t *six) {
+	set_get_connection_info_cb(six, GetKubeletConnectionInfo);
+}
 */
 import "C"
 
@@ -210,6 +220,8 @@ func Initialize(paths ...string) error {
 	C.initTaggerModule(six)
 	initContainerFilter() // special init for the container go code
 	C.initContainersModule(six)
+	C.initkubeutilModule(six)
+
 	return nil
 }
 

@@ -40,6 +40,10 @@ PyObject *from_json(const char *data) {
     PyObject *json = NULL;
     PyObject *loads = NULL;
 
+    if (!data) {
+        goto done;
+    }
+
     char module_name[] = "json";
     json = PyImport_ImportModule(module_name);
     if (json == NULL) {
