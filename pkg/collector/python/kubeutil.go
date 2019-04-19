@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// +build cpython,kubelet
+// +build python,kubelet
 
-package py
+package python
 
 import (
 	"encoding/json"
