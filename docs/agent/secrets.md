@@ -11,7 +11,8 @@ secrets in plain text in configuration files. Users have the flexibility to
 design their executable according to their preferred key management service,
 authentication method, and continuous integration workflow.
 
-For now, secrets are not supported in APM or Live Process configurations.
+Starting `6.11`, `secrets` is also supported in datadog.yaml by APM (both Unix
+and Windows) and Live Process configurations (Unix only).
 
 This section covers how to set up this feature.
 
@@ -133,6 +134,11 @@ the user-provided executable once per file that contains a secret handle at
 startup, and might make additional calls to the executable later if the Agent or
 instance is restarted, or if the Agent dynamically loads a new check containing
 a secret handle (e.g. via Autodiscovery).
+
+Since APM and Live Process run in their own process/service they will also run
+the executable once if `datadog.yaml` contains secrets. For example, using
+`secrets` for the `api_key` in `datadog.yaml` with APM and Live Process enabled
+will execute your executable 3 times.
 
 By design, the user-provided executable needs to implement any error handling
 mechanism that a user might require. Conversely, the Agent needs to be
