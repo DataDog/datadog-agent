@@ -41,7 +41,7 @@ templates:
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
-          - v3-repo-{{ .Revision }}
+          - v2-repo-{{ .Revision }}
     - save_cache: &save_source
         key: v3-repo-{{ .Revision }}
 
@@ -212,31 +212,31 @@ workflows:
       - unit_tests:
           requires:
             - dependencies
-      - integration_tests:
-          requires:
-            - dependencies
-      - release_note:
-          requires:
-            - dependencies
-      - team_label:
-          requires:
-            - dependencies
-      - milestone:
-          requires:
-            - dependencies
-      - filename_linting:
-          requires:
-            - dependencies
-      - docker_tests:
-          requires:
-            - dependencies
-      - build_binaries:
-          requires:
-            - unit_tests
-            - integration_tests
-            - docker_tests
-      - build_puppy:
-          requires:
-            - unit_tests
-            - integration_tests
-            - docker_tests
+      # - integration_tests:
+      #     requires:
+      #       - dependencies
+      # - release_note:
+      #     requires:
+      #       - dependencies
+      # - team_label:
+      #     requires:
+      #       - dependencies
+      # - milestone:
+      #     requires:
+      #       - dependencies
+      # - filename_linting:
+      #     requires:
+      #       - dependencies
+      # - docker_tests:
+      #     requires:
+      #       - dependencies
+      # - build_binaries:
+      #     requires:
+      #       - unit_tests
+      #       - integration_tests
+      #       - docker_tests
+      # - build_puppy:
+      #     requires:
+      #       - unit_tests
+      #       - integration_tests
+      #       - docker_tests
