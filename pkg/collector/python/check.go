@@ -189,7 +189,7 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 	var check *C.six_pyobject_t
 	res := C.get_check(six, c.class, (*C.char)(cInitConfig), (*C.char)(cInstance), (*C.char)(cCheckID), (*C.char)(cCheckName), &check)
 	if res == 0 {
-		log.Warnf("could not get a check instance with the new api: %s", getSixError())
+		log.Warnf("could not get a '%s' check instance with the new api: %s", c.ModuleName, getSixError())
 		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
 
 		allSettings := config.Datadog.AllSettings()
@@ -203,7 +203,7 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 
 		res := C.get_check_deprecated(six, c.class, (*C.char)(cInitConfig), (*C.char)(cInstance), (*C.char)(cAgentConfig), (*C.char)(cCheckID), (*C.char)(cCheckName), &check)
 		if res == 0 {
-			return fmt.Errorf("could not invoke python check constructor: %s", getSixError())
+			return fmt.Errorf("could not invoke '%s' python check constructor: %s", c.ModuleName, getSixError())
 		}
 		log.Warnf("passing `agentConfig` to the constructor is deprecated, please use the `get_config` function from the 'datadog_agent' package (%s).", c.ModuleName)
 	}

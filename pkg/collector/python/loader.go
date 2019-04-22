@@ -196,6 +196,8 @@ func expvarConfigureErrors() interface{} {
 }
 
 func addExpvarConfigureError(check string, errMsg string) {
+	log.Errorf("py.loader: could not configure check '%s': %s", check, errMsg)
+
 	statsLock.Lock()
 	defer statsLock.Unlock()
 

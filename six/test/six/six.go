@@ -107,7 +107,7 @@ func getFakeCheck() (string, error) {
 	}
 
 	// check instance
-	ret = C.get_check(six, class, C.CString(""), C.CString("[{fake_check: \"/\"}]"), C.CString("checkID"), C.CString("fake_check"), &check)
+	ret = C.get_check(six, class, C.CString(""), C.CString("{\"fake_check\": \"/\"}"), C.CString("checkID"), C.CString("fake_check"), &check)
 	if ret != 1 || check == nil {
 		return "", fmt.Errorf(C.GoString(C.get_error(six)))
 	}
@@ -123,7 +123,7 @@ func runFakeCheck() (string, error) {
 
 	C.get_class(six, C.CString("fake_check"), &module, &class)
 	C.get_attr_string(six, module, C.CString("__version__"), &version)
-	C.get_check(six, class, C.CString(""), C.CString("[{fake_check: \"/\"}]"), C.CString("checkID"), C.CString("fake_check"), &check)
+	C.get_check(six, class, C.CString(""), C.CString("{\"fake_check\": \"/\"}"), C.CString("checkID"), C.CString("fake_check"), &check)
 
 	return C.GoString(C.run_check(six, check)), fetchError()
 }
@@ -134,7 +134,7 @@ func runFakeGetWarnings() ([]string, error) {
 	var check *C.six_pyobject_t
 
 	C.get_class(six, C.CString("fake_check"), &module, &class)
-	C.get_check(six, class, C.CString(""), C.CString("[{fake_check: \"/\"}]"), C.CString("checkID"), C.CString("fake_check"), &check)
+	C.get_check(six, class, C.CString(""), C.CString("{\"fake_check\": \"/\"}"), C.CString("checkID"), C.CString("fake_check"), &check)
 
 	warns := C.get_checks_warnings(six, check)
 	if warns == nil {

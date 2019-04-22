@@ -8,4 +8,7 @@ class AgentCheck(object):
 
     @staticmethod
     def load_config(yaml_str):
-        pass
+        if yaml_str == "":
+            return None
+        else:
+            return {}
