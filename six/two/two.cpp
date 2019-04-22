@@ -228,11 +228,22 @@ bool Two::getCheck(SixPyObject *py_class, const char *init_config_str, const cha
         setError("error parsing init_config: " + _fetchPythonError());
         goto done;
     }
+    // replace an empty init_config by  a empty dict
+    if (init_config == Py_None) {
+        Py_XDECREF(init_config);
+        init_config = PyDict_New();
+    } else if (!PyDict_Check(init_config)) {
+        setError("error 'init_config' is not a dict");
+        goto done;
+    }
 
     // call `AgentCheck.load_config(instance)`
     instance = PyObject_CallMethod(klass, load_config, format, instance_str);
     if (instance == NULL) {
         setError("error parsing instance: " + _fetchPythonError());
+        goto done;
+    } else if (!PyDict_Check(instance)) {
+        setError("error instance is not a dict");
         goto done;
     }
 
@@ -254,6 +265,9 @@ bool Two::getCheck(SixPyObject *py_class, const char *init_config_str, const cha
         agent_config = PyObject_CallMethod(klass, load_config, format, agent_config_str);
         if (agent_config == NULL) {
             setError("error parsing agent_config: " + _fetchPythonError());
+            goto done;
+        } else if (!PyDict_Check(agent_config)) {
+            setError("error agent_config is not a dict");
             goto done;
         }
 
