@@ -39,6 +39,7 @@ build do
             delete "#{install_dir}/bin/agent/dist/conf.d"
             delete "#{install_dir}/bin/agent/dist/*.conf*"
             delete "#{install_dir}/bin/agent/dist/*.yaml"
+            command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         elsif linux?
             # Move system service files
             mkdir "/etc/init"
@@ -84,6 +85,9 @@ build do
 
             # cleanup clutter
             delete "#{install_dir}/etc"
+            # The prerm script of the package should use this list to remove the pyc/pyo files
+            command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.py_compiled_files.txt"
+            command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print >> #{install_dir}/embedded/.py_compiled_files.txt"
         elsif osx?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
