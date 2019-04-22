@@ -4,7 +4,7 @@
 // Copyright 2016-2019 Datadog, Inc.
 
 // +build !windows,!darwin
-// +build cpython
+// +build cpython python
 
 package app
 

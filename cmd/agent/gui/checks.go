@@ -254,6 +254,25 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func getWheelsChecks() ([]string, error) {
+	pyChecks := []string{}
+
+	// The integration list includes JMX integrations, they ship as wheels too.
+	// JMX wheels just contain sample configs, but they do ship.
+	integrations, err := getPythonChecks()
+	if err != nil {
+		return []string{}, err
+	}
+
+	for _, integration := range integrations {
+		if _, ok := config.StandardJMXIntegrations[integration]; !ok {
+			pyChecks = append(pyChecks, integration)
+		}
+	}
+
+	return pyChecks, nil
+}
+
 // Sends a list containing the names of all the checks
 func listChecks(w http.ResponseWriter, r *http.Request) {
 	integrations := []string{}
@@ -270,7 +289,7 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	pyIntegrations, err := getPythonChecks()
+	wheelsIntegrations, err := getWheelsChecks()
 	if err != nil {
 		log.Errorf("Unable to compile list of installed integrations: %v", err)
 		w.Write([]byte("Unable to compile list of installed integrations."))
@@ -278,7 +297,7 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get python wheels
-	integrations = append(integrations, pyIntegrations...)
+	integrations = append(integrations, wheelsIntegrations...)
 
 	// Get go-checks
 	goIntegrations := core.GetRegisteredFactoryKeys()
