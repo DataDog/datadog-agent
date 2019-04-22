@@ -4,14 +4,6 @@ version: 2
 # see https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
 # and https://learnxinyminutes.com/docs/yaml/
 
-experimental:
-  # For some reason filtering out notifications keeps being undocumented and
-  # marked as experimental but as of today, it's still working.
-  notify:
-    branches:
-      only:
-        - master
-
 templates:
   job_template: &job_template
     docker:
@@ -33,17 +25,17 @@ templates:
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen13-godeps-{{ .Branch }}-{{ .Revision }}
-          - gen13-godeps-{{ .Branch }}-
-          - gen13-godeps-master-
+          - gen11-godeps-{{ .Branch }}-{{ .Revision }}
+          - gen11-godeps-{{ .Branch }}-
+          - gen11-godeps-master-
     - save_cache: &save_deps
-        key: gen13-godeps-{{ .Branch }}-{{ .Revision }}
+        key: gen11-godeps-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
-          - v3-repo-{{ .Revision }}
+          - v2-repo-{{ .Revision }}
     - save_cache: &save_source
-        key: v3-repo-{{ .Revision }}
+        key: v2-repo-{{ .Revision }}
 
 jobs:
   checkout_code:
@@ -212,31 +204,31 @@ workflows:
       - unit_tests:
           requires:
             - dependencies
-      - integration_tests:
-          requires:
-            - dependencies
-      - release_note:
-          requires:
-            - dependencies
-      - team_label:
-          requires:
-            - dependencies
-      - milestone:
-          requires:
-            - dependencies
-      - filename_linting:
-          requires:
-            - dependencies
-      - docker_tests:
-          requires:
-            - dependencies
-      - build_binaries:
-          requires:
-            - unit_tests
-            - integration_tests
-            - docker_tests
-      - build_puppy:
-          requires:
-            - unit_tests
-            - integration_tests
-            - docker_tests
+      # - integration_tests:
+      #     requires:
+      #       - dependencies
+      # - release_note:
+      #     requires:
+      #       - dependencies
+      # - team_label:
+      #     requires:
+      #       - dependencies
+      # - milestone:
+      #     requires:
+      #       - dependencies
+      # - filename_linting:
+      #     requires:
+      #       - dependencies
+      # - docker_tests:
+      #     requires:
+      #       - dependencies
+      # - build_binaries:
+      #     requires:
+      #       - unit_tests
+      #       - integration_tests
+      #       - docker_tests
+      # - build_puppy:
+      #     requires:
+      #       - unit_tests
+      #       - integration_tests
+      #       - docker_tests
