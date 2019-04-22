@@ -11,7 +11,9 @@ secrets in plain text in configuration files. Users have the flexibility to
 design their executable according to their preferred key management service,
 authentication method, and continuous integration workflow.
 
-For now, secrets are not supported in APM or Live Process configurations.
+Starting with version `6.11`, the Secrets Management feature is also supported
+in the `datadog.yaml` file by APM (on Linux and Windows) and Process Monitoring
+(on Linux only).
 
 This section covers how to set up this feature.
 
@@ -133,6 +135,12 @@ the user-provided executable once per file that contains a secret handle at
 startup, and might make additional calls to the executable later if the Agent or
 instance is restarted, or if the Agent dynamically loads a new check containing
 a secret handle (e.g. via Autodiscovery).
+
+Since APM and Process Monitoring run in their own process/service, and since
+processes don't share memory, each needs to be able to load/decrypt secrets.
+Thus, if `datadog.yaml` contains secrets, each process might call the executable
+once. For example, storing the `api_key` as a secret in the `datadog.yaml` file
+with APM and Process Monitoring enabled might result in 3 calls to the secret backend.
 
 By design, the user-provided executable needs to implement any error handling
 mechanism that a user might require. Conversely, the Agent needs to be
@@ -352,7 +360,7 @@ instances:
 ### Listing detected secrets
 
 The `secret` command in the Agent CLI shows any errors related to your setup
-(if the rights on the executable aren't the right one for example). It 
+(if the rights on the executable aren't the right one for example). It
 also lists all handles found and where they where found.
 
 On Linux the command outputs file mode, owner and group for the executable,
