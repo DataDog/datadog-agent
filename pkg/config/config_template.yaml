@@ -23,14 +23,15 @@ api_key:
 
 ## @param proxy - custom object - optional
 ## If you need a proxy to connect to the Internet, provide it here (default:
-## disabled). See https://docs.datadoghq.com/agent/proxy/ to learn more.
+## disabled). Refer to https://docs.datadoghq.com/agent/proxy/ to understand how to use these settings.
 ## For Logs proxy information, refer to https://docs.datadoghq.com/agent/proxy/#proxy-for-logs
 #
 # proxy:
 #   https: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTPS>:<PORT>
 #   http: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTP>:<PORT>
 #   no_proxy:
-#     - <HOSTNAME>
+#     - <HOSTNAME-1>
+#     - <HOSTNAME-2>
 
 ## @param skip_ssl_validation - boolean - optional - default: false
 ## Setting this option to "true" tells the Agent to skip validation of SSL/TLS certificates.
@@ -55,7 +56,7 @@ api_key:
 # hostname_fqdn: false
 
 ## @param tags  - list of key:value elements - optional
-## List of host tags to attach to every metric, event, logs, traces, and service check emitted by this Agent.
+## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 ##
 ## Learn more about tagging: https://docs.datadoghq.com/tagging/
 #
@@ -111,7 +112,7 @@ api_key:
 #   - avg
 #   - count
 
-## @param histogram_percentiles - list of strings - optional - default: "0.95"
+## @param histogram_percentiles - list of strings - optional - default: ["0.95"]
 ## Configure which percentiles are computed by the Agent. It must be a list of float between 0 and 1.
 ## Warning: percentiles must be specified as yaml strings
 #
@@ -129,7 +130,7 @@ api_key:
 #
 # histogram_copy_to_distribution_prefix: "<PREFIX>"
 
-## @parmam forwarder_timeout - integer - optional - default: 20
+## @param forwarder_timeout - integer - optional - default: 20
 ## Forwarder timeout in seconds
 #
 # forwarder_timeout: 20
@@ -148,12 +149,12 @@ api_key:
 # forwarder_num_workers: 1
 
 ## @param collect_ec2_tags - boolean - optional - default: false
-## Collect AWS EC2 custom tags as Agent tags.
+## Collect AWS EC2 custom tags as host tags.
 #
 # collect_ec2_tags: false
 
 ## @param collect_gce_tags - boolean - optional - default: true
-## Collect Google Cloud Engine metadata as Agent tags
+## Collect Google Cloud Engine metadata as host tags
 #
 # collect_gce_tags: true
 
@@ -164,7 +165,7 @@ api_key:
 ## Advanced Configuration ##
 ############################
 
-## @param confd_path - string - optional - default: ""
+## @param confd_path - string - optional
 ## The path containing check configuration files. By default, uses the conf.d folder
 ## located in the Agent configuration folder.
 #
@@ -242,7 +243,7 @@ api_key:
 # disable_py3_validation: false
 
 ## @param secret_backend_command - string - optional
-## `secret_backend_command` is the path to the script to execute.
+## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
 ##
 ## For more information see: https://github.com/DataDog/datadog-agent/blob/master/docs/agent/secrets.md
@@ -495,7 +496,7 @@ api_key:
 {{- if .Dogstatsd }}
 
 ############################
-## DogSatsD Configuration ##
+## DogStatsD Configuration ##
 ############################
 
 ## @param use_dogstatsd - boolean - optional - default: true
@@ -527,7 +528,7 @@ api_key:
 # dogstatsd_origin_detection: false
 
 ## @param dogstatsd_buffer_size - integer - optional - default: 8192
-## The buffer size use to receive statsd packet, in bytes.
+## The buffer size use to receive statsd packets, in bytes.
 #
 # dogstatsd_buffer_size: 8192
 
@@ -559,7 +560,7 @@ api_key:
 #
 # dogstatsd_so_rcvbuf: 0
 
-## @param dogstatsd_metrics_stats_enable - boolean - optoinal - default: false
+## @param dogstatsd_metrics_stats_enable - boolean - optional - default: false
 ## Set this parameter to true to have DogStatsD collects basic statistics (count/last seen)
 ## about the metrics it processsed. Use the Agent command "dogstatsd-stats" to visualize
 ## those statistics.
