@@ -23,12 +23,12 @@ type Pipeline struct {
 // NewPipeline returns a new Pipeline
 func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
 	// initialize the main destination
-	main := client.NewDestination(endpoints.Main, destinationsContext)
+	main := client.NewDestination(endpoints.Main, destinationsContext, client.DefaultExpirationState)
 
 	// initialize the additional destinations
 	var additionals []*client.Destination
 	for _, endpoint := range endpoints.Additionals {
-		additionals = append(additionals, client.NewDestination(endpoint, destinationsContext))
+		additionals = append(additionals, client.NewDestination(endpoint, destinationsContext, client.DefaultExpirationState))
 	}
 
 	// initialize the sender

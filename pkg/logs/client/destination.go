@@ -7,7 +7,6 @@ package client
 
 import (
 	"expvar"
-	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -32,6 +31,11 @@ var (
 	connLifetimeSpread = 5
 	// The time unit of the spread.
 	connLifetimeSpreadUnit = time.Minute
+	// DefaultExpirationState is the default expiration state.
+	DefaultExpirationState = NewExpirationState(
+		connLifetimeInHours,
+		connLifetimeSpread,
+		connLifetimeSpreadUnit)
 )
 
 // FramingError represents a kind of error that can occur when a log can not properly
@@ -59,25 +63,26 @@ type Destination struct {
 	connManager         *ConnectionManager
 	destinationsContext *DestinationsContext
 	conn                net.Conn
-	connExpirationTime  time.Time
+	expirationState     *ExpirationState
 	inputChan           chan []byte
 	once                sync.Once
 }
 
 // NewDestination returns a new destination.
-func NewDestination(endpoint Endpoint, destinationsContext *DestinationsContext) *Destination {
+func NewDestination(endpoint Endpoint, destinationsContext *DestinationsContext, expirationState *ExpirationState) *Destination {
 	return &Destination{
 		prefixer:            newPrefixer(endpoint.APIKey + separator),
 		delimiter:           NewDelimiter(endpoint.UseProto),
 		connManager:         NewConnectionManager(endpoint),
 		destinationsContext: destinationsContext,
+		expirationState:     expirationState,
 	}
 }
 
 // Send transforms a message into a frame and sends it to a remote server,
 // returns an error if the operation failed.
 func (d *Destination) Send(payload []byte) error {
-	if d.isConnectionExpired() {
+	if d.expirationState.IsExpired() {
 		// reset the connection to make sure the load is evenly spread
 		// and the agent can target new nodes.
 		log.Debug("Connection is expired")
@@ -152,7 +157,7 @@ func (d *Destination) openConnection() error {
 	// as connections are likely to be opened at the same time,
 	// when the agent starts for example, we spread connection resets
 	// to limit the stress on backends.
-	d.connExpirationTime = time.Now().Add(connLifetimeInHours + d.computeSpread())
+	d.expirationState.Reset()
 	return nil
 }
 
@@ -160,18 +165,5 @@ func (d *Destination) openConnection() error {
 func (d *Destination) closeConnection() {
 	d.connManager.CloseConnection(d.conn)
 	d.conn = nil
-	d.connExpirationTime = time.Time{}
-}
-
-// isConnectionExpired returns true if the connection is expired,
-// i.e. if it has been created a long time ago.
-func (d *Destination) isConnectionExpired() bool {
-	return d.connExpirationTime != time.Time{} && d.connExpirationTime.Before(time.Now())
-}
-
-// computeSpread returns the spread to use to distribute connection reset over time,
-// the spread is bounded to [-connLifetimeSpread/2, connLifetimeSpread/2].
-func (d *Destination) computeSpread() time.Duration {
-	spread := rand.Intn(connLifetimeSpread) - int(connLifetimeSpread/2)
-	return time.Duration(spread) * connLifetimeSpreadUnit
+	d.expirationState.Clear()
 }

@@ -28,5 +28,5 @@ func AddrToEndPoint(addr net.Addr) Endpoint {
 
 // AddrToDestination creates a Destination from an Addr
 func AddrToDestination(addr net.Addr, ctx *DestinationsContext) *Destination {
-	return NewDestination(AddrToEndPoint(addr), ctx)
+	return NewDestination(AddrToEndPoint(addr), ctx, DefaultExpirationState)
 }

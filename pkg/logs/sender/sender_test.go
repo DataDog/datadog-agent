@@ -67,7 +67,7 @@ func TestSenderNotBlockedByAdditional(t *testing.T) {
 
 	mainDestination := client.AddrToDestination(l.Addr(), destinationsCtx)
 	// This destination doesn't exists
-	additionalDestination := client.NewDestination(client.Endpoint{Host: "dont.exist.local", Port: 0}, destinationsCtx)
+	additionalDestination := client.NewDestination(client.Endpoint{Host: "dont.exist.local", Port: 0}, destinationsCtx, client.DefaultExpirationState)
 	destinations := client.NewDestinations(mainDestination, []*client.Destination{additionalDestination})
 
 	sender := NewSender(input, output, destinations)
