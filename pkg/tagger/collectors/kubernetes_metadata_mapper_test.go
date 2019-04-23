@@ -43,6 +43,9 @@ type FakeDCAClient struct {
 
 	ClusterCheckConfigs    types.ConfigResponse
 	ClusterCheckConfigsErr error
+
+	EndpointsCheckConfigs    types.ConfigResponse
+	EndpointsCheckConfigsErr error
 }
 
 func (f *FakeDCAClient) Version() version.Version {
@@ -70,6 +73,10 @@ func (f *FakeDCAClient) PostClusterCheckStatus(nodeName string, status types.Nod
 
 func (f *FakeDCAClient) GetClusterCheckConfigs(nodeName string) (types.ConfigResponse, error) {
 	return f.ClusterCheckConfigs, f.ClusterCheckConfigsErr
+}
+
+func (f *FakeDCAClient) GetEndpointsCheckConfigs(nodeName string) (types.ConfigResponse, error) {
+	return f.EndpointsCheckConfigs, f.EndpointsCheckConfigsErr
 }
 
 func TestKubeMetadataCollector_getMetadaNames(t *testing.T) {

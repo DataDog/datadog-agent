@@ -5,7 +5,9 @@
 
 package types
 
-import "github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+import (
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+)
 
 // NodeStatus holds the status report from the node-agent
 type NodeStatus struct {
@@ -50,4 +52,16 @@ type Stats struct {
 	ActiveConfigs   int
 	DanglingConfigs int
 	TotalConfigs    int
+}
+
+// LeaderIPCallback describes the leader-election method we
+// need and allows to inject a custom one for tests
+type LeaderIPCallback func() (string, error)
+
+// EndpointsInfo is used to store the collected info of endpoints.
+type EndpointsInfo struct {
+	Namespace     string
+	Name          string
+	ServiceEntity string
+	Configs       []integration.Config
 }

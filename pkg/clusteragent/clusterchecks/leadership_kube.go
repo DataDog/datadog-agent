@@ -8,9 +8,12 @@
 
 package clusterchecks
 
-import "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
+import (
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
+)
 
-func getLeaderIPCallback() (leaderIPCallback, error) {
+func getLeaderIPCallback() (types.LeaderIPCallback, error) {
 	engine, err := leaderelection.GetLeaderEngine()
 	if err != nil {
 		return nil, err

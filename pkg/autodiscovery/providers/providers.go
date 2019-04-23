@@ -12,15 +12,16 @@ import (
 
 // User-facing names for the config providers
 const (
-	Consul        = "consul"
-	ClusterChecks = "cluster-checks"
-	Docker        = "docker"
-	ECS           = "ecs"
-	Etcd          = "etcd"
-	File          = "file"
-	Kubernetes    = "kubernetes"
-	KubeServices  = "kubernetes-services"
-	Zookeeper     = "zookeeper"
+	Consul          = "consul"
+	ClusterChecks   = "cluster-checks"
+	Docker          = "docker"
+	ECS             = "ecs"
+	EndpointsChecks = "endpoints-checks"
+	Etcd            = "etcd"
+	File            = "file"
+	Kubernetes      = "kubernetes"
+	KubeServices    = "kubernetes-services"
+	Zookeeper       = "zookeeper"
 )
 
 // ProviderCatalog keeps track of config providers by name

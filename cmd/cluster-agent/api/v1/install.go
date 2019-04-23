@@ -44,6 +44,7 @@ func Install(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/tags/pod", getAllMetadata).Methods("GET")
 	r.HandleFunc("/tags/node/{nodeName}", getNodeMetadata).Methods("GET")
 	installClusterCheckEndpoints(r, sc)
+	installEndpointsCheckEndpoints(r, sc)
 }
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels

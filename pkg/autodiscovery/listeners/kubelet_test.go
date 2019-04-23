@@ -130,6 +130,7 @@ func getMockedPods() []*kubelet.Pod {
 			Spec:   kubeletSpec,
 			Status: kubeletStatus,
 			Metadata: kubelet.PodMetadata{
+				UID:  "mock-pod-uid",
 				Name: "mock-pod",
 				Annotations: map[string]string{
 					"ad.datadoghq.com/baz.instances": "[]",
@@ -150,7 +151,7 @@ func TestProcessNewPod(t *testing.T) {
 		config.Datadog.SetDefault("exclude_pause_container", true)
 	}()
 
-	services := make(chan Service, 5)
+	services := make(chan Service, 6)
 	listener := KubeletListener{
 		newService: services,
 		services:   make(map[string]Service),
@@ -231,10 +232,28 @@ func TestProcessNewPod(t *testing.T) {
 		assert.FailNow(t, "fourth service not in channel")
 	}
 
-	// Fifth container is filtered out
+	// Fifth container is filtered out, should receive the pod service
+	select {
+	case service := <-services:
+		assert.Equal(t, "kubernetes_pod://mock-pod-uid", string(service.GetEntity()))
+		adIdentifiers, err := service.GetADIdentifiers()
+		assert.Nil(t, err)
+		assert.Equal(t, []string{"kubernetes_pod://mock-pod-uid"}, adIdentifiers)
+		hosts, err := service.GetHosts()
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
+		ports, err := service.GetPorts()
+		assert.Nil(t, err)
+		assert.Equal(t, []ContainerPort{{1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1337, "footcpport"}, {1339, "fooudpport"}}, ports)
+		_, err = service.GetPid()
+		assert.Equal(t, ErrNotSupported, err)
+	default:
+		assert.FailNow(t, "pod service not in channel")
+	}
+
 	select {
 	case <-services:
-		assert.FailNow(t, "five services in channel, filtering is broken")
+		assert.FailNow(t, "6 services in channel, filtering is broken")
 	default:
 		// all good
 	}

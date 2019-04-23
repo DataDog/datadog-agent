@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -32,10 +33,6 @@ const (
 	follower
 )
 
-// leaderIPCallback describes the leader-election method we
-// need and allows to inject a custom one for tests
-type leaderIPCallback func() (string, error)
-
 // pluggableAutoConfig describes the AC methods we use and allows
 // to mock it for tests (see mockedPluggableAutoConfig)
 type pluggableAutoConfig interface {
@@ -49,7 +46,7 @@ type Handler struct {
 	dispatcher           *dispatcher
 	leaderStatusFreq     time.Duration
 	warmupDuration       time.Duration
-	leaderStatusCallback leaderIPCallback
+	leaderStatusCallback types.LeaderIPCallback
 	leadershipChan       chan state
 	m                    sync.RWMutex // Below fields protected by the mutex
 	state                state

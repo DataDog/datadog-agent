@@ -73,12 +73,12 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 					ADIdentifiers: []string{"kube_endpoint://default/myservice"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"prometheus_url\":\"http://%%host%%:2379/metrics\",\"use_preview\":\"true\"}")},
-					ClusterCheck:  true,
+					ClusterCheck:  false,
 				},
 			},
 		},
 		{
-			name: "valid service end endpoints annotations",
+			name: "valid service and endpoints annotations",
 			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					UID:       types.UID("test"),
@@ -101,13 +101,22 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 					ClusterCheck:  true,
+					EndpointsChecks: []integration.Config{
+						{
+							Name:          "etcd",
+							ADIdentifiers: []string{"kube_endpoint://default/myservice"},
+							InitConfig:    integration.Data("{}"),
+							Instances:     []integration.Data{integration.Data("{\"prometheus_url\":\"http://%%host%%:2379/metrics\",\"use_preview\":\"true\"}")},
+							ClusterCheck:  false,
+						},
+					},
 				},
 				{
 					Name:          "etcd",
 					ADIdentifiers: []string{"kube_endpoint://default/myservice"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"prometheus_url\":\"http://%%host%%:2379/metrics\",\"use_preview\":\"true\"}")},
-					ClusterCheck:  true,
+					ClusterCheck:  false,
 				},
 			},
 		},
@@ -178,7 +187,7 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 					ADIdentifiers: []string{"kube_endpoint://default/myservice"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"prometheus_url\":\"http://%%host%%:2379/metrics\",\"use_preview\":\"true\"}")},
-					ClusterCheck:  true,
+					ClusterCheck:  false,
 				},
 			},
 		},

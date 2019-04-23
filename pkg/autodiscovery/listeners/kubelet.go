@@ -10,7 +10,6 @@ package listeners
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -42,6 +41,16 @@ type KubeletListener struct {
 
 // KubeContainerService implements and store results from the Service interface for the Kubelet listener
 type KubeContainerService struct {
+	entity        string
+	adIdentifiers []string
+	hosts         map[string]string
+	ports         []ContainerPort
+	creationTime  integration.CreationTime
+}
+
+// KubePodService registers pod as a Service, implements and store results from the Service interface for the Kubelet listener
+// needed to run checks on pod's endpoints
+type KubePodService struct {
 	entity        string
 	adIdentifiers []string
 	hosts         map[string]string
@@ -124,8 +133,57 @@ func (l *KubeletListener) processNewPods(pods []*kubelet.Pod, firstRun bool) {
 			for _, container := range pod.Status.Containers {
 				l.createService(container.ID, pod, firstRun)
 			}
+			l.createPodService(pod, firstRun)
 		}
 	}
+}
+
+func (l *KubeletListener) createPodService(pod *kubelet.Pod, firstRun bool) {
+	var crTime integration.CreationTime
+	if firstRun {
+		crTime = integration.Before
+	} else {
+		crTime = integration.After
+	}
+
+	// Entity, to be used as an AD identifier too
+	entity := kubelet.PodUIDToEntityName(pod.Metadata.UID)
+
+	// Hosts
+	podIp := pod.Status.PodIP
+	if podIp == "" {
+		log.Errorf("Unable to get pod %s IP", pod.Metadata.Name)
+	}
+
+	// Ports: adding all ports of pod's containers
+	var ports []ContainerPort
+	for _, container := range pod.Spec.Containers {
+		for _, port := range container.Ports {
+			ports = append(ports, ContainerPort{port.ContainerPort, port.Name})
+		}
+	}
+	sort.Slice(ports, func(i, j int) bool {
+		return ports[i].Port < ports[j].Port
+	})
+
+	if len(ports) == 0 {
+		// Port might not be specified in pod spec
+		log.Debugf("No ports found for pod %s", pod.Metadata.Name)
+	}
+
+	svc := KubePodService{
+		entity:        entity,
+		adIdentifiers: []string{entity},
+		hosts:         map[string]string{"pod": podIp},
+		ports:         ports,
+		creationTime:  crTime,
+	}
+
+	l.m.Lock()
+	l.services[entity] = &svc
+	l.m.Unlock()
+
+	l.newService <- &svc
 }
 
 func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRun bool) {
@@ -219,11 +277,6 @@ func podHasADTemplate(annotations map[string]string, containerName string) bool 
 }
 
 func (l *KubeletListener) removeService(entity string) {
-	if strings.HasPrefix(entity, kubelet.KubePodPrefix) {
-		// Ignoring expired pods
-		return
-	}
-
 	l.m.RLock()
 	svc, ok := l.services[entity]
 	l.m.RUnlock()
@@ -276,5 +329,45 @@ func (s *KubeContainerService) GetHostname() (string, error) {
 
 // GetCreationTime returns the creation time of the container compare to the agent start.
 func (s *KubeContainerService) GetCreationTime() integration.CreationTime {
+	return s.creationTime
+}
+
+// GetEntity returns the unique entity name linked to that service
+func (s *KubePodService) GetEntity() string {
+	return s.entity
+}
+
+// GetADIdentifiers returns the service AD identifiers
+func (s *KubePodService) GetADIdentifiers() ([]string, error) {
+	return s.adIdentifiers, nil
+}
+
+// GetHosts returns the pod hosts
+func (s *KubePodService) GetHosts() (map[string]string, error) {
+	return s.hosts, nil
+}
+
+// GetPid is not supported for PodContainerService
+func (s *KubePodService) GetPid() (int, error) {
+	return -1, ErrNotSupported
+}
+
+// GetPorts returns the container's ports
+func (s *KubePodService) GetPorts() ([]ContainerPort, error) {
+	return s.ports, nil
+}
+
+// GetTags retrieves tags using the Tagger
+func (s *KubePodService) GetTags() ([]string, error) {
+	return tagger.Tag(string(s.entity), tagger.ChecksCardinality)
+}
+
+// GetHostname returns nil and an error because port is not supported in Kubelet
+func (s *KubePodService) GetHostname() (string, error) {
+	return "", ErrNotSupported
+}
+
+// GetCreationTime returns the creation time of the container compare to the agent start.
+func (s *KubePodService) GetCreationTime() integration.CreationTime {
 	return s.creationTime
 }
