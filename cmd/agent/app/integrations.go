@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -46,64 +47,6 @@ var (
 	versionOnly  bool
 	localWheel   bool
 )
-
-type integrationVersion struct {
-	major int
-	minor int
-	fix   int
-}
-
-// Parse a version string.
-// Return the version, or nil empty string
-func parseVersion(version string) (*integrationVersion, error) {
-	var major, minor, fix int
-	if version == "" {
-		return nil, nil
-	}
-	_, err := fmt.Sscanf(version, "%d.%d.%d", &major, &minor, &fix)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse version string %s: %v", version, err)
-	}
-	return &integrationVersion{major, minor, fix}, nil
-}
-
-func (v *integrationVersion) String() string {
-	return fmt.Sprintf("%d.%d.%d", v.major, v.minor, v.fix)
-}
-
-func (v *integrationVersion) isAboveOrEqualTo(otherVersion *integrationVersion) bool {
-	if otherVersion == nil {
-		return true
-	}
-
-	if v.major > otherVersion.major {
-		return true
-	} else if v.major < otherVersion.major {
-		return false
-	}
-
-	if v.minor > otherVersion.minor {
-		return true
-	} else if v.minor < otherVersion.minor {
-		return false
-	}
-
-	if v.fix > otherVersion.fix {
-		return true
-	} else if v.fix < otherVersion.fix {
-		return false
-	}
-
-	return true
-}
-
-func (v *integrationVersion) equals(otherVersion *integrationVersion) bool {
-	if otherVersion == nil {
-		return false
-	}
-
-	return v.major == otherVersion.major && v.minor == otherVersion.minor && v.fix == otherVersion.fix
-}
 
 func init() {
 	AgentCmd.AddCommand(integrationCmd)
@@ -318,7 +261,7 @@ func install(cmd *cobra.Command, args []string) error {
 	if integration == "datadog-checks-base" {
 		return fmt.Errorf("this command does not allow installing datadog-checks-base")
 	}
-	versionToInstall, err := parseVersion(strings.TrimSpace(intVer[1]))
+	versionToInstall, err := semver.NewVersion(strings.TrimSpace(intVer[1]))
 	if err != nil || versionToInstall == nil {
 		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
 	}
@@ -327,7 +270,7 @@ func install(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("could not get current version of %s: %v", integration, err)
 	}
 
-	if versionToInstall.equals(currentVersion) {
+	if versionToInstall.Equal(*currentVersion) {
 		fmt.Printf("%s %s is already installed. Nothing to do.\n", integration, versionToInstall)
 		return nil
 	}
@@ -336,7 +279,7 @@ func install(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("unable to get minimal version of %s: %v", integration, err)
 	}
-	if !versionToInstall.isAboveOrEqualTo(minVersion) {
+	if versionToInstall.LessThan(*minVersion) {
 		return fmt.Errorf(
 			"this command does not allow installing version %s of %s older than version %s shipped with the agent",
 			versionToInstall, integration, minVersion,
@@ -479,7 +422,7 @@ func downloadWheel(integration, version string) (string, error) {
 	return wheelPath, nil
 }
 
-func validateBaseDependency(wheelPath string, baseVersion *integrationVersion) (bool, error) {
+func validateBaseDependency(wheelPath string, baseVersion *semver.Version) (bool, error) {
 	reader, err := zip.OpenReader(wheelPath)
 	if err != nil {
 		return false, err
@@ -515,7 +458,7 @@ func validateBaseDependency(wheelPath string, baseVersion *integrationVersion) (
 					compatible := true
 					for _, groups := range matches {
 						comp := groups[1]
-						version, err := parseVersion(groups[2])
+						version, err := semver.NewVersion(groups[2])
 						if err != nil {
 							return false, fmt.Errorf("unable to parse version specifier %s in %s: %v", groups[0], line, err)
 						}
@@ -532,27 +475,27 @@ func validateBaseDependency(wheelPath string, baseVersion *integrationVersion) (
 	return false, nil
 }
 
-func validateRequirement(version *integrationVersion, comp string, versionReq *integrationVersion) bool {
+func validateRequirement(version *semver.Version, comp string, versionReq *semver.Version) bool {
 	// Check for cases defined here: https://www.python.org/dev/peps/pep-0345/#version-specifiers
 	switch comp {
 	case "<": // version < versionReq
-		return !version.isAboveOrEqualTo(versionReq)
+		return version.LessThan(*versionReq)
 	case "<=": // version <= versionReq
-		return versionReq.isAboveOrEqualTo(version)
+		return !versionReq.LessThan(*version)
 	case ">": // version > versionReq
-		return !versionReq.isAboveOrEqualTo(version)
+		return versionReq.LessThan(*version)
 	case ">=": // version >= versionReq
-		return version.isAboveOrEqualTo(versionReq)
+		return !version.LessThan(*versionReq)
 	case "==": // version == versionReq
-		return version.equals(versionReq)
+		return version.Equal(*versionReq)
 	case "!=": // version != versionReq
-		return !version.equals(versionReq)
+		return !version.Equal(*versionReq)
 	default:
 		return false
 	}
 }
 
-func minAllowedVersion(integration string) (*integrationVersion, error) {
+func minAllowedVersion(integration string) (*semver.Version, error) {
 	here, _ := executable.Folder()
 	lines, err := ioutil.ReadFile(filepath.Join(here, relReqAgentReleasePath))
 	if err != nil {
@@ -567,7 +510,7 @@ func minAllowedVersion(integration string) (*integrationVersion, error) {
 }
 
 // Return the version of an installed integration, or nil if the integration isn't installed
-func installedVersion(integration string) (*integrationVersion, error) {
+func installedVersion(integration string) (*semver.Version, error) {
 	pythonPath, err := getCommandPython()
 	if err != nil {
 		return nil, err
@@ -597,7 +540,7 @@ func installedVersion(integration string) (*integrationVersion, error) {
 
 // Parse requirements lines to get a package version.
 // Returns the version if found, or nil if package not present
-func getVersionFromReqLine(integration string, lines string) (*integrationVersion, error) {
+func getVersionFromReqLine(integration string, lines string) (*semver.Version, error) {
 	exp, err := regexp.Compile(fmt.Sprintf(reqLinePattern, integration))
 	if err != nil {
 		return nil, fmt.Errorf("internal error: %v", err)
@@ -612,7 +555,7 @@ func getVersionFromReqLine(integration string, lines string) (*integrationVersio
 		return nil, fmt.Errorf("Found several matches for %s version in %s\nAborting", integration, lines)
 	}
 
-	version, err := parseVersion(groups[0][1])
+	version, err := semver.NewVersion(groups[0][1])
 	if err != nil {
 		return nil, err
 	}
