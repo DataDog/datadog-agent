@@ -18,7 +18,7 @@ import (
 // EndpointsChecksConfigProvider implements the ConfigProvider interface
 // for the endpoints check feature.
 type EndpointsChecksConfigProvider struct {
-	dcaClient      *clusteragent.DCAClient
+	dcaClient      clusteragent.DCAClientInterface
 	nodeName       string
 	flushedConfigs bool
 }
@@ -87,7 +87,7 @@ func getNodename() (string, error) {
 func (c *EndpointsChecksConfigProvider) initClient() error {
 	dcaClient, err := clusteragent.GetClusterAgentClient()
 	if err == nil {
-		c.dcaClient = dcaClient.(*clusteragent.DCAClient)
+		c.dcaClient = dcaClient
 	}
 	return err
 }
