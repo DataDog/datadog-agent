@@ -122,6 +122,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("bind_host", "localhost")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
+	config.BindEnvAndSetDefault("python_version", 2)
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
@@ -380,7 +381,6 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("external_metrics_provider.rollup", 30)                  // Bucket size to circumvent time aggregation side effects.
 	config.BindEnvAndSetDefault("kubernetes_event_collection_timeout", 100)              // timeout between two successful event collections in milliseconds.
 	config.BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)              // value in seconds. Default to 5 minutes
-	config.BindEnvAndSetDefault("kubernetes_informers_restclient_timeout", 60)           // value in seconds
 	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30) // value in seconds
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)

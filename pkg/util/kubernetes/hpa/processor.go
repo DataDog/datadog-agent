@@ -27,6 +27,12 @@ type DatadogClient interface {
 	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
 }
 
+// ProcessorInterface is used to easily mock the interface for testing
+type ProcessorInterface interface {
+	UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue)
+	ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) map[string]custommetrics.ExternalMetricValue
+}
+
 // Processor embeds the configuration to refresh metrics from Datadog and process HPA structs to ExternalMetrics.
 type Processor struct {
 	externalMaxAge time.Duration
@@ -44,10 +50,10 @@ func NewProcessor(datadogCl DatadogClient) (*Processor, error) {
 
 // UpdateExternalMetrics does the validation and processing of the ExternalMetrics
 // TODO if a metric's ts in emList is too recent, no need to add it to the batchUpdate.
-func (p *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricValue) (updated []custommetrics.ExternalMetricValue) {
+func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue) {
 	maxAge := int64(p.externalMaxAge.Seconds())
 	var err error
-
+	updated = make(map[string]custommetrics.ExternalMetricValue)
 	metrics, err := p.validateExternalMetric(emList)
 	if len(metrics) == 0 && err != nil {
 		log.Errorf("Error getting metrics from Datadog: %v", err.Error())
@@ -56,7 +62,7 @@ func (p *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricV
 		return invalidate(emList)
 	}
 
-	for _, em := range emList {
+	for id, em := range emList {
 		// use query (metricName{scope}) as a key to avoid conflict if multiple hpas are using the same metric with different scopes.
 		metricIdentifier := getKey(em.MetricName, em.Labels)
 		metric := metrics[metricIdentifier]
@@ -66,7 +72,7 @@ func (p *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricV
 			em.Valid = false
 			em.Value = metric.value
 			em.Timestamp = time.Now().Unix()
-			updated = append(updated, em)
+			updated[id] = em
 			continue
 		}
 
@@ -74,42 +80,28 @@ func (p *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricV
 		em.Value = metric.value
 		em.Timestamp = metric.timestamp
 		log.Debugf("Updated the external metric %#v", em)
-		updated = append(updated, em)
-
+		updated[id] = em
 	}
 	return updated
 }
 
 // ProcessHPAs processes the HorizontalPodAutoscalers into a list of ExternalMetricValues.
-func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []custommetrics.ExternalMetricValue {
-	var externalMetrics []custommetrics.ExternalMetricValue
-	var err error
+func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) map[string]custommetrics.ExternalMetricValue {
+	externalMetrics := make(map[string]custommetrics.ExternalMetricValue)
 	emList := Inspect(hpa)
-	metrics, err := p.validateExternalMetric(emList)
-	if err != nil && len(metrics) == 0 {
-		log.Errorf("Could not validate external metrics: %v", err)
-		return invalidate(emList)
-	}
 	for _, em := range emList {
-		maxAge := int64(p.externalMaxAge.Seconds())
-		metricIdentifier := getKey(em.MetricName, em.Labels)
-		metric := metrics[metricIdentifier]
-		em.Value = metric.value
-		em.Timestamp = metric.timestamp
-		em.Valid = metric.valid
-		if metav1.Now().Unix()-metric.timestamp > maxAge {
-			// If the maxAge is lower than the freshness of the metric, the metric is invalidated in the global store
-			em.Valid = false
-			em.Timestamp = metav1.Now().Unix() // The Timestamp is not the one of the metric, because we only rely on it to refresh.
-		}
-		log.Debugf("Added external metrics %#v", em)
-		externalMetrics = append(externalMetrics, em)
+		em.Value = 0
+		em.Timestamp = time.Now().Unix()
+		em.Valid = false
+		log.Tracef("Created a boilerplate for the external metrics %#v", em)
+		id := custommetrics.ExternalMetricValueKeyFunc(em)
+		externalMetrics[id] = em
 	}
 	return externalMetrics
 }
 
 // validateExternalMetric queries Datadog to validate the availability and value of one or more external metrics
-func (p *Processor) validateExternalMetric(emList []custommetrics.ExternalMetricValue) (processed map[string]Point, err error) {
+func (p *Processor) validateExternalMetric(emList map[string]custommetrics.ExternalMetricValue) (processed map[string]Point, err error) {
 	var batch []string
 	for _, e := range emList {
 		q := getKey(e.MetricName, e.Labels)
@@ -118,11 +110,12 @@ func (p *Processor) validateExternalMetric(emList []custommetrics.ExternalMetric
 	return p.queryDatadogExternal(batch)
 }
 
-func invalidate(emList []custommetrics.ExternalMetricValue) (invList []custommetrics.ExternalMetricValue) {
-	for _, e := range emList {
+func invalidate(emList map[string]custommetrics.ExternalMetricValue) (invList map[string]custommetrics.ExternalMetricValue) {
+	invList = make(map[string]custommetrics.ExternalMetricValue)
+	for id, e := range emList {
 		e.Valid = false
 		e.Timestamp = metav1.Now().Unix()
-		invList = append(invList, e)
+		invList[id] = e
 	}
 	return invList
 }

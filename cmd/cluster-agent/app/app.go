@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/fatih/color"
@@ -203,14 +204,19 @@ func start(cmd *cobra.Command, args []string) error {
 	if err = api.StartServer(sc); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
-
+	wg := sync.WaitGroup{}
 	// HPA Process
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		// Start the k8s custom metrics server. This is a blocking call
-		err = custommetrics.StartServer()
-		if err != nil {
-			log.Errorf("Could not start the custom metrics API server: %s", err.Error())
-		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			errServ := custommetrics.RunServer(mainCtx)
+			if errServ != nil {
+				log.Errorf("Error in the External Metrics API Server: %v", errServ)
+			}
+		}()
 	}
 
 	// Block here until we receive the interrupt signal
@@ -227,10 +233,9 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Cancel the main context to stop components
 	mainCtxCancel()
+	// wait for the External Metrics Server to stop properly
+	wg.Wait()
 
-	if config.Datadog.GetBool("external_metrics_provider.enabled") {
-		custommetrics.StopServer()
-	}
 	if stopCh != nil {
 		close(stopCh)
 	}

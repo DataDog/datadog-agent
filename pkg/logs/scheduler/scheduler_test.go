@@ -47,7 +47,7 @@ func TestScheduleConfigCreatesNewService(t *testing.T) {
 	services := service.NewServices()
 	scheduler := NewScheduler(logSources, services)
 
-	servicesStream := services.GetAddedServices(service.Docker)
+	servicesStream := services.GetAddedServicesForType(config.DockerType)
 
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
@@ -95,7 +95,7 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
 	scheduler := NewScheduler(logSources, services)
-	servicesStream := services.GetRemovedServices(service.Docker)
+	servicesStream := services.GetRemovedServicesForType(config.DockerType)
 
 	configService := integration.Config{
 		LogsConfig:   []byte(""),

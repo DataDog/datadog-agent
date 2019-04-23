@@ -8,6 +8,7 @@
 package custommetrics
 
 import (
+	"context"
 	"fmt"
 	"net"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/apimachinery/pkg/util/wait"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -34,12 +34,13 @@ type DatadogMetricsAdapter struct {
 	basecmd.AdapterBase
 }
 
-// StartServer creates and start a k8s custom metrics API server
-func StartServer() error {
+// RunServer creates and start a k8s custom metrics API server
+func RunServer(ctx context.Context) error {
+	defer clearServerResources()
 	cmd = &DatadogMetricsAdapter{}
 	cmd.Flags()
 
-	provider, err := cmd.makeProviderOrDie()
+	provider, err := cmd.makeProviderOrDie(ctx)
 	if err != nil {
 		return err
 	}
@@ -57,11 +58,11 @@ func StartServer() error {
 	if err != nil {
 		return err
 	}
-
-	return server.GenericAPIServer.PrepareRun().Run(wait.NeverStop)
+	// TODO Add extra logic to only tear down the External Metrics Server if only some components fail.
+	return server.GenericAPIServer.PrepareRun().Run(ctx.Done())
 }
 
-func (a *DatadogMetricsAdapter) makeProviderOrDie() (provider.ExternalMetricsProvider, error) {
+func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context) (provider.ExternalMetricsProvider, error) {
 	client, err := a.DynamicClient()
 	if err != nil {
 		log.Infof("Unable to construct dynamic client: %v", err)
@@ -86,7 +87,7 @@ func (a *DatadogMetricsAdapter) makeProviderOrDie() (provider.ExternalMetricsPro
 		return nil, err
 	}
 
-	return custommetrics.NewDatadogProvider(client, mapper, store), nil
+	return custommetrics.NewDatadogProvider(ctx, client, mapper, store), nil
 }
 
 // Config creates the configuration containing the required parameters to communicate with the APIServer as an APIService
@@ -125,9 +126,9 @@ func (o *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 	}, nil
 }
 
-// StopServer closes the connection and the server
+// clearServerResources closes the connection and the server
 // stops listening to new commands.
-func StopServer() {
+func clearServerResources() {
 	if stopCh != nil {
 		close(stopCh)
 	}

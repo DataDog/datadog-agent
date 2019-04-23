@@ -10,10 +10,9 @@ package hpa
 import (
 	"testing"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	"github.com/stretchr/testify/assert"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -29,6 +28,7 @@ func TestDiffAutoscalter(t *testing.T) {
 		"No-Op": {
 			&autoscalingv2.HorizontalPodAutoscaler{
 				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "12",
 					Annotations: map[string]string{
 						"kubectl.kubernetes.io/last-applied-configuration": `
 						"apiVersion":"autoscaling/v2beta1",
@@ -68,6 +68,7 @@ func TestDiffAutoscalter(t *testing.T) {
 			},
 			&autoscalingv2.HorizontalPodAutoscaler{
 				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "14",
 					Annotations: map[string]string{
 						"kubectl.kubernetes.io/last-applied-configuration": `
 						"apiVersion":"autoscaling/v2beta1",
@@ -106,6 +107,27 @@ func TestDiffAutoscalter(t *testing.T) {
 				},
 			},
 			false,
+		},
+		"Resync": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "17",
+					Annotations:     map[string]string{},
+				},
+				Status: autoscalingv2.HorizontalPodAutoscalerStatus{
+					CurrentReplicas: 12,
+				},
+			},
+			&autoscalingv2.HorizontalPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "17",
+					Annotations:     map[string]string{},
+				},
+				Status: autoscalingv2.HorizontalPodAutoscalerStatus{
+					CurrentReplicas: 12,
+				},
+			},
+			true,
 		},
 		"Updated": {
 			&autoscalingv2.HorizontalPodAutoscaler{

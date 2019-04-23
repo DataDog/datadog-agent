@@ -48,7 +48,7 @@ func init() {
 
 // Store is an interface for persistent storage of custom and external metrics.
 type Store interface {
-	SetExternalMetricValues([]ExternalMetricValue) error
+	SetExternalMetricValues(map[string]ExternalMetricValue) error
 
 	DeleteExternalMetricValues([]ExternalMetricValue) error
 
@@ -108,7 +108,7 @@ func NewConfigMapStore(client kubernetes.Interface, ns, name string) (Store, err
 }
 
 // SetExternalMetricValues updates the external metrics in the configmap.
-func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) error {
+func (c *configMapStore) SetExternalMetricValues(added map[string]ExternalMetricValue) error {
 	if len(added) == 0 {
 		return nil
 	}
@@ -123,8 +123,7 @@ func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) er
 		// Don't panic "assignment to entry in nil map" at init
 		c.cm.Data = make(map[string]string)
 	}
-	for _, m := range added {
-		key := externalMetricValueKeyFunc(m)
+	for key, m := range added {
 		toStore, err := json.Marshal(m)
 		if err != nil {
 			log.Debugf("Could not marshal the external metric %v: %v", m, err)
@@ -148,7 +147,7 @@ func (c *configMapStore) DeleteExternalMetricValues(deleted []ExternalMetricValu
 		return errNotInitialized
 	}
 	for _, m := range deleted {
-		key := externalMetricValueKeyFunc(m)
+		key := ExternalMetricValueKeyFunc(m)
 		delete(c.cm.Data, key)
 		log.Debugf("Deleted metric %s for HPA %s/%s from the configmap %s", m.MetricName, m.HPA.Namespace, m.HPA.Name, c.name)
 	}
@@ -216,11 +215,11 @@ func (c *configMapStore) updateConfigMap() error {
 	return nil
 }
 
-// externalMetricValueKeyFunc knows how to make keys for storing external metrics. The key
+// ExternalMetricValueKeyFunc knows how to make keys for storing external metrics. The key
 // is unique for each metric of an HPA. This means that the keys for the same metric from two
 // different HPAs will be different (important for external metrics that may use different labels
 // for the same metric).
-func externalMetricValueKeyFunc(val ExternalMetricValue) string {
+func ExternalMetricValueKeyFunc(val ExternalMetricValue) string {
 	parts := []string{
 		"external_metric",
 		val.HPA.Namespace,

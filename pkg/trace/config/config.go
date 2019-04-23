@@ -80,9 +80,9 @@ type AgentConfig struct {
 	StatsdPort int
 
 	// logging
-	LogLevel             string
-	LogFilePath          string
-	LogThrottlingEnabled bool
+	LogLevel      string
+	LogFilePath   string
+	LogThrottling bool
 
 	// watchdog
 	MaxMemory        float64       // MaxMemory is the threshold (bytes allocated) above which program panics and exits, to be restarted
@@ -137,9 +137,9 @@ func New() *AgentConfig {
 		StatsdHost: "localhost",
 		StatsdPort: 8125,
 
-		LogLevel:             "INFO",
-		LogFilePath:          DefaultLogFilePath,
-		LogThrottlingEnabled: true,
+		LogLevel:      "INFO",
+		LogFilePath:   DefaultLogFilePath,
+		LogThrottling: true,
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%

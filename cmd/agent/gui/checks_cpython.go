@@ -3,15 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-package service
+// +build cpython
+
+package gui
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/collector/py"
 )
 
-// Service providers
-const (
-	Docker     = containers.RuntimeNameDocker
-	Containerd = containers.RuntimeNameContainerd
-	CRIO       = containers.RuntimeNameCRIO
-)
+func getPythonChecks() ([]string, error) {
+	return py.GetPythonIntegrationList()
+}

@@ -27,17 +27,13 @@ var collectAllDisabledError = fmt.Errorf("%s disabled", config.ContainerCollectA
 
 // Launcher looks for new and deleted pods to create or delete one logs-source per container.
 type Launcher struct {
-	sources                   *config.LogSources
-	sourcesByContainer        map[string]*config.LogSource
-	stopped                   chan struct{}
-	kubeutil                  *kubelet.KubeUtil
-	dockerAddedServices       chan *service.Service
-	dockerRemovedServices     chan *service.Service
-	containerdAddedServices   chan *service.Service
-	containerdRemovedServices chan *service.Service
-	crioAddedServices         chan *service.Service
-	crioRemovedServices       chan *service.Service
-	collectAll                bool
+	sources            *config.LogSources
+	sourcesByContainer map[string]*config.LogSource
+	stopped            chan struct{}
+	kubeutil           *kubelet.KubeUtil
+	addedServices      chan *service.Service
+	removedServices    chan *service.Service
+	collectAll         bool
 }
 
 // NewLauncher returns a new launcher.
@@ -61,16 +57,8 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 	if err != nil {
 		return nil, err
 	}
-	// Sources and services are added after the setup to avoid creating
-	// a channel that will lock the scheduler in case of setup failure
-	// FIXME(achntrl): Find a better way of choosing the right launcher
-	// between Docker and Kubernetes
-	launcher.dockerAddedServices = services.GetAddedServices(service.Docker)
-	launcher.dockerRemovedServices = services.GetRemovedServices(service.Docker)
-	launcher.containerdAddedServices = services.GetAddedServices(service.Containerd)
-	launcher.containerdRemovedServices = services.GetRemovedServices(service.Containerd)
-	launcher.crioAddedServices = services.GetAddedServices(service.CRIO)
-	launcher.crioRemovedServices = services.GetRemovedServices(service.CRIO)
+	launcher.addedServices = services.GetAllAddedServices()
+	launcher.removedServices = services.GetAllRemovedServices()
 	return launcher, nil
 }
 
@@ -106,17 +94,9 @@ func (l *Launcher) Stop() {
 func (l *Launcher) run() {
 	for {
 		select {
-		case service := <-l.dockerAddedServices:
+		case service := <-l.addedServices:
 			l.addSource(service)
-		case service := <-l.dockerRemovedServices:
-			l.removeSource(service)
-		case service := <-l.containerdAddedServices:
-			l.addSource(service)
-		case service := <-l.containerdRemovedServices:
-			l.removeSource(service)
-		case service := <-l.crioAddedServices:
-			l.addSource(service)
-		case service := <-l.crioRemovedServices:
+		case service := <-l.removedServices:
 			l.removeSource(service)
 		case <-l.stopped:
 			log.Info("Kubernetes launcher stopped")
@@ -154,7 +134,7 @@ func (l *Launcher) addSource(svc *service.Service) {
 	}
 
 	switch svc.Type {
-	case service.Docker:
+	case config.DockerType:
 		// docker uses the NJSON format as opposed to other container runtimes
 		// to write log lines to files so there is no need for the custom kubernetes parser.
 		break

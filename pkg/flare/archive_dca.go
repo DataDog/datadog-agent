@@ -118,6 +118,11 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		log.Errorf("Could not zip clustercheck status: %s", err)
 	}
 
+	err = zipClusterAgentDiagnose(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip diagnose: %s", err)
+	}
+
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		err = zipHPAStatus(tempDir, hostname)
 		if err != nil {
@@ -268,4 +273,27 @@ func zipClusterAgentConfigCheck(tempDir, hostname string) error {
 	writer.Flush()
 
 	return writeConfigCheck(tempDir, hostname, b.Bytes())
+}
+
+func zipClusterAgentDiagnose(tempDir, hostname string) error {
+	var b bytes.Buffer
+
+	writer := bufio.NewWriter(&b)
+	GetClusterAgentDiagnose(writer)
+	writer.Flush()
+
+	f := filepath.Join(tempDir, hostname, "diagnose.log")
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	w, err := newRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	_, err = w.Write(b.Bytes())
+	return err
 }

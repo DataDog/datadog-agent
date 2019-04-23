@@ -9,7 +9,7 @@ use_dogstatsd: yes
 skip_ssl_validation: yes
 dogstatsd_port: 18125
 dogstatsd_non_local_traffic: yes
-log_level: debug
+log_level: info
 apm_config:
   enabled: false
   log_file: abc

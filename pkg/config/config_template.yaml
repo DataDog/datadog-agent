@@ -511,8 +511,11 @@ api_key:
 # dogstatsd_port: 8125
 
 ## @param bind_host - string - optional - default: localhost
-## The host to bind to receive external metrics (used only by the DogStatsD server for now).
-## For DogStatsD this is ignored if 'dogstatsd_non_local_traffic' is set to true.
+## The host to listen on for Dogstatsd and traces. This is ignored by APM when
+## `apm_config.non_local_traffic` is enabled and ignored by DogStatsD when `dogstatsd_non_local_traffic`
+## is enabled. The trace-agent uses this host to send metrics to.
+## The `localhost` default value is invalid in IPv6 environments where dogstatsd listens on "::1".
+## To solve this problem, ensure Dogstatsd is listening on IPv4 by setting this value to "127.0.0.1".
 #
 # bind_host: localhost
 

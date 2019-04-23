@@ -291,7 +291,17 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.DDAgentBin = config.Datadog.GetString("apm_config.dd_agent_bin")
 	}
 
-	return c.loadDeprecatedValues()
+	if err := c.loadDeprecatedValues(); err != nil {
+		return err
+	}
+
+	if strings.ToLower(c.LogLevel) == "debug" && !config.Datadog.IsSet("apm_config.log_throttling") {
+		// if we are in "debug mode" and log throttling behavior was not
+		// set by the user, disable it
+		c.LogThrottling = false
+	}
+
+	return nil
 }
 
 // loadDeprecatedValues loads a set of deprecated values which are kept for
@@ -312,8 +322,8 @@ func (c *AgentConfig) loadDeprecatedValues() error {
 		}
 		c.ExtraAggregators = append(c.ExtraAggregators, aggs...)
 	}
-	if !cfg.GetBool("apm_config.log_throttling") {
-		c.LogThrottlingEnabled = false
+	if cfg.IsSet("apm_config.log_throttling") {
+		c.LogThrottling = cfg.GetBool("apm_config.log_throttling")
 	}
 	if cfg.IsSet("apm_config.bucket_size_seconds") {
 		d := time.Duration(cfg.GetInt("apm_config.bucket_size_seconds"))

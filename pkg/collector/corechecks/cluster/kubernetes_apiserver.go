@@ -113,7 +113,7 @@ func (k *KubeASCheck) Run() error {
 		// We start the API Server Client.
 		k.ac, err = apiserver.GetAPIClient()
 		if err != nil {
-			k.Warn("Could not connect to apiserver: %s", err)
+			k.Warnf("Could not connect to apiserver: %s", err)
 			return err
 		}
 

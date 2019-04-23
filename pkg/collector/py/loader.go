@@ -45,7 +45,7 @@ func init() {
 	factory := func() (check.Loader, error) {
 		return NewPythonCheckLoader()
 	}
-	loaders.RegisterLoader(10, factory)
+	loaders.RegisterLoader(20, factory)
 
 	configureErrors = map[string][]string{}
 	py3Warnings = map[string]string{}
