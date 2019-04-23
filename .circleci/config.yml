@@ -5,6 +5,8 @@ version: 2
 # and https://learnxinyminutes.com/docs/yaml/
 
 experimental:
+  # For some reason filtering out notifications keeps being undocumented and
+  # marked as experimental but as of today, it's still working.
   notify:
     branches:
       only:
@@ -13,10 +15,15 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:latest
+      - image: datadog/datadog-agent-runner-circle:six
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
+    environment:
+      PYTHON_HOME_2: /usr/
+      PYTHON_HOME_3: /usr/
+      LD_LIBRARY_PATH: /go/src/github.com/DataDog/datadog-agent/dev/lib
+
   step_templates:
     - restore_cache: &restore_deps
         keys:
@@ -26,24 +33,23 @@ templates:
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen12-godeps-{{ .Branch }}-{{ .Revision }}
-          - gen12-godeps-{{ .Branch }}-
-          - gen12-godeps-master-
+          - gen13-godeps-{{ .Branch }}-{{ .Revision }}
+          - gen13-godeps-{{ .Branch }}-
+          - gen13-godeps-master-
     - save_cache: &save_deps
-        key: gen12-godeps-{{ .Branch }}-{{ .Revision }}
+        key: gen13-godeps-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
           - v3-repo-{{ .Revision }}
     - save_cache: &save_source
         key: v3-repo-{{ .Revision }}
-    - run: &enter_venv
-        name: add virtualenv to bashrc
-        command: echo "source /go/src/github.com/DataDog/datadog-agent/venv/bin/activate" >> $BASH_ENV
 
 jobs:
   checkout_code:
-    <<: *job_template
+    docker:
+      - image: alpine/git:latest
+    working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
       - save_cache:
@@ -57,15 +63,35 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
-          name: setup virtual env
-          command: virtualenv /go/src/github.com/DataDog/datadog-agent/venv
-      - run: *enter_venv
+          name: build six
+          working_directory: /go/src/github.com/DataDog/datadog-agent/six
+          command: |
+            cmake . -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH=/go/src/github.com/DataDog/datadog-agent/dev
+            make
+            make install
+      - run:
+          name: lint six
+          working_directory: /go/src/github.com/DataDog/datadog-agent/six
+          command: |
+            make clang-format
+            [[ $(git ls-files -m | wc -l) -eq 0 ]]
+      - run:
+          name: test six
+          working_directory: /go/src/github.com/DataDog/datadog-agent/six
+          command: |
+            # remove base check before running tests, go on if pip fails
+            pip uninstall datadog-checks-base -y || :
+            make -C test run
       - run:
           name: setup python deps
-          command: source ./venv/bin/activate && pip install -r requirements.txt
+          command: |
+            pip install wheel
+            pip install -r requirements.txt
       - run:
           name: grab go deps
-          command: source ./venv/bin/activate && inv deps --verbose
+          command: |
+            pip install -U invoke
+            inv deps --verbose
       - run:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only
@@ -73,17 +99,17 @@ jobs:
           <<: *save_deps
           paths:
             - /go/src/github.com/DataDog/datadog-agent/vendor
-            - /go/src/github.com/DataDog/datadog-agent/venv
+            - /go/src/github.com/DataDog/datadog-agent/dev
             - /go/pkg
             - /go/bin
             - /usr/local/lib/python2.7/dist-packages
+            - /usr/local/bin
 
   unit_tests:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           name: run unit tests
           command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 3
@@ -98,7 +124,6 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
-      - run: *enter_venv
       - run:
           name: run integration tests
           command: inv -e integration-tests --race --remote-docker
@@ -108,7 +133,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           command: inv -e lint-releasenote
           name: run PR check for release note
@@ -118,7 +142,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           command: inv -e lint-teamassignment
           name: run PR check for team assignment labels
@@ -128,7 +151,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           command: inv -e lint-milestone
           name: run PR check for milestone assignment
@@ -138,7 +160,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           name: run filename linting
           command: inv -e lint-filenames
@@ -149,7 +170,6 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
-      - run: *enter_venv
       - run:
           name: run docker image tests
           command: inv -e docker.test
@@ -162,7 +182,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           name: build dogstatsd
           command: inv -e dogstatsd.build --static
@@ -175,7 +194,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           name: build puppy
           command: inv -e agent.build --puppy
@@ -185,7 +203,7 @@ jobs:
 
 workflows:
   version: 2
-  build_test_deploy:
+  test_and_build:
     jobs:
       - checkout_code
       - dependencies:

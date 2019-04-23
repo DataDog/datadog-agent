@@ -4,7 +4,7 @@ FROM ubuntu:18.04
 RUN set -ex \
     && apt-get update && apt-get install -y --no-install-recommends \
         gnupg ca-certificates \
-        gcc g++ make git ssh curl pkg-config \
+        gcc g++ make git ssh curl pkg-config file \
         python-dev python-setuptools python-pip \
         python3.7-dev python3-distutils \
         libssl-dev libsnmp-base libsnmp-dev libpq-dev snmp-mibs-downloader libsystemd-dev
