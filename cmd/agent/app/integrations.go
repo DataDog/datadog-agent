@@ -105,6 +105,28 @@ var showCmd = &cobra.Command{
 	RunE:  show,
 }
 
+func semverToPEP440(version *semver.Version) string {
+	pep440 := fmt.Sprintf("%d.%d.%d", version.Major, version.Minor, version.Patch)
+	if version.PreRelease == "" {
+		return pep440
+	}
+	parts := strings.SplitN(string(version.PreRelease), ".", 2)
+	preReleaseType := parts[0]
+	preReleaseNumber := ""
+	if len(parts) == 2 {
+		preReleaseNumber = parts[1]
+	}
+	switch preReleaseType {
+	case "alpha":
+		pep440 = fmt.Sprintf("%sa%s", pep440, preReleaseNumber)
+	case "beta":
+		pep440 = fmt.Sprintf("%sb%s", pep440, preReleaseNumber)
+	default:
+		pep440 = fmt.Sprintf("%src%s", pep440, preReleaseNumber)
+	}
+	return pep440
+}
+
 func getCommandPython() (string, error) {
 	if useSysPython {
 		return pythonBin, nil
@@ -287,7 +309,7 @@ func install(cmd *cobra.Command, args []string) error {
 	}
 
 	// Download the wheel
-	wheelPath, err := downloadWheel(integration, versionToInstall.String())
+	wheelPath, err := downloadWheel(integration, semverToPEP440(versionToInstall))
 	if err != nil {
 		return fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err)
 	}
