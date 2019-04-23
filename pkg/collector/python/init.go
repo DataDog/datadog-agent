@@ -13,12 +13,14 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -203,19 +205,26 @@ func Initialize(paths ...string) error {
 		return fmt.Errorf("%s", err)
 	}
 
-	// store the Python version after killing \n chars within the string
-	if res := C.get_py_version(six); res != nil {
-		PythonVersion = strings.Replace(C.GoString(res), "\n", "", -1)
+	// Lock the GIL
+	glock := newStickyLock()
+	pyInfo := C.get_py_info(six)
+	glock.unlock()
 
+	// store the Python version after killing \n chars within the string
+	if pyInfo != nil {
+		PythonVersion = strings.Replace(C.GoString(pyInfo.version), "\n", "", -1)
 		// Set python version in the cache
 		key := cache.BuildAgentKey("pythonVersion")
 		cache.Cache.Set(key, PythonVersion, cache.NoExpiration)
+
+		PythonPath = C.GoString(pyInfo.path)
+		C.six_free(six, unsafe.Pointer(pyInfo.path))
+		C.six_free(six, unsafe.Pointer(pyInfo))
+	} else {
+		log.Errorf("Could not query python information: %s", C.GoString(C.get_error(six)))
 	}
 
 	sendTelemetry(pythonVersion)
-
-	// TODO: query PythonPath
-	// TODO: query PythonHome
 
 	C.initCgoFree(six)
 	C.initDatadogAgentModule(six)

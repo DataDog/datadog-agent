@@ -24,8 +24,8 @@ func TestMain(m *testing.M) {
 	os.Exit(ret)
 }
 
-func TestGetVersion(t *testing.T) {
-	ver := getVersion()
+func TestGetPyInfo(t *testing.T) {
+	ver, path := getPyInfo()
 	prefix := "3."
 	if common.UsingTwo {
 		prefix = "2.7."
@@ -33,6 +33,10 @@ func TestGetVersion(t *testing.T) {
 
 	if !strings.HasPrefix(ver, prefix) {
 		t.Errorf("Version doesn't start with `%s`: %s", prefix, ver)
+	}
+
+	if path == "" {
+		t.Errorf("Python path is null")
 	}
 }
 
