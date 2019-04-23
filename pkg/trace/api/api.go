@@ -10,8 +10,10 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -69,7 +71,9 @@ type HTTPReceiver struct {
 
 	maxRequestBodyLength int64
 	debug                bool
+	refuse               int64 // when set to 1 agent will refuse payloads
 
+	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
 }
 
@@ -129,7 +133,7 @@ func (r *HTTPReceiver) Start() {
 
 	go func() {
 		defer watchdog.LogOnPanic()
-		r.logStats()
+		r.loop()
 	}()
 }
 
@@ -165,10 +169,14 @@ func (r *HTTPReceiver) Stop() error {
 
 	r.PreSampler.Stop()
 
-	expiry := time.Now().Add(20 * time.Second) // give it 20 seconds
+	expiry := time.Now().Add(5 * time.Second) // give it 5 seconds
 	ctx, cancel := context.WithDeadline(context.Background(), expiry)
 	defer cancel()
-	return r.server.Shutdown(ctx)
+	if err := r.server.Shutdown(ctx); err != nil {
+		return err
+	}
+	r.wg.Wait()
+	return nil
 }
 
 func (r *HTTPReceiver) httpHandle(fn http.HandlerFunc) http.HandlerFunc {
@@ -210,9 +218,20 @@ func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
-	if !r.PreSampler.Sample(req) {
+	if atomic.LoadInt64(&r.refuse) == 1 {
+		// using too much memory
 		io.Copy(ioutil.Discard, req.Body)
-		r.replyTraces(v, w)
+		w.WriteHeader(http.StatusTooManyRequests)
+		io.WriteString(w, fmt.Sprintf("request rejected; trace-agent is past memory threshold (apm_config.max_memory: %.0f bytes)", r.conf.MaxMemory))
+		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, []string{"reason:mem"}, 1)
+		return
+	}
+	if !r.PreSampler.Sample(req) {
+		// using too much CPU
+		io.Copy(ioutil.Discard, req.Body)
+		w.WriteHeader(http.StatusTooManyRequests)
+		io.WriteString(w, fmt.Sprintf("request rejected; trace-agent is past cpu threshold (apm_config.max_cpu_percent: %.1f)", r.conf.MaxCPU*100))
+		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, []string{"reason:cpu"}, 1)
 		return
 	}
 
@@ -221,30 +240,37 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		return
 	}
 
-	// We successfully decoded the payload
 	r.replyTraces(v, w)
 
-	// We parse the tags from the header
-	tags := info.Tags{
+	ts := r.Stats.GetTagStats(info.Tags{
 		Lang:          req.Header.Get("Datadog-Meta-Lang"),
 		LangVersion:   req.Header.Get("Datadog-Meta-Lang-Version"),
 		Interpreter:   req.Header.Get("Datadog-Meta-Lang-Interpreter"),
 		TracerVersion: req.Header.Get("Datadog-Meta-Tracer-Version"),
-	}
+	})
 
-	// We get the address of the struct holding the stats associated to the tags
-	ts := r.Stats.GetTagStats(tags)
+	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
+	atomic.AddInt64(&ts.TracesBytes, int64(req.Body.(*LimitedReader).Count))
+	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
-	bytesRead := req.Body.(*LimitedReader).Count
-	if bytesRead > 0 {
-		atomic.AddInt64(&ts.TracesBytes, int64(bytesRead))
-	}
+	r.wg.Add(1)
+	go func() {
+		defer func() {
+			r.wg.Done()
+			watchdog.LogOnPanic()
+		}()
+		r.processTraces(ts, traces)
+	}()
+}
 
-	// normalize data
+func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
+	now := time.Now()
+	defer func() {
+		metrics.Timing("datadog.trace_agent.receiver.process_traces_ms", time.Since(now), nil, 1)
+	}()
 	for _, trace := range traces {
 		spans := len(trace)
 
-		atomic.AddInt64(&ts.TracesReceived, 1)
 		atomic.AddInt64(&ts.SpansReceived, int64(spans))
 
 		err := normalizeTrace(trace)
@@ -258,19 +284,10 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 				msg = msg[:150] + "... (set DEBUG log level for more info)"
 			}
 			log.Errorf(msg)
-		} else {
-			select {
-			case r.Out <- trace:
-				// if our downstream consumer is slow, we drop the trace on the floor
-				// this is a safety net against us using too much memory
-				// when clients flood us
-			default:
-				atomic.AddInt64(&ts.TracesDropped, 1)
-				atomic.AddInt64(&ts.SpansDropped, int64(spans))
-
-				log.Errorf("dropping trace; reason: rate-limited")
-			}
+			continue
 		}
+
+		r.Out <- trace
 	}
 }
 
@@ -308,8 +325,8 @@ func (r *HTTPReceiver) handleServices(v Version, w http.ResponseWriter, req *htt
 	r.services <- servicesMeta
 }
 
-// logStats periodically submits stats about the receiver to statsd
-func (r *HTTPReceiver) logStats() {
+// loop periodically submits stats about the receiver to statsd
+func (r *HTTPReceiver) loop() {
 	defer close(r.exit)
 
 	var lastLog time.Time
@@ -317,11 +334,15 @@ func (r *HTTPReceiver) logStats() {
 
 	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
+	tw := time.NewTicker(r.conf.WatchdogInterval)
+	defer tw.Stop()
 
 	for {
 		select {
 		case <-r.exit:
 			return
+		case now := <-tw.C:
+			r.watchdog(now)
 		case now := <-t.C:
 			metrics.Gauge("datadog.trace_agent.heartbeat", 1, nil, 1)
 
@@ -350,6 +371,43 @@ func (r *HTTPReceiver) logStats() {
 				rates := r.dynConf.RateByService.GetAll()
 				info.UpdateRateByService(rates)
 			}
+		}
+	}
+}
+
+func (r *HTTPReceiver) watchdog(now time.Time) {
+	wi := watchdog.Info{
+		Mem: watchdog.Mem(),
+		CPU: watchdog.CPU(now),
+	}
+
+	rate, err := sampler.CalcPreSampleRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.PreSampler.RealRate())
+	if err != nil {
+		log.Warnf("problem computing pre-sample rate: %v", err)
+	}
+
+	r.PreSampler.SetRate(rate)
+	r.PreSampler.SetError(err)
+
+	stats := r.PreSampler.Stats()
+
+	info.UpdatePreSampler(*stats)
+	info.UpdateWatchdogInfo(wi)
+
+	metrics.Gauge("datadog.trace_agent.heap_alloc", float64(wi.Mem.Alloc), nil, 1)
+	metrics.Gauge("datadog.trace_agent.cpu_percent", wi.CPU.UserAvg*100, nil, 1)
+	metrics.Gauge("datadog.trace_agent.presampler_rate", stats.Rate, nil, 1)
+
+	if float64(wi.Mem.Alloc) > r.conf.MaxMemory && r.conf.MaxMemory > 0 {
+		log.Warn("memory exceeds threshold (apm_config.max_memory), requests will be rate-limited")
+		if atomic.SwapInt64(&r.refuse, 1) != 0 {
+			// we're still not accepting requests, do a garbage collection;,
+			// potentially blocking the program here is the least of our problems
+			runtime.GC()
+		}
+	} else {
+		if atomic.SwapInt64(&r.refuse, 0) == 1 {
+			log.Warn("memory back below threshold (apm_config.max_memory), allowing requests")
 		}
 	}
 }

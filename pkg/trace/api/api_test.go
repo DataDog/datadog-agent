@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -143,7 +144,7 @@ func TestLegacyReceiver(t *testing.T) {
 				assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 				assert.Equal("192.168.0.1", span.Meta["http.host"])
 				assert.Equal(41.99, span.Metrics["http.monitor"])
-			default:
+			case <-time.After(time.Second):
 				t.Fatalf("no data received")
 			}
 
@@ -206,7 +207,7 @@ func TestReceiverJSONDecoder(t *testing.T) {
 				assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 				assert.Equal("192.168.0.1", span.Meta["http.host"])
 				assert.Equal(41.99, span.Metrics["http.monitor"])
-			default:
+			case <-time.After(time.Second):
 				t.Fatalf("no data received")
 			}
 
@@ -273,7 +274,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 					assert.Equal("192.168.0.1", span.Meta["http.host"])
 					assert.Equal(41.99, span.Metrics["http.monitor"])
-				default:
+				case <-time.After(time.Second):
 					t.Fatalf("no data received")
 				}
 
@@ -295,7 +296,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 					assert.Equal("192.168.0.1", span.Meta["http.host"])
 					assert.Equal(41.99, span.Metrics["http.monitor"])
-				default:
+				case <-time.After(time.Second):
 					t.Fatalf("no data received")
 				}
 
@@ -566,6 +567,7 @@ func TestReceiverPreSamplerCancel(t *testing.T) {
 	client := &http.Client{Transport: &http.Transport{
 		MaxIdleConnsPerHost: 100,
 	}}
+	var sampled uint64
 	for i := 0; i < 3; i++ {
 		wg.Add(1)
 		go func() {
@@ -580,13 +582,25 @@ func TestReceiverPreSamplerCancel(t *testing.T) {
 				assert.Nil(err)
 				assert.NotNil(resp)
 				if resp != nil {
-					assert.Equal(http.StatusOK, resp.StatusCode)
+					slurp, err := ioutil.ReadAll(resp.Body)
+					assert.NoError(err)
+					resp.Body.Close()
+					switch resp.StatusCode {
+					case http.StatusTooManyRequests:
+						atomic.AddUint64(&sampled, 1)
+						assert.Contains(string(slurp), "request rejected; trace-agent is past cpu threshold (apm_config.max_cpu_percent:")
+					case http.StatusOK:
+						// OK
+					}
 				}
 			}
 			wg.Done()
 		}()
 	}
 	wg.Wait()
+	if sampled == 0 {
+		assert.Fail("did not presample")
+	}
 }
 
 func TestErrorLogger(t *testing.T) {
@@ -721,5 +735,82 @@ func BenchmarkDecoderMsgpack(b *testing.B) {
 		b.StartTimer()
 		var traces pb.Traces
 		_ = msgp.Decode(reader, &traces)
+	}
+}
+
+func BenchmarkWatchdog(b *testing.B) {
+	now := time.Now()
+	conf := config.New()
+	conf.Endpoints[0].APIKey = "apikey_2"
+	r := NewHTTPReceiver(conf, nil, nil, nil)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		r.watchdog(now)
+	}
+}
+
+func TestWatchdog(t *testing.T) {
+	if testing.Short() {
+		return
+	}
+
+	defaultMux := http.DefaultServeMux // restore it at the end
+	defer func() { http.DefaultServeMux = defaultMux }()
+
+	conf := config.New()
+	conf.Endpoints[0].APIKey = "apikey_2"
+	conf.MaxMemory = 1e6
+	conf.WatchdogInterval = time.Millisecond
+
+	outT := make(chan pb.Trace, 5)
+	outS := make(chan pb.ServicesMetadata, 5)
+
+	r := NewHTTPReceiver(conf, sampler.NewDynamicConfig("none"), outT, outS)
+	r.Start()
+	defer r.Stop()
+	go func() {
+		for {
+			select {
+			case <-r.Out:
+			}
+		}
+	}()
+
+	traces := pb.Traces{
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+	}
+	var body bytes.Buffer
+	if err := msgp.Encode(&body, traces); err != nil {
+		t.Fatal(err)
+	}
+	data := body.Bytes()
+
+	// first request is accepted
+	resp, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("got %d", resp.StatusCode)
+	}
+	time.Sleep(conf.WatchdogInterval)
+
+	// go over board
+	for tries := 0; tries < 100; tries++ {
+		resp, err = http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode == http.StatusTooManyRequests {
+			break // 👍
+		}
+		time.Sleep(2 * conf.WatchdogInterval)
+	}
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("didn't close, got %d", resp.StatusCode)
 	}
 }

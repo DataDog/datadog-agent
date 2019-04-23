@@ -143,8 +143,8 @@ func New() *AgentConfig {
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%
-		MaxConnections:   200, // in practice, rarely goes over 20
-		WatchdogInterval: time.Minute,
+		MaxConnections:   200, // (deprecated) - use ConnectionLimit
+		WatchdogInterval: 20 * time.Second,
 
 		Ignore:                      make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
