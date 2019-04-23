@@ -265,7 +265,17 @@ func (agg *BufferedAggregator) AddAgentStartupEvent(agentVersion string) {
 		Host:           agg.hostname,
 		EventType:      "Agent Startup",
 	}
+	metric := &metrics.MetricSample{
+		Name:       fmt.Sprintf("datadog.%s.started", agg.agentName),
+		Value:      1,
+		Tags:       []string{fmt.Sprintf("version:%s", agentVersion)},
+		Host:       agg.hostname,
+		Mtype:      metrics.CountType,
+		SampleRate: 1,
+		Timestamp:  0,
+	}
 	agg.eventIn <- event
+	agg.metricIn <- metric
 }
 
 func (agg *BufferedAggregator) registerSender(id check.ID) error {
