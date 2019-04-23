@@ -9,8 +9,10 @@ package app
 import (
 	"archive/zip"
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -209,7 +211,7 @@ func validateArgs(args []string, local bool) error {
 	return nil
 }
 
-func pip(args []string) error {
+func pip(args []string, stdout io.Writer, stderr io.Writer) error {
 	if !allowRoot && !authorizedUser() {
 		return errors.New("Please use this tool as the agent-running user")
 	}
@@ -238,26 +240,26 @@ func pip(args []string) error {
 	pipCmd := exec.Command(pythonPath, args...)
 
 	// forward the standard output to stdout
-	stdout, err := pipCmd.StdoutPipe()
+	pipStdout, err := pipCmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
 	go func() {
-		in := bufio.NewScanner(stdout)
+		in := bufio.NewScanner(pipStdout)
 		for in.Scan() {
-			fmt.Println(in.Text())
+			fmt.Fprintf(stdout, "%s\n", in.Text())
 		}
 	}()
 
 	// forward the standard error to stderr
-	stderr, err := pipCmd.StderrPipe()
+	pipStderr, err := pipCmd.StderrPipe()
 	if err != nil {
 		return err
 	}
 	go func() {
-		in := bufio.NewScanner(stderr)
+		in := bufio.NewScanner(pipStderr)
 		for in.Scan() {
-			fmt.Fprintf(os.Stderr, "%s\n", color.RedString(in.Text()))
+			fmt.Fprintf(stderr, "%s\n", color.RedString(in.Text()))
 		}
 	}()
 
@@ -305,7 +307,7 @@ func install(cmd *cobra.Command, args []string) error {
 		} else if !ok {
 			return fmt.Errorf("the wheel %s is not an agent check, it will not be installed", args[0])
 		}
-		return pip(append(pipArgs, args[0]))
+		return pip(append(pipArgs, args[0]), os.Stdout, os.Stderr)
 	}
 
 	// Additional verification for installation
@@ -364,7 +366,7 @@ func install(cmd *cobra.Command, args []string) error {
 	}
 
 	// Install the wheel
-	if err := pip(append(pipArgs, wheelPath)); err != nil {
+	if err := pip(append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
 		return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
 	}
 
@@ -711,7 +713,7 @@ func remove(cmd *cobra.Command, args []string) error {
 	pipArgs = append(pipArgs, args...)
 	pipArgs = append(pipArgs, "-y")
 
-	return pip(pipArgs)
+	return pip(pipArgs, os.Stdout, os.Stderr)
 }
 
 func freeze(cmd *cobra.Command, args []string) error {
@@ -720,7 +722,21 @@ func freeze(cmd *cobra.Command, args []string) error {
 		"freeze",
 	}
 
-	return pip(pipArgs)
+	pip_stdo := bytes.NewBuffer(nil)
+	err := pip(pipArgs, io.Writer(pip_stdo), os.Stderr)
+	if err != nil {
+		return err
+	}
+
+	python_libs := strings.Split(pip_stdo.String(), "\n")
+
+	// The agent integration freeze command should only show datadog packages and nothing else
+	for i := range python_libs {
+		if strings.HasPrefix(python_libs[i], "datadog-") {
+			fmt.Println(python_libs[i])
+		}
+	}
+	return nil
 }
 
 func show(cmd *cobra.Command, args []string) error {
