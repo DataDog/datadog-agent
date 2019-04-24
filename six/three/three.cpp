@@ -324,6 +324,12 @@ char **Three::getCheckWarnings(SixPyObject *check)
 
     Py_ssize_t numWarnings = PyList_Size(warns_list);
     char **warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
+    if (!warnings) {
+        Py_XDECREF(warns_list);
+        setError("could not allocate memory to get warnings: ");
+        return NULL;
+    }
+
     warnings[numWarnings] = NULL;
 
     for (Py_ssize_t idx = 0; idx < numWarnings; idx++) {
