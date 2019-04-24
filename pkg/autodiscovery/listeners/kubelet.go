@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -76,10 +77,9 @@ func NewKubeletListener() (ServiceListener, error) {
 		watcher:  watcher,
 		filter:   filter,
 		services: make(map[string]Service),
-		// FIXME make it configurable
-		ticker: time.NewTicker(1 * time.Second),
-		stop:   make(chan bool),
-		health: health.Register("ad-kubeletlistener"),
+		ticker:   time.NewTicker(config.Datadog.GetDuration("kubelet_listener_polling_interval") * time.Second),
+		stop:     make(chan bool),
+		health:   health.Register("ad-kubeletlistener"),
 	}, nil
 }
 

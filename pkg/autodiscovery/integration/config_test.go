@@ -57,6 +57,24 @@ func TestConfigEqual(t *testing.T) {
 	assert.Equal(t, checkConfigWithOrderedTags.Digest(), checkConfigWithUnorderedTags.Digest())
 }
 
+func TestIsLogConfig(t *testing.T) {
+	config := &Config{}
+	assert.False(t, config.IsLogConfig())
+	config.Instances = []Data{Data("tags: [\"foo:bar\", \"bar:foo\"]")}
+	assert.False(t, config.IsLogConfig())
+	config.LogsConfig = Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]")
+	assert.True(t, config.IsLogConfig())
+}
+
+func TestIsCheckConfig(t *testing.T) {
+	config := &Config{}
+	assert.False(t, config.IsCheckConfig())
+	config.Instances = []Data{Data("tags: [\"foo:bar\", \"bar:foo\"]")}
+	assert.True(t, config.IsCheckConfig())
+	config.ClusterCheck = true
+	assert.False(t, config.IsCheckConfig())
+}
+
 func TestString(t *testing.T) {
 	config := &Config{}
 	assert.False(t, config.Equal(nil))

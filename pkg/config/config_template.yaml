@@ -1156,6 +1156,11 @@ api_key:
 #
 # kubernetes_pod_expiration_duration: 900
 
+## @param kubelet_cache_pods_duration - integer - optional - default: 5
+## Polling frequency in seconds of the pod watcher to detect new pods/containers (affected by kubelet_cache_pods_duration).
+#
+# kubelet_listener_polling_interval: 5
+
 {{ end -}}
 {{- if .KubeApiServer }}
 
