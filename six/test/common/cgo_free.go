@@ -41,7 +41,6 @@ func setUp() error {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(six)))
 	}
 
-	C.ensure_gil(six)
 	return nil
 }
 
