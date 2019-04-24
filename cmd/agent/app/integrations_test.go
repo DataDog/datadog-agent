@@ -140,5 +140,5 @@ func TestGetIntegrationName(t *testing.T) {
 
 func TestNormalizePackageName(t *testing.T) {
 	assert.Equal(t, normalizePackageName("datadog-checks_base"), "datadog-checks-base")
-	assert.Equal(t, getIntegrationName("datadog_checks_downloader"), "datadog-checks-downloader")
+	assert.Equal(t, normalizePackageName("datadog_checks_downloader"), "datadog-checks-downloader")
 }
