@@ -179,6 +179,10 @@ func Initialize(paths ...string) error {
 		return fmt.Errorf("unknown requested version of python: %d", pythonVersion)
 	}
 
+	if six == nil {
+		return fmt.Errorf("could not init six lib for python version %d", pythonVersion)
+	}
+
 	if runtime.GOOS == "windows" {
 		_here, _ := executable.Folder()
 		// on windows, override the hardcoded path set during compile time, but only if that path points to nowhere

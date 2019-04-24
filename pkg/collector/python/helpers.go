@@ -129,6 +129,10 @@ func getModuleName(modulePath string) string {
 
 // GetPythonIntegrationList collects python datadog installed integrations list
 func GetPythonIntegrationList() ([]string, error) {
+	if six == nil {
+		return nil, fmt.Errorf("six is not initialized")
+	}
+
 	glock := newStickyLock()
 	defer glock.unlock()
 
@@ -156,6 +160,10 @@ func GetPythonIntegrationList() ([]string, error) {
 
 // SetPythonPsutilProcPath sets python psutil.PROCFS_PATH
 func SetPythonPsutilProcPath(procPath string) error {
+	if six == nil {
+		return fmt.Errorf("six is not initialized")
+	}
+
 	glock := newStickyLock()
 	defer glock.unlock()
 
