@@ -180,9 +180,6 @@ func (w *TraceWriter) handleSampledTrace(pkg *TracePackage) {
 	w.payloadSize += size
 	w.spansInBuffer += len(pkg.Trace) + len(pkg.Events)
 
-	if size > payloadMaxSize {
-		log.Warnf("Trace might be dropped by API; size exceeds maximum (%d): %d", payloadMaxSize, size)
-	}
 	if size > payloadFlushThreshold {
 		// we've added a single package that surpasses our threshold, we should count this occurrence,
 		// it could be an indication of "over instrumentation" on the client side, where too many spans
