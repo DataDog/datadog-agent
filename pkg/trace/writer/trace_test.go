@@ -85,7 +85,7 @@ func calculateTracePayloadSize(sampledTraces []*TracePackage) int {
 	apiTraces := make([]*pb.APITrace, len(sampledTraces))
 
 	for i, trace := range sampledTraces {
-		apiTraces[i], _ = traceutil.APITrace(trace.Trace)
+		apiTraces[i] = traceutil.APITrace(trace.Trace)
 	}
 
 	tracePayload := pb.TracePayload{
@@ -142,8 +142,7 @@ func assertPayloads(
 		for _, seenAPITrace := range tracePayload.Traces {
 			numSpans += len(seenAPITrace.Spans)
 
-			apiTrace, _ := traceutil.APITrace(expectedTraces[expectedTraceIdx])
-			if !assert.True(proto.Equal(apiTrace, seenAPITrace),
+			if !assert.True(proto.Equal(traceutil.APITrace(expectedTraces[expectedTraceIdx]), seenAPITrace),
 				"Unmarshalled trace should match expectation at index %d", expectedTraceIdx) {
 				return
 			}

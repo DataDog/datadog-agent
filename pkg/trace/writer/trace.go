@@ -39,8 +39,16 @@ type TracePackage struct {
 }
 
 // Empty returns true if this TracePackage has no data.
-func (s *TracePackage) Empty() bool {
-	return len(s.Trace) == 0 && len(s.Events) == 0
+func (p *TracePackage) Empty() bool {
+	return len(p.Trace) == 0 && len(p.Events) == 0
+}
+
+// size returns the estimated size of the package.
+func (p *TracePackage) size() int {
+	// we use msgpack's Msgsize() heuristic because it is a good indication
+	// of the weight of a span and the msgpack size is relatively close to
+	// the protobuf size, which is expensive to compute.
+	return p.Trace.Msgsize() + pb.Trace(p.Events).Msgsize()
 }
 
 // TraceWriter ingests sampled traces and flushes them to the API.
@@ -162,8 +170,7 @@ func (w *TraceWriter) handleSampledTrace(pkg *TracePackage) {
 		return
 	}
 
-	apiTrace, size := traceutil.APITrace(pkg.Trace)
-	size += pb.Trace(pkg.Events).Msgsize()
+	size := pkg.size()
 
 	if w.payloadSize > 0 && w.payloadSize+size > payloadFlushThreshold {
 		// this new package would push us over, flush
@@ -172,7 +179,7 @@ func (w *TraceWriter) handleSampledTrace(pkg *TracePackage) {
 	}
 
 	log.Tracef("Handling new trace with %d spans: %v", len(pkg.Trace), pkg.Trace)
-	w.traces = append(w.traces, apiTrace)
+	w.traces = append(w.traces, traceutil.APITrace(pkg.Trace))
 	if len(pkg.Events) > 0 {
 		log.Tracef("Handling new APM events: %v", pkg.Events)
 		w.events = append(w.events, pkg.Events...)
