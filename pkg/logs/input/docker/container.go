@@ -73,8 +73,7 @@ func (c *Container) getShortImageName() (string, error) {
 		log.Debugf("Cannot get DockerUtil: %v", err)
 		return shortName, err
 	}
-
-	imageName := c.container.Image
+	imageName := c.container.ImageID
 	imageName, err = du.ResolveImageName(imageName)
 	if err != nil {
 		log.Debugf("Could not resolve image name %s: %s", imageName, err)
