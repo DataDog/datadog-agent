@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"runtime"
 	"strings"
 	"unsafe"
 
@@ -14,6 +15,8 @@ import (
 // #cgo CFLAGS: -I../../include
 // #cgo !windows LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
 // #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
+//
+// #include <stdlib.h>
 // #include <datadog_agent_six.h>
 //
 // extern void submitMetric(char *, metric_type_t, char *, float, char **, char *);
@@ -82,7 +85,6 @@ func setUp() error {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(six)))
 	}
 
-	C.ensure_gil(six)
 	return nil
 }
 
@@ -103,7 +105,15 @@ except Exception as e:
 		f.write("{}: {}\n".format(type(e).__name__, e))
 `, call, tmpfile.Name()))
 
+	runtime.LockOSThread()
+	state := C.ensure_gil(six)
+
 	ret := C.run_simple_string(six, code) == 1
+	C.free(unsafe.Pointer(code))
+
+	C.release_gil(six, state)
+	runtime.UnlockOSThread()
+
 	if !ret {
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
