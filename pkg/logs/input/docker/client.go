@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/versions"
@@ -65,18 +66,17 @@ func computeClientAPIVersion(serverVersion string) (string, error) {
 
 // GetContainer returns the container matching id,
 // if it does not exist, returns an error.
-func GetContainer(client *client.Client, id string) (types.Container, error) {
+func GetContainer(id string) (types.ContainerJSON, error) {
 	args := filters.NewArgs()
 	args.Add("id", id)
-	// TODO(achntrl): Call dockerUtil inspect instead
-	containers, err := client.ContainerList(context.Background(), types.ContainerListOptions{
-		Filters: args,
-	})
+	du, err := docker.GetDockerUtil()
 	if err != nil {
-		return types.Container{}, err
+		return types.ContainerJSON{}, err
 	}
-	if len(containers) != 1 {
-		return types.Container{}, fmt.Errorf("no container matches id: %v", id)
+	container, err := du.Inspect(id, false)
+	if err != nil {
+		return types.ContainerJSON{}, err
 	}
-	return containers[0], nil
+
+	return container, nil
 }

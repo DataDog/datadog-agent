@@ -24,9 +24,11 @@ const (
 // searching first in the docker labels, then in the pod specs.
 func ContainsADIdentifier(c *Container) bool {
 	var exists bool
-	_, exists = c.container.Labels[configPath]
-	if exists {
-		return true
+	if c.container.Config != nil {
+		_, exists = c.container.Config.Labels[configPath]
+		if exists {
+			return true
+		}
 	}
 	kubeutil, err := kubelet.GetKubeUtil()
 	if err != nil {

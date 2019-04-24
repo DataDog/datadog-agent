@@ -9,6 +9,9 @@ package docker
 
 // ContainsADIdentifier returns true if the container contains an autodiscovery identifier.
 func ContainsADIdentifier(c *Container) bool {
-	_, exists := c.container.Labels[configPath]
+	if c.container.Config == nil {
+		return false
+	}
+	_, exists := c.container.Config.Labels[configPath]
 	return exists
 }

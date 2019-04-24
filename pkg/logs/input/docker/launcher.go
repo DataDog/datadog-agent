@@ -109,9 +109,9 @@ func (l *Launcher) run() {
 		select {
 		case service := <-l.addedServices:
 			// detected a new container running on the host,
-			dockerContainer, err := GetContainer(l.cli, service.Identifier)
+			dockerContainer, err := GetContainer(service.Identifier)
 			if err != nil {
-				log.Warnf("Could not find container with id: %v", err)
+				log.Warnf("Could not find container with id %v: %v", service.Identifier, err)
 				continue
 			}
 			container := NewContainer(dockerContainer, service)

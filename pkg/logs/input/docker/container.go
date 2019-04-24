@@ -26,12 +26,13 @@ const configPath = "com.datadoghq.ad.logs"
 
 // Container represents a container to tail logs from.
 type Container struct {
-	container types.Container
-	service   *service.Service
+	oldContainer types.Container
+	container    types.ContainerJSON
+	service      *service.Service
 }
 
 // NewContainer returns a new Container
-func NewContainer(container types.Container, service *service.Service) *Container {
+func NewContainer(container types.ContainerJSON, service *service.Service) *Container {
 	return &Container{
 		container: container,
 		service:   service,
@@ -73,7 +74,7 @@ func (c *Container) getShortImageName() (string, error) {
 		log.Debugf("Cannot get DockerUtil: %v", err)
 		return shortName, err
 	}
-	imageName := c.container.ImageID
+	imageName := c.container.Image
 	imageName, err = du.ResolveImageName(imageName)
 	if err != nil {
 		log.Debugf("Could not resolve image name %s: %s", imageName, err)
@@ -157,10 +158,11 @@ func (c *Container) isNameMatch(nameFilter string) bool {
 		log.Warn("used invalid name to filter containers: ", nameFilter)
 		return false
 	}
-	for _, name := range c.container.Names {
-		if re.MatchString(name) {
-			return true
-		}
+	if len(c.container.Name) == 0 {
+		return false
+	}
+	if re.MatchString(c.container.Name) {
+		return true
 	}
 	return false
 }
@@ -174,9 +176,12 @@ func (c *Container) isLabelMatch(labelFilter string) bool {
 		parts := strings.FieldsFunc(label, func(c rune) bool {
 			return c == ':' || c == '='
 		})
+		if c.container.Config == nil {
+			continue
+		}
 		// If we have exactly two parts, check there is a container label that matches both.
 		// Otherwise fall back to checking the whole label exists as a key.
-		if _, exists := c.container.Labels[label]; exists || len(parts) == 2 && c.container.Labels[parts[0]] == parts[1] {
+		if _, exists := c.container.Config.Labels[label]; exists || len(parts) == 2 && c.container.Config.Labels[parts[0]] == parts[1] {
 			return true
 		}
 	}
