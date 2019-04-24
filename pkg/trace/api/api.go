@@ -103,8 +103,6 @@ func NewHTTPReceiver(
 func (r *HTTPReceiver) Start() {
 	mux := http.NewServeMux()
 
-	runtime.SetBlockProfileRate(1) // ensure the block profile records all blocking events
-
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
