@@ -31,6 +31,11 @@ type MockUnwrapper struct {
 	header []byte
 }
 
+// MockTSParser mocks the logic of Timestamps
+type MockTSParser struct {
+	header []byte
+}
+
 type MockFailingParser struct {
 	header []byte
 }
@@ -44,9 +49,9 @@ func (u *MockParser) Parse(msg []byte) (*message.Message, error) {
 	return &message.Message{Content: bytes.Replace(msg, u.header, []byte(""), 1)}, nil
 }
 
-// Unwrap removes header from line
-func (u *MockParser) Unwrap(line []byte) ([]byte, error) {
-	return bytes.Replace(line, u.header, []byte(""), 1), nil
+// Unwrap removes header from line and return also the timestamp
+func (u *MockParser) Unwrap(line []byte) ([]byte, string, error) {
+	return bytes.Replace(line, u.header, []byte(""), 1), "", nil
 }
 
 func NewMockUnwrapper(header string) parser.Parser {
@@ -58,9 +63,26 @@ func (u *MockUnwrapper) Parse(msg []byte) (*message.Message, error) {
 	return &message.Message{Content: msg}, nil
 }
 
-// Unwrap removes header from line
-func (u *MockUnwrapper) Unwrap(line []byte) ([]byte, error) {
-	return bytes.Replace(line, u.header, []byte(""), 1), nil
+// Unwrap removes header from line and return also the timestamp
+func (u *MockUnwrapper) Unwrap(line []byte) ([]byte, string, error) {
+	return bytes.Replace(line, u.header, []byte(""), 1), "", nil
+}
+
+func NewMockTSParser(header string) parser.Parser {
+	return &MockTSParser{header: []byte(header)}
+}
+
+// Parse does nothing for MockUnwrapper
+func (u *MockTSParser) Parse(msg []byte) (*message.Message, error) {
+	components := bytes.SplitN(msg, []byte{' '}, 2)
+
+	return &message.Message{Content: components[1], Timestamp: string(components[0])}, nil
+}
+
+// Unwrap removes header from line and return also the timestamp
+func (u *MockTSParser) Unwrap(line []byte) ([]byte, string, error) {
+	components := bytes.SplitN(line, []byte{' '}, 2)
+	return components[1], string(components[0]), nil
 }
 
 func NewMockFailingParser(header string) parser.Parser {
@@ -77,11 +99,11 @@ func (u *MockFailingParser) Parse(msg []byte) (*message.Message, error) {
 }
 
 // Unwrap removes header from line if the header matches the Parser header or returns an error
-func (u *MockFailingParser) Unwrap(line []byte) ([]byte, error) {
+func (u *MockFailingParser) Unwrap(line []byte) ([]byte, string, error) {
 	if bytes.HasPrefix(line, u.header) {
-		return bytes.Replace(line, u.header, []byte(""), 1), nil
+		return bytes.Replace(line, u.header, []byte(""), 1), "", nil
 	}
-	return line, fmt.Errorf("error")
+	return line, "", fmt.Errorf("error")
 }
 
 func TestSingleLineHandler(t *testing.T) {
@@ -252,6 +274,33 @@ func TestUnwrapMultiLine(t *testing.T) {
 	assert.Equal(t, header+"malformed first line\\nsecond line", string(output.Content))
 	output = <-outputChan
 	assert.Equal(t, header+"4. first line", string(output.Content))
+
+	h.Stop()
+}
+
+func TestUnwrapTSMultiLineTimestamp(t *testing.T) {
+	const header = "HEADER"
+
+	re := regexp.MustCompile("Exception")
+	outputChan := make(chan *message.Message, 10)
+	h := NewMultiLineHandler(outputChan, re, 10*time.Second, NewMockTSParser(header))
+	h.Start()
+
+	var output *message.Message
+
+	// Only the header of the first line of each Output should be kept
+	h.Handle([]byte("2019-04-02T15:08:32.320682273Z" + " HelloWorld"))
+	h.Handle([]byte("2019-04-02T15:08:32.321763516Z" + " Exception"))
+	h.Handle([]byte("2019-04-02T15:08:32.321777174Z" + " HelloWorld.m1(HelloWorld.java:3)"))
+	h.Handle([]byte("2019-04-02T15:08:32.322102976Z" + " HelloWorld.main(HelloWorld.java:20)"))
+
+	output = <-outputChan
+	assert.Equal(t, "HelloWorld", string(output.Content))
+	assert.Equal(t, "2019-04-02T15:08:32.321763516Z", string(output.Timestamp))
+
+	output = <-outputChan
+	assert.Equal(t, "Exception"+"\\n"+"HelloWorld.m1(HelloWorld.java:3)"+"\\n"+"HelloWorld.main(HelloWorld.java:20)", string(output.Content))
+	assert.Equal(t, "2019-04-02T15:08:32.322102976Z", string(output.Timestamp))
 
 	h.Stop()
 }
