@@ -39,15 +39,15 @@ func TestTraceWriter(t *testing.T) {
 
 		// Send a few sampled traces through the writer
 		sampledTraces := []*TracePackage{
-			// these two will no trigger a flush, because they are
+			// these two will not trigger a flush, because they are
 			// below the size threshold.
 			tracePkg,
 			tracePkg,
 			// this one will trigger a flush of the previous two,
-			// and possibly of itself.
-			randomTracePackage(5, 1),
-			// this one will also trigger a flush of itself.
+			// and of itself because of the big size.
 			randomTracePackage(10, 1),
+			// this one will also trigger a flush of itself.
+			randomTracePackage(15, 1),
 			// this one will be flushed at shutdown.
 			tracePkg,
 		}
@@ -65,8 +65,7 @@ func TestTraceWriter(t *testing.T) {
 			"Content-Encoding":             "gzip",
 		}
 
-		// Ensure that the number of payloads and their contents match our expectations. The MaxSpansPerPayload we
-		// set to 4 at the beginning should have been respected whenever possible.
+		// we should have 4 payloads based on the configured flush threshold for this test.
 		assert.Len(testEndpoint.SuccessPayloads(), 4, "We expected 4 different payloads")
 		assertPayloads(assert, traceWriter, expectedHeaders, sampledTraces, testEndpoint.SuccessPayloads())
 	})
