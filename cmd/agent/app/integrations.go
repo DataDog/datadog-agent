@@ -38,6 +38,13 @@ const (
 	downloaderModule         = "datadog_checks.downloader"
 	disclaimer               = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
+	versionScript = `
+try:
+	from datadog_checks.%s import __version__
+	print(__version__)
+except ImportError:
+	pass
+`
 )
 
 var (
@@ -103,6 +110,23 @@ var showCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Long:  ``,
 	RunE:  show,
+}
+
+func getIntegrationName(packageName string) string {
+	switch packageName {
+	case "datadog-checks-base":
+		return "base"
+	case "datadog-checks-downloader":
+		return "downloader"
+	case "datadog-go-metro":
+		return "go-metro"
+	default:
+		return strings.Replace(strings.TrimPrefix(packageName, "datadog-"), "-", "_", -1)
+	}
+}
+
+func normalizePackageName(packageName string) string {
+	return strings.Replace(packageName, "_", "-", -1)
 }
 
 func semverToPEP440(version *semver.Version) string {
@@ -279,7 +303,7 @@ func install(cmd *cobra.Command, args []string) error {
 	}
 
 	intVer := strings.Split(args[0], "==")
-	integration := strings.Replace(strings.TrimSpace(intVer[0]), "_", "-", -1)
+	integration := normalizePackageName(strings.TrimSpace(intVer[0]))
 	if integration == "datadog-checks-base" {
 		return fmt.Errorf("this command does not allow installing datadog-checks-base")
 	}
@@ -538,8 +562,8 @@ func installedVersion(integration string) (*semver.Version, error) {
 		return nil, err
 	}
 
-	freezeCmd := exec.Command(pythonPath, "-mpip", "freeze", "--no-cache-dir")
-	output, err := freezeCmd.Output()
+	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(versionScript, getIntegrationName(integration)))
+	output, err := pythonCmd.Output()
 
 	if err != nil {
 		errMsg := ""
@@ -549,12 +573,17 @@ func installedVersion(integration string) (*semver.Version, error) {
 			errMsg = err.Error()
 		}
 
-		return nil, fmt.Errorf("error executing pip freeze: %s", errMsg)
+		return nil, fmt.Errorf("error executing python: %s", errMsg)
 	}
 
-	version, err := getVersionFromReqLine(integration, string(output))
+	outputStr := strings.TrimSpace(string(output))
+	if outputStr == "" {
+		return nil, nil
+	}
+
+	version, err := semver.NewVersion(outputStr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error parsing version %s: %s", outputStr, err)
 	}
 
 	return version, nil
@@ -584,33 +613,9 @@ func getVersionFromReqLine(integration string, lines string) (*semver.Version, e
 	return version, nil
 }
 
-func pipCheck() error {
-	pythonPath, err := getCommandPython()
-	if err != nil {
-		return err
-	}
-
-	checkCmd := exec.Command(pythonPath, "-mpip", "check", "--no-cache-dir")
-	output, err := checkCmd.CombinedOutput()
-
-	if err == nil {
-		// Clean python environment
-		return nil
-	}
-
-	if _, ok := err.(*exec.ExitError); ok {
-		return fmt.Errorf("error executing pip check: %v", string(output))
-	}
-
-	return fmt.Errorf("error executing pip check: %v", err)
-}
-
 func moveConfigurationFilesOf(integration string) error {
 	confFolder := config.Datadog.GetString("confd_path")
-	check := strings.TrimPrefix(integration, "datadog-")
-	if check != "go-metro" {
-		check = strings.Replace(check, "-", "_", -1)
-	}
+	check := getIntegrationName(integration)
 	confFileDest := filepath.Join(confFolder, fmt.Sprintf("%s.d", check))
 	if err := os.MkdirAll(confFileDest, os.ModeDir|0755); err != nil {
 		return err
@@ -689,7 +694,10 @@ func freeze(cmd *cobra.Command, args []string) error {
 }
 
 func show(cmd *cobra.Command, args []string) error {
-	packageName := strings.Replace(args[0], "_", "-", -1)
+	if err := validateArgs(args, false); err != nil {
+		return err
+	}
+	packageName := normalizePackageName(args[0])
 
 	version, err := installedVersion(packageName)
 	if err != nil {
