@@ -152,11 +152,7 @@ func TestPeriodicStats(t *testing.T) {
 
 	expectStats := summaryCompareFunc(assert, statsClient)
 	for key, sum := range want {
-		delta := 1.
-		if key == "bytes_uncompressed" {
-			delta = 1000.
-		}
-		expectStats("datadog.trace_agent.trace_writer."+key, 7, sum, delta)
+		expectStats("datadog.trace_agent.trace_writer."+key, 6, sum, 1)
 	}
 }
 

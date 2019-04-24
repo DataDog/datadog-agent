@@ -74,8 +74,7 @@ func TestTraceWriter(t *testing.T) {
 func calculateTracePayloadEstimatedSize(sampledTraces []*TracePackage) int {
 	var size int
 	for _, pkg := range sampledTraces {
-		size += pkg.Trace.Msgsize()
-		size += pb.Trace(pkg.Events).Msgsize()
+		size += pkg.size()
 	}
 	return size
 }
