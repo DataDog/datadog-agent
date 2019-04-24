@@ -77,7 +77,10 @@ static char **py_tag_to_c(PyObject *py_tags) {
 
     int len = PySequence_Length(py_tags);
     if (len == 0) {
-        tags = malloc(sizeof(*tags));
+        if (!(tags = malloc(sizeof(*tags)))) {
+            PyErr_SetString(PyExc_RuntimeError, "could not allocate memory for tags");
+            return NULL;
+        }
         tags[0] = NULL;
         return tags;
     }
@@ -87,8 +90,10 @@ static char **py_tag_to_c(PyObject *py_tags) {
         goto done;
     }
 
-    // TODO: handle malloc error
-    tags = malloc(sizeof(*tags) * (len+1));
+    if (!(tags = malloc(sizeof(*tags) * (len+1)))) {
+        PyErr_SetString(PyExc_RuntimeError, "could not allocate memory for tags");
+        goto done;
+    }
     int nb_valid_tag = 0;
     int i;
     for (i = 0; i < len; i++) {
@@ -218,8 +223,12 @@ static PyObject *submit_event(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    // TODO: handle malloc error
-    ev = (event_t *)malloc(sizeof(event_t));
+    if (!(ev = (event_t *)malloc(sizeof(event_t)))) {
+        PyErr_SetString(PyExc_RuntimeError, "could not allocate memory for event");
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
     // notice: PyDict_GetItemString returns a borrowed ref
     ev->title = as_string(PyDict_GetItemString(event_dict, "msg_title"));
     ev->text = as_string(PyDict_GetItemString(event_dict, "msg_text"));
