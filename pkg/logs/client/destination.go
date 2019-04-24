@@ -24,19 +24,8 @@ const (
 // API key / message separator
 const separator = " "
 
-var (
-	// The maximum duration after which a connection get reset.
-	connLifetimeInHours = 2 * time.Hour
-	// The width of the connection-reset spread.
-	connLifetimeSpread = 5
-	// The time unit of the spread.
-	connLifetimeSpreadUnit = time.Minute
-	// DefaultExpirationState is the default expiration state.
-	DefaultExpirationState = NewExpirationState(
-		connLifetimeInHours,
-		connLifetimeSpread,
-		connLifetimeSpreadUnit)
-)
+// DefaultExpirationState expires after two hours +|- 2 minutes and 30 seconds.
+var DefaultExpirationState = NewExpirationState(2*time.Hour, 5, time.Minute)
 
 // FramingError represents a kind of error that can occur when a log can not properly
 // be transformed into a frame.
