@@ -89,6 +89,7 @@ before_script:
 .run_when_testkitchen_triggered: &run_when_testkitchen_triggered
   only:
     - master
+    - agent-multi-python-master
     - tags
     - triggers
     - web
@@ -932,6 +933,7 @@ dev_branch_docker_hub:
   when: manual
   except:
     - master
+    - agent-multi-python-master
   variables:
     <<: *docker_hub_variables
   script:
