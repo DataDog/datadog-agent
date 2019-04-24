@@ -141,8 +141,8 @@ func (l *KubeletListener) processNewPods(pods []*kubelet.Pod, firstRun bool) {
 			if container.ID != "" {
 				l.createService(container.ID, pod, firstRun)
 			}
-			l.createPodService(pod, firstRun)
 		}
+		l.createPodService(pod, firstRun)
 	}
 }
 
