@@ -90,6 +90,10 @@ func getSixError() error {
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
 func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, error) {
+	if six == nil {
+		return nil, fmt.Errorf("six is not initialized")
+	}
+
 	checks := []check.Check{}
 	moduleName := config.Name
 
