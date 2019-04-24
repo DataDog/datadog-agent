@@ -121,3 +121,24 @@ func TestValidateRequirement(t *testing.T) {
 	assert.False(t, validateRequirement(baseVersion, "anythingElse", versionReq))
 
 }
+
+func TestSemverToPEP440(t *testing.T) {
+	assert.Equal(t, semverToPEP440(semver.New("1.3.4")), "1.3.4")
+	assert.Equal(t, semverToPEP440(semver.New("1.3.4-rc.1")), "1.3.4rc1")
+	assert.Equal(t, semverToPEP440(semver.New("1.3.4-pre.1")), "1.3.4rc1")
+	assert.Equal(t, semverToPEP440(semver.New("1.3.4-alpha.1")), "1.3.4a1")
+	assert.Equal(t, semverToPEP440(semver.New("1.3.4-beta.1")), "1.3.4b1")
+	assert.Equal(t, semverToPEP440(semver.New("1.3.4-beta")), "1.3.4b")
+}
+
+func TestGetIntegrationName(t *testing.T) {
+	assert.Equal(t, getIntegrationName("datadog-checks-base"), "base")
+	assert.Equal(t, getIntegrationName("datadog-checks-downloader"), "downloader")
+	assert.Equal(t, getIntegrationName("datadog-go-metro"), "go-metro")
+	assert.Equal(t, getIntegrationName("datadog-nginx-ingress-controller"), "nginx_ingress_controller")
+}
+
+func TestNormalizePackageName(t *testing.T) {
+	assert.Equal(t, normalizePackageName("datadog-checks_base"), "datadog-checks-base")
+	assert.Equal(t, getIntegrationName("datadog_checks_downloader"), "datadog-checks-downloader")
+}
