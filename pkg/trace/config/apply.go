@@ -88,7 +88,6 @@ type ReplaceRule struct {
 }
 
 type traceWriter struct {
-	MaxSpansPerPayload     int                    `mapstructure:"max_spans_per_payload"`
 	FlushPeriod            float64                `mapstructure:"flush_period_seconds"`
 	UpdateInfoPeriod       int                    `mapstructure:"update_info_period_seconds"`
 	QueueablePayloadSender queueablePayloadSender `mapstructure:"queue"`
@@ -391,9 +390,6 @@ func readTraceWriterConfigYaml() writerconfig.TraceWriterConfig {
 	c := writerconfig.DefaultTraceWriterConfig()
 
 	if err := config.Datadog.UnmarshalKey("apm_config.trace_writer", &w); err == nil {
-		if w.MaxSpansPerPayload > 0 {
-			c.MaxSpansPerPayload = w.MaxSpansPerPayload
-		}
 		if w.FlushPeriod > 0 {
 			c.FlushPeriod = time.Duration(w.FlushPeriod*1000) * time.Millisecond
 		}

@@ -20,6 +20,13 @@ import (
 
 const pathTraces = "/api/v0.2/traces"
 
+// payloadMaxSize is the maximum payload size accepted by the Datadog API, after unpacking
+const payloadMaxSize = 3200000 // 3.2MB
+
+// payloadFlushThreshold specifies the maximum accumulated payload size that is allowed before
+// a flush is triggered; replaced in tests.
+var payloadFlushThreshold = int(payloadMaxSize * 60 / 100) // 60% of max
+
 // TracePackage represents the result of a trace sampling operation.
 //
 // NOTE: A TracePackage can be valid even if any of its fields is nil/empty. In particular, a common case is that of
@@ -47,6 +54,7 @@ type TraceWriter struct {
 	traces        []*pb.APITrace
 	events        []*pb.Span
 	spansInBuffer int
+	payloadSize   int // payload size heuristic
 
 	sender payloadSender
 	exit   chan struct{}
@@ -148,65 +156,49 @@ func (w *TraceWriter) Stop() {
 	w.sender.Stop()
 }
 
-func (w *TraceWriter) handleSampledTrace(sampledTrace *TracePackage) {
-	if sampledTrace == nil || sampledTrace.Empty() {
+func (w *TraceWriter) handleSampledTrace(pkg *TracePackage) {
+	if pkg == nil || pkg.Empty() {
 		log.Debug("Ignoring empty sampled trace")
 		return
 	}
 
-	trace := sampledTrace.Trace
-	events := sampledTrace.Events
+	apiTrace, size := traceutil.APITrace(pkg.Trace)
+	size += pb.Trace(pkg.Events).Msgsize()
 
-	n := len(trace) + len(events)
-
-	if w.spansInBuffer > 0 && w.spansInBuffer+n > w.conf.MaxSpansPerPayload {
-		// If we have data pending and adding the new data would overflow max spans per payload, force a flush
-		w.flushDueToMaxSpansPerPayload()
+	if w.payloadSize > 0 && w.payloadSize+size > payloadFlushThreshold {
+		// this new package would push us over, flush
+		log.Debug("Flushing... Reached size threshold.")
+		w.flush()
 	}
 
-	w.appendTrace(sampledTrace.Trace)
-	w.appendEvents(sampledTrace.Events)
-
-	if n > w.conf.MaxSpansPerPayload {
-		// If what we just added already goes over the limit, report this but lets carry on and flush
-		atomic.AddInt64(&w.stats.SingleMaxSpans, 1)
-		w.flushDueToMaxSpansPerPayload()
+	log.Tracef("Handling new trace with %d spans: %v", len(pkg.Trace), pkg.Trace)
+	w.traces = append(w.traces, apiTrace)
+	if len(pkg.Events) > 0 {
+		log.Tracef("Handling new APM events: %v", pkg.Events)
+		w.events = append(w.events, pkg.Events...)
 	}
-}
+	w.payloadSize += size
+	w.spansInBuffer += len(pkg.Trace) + len(pkg.Events)
 
-func (w *TraceWriter) appendTrace(trace pb.Trace) {
-	numSpans := len(trace)
-
-	if numSpans == 0 {
-		return
+	if size > payloadMaxSize {
+		log.Warnf("Trace might be dropped by API; size exceeds maximum (%d): %d", payloadMaxSize, size)
 	}
-
-	log.Tracef("Handling new trace with %d spans: %v", numSpans, trace)
-
-	w.traces = append(w.traces, traceutil.APITrace(trace))
-	w.spansInBuffer += numSpans
-}
-
-func (w *TraceWriter) appendEvents(events []*pb.Span) {
-	for _, event := range events {
-		log.Tracef("Handling new APM event: %v", event)
-		w.events = append(w.events, event)
+	if size > payloadFlushThreshold {
+		// we've added a single package that surpasses our threshold, we should count this occurrence,
+		// it could be an indication of "over instrumentation" on the client side, where too many spans
+		// could be present in traces.
+		atomic.AddInt64(&w.stats.SingleMaxSize, 1)
+		log.Debugf("Flushing... Surpassed size threshold with a single package sized %d bytes", size)
+		w.flush()
 	}
-
-	w.spansInBuffer += len(events)
-}
-
-func (w *TraceWriter) flushDueToMaxSpansPerPayload() {
-	log.Debugf("Flushing because we reached max per payload")
-	w.flush()
 }
 
 func (w *TraceWriter) flush() {
 	numTraces := len(w.traces)
 	numEvents := len(w.events)
 
-	// If no traces, we can't construct anything
 	if numTraces == 0 && numEvents == 0 {
+		// nothing to flush
 		return
 	}
 
@@ -228,6 +220,8 @@ func (w *TraceWriter) flush() {
 		return
 	}
 
+	atomic.AddInt64(&w.stats.BytesUncompressed, int64(len(serialized)))
+
 	encoding := "identity"
 
 	// Try to compress payload before sending
@@ -248,6 +242,7 @@ func (w *TraceWriter) flush() {
 	}
 
 	atomic.AddInt64(&w.stats.Bytes, int64(len(serialized)))
+	atomic.AddInt64(&w.stats.BytesEstimated, int64(w.payloadSize))
 
 	headers := map[string]string{
 		languageHeaderKey:  strings.Join(info.Languages(), "|"),
@@ -257,15 +252,15 @@ func (w *TraceWriter) flush() {
 
 	payload := newPayload(serialized, headers)
 
-	log.Debugf("flushing traces=%v events=%v", len(w.traces), len(w.events))
+	log.Debugf("flushing traces=%v events=%v size=%d estimated=%d", len(w.traces), len(w.events), len(serialized), w.payloadSize)
 	w.sender.Send(payload)
 	w.resetBuffer()
 }
 
 func (w *TraceWriter) resetBuffer() {
-	// Reset traces
 	w.traces = w.traces[:0]
 	w.events = w.events[:0]
+	w.payloadSize = 0
 	w.spansInBuffer = 0
 }
 
@@ -279,18 +274,22 @@ func (w *TraceWriter) updateInfo() {
 	twInfo.Events = atomic.SwapInt64(&w.stats.Events, 0)
 	twInfo.Spans = atomic.SwapInt64(&w.stats.Spans, 0)
 	twInfo.Bytes = atomic.SwapInt64(&w.stats.Bytes, 0)
+	twInfo.BytesEstimated = atomic.SwapInt64(&w.stats.BytesEstimated, 0)
+	twInfo.BytesUncompressed = atomic.SwapInt64(&w.stats.BytesUncompressed, 0)
 	twInfo.Retries = atomic.SwapInt64(&w.stats.Retries, 0)
 	twInfo.Errors = atomic.SwapInt64(&w.stats.Errors, 0)
-	twInfo.SingleMaxSpans = atomic.SwapInt64(&w.stats.SingleMaxSpans, 0)
+	twInfo.SingleMaxSize = atomic.SwapInt64(&w.stats.SingleMaxSize, 0)
 
 	metrics.Count("datadog.trace_agent.trace_writer.payloads", int64(twInfo.Payloads), nil, 1)
 	metrics.Count("datadog.trace_agent.trace_writer.traces", int64(twInfo.Traces), nil, 1)
 	metrics.Count("datadog.trace_agent.trace_writer.events", int64(twInfo.Events), nil, 1)
 	metrics.Count("datadog.trace_agent.trace_writer.spans", int64(twInfo.Spans), nil, 1)
 	metrics.Count("datadog.trace_agent.trace_writer.bytes", int64(twInfo.Bytes), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.bytes_uncompressed", int64(twInfo.BytesUncompressed), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.bytes_estimated", int64(twInfo.BytesEstimated), nil, 1)
 	metrics.Count("datadog.trace_agent.trace_writer.retries", int64(twInfo.Retries), nil, 1)
 	metrics.Count("datadog.trace_agent.trace_writer.errors", int64(twInfo.Errors), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.single_max_spans", int64(twInfo.SingleMaxSpans), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.single_max_size", int64(twInfo.SingleMaxSize), nil, 1)
 
 	info.UpdateTraceWriterInfo(twInfo)
 }

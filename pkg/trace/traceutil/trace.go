@@ -3,6 +3,8 @@ package traceutil
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/tinylib/msgp/msgp"
 )
 
 // GetEnv returns the meta value for the "env" key for
@@ -59,10 +61,13 @@ func GetRoot(t pb.Trace) *pb.Span {
 	return t[len(t)-1]
 }
 
-// APITrace returns an APITrace from the trace, as required by the Datadog API.
-func APITrace(t pb.Trace) *pb.APITrace {
+// APITrace returns an APITrace from t, as required by the Datadog API.
+// It also returns an estimated size in bytes.
+func APITrace(t pb.Trace) (trace *pb.APITrace, size int) {
 	var earliest, latest int64
+	size = msgp.ArrayHeaderSize
 	for _, s := range t {
+		size += s.Msgsize()
 		start := s.Start
 		if start < earliest {
 			earliest = start
@@ -77,7 +82,7 @@ func APITrace(t pb.Trace) *pb.APITrace {
 		Spans:     t,
 		StartTime: earliest,
 		EndTime:   latest,
-	}
+	}, size
 }
 
 // ChildrenMap returns a map containing for each span id the list of its
