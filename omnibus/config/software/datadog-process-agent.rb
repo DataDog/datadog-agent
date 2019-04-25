@@ -24,7 +24,8 @@ build do
     url = "https://stackstate-process-agent-2-test.s3.amazonaws.com/#{process_agent_branch}/#{binary}"
     curl_cmd = "powershell -Command wget -OutFile #{binary} #{url}"
     command curl_cmd
-    command "mv #{binary} #{install_dir}/bin/agent/#{target_binary}"
+#[VS]    command "mv #{binary} #{install_dir}/bin/agent/#{target_binary}"
+    command "mv #{binary}  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/#{target_binary}"
   else
     binary = "process-agent-amd64-#{process_agent_version}"
     target_binary = "process-agent"
