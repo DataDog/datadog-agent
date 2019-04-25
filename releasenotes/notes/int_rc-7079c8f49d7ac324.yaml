@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+enhancements:
   - |
     The `datadog-agent integration` subcommand is now capable of installing prereleases of official integration wheels.
 fixes:
