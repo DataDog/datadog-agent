@@ -74,7 +74,7 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
     if six_root is None:
         env['CGO_LDFLAGS'] += " -L{}/lib ".format(embedded_path)
     else:
-        env['CGO_LDFLAGS'] += " -L{}/six ".format(six_root)
+        env['CGO_LDFLAGS'] += " -L{}/six -L{}/lib ".format(six_root, six_root)
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '')
     env['CGO_CFLAGS'] += " -w -I{}/include".format(embedded_path)
     if six_root is not None:
