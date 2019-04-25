@@ -200,6 +200,7 @@ func TestFullIniConfig(t *testing.T) {
 			MaxAge:            time.Second,
 			MaxQueuedBytes:    456,
 			MaxQueuedPayloads: 4,
+			InChannelSize:     10,
 			ExponentialBackoff: backoff.ExponentialConfig{
 				MaxDuration: 4 * time.Second,
 				GrowthBase:  2,
@@ -215,6 +216,7 @@ func TestFullIniConfig(t *testing.T) {
 			MaxAge:            time.Second,
 			MaxQueuedBytes:    456,
 			MaxQueuedPayloads: 4,
+			InChannelSize:     10,
 			ExponentialBackoff: backoff.ExponentialConfig{
 				MaxDuration: 4 * time.Second,
 				GrowthBase:  2,
@@ -227,6 +229,7 @@ func TestFullIniConfig(t *testing.T) {
 		FlushPeriod:      3 * time.Second,
 		UpdateInfoPeriod: 2 * time.Second,
 		SenderConfig: writerconfig.QueuablePayloadSenderConf{
+			InChannelSize:     10,
 			MaxAge:            time.Second,
 			MaxQueuedBytes:    456,
 			MaxQueuedPayloads: 4,

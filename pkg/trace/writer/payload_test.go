@@ -26,7 +26,9 @@ func TestQueuablePayloadSender_WorkingEndpoint(t *testing.T) {
 	workingEndpoint := &testEndpoint{}
 
 	// And a queuable sender using that endpoint
-	queuableSender := newDefaultSender(workingEndpoint)
+	conf := writerconfig.DefaultQueuablePayloadSenderConf()
+	conf.InChannelSize = 0 // block in tests
+	queuableSender := newSender(workingEndpoint, conf)
 
 	// And a test monitor for that sender
 	monitor := newTestPayloadSenderMonitor(queuableSender)
