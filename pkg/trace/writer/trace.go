@@ -62,7 +62,7 @@ type TraceWriter struct {
 	traces        []*pb.APITrace
 	events        []*pb.Span
 	spansInBuffer int
-	payloadSize   int // payload size heuristic
+	bytesInBuffer int // estimated size of next payload
 
 	sender payloadSender
 	exit   chan struct{}
@@ -172,7 +172,7 @@ func (w *TraceWriter) handleSampledTrace(pkg *TracePackage) {
 
 	size := pkg.size()
 
-	if w.payloadSize > 0 && w.payloadSize+size > payloadFlushThreshold {
+	if w.bytesInBuffer > 0 && w.bytesInBuffer+size > payloadFlushThreshold {
 		// this new package would push us over, flush
 		log.Debug("Flushing... Reached size threshold.")
 		w.flush()
@@ -184,7 +184,7 @@ func (w *TraceWriter) handleSampledTrace(pkg *TracePackage) {
 		log.Tracef("Handling new APM events: %v", pkg.Events)
 		w.events = append(w.events, pkg.Events...)
 	}
-	w.payloadSize += size
+	w.bytesInBuffer += size
 	w.spansInBuffer += len(pkg.Trace) + len(pkg.Events)
 
 	if size > payloadFlushThreshold {
@@ -246,7 +246,7 @@ func (w *TraceWriter) flush() {
 	}
 
 	atomic.AddInt64(&w.stats.Bytes, int64(len(serialized)))
-	atomic.AddInt64(&w.stats.BytesEstimated, int64(w.payloadSize))
+	atomic.AddInt64(&w.stats.BytesEstimated, int64(w.bytesInBuffer))
 
 	headers := map[string]string{
 		languageHeaderKey:  strings.Join(info.Languages(), "|"),
@@ -256,7 +256,7 @@ func (w *TraceWriter) flush() {
 
 	payload := newPayload(serialized, headers)
 
-	log.Debugf("flushing traces=%v events=%v size=%d estimated=%d", len(w.traces), len(w.events), len(serialized), w.payloadSize)
+	log.Debugf("flushing traces=%v events=%v size=%d estimated=%d", len(w.traces), len(w.events), len(serialized), w.bytesInBuffer)
 	w.sender.Send(payload)
 	w.resetBuffer()
 }
@@ -264,7 +264,7 @@ func (w *TraceWriter) flush() {
 func (w *TraceWriter) resetBuffer() {
 	w.traces = w.traces[:0]
 	w.events = w.events[:0]
-	w.payloadSize = 0
+	w.bytesInBuffer = 0
 	w.spansInBuffer = 0
 }
 

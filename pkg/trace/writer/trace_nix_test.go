@@ -131,38 +131,40 @@ func TestPeriodicStats(t *testing.T) {
 	payload4 := []*TracePackage{
 		randomTracePackage(2, 0),
 		randomTracePackage(2, 0),
-		randomTracePackage(2, 0),
 	}
+
+	payloadFlushThreshold = payload4[0].size() - 1 // each entry will cause a flush
 
 	for _, sampledTrace := range payload4 {
 		traceChannel <- sampledTrace
 	}
 
-	time.Sleep(2 * testFlushPeriod)
-
-	want["retries"] = 2
-	want["traces"] += len(payload1)
-	want["spans"] += 6
-	want["bytes_estimated"] += calculateTracePayloadEstimatedSize(payload4)
-	want["bytes_uncompressed"] += calculateTracePayloadSize(payload4)
-
-	// Close and stop
 	close(traceChannel)
 	traceWriter.Stop()
 
+	want["retries"] = 1
+	want["traces"] += len(payload4)
+	want["spans"] += 4
+	want["single_max_size"] += 2
+	want["bytes_estimated"] += calculateTracePayloadEstimatedSize(payload4)
+	want["bytes_uncompressed"] += calculateTracePayloadSize([]*TracePackage{payload4[0]})
+	want["bytes_uncompressed"] += calculateTracePayloadSize([]*TracePackage{payload4[1]})
+
+	// Close and stop
+
 	expectStats := summaryCompareFunc(assert, statsClient)
 	for key, sum := range want {
-		expectStats("datadog.trace_agent.trace_writer."+key, 6, sum, 1)
+		expectStats("datadog.trace_agent.trace_writer."+key, 5, sum)
 	}
 }
 
-func summaryCompareFunc(assert *assert.Assertions, statsClient *testutil.TestStatsClient) func(name string, calls int, sum int, delta float64) {
+func summaryCompareFunc(assert *assert.Assertions, statsClient *testutil.TestStatsClient) func(name string, calls int, sum int) {
 	summaries := statsClient.GetCountSummaries()
-	return func(name string, minCalls int, sum int, delta float64) {
+	return func(name string, minCalls int, sum int) {
 		summary, ok := summaries[name]
 		assert.True(ok, fmt.Sprintf("%s not found", name))
 		calls := len(summary.Calls)
 		assert.True(calls >= minCalls, fmt.Sprintf("%s: expected at least %d calls, got %d", name, minCalls, calls))
-		assert.InDelta(sum, summary.Sum, delta, fmt.Sprintf("%s: expected %d, got %d", name, sum, summary.Sum))
+		assert.EqualValues(sum, summary.Sum, fmt.Sprintf("%s: expected %d, got %d", name, sum, summary.Sum))
 	}
 }
