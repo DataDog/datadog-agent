@@ -77,7 +77,7 @@ if ohai["platform"] != "windows"
   end
 
 else
-  default_version "2.7.13"  # [VS] TODO: revert
+  default_version "2.7.15"
 
   dependency "vc_redist"
   source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
