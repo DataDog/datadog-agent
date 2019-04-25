@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"runtime"
 	"sort"
 	"strings"
@@ -101,6 +102,13 @@ func NewHTTPReceiver(
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
 	mux.HandleFunc("/spans", r.httpHandleWithVersion(v01, r.handleTraces))
 	mux.HandleFunc("/services", r.httpHandleWithVersion(v01, r.handleServices))
 	mux.HandleFunc("/v0.1/spans", r.httpHandleWithVersion(v01, r.handleTraces))
