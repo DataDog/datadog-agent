@@ -10,10 +10,6 @@ package ecs
 import (
 	"errors"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
-	"strconv"
 	"testing"
 	"time"
 
@@ -27,42 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
-
-// dummyECS allows tests to mock a ECS's responses
-type dummyECS struct {
-	Requests     chan *http.Request
-	TaskListJSON string
-}
-
-func newDummyECS() (*dummyECS, error) {
-	return &dummyECS{Requests: make(chan *http.Request, 3)}, nil
-}
-
-func (d *dummyECS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("dummyECS received %s on %s", r.Method, r.URL.Path)
-	d.Requests <- r
-	switch r.URL.Path {
-	case "/":
-		w.Write([]byte(`{"AvailableCommands":["/v1/metadata","/v1/tasks","/license"]}`))
-	case "/v1/tasks":
-		w.Write([]byte(d.TaskListJSON))
-	default:
-		w.WriteHeader(http.StatusNotFound)
-	}
-}
-
-func (d *dummyECS) Start() (*httptest.Server, int, error) {
-	ts := httptest.NewServer(d)
-	ecs_agent_url, err := url.Parse(ts.URL)
-	if err != nil {
-		return nil, 0, err
-	}
-	ecs_agent_port, err := strconv.Atoi(ecs_agent_url.Port())
-	if err != nil {
-		return nil, 0, err
-	}
-	return ts, ecs_agent_port, nil
-}
 
 func TestLocateECSHTTP(t *testing.T) {
 	assert := assert.New(t)

@@ -34,13 +34,20 @@ type Container struct {
 	DockerID      string            `json:"DockerID"`
 	CreatedAt     string            `json:"CreatedAt"`
 	Networks      []Network         `json:"Networks"`
-	Ports         string            `json:"Ports"`
+	Ports         []Port            `json:"Ports"`
 }
 
 // Network represents the network of a container
 type Network struct {
 	NetworkMode   string   `json:"NetworkMode"`   // as of today the only supported mode is awsvpc
 	IPv4Addresses []string `json:"IPv4Addresses"` // one-element list
+}
+
+// Port represents the ports of a container
+type Port struct {
+	ContainerPort uint16
+	Protocol      string
+	HostPort      uint16 `json:",omitempty"`
 }
 
 // ContainerStats represents the stats payload for a container

@@ -9,6 +9,7 @@ package ecs
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"time"
 
@@ -26,22 +27,7 @@ const (
 
 // GetTaskMetadata extracts the metadata payload for the task the agent is in.
 func GetTaskMetadata() (TaskMetadata, error) {
-	var meta TaskMetadata
-	client := http.Client{
-		Timeout: timeout,
-	}
-	resp, err := client.Get(metadataURL)
-	if err != nil {
-		return meta, err
-	}
-	defer resp.Body.Close()
-
-	decoder := json.NewDecoder(resp.Body)
-	err = decoder.Decode(&meta)
-	if err != nil {
-		log.Errorf("decoding task metadata failed - %s", err)
-	}
-	return meta, err
+	return getTaskMetadataWithURL(metadataURL)
 }
 
 // getECSContainers returns all containers exposed by the ECS API as plain ECSContainers
@@ -66,12 +52,13 @@ func ListContainers() ([]*containers.Container, error) {
 	for _, c := range ecsContainers {
 		entityID := docker.ContainerIDToEntityName(c.DockerID)
 		ctr := &containers.Container{
-			Type:     "ECS",
-			ID:       c.DockerID,
-			EntityID: entityID,
-			Name:     c.DockerName,
-			Image:    c.Image,
-			ImageID:  c.ImageID,
+			Type:        "ECS",
+			ID:          c.DockerID,
+			EntityID:    entityID,
+			Name:        c.DockerName,
+			Image:       c.Image,
+			ImageID:     c.ImageID,
+			AddressList: parseContainerNetworkAddresses(c.Ports, c.Networks, c.DockerName),
 		}
 
 		createdAt, err := time.Parse(time.RFC3339, c.CreatedAt)
@@ -175,4 +162,61 @@ func convertECSStats(stats ContainerStats) (metrics.CgroupTimesStat, metrics.Cgr
 		WriteBytes: stats.IO.WriteBytes,
 	}
 	return cpu, mem, io, stats.Memory.Details.Limit
+}
+
+// getTaskMetadataWithURL implements the logic of extracting metadata payload for the task.
+// Separated from GetTaskMetadata so the logic could be tested.
+func getTaskMetadataWithURL(url string) (TaskMetadata, error) {
+	var meta TaskMetadata
+	client := http.Client{
+		Timeout: timeout,
+	}
+	resp, err := client.Get(url)
+	if err != nil {
+		return meta, err
+	}
+	defer resp.Body.Close()
+
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&meta)
+	if err != nil {
+		log.Errorf("Decoding task metadata failed - %s", err)
+	}
+	return meta, err
+}
+
+// parseContainerNetworkAddresses converts ECS container ports
+// and networks into a list of NetworkAddress
+func parseContainerNetworkAddresses(ports []Port, networks []Network, container string) []containers.NetworkAddress {
+	addrList := []containers.NetworkAddress{}
+	if networks == nil {
+		log.Debugf("No network settings available in ECS metadata")
+		return addrList
+	}
+	for _, network := range networks {
+		for _, addr := range network.IPv4Addresses { // one-element list
+			IP := net.ParseIP(addr)
+			if IP == nil {
+				log.Warnf("Unable to parse IP: %v for container: %s", addr, container)
+				continue
+			}
+			if len(ports) > 0 {
+				// Ports is not nil, get ports and protocols
+				for _, port := range ports {
+					addrList = append(addrList, containers.NetworkAddress{
+						IP:       IP,
+						Port:     int(port.ContainerPort),
+						Protocol: port.Protocol,
+					})
+				}
+			} else {
+				// Ports is nil (omitted by the ecs api if there are no ports exposed).
+				// Keep the container IP anyway.
+				addrList = append(addrList, containers.NetworkAddress{
+					IP: IP,
+				})
+			}
+		}
+	}
+	return addrList
 }
