@@ -24,8 +24,8 @@ const (
 // API key / message separator
 const separator = " "
 
-// DefaultExpirationState expires after two hours +|- 2 minutes and 30 seconds.
-var DefaultExpirationState = NewExpirationState(2*time.Hour, 5, time.Minute)
+// DefaultExpirationState expires after 1h00 +- 15 minutes.
+var DefaultExpirationState = NewExpirationState(1*time.Hour, 30*60, time.Second)
 
 // FramingError represents a kind of error that can occur when a log can not properly
 // be transformed into a frame.
