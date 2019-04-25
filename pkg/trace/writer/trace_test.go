@@ -3,6 +3,7 @@ package writer
 import (
 	"bytes"
 	"compress/gzip"
+	"math"
 	"strings"
 	"testing"
 
@@ -27,20 +28,28 @@ func TestTraceWriter(t *testing.T) {
 		// Create a trace writer, its incoming channel and the endpoint that receives the payloads
 		traceWriter, traceChannel, testEndpoint, _ := testTraceWriter()
 		// Set a maximum of 4 spans per payload
-		traceWriter.conf.MaxSpansPerPayload = 4
 		traceWriter.Start()
+
+		tracePkg := randomTracePackage(1, 1)
+		size := calculateTracePayloadEstimatedSize([]*TracePackage{tracePkg})
+		defer func(old int) {
+			payloadFlushThreshold = old // reset original setting
+		}(payloadFlushThreshold)
+		payloadFlushThreshold = int(size + size + 1)
 
 		// Send a few sampled traces through the writer
 		sampledTraces := []*TracePackage{
-			// These 2 should be grouped together in a single payload
-			randomTracePackage(1, 1),
-			randomTracePackage(1, 1),
-			// This one should be on its own in a single payload
-			randomTracePackage(3, 1),
-			// This one should be on its own in a single payload
-			randomTracePackage(5, 1),
-			// This one should be on its own in a single payload
-			randomTracePackage(1, 1),
+			// these two will not trigger a flush, because they are
+			// below the size threshold.
+			tracePkg,
+			tracePkg,
+			// this one will trigger a flush of the previous two,
+			// and of itself because of the big size.
+			randomTracePackage(10, 1),
+			// this one will also trigger a flush of itself.
+			randomTracePackage(15, 1),
+			// this one will be flushed at shutdown.
+			tracePkg,
 		}
 		for _, sampledTrace := range sampledTraces {
 			traceChannel <- sampledTrace
@@ -56,14 +65,21 @@ func TestTraceWriter(t *testing.T) {
 			"Content-Encoding":             "gzip",
 		}
 
-		// Ensure that the number of payloads and their contents match our expectations. The MaxSpansPerPayload we
-		// set to 4 at the beginning should have been respected whenever possible.
+		// we should have 4 payloads based on the configured flush threshold for this test.
 		assert.Len(testEndpoint.SuccessPayloads(), 4, "We expected 4 different payloads")
 		assertPayloads(assert, traceWriter, expectedHeaders, sampledTraces, testEndpoint.SuccessPayloads())
 	})
 }
 
-func calculateTracePayloadSize(sampledTraces []*TracePackage) int64 {
+func calculateTracePayloadEstimatedSize(sampledTraces []*TracePackage) int {
+	var size int
+	for _, pkg := range sampledTraces {
+		size += pkg.size()
+	}
+	return size
+}
+
+func calculateTracePayloadSize(sampledTraces []*TracePackage) int {
 	apiTraces := make([]*pb.APITrace, len(sampledTraces))
 
 	for i, trace := range sampledTraces {
@@ -77,30 +93,20 @@ func calculateTracePayloadSize(sampledTraces []*TracePackage) int64 {
 	}
 
 	serialized, _ := proto.Marshal(&tracePayload)
-
-	compressionBuffer := bytes.Buffer{}
-	gz, err := gzip.NewWriterLevel(&compressionBuffer, gzip.BestSpeed)
-
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = gz.Write(serialized)
-	gz.Close()
-
-	if err != nil {
-		panic(err)
-	}
-
-	return int64(len(compressionBuffer.Bytes()))
+	return len(serialized)
 }
 
-func assertPayloads(assert *assert.Assertions, traceWriter *TraceWriter, expectedHeaders map[string]string,
-	sampledTraces []*TracePackage, payloads []*payload) {
-
-	var expectedTraces []pb.Trace
-	var expectedEvents []*pb.Span
-
+func assertPayloads(
+	assert *assert.Assertions,
+	traceWriter *TraceWriter,
+	expectedHeaders map[string]string,
+	sampledTraces []*TracePackage,
+	payloads []*payload,
+) {
+	var (
+		expectedTraces []pb.Trace
+		expectedEvents []*pb.Span
+	)
 	for _, sampledTrace := range sampledTraces {
 		expectedTraces = append(expectedTraces, sampledTrace.Trace)
 
@@ -109,9 +115,10 @@ func assertPayloads(assert *assert.Assertions, traceWriter *TraceWriter, expecte
 		}
 	}
 
-	var expectedTraceIdx int
-	var expectedEventIdx int
-
+	var (
+		expectedTraceIdx int
+		expectedEventIdx int
+	)
 	for _, payload := range payloads {
 		assert.Equal(expectedHeaders, payload.headers, "Payload headers should match expectation")
 
@@ -155,7 +162,11 @@ func assertPayloads(assert *assert.Assertions, traceWriter *TraceWriter, expecte
 		// If there's more than 1 trace or transaction in this payload, don't let it go over the limit. Otherwise,
 		// a single trace+transaction combination is allows to go over the limit.
 		if len(tracePayload.Traces) > 1 || len(tracePayload.Transactions) > 1 {
-			assert.True(numSpans <= traceWriter.conf.MaxSpansPerPayload)
+			size := pb.Trace(tracePayload.Transactions).Msgsize()
+			for _, tt := range tracePayload.Traces {
+				size += pb.Trace(tt.Spans).Msgsize()
+			}
+			assert.True(size <= payloadFlushThreshold)
 		}
 	}
 }
@@ -192,5 +203,18 @@ func randomTracePackage(numSpans, numEvents int) *TracePackage {
 	return &TracePackage{
 		Trace:  trace,
 		Events: events,
+	}
+}
+
+func BenchmarkHandleSampledTrace(b *testing.B) {
+	// ensure we never flush, as that would increase the scope of the benchmark
+	defer func(old int) {
+		payloadFlushThreshold = old
+	}(payloadFlushThreshold)
+	payloadFlushThreshold = math.MaxInt64
+	tw := TraceWriter{sender: newMockSender()}
+	pkg := randomTracePackage(2, 2)
+	for i := 0; i < b.N; i++ {
+		tw.handleSampledTrace(pkg)
 	}
 }
