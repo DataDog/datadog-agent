@@ -31,9 +31,6 @@ ssh-add "$AZURE_SSH_KEY_PATH"
 mkdir -p ~/.ssh
 [[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
 
-# load chef into the environment
-eval "$(chef shell-init bash)"
-
 # Setup the azure credentials, grabbing them from AWS if they do not exist in the environment already
 # If running locally, they should be imported into the environment
 if [ ! -f /root/.azure/credentials ]; then
@@ -95,9 +92,9 @@ if [[ $#  != 0 && $1 == "windows-install-test" ]]; then
   cp kitchen-azure-winstall.yml kitchen.yml
 fi
 
-chef exec kitchen diagnose --no-instances --loader
+kitchen diagnose --no-instances --loader
 
 rm -rf cookbooks
 rm -f Berksfile.lock
 
-chef exec rake dd-agent-azure-parallel[20]
+rake dd-agent-azure-parallel[20]

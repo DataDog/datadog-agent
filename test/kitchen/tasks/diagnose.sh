@@ -16,8 +16,6 @@ ssh-keygen -f $(pwd)/ssh-key -P "" -t rsa -b 2048
 
 export AZURE_SSH_KEY_PATH="$(pwd)/ssh-key"
 
-eval "$(chef shell-init bash)"
-
 if [ ! -f /root/.azure/credentials ]; then
   mkdir -p /root/.azure
   touch /root/.azure/credentials
