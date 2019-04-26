@@ -105,9 +105,17 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    printf("Embedding Python version %s\n\n", get_py_version(six));
-
     six_gilstate_t state = ensure_gil(six);
+
+    py_info_t *info = get_py_info(six);
+    if (info) {
+        printf("Embedding Python version %s\n\tPath: %s\n\n", info->version, info->path);
+        six_free(six, info->path);
+        six_free(six, info);
+    } else {
+        printf("Error info is null %s\n", get_error(six));
+    }
+
     // run a script from file
     char *code = read_file("./demo/main.py");
     run_simple_string(six, code);

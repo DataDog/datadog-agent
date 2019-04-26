@@ -52,16 +52,16 @@ func tearDown() {
 	os.Remove(tmpfile.Name())
 }
 
-func getVersion() string {
+func getPyInfo() (string, string) {
 	runtime.LockOSThread()
 	state := C.ensure_gil(six)
 
-	ret := C.GoString(C.get_py_version(six))
+	info := C.get_py_info(six)
 
 	C.release_gil(six, state)
 	runtime.UnlockOSThread()
 
-	return ret
+	return C.GoString(info.version), C.GoString(info.path)
 }
 
 func runString(code string) (string, error) {

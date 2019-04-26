@@ -6,8 +6,8 @@
 #include "three.h"
 
 #include "constants.h"
-
 #include "sixstrings.h"
+
 #include <_util.h>
 #include <aggregator.h>
 #include <cgo_free.h>
@@ -100,9 +100,46 @@ bool Three::isInitialized() const
     return Py_IsInitialized();
 }
 
-const char *Three::getPyVersion() const
+py_info_t *Three::getPyInfo()
 {
-    return Py_GetVersion();
+    PyObject *sys = NULL;
+    PyObject *path = NULL;
+    PyObject *str_path = NULL;
+
+    py_info_t *info = (py_info_t *)malloc(sizeof(*info));
+    if (!info) {
+        setError("could not allocate a py_info_t struct");
+        return NULL;
+    }
+
+    info->version = Py_GetVersion();
+    info->path = NULL;
+
+    sys = PyImport_ImportModule("sys");
+    if (!sys) {
+        setError("could not import module 'sys': " + _fetchPythonError());
+        goto done;
+    }
+
+    path = PyObject_GetAttrString(sys, "path");
+    if (!path) {
+        setError("could not get 'sys.path': " + _fetchPythonError());
+        goto done;
+    }
+
+    str_path = PyObject_Repr(path);
+    if (!str_path) {
+        setError("could not compute a string representation of 'sys.path': " + _fetchPythonError());
+        goto done;
+    }
+
+    info->path = as_string(str_path);
+
+done:
+    Py_XDECREF(sys);
+    Py_XDECREF(path);
+    Py_XDECREF(str_path);
+    return info;
 }
 
 bool Three::runSimpleString(const char *code) const
