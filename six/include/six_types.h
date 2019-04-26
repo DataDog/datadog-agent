@@ -60,6 +60,11 @@ typedef struct event_s {
     char *event_type;
 } event_t;
 
+typedef struct py_info_s {
+    const char *version;
+    char *path;
+} py_info_t;
+
 /*
  * custom builtins
  */

@@ -178,9 +178,9 @@ int is_initialized(six_t *six)
     return AS_CTYPE(Six, six)->isInitialized();
 }
 
-const char *get_py_version(const six_t *six)
+py_info_t *get_py_info(six_t *six)
 {
-    return AS_CTYPE(Six, six)->getPyVersion();
+    return AS_TYPE(Six, six)->getPyInfo();
 }
 
 int run_simple_string(const six_t *six, const char *code)
