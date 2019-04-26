@@ -26,3 +26,13 @@ To run a single ansible command use:
     
     or on MacOS X:
     $ ansible agent-ubuntu -i /var/folders/.../molecule/molecule-role/default/ansible_inventory.yml -m debug -a msg="{{ ansible_facts }}"
+
+
+## Windows image for molecule
+
+Under `./molecule-role/win-image-refresh` there is a terraform script that can be used to bake an instance of Windows to be used in our molecule test
+
+    $ cd molecule-role/win-image-refresh
+    $ terraform init
+    $ terraform plan -o win.plan
+    $ terraform apply -f win.plan

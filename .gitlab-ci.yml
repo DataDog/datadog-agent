@@ -80,6 +80,8 @@ deps_deb:
     - inv version -u > version.txt
   artifacts:
     paths:
+      - $CI_PROJECT_DIR/vendor
+      - $CI_PROJECT_DIR/venv
       - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
 
@@ -97,6 +99,8 @@ deps_rpm:
     - inv version -u > version.txt
   artifacts:
     paths:
+      - $CI_PROJECT_DIR/vendor
+      - $CI_PROJECT_DIR/venv
       - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
 
@@ -116,6 +120,8 @@ deps_win:
     - inv version -u > version.txt
   artifacts:
     paths:
+      - "vendor"
+      - "venv"
       - "version.txt"
     expire_in: 1 week
   tags:
