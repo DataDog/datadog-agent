@@ -8,7 +8,7 @@ def check_user_exists(name)
 end
 
 shared_examples_for 'a correctly created configuration root' do
-  # We retrieve the value defined in .kitchen.yml because there is no simple way
+  # We retrieve the value defined in kitchen.yml because there is no simple way
   # to set env variables on the target machine or via parameters in Kitchen/Busser
   # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
   let(:configuration_path) {
@@ -26,7 +26,7 @@ shared_examples_for 'a correctly created configuration root' do
 end
 
 shared_examples_for 'a correctly created binary root' do
-  # We retrieve the value defined in .kitchen.yml because there is no simple way
+  # We retrieve the value defined in kitchen.yml because there is no simple way
   # to set env variables on the target machine or via parameters in Kitchen/Busser
   # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
   let(:binary_path) {

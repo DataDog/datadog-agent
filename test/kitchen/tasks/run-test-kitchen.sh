@@ -89,11 +89,11 @@ if [ -z ${SERVER_PASSWORD+x} ]; then
 fi
 
 chef gem install bundler:1.17.3 net-ssh berkshelf rake psych:2.2.2 kitchen-azurerm:0.13.0 test-kitchen:1.24.0
-cp .kitchen-azure.yml .kitchen.yml
+cp kitchen-azure.yml kitchen.yml
 
 ## check to see if we want the windows-installer tester instead
 if [[ $#  != 0 && $1 == "windows-install-test" ]]; then
-  cp .kitchen-azure-winstall.yml .kitchen.yml
+  cp kitchen-azure-winstall.yml kitchen.yml
 fi
 
 chef exec kitchen diagnose --no-instances --loader
