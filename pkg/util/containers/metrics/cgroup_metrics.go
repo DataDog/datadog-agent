@@ -384,8 +384,7 @@ func (c ContainerCgroup) ThreadLimit() (uint64, error) {
 	statFile := c.cgroupFilePath("pids", "pids.max")
 	lines, err := readLines(statFile)
 	if os.IsNotExist(err) {
-		log.Debugf("Missing cgroup file: %s",
-			c.cgroupFilePath("pids", "pids.max"))
+		log.Debugf("Missing cgroup file: %s", statFile)
 		return 0, nil
 	} else if err != nil {
 		return 0, err
