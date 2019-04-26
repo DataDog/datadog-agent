@@ -50,8 +50,9 @@ api_key:
 # hostname: <HOSTNAME_NAME>
 
 ## @param hostname_fqdn - boolean - optional - default: false
-## Make the Agent use "hostname -f" on unix-based systems as a last resort
-## way of determining the hostname instead of Golang "os.Hostname()"
+## When the Agent relies on the OS to determine the hostname, make it use the
+## FQDN instead of the short hostname. Recommended value: true
+## More information at https://dtdg.co/flag-hostname-fqdn
 #
 # hostname_fqdn: false
 
@@ -143,8 +144,7 @@ api_key:
 # forwarder_retry_queue_max_size: 30
 
 ## @param forwarder_num_workers - integer - optional - default: 1
-## The number of workers used by the forwarder. Note that each worker opens an outbound HTTP
-## connection towards Datadog's metrics intake at every flush.
+## The number of workers used by the forwarder.
 #
 # forwarder_num_workers: 1
 
@@ -187,11 +187,15 @@ api_key:
 #
 # cmd_port: 5001
 
-## @param GUI_port - integer - optional - default: -1
-## The port for the browser GUI to be served. Default is '5002' on Windows & macOS ; turned off on Linux.
+## @param GUI_port - integer - optional
+## The port for the browser GUI to be served.
 ## Setting 'GUI_port: -1' turns off the GUI completely
+## Default is:
+##  * Windows & macOS : `5002`
+##  * Linux: `-1`
+##
 #
-# GUI_port: -1
+# GUI_port: <GUI_PORT>
 
 ## @param health_port - integer - optional - default: 0
 ## The Agent can expose its health check on a dedicated http port.
@@ -423,31 +427,27 @@ api_key:
   # blacklist_patterns:
   #   - <REGEX>
 
-  ## @param queue_size - integer - optional - default: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  ## @param queue_size - integer - optional - default: 20
   ## How many check results to buffer in memory when POST fails.
   #
-  # queue_size: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  # queue_size: 20
 
-  ## @param max_proc_fds - integer - optional - default: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  ## The maximum number of file descriptors to open when collecting net connections.
-  ## Only change if you are running out of file descriptors from the Agent.
-  #
-  # max_proc_fds: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
-
-  ## @param max_per_message - integer - optional - default: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  ## @param max_per_message - integer - optional - default: 100
   ## The maximum number of processes or containers per message.
   #
-  # max_per_message: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  # max_per_message: 100
 
-  ## @param dd_agent_bin - string - optional - default: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  ## Overrides the path to the Agent bin used for getting the hostname.
+  ## @param dd_agent_bin - string - optional
+  ## Overrides the path to the Agent bin used for getting the hostname. Defaults are:
+  ##   * Windows: <AGENT_DIRECTORY>\embedded\\agent.exe
+  ##   * Unix: /opt/datadog-agent/bin/agent/agent
   #
-  # dd_agent_bin: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  # dd_agent_bin: <AGENT_BIN_PATH>
 
-  ## @param dd_agent_env - string - optional - default: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  ## @param dd_agent_env - string - optional - default: ""
   ## Overrides of the environment we pass to fetch the hostname.
   #
-  # dd_agent_env: XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  # dd_agent_env: ""
 
   ## @param scrub_args - boolean - optional - default: true
   ## Hide sensitive data on the Live Processes page.
@@ -456,6 +456,8 @@ api_key:
 
   ## @param custom_sensitive_words - list of strings - optional
   ## Define your own list of sensitive data to be merged with the default one.
+  ## Read more on Datadog documentation:
+  ## https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
   #
   # custom_sensitive_words:
   #   - 'personal_key'
@@ -471,7 +473,7 @@ api_key:
 ##################################
 
 ## @param network_tracer_config - custom object - optional
-## Beta Agent - XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+## Beta Agent
 ## Enter specific configurations for your Network Tracer data collection.
 ## Uncomment this parameter and the one below to enable them.
 #
@@ -1083,7 +1085,7 @@ api_key:
 # kubelet_tls_verify: true
 
 ## @param kubelet_client_ca - string - optional - default: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-## XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+## Kublet client CA file path.
 #
 # kubelet_client_ca: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 
