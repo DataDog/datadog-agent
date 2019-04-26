@@ -132,6 +132,8 @@ unit_tests:
   dependencies:
     - deps_deb
   script:
+    # We run inv deps again because /go/bin is not cached and we need binaries like golint, misspell
+    - inv deps
     - inv -e agent.build --race --precompile-only
     - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubeapiserver,kubelet
 
