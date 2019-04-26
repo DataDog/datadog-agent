@@ -16,9 +16,8 @@
 
 provisioner:
   name: chef_solo
-  require_chef_omnibus: true
   product_version: 13.6.4
-  require_chef_omnibus: 13.6.4
+  install_strategy: always
 
 <% if ENV['KITCHEN_DRIVER'] && ENV['KITCHEN_DRIVER'] == "hyperv" %>
 driver:

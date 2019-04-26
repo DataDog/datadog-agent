@@ -16,6 +16,7 @@ transport:
 provisioner:
   product_name: chef
   product_version: 12.2.1
+  install_strategy: always
 
 platforms:
 # Loop through two lists and output a total matrix of all possible platform + chef versions,
