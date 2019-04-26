@@ -62,7 +62,7 @@ func doTestCPUHigh(t *testing.T, n int) {
 	// enough to stimulate one core and make it over 50%. One of the goals
 	// of this test is to check that values are not wrong by a factor 100, such
 	// as mismatching percentages and [0...1]  values.
-	assert.Condition(func() bool { return c.UserAvg >= 0.5 }, fmt.Sprintf("cpu avg is too low, got %f", c.UserAvg))
+	assert.Condition(func() bool { return c.UserAvg >= 0.35 }, fmt.Sprintf("cpu avg is too low, got %f", c.UserAvg))
 	assert.Condition(func() bool { return c.UserAvg <= float64(n+1) }, fmt.Sprintf("cpu avg is too high, target is %d, got %f", n, c.UserAvg))
 }
 
