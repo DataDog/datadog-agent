@@ -389,6 +389,7 @@ pre_release_image:
     DOCKER_DRIVER: overlay
   services:
     - docker:dind
+  before_script: []
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
@@ -470,6 +471,7 @@ release_image:
     DOCKER_DRIVER: overlay
   services:
     - docker:dind
+  before_script: []
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
