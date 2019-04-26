@@ -306,6 +306,7 @@ int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data)
         err = GetLastError();
         // this should *never* happen, because we didn't pass in a buffer large enough for
         // the sid or the domain name.
+        WcaLog(LOGMSG_STANDARD, "doesUserExist: Lookup Account Name: Unexpected error %d 0x%x", err, err);
         return -1;
     }
     err = GetLastError();
@@ -315,6 +316,7 @@ int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data)
     }
     if (ERROR_INSUFFICIENT_BUFFER != err) {
         // we don't know what happened
+        WcaLog(LOGMSG_STANDARD, "doesUserExist: Lookup Account Name: Expected insufficient buffer, got error %d 0x%x", err, err);
         return -1;
     }
     newsid = (SID *) new BYTE[cbSid];
