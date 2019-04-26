@@ -373,6 +373,41 @@ api_key:
   #
   # max_traces_per_second: 10
 
+  ## @param max_memory - integer - optional - default: 500000000
+  ## Maximum memory to allow for the trace agent. The Agent is killed if this number is surpassed.
+  #
+  # max_memory: 500000000
+
+  ## @param max_cpu_percent - integer - optional - default: 50
+  ## Maximum CPU percentage allowed to be occupied by the trace agent
+  ## The Agent is killed if this number is surpassed.
+  #
+  # max_cpu_percent: 50
+
+  ## @param obfuscation - object - optional
+  ## Defines obfuscation rules for sensitive data. Disabled by default.
+  ## See https://docs.datadoghq.com/tracing/guide/agent-obfuscation
+
+  ## @param replace_tags - list of objects - optional
+  ## Defines a set of rules to replace or remove certain services, resources, tags containing
+  ## potentially sensitive information.
+  ## Each rules has to contain:
+  ##  * name - string - The tag name to replace, for services or resources use "service.name" or "resource.name".
+  ##  * pattern - string - The pattern to match the desired content to replace
+  ##  * repl - string - what to inline if the pattern is matched
+  ##
+  ## For instance to remove all query paramters from the http.url tag you would use:
+  ##
+  ##   - name: "http.url"
+  ##     pattern: "\?.*$"
+  ##     repl: "?"
+  ##
+  #
+  # replace_tags:
+  #   - name: "<TAG_NAME>"
+  #     pattern: "<REGEX_PATTERN>"
+  #     repl: "<PATTERN_TO_INLINE>"
+
   ## @param ignore_resources - list of strings - optional
   ## A blacklist of regular expressions can be provided to disable certain traces based on their resource name
   ## all entries must be surrounded by double quotes and separated by commas.
