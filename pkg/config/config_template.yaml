@@ -396,7 +396,7 @@ api_key:
   ##  * pattern - string - The pattern to match the desired content to replace
   ##  * repl - string - what to inline if the pattern is matched
   ##
-  ## For instance to remove all query paramters from the http.url tag you would use:
+  ## For instance to remove all query parameters from the http.url tag you would use:
   ##
   ##   - name: "http.url"
   ##     pattern: "\?.*$"
