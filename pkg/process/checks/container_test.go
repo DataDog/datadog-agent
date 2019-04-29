@@ -7,10 +7,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/process/model"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-process-agent/model"
-	"github.com/DataDog/datadog-process-agent/util"
 )
 
 func makeContainer(id string) *containers.Container {

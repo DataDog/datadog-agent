@@ -8,8 +8,8 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-process-agent/ebpf"
-	"github.com/DataDog/datadog-process-agent/util"
 )
 
 // TracerConfigFromConfig returns a valid tracer-bpf config sourced from our agent config

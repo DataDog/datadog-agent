@@ -6,11 +6,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/model"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-process-agent/config"
 	"github.com/DataDog/datadog-process-agent/ebpf"
-	"github.com/DataDog/datadog-process-agent/model"
-	"github.com/DataDog/datadog-process-agent/net"
 )
 
 var (

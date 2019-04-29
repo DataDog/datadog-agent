@@ -12,10 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-process-agent/config"
-	"github.com/DataDog/datadog-process-agent/model"
-	"github.com/DataDog/datadog-process-agent/statsd"
-	"github.com/DataDog/datadog-process-agent/util"
+	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/model"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 // Container is a singleton ContainerCheck.

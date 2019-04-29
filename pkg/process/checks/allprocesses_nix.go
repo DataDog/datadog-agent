@@ -3,7 +3,7 @@
 package checks
 
 import (
-	"github.com/DataDog/datadog-process-agent/config"
+	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/gopsutil/process"
 )
 

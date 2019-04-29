@@ -1,8 +1,8 @@
 package checks
 
 import (
-	"github.com/DataDog/datadog-process-agent/config"
-	"github.com/DataDog/datadog-process-agent/model"
+	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/model"
 )
 
 // Check is an interface for Agent checks that collect data. Each check returns

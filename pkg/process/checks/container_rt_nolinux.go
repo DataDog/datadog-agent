@@ -7,9 +7,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 
-	"github.com/DataDog/datadog-process-agent/config"
-	"github.com/DataDog/datadog-process-agent/model"
-	"github.com/DataDog/datadog-process-agent/util"
+	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/model"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 // RTContainer is a singleton RTContainerCheck.

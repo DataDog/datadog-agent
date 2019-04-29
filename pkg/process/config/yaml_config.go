@@ -2,17 +2,18 @@ package config
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-process-agent/util"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 const (

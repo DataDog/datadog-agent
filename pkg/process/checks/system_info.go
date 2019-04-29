@@ -5,8 +5,8 @@ import (
 	"github.com/DataDog/gopsutil/host"
 	"github.com/DataDog/gopsutil/mem"
 
-	"github.com/DataDog/datadog-process-agent/config"
-	"github.com/DataDog/datadog-process-agent/model"
+	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/model"
 )
 
 // CollectSystemInfo collects a set of system-level information that will not

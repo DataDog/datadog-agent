@@ -3,8 +3,8 @@ package statsd
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/DataDog/datadog-process-agent/config"
 )
 
 // Client is a global Statsd client. When a client is configured via Configure,
