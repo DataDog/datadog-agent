@@ -169,7 +169,7 @@ if linux?
   end
   extra_package_file "#{systemd_directory}/stackstate-agent.service"
   extra_package_file "#{systemd_directory}/stackstate-agent-process.service"
-  extra_package_file "#{systemd_directory}/stackstate-agent-network.service"
+  #[VS] extra_package_file "#{systemd_directory}/stackstate-agent-network.service"
   extra_package_file "#{systemd_directory}/stackstate-agent-trace.service"
   extra_package_file '/etc/stackstate-agent/'
   extra_package_file '/usr/bin/sts-agent'

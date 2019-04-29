@@ -100,7 +100,7 @@ build do
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_debian.network.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-network.conf",
+          dest: "#{install_dir}/scripts/stackstate-agent-network.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_debian.trace.conf.erb",
