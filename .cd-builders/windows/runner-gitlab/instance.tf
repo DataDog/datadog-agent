@@ -88,7 +88,7 @@ check:
 	ansible windows -i hosts -m win_ping
 
 provision:
-        ansible_gitlab_runner.sh
+    ansible_gitlab_runner.sh
 
 MAKEFILE
 

@@ -12,7 +12,7 @@
     - name: Install python-pip
       become: true
       apt:
-        name: python-pip
+        name: [python-pip, virtualenv, libyajl2]  # venv and yajl2 if you wanna run the simulator
         state: present
         update_cache: yes
     - name: Installing multiple python packages in Ansible
