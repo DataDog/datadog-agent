@@ -41,6 +41,7 @@
 /pkg/logs/                              @DataDog/logs-intake
 /pkg/metadata/ecs/                      @DataDog/burrito
 /pkg/metadata/kubernetes/               @DataDog/burrito
+/pkg/process/                           @DataDog/burrito
 /pkg/procmatch/                         @DataDog/burrito
 /pkg/quantile                           @DataDog/metrics-aggregation
 
