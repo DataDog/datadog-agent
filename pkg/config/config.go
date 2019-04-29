@@ -413,8 +413,6 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.extra_sample_rate")
 	config.SetKnown("apm_config.ignore_resources")
 	config.SetKnown("apm_config.max_traces_per_second")
-	config.SetKnown("jmx_pipe_name")
-	config.SetKnown("jmx_pipe_path")
 	config.SetKnown("clustername")
 	config.SetKnown("listeners")
 
