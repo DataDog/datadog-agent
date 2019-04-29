@@ -525,10 +525,9 @@ func load(config Config, origin string, loadSecret bool) error {
 
 	knownKeys := config.GetKnownKeys()
 	loadedKeys := config.AllKeys()
-	for i := range loadedKeys {
-		key := loadedKeys[i]
+	for _, key := range loadedKeys {
 		if _, found := knownKeys[key]; !found {
-			log.Warnf("Uknown key in config file: %v", key)
+			log.Warnf("Unknown key in config file: %v", key)
 		}
 	}
 
