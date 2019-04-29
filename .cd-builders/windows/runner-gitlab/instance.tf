@@ -89,7 +89,11 @@ check:
 	ansible windows -i hosts -m win_ping
 
 provision:
+<<<<<<< HEAD:.cd-builders/windows/runner-gitlab/instance.tf
 	.cd-builders/windows/runner-gitlab/instance.tf
+=======
+    ansible_gitlab_runner.sh
+>>>>>>> master:.cd-builders/windows/runner-gitlab/instance.tf
 
 MAKEFILE
 
