@@ -149,6 +149,22 @@ func TestKubeMetadataCollector_getMetadaNames(t *testing.T) {
 		},
 
 		{
+			name: "clusterAgentEnabled enable, but old version",
+			args: args{
+				getPodMetaDataFromApiServerFunc: func(string, string, string) ([]string, error) {
+					return []string{"foo=bar"}, nil
+				},
+				po: &kubelet.Pod{},
+			},
+			fields: fields{
+				clusterAgentEnabled: true,
+				dcaClient:           &clusteragent.DCAClient{},
+			},
+			want:    []string{"foo=bar"},
+			wantErr: false,
+		},
+
+		{
 			name: "clusterAgentEnabled enable, but old version, DCS return error",
 			args: args{
 				getPodMetaDataFromApiServerFunc: func(string, string, string) ([]string, error) {
@@ -301,6 +317,26 @@ func TestKubeMetadataCollector_getTagInfos(t *testing.T) {
 						"kube_service:svc1",
 						"kube_service:svc2",
 					},
+				},
+			},
+		},
+		{
+			name: "clusterAgentEnabled enable but client init failed",
+			args: args{
+				pods: pods,
+			},
+			fields: fields{
+				kubeUtil:            kubeUtilFake,
+				clusterAgentEnabled: true,
+				dcaClient:           &FakeDCAClient{},
+			},
+			want: []*TagInfo{
+				{
+					Source:               kubeMetadataCollectorName,
+					Entity:               kubelet.PodUIDToEntityName("foouid"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          []string{},
 				},
 			},
 		},
