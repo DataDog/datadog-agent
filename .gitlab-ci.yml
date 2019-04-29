@@ -310,22 +310,17 @@ build_rpm:
 
 build_win:
   stage: build_and_test
-<<<<<<< HEAD
-#  dependencies:
-#    - deps-windows
-=======
   dependencies:
     - deps_win
->>>>>>> cache-per-branch
   before_script: []
   script:
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
     - call .gitlab-scripts/windows_build_env.cmd
 # debug
-    - call .gitlab-scripts/windows_deps.cmd
-    - inv version -u > version.txt
-    - whoami
+#    - call .gitlab-scripts/windows_deps.cmd
+#    - inv version -u > version.txt
+#    - whoami
 # /debug
     - call .gitlab-scripts/windows_build.cmd
   after_script:
