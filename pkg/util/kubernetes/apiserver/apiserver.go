@@ -365,6 +365,10 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 
 func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.MetadataResponseBundle {
 	output := apiv1.NewMetadataResponseBundle()
-	output.Services = input.Services
+	input.m.RLock()
+	defer input.m.RUnlock()
+	for key, val := range input.Services {
+		output.Services[key] = val
+	}
 	return output
 }
