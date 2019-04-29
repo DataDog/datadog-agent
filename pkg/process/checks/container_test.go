@@ -80,30 +80,30 @@ func TestContainerChunking(t *testing.T) {
 
 func TestContainerAddresses(t *testing.T) {
 	ctr := makeContainer("haha")
-	ctr.AddressList = []containers.NetworkAddress{containers.NetworkAddress{IP: net.ParseIP("192.168.128.141"), Port: 443, Protocol: "TCP"}}
+	ctr.AddressList = []containers.NetworkAddress{{IP: net.ParseIP("192.168.128.141"), Port: 443, Protocol: "TCP"}}
 	results := fmtContainers([]*containers.Container{ctr}, map[string]util.ContainerRateMetrics{}, time.Now())
 	assert.Equal(t, 1, len(results))
 	addrs := []*model.ContainerAddr{
-		&model.ContainerAddr{Ip: "192.168.128.141", Port: int32(443), Protocol: model.ConnectionType_tcp},
+		{Ip: "192.168.128.141", Port: int32(443), Protocol: model.ConnectionType_tcp},
 	}
 	assert.Equal(t, results[0].Addresses, addrs)
 }
 
 func TestContainerNils(t *testing.T) {
 	// Make sure formatting doesn't crash with nils
-	cur := []*containers.Container{&containers.Container{}}
+	cur := []*containers.Container{{}}
 	last := map[string]util.ContainerRateMetrics{}
 	chunkContainers(cur, last, time.Now(), 10, 10)
 	fmtContainerStats(cur, last, time.Now(), 10)
 	// Make sure we get values when we have nils in last.
 	cur = []*containers.Container{
-		&containers.Container{
+		{
 			ID:  "1",
 			CPU: &metrics.CgroupTimesStat{},
 		},
 	}
 	last = map[string]util.ContainerRateMetrics{
-		"1": util.ContainerRateMetrics{
+		"1": {
 			CPU: &metrics.CgroupTimesStat{},
 		},
 	}
