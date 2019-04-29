@@ -195,7 +195,7 @@ def query_version(ctx, git_sha_length=7, prefix=None):
     return version, pre, commit_number, git_sha
 
 
-def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None):
+def get_version(ctx, include_git=False, url_safe=False, git_sha_length=8, prefix=None):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
     version = ""
     version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length, prefix)
