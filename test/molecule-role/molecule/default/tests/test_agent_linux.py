@@ -12,7 +12,7 @@ def test_stackstate_agent_is_installed(host):
     assert agent.is_installed
 
     agent_current_branch = host.ansible("include_vars", "./common_vars.yml")["ansible_facts"]["agent_current_branch"]
-    if agent_current_branch is "master":
+    if agent_current_branch == "master":
         assert agent.version.startswith("2")
 
 

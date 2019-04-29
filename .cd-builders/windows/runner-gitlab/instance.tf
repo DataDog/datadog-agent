@@ -89,7 +89,11 @@ check:
 	ansible windows -i hosts -m win_ping
 
 provision:
+<<<<<<< HEAD:.circleci/images/gitlab-runner/instance.tf
 	ansible_gitlab_runner.sh
+=======
+    ansible_gitlab_runner.sh
+>>>>>>> cache-per-branch:.cd-builders/windows/runner-gitlab/instance.tf
 
 MAKEFILE
 

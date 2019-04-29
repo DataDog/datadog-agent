@@ -12,7 +12,6 @@ if [ -z ${TARGET_BUCKET+x} ]; then
 fi
 
 if [ -z ${STACKSTATE_AGENT_VERSION+x} ]; then
-	# Pick the latest tag by default for our version.
 	STACKSTATE_AGENT_VERSION=$(cat $CI_PROJECT_DIR/version.txt)
 fi
 echo $STACKSTATE_AGENT_VERSION

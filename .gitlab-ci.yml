@@ -23,12 +23,12 @@ before_script:
    # Either we already have a venv, or we still need to make it (as part of get_deps.sh)
  - source .gitlab-scripts/setup_env.sh
 
-dependencies_clear_cache:
+clear_deps_deb_cache:
   stage: prepare
   before_script: []
   cache:
     policy: push
-    key: "agent-deps"
+    key: "deps-deb-$CI_COMMIT_REF_SLUG"
     paths:
       - vendor
       - venv
@@ -37,12 +37,12 @@ dependencies_clear_cache:
     - rm -rf $CI_PROJECT_DIR/venv
     - rm -rf $CI_PROJECT_DIR/vendor
 
-dependencies_clear_cache_rpm:
+clear_deps_rpm_cache:
   stage: prepare
   before_script: []
   cache:
     policy: push
-    key: "agent-deps-rpm"
+    key: "deps-rpm-$CI_COMMIT_REF_SLUG"
     paths:
       - vendor
       - venv
@@ -51,14 +51,14 @@ dependencies_clear_cache_rpm:
     - rm -rf $CI_PROJECT_DIR/venv
     - rm -rf $CI_PROJECT_DIR/vendor
 
-dependencies_clear_cache_windows:
+clear_deps_win_cache:
   stage: prepare
   before_script:
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
   cache:
     policy: push
-    key: "agent-deps-win"
+    key: "deps-win-$CI_COMMIT_REF_SLUG"
     paths:
       - vendor
       - venv
@@ -70,10 +70,10 @@ dependencies_clear_cache_windows:
   tags:
     - sts_windows
 
-deps:
+deps_deb:
   stage: prepare
   cache:
-    key: "agent-deps"
+    key: "deps-deb-$CI_COMMIT_REF_SLUG"
     paths:
       - vendor
       - venv
@@ -83,16 +83,16 @@ deps:
     - inv version -u > version.txt
   artifacts:
     paths:
-        - $CI_PROJECT_DIR/vendor
-        - $CI_PROJECT_DIR/venv
-        - $CI_PROJECT_DIR/version.txt
+      - $CI_PROJECT_DIR/vendor
+      - $CI_PROJECT_DIR/venv
+      - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
 
-deps-rpm:
+deps_rpm:
   stage: prepare
   image: stackstate/stackstate-agent-runner-gitlab:centos6
   cache:
-    key: "agent-deps-rpm"
+    key: "deps-rpm-$CI_COMMIT_REF_SLUG"
     paths:
       - vendor
       - venv
@@ -102,18 +102,18 @@ deps-rpm:
     - inv version -u > version.txt
   artifacts:
     paths:
-        - $CI_PROJECT_DIR/vendor
-        - $CI_PROJECT_DIR/venv
-        - $CI_PROJECT_DIR/version.txt
+      - $CI_PROJECT_DIR/vendor
+      - $CI_PROJECT_DIR/venv
+      - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
 
-deps-windows:
+deps_win:
   stage: prepare
   before_script:
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
   cache:
-    key: "agent-deps-win"
+    key: "deps-win-$CI_COMMIT_REF_SLUG"
     paths:
       - vendor
       - venv
@@ -123,9 +123,9 @@ deps-windows:
     - inv version -u > version.txt
   artifacts:
     paths:
-        - "vendor"
-        - "venv"
-        - "version.txt"
+      - "vendor"
+      - "venv"
+      - "version.txt"
     expire_in: 1 week
   tags:
     - sts_windows
@@ -133,9 +133,9 @@ deps-windows:
 unit_tests:
   stage: build_and_test
   dependencies:
-    - deps
+    - deps_deb
   script:
-    #We run another inv deps here to get the go dependencies
+    # We run inv deps again because /go/bin is not cached and we need binaries like golint, misspell
     - inv deps
     - inv -e agent.build --race --precompile-only
     #TODO: check why formatting rules differ from previous step
@@ -146,7 +146,7 @@ unit_tests:
 integration_tests:
   stage: build_and_test
   dependencies:
-    - deps
+    - deps_deb
   script:
     - inv -e integration-tests --race --remote-docker
   tags:
@@ -155,14 +155,14 @@ integration_tests:
 filename_linting:
   stage: build_and_test
   dependencies:
-    - deps
+    - deps_deb
   script:
     - inv -e lint-filenames
 
 docker_integration_tests:
   stage: build_and_test
   dependencies:
-    - deps
+    - deps_deb
   variables:
       DOCKER_DRIVER: overlay
   services:
@@ -175,7 +175,7 @@ docker_integration_tests:
 build_binaries:
   stage: build_and_test
   dependencies:
-    - deps
+    - deps_deb
   script:
     - inv -e dogstatsd.build --static
     - inv -e agent.build
@@ -183,55 +183,50 @@ build_binaries:
 build_puppy:
   stage: build_and_test
   dependencies:
-    - deps
+    - deps_deb
   script:
     - inv -e agent.build --puppy
     - ./bin/agent/agent -c ./bin/agent/dist check cpu
 
-build_deb_clear_cache:
-  stage: build_and_test
-  cache:
-    policy: push
-    key: "agent-build_publish_deb"
-    paths:
-      - .omnibus
-      - vendor
-  when: manual
-  script:
-    - mkdir -p .omnibus
-    - rm -rf .omnibus/*
-    - rm -rf vendor
 
-build_rpm_clear_cache:
+clear_build_deb_cache:
   stage: build_and_test
   cache:
     policy: push
-    key: "agent-build_publish_rpm"
+    key: "build-deb-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
-      - vendor
   when: manual
   script:
     - mkdir -p .omnibus
     - rm -rf .omnibus/*
-    - rm -rf vendor
+
+clear_build_rpm_cache:
+  stage: build_and_test
+  cache:
+    policy: push
+    key: "build-rpm-$CI_COMMIT_REF_SLUG"
+    paths:
+      - .omnibus
+  when: manual
+  script:
+    - mkdir -p .omnibus
+    - rm -rf .omnibus/*
 
 
 build_deb:
   stage: build_and_test
   dependencies:
-    - deps
+    - deps_deb
   tags:
-    # We put the deb build on sts-aws because it runs long and we do want to have it run
-    # fast.
+    # We put the deb build on sts-aws because it runs long and we do want to have it run fast.
     # It also cuts into our pipeline quotum
     - sts-aws
     #- slavko_shell
   cache:
-    key: "agent-build_publish_deb"
+    key: "build-deb-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
-      - vendor
   script:
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
@@ -263,23 +258,22 @@ build_deb:
         - $CI_PROJECT_DIR/outcomes/Dockerfiles/cluster-agent
         - $CI_PROJECT_DIR/outcomes/Dockerfiles/dogstatsd
         - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
+        - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
 
 build_rpm:
   stage: build_and_test
   image: stackstate/stackstate-agent-runner-gitlab:centos6_20190429
   dependencies:
-    - deps-rpm
+    - deps_rpm
   tags:
-    # We put the deb build on sts-aws because it runs long and we do want to have it run
-    # fast.
+    # We put the deb build on sts-aws because it runs long and we do want to have it run fast.
     # It also cuts into our pipeline quotum
     - sts-aws
   cache:
-    key: "agent-build_publish_rpm"
+    key: "build-rpm-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
-      - vendor
   script:
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
@@ -311,12 +305,18 @@ build_rpm:
         - $CI_PROJECT_DIR/outcomes/Dockerfiles/cluster-agent
         - $CI_PROJECT_DIR/outcomes/Dockerfiles/dogstatsd
         - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
+        - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
 
 build_win:
   stage: build_and_test
+<<<<<<< HEAD
 #  dependencies:
 #    - deps-windows
+=======
+  dependencies:
+    - deps_win
+>>>>>>> cache-per-branch
   before_script: []
   script:
     - set WIN_CI_PROJECT_DIR=%CD%
@@ -334,6 +334,7 @@ build_win:
     expire_in: 2 weeks
     paths:
       - ./*.msi
+      - "version.txt"
   tags:
     - sts_windows
 
@@ -357,7 +358,7 @@ test_rpm_renaming:
 pre_release_deb:
   stage: pre_release
   dependencies:
-    - deps
+    - deps_deb
     - build_deb
   script:
     - source .gitlab-scripts/setup_env.sh
@@ -370,7 +371,7 @@ pre_release_deb:
 pre_release_win:
   stage: pre_release
   dependencies:
-    - deps-windows
+    - deps_win
     - build_win
   before_script: []
   script:
@@ -390,7 +391,6 @@ pre_release_rpm:
   stage: pre_release
 #  image: stackstate/stackstate-agent-runner-gitlab:rpm.latest
   dependencies:
-    - deps-rpm
     - build_rpm
   before_script: []
   script:
@@ -402,11 +402,11 @@ pre_release_image:
   image: docker:18.06.0
   dependencies:
     - build_deb
-    - deps
   variables:
     DOCKER_DRIVER: overlay
   services:
     - docker:dind
+  before_script: []
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
@@ -414,6 +414,7 @@ pre_release_image:
 
 molecule_tests:
   stage: acceptance
+  dependencies: []
   before_script: []
   script:
    - export MOLECULE_RUN_ID=${CI_JOB_ID}
@@ -427,7 +428,7 @@ molecule_tests:
 release_deb:
   stage: release
   dependencies:
-    - deps
+    - deps_deb
     - build_deb
   script:
     - source .gitlab-scripts/setup_env.sh
@@ -444,7 +445,6 @@ release_deb:
 release_rpm:
   stage: release
   dependencies:
-    - deps-rpm
     - build_rpm
   before_script:
     - mkdir -p /go/src/github.com/StackVista
@@ -460,7 +460,7 @@ release_rpm:
 release_win:
   stage: release
   dependencies:
-    - deps-windows
+    - deps_win
     - build_win
   before_script: []
   script:
@@ -485,11 +485,11 @@ release_image:
   image: docker:18.06.0
   dependencies:
     - build_deb
-    - deps
   variables:
     DOCKER_DRIVER: overlay
   services:
     - docker:dind
+  before_script: []
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
