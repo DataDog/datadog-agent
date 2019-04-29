@@ -1,4 +1,4 @@
-image: stackstate/stackstate-agent-runner-gitlab:latest
+image: stackstate/stackstate-agent-runner-gitlab:deb_20190412
 
 stages:
 - prepare
@@ -265,7 +265,7 @@ build_deb:
 
 build_rpm:
   stage: build_and_test
-  image: stackstate/stackstate-agent-runner-gitlab:centos6
+  image: stackstate/stackstate-agent-runner-gitlab:centos6_20190412
   dependencies:
     - deps-rpm
   tags:
@@ -341,7 +341,7 @@ test_deb_renaming:
 
 test_rpm_renaming:
   stage: pre_release
-  image: stackstate/stackstate-agent-runner-gitlab:centos6
+  image: stackstate/stackstate-agent-runner-gitlab:centos6_20190412
   dependencies:
     - build_rpm
   before_script: []
