@@ -52,6 +52,7 @@ end
 # .rpm specific flags
 package :rpm do
   vendor 'StackState <info@stackstate.com>'
+  epoch 1
   dist_tag ''
   license 'Apache License Version 2.0'
   category 'System Environment/Daemons'
@@ -112,10 +113,11 @@ dependency 'cacerts'
 # creates required build directories
 dependency 'datadog-agent-prepare'
 
-# Windows-specific dependencies
-if windows?
-  dependency 'pywin32'
-end
+# [VS] missing in upstream
+# # Windows-specific dependencies
+# if windows?
+#   dependency 'pywin32'
+# end
 
 dependency 'datadog-agent'
 

@@ -64,9 +64,11 @@ dependencies_clear_cache_windows:
       - venv
   when: manual
   script:
-    - "if exist %WIN_CI_PROJECT_DIR%\vendor rd /s/q %WIN_CI_PROJECT_DIR%\vendor"
-    - "if exist %WIN_CI_PROJECT_DIR%\venv rd /s/q %WIN_CI_PROJECT_DIR%\venv"
+    - "if exist %WIN_CI_PROJECT_DIR%\\vendor rd /s/q %WIN_CI_PROJECT_DIR%\\vendor"
+    - "if exist %WIN_CI_PROJECT_DIR%\\venv rd /s/q %WIN_CI_PROJECT_DIR%\\venv"
     - "if exist C:\\opt\\stackstate-agent rd /s/q C:\\opt\\stackstate-agent"
+  tags:
+    - sts_windows
 
 deps:
   stage: prepare
@@ -313,14 +315,18 @@ build_rpm:
 
 build_win:
   stage: build_and_test
-  dependencies:
-    - deps-windows
+#  dependencies:
+#    - deps-windows
   before_script: []
   script:
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
     - call .gitlab-scripts/windows_build_env.cmd
+# debug
+    - call .gitlab-scripts/windows_deps.cmd
+    - inv version -u > version.txt
     - whoami
+# /debug
     - call .gitlab-scripts/windows_build.cmd
   after_script:
     - copy %GOPATH%\src\github.com\StackVista\stackstate-agent\omnibus\pkg\*.msi

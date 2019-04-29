@@ -62,9 +62,6 @@
         <!-- This allows downgrades, and same-version reinstalls.  Otherwise,
       same version gets installed "side by side" -->
 
-    <MajorUpgrade
-      AllowDowngrades="yes"
-     />
      <PropertyRef Id="WIX_ACCOUNT_ADMINISTRATORS" />
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
      <PropertyRef Id="WIX_ACCOUNT_USERS" />
@@ -281,7 +278,7 @@
                 Vital="yes"
                 KeyPath="yes"
                 DiskId="1"
-                Source="$(var.BinFiles)/process-agent.exe"/>
+                Source="$(var.InstallDir)/bin/agent/process-agent.exe"/>
             <ServiceInstall Id="DatadogProcessServiceInstaller"
                             DisplayName="!(loc.ServiceProcessDisplayName)"
                             Description="!(loc.ServiceProcessDescription)"
