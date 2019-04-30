@@ -2,6 +2,39 @@
 Release Notes
 =============
 
+.. _Release Notes_6.11.1:
+
+6.11.1
+======
+
+.. _Release Notes_6.11.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-04-30
+
+- Please refer to the `6.11.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6110>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.11.1 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.11.1>`_ for the list of changes on the Process Agent.
+
+
+.. _Release Notes_6.11.1_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Change the priotization between the two logic that we have to collect logs on Kubernetes.
+  Now attempt first to collect logs on '/var/log/pods' and fallback to using the docker socket if the initialization failed.
+
+.. _Release Notes_6.11.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a bug where short image name wouldn't be properly set on old docker versions
+- Properly handle docker container logs in multiline mode in case of infrequence log messages, log file rotations or agent restart
+
+
 .. _Release Notes_6.11.0:
 
 6.11.0
