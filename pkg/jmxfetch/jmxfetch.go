@@ -170,12 +170,15 @@ func (j *JMXFetch) Start(manage bool) error {
 	}
 
 	// checks are now enabled via IPC on JMXFetch
+	checkPeriodOverrideMs := config.Datadog.GetInt("jmx_check_period")
+	log.Infof("Confluent: overriding jmxfetch check interval (ms): %d", checkPeriodOverrideMs)
+
 	subprocessArgs = append(subprocessArgs,
 		"-classpath", classpath,
 		jmxMainClass,
 		"--ipc_host", ipcHost,
 		"--ipc_port", fmt.Sprintf("%v", ipcPort),
-		"--check_period", fmt.Sprintf("%v", int(check.DefaultCheckInterval/time.Millisecond)), // Period of the main loop of jmxfetch in ms
+		"--check_period", fmt.Sprintf("%v", checkPeriodOverrideMs), // Period of the main loop of jmxfetch in ms
 		"--thread_pool_size", fmt.Sprintf("%v", config.Datadog.GetInt("jmx_thread_pool_size")), // Size for the JMXFetch thread pool
 		"--collection_timeout", fmt.Sprintf("%v", config.Datadog.GetInt("jmx_collection_timeout")), // Timeout for metric collection in seconds
 		"--reconnection_timeout", fmt.Sprintf("%v", config.Datadog.GetInt("jmx_reconnection_timeout")), // Timeout for instance reconnection in seconds
