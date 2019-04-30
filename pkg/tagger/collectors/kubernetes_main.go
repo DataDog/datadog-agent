@@ -50,10 +50,12 @@ func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, e
 	}
 	// if no DCA or can't communicate with the DCA run the local service mapper.
 	if config.Datadog.GetBool("cluster_agent.enabled") {
-		c.clusterAgentEnabled = true
+		c.clusterAgentEnabled = false
 		c.dcaClient, errDCA = clusteragent.GetClusterAgentClient()
 		if errDCA != nil {
 			log.Errorf("Could not initialise the communication with the DCA, falling back to local service mapping: %s", errDCA.Error())
+		} else {
+			c.clusterAgentEnabled = true
 		}
 	}
 	if !config.Datadog.GetBool("cluster_agent.enabled") || errDCA != nil {
@@ -80,7 +82,7 @@ func (c *KubeMetadataCollector) Pull() error {
 	if err != nil {
 		return err
 	}
-	if !c.clusterAgentEnabled {
+	if !c.isClusterAgentEnabled() {
 		// If the DCA is not used, each agent stores a local cache of the MetadataMap.
 		err = c.addToCacheMetadataMapping(pods)
 		if err != nil {
@@ -107,7 +109,7 @@ func (c *KubeMetadataCollector) Fetch(entity string) ([]string, []string, []stri
 	}
 
 	pods := []*kubelet.Pod{pod}
-	if !c.clusterAgentEnabled {
+	if !c.isClusterAgentEnabled() {
 		// If the DCA is not used, each agent stores a local cache of the MetadataMap.
 		err = c.addToCacheMetadataMapping(pods)
 		if err != nil {
@@ -123,6 +125,16 @@ func (c *KubeMetadataCollector) Fetch(entity string) ([]string, []string, []stri
 		}
 	}
 	return lowCards, orchestratorCards, highCards, errors.NewNotFound(entity)
+}
+
+func (c *KubeMetadataCollector) isClusterAgentEnabled() bool {
+	if c.clusterAgentEnabled && c.dcaClient != nil {
+		v := c.dcaClient.Version()
+		if v.String() != "0.0.0" { // means not initialized
+			return true
+		}
+	}
+	return false
 }
 
 func kubernetesFactory() Collector {

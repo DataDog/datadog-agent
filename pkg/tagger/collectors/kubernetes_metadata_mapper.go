@@ -21,7 +21,7 @@ import (
 func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	var err error
 	var metadataByNsPods apiv1.NamespacesPodsStringsSet
-	if c.clusterAgentEnabled && c.dcaClient.Version().Major >= 1 && c.dcaClient.Version().Minor >= 3 {
+	if c.isClusterAgentEnabled() && c.dcaClient.Version().Major >= 1 && c.dcaClient.Version().Minor >= 3 {
 		var nodeName string
 		nodeName, err = c.kubeUtil.GetNodename()
 		if err != nil {
@@ -106,7 +106,7 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 }
 
 func (c *KubeMetadataCollector) getMetadaNames(getPodMetaDataFromApiServerFunc func(string, string, string) ([]string, error), metadataByNsPods apiv1.NamespacesPodsStringsSet, po *kubelet.Pod) ([]string, error) {
-	if !c.clusterAgentEnabled {
+	if !c.isClusterAgentEnabled() {
 		metadataNames, err := getPodMetaDataFromApiServerFunc(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
 		if err != nil {
 			err = fmt.Errorf("Could not fetch cluster level tags of pod: %s, %v", po.Metadata.Name, err)

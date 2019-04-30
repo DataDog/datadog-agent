@@ -39,16 +39,19 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     regkeybase.createSubKey(strUninstallKeyName.c_str(), keyInstall);
 
     // check to see if the supplied dd-agent-user exists
+    WcaLog(LOGMSG_STANDARD, "checking to see if the user is already present");
     if ((ddUserExists = doesUserExist(hInstall, data)) == -1) {
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
     // check to see if the service is already installed
+    WcaLog(LOGMSG_STANDARD, "checking to see if the service is installed");
     if ((ddServiceExists = doesServiceExist(hInstall, agentService)) == -1) {
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
     // check to see if we're a domain controller.
+    WcaLog(LOGMSG_STANDARD, "checking if this is a domain controller");
     isDC = isDomainController(hInstall);
 
     // now we have all the information we need to decide if this is a
@@ -125,7 +128,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
         }
     }
     // ok.  If we get here, we should be in a sane state (all installation conditions met)
-
+    WcaLog(LOGMSG_STANDARD, "custom action initialization complete.  Processing");
     // first, let's decide if we need to create the dd-agent-user
     if (!ddUserExists) {
         // that was easy.  Need to create the user.  See if we have a password, or need to
