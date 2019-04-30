@@ -22,7 +22,7 @@ func TestHostAliasDisable(t *testing.T) {
 }
 
 func TestHostAlias(t *testing.T) {
-	defer func() { utilFqdn = util.Fqdn }()
+	defer func() { getFqdn = util.Fqdn }()
 	mockConfig := config.Mock()
 
 	mockConfig.Set("cloud_foundry", true)
@@ -35,7 +35,7 @@ func TestHostAlias(t *testing.T) {
 
 	mockConfig.Set("cf_os_hostname_aliasing", true)
 	// mock Fqdn returning hostname unchanged
-	utilFqdn = func(hostname string) string {
+	getFqdn = func(hostname string) string {
 		return hostname
 	}
 	aliases, err = GetHostAliases()
@@ -48,10 +48,11 @@ func TestHostAlias(t *testing.T) {
 	assert.Contains(t, aliases, hostname)
 
 	// mock Fqdn returning something different
-	utilFqdn = func(hostname string) string {
+	getFqdn = func(hostname string) string {
 		return hostname + "suffix"
 	}
 	aliases, err = GetHostAliases()
+	assert.Nil(t, err)
 	assert.Len(t, aliases, 3)
 	assert.Contains(t, aliases, "ID_CF")
 	assert.Contains(t, aliases, hostname)
