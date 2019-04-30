@@ -30,7 +30,7 @@ import (
 const (
 	reqAgentReleaseFile = "requirements-agent-release.txt"
 	constraintsFile     = "final_constraints.txt"
-	datadogPkgPattern   = "datadog-.*"
+	datadogPkgPattern   = "^datadog-[a-z0-9_-]*$"
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
 	// Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
 	versionSpecifiersPattern = "([><=!]{1,2})([0-9.]*)"
