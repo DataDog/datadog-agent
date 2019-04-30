@@ -564,10 +564,10 @@ func installedVersion(integration string) (*semver.Version, error) {
 	integrationName := getIntegrationName(integration)
 	validName, err := regexp.MatchString("^[0-9a-z_-]+$", integration)
 	if err != nil {
-		return fmt.Errorf("Error validating integration name: %s", err)
+		return nil, fmt.Errorf("Error validating integration name: %s", err)
 	}
 	if !validName {
-		return fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
+		return nil, fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
 	}
 	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(versionScript, integrationName))
 	output, err := pythonCmd.Output()
