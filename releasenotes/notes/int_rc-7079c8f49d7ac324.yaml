@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    The `datadog-agent integration` subcommand is now capable of installing prereleases of official integration wheels.
+    The ``datadog-agent integration`` subcommand is now capable of installing prereleases of official integration wheels
 fixes:
   - |
-    The `datadog-agent integration show` subcommand now properly accept only Datadog integrations as argument.
+    The ``datadog-agent integration show`` subcommand now properly accepts only Datadog integrations as argument
