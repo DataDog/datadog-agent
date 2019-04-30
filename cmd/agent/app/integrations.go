@@ -30,7 +30,7 @@ import (
 const (
 	reqAgentReleaseFile = "requirements-agent-release.txt"
 	constraintsFile     = "final_constraints.txt"
-	datadogPkgPattern   = "^datadog-[a-z0-9_-]*(\\s*==\\s*.*)?$"
+	datadogPkgPattern   = "datadog-.*"
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
 	// Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
 	versionSpecifiersPattern = "([><=!]{1,2})([0-9.]*)"
@@ -121,7 +121,7 @@ func getIntegrationName(packageName string) string {
 	case "datadog-go-metro":
 		return "go-metro"
 	default:
-		return strings.Replace(strings.TrimPrefix(packageName, "datadog-"), "-", "_", -1)
+		return strings.TrimSpace(strings.Replace(strings.TrimPrefix(packageName, "datadog-"), "-", "_", -1))
 	}
 }
 
@@ -181,7 +181,7 @@ func validateArgs(args []string, local bool) error {
 			return fmt.Errorf("internal error: %v", err)
 		}
 
-		if !exp.MatchString(strings.TrimSpace(args[0])) {
+		if !exp.MatchString(args[0]) {
 			return fmt.Errorf("invalid package name - this manager only handles datadog packages")
 		}
 	} else {
@@ -561,8 +561,15 @@ func installedVersion(integration string) (*semver.Version, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(versionScript, getIntegrationName(integration)))
+	integrationName := getIntegrationName(integration)
+	validName, err := regexp.MatchString("^[0-9a-z_-]+$", integration)
+	if err != nil {
+		return fmt.Errorf("Error validating integration name: %s", err)
+	}
+	if !validName {
+		return fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
+	}
+	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(versionScript, integrationName))
 	output, err := pythonCmd.Output()
 
 	if err != nil {
