@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
+var utilFqdn = util.Fqdn
+
 // GetHostAliases returns the host aliases from Cloud Foundry
 func GetHostAliases() ([]string, error) {
 	if !config.Datadog.GetBool("cloud_foundry") {
@@ -30,7 +32,7 @@ func GetHostAliases() ([]string, error) {
 	}
 
 	hostname, _ := os.Hostname()
-	fqdn := util.Fqdn(hostname)
+	fqdn := utilFqdn(hostname)
 
 	if config.Datadog.GetBool("cf_os_hostname_aliasing") {
 		// If set, send os hostname and fqdn as additional aliases

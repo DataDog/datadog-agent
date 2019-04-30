@@ -22,6 +22,7 @@ func TestHostAliasDisable(t *testing.T) {
 }
 
 func TestHostAlias(t *testing.T) {
+	defer func() { utilFqdn = util.Fqdn }()
 	mockConfig := config.Mock()
 
 	mockConfig.Set("cloud_foundry", true)
@@ -33,21 +34,28 @@ func TestHostAlias(t *testing.T) {
 	assert.Equal(t, []string{"ID_CF"}, aliases)
 
 	mockConfig.Set("cf_os_hostname_aliasing", true)
+	// mock Fqdn returning hostname unchanged
+	utilFqdn = func(hostname string) string {
+		return hostname
+	}
 	aliases, err = GetHostAliases()
 	assert.Nil(t, err)
 
 	hostname, _ := os.Hostname()
-	fqdn := util.Fqdn(hostname)
-	if hostname == fqdn {
-		assert.Len(t, aliases, 2)
-		assert.Contains(t, aliases, "ID_CF")
-		assert.Contains(t, aliases, hostname)
-	} else {
-		assert.Len(t, aliases, 3)
-		assert.Contains(t, aliases, "ID_CF")
-		assert.Contains(t, aliases, hostname)
-		assert.Contains(t, aliases, fqdn)
+
+	assert.Len(t, aliases, 2)
+	assert.Contains(t, aliases, "ID_CF")
+	assert.Contains(t, aliases, hostname)
+
+	// mock Fqdn returning something different
+	utilFqdn = func(hostname string) string {
+		return hostname + "suffix"
 	}
+	aliases, err = GetHostAliases()
+	assert.Len(t, aliases, 3)
+	assert.Contains(t, aliases, "ID_CF")
+	assert.Contains(t, aliases, hostname)
+	assert.Contains(t, aliases, hostname+"suffix")
 
 }
 
