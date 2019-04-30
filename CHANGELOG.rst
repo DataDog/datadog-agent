@@ -828,7 +828,7 @@ Release on: 2018-11-21
 
 This release only ships changes to the trace-agent.
 
-This release focuses on simplifying `Trace Search <https://docs.datadoghq.com/tracing/visualization/search/>`_ configuration. APM Events can now be configured at the tracer level. Tracers will get updated in the near future to expose this option.
+This release focuses on simplifying `Trace Search <https://docs.datadoghq.com/tracing/trace_search_and_analytics/>`_ configuration. APM Events can now be configured at the tracer level. Tracers will get updated in the near future to expose this option.
 
 - Please refer to the `6.7.0 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.7.0>`_ for the list of changes on the Trace Agent.
 
