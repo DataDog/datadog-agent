@@ -53,8 +53,8 @@ func TestContainerMetricsTagging(t *testing.T) {
 		},
 	}
 	pauseTags := []string{
-		"docker_image:kubernetes/pause:latest",
-		"image_name:kubernetes/pause",
+		"docker_image:gcr.io/google_containers/pause:latest",
+		"image_name:gcr.io/google_containers/pause",
 		"image_tag:latest",
 		"short_image:pause",
 	}
