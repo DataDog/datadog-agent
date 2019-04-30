@@ -77,6 +77,11 @@ type Status struct {
 	Conditions     []Conditions      `json:"conditions,omitempty"`
 }
 
+// AllContainers returns the list of init and regular containers
+func (s *Status) AllContainers() []ContainerStatus {
+	return append(s.InitContainers, s.Containers...)
+}
+
 // Conditions contains fields for unmarshalling a Pod.Status.Conditions
 type Conditions struct {
 	Type   string `json:"type,omitempty"`
@@ -90,6 +95,11 @@ type ContainerStatus struct {
 	ID    string         `json:"containerID"`
 	Ready bool           `json:"ready"`
 	State ContainerState `json:"state"`
+}
+
+// IsPending returns if the container doesn't have an ID
+func (c *ContainerStatus) IsPending() bool {
+	return c.ID == ""
 }
 
 // ContainerState holds a possible state of container.

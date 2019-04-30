@@ -89,7 +89,7 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
 				legacyPodAnnotationPrefix, pod.Metadata.Name, newPodAnnotationPrefix)
 		}
 
-		for _, container := range append(pod.Status.InitContainers, pod.Status.Containers...) {
+		for _, container := range pod.Status.AllContainers() {
 			c, errors := extractTemplatesFromMap(container.ID, pod.Metadata.Annotations,
 				fmt.Sprintf(adExtractFormat, container.Name))
 
