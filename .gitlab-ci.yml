@@ -928,6 +928,8 @@ dev_master_docker_hub:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:master
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:master-jmx
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:master
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:latest
+    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:latest
 
 dca_dev_branch_docker_hub:
   <<: *docker_tag_job_definition
