@@ -30,7 +30,7 @@ import (
 const (
 	reqAgentReleaseFile = "requirements-agent-release.txt"
 	constraintsFile     = "final_constraints.txt"
-	datadogPkgPattern   = "^datadog-[a-z0-9_-]*$"
+	datadogPkgPattern   = "^datadog-[a-z0-9_-]*(\\s*==\\s*.*)?$"
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
 	// Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
 	versionSpecifiersPattern = "([><=!]{1,2})([0-9.]*)"
@@ -181,7 +181,7 @@ func validateArgs(args []string, local bool) error {
 			return fmt.Errorf("internal error: %v", err)
 		}
 
-		if !exp.MatchString(args[0]) {
+		if !exp.MatchString(strings.TrimSpace(args[0])) {
 			return fmt.Errorf("invalid package name - this manager only handles datadog packages")
 		}
 	} else {
