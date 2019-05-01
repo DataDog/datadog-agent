@@ -171,6 +171,7 @@ func sendTelemetry(pythonVersion int) {
 func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetInt("python_version")
 
+	// Since the install location can be set by the user on Windows we use relative import
 	if runtime.GOOS == "windows" {
 		_here, _ := executable.Folder()
 		agentpythonHome2 := filepath.Join(_here, "..", "embedded2")
@@ -182,16 +183,17 @@ func Initialize(paths ...string) error {
 		 * back to the compile time values
 		 */
 		if _, err := os.Stat(agentpythonHome2); os.IsNotExist(err) {
-			log.Warnf("relative embedded directory not found; using default %s", pythonHome2)
+			log.Warnf("relative embedded directory not found for python2; using default %s", pythonHome2)
 		} else {
 			pythonHome2 = agentpythonHome2
 		}
 		if _, err := os.Stat(agentpythonHome3); os.IsNotExist(err) {
-			log.Warnf("relative embedded directory not found; using default %s", pythonHome3)
+			log.Warnf("relative embedded directory not found for python3; using default %s", pythonHome3)
 		} else {
 			pythonHome3 = agentpythonHome3
 		}
 	}
+
 	if pythonVersion == 2 {
 		six = C.make2(C.CString(pythonHome2))
 		log.Infof("Initializing six with python2 %s", pythonHome2)
@@ -206,14 +208,6 @@ func Initialize(paths ...string) error {
 
 	if six == nil {
 		return fmt.Errorf("could not init six lib for python version %d", pythonVersion)
-	}
-
-	if runtime.GOOS == "windows" {
-		_here, _ := executable.Folder()
-		// on windows, override the hardcoded path set during compile time, but only if that path points to nowhere
-		if _, err := os.Stat(filepath.Join(PythonHome, "lib", "python2.7")); os.IsNotExist(err) {
-			PythonHome = _here
-		}
 	}
 
 	// Set the PYTHONPATH if needed.
