@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-package cloudfoudry
+package cloudfoundry
 
 import (
 	"os"
@@ -14,18 +14,37 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
-// GetHostAlias returns the host alias from Cloud Foundry
-func GetHostAlias() (string, error) {
+// Define alias in order to mock in the tests
+var getFqdn = util.Fqdn
+
+// GetHostAliases returns the host aliases from Cloud Foundry
+func GetHostAliases() ([]string, error) {
 	if !config.Datadog.GetBool("cloud_foundry") {
 		log.Debugf("cloud_foundry is not enabled in the conf: no cloudfoudry host alias")
-		return "", nil
+		return nil, nil
 	}
 
+	aliases := []string{}
+
+	// Always send the bosh_id if specified
 	boshID := config.Datadog.GetString("bosh_id")
 	if boshID != "" {
-		return boshID, nil
+		aliases = append(aliases, boshID)
 	}
 
 	hostname, _ := os.Hostname()
-	return util.Fqdn(hostname), nil
+	fqdn := getFqdn(hostname)
+
+	if config.Datadog.GetBool("cf_os_hostname_aliasing") {
+		// If set, send os hostname and fqdn as additional aliases
+		aliases = append(aliases, hostname)
+		if fqdn != hostname {
+			aliases = append(aliases, fqdn)
+		}
+	} else if boshID == "" {
+		// If no hostname aliasing, only alias with fqdn if no bosh id
+		aliases = append(aliases, fqdn)
+	}
+
+	return aliases, nil
 }

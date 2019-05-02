@@ -301,6 +301,7 @@ func initConfig(config Config) {
 	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)
 	config.BindEnvAndSetDefault("bosh_id", "")
+	config.BindEnvAndSetDefault("cf_os_hostname_aliasing", false)
 
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
