@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -72,7 +71,6 @@ type HTTPReceiver struct {
 
 	maxRequestBodyLength int64
 	debug                bool
-	refuse               int64 // when set to 1 agent will refuse payloads
 
 	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
@@ -227,20 +225,12 @@ func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
-	if atomic.LoadInt64(&r.refuse) == 1 {
-		// using too much memory
-		io.Copy(ioutil.Discard, req.Body)
-		w.WriteHeader(http.StatusTooManyRequests)
-		io.WriteString(w, fmt.Sprintf("request rejected; trace-agent is past memory threshold (apm_config.max_memory: %.0f bytes)", r.conf.MaxMemory))
-		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, []string{"reason:mem"}, 1)
-		return
-	}
 	if !r.PreSampler.Sample(req) {
 		// using too much CPU
 		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(http.StatusTooManyRequests)
-		io.WriteString(w, fmt.Sprintf("request rejected; trace-agent is past cpu threshold (apm_config.max_cpu_percent: %.1f)", r.conf.MaxCPU*100))
-		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, []string{"reason:cpu"}, 1)
+		io.WriteString(w, fmt.Sprintf("memory or CPU threshold exceeded; check trace-agent logs"))
+		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, nil, 1)
 		return
 	}
 
@@ -390,13 +380,26 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 		CPU: watchdog.CPU(now),
 	}
 
-	rate, err := sampler.CalcPreSampleRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.PreSampler.RealRate())
+	rateCPU, err := sampler.CalcPreSampleRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.PreSampler.RealRate())
 	if err != nil {
-		log.Warnf("problem computing pre-sample rate: %v", err)
+		log.Warnf("problem computing cpu pre-sample rate: %v", err)
 	}
-
-	r.PreSampler.SetRate(rate)
+	rateMem, err := sampler.CalcPreSampleRate(r.conf.MaxMemory, float64(wi.Mem.Alloc), r.PreSampler.RealRate())
+	if err != nil {
+		log.Warnf("problem computing mem pre-sample rate: %v", err)
+	}
 	r.PreSampler.SetError(err)
+	if rateCPU < 1 {
+		log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg)
+	}
+	if rateMem < 1 {
+		log.Warnf("memory threshold exceeded (apm_config.max_memory: %.0f bytes): %d", r.conf.MaxMemory, wi.Mem.Alloc)
+	}
+	if rateCPU < rateMem {
+		r.PreSampler.SetRate(rateCPU)
+	} else {
+		r.PreSampler.SetRate(rateMem)
+	}
 
 	stats := r.PreSampler.Stats()
 
@@ -406,19 +409,6 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 	metrics.Gauge("datadog.trace_agent.heap_alloc", float64(wi.Mem.Alloc), nil, 1)
 	metrics.Gauge("datadog.trace_agent.cpu_percent", wi.CPU.UserAvg*100, nil, 1)
 	metrics.Gauge("datadog.trace_agent.presampler_rate", stats.Rate, nil, 1)
-
-	if float64(wi.Mem.Alloc) > r.conf.MaxMemory && r.conf.MaxMemory > 0 {
-		log.Warn("memory exceeds threshold (apm_config.max_memory), requests will be rate-limited")
-		if atomic.SwapInt64(&r.refuse, 1) != 0 {
-			// we're still not accepting requests, do a garbage collection;,
-			// potentially blocking the program here is the least of our problems
-			runtime.GC()
-		}
-	} else {
-		if atomic.SwapInt64(&r.refuse, 0) == 1 {
-			log.Warn("memory back below threshold (apm_config.max_memory), allowing requests")
-		}
-	}
 }
 
 // Languages returns the list of the languages used in the traces the agent receives.
