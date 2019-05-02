@@ -112,7 +112,7 @@ func (c *testPayloadSender) Run() {
 			stats, err := c.doSend(payload)
 
 			if err != nil {
-				c.notifyError(payload, err, stats)
+				c.notifyError(payload, err)
 			} else {
 				c.notifySuccess(payload, stats)
 			}

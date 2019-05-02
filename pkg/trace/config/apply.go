@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"regexp"
 	"strings"
@@ -245,14 +246,14 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("apm_config.max_memory") {
 		c.MaxMemory = config.Datadog.GetFloat64("apm_config.max_memory")
 	}
-	if config.Datadog.IsSet("apm_config.max_connections") {
-		c.MaxConnections = config.Datadog.GetInt("apm_config.max_connections")
-	}
 
 	// undocumented
 	c.ServiceWriterConfig = readServiceWriterConfigYaml()
 	c.StatsWriterConfig = readStatsWriterConfigYaml()
 	c.TraceWriterConfig = readTraceWriterConfigYaml()
+
+	// allow an extra 10% of the maximum number of connections for parallel writes to the Datadog API
+	c.TraceWriterConfig.SenderConfig.MaxConnections = int(math.Max(1, float64(c.ConnectionLimit)/10))
 
 	// undocumented deprecated
 	if config.Datadog.IsSet("apm_config.analyzed_rate_by_service") {
