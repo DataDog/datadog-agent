@@ -84,7 +84,7 @@ func GetConfig(key *C.char, jsonPayload **C.char) {
 	value := config.Datadog.Get(goKey)
 	data, err := json.Marshal(value)
 	if err != nil {
-		log.Errorf("datadog_agent: could not convert configuration value (%v) to python types: %s", value, err)
+		log.Errorf("could not convert configuration value '%v' to JSON: %s", value, err)
 		*jsonPayload = nil
 		return
 	}
