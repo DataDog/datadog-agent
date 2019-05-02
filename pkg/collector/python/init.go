@@ -24,10 +24,10 @@ import (
 )
 
 /*
-#include <datadog_agent_six.h>
 #cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
 
+#include <datadog_agent_six.h>
 #include <stdlib.h>
 
 // helpers
@@ -197,6 +197,17 @@ func Initialize(paths ...string) error {
 		C.add_python_path(six, C.CString(p))
 	}
 
+	// Setup custom builtin before Six initialization
+	C.initCgoFree(six)
+	C.initDatadogAgentModule(six)
+	C.initAggregatorModule(six)
+	C.initUtilModule(six)
+	C.initTaggerModule(six)
+	initContainerFilter() // special init for the container go code
+	C.initContainersModule(six)
+	C.initkubeutilModule(six)
+
+	// Init Six machinery
 	C.init(six)
 
 	if C.is_initialized(six) == 0 {
@@ -224,15 +235,6 @@ func Initialize(paths ...string) error {
 	}
 
 	sendTelemetry(pythonVersion)
-
-	C.initCgoFree(six)
-	C.initDatadogAgentModule(six)
-	C.initAggregatorModule(six)
-	C.initUtilModule(six)
-	C.initTaggerModule(six)
-	initContainerFilter() // special init for the container go code
-	C.initContainersModule(six)
-	C.initkubeutilModule(six)
 
 	return nil
 }
