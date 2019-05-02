@@ -69,7 +69,7 @@ func (m *metaBundleStore) getCopyOrNew(nodeName string) *metadataMapperBundle {
 		if !ok {
 			log.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
 		} else {
-			metaBundle.Copy(oldMetaBundle)
+			metaBundle.DeepCopy(oldMetaBundle)
 		}
 	}
 

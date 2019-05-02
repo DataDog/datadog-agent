@@ -68,7 +68,7 @@ func processKubeServices(nodeList *v1.NodeList, pods []*kubelet.Pod, endpointLis
 		} else {
 			oldMetadataBundle, ok := cacheData.(*metadataMapperBundle)
 			if ok {
-				newMetaBundle.Copy(oldMetadataBundle)
+				newMetaBundle.DeepCopy(oldMetadataBundle)
 			}
 		}
 

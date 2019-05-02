@@ -21,13 +21,14 @@ func (metaBundle *metadataMapperBundle) ServicesForPod(ns, podName string) ([]st
 	return metaBundle.Services.Get(ns, podName)
 }
 
-// Copy used to copy data between two metadataMapperBundle
-func (metaBundle *metadataMapperBundle) Copy(old *metadataMapperBundle) {
+// DeepCopy used to copy data between two metadataMapperBundle
+func (metaBundle *metadataMapperBundle) DeepCopy(old *metadataMapperBundle) *metadataMapperBundle {
 	if metaBundle == nil || old == nil {
-		return
+		return metaBundle
 	}
-	metaBundle.Services = metaBundle.Services.Copy(&old.Services)
+	metaBundle.Services = metaBundle.Services.DeepCopy(&old.Services)
 	metaBundle.mapOnIP = old.mapOnIP
+	return metaBundle
 }
 
 func EntityForService(svc *v1.Service) string {

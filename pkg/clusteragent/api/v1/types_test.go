@@ -66,7 +66,7 @@ func TestNamespacesPodsStringsSet_Copy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.m.Copy(tt.old); !reflect.DeepEqual(got, tt.want) {
+			if got := tt.m.DeepCopy(tt.old); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("NamespacesPodsStringsSet.Copy() = %v, want %v", got, tt.want)
 			}
 		})

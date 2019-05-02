@@ -45,8 +45,8 @@ func NewNamespacesPodsStringsSet() NamespacesPodsStringsSet {
 	return make(NamespacesPodsStringsSet)
 }
 
-// Copy used to copy NamespacesPodsStringsSet in another NamespacesPodsStringsSet
-func (m NamespacesPodsStringsSet) Copy(old *NamespacesPodsStringsSet) NamespacesPodsStringsSet {
+// DeepCopy used to copy NamespacesPodsStringsSet in another NamespacesPodsStringsSet
+func (m NamespacesPodsStringsSet) DeepCopy(old *NamespacesPodsStringsSet) NamespacesPodsStringsSet {
 	if old == nil {
 		return m
 	}
@@ -56,7 +56,7 @@ func (m NamespacesPodsStringsSet) Copy(old *NamespacesPodsStringsSet) Namespaces
 			if _, ok := m[key1][key2]; !ok {
 				m[key1] = MapStringSet{}
 			}
-			m[key1][key2] = val2
+			m[key1][key2] = sets.NewString(val2.List()...)
 		}
 	}
 

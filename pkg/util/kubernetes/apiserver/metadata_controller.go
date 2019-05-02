@@ -274,7 +274,7 @@ func (m *MetadataController) deleteMappedEndpoints(namespace, svc string) error 
 			continue
 		}
 		newMetaBundle := newMetadataMapperBundle()
-		newMetaBundle.Copy(oldBundle)
+		newMetaBundle.DeepCopy(oldBundle)
 		newMetaBundle.Services.Delete(namespace, svc)
 
 		m.store.set(node.Name, newMetaBundle)
