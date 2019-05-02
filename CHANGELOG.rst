@@ -7,6 +7,10 @@ Release Notes
 6.11.0
 ======
 
+**Important**: ``6.11.0`` is not marked as latest for Windows: we are
+investigating some cases where ``6.11.0`` is not installing correctly on Windows.
+Downloading ``datadog-agent-6-latest.amd64.msi`` will give you version ``6.10.1``.
+
 .. _Release Notes_6.11.0_Prelude:
 
 Prelude
