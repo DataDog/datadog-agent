@@ -171,11 +171,6 @@ func sendTelemetry(pythonVersion int) {
 func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetInt("python_version")
 
-	if runtime.GOOS == "windows" {
-		_here, _ := executable.Folder()
-		pythonHome2 = filepath.Join(_here, "..", "embedded2")
-		pythonHome3 = filepath.Join(_here, "..", "embedded3")
-	}
 	if pythonVersion == 2 {
 		six = C.make2(C.CString(pythonHome2))
 		log.Infof("Initializing six with python2 %s", pythonHome2)
