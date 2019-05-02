@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // configCheckURL contains the Agent API endpoint URL exposing the loaded checks
@@ -111,12 +112,12 @@ func PrintConfig(w io.Writer, c integration.Config) {
 	for _, inst := range c.Instances {
 		ID := string(check.BuildID(c.Name, inst, c.InitConfig))
 		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Instance ID"), color.CyanString(ID)))
-		fmt.Fprint(w, fmt.Sprintf("%s", inst))
+		fmt.Fprint(w, fmt.Sprintf("%s", cleanCredentials(inst)))
 		fmt.Fprintln(w, "~")
 	}
 	if len(c.InitConfig) > 0 {
 		fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Init Config")))
-		fmt.Fprintln(w, string(c.InitConfig))
+		fmt.Fprintln(w, string(cleanCredentials(c.InitConfig)))
 	}
 	if len(c.MetricConfig) > 0 {
 		fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Metric Config")))
@@ -133,4 +134,15 @@ func PrintConfig(w io.Writer, c integration.Config) {
 		}
 	}
 	fmt.Fprintln(w, "===")
+}
+
+// cleanCredentials tries to strip credentials if found in integration configs
+// returns the unstripped data if an error occurs while stripping
+func cleanCredentials(data integration.Data) []byte {
+	strippedData, err := log.CredentialsCleanerBytes(data)
+	if err != nil {
+		log.Debugf("Cannot clean credentials from config data: %s", err)
+		return data
+	}
+	return strippedData
 }
