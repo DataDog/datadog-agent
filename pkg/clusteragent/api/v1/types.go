@@ -45,6 +45,24 @@ func NewNamespacesPodsStringsSet() NamespacesPodsStringsSet {
 	return make(NamespacesPodsStringsSet)
 }
 
+// Copy used to copy NamespacesPodsStringsSet in another NamespacesPodsStringsSet
+func (m NamespacesPodsStringsSet) Copy(old *NamespacesPodsStringsSet) NamespacesPodsStringsSet {
+	if old == nil {
+		return m
+	}
+
+	for key1, val1 := range *old {
+		for key2, val2 := range val1 {
+			if _, ok := m[key1][key2]; !ok {
+				m[key1] = MapStringSet{}
+			}
+			m[key1][key2] = val2
+		}
+	}
+
+	return m
+}
+
 // Get returns the list of strings for a given namespace and pod name.
 func (m NamespacesPodsStringsSet) Get(namespace, podName string) ([]string, bool) {
 	if _, ok := m[namespace]; !ok {

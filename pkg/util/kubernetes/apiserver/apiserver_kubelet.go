@@ -52,28 +52,30 @@ func processKubeServices(nodeList *v1.NodeList, pods []*kubelet.Pod, endpointLis
 		nodeNameCacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 		freshness := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName, "freshness")
 
-		metaBundle, found := cache.Cache.Get(nodeNameCacheKey)       // We get the old one with the dead pods. if diff reset metabundle and deleted key. Then compute again.
+		cacheData, found := cache.Cache.Get(nodeNameCacheKey)        // We get the old one with the dead pods. if diff reset metabundle and deleted key. Then compute again.
 		freshnessCache, freshnessFound := cache.Cache.Get(freshness) // if expired, freshness not found deal with that
 
+		newMetaBundle := newMetadataMapperBundle()
 		if !found {
-			metaBundle = newMetadataResponseBundle()
 			cache.Cache.Set(freshness, len(pods), metadataMapExpire)
 		}
 
 		// We want to churn the cache every `metadataMapExpire` and if the number of entries varies between 2 runs..
 		// If a pod is killed and rescheduled during a run, we will only keep the old entry for another run, which is acceptable.
 		if found && freshnessCache != len(pods) || !freshnessFound {
-			cache.Cache.Delete(nodeNameCacheKey)
-			metaBundle = newMetadataResponseBundle()
 			cache.Cache.Set(freshness, len(pods), metadataMapExpire)
 			log.Debugf("Refreshing cache for %s", nodeNameCacheKey)
+		} else {
+			oldMetadataBundle, ok := cacheData.(*metadataMapperBundle)
+			if ok {
+				newMetaBundle.Copy(oldMetadataBundle)
+			}
 		}
 
-		err := metaBundle.(*metadataMapperBundle).mapServices(nodeName, pods, *endpointList)
-		if err != nil {
+		if err := newMetaBundle.mapServices(nodeName, pods, *endpointList); err != nil {
 			log.Errorf("Could not map the services on node %s: %s", node.Name, err.Error())
 			continue
 		}
-		cache.Cache.Set(nodeNameCacheKey, metaBundle, metadataMapExpire)
+		cache.Cache.Set(nodeNameCacheKey, newMetaBundle, metadataMapExpire)
 	}
 }

@@ -18,10 +18,16 @@ const kubeServiceIDPrefix = "kube_service://"
 // ServicesForPod returns the services mapped to a given pod and namespace.
 // If nothing is found, the boolean is false. This call is thread-safe.
 func (metaBundle *metadataMapperBundle) ServicesForPod(ns, podName string) ([]string, bool) {
-	metaBundle.m.RLock()
-	defer metaBundle.m.RUnlock()
-
 	return metaBundle.Services.Get(ns, podName)
+}
+
+// Copy used to copy data between two metadataMapperBundle
+func (metaBundle *metadataMapperBundle) Copy(old *metadataMapperBundle) {
+	if metaBundle == nil || old == nil {
+		return
+	}
+	metaBundle.Services = metaBundle.Services.Copy(&old.Services)
+	metaBundle.mapOnIP = old.mapOnIP
 }
 
 func EntityForService(svc *v1.Service) string {

@@ -111,7 +111,8 @@ func (m *MetadataController) addNode(obj interface{}) {
 		return
 	}
 
-	_ = m.store.getOrCreate(node.Name)
+	bundle := m.store.getCopyOrNew(node.Name)
+	m.store.set(node.Name, bundle)
 
 	log.Debugf("Detected node %s", node.Name)
 }
@@ -245,16 +246,13 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 	svc := endpoints.Name
 	namespace := endpoints.Namespace
 	for nodeName, ns := range nodeToPods {
-		metaBundle := m.store.getOrCreate(nodeName)
-
-		metaBundle.m.Lock()
+		metaBundle := m.store.getCopyOrNew(nodeName)
 		metaBundle.Services.Delete(namespace, svc) // cleanup pods deleted from the service
 		for _, pods := range ns {
 			for podName := range pods {
 				metaBundle.Services.Set(namespace, podName, svc)
 			}
 		}
-		metaBundle.m.Unlock()
 
 		m.store.set(nodeName, metaBundle)
 	}
@@ -270,17 +268,16 @@ func (m *MetadataController) deleteMappedEndpoints(namespace, svc string) error 
 
 	// Delete the service from the metadata bundle for each node.
 	for _, node := range nodes {
-		metaBundle, ok := m.store.get(node.Name)
+		oldBundle, ok := m.store.get(node.Name)
 		if !ok {
 			// Nothing to delete.
 			continue
 		}
+		newMetaBundle := newMetadataMapperBundle()
+		newMetaBundle.Copy(oldBundle)
+		newMetaBundle.Services.Delete(namespace, svc)
 
-		metaBundle.m.Lock()
-		metaBundle.Services.Delete(namespace, svc)
-		metaBundle.m.Unlock()
-
-		m.store.set(node.Name, metaBundle)
+		m.store.set(node.Name, newMetaBundle)
 	}
 	return nil
 }
