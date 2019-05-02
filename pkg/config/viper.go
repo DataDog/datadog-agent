@@ -42,6 +42,21 @@ func (c *safeConfig) SetDefault(key string, value interface{}) {
 	c.Viper.SetDefault(key, value)
 }
 
+// SetKnown adds a key to the set of known valid config keys
+func (c *safeConfig) SetKnown(key string) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetKnown(key)
+}
+
+// GetKnownKeys returns all the keys that meet at least one of these criteria:
+// 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
+func (c *safeConfig) GetKnownKeys() map[string]interface{} {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.GetKnownKeys()
+}
+
 // SetFs wraps Viper for concurrent access
 func (c *safeConfig) SetFs(fs afero.Fs) {
 	c.Lock()
