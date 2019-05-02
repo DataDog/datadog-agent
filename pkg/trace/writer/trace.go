@@ -178,12 +178,15 @@ func (w *TraceWriter) handleSampledTrace(pkg *TracePackage) {
 		w.flush()
 	}
 
-	log.Tracef("Handling new trace with %d spans: %v", len(pkg.Trace), pkg.Trace)
-	w.traces = append(w.traces, traceutil.APITrace(pkg.Trace))
+	if len(pkg.Trace) > 0 {
+		log.Tracef("Handling new trace with %d spans: %v", len(pkg.Trace), pkg.Trace)
+		w.traces = append(w.traces, traceutil.APITrace(pkg.Trace))
+	}
 	if len(pkg.Events) > 0 {
 		log.Tracef("Handling new APM events: %v", pkg.Events)
 		w.events = append(w.events, pkg.Events...)
 	}
+
 	w.bytesInBuffer += size
 	w.spansInBuffer += len(pkg.Trace) + len(pkg.Events)
 
