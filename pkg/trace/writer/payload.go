@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer/backoff"
 	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
@@ -141,9 +140,6 @@ func (s *queuableSender) doSend(payload *payload) (sendStats, error) {
 	}
 
 	startFlush := time.Now()
-	defer func(start time.Time) {
-		metrics.Timing("datadog.trace_agent.debug.send_payload_ms", time.Since(start), nil, 1)
-	}(startFlush)
 	err := s.endpoint.write(payload)
 
 	sendStats := sendStats{
