@@ -31,6 +31,6 @@ func GetMyNamespace() string {
 	if e == nil && val != nil {
 		return string(val)
 	}
-	log.Errorf("There was an error fetching the namespace from the context, using default")
+	log.Warnf("There was an error fetching the namespace from the context, using default")
 	return "default"
 }

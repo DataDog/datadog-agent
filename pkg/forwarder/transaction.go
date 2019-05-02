@@ -191,14 +191,14 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 
 	if transactionsSuccessful.Value() == 1 {
 		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every %d transactions", logURL, loggingFrequency)
-		log.Debugf("Url: %q payload: %s", logURL, string(body))
+		log.Tracef("Url: %q payload: %s", logURL, string(body))
 		return nil
 	}
 	if transactionsSuccessful.Value()%loggingFrequency == 0 {
 		log.Infof("Successfully posted payload to %q", logURL)
-		log.Debugf("Url: %q payload: %s", logURL, string(body))
+		log.Tracef("Url: %q payload: %s", logURL, string(body))
 		return nil
 	}
-	log.Debugf("Successfully posted payload to %q: %s", logURL, string(body))
+	log.Tracef("Successfully posted payload to %q: %s", logURL, string(body))
 	return nil
 }

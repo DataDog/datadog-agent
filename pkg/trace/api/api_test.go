@@ -771,9 +771,7 @@ func TestWatchdog(t *testing.T) {
 	defer r.Stop()
 	go func() {
 		for {
-			select {
-			case <-r.Out:
-			}
+			<-r.Out
 		}
 	}()
 

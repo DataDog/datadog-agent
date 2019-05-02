@@ -80,14 +80,14 @@ func (c *Concentrator) Run() {
 	flushTicker := time.NewTicker(time.Duration(c.bsize) * time.Nanosecond)
 	defer flushTicker.Stop()
 
-	log.Debug("starting concentrator")
+	log.Debug("Starting concentrator")
 
 	for {
 		select {
 		case <-flushTicker.C:
 			c.OutStats <- c.Flush()
 		case <-c.exit:
-			log.Info("exiting concentrator, computing remaining stats")
+			log.Info("Exiting concentrator, computing remaining stats")
 			c.OutStats <- c.Flush()
 			return
 		}

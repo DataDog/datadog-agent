@@ -91,12 +91,6 @@ type queuableSender struct {
 	exit chan struct{}
 }
 
-// newDefaultSender constructs a new queuableSender with default configuration to send payloads to the
-// provided endpoint.
-func newDefaultSender(e endpoint) *queuableSender {
-	return newSender(e, writerconfig.DefaultQueuablePayloadSenderConf())
-}
-
 // newSender constructs a new QueuablePayloadSender with custom configuration to send payloads to
 // the provided endpoint.
 func newSender(e endpoint, conf writerconfig.QueuablePayloadSenderConf) *queuableSender {
@@ -104,7 +98,7 @@ func newSender(e endpoint, conf writerconfig.QueuablePayloadSenderConf) *queuabl
 		conf:           conf,
 		queuedPayloads: list.New(),
 		backoffTimer:   backoff.NewCustomExponentialTimer(conf.ExponentialBackoff),
-		in:             make(chan *payload),
+		in:             make(chan *payload, conf.InChannelSize),
 		monitorCh:      make(chan monitorEvent),
 		endpoint:       e,
 		exit:           make(chan struct{}),
@@ -176,7 +170,7 @@ func (s *queuableSender) Run() {
 			// This serves as a barrier (assuming syncBarrier is an unbuffered channel). Used for testing
 			continue
 		case <-s.exit:
-			log.Info("exiting payload sender, try flushing whatever is left")
+			log.Info("Exiting payload sender, try flushing whatever is left")
 			s.flushQueue()
 			return
 		}

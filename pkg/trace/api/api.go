@@ -154,7 +154,7 @@ func (r *HTTPReceiver) Listen(addr, logExtra string) error {
 		return fmt.Errorf("cannot create listener: %v", err)
 	}
 
-	log.Infof("listening for traces at http://%s%s", addr, logExtra)
+	log.Infof("Listening for traces at http://%s%s", addr, logExtra)
 
 	go func() {
 		defer watchdog.LogOnPanic()
@@ -277,7 +277,7 @@ func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
 			atomic.AddInt64(&ts.TracesDropped, 1)
 			atomic.AddInt64(&ts.SpansDropped, int64(spans))
 
-			msg := fmt.Sprintf("dropping trace; reason: %s", err)
+			msg := fmt.Sprintf("Dropping trace; reason: %s", err)
 			if len(msg) > 150 && !r.debug {
 				// we're not in DEBUG log level, truncate long messages.
 				msg = msg[:150] + "... (set DEBUG log level for more info)"
@@ -296,7 +296,7 @@ func (r *HTTPReceiver) handleServices(v Version, w http.ResponseWriter, req *htt
 
 	mediaType := getMediaType(req)
 	if err := decodeReceiverPayload(req.Body, &servicesMeta, v, mediaType); err != nil {
-		log.Errorf("cannot decode %s services payload: %v", v, err)
+		log.Errorf("Cannot decode %s services payload: %v", v, err)
 		httpDecodingError(err, []string{tagServiceHandler, fmt.Sprintf("v:%s", v)}, w)
 		return
 	}
@@ -382,18 +382,18 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 
 	rateCPU, err := sampler.CalcPreSampleRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.PreSampler.RealRate())
 	if err != nil {
-		log.Warnf("problem computing cpu pre-sample rate: %v", err)
+		log.Warnf("Problem computing cpu pre-sample rate: %v", err)
 	}
 	rateMem, err := sampler.CalcPreSampleRate(r.conf.MaxMemory, float64(wi.Mem.Alloc), r.PreSampler.RealRate())
 	if err != nil {
-		log.Warnf("problem computing mem pre-sample rate: %v", err)
+		log.Warnf("Problem computing mem pre-sample rate: %v", err)
 	}
 	r.PreSampler.SetError(err)
 	if rateCPU < 1 {
 		log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg)
 	}
 	if rateMem < 1 {
-		log.Warnf("memory threshold exceeded (apm_config.max_memory: %.0f bytes): %d", r.conf.MaxMemory, wi.Mem.Alloc)
+		log.Warnf("Memory threshold exceeded (apm_config.max_memory: %.0f bytes): %d", r.conf.MaxMemory, wi.Mem.Alloc)
 	}
 	if rateCPU < rateMem {
 		r.PreSampler.SetRate(rateCPU)
@@ -449,7 +449,7 @@ func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, 
 		// in v01 we actually get spans that we have to transform in traces
 		var spans []pb.Span
 		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
-			log.Errorf("cannot decode %s traces payload: %v", v, err)
+			log.Errorf("Cannot decode %s traces payload: %v", v, err)
 			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
 			return nil, false
 		}
@@ -460,7 +460,7 @@ func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, 
 		fallthrough
 	case v04:
 		if err := decodeReceiverPayload(req.Body, &traces, v, mediaType); err != nil {
-			log.Errorf("cannot decode %s traces payload: %v", v, err)
+			log.Errorf("Cannot decode %s traces payload: %v", v, err)
 			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
 			return nil, false
 		}
@@ -505,7 +505,7 @@ func tracesFromSpans(spans []pb.Span) pb.Traces {
 func getMediaType(req *http.Request) string {
 	mt, _, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
 	if err != nil {
-		log.Debugf(`error parsing media type: %v, assuming "application/json"`, err)
+		log.Debugf(`Error parsing media type: %v, assuming "application/json"`, err)
 		return "application/json"
 	}
 	return mt

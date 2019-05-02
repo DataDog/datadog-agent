@@ -79,8 +79,6 @@ func (t *Tagger) Init(catalog collectors.Catalog) {
 	}
 	t.Unlock()
 
-	log.Info("starting the tagging system")
-
 	t.startCollectors()
 	go t.run()
 	go t.pull()

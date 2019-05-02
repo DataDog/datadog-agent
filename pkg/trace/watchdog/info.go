@@ -61,7 +61,7 @@ func init() {
 	var err error
 	globalCurrentInfo, err = NewCurrentInfo()
 	if err != nil {
-		log.Errorf("unable to create global Process: %v", err)
+		log.Errorf("Unable to create global Process: %v", err)
 	}
 }
 
@@ -86,7 +86,7 @@ func (pi *CurrentInfo) CPU(now time.Time) CPUInfo {
 
 	userTime, err := cpuTimeUser(pi.pid)
 	if err != nil {
-		log.Debugf("unable to get CPU times: %v", err)
+		log.Debugf("Unable to get CPU times: %v", err)
 		return pi.lastCPU
 	}
 
