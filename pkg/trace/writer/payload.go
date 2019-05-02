@@ -170,7 +170,7 @@ func (s *queuableSender) Run() {
 			// This serves as a barrier (assuming syncBarrier is an unbuffered channel). Used for testing
 			continue
 		case <-s.exit:
-			log.Info("exiting payload sender, try flushing whatever is left")
+			log.Info("Exiting payload sender, try flushing whatever is left")
 			s.flushQueue()
 			return
 		}

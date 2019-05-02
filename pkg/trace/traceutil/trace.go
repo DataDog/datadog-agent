@@ -46,7 +46,7 @@ func GetRoot(t pb.Trace) *pb.Span {
 
 	// Here, if the trace is valid, we should have len(parentIDToChild) == 1
 	if len(parentIDToChild) != 1 {
-		log.Debugf("didn't reliably find the root span for traceID:%v", t[0].TraceID)
+		log.Debugf("Didn't reliably find the root span for traceID:%v", t[0].TraceID)
 	}
 
 	// Have a safe bahavior if that's not the case
