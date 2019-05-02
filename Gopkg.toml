@@ -31,6 +31,10 @@
   version = "~3.2.0"
 
 [[constraint]]
+  name = "github.com/coreos/go-semver"
+  version = "~v0.2.0"
+
+[[constraint]]
   name = "github.com/docker/docker"
   version = "~v1.13.1"
 

@@ -1949,6 +1949,7 @@
     "github.com/containerd/containerd/namespaces",
     "github.com/containerd/typeurl",
     "github.com/coreos/etcd/client",
+    "github.com/coreos/go-semver/semver",
     "github.com/coreos/go-systemd/sdjournal",
     "github.com/docker/docker/api/types",
     "github.com/docker/docker/api/types/container",
