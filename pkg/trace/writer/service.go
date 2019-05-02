@@ -66,7 +66,7 @@ func (w *ServiceWriter) Run() {
 	updateInfoTicker := time.NewTicker(w.conf.UpdateInfoPeriod)
 	defer updateInfoTicker.Stop()
 
-	log.Debug("starting service writer")
+	log.Debug("Starting service writer")
 
 	// Monitor sender for events
 	go func() {
@@ -74,7 +74,7 @@ func (w *ServiceWriter) Run() {
 			switch event.typ {
 			case eventTypeSuccess:
 				url := event.stats.host
-				log.Debugf("flushed service payload; url:%s, time:%s, size:%d bytes", url, event.stats.sendTime,
+				log.Debugf("Flushed service payload; url:%s, time:%s, size:%d bytes", url, event.stats.sendTime,
 					len(event.payload.bytes))
 				tags := []string{"url:" + url}
 				metrics.Gauge("datadog.trace_agent.service_writer.flush_duration",
@@ -82,15 +82,15 @@ func (w *ServiceWriter) Run() {
 				atomic.AddInt64(&w.stats.Payloads, 1)
 			case eventTypeFailure:
 				url := event.stats.host
-				log.Errorf("failed to flush service payload; url:%s, time:%s, size:%d bytes, error: %s",
+				log.Errorf("Failed to flush service payload; url:%s, time:%s, size:%d bytes, error: %s",
 					url, event.stats.sendTime, len(event.payload.bytes), event.err)
 				atomic.AddInt64(&w.stats.Errors, 1)
 			case eventTypeRetry:
-				log.Errorf("retrying flush service payload, retryNum: %d, delay:%s, error: %s",
+				log.Errorf("Retrying flush service payload, retryNum: %d, delay:%s, error: %s",
 					event.retryNum, event.retryDelay, event.err)
 				atomic.AddInt64(&w.stats.Retries, 1)
 			default:
-				log.Debugf("don't know how to handle event with type %T", event)
+				log.Debugf("Unable to handle event with type %T", event)
 			}
 		}
 	}()
@@ -105,7 +105,7 @@ func (w *ServiceWriter) Run() {
 		case <-updateInfoTicker.C:
 			go w.updateInfo()
 		case <-w.exit:
-			log.Info("exiting service writer, flushing all modified services")
+			log.Info("Exiting service writer, flushing all modified services")
 			w.flush()
 			return
 		}
@@ -132,12 +132,12 @@ func (w *ServiceWriter) flush() {
 	}
 
 	numServices := len(w.serviceBuffer)
-	log.Debugf("going to flush updated service metadata, %d services", numServices)
+	log.Debugf("Going to flush updated service metadata, %d services", numServices)
 	atomic.StoreInt64(&w.stats.Services, int64(numServices))
 
 	data, err := json.Marshal(w.serviceBuffer)
 	if err != nil {
-		log.Errorf("error while encoding service payload: %v", err)
+		log.Errorf("Error while encoding service payload: %v", err)
 		w.serviceBuffer = make(pb.ServicesMetadata)
 		return
 	}

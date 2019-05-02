@@ -60,7 +60,6 @@ func InitCheckScheduler(collector *Collector) *CheckScheduler {
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
 	checks := s.GetChecksFromConfigs(configs, true)
 	for _, c := range checks {
-		log.Infof("Scheduling check %s", c)
 		_, err := s.collector.RunCheck(c)
 		if err != nil {
 			log.Errorf("Unable to run Check %s: %v", c, err)

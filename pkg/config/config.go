@@ -522,9 +522,8 @@ func LoadWithoutSecret() error {
 }
 
 func load(config Config, origin string, loadSecret bool) error {
-	log.Infof("config.Load()")
 	if err := config.ReadInConfig(); err != nil {
-		log.Warnf("config.load() error %v", err)
+		log.Warnf("Error loading config: %v", err)
 		return err
 	}
 
@@ -535,8 +534,6 @@ func load(config Config, origin string, loadSecret bool) error {
 			log.Warnf("Unknown key in config file: %v", key)
 		}
 	}
-
-	log.Infof("config.load succeeded")
 
 	if loadSecret {
 		// We have to init the secrets package before we can use it to decrypt

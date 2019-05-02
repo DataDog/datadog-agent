@@ -274,7 +274,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		for key, rate := range rateBySpan {
 			serviceName, operationName, err := parseServiceAndOp(key)
 			if err != nil {
-				log.Errorf("error parsing names: %v", err)
+				log.Errorf("Error parsing names: %v", err)
 				continue
 			}
 

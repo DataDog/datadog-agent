@@ -249,16 +249,12 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 	extraTags := s.extraTags
 
 	if packet.Origin != listeners.NoOrigin {
-		log.Tracef("Dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
 		originTags, err := tagger.Tag(packet.Origin, tagger.DogstatsdCardinality)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
 			extraTags = append(extraTags, originTags...)
 		}
-		log.Tracef("Tags for %s: %s", packet.Origin, originTags)
-	} else {
-		log.Tracef("Dogstatsd receive: %s", packet.Contents)
 	}
 
 	for {

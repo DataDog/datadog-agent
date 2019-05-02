@@ -35,19 +35,19 @@ func GetKubeletConnectionInfo() *C.PyObject {
 	dict := C.PyDict_New()
 
 	if cached, hit := cache.Cache.Get(kubeletCacheKey); hit {
-		log.Debug("cache hit for kubelet connection info")
+		log.Debug("Cache hit for kubelet connection info")
 		if creds, ok = cached.(map[string]string); !ok {
-			log.Error("invalid cache format, forcing a cache miss")
+			log.Warn("Invalid cache format, forcing a cache miss")
 			creds = nil
 		}
 	}
 
 	if creds == nil { // Cache miss
-		log.Debug("cache miss for kubelet connection info")
+		log.Debug("Cache miss for kubelet connection info")
 		kubeutil, err := kubelet.GetKubeUtil()
 		if err != nil {
 			// Connection to the kubelet fail, return empty dict
-			log.Errorf("connection to kubelet failed: %v", err)
+			log.Errorf("Connection to kubelet failed: %v", err)
 			return dict
 		}
 		// At this point, we have valid credentials to get

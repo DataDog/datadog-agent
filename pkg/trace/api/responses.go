@@ -24,7 +24,7 @@ type traceResponse struct {
 
 // httpFormatError is used for payload format errors
 func httpFormatError(w http.ResponseWriter, v Version, err error) {
-	log.Errorf("rejecting client request: %v", err)
+	log.Errorf("Rejecting client request: %v", err)
 	tags := []string{"error:format-error", "version:" + string(v)}
 	metrics.Count(receiverErrorKey, 1, tags, 1)
 	http.Error(w, err.Error(), http.StatusUnsupportedMediaType)

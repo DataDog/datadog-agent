@@ -116,27 +116,27 @@ func (w *TraceWriter) Run() {
 		for event := range w.sender.Monitor() {
 			switch event.typ {
 			case eventTypeSuccess:
-				log.Debugf("flushed trace payload to the API, time:%s, size:%d bytes", event.stats.sendTime,
+				log.Debugf("Flushed trace payload to the API, time:%s, size:%d bytes", event.stats.sendTime,
 					len(event.payload.bytes))
 				tags := []string{"url:" + event.stats.host}
 				metrics.Gauge("datadog.trace_agent.trace_writer.flush_duration",
 					event.stats.sendTime.Seconds(), tags, 1)
 				atomic.AddInt64(&w.stats.Payloads, 1)
 			case eventTypeFailure:
-				log.Errorf("failed to flush trace payload, host:%s, time:%s, size:%d bytes, error: %s",
+				log.Errorf("Failed to flush trace payload, host:%s, time:%s, size:%d bytes, error: %s",
 					event.stats.host, event.stats.sendTime, len(event.payload.bytes), event.err)
 				atomic.AddInt64(&w.stats.Errors, 1)
 			case eventTypeRetry:
-				log.Errorf("retrying flush trace payload, retryNum: %d, delay:%s, error: %s",
+				log.Errorf("Retrying flush trace payload, retryNum: %d, delay:%s, error: %s",
 					event.retryNum, event.retryDelay, event.err)
 				atomic.AddInt64(&w.stats.Retries, 1)
 			default:
-				log.Debugf("don't know how to handle event with type %T", event)
+				log.Debugf("Unable to handle event with type %T", event)
 			}
 		}
 	}()
 
-	log.Debug("starting trace writer")
+	log.Debug("Starting trace writer")
 
 	for {
 		select {
@@ -148,7 +148,7 @@ func (w *TraceWriter) Run() {
 		case <-updateInfoTicker.C:
 			go w.updateInfo()
 		case <-w.exit:
-			log.Info("exiting trace writer, flushing all remaining traces")
+			log.Info("Exiting trace writer, flushing all remaining traces")
 			w.flush()
 			w.updateInfo()
 			log.Info("Flushed. Exiting")
@@ -222,7 +222,7 @@ func (w *TraceWriter) flush() {
 
 	serialized, err := proto.Marshal(&tracePayload)
 	if err != nil {
-		log.Errorf("failed to serialize trace payload, data got dropped, err: %s", err)
+		log.Errorf("Failed to serialize trace payload, data got dropped, err: %s", err)
 		w.resetBuffer()
 		return
 	}
@@ -235,13 +235,13 @@ func (w *TraceWriter) flush() {
 	compressionBuffer := bytes.Buffer{}
 	gz, err := gzip.NewWriterLevel(&compressionBuffer, gzip.BestSpeed)
 	if err != nil {
-		log.Errorf("failed to get compressor, sending uncompressed: %s", err)
+		log.Errorf("Failed to get compressor, sending uncompressed: %s", err)
 	} else {
 		_, err := gz.Write(serialized)
 		gz.Close()
 
 		if err != nil {
-			log.Errorf("failed to compress payload, sending uncompressed: %s", err)
+			log.Errorf("Failed to compress payload, sending uncompressed: %s", err)
 		} else {
 			serialized = compressionBuffer.Bytes()
 			encoding = "gzip"
@@ -259,7 +259,7 @@ func (w *TraceWriter) flush() {
 
 	payload := newPayload(serialized, headers)
 
-	log.Debugf("flushing traces=%v events=%v size=%d estimated=%d", len(w.traces), len(w.events), len(serialized), w.bytesInBuffer)
+	log.Debugf("Flushing traces=%v events=%v size=%d estimated=%d", len(w.traces), len(w.events), len(serialized), w.bytesInBuffer)
 	w.sender.Send(payload)
 	w.resetBuffer()
 }

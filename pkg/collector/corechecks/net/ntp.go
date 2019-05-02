@@ -120,7 +120,7 @@ func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data)
 	cfg := new(ntpConfig)
 	err = cfg.parse(data, initConfig)
 	if err != nil {
-		log.Criticalf("Error parsing configuration file: %s", err)
+		log.Errorf("Error parsing configuration file: %s", err)
 		return err
 	}
 
