@@ -209,6 +209,10 @@ func (w *TraceWriter) flush() {
 		return
 	}
 
+	defer func(start time.Time) {
+		metrics.Timing("datadog.trace_agent.debug.trace_writer_flush_ms", time.Since(start), nil, 1)
+	}(time.Now())
+
 	atomic.AddInt64(&w.stats.Traces, int64(numTraces))
 	atomic.AddInt64(&w.stats.Events, int64(numEvents))
 	atomic.AddInt64(&w.stats.Spans, int64(w.spansInBuffer))

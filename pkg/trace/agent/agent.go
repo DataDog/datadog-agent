@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -179,6 +180,10 @@ func (a *Agent) Process(t pb.Trace) {
 		return
 	}
 
+	defer func(start time.Time) {
+		metrics.Timing("datadog.trace_agent.debug.process_trace_ms", time.Since(start), nil, 1)
+	}(time.Now())
+
 	// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 	root := traceutil.GetRoot(t)
 
@@ -273,6 +278,9 @@ func (a *Agent) Process(t pb.Trace) {
 	// Run both full trace sampling and transaction extraction in another goroutine.
 	go func(pt ProcessedTrace) {
 		defer watchdog.LogOnPanic()
+		defer func(start time.Time) {
+			metrics.Timing("datadog.trace_agent.debug.sample_ms", time.Since(start), nil, 1)
+		}(time.Now())
 
 		tracePkg := writer.TracePackage{}
 
