@@ -21,23 +21,26 @@ func TestTiming(t *testing.T) {
 	metrics.Client = stats
 
 	set := NewSet(context.TODO(), "counter1")
-	set.Time("counter1", time.Now().Add(-2*time.Second))
-	set.Time("counter1", time.Now().Add(-3*time.Second))
+	set.Measure("counter1", time.Now().Add(-2*time.Second))
+	set.Measure("counter1", time.Now().Add(-3*time.Second))
 	set.Report()
 
-	calls := stats.GaugeCalls
-	assert.Equal(3, len(calls))
+	calls := stats.CountCalls
+	assert.Equal(1, len(calls))
 	assert.Equal(2., findCall(assert, calls, "counter1.count").Value)
+
+	calls = stats.GaugeCalls
+	assert.Equal(2, len(calls))
 	assert.Equal(2500., float64(findCall(assert, calls, "counter1.avg").Value), "avg")
 	assert.Equal(3000., findCall(assert, calls, "counter1.max").Value, "max")
 }
 
-func findCall(assert *assert.Assertions, calls []testutil.StatsClientGaugeArgs, name string) testutil.StatsClientGaugeArgs {
+func findCall(assert *assert.Assertions, calls []testutil.MetricsArgs, name string) testutil.MetricsArgs {
 	for _, c := range calls {
 		if c.Name == name {
 			return c
 		}
 	}
 	assert.Failf("call not found", "key %q missing", name)
-	return testutil.StatsClientGaugeArgs{}
+	return testutil.MetricsArgs{}
 }

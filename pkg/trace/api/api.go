@@ -294,7 +294,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
 	now := time.Now()
 	defer func() {
-		metrics.Timing("datadog.trace_agent.receiver.process_traces_ms", time.Since(now), nil, 1)
+		metrics.Timing("datadog.trace_agent.internal.normalize_ms", time.Since(now), nil, 1)
 	}()
 	for _, trace := range traces {
 		spans := len(trace)
@@ -373,6 +373,7 @@ func (r *HTTPReceiver) loop() {
 			r.watchdog(now)
 		case now := <-t.C:
 			metrics.Gauge("datadog.trace_agent.heartbeat", 1, nil, 1)
+			metrics.Gauge("datadog.trace_agent.receiver.out_chan_fill", float64(len(r.Out))/float64(cap(r.Out)), nil, 1)
 
 			// We update accStats with the new stats we collected
 			accStats.Acc(r.Stats)
