@@ -178,6 +178,7 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 	}
 
 	cInitConfig := C.CString(string(initConfig))
+
 	cInstance := C.CString(string(data))
 	cCheckID := C.CString(string(c.id))
 	cCheckName := C.CString(c.ModuleName)
@@ -187,7 +188,7 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 	defer C.free(unsafe.Pointer(cCheckName))
 
 	var check *C.six_pyobject_t
-	res := C.get_check(six, c.class, (*C.char)(cInitConfig), (*C.char)(cInstance), (*C.char)(cCheckID), (*C.char)(cCheckName), &check)
+	res := C.get_check(six, c.class, cInitConfig, cInstance, cCheckID, cCheckName, &check)
 	if res == 0 {
 		log.Warnf("could not get a '%s' check instance with the new api: %s", c.ModuleName, getSixError())
 		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")

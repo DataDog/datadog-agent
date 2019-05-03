@@ -24,7 +24,24 @@ import (
 */
 import "C"
 
-var kubeletCacheKey = cache.BuildAgentKey("py", "kubeutil", "connection_info")
+var (
+	kubeletCacheKey = cache.BuildAgentKey("py", "kubeutil", "connection_info")
+
+	// for testing
+	getConnectionsFunc = getConnections
+)
+
+func getConnections() map[string]string {
+	kubeutil, err := kubelet.GetKubeUtil()
+	if err != nil {
+		// Connection to the kubelet fail, return empty dict
+		log.Errorf("connection to kubelet failed: %v", err)
+		return nil
+	}
+
+	// At this point, we have valid credentials to get
+	return kubeutil.GetRawConnectionInfo()
+}
 
 // GetKubeletConnectionInfo returns a dict containing url and credentials to connect to the kubelet.
 // The dict is empty if the kubelet was not detected. The call to kubeutil is cached for 5 minutes.
@@ -44,23 +61,19 @@ func GetKubeletConnectionInfo(payload **C.char) {
 
 	if creds == "" { // Cache miss
 		log.Debug("cache miss for kubelet connection info")
-		kubeutil, err := kubelet.GetKubeUtil()
-		if err != nil {
-			// Connection to the kubelet fail, return empty dict
-			log.Errorf("connection to kubelet failed: %v", err)
+		connections := getConnectionsFunc()
+		if connections == nil {
 			return
 		}
-
-		// At this point, we have valid credentials to get
-		connections := kubeutil.GetRawConnectionInfo()
 
 		data, err := json.Marshal(connections)
 		if err != nil {
-			log.Errorf("could not serialized kubelet connections (%s): %s", creds, err)
+			log.Errorf("could not serialized kubelet connections (%s): %s", connections, err)
 			return
 		}
 
-		cache.Cache.Set(kubeletCacheKey, string(data), 5*time.Minute)
+		creds = string(data)
+		cache.Cache.Set(kubeletCacheKey, creds, 5*time.Minute)
 	}
 
 	*payload = C.CString(creds)
