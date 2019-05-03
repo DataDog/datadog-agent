@@ -91,6 +91,9 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
             use_embedded_libs=use_embedded_libs, six_root=six_root,
             python_home_2=python_home_2, python_home_3=python_home_3)
 
+    if sys.platform == 'win32':
+        ldflags += ' -Wl,--allow-multiple-definition '
+
     if profile:
         test_profiler = TestProfiler()
     else:
