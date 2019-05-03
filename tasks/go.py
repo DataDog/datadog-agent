@@ -117,7 +117,6 @@ def vet(ctx, targets, use_embedded_libs=False, six_root=None):
     args = ["{}/...".format(t) for t in targets]
     build_tags = get_default_build_tags()
     build_tags.append("novet")
-    build_tags.append("test")
 
     _, _, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs, six_root=six_root)
 
@@ -229,7 +228,7 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
     start = datetime.datetime.now()
     ctx.run("dep ensure{}".format(verbosity))
     dep_done = datetime.datetime.now()
-    
+
     # If github.com/DataDog/datadog-agent gets vendored too - nuke it
     #
     # This may happen as a result of having to introduce DEPPROJECTROOT
