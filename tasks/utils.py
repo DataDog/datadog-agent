@@ -73,9 +73,7 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
     """
     gcflags = ""
     ldflags = get_version_ldflags(ctx, prefix)
-    env = {
-        "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs),
-    }
+    env = {}
 
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
@@ -94,8 +92,11 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
     env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + " -L{}".format(six_lib)
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + " -w -I{}".format(six_headers)
 
+    # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
         ldflags += "-s -w -linkmode=external '-extldflags=-static' "
+    elif embedded_path:
+        ldflags += "-r {} ".format(embedded_path)
 
     if os.environ.get("DELVE"):
         gcflags = "-N -l"
