@@ -31,6 +31,7 @@ func TestContainerMetricsTagging(t *testing.T) {
 	expectedMetrics := map[string][]string{
 		"Gauge": {
 			"docker.cpu.shares",
+			"docker.kmem.usage",
 			"docker.mem.cache",
 			"docker.mem.rss",
 			"docker.mem.in_use",
