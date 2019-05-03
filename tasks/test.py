@@ -92,7 +92,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
             python_home_2=python_home_2, python_home_3=python_home_3)
 
     if sys.platform == 'win32':
-        ldflags += ' -Wl,--allow-multiple-definition '
+        ldflags += ' --allow-multiple-definition '
 
     if profile:
         test_profiler = TestProfiler()
