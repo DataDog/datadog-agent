@@ -16,7 +16,7 @@
 
 provisioner:
   name: chef_solo
-  product_version: 13.6.4
+  product_version: 14.12.9
   install_strategy: always
 
 <% if ENV['KITCHEN_DRIVER'] && ENV['KITCHEN_DRIVER'] == "hyperv" %>
@@ -108,7 +108,7 @@ platforms:
     else
       size = sizes[idx % sizes.length]
     end
-    
+
     vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
     vm_password = ENV['SERVER_PASSWORD']
     vm_hyperv_switch = ENV['KITCHEN_HYPERV_SWITCH'] ? ENV['KITCHEN_HYPERV_SWITCH'] : "public_eth"
