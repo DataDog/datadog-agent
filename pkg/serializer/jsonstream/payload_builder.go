@@ -41,7 +41,7 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 	input := bytes.NewBuffer(make([]byte, 0, b.inputSizeHint))
 	output := bytes.NewBuffer(make([]byte, 0, b.outputSizeHint))
 
-	compressor, err := newCompressor(input, output, m.JSONHeader(), m.JSONFooter())
+	compressor, err := newCompressor(input, output)
 	if err != nil {
 		return nil, err
 	}
