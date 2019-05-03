@@ -15,11 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-/*
-#include <datadog_agent_six.h>
-#cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
-#cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
-*/
+// #include <datadog_agent_six.h>
 import "C"
 
 func testSubmitMetric(t *testing.T) {

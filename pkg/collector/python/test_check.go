@@ -29,7 +29,7 @@ six_gilstate_t ensure_gil(six_t *s) {
 }
 
 int gil_unlocked_calls = 0;
-release_gil(six_t *s, six_gilstate_t state) {
+void release_gil(six_t *s, six_gilstate_t state) {
 	gil_unlocked_calls++;
 }
 
