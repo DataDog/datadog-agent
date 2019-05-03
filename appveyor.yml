@@ -18,9 +18,6 @@ environment:
   # GLIB-URL: http://ftp.gnome.org/pub/gnome/binaries/win64/glib/2.26/glib_2.26.1-1_win64.zip
   # PKG-CONFIG-URL: http://ftp.gnome.org/pub/gnome/binaries/win64/dependencies/pkg-config_0.23-2_win64.zip
   # GETTEXT-URL: http://ftp.gnome.org/pub/gnome/binaries/win64/dependencies/gettext-runtime_0.18.1.1-2_win64.zip
-  # TODO: Following 2 are temporary, remove when we've a better invoke task
-  PYTHON_HOME_2: C:\Python27-x64
-  PYTHON_HOME_3: C:\Python37-x64
 
 install:
   # create 'ddagentuser' user to test the secrets feature on windows
@@ -45,7 +42,7 @@ test_script:
   - bash -c "make -C test run"
   - cd ..
   - inv -e deps
-  - inv -e test --coverage --profile --fail-on-fmt
+  - inv -e test --coverage --profile --fail-on-fmt --python-home-2=C:\Python27-x64 --python-home-3=C:\Python37-x64
   - codecov -f profile.cov -F windows
 
 # uncomment to debug builds
