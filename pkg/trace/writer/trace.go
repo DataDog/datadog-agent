@@ -20,12 +20,9 @@ import (
 
 const pathTraces = "/api/v0.2/traces"
 
-// payloadMaxSize is the maximum payload size accepted by the Datadog API, after unpacking
-const payloadMaxSize = 3200000 // 3.2MB
-
 // payloadFlushThreshold specifies the maximum accumulated payload size that is allowed before
 // a flush is triggered; replaced in tests.
-var payloadFlushThreshold = int(payloadMaxSize * 60 / 100) // 60% of max
+var payloadFlushThreshold = 3200000 // 3.2MB is the maximum allowed by the Datadog API
 
 // TracePackage represents the result of a trace sampling operation.
 //
