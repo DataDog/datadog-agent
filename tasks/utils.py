@@ -96,7 +96,7 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
     if static:
         ldflags += "-s -w -linkmode=external '-extldflags=-static' "
     elif embedded_path:
-        ldflags += "-r {} ".format(embedded_path)
+        ldflags += "-r {}/lib ".format(embedded_path)
 
     if os.environ.get("DELVE"):
         gcflags = "-N -l"
