@@ -101,7 +101,7 @@ def lint(ctx, targets):
 
 
 @task
-def vet(ctx, targets, use_embedded_libs=False):
+def vet(ctx, targets, use_embedded_libs=False, six_root=None):
     """
     Run go vet on targets.
 
@@ -118,7 +118,7 @@ def vet(ctx, targets, use_embedded_libs=False):
     build_tags = get_default_build_tags()
     build_tags.append("dovet")
 
-    _, _, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
+    _, _, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs, six_root=six_root)
 
     ctx.run("go vet -tags \"{}\" ".format(" ".join(build_tags)) + " ".join(args), env=env)
     # go vet exits with status 1 when it finds an issue, if we're here

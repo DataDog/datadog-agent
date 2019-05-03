@@ -44,7 +44,8 @@ DEFAULT_TEST_TARGETS = [
 @task()
 def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
     race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False,
-    cpus=0, timeout=120):
+    six_root=None, python_home_2=None, python_home_3=None, cpus=0,
+    timeout=120):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -77,7 +78,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     lint(ctx, targets=tool_targets)
     lint_licenses(ctx)
     print("--- Vetting:")
-    vet(ctx, targets=tool_targets, use_embedded_libs=use_embedded_libs)
+    vet(ctx, targets=tool_targets, use_embedded_libs=use_embedded_libs, six_root=six_root)
     print("--- Misspelling:")
     misspell(ctx, targets=tool_targets)
     print("--- ineffassigning:")
@@ -86,7 +87,9 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
 
-    ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
+    ldflags, gcflags, env = get_build_flags(ctx,
+            use_embedded_libs=use_embedded_libs, six_root=six_root,
+            python_home_2=python_home_2, python_home_3=python_home_3)
 
     if profile:
         test_profiler = TestProfiler()
