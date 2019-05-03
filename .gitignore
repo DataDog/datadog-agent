@@ -40,7 +40,7 @@ datadog-agent*_amd64.deb
 # Ignore pem created during the tests
 *.pem
 
-**/test/auth_token
+auth_token
 /test/e2e/scripts/run-instance/argo
 /test/e2e/scripts/setup-instance/instance-id.json
 /test/e2e/scripts/setup-instance/specification.json
