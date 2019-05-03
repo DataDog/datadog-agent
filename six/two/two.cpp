@@ -48,7 +48,7 @@ Two::~Two()
 
 void Two::initPythonHome(const char *pythonHome)
 {
-    if (pythonHome != NULL) {
+    if (pythonHome != NULL && strlen(pythonHome) != 0) {
         _pythonHome = pythonHome;
     }
 

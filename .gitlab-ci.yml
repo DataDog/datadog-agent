@@ -145,18 +145,11 @@ before_script:
 # source_test
 #
 
-.agent_test_variables: &agent_test_variables
-  PYTHON_HOME_2: /usr/
-  PYTHON_HOME_3: /usr/
-  LD_LIBRARY_PATH: $SRC_PATH/dev/lib
-
 # run tests for deb-x64
 run_tests_deb-x64:
   stage: source_test
   image: datadog/datadog-agent-runner-circle:six
   tags: [ "runner:main", "size:2xlarge" ]
-  variables:
-    <<: *agent_test_variables
   before_script:
     - cd $SRC_PATH/six
     - cmake . -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH=$SRC_PATH/dev
@@ -174,8 +167,6 @@ run_tests_deb-x64:
 #   stage: source_test
 #   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
 #   tags: [ "runner:main", "size:2xlarge" ]
-#   variables:
-#     <<: *agent_test_variables
 #   script:
 #     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
 #     # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
