@@ -217,7 +217,7 @@ func TestBasicProcessMessages(t *testing.T) {
 			totalContainers: 0,
 		},
 		{
-			testName:        "containered processes",
+			testName:        "container processes",
 			cur:             map[int32]*process.FilledProcess{p[0].Pid: p[0], p[1].Pid: p[1], p[2].Pid: p[2]},
 			last:            map[int32]*process.FilledProcess{p[0].Pid: p[0], p[1].Pid: p[1], p[2].Pid: p[2]},
 			maxSize:         1,
@@ -261,7 +261,7 @@ func TestBasicProcessMessages(t *testing.T) {
 			totalContainers: 2,
 		},
 		{
-			testName:        "all containered processes skipped",
+			testName:        "all container processes skipped",
 			cur:             map[int32]*process.FilledProcess{p[0].Pid: p[0], p[1].Pid: p[1], p[2].Pid: p[2]},
 			last:            map[int32]*process.FilledProcess{p[0].Pid: p[0], p[1].Pid: p[1], p[2].Pid: p[2]},
 			maxSize:         2,

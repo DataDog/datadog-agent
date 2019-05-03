@@ -21,7 +21,7 @@ func main() {
 	in := Input{}
 	err := json.NewDecoder(os.Stdin).Decode(&in)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error occured decoding input: %s", err)
+		fmt.Fprintf(os.Stderr, "error occurred decoding input: %s", err)
 		os.Exit(1)
 	}
 
@@ -36,7 +36,7 @@ func main() {
 
 	err = json.NewEncoder(os.Stdout).Encode(out)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error occured encoding output: %s", err)
+		fmt.Fprintf(os.Stderr, "error occurred encoding output: %s", err)
 		os.Exit(1)
 	}
 }

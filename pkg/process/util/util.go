@@ -58,12 +58,12 @@ func GetEnv(key string, dfault string, combineWith ...string) string {
 }
 
 // HostProc returns the location of a host's procfs. This can and will be
-// overriden when running inside a container.
+// overridden when running inside a container.
 func HostProc(combineWith ...string) string {
 	return GetEnv("HOST_PROC", "/proc", combineWith...)
 }
 
-// HostSys returns the location of a host's /sys. This can and will be overriden
+// HostSys returns the location of a host's /sys. This can and will be overridden
 // when running inside a container.
 func HostSys(combineWith ...string) string {
 	return GetEnv("HOST_SYS", "/sys", combineWith...)
