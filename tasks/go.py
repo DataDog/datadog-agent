@@ -117,6 +117,7 @@ def vet(ctx, targets, use_embedded_libs=False):
     args = ["{}/...".format(t) for t in targets]
     build_tags = get_default_build_tags()
     build_tags.append("novet")
+    build_tags.append("test")
 
     _, _, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
 
