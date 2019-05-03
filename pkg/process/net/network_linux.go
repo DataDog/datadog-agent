@@ -11,9 +11,9 @@ import (
 	"context"
 	"net"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/DataDog/datadog-process-agent/ebpf"
 )
 
 const (
