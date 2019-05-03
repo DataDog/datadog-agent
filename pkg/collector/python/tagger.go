@@ -19,9 +19,13 @@ import (
 #include <datadog_agent_six.h>
 #cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
-
 */
 import "C"
+
+// for testing purposes
+var (
+	tagsFunc = tagger.Tag
+)
 
 // Tags bridges towards tagger.Tag to retrieve container tags
 //export Tags
@@ -29,7 +33,7 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 	goID := C.GoString(id)
 	var tags []string
 
-	tags, _ = tagger.Tag(goID, collectors.TagCardinality(cardinality))
+	tags, _ = tagsFunc(goID, collectors.TagCardinality(cardinality))
 
 	length := len(tags)
 	if length == 0 {
