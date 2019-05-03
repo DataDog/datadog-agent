@@ -13,7 +13,7 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import get_build_flags, get_version, pkg_config_path
+from .utils import get_build_flags, get_version
 from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses
 from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
@@ -43,7 +43,7 @@ DEFAULT_TEST_TARGETS = [
 
 @task()
 def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
-    race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False,
+    race=False, profile=False, fail_on_fmt=False,
     six_root=None, python_home_2=None, python_home_3=None, cpus=0,
     timeout=120):
     """
@@ -78,7 +78,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     lint(ctx, targets=tool_targets)
     lint_licenses(ctx)
     print("--- Vetting:")
-    vet(ctx, targets=tool_targets, use_embedded_libs=use_embedded_libs, six_root=six_root)
+    vet(ctx, targets=tool_targets, six_root=six_root)
     print("--- Misspelling:")
     misspell(ctx, targets=tool_targets)
     print("--- ineffassigning:")
@@ -87,8 +87,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
 
-    ldflags, gcflags, env = get_build_flags(ctx,
-            use_embedded_libs=use_embedded_libs, six_root=six_root,
+    ldflags, gcflags, env = get_build_flags(ctx, six_root=six_root,
             python_home_2=python_home_2, python_home_3=python_home_3)
 
     if sys.platform == 'win32':

@@ -14,8 +14,8 @@ BIN_PATH = os.path.join(".", "bin", "trace-agent")
 DEFAULT_BUILD_TAGS = ["netcgo", "secrets"]
 
 @task
-def build(ctx, rebuild=False, race=False, precompile_only=False, use_embedded_libs=False,
-          build_include=None, build_exclude=None, puppy=False, use_venv=False):
+def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=None,
+          build_exclude=None, puppy=False, use_venv=False):
     """
     Build the trace agent.
     """
@@ -32,7 +32,7 @@ def build(ctx, rebuild=False, race=False, precompile_only=False, use_embedded_li
             patch_ver=patch_ver
         ))
 
-    ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs, use_venv=use_venv)
+    ldflags, gcflags, env = get_build_flags(ctx, use_venv=use_venv)
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
