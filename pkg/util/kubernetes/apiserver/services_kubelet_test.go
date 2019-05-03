@@ -187,7 +187,7 @@ func TestMapServices(t *testing.T) {
 	mu := sync.RWMutex{}
 	var aggregatedBundle *metadataMapperBundle
 
-	aggregatedBundle = newMetadataResponseBundle()
+	aggregatedBundle = newMetadataMapperBundle()
 	for i, tt := range tests {
 		endpointsList := v1.EndpointsList{Items: tt.endpoints}
 
@@ -208,7 +208,7 @@ func TestMapServices(t *testing.T) {
 	mu.RUnlock()
 
 	// Run the tests again for legacy versions of Kubernetes
-	aggregatedBundle = newMetadataResponseBundle()
+	aggregatedBundle = newMetadataMapperBundle()
 	for i, tt := range tests {
 		// Kubernetes 1.3.x does not include `NodeName`
 		var legacyEndpoints []v1.Endpoints
@@ -255,7 +255,7 @@ func runMapServicesTest(t *testing.T, nodeName string, pods []*kubelet.Pod, endp
 		testName = "mapOnIP"
 	}
 	t.Run(testName, func(t *testing.T) {
-		bundle := newMetadataResponseBundle()
+		bundle := newMetadataMapperBundle()
 		bundle.mapOnIP = mapOnIP
 		err := bundle.mapServices(nodeName, pods, endpointsList)
 		require.NoError(t, err)
