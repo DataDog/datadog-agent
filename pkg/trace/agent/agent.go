@@ -181,7 +181,7 @@ func (a *Agent) Process(t pb.Trace) {
 	}
 
 	defer func(start time.Time) {
-		metrics.Timing("datadog.trace_agent.debug.process_trace_ms", time.Since(start), nil, 1)
+		metrics.Timing("datadog.trace_agent.internal.process_trace_ms", time.Since(start), nil, 1)
 	}(time.Now())
 
 	// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
@@ -263,6 +263,9 @@ func (a *Agent) Process(t pb.Trace) {
 
 	go func(pt ProcessedTrace) {
 		defer watchdog.LogOnPanic()
+		defer func(start time.Time) {
+			metrics.Timing("datadog.trace_agent.internal.concentrator_ms", time.Since(start), nil, 1)
+		}(time.Now())
 		// Everything is sent to concentrator for stats, regardless of sampling.
 		a.Concentrator.Add(&stats.Input{
 			Trace:     pt.WeightedTrace,
@@ -279,7 +282,7 @@ func (a *Agent) Process(t pb.Trace) {
 	go func(pt ProcessedTrace) {
 		defer watchdog.LogOnPanic()
 		defer func(start time.Time) {
-			metrics.Timing("datadog.trace_agent.debug.sample_ms", time.Since(start), nil, 1)
+			metrics.Timing("datadog.trace_agent.internal.sample_ms", time.Since(start), nil, 1)
 		}(time.Now())
 
 		tracePkg := writer.TracePackage{}
