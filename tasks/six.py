@@ -27,7 +27,7 @@ def install(ctx):
 
 @task
 def test(ctx):
-    ctx.run("make -C {} test run".format(get_six_path()))
+    ctx.run("make -C {}/test run".format(get_six_path()))
 
 @task
 def format(ctx):
