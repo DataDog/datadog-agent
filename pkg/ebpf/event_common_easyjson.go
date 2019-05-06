@@ -4,6 +4,7 @@ package ebpf
 
 import (
 	json "encoding/json"
+
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
@@ -77,6 +78,7 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogProcessAgentEbpf(out *jwriter.
 		const prefix string = ",\"connections\":"
 		if first {
 			first = false
+			_ = first
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
@@ -339,6 +341,7 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogProcessAgentEbpf1(out *jwriter
 		const prefix string = ",\"last_update_epoch\":"
 		if first {
 			first = false
+			_ = first
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)

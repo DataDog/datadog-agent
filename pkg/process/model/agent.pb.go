@@ -4887,6 +4887,7 @@ func (m *CollectorConnections) Unmarshal(data []byte) error {
 					return err
 				}
 				iNdEx = postmsgIndex
+				_ = iNdEx
 				m.ResolvedHosts[mapkey] = mapvalue
 			} else {
 				var mapvalue *Host
@@ -5008,6 +5009,7 @@ func (m *CollectorConnections) Unmarshal(data []byte) error {
 					return err
 				}
 				iNdEx = postmsgIndex
+				_ = iNdEx
 				m.ResolvedContainers[mapkey] = mapvalue
 			} else {
 				var mapvalue *ContainerMetadata
@@ -5133,6 +5135,7 @@ func (m *CollectorConnections) Unmarshal(data []byte) error {
 				}
 				mapvalue := string(data[iNdEx:postStringIndexmapvalue])
 				iNdEx = postStringIndexmapvalue
+				_ = iNdEx
 				m.ContainerForPid[mapkey] = mapvalue
 			} else {
 				var mapvalue string

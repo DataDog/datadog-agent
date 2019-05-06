@@ -271,6 +271,7 @@ func TestAgentConfigYamlAndNetworkConfig(t *testing.T) {
 		"./testdata/TestDDAgentConfigYamlAndNetworkConfig.yaml",
 		"./testdata/TestDDAgentConfigYamlAndNetworkConfig-Net.yaml",
 	)
+	assert.NoError(err)
 
 	assert.Equal("apikey_20", ep.APIKey)
 	assert.Equal("my-process-app.datadoghq.com", ep.Endpoint.Hostname())
@@ -295,6 +296,7 @@ func TestAgentConfigYamlAndNetworkConfig(t *testing.T) {
 		"./testdata/TestDDAgentConfigYamlAndNetworkConfig.yaml",
 		"./testdata/TestDDAgentConfigYamlAndNetworkConfig-Net-2.yaml",
 	)
+	assert.NoError(err)
 
 	assert.Equal("apikey_20", ep.APIKey)
 	assert.Equal("my-process-app.datadoghq.com", ep.Endpoint.Hostname())
@@ -391,6 +393,7 @@ func TestEnvSiteConfig(t *testing.T) {
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	os.Setenv("DD_PROCESS_AGENT_URL", "https://test.com")
 	agentConfig, err = NewAgentConfig("test", "./testdata/TestEnvSiteConfig-3.yaml", "")
+	assert.NoError(err)
 	assert.Equal("test.com", agentConfig.APIEndpoints[0].Endpoint.Hostname())
 
 	os.Unsetenv("DD_PROCESS_AGENT_URL")
