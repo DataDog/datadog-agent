@@ -151,13 +151,12 @@ run_tests_deb-x64:
   image: datadog/datadog-agent-runner-circle:six
   tags: [ "runner:main", "size:2xlarge" ]
   before_script:
-    - cd $SRC_PATH/six
-    - cmake . -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH=$SRC_PATH/dev
-    - make
-    - make install
-    - cd $SRC_PATH
     - pip install wheel
     - pip install -r requirements.txt
+    - inv -e six.build --install-prefix=$SRC_PATH/dev
+    - inv -e six.install
+    - inv -e six.format
+    - inv -e six.test
     - inv deps
   script:
     - inv -e test --race --profile --cpus 4

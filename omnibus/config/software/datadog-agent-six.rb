@@ -18,9 +18,8 @@ if ohai["platform"] != "windows"
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
     }
 
-    command "cmake -DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DBUILD_DEMO:BOOL=OFF -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DCMAKE_INSTALL_PREFIX:PATH=#{install_dir}/embedded .", :env => env
-    command "make -j #{workers}"
-    command "make install"
+    command "inv -e six.build --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
+    command "inv -e six.install"
   end
 else
   build do
@@ -30,8 +29,7 @@ else
         "CMAKE_INSTALL_PREFIX" => "#{windows_safe_path(python_2_embedded)}"
     }
 
-    command "cmake -G \"Unix Makefiles\" -DCMAKE_INSTALL_PREFIX:PATH=#{windows_safe_path(python_2_embedded)} .", :env => env
-    command "make -j #{workers}"
+    command "inv -e six.build --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options '-G \"Unix Makefiles\"", :env => env
     command "mv bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
 
   end

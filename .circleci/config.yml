@@ -60,24 +60,20 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: build six
-          working_directory: /go/src/github.com/DataDog/datadog-agent/six
           command: |
-            cmake . -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH=/go/src/github.com/DataDog/datadog-agent/dev
-            make
-            make install
+            inv six.build --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
+            inv six.install
       - run:
           name: lint six
-          working_directory: /go/src/github.com/DataDog/datadog-agent/six
           command: |
-            make clang-format
+            inv six.format
             [[ $(git ls-files -m | wc -l) -eq 0 ]]
       - run:
           name: test six
-          working_directory: /go/src/github.com/DataDog/datadog-agent/six
           command: |
             # remove base check before running tests, go on if pip fails
             pip uninstall datadog-checks-base -y || :
-            make -C test run
+            inv six.test
       - run:
           name: setup python deps
           command: |
