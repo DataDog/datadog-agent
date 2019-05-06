@@ -6,6 +6,7 @@ import datetime
 import os
 import shutil
 import sys
+import glob
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -38,6 +39,9 @@ MISSPELL_IGNORED_TARGETS = [
     os.path.join("cmd", "agent", "gui", "views", "private"),
     os.path.join("pkg", "collector", "corechecks", "system", "testfiles"),
 ]
+
+# List of files to ignore in ineffassign
+INEFFASSIGN_IGNORED_TARGETS = []
 
 @task
 def fmt(ctx, targets, fail_on_fmt=False):
@@ -159,7 +163,14 @@ def ineffassign(ctx, targets):
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    ctx.run("ineffassign " + " ".join(targets))
+    files = []
+    for target in targets:
+        for d in os.walk(target):
+            for file in glob.glob(os.path.join(os.path.abspath(d[0]), '*.go')):
+                if file not in INEFFASSIGN_IGNORED_TARGETS:
+                    files.append(file)
+
+    ctx.run("ineffassign " + " ".join(files))
     # ineffassign exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("ineffassign found no issues")
