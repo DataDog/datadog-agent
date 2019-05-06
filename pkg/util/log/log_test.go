@@ -4,7 +4,7 @@
 // Copyright 2016-2019 Datadog, Inc.
 
 // Go vet raise an error when test the "Warn" method: call has possible formatting directive %s
-// +build !novet
+// +build !dovet
 
 package log
 
