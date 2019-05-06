@@ -7,12 +7,17 @@ Release Notes
 6.11.1
 ======
 
+**Important**: ``6.11.1`` is not marked as latest for Windows: we are
+investigating some cases where ``6.11.0`` and ``6.11.1`` are not installing correctly
+on Windows.
+Downloading ``datadog-agent-6-latest.amd64.msi`` will give you version ``6.10.1``.
+
 .. _Release Notes_6.11.1_Prelude:
 
 Prelude
 -------
 
-Release on: 2019-04-30
+Release on: 2019-05-06
 
 - Please refer to the `6.11.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6110>`_ for the list of changes on the Core Checks.
 - Please refer to the `6.11.1 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.11.1>`_ for the list of changes on the Process Agent.
@@ -39,10 +44,6 @@ Bug Fixes
 
 6.11.0
 ======
-
-**Important**: ``6.11.0`` is not marked as latest for Windows: we are
-investigating some cases where ``6.11.0`` is not installing correctly on Windows.
-Downloading ``datadog-agent-6-latest.amd64.msi`` will give you version ``6.10.1``.
 
 .. _Release Notes_6.11.0_Prelude:
 
