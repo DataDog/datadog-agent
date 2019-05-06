@@ -29,10 +29,10 @@ build do
 
   # we assume the go deps are already installed before running omnibus
   if windows?
-    command "inv -e agent.build --six-root=#{Omnibus::Config.source_dir()}/datadog-agent-six --rebuild --use-embedded-libs --no-development --embedded-path=#{install_dir}/embedded", env: env
-    command "inv -e systray.build --rebuild --use-embedded-libs --no-development", env: env
+    command "inv -e agent.build --six-root=#{Omnibus::Config.source_dir()}/datadog-agent-six --rebuild --no-development --embedded-path=#{install_dir}/embedded", env: env
+    command "inv -e systray.build --rebuild --no-development", env: env
   else
-    command "inv -e agent.build --rebuild --use-embedded-libs --no-development --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded", env: env
+    command "inv -e agent.build --rebuild --no-development --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded", env: env
   end
 
   if osx?

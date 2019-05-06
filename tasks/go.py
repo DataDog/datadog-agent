@@ -10,7 +10,7 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
-from .utils import pkg_config_path, get_build_flags
+from .utils import get_build_flags
 from .bootstrap import get_deps, process_deps
 
 #We use `basestring` in the code for compat with python2 unicode strings.
@@ -101,7 +101,7 @@ def lint(ctx, targets):
 
 
 @task
-def vet(ctx, targets, use_embedded_libs=False, six_root=None):
+def vet(ctx, targets, six_root=None):
     """
     Run go vet on targets.
 
@@ -118,7 +118,7 @@ def vet(ctx, targets, use_embedded_libs=False, six_root=None):
     build_tags = get_default_build_tags()
     build_tags.append("dovet")
 
-    _, _, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs, six_root=six_root)
+    _, _, env = get_build_flags(ctx, six_root=six_root)
 
     ctx.run("go vet -tags \"{}\" ".format(" ".join(build_tags)) + " ".join(args), env=env)
     # go vet exits with status 1 when it finds an issue, if we're here

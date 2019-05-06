@@ -29,25 +29,6 @@ def bin_name(name, android=False):
     return name
 
 
-def pkg_config_path(use_embedded_libs):
-    """
-    Prepend the full path to either the `system` or `embedded` pkg-config
-    folders provided by the agent to the existing value of `PKG_CONFIG_PATH`
-    environment var.
-    """
-    retval = ""
-
-    base = os.path.join(os.path.dirname("."), "pkg-config", platform.system().lower())
-    if use_embedded_libs:
-        retval = os.path.abspath(os.path.join(base, "embedded"))
-    else:
-        retval = os.path.abspath(os.path.join(base, "system"))
-
-    # append the system wide value of PKG_CONFIG_PATH
-    retval += "{}{}".format(os.pathsep, os.environ.get("PKG_CONFIG_PATH", ""))
-
-    return retval
-
 def get_multi_python_location(embedded_path=None, six_root=None):
     if embedded_path is None:
         # fall back to local dev path
@@ -63,8 +44,8 @@ def get_multi_python_location(embedded_path=None, six_root=None):
 
     return six_lib, six_headers
 
-def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use_venv=False,
-                    embedded_path=None, six_root=None, python_home_2=None, python_home_3=None):
+def get_build_flags(ctx, static=False, prefix=None, use_venv=False, embedded_path=None,
+                    six_root=None, python_home_2=None, python_home_3=None):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
