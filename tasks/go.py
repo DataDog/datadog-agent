@@ -165,10 +165,14 @@ def ineffassign(ctx, targets):
 
     files = []
     for target in targets:
-        for d in os.walk(target):
-            for file in glob.glob(os.path.join(os.path.abspath(d[0]), '*.go')):
-                if file not in INEFFASSIGN_IGNORED_TARGETS:
-                    files.append(file)
+        if os.path.isfile(target):
+            if file not in INEFFASSIGN_IGNORED_TARGETS:
+                files.append(file)
+        else:
+            for d in os.walk(target):
+                for file in glob.glob(os.path.join(d[0], '*.go')):
+                    if file not in INEFFASSIGN_IGNORED_TARGETS:
+                        files.append(file)
 
     ctx.run("ineffassign " + " ".join(files))
     # ineffassign exits with status 1 when it finds an issue, if we're here
