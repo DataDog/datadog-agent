@@ -19,8 +19,7 @@ AGENT_TAG = "datadog/agent:master"
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-          puppy=False, use_embedded_libs=False, development=True, precompile_only=False,
-          skip_assets=False):
+          puppy=False, development=True, precompile_only=False, skip_assets=False):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
