@@ -100,7 +100,7 @@ executed on each platform.
 
 ### Platforms Tested:
 
-See [.kitchen.yml](.kitchen.yml)
+See [kitchen.yml](kitchen.yml)
 
 ### Packaging Test Suites
 
@@ -179,7 +179,7 @@ Tests are executed on Azure. Platforms are defined in `.kitchen-azure.yml`.
 ### Adding a Suite
 Suites define the commands that should be run on a platform as Chef recipes,
 and tests that verify the outcome of these commands written in RSpec. Suites
-are defined in `.kitchen.yml`.
+are defined in `kitchen.yml`.
 
 Add new cookbooks by describing them in `Berksfile`. If you want to write your
 own cookbook that is specific to this repository, place it in the
