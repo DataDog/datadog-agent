@@ -164,7 +164,7 @@ def test_created_connection_before_start(host):
 
 
 def test_host_metrics(host):
-    url = "http://localhost:7070/api/topic/sts_metrics?limit=1000"
+    url = "http://localhost:7070/api/topic/sts_metrics?limit=3000"
 
     def wait_for_metrics():
         data = host.check_output("curl \"%s\"" % url)
