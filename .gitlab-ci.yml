@@ -89,7 +89,6 @@ before_script:
 .run_when_testkitchen_triggered: &run_when_testkitchen_triggered
   only:
     - master
-    - agent-multi-python-master
     - tags
     - triggers
     - web
@@ -161,16 +160,17 @@ run_tests_deb-x64:
   script:
     - inv -e test --race --profile --cpus 4
 
-# # run tests for rpm-x64
-# run_test_rpm-x64:
-#   stage: source_test
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
-#   tags: [ "runner:main", "size:2xlarge" ]
-#   script:
-#     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
-#     # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
-#     # This is OK because the test on systemd still runs on the debian image above
-#     - inv -e test --race --profile --cpus 4 --build-exclude=systemd
+# run tests for rpm-x64
+run_test_rpm-x64:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
+  tags: [ "runner:main", "size:2xlarge" ]
+  script:
+    # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
+    # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
+    # This is OK because the test on systemd still runs on the debian image above
+    # We also exclude python since centos 6 doesn't ship python and we run 'python' tests on the debian image.
+    - inv -e test --race --profile --cpus 4 --build-exclude=systemd,python
 
 # scan the dependencies for security vulnerabilities with snyk
 run_security_scan_test:
@@ -373,8 +373,6 @@ agent_rpm-x64:
 
 # build Agent package for suse-x64
 agent_suse-x64:
-  allow_failure: true  # FIXME: allow to fail until we fix Six build on the builder image
-
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:latest
   tags: [ "runner:main", "size:2xlarge" ]
@@ -408,8 +406,6 @@ agent_suse-x64:
 
 # build Agent package for Windows
 build_windows_msi_x64:
-  allow_failure: true  # FIXME: allow to fail until we fix omnibus build on the builder image
-
   ## this is a weird workaround. Can't use the built-in CI_PROJECT_DIR because the path separators
   ## are wrong.  Record the PROJECT dir with the correct path separators to be used later
   before_script:
@@ -684,7 +680,7 @@ kitchen_windows_installer:
 # run dd-agent-testing on centos
 kitchen_centos:
   stage: testkitchen_testing
-  allow_failure: true
+  allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   <<: *run_when_testkitchen_triggered
   before_script:
@@ -729,7 +725,7 @@ kitchen_ubuntu:
 # run dd-agent-testing on suse
 kitchen_suse:
   stage: testkitchen_testing
-  allow_failure: true
+  allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   <<: *run_when_testkitchen_triggered
   before_script:
@@ -923,7 +919,6 @@ dev_branch_docker_hub:
   when: manual
   except:
     - master
-    - agent-multi-python-master
   variables:
     <<: *docker_hub_variables
   script:
