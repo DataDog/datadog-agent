@@ -6,7 +6,7 @@ RUN set -ex \
         gnupg ca-certificates \
         gcc g++ make git ssh curl pkg-config file \
         python-dev python-setuptools python-pip \
-        python3.7-dev python3-distutils \
+        python3.7-dev python3-distutils python3-pip python3-yaml \
         libssl-dev libsnmp-base libsnmp-dev libpq-dev snmp-mibs-downloader libsystemd-dev
 
 # Golang

@@ -44,13 +44,18 @@ PyObject *from_json(const char *data) {
         goto done;
     }
 
-    char module_name[] = "json";
+    // JSON return unicode strings under Python2, even if this is a better
+    // behavior it would be a breaking change compare to the previous version
+    // of the Agent not using this lib to embed Python. Yaml returns bytes
+    // under Python2 and Unicode under Python3. Since JSON is a subset of Yaml
+    // we use 'yaml' here.
+    char module_name[] = "yaml";
     json = PyImport_ImportModule(module_name);
     if (json == NULL) {
         goto done;
     }
 
-    char func_name[] = "loads";
+    char func_name[] = "safe_load";
     loads = PyObject_GetAttrString(json, func_name);
     if (loads == NULL) {
         goto done;
