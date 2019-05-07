@@ -8,7 +8,8 @@ license "Apache"
 license_file "LICENSE"
 skip_transitive_dependency_licensing true
 
-source path: '../six'
+source path: '..'
+relative_path 'src/github.com/DataDog/datadog-agent'
 
 if ohai["platform"] != "windows"
   build do
@@ -17,10 +18,10 @@ if ohai["platform"] != "windows"
         "Python3_ROOT_DIR" => "#{install_dir}/embedded",
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
     }
+    env = with_embedded_path(env)
 
-    command "cmake -DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DBUILD_DEMO:BOOL=OFF -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DCMAKE_INSTALL_PREFIX:PATH=#{install_dir}/embedded .", :env => env
-    command "make -j #{workers}"
-    command "make install"
+    command "inv -e six.build --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
+    command "inv -e six.install"
   end
 else
   build do
@@ -29,10 +30,10 @@ else
         "Python3_ROOT_DIR" => "#{windows_safe_path(python_3_embedded)}",
         "CMAKE_INSTALL_PREFIX" => "#{windows_safe_path(python_2_embedded)}"
     }
+    env = with_embedded_path(env)
 
-    command "cmake -G \"Unix Makefiles\" -DCMAKE_INSTALL_PREFIX:PATH=#{windows_safe_path(python_2_embedded)} .", :env => env
-    command "make -j #{workers}"
-    command "mv bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
+    command "inv -e six.build --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options '-G \"Unix Makefiles\"", :env => env
+    command "mv six/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
 
   end
 end
