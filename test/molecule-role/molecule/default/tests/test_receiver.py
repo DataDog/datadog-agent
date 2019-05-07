@@ -232,6 +232,12 @@ def test_host_metrics(host):
         # only linux
         assert_metric("system.fs.file_handles.max", lambda v: v > 10000.0, lambda v: v > 10000.0, None)
 
+        # Agent metrics
+        assert_metric("stackstate.agent.running", lambda v: v == 1.0, lambda v: v == 1.0, lambda v: v == 1.0)
+        assert_metric("stackstate.process.agent", lambda v: v == 1.0, lambda v: v == 1.0, lambda v: v == 1.0)
+        assert_metric("stackstate.process.processes.host_count", lambda v: v > 1.0, lambda v: v > 1.0, lambda v: v > 1.0)
+        assert_metric("stackstate.process.containers.host_count", lambda v: v == 0.0, lambda v: v == 0.0, lambda v: v == 0.0)
+
     util.wait_until(wait_for_metrics, 30, 3)
 
 
