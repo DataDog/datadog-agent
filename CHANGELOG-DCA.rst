@@ -25,7 +25,7 @@ Refer to `the official documentation <https://docs.datadoghq.com/agent/autodisco
 
 Bug Fixes
 ---------
-- Fix race condition in Cluster Agent's API handler.
+- Fix race condition: immutable MetaBundle stored in DCA cache.
 
 Bug Fixes
 ---------
