@@ -41,6 +41,7 @@ func setupSecretScript() error {
 	return os.Chown(script, os.Geteuid(), os.Getgid())
 }
 
+// TestAgentConfigYamlEnc tests the secrets feature on the file TestDDAgentConfigYamlEnc
 func TestAgentConfigYamlEnc(t *testing.T) {
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
@@ -63,6 +64,7 @@ func TestAgentConfigYamlEnc(t *testing.T) {
 	assert.Equal("secret_my_api_key", ep.APIKey)
 }
 
+// TestAgentConfigYamlEnc2 tests the secrets feature on the file TestDDAgentConfigYamlEnc2
 func TestAgentConfigYamlEnc2(t *testing.T) {
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 

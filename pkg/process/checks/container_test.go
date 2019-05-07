@@ -15,15 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 )
 
-func makeContainer(id string) *containers.Container {
-	return &containers.Container{
-		ID:     id,
-		CPU:    &metrics.CgroupTimesStat{},
-		Memory: &metrics.CgroupMemStat{},
-		IO:     &metrics.CgroupIOStat{},
-	}
-}
-
 func TestContainerChunking(t *testing.T) {
 	ctrs := []*containers.Container{
 		makeContainer("foo"),

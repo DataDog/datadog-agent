@@ -1,11 +1,14 @@
+// +build linux
+
 package ebpf
 
 import (
-	"github.com/stretchr/testify/require"
 	"net"
 	"net/url"
 	"strconv"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestReadInitialState(t *testing.T) {
