@@ -123,7 +123,7 @@ def apply_branding(ctx):
     do_sed_rename(ctx, lower_replace, "./cmd/agent/common/common_windows.go")
     do_sed_rename(ctx, 's/dd_url/sts_url/', "./cmd/agent/common/common_windows.go")
     do_sed_rename(ctx, lower_replace, "./cmd/dogstatsd/main_windows.go")
-    do_sed_rename(ctx, lower_replace, "./pkg/config/config_windows.go")
+    do_sed_rename(ctx, camel_replace, "./pkg/config/config_windows.go")
 
     # Windows MSI installation
     do_sed_rename(ctx, camel_replace, "./omnibus/resources/agent/msi/cal/CustomAction.cpp")

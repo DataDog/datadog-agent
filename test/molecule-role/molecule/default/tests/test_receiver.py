@@ -164,7 +164,7 @@ def test_created_connection_before_start(host):
 
 
 def test_host_metrics(host):
-    url = "http://localhost:7070/api/topic/sts_metrics?limit=3000"
+    url = "http://localhost:7070/api/topic/sts_metrics?limit=1000"
 
     def wait_for_metrics():
         data = host.check_output("curl \"%s\"" % url)
@@ -208,8 +208,9 @@ def test_host_metrics(host):
                 for wv in metrics[name]["agent-win"]:
                     assert win_predicate(wv)
 
-        # only linux
-        assert_metric("system.swap.total", lambda v: v == 0, lambda v: v == 0, None)
+        assert_metric("system.uptime", lambda v: v > 1.0, lambda v: v > 1.0, lambda v: v > 1.0)
+
+        assert_metric("system.swap.total", lambda v: v == 0, lambda v: v == 0, lambda v: v > 2000)
         assert_metric("system.swap.pct_free", lambda v: v == 1.0, lambda v: v == 1.0, lambda v: v == 1.0)
 
         # Memory
