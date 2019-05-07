@@ -167,7 +167,6 @@ func convertECSStats(stats ContainerStats) (metrics.CgroupTimesStat, metrics.Cgr
 // getTaskMetadataWithURL implements the logic of extracting metadata payload for the task.
 // Separated from GetTaskMetadata so the logic could be tested.
 func getTaskMetadataWithURL(url string) (TaskMetadata, error) {
-	log.Infof("Getting metadata using %s as url", url)
 	var meta TaskMetadata
 	client := http.Client{
 		Timeout: timeout,
@@ -183,18 +182,12 @@ func getTaskMetadataWithURL(url string) (TaskMetadata, error) {
 	if err != nil {
 		log.Errorf("Decoding task metadata failed - %s", err)
 	}
-	log.Infof("TaskMetadata object: %v", meta)
-	log.Infof("Got containers: %v", meta.Containers)
-	for _, c := range meta.Containers {
-		_ = parseContainerNetworkAddresses(c.Ports, c.Networks, c.DockerName)
-	}
 	return meta, err
 }
 
 // parseContainerNetworkAddresses converts ECS container ports
 // and networks into a list of NetworkAddress
 func parseContainerNetworkAddresses(ports []Port, networks []Network, container string) []containers.NetworkAddress {
-	log.Infof("Parsing network Info: ports: %v networks: %v", ports, networks)
 	addrList := []containers.NetworkAddress{}
 	if networks == nil {
 		log.Debugf("No network settings available in ECS metadata")
@@ -225,6 +218,5 @@ func parseContainerNetworkAddresses(ports []Port, networks []Network, container 
 			}
 		}
 	}
-	log.Infof("Parsed network info: %v", addrList)
 	return addrList
 }
