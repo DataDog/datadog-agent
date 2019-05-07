@@ -889,13 +889,6 @@
   revision = "bb74f1db0675b241733089d5a1faa5dd8b0ef57b"
 
 [[projects]]
-  digest = "1:a5aebbd13aa160140a1fd1286b94cd8c6ba3d1522014fd04508d7f36d5bb8d19"
-  name = "github.com/mitchellh/reflectwalk"
-  packages = ["."]
-  pruneopts = ""
-  revision = "63d60e9d0dbc60cf9164e6510889b0db6683d98c"
-
-[[projects]]
   digest = "1:0c0ff2a89c1bb0d01887e1dac043ad7efbf3ec77482ef058ac423d13497e16fd"
   name = "github.com/modern-go/concurrent"
   packages = ["."]
@@ -1091,14 +1084,6 @@
   packages = ["zk"]
   pruneopts = ""
   revision = "c4fab1ac1bec58281ad0667dc3f0907a9476ac47"
-
-[[projects]]
-  branch = "master"
-  digest = "1:9a959ce59514dea9b669f103abdea50ccc150824ed76876fc5a93a1fbf246c70"
-  name = "github.com/sbinet/go-python"
-  packages = ["."]
-  pruneopts = ""
-  revision = "f976f61134dc6f5b4920941eb1b0e7cec7e4ef4c"
 
 [[projects]]
   digest = "1:02135a4151567d48ebff6cf36f73b5d8dee566855df84ffd96111d5225848bb7"
@@ -1981,14 +1966,12 @@
     "github.com/lxn/walk",
     "github.com/lxn/win",
     "github.com/mholt/archiver",
-    "github.com/mitchellh/reflectwalk",
     "github.com/openshift/api/quota/v1",
     "github.com/patrickmn/go-cache",
     "github.com/pkg/errors",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/samuel/go-zookeeper/zk",
-    "github.com/sbinet/go-python",
     "github.com/shirou/gopsutil/cpu",
     "github.com/shirou/gopsutil/disk",
     "github.com/shirou/gopsutil/host",
