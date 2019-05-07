@@ -32,6 +32,7 @@ MODULE_WHITELIST = [
     "tailer_windows.go",
     "winsec.go",
     "allprocesses_windows.go",
+    "allprocesses_windows_test.go",
     # All
     "agent.pb.go"
 ]
