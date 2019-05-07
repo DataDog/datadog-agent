@@ -8,12 +8,13 @@
 package python
 
 import (
-	"encoding/json"
 	"fmt"
 	"runtime"
 	"strings"
 	"sync/atomic"
 	"unsafe"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 /*
@@ -144,7 +145,7 @@ func GetPythonIntegrationList() ([]string, error) {
 	payload := C.GoString(integrationsList)
 
 	ddIntegrations := []string{}
-	if err := json.Unmarshal([]byte(payload), &ddIntegrations); err != nil {
+	if err := yaml.Unmarshal([]byte(payload), &ddIntegrations); err != nil {
 		return nil, fmt.Errorf("Could not Unmarshal integration list payload: %s", err)
 	}
 

@@ -1,13 +1,13 @@
 package testutil
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"runtime"
 
 	common "github.com/DataDog/datadog-agent/six/test/common"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // #cgo CFLAGS: -I../../include
@@ -28,9 +28,9 @@ var (
 )
 
 type message struct {
-	Name string `json:"name"`
-	Body string `json:"body"`
-	Time int64  `json:"time"`
+	Name string `yaml:"name"`
+	Body string `yaml:"body"`
+	Time int64  `yaml:"time"`
 }
 
 func setUp() error {
@@ -97,7 +97,7 @@ func headers(in **C.char) {
 		"Content-Type": "application/x-www-form-urlencoded",
 		"Accept":       "text/html, */*",
 	}
-	retval, _ := json.Marshal(h)
+	retval, _ := yaml.Marshal(h)
 
 	*in = C.CString(string(retval))
 }

@@ -148,11 +148,12 @@ before_script:
 # run tests for deb-x64
 run_tests_deb-x64:
   stage: source_test
-  image: datadog/datadog-agent-runner-circle:six
+  image: datadog/datadog-agent-runner-circle:six-pip3
   tags: [ "runner:main", "size:2xlarge" ]
   before_script:
     - pip install wheel
     - pip install -r requirements.txt
+    - go get gopkg.in/yaml.v2
     - inv -e six.build --install-prefix=$SRC_PATH/dev
     - inv -e six.install
     - inv -e six.format

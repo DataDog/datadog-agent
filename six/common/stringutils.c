@@ -36,61 +36,59 @@ char *as_string(PyObject *object)
     return retval;
 }
 
-PyObject *from_json(const char *data)
-{
+PyObject *from_yaml(const char *data) {
     PyObject *retval = NULL;
-    PyObject *json = NULL;
-    PyObject *loads = NULL;
+    PyObject *yaml = NULL;
+    PyObject *safe_load = NULL;
 
     if (!data) {
         goto done;
     }
 
-    char module_name[] = "json";
-    json = PyImport_ImportModule(module_name);
-    if (json == NULL) {
+    char module_name[] = "yaml";
+    yaml = PyImport_ImportModule(module_name);
+    if (yaml == NULL) {
         goto done;
     }
 
-    char func_name[] = "loads";
-    loads = PyObject_GetAttrString(json, func_name);
-    if (loads == NULL) {
+    char func_name[] = "safe_load";
+    safe_load = PyObject_GetAttrString(yaml, func_name);
+    if (safe_load == NULL) {
         goto done;
     }
 
-    retval = PyObject_CallFunction(loads, "s", data);
+    retval = PyObject_CallFunction(safe_load, "s", data);
 
 done:
-    Py_XDECREF(json);
-    Py_XDECREF(loads);
+    Py_XDECREF(yaml);
+    Py_XDECREF(safe_load);
     return retval;
 }
 
-char *as_json(PyObject *object)
-{
+char *as_yaml(PyObject *object) {
     char *retval = NULL;
-    PyObject *json = NULL;
-    PyObject *dumps = NULL;
+    PyObject *yaml = NULL;
+    PyObject *safe_dump = NULL;
     PyObject *dumped = NULL;
 
-    char module_name[] = "json";
-    json = PyImport_ImportModule(module_name);
-    if (json == NULL) {
+    char module_name[] = "yaml";
+    yaml = PyImport_ImportModule(module_name);
+    if (yaml == NULL) {
         goto done;
     }
 
-    char func_name[] = "dumps";
-    dumps = PyObject_GetAttrString(json, func_name);
-    if (dumps == NULL) {
+    char func_name[] = "safe_dump";
+    safe_dump = PyObject_GetAttrString(yaml, func_name);
+    if (safe_dump == NULL) {
         goto done;
     }
 
-    dumped = PyObject_CallFunctionObjArgs(dumps, object, NULL);
+    dumped = PyObject_CallFunctionObjArgs(safe_dump, object, NULL);
     retval = as_string(dumped);
 
 done:
-    Py_XDECREF(json);
-    Py_XDECREF(dumps);
+    Py_XDECREF(yaml);
+    Py_XDECREF(safe_dump);
     Py_XDECREF(dumped);
     return retval;
 }
