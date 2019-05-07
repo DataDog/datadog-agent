@@ -26,7 +26,6 @@ install:
   # create 'ddagentuser' user to test the secrets feature on windows
   - ps: $Password = ConvertTo-SecureString "dummyPW_:-gch6Rejae9" -AsPlainText -Force; New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
   - set PATH=%APPVEYOR_BUILD_FOLDER%\dev\lib;%GOPATH%\bin;%Python2_ROOT_DIR%;%Python2_ROOT_DIR%\Scripts;%Python3_ROOT_DIR%;%Python3_ROOT_DIR%\Scripts;%MSYS_ROOT%\mingw64\bin;%MSYS_ROOT%\usr\bin\;%PATH%
-  - git clone --depth 1 https://github.com/datadog/integrations-core
   - "%PIP2% install codecov -r requirements.txt"
 
 cache:
@@ -44,7 +43,7 @@ test_script:
   - bash -c "make clang-format"
   - bash -c "make -C test run"
   - cd ..
-  - inv -e deps
+  - inv -e deps --no-checks
   - inv -e test --coverage --profile --fail-on-fmt
   - codecov -f profile.cov -F windows
 
