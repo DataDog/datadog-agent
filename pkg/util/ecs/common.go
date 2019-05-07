@@ -37,10 +37,6 @@ func getECSContainers() ([]Container, error) {
 		log.Errorf("unable to retrieve task metadata")
 		return nil, err
 	}
-	log.Infof("Got containers: %v", meta.Containers)
-	for _, c := range meta.Containers {
-		_ = parseContainerNetworkAddresses(c.Ports, c.Networks, c.DockerName)
-	}
 	return meta.Containers, nil
 }
 
@@ -188,6 +184,10 @@ func getTaskMetadataWithURL(url string) (TaskMetadata, error) {
 		log.Errorf("Decoding task metadata failed - %s", err)
 	}
 	log.Infof("TaskMetadata object: %v", meta)
+	log.Infof("Got containers: %v", meta.Containers)
+	for _, c := range meta.Containers {
+		_ = parseContainerNetworkAddresses(c.Ports, c.Networks, c.DockerName)
+	}
 	return meta, err
 }
 
