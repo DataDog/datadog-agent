@@ -8,7 +8,8 @@ license "Apache"
 license_file "LICENSE"
 skip_transitive_dependency_licensing true
 
-source path: '../six'
+source path: '..'
+relative_path 'src/github.com/DataDog/datadog-agent'
 
 if ohai["platform"] != "windows"
   build do
@@ -32,7 +33,7 @@ else
     env = with_embedded_path(env)
 
     command "inv -e six.build --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options '-G \"Unix Makefiles\"", :env => env
-    command "mv bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
+    command "mv six/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
 
   end
 end
