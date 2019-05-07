@@ -27,6 +27,10 @@ Bug Fixes
 ---------
 - Fix race condition: immutable MetaBundle stored in DCA cache.
 
+1.3.0-rc.2
+==========
+2019-04-30
+
 Bug Fixes
 ---------
 - Fix race condition in Cluster Agent's API handler.
