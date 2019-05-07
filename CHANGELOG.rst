@@ -23,7 +23,7 @@ Release on: 2019-05-06
 Upgrade Notes
 -------------
 
-- Change the priotization between the two logic that we have to collect logs on Kubernetes.
+- Change the prioritization between the two logic that we have to collect logs on Kubernetes.
   Now attempt first to collect logs on '/var/log/pods' and fallback to using the docker socket if the initialization failed.
 
 .. _Release Notes_6.11.1_Bug Fixes:
