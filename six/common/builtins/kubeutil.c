@@ -52,7 +52,7 @@ PyObject *get_connection_info(PyObject *self, PyObject *args)
     cb_get_connection_info(&data);
 
     // create a new ref
-    PyObject *conn_info_dict = from_json(data);
+    PyObject *conn_info_dict = from_yaml(data);
 
     // free the memory allocated by the Agent
     cgo_free(data);

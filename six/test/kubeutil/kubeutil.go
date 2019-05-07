@@ -1,7 +1,6 @@
 package testkubeutil
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -9,6 +8,7 @@ import (
 	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/six/test/common"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // #cgo CFLAGS: -I../../include
@@ -98,7 +98,7 @@ func getConnectionInfo(in **C.char) {
 		"FooKey": "FooValue",
 		"BarKey": "BarValue",
 	}
-	retval, _ := json.Marshal(h)
+	retval, _ := yaml.Marshal(h)
 
 	*in = C.CString(string(retval))
 }

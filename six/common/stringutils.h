@@ -13,8 +13,8 @@ extern "C" {
 #include <Python.h>
 
 char *as_string(PyObject *);
-PyObject *from_json(const char *);
-char *as_json(PyObject *);
+PyObject *from_yaml(const char *);
+char *as_yaml(PyObject *);
 
 #ifdef DATADOG_AGENT_THREE
 #    define PyStringFromCString(x) PyUnicode_FromString(x)

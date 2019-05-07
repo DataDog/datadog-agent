@@ -31,9 +31,9 @@ var (
 )
 
 type message struct {
-	Name string `json:"name"`
-	Body string `json:"body"`
-	Time int64  `json:"time"`
+	Name string `yaml:"name"`
+	Body string `yaml:"body"`
+	Time int64  `yaml:"time"`
 }
 
 func setUp() error {
