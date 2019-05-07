@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/six/test/common"
@@ -43,7 +44,7 @@ func setUp() error {
 	if ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(six)))
 	}
-	C.ensure_gil(six)
+
 	return nil
 }
 
@@ -51,14 +52,29 @@ func tearDown() {
 	os.Remove(tmpfile.Name())
 }
 
-func getVersion() string {
-	ret := C.GoString(C.get_py_version(six))
-	return ret
+func getPyInfo() (string, string) {
+	runtime.LockOSThread()
+	state := C.ensure_gil(six)
+
+	info := C.get_py_info(six)
+
+	C.release_gil(six, state)
+	runtime.UnlockOSThread()
+
+	return C.GoString(info.version), C.GoString(info.path)
 }
 
 func runString(code string) (string, error) {
 	tmpfile.Truncate(0)
+
+	runtime.LockOSThread()
+	state := C.ensure_gil(six)
+
 	ret := C.run_simple_string(six, C.CString(code)) == 1
+
+	C.release_gil(six, state)
+	runtime.UnlockOSThread()
+
 	if !ret {
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
@@ -75,14 +91,28 @@ func fetchError() error {
 }
 
 func getError() string {
+	runtime.LockOSThread()
+	state := C.ensure_gil(six)
+
 	// following is supposed to raise an error
 	C.get_class(six, C.CString("foo"), nil, nil)
+
+	C.release_gil(six, state)
+	runtime.UnlockOSThread()
+
 	return C.GoString(C.get_error(six))
 }
 
 func hasError() bool {
+	runtime.LockOSThread()
+	state := C.ensure_gil(six)
+
 	// following is supposed to raise an error
 	C.get_class(six, C.CString("foo"), nil, nil)
+
+	C.release_gil(six, state)
+	runtime.UnlockOSThread()
+
 	ret := C.has_error(six) == 1
 	C.clear_error(six)
 	return ret
@@ -93,6 +123,9 @@ func getFakeCheck() (string, error) {
 	var class *C.six_pyobject_t
 	var check *C.six_pyobject_t
 	var version *C.char
+
+	runtime.LockOSThread()
+	state := C.ensure_gil(six)
 
 	// class
 	ret := C.get_class(six, C.CString("fake_check"), &module, &class)
@@ -112,6 +145,9 @@ func getFakeCheck() (string, error) {
 		return "", fmt.Errorf(C.GoString(C.get_error(six)))
 	}
 
+	C.release_gil(six, state)
+	runtime.UnlockOSThread()
+
 	return C.GoString(version), fetchError()
 }
 
@@ -121,11 +157,20 @@ func runFakeCheck() (string, error) {
 	var check *C.six_pyobject_t
 	var version *C.char
 
+	runtime.LockOSThread()
+	state := C.ensure_gil(six)
+
 	C.get_class(six, C.CString("fake_check"), &module, &class)
 	C.get_attr_string(six, module, C.CString("__version__"), &version)
 	C.get_check(six, class, C.CString(""), C.CString("{\"fake_check\": \"/\"}"), C.CString("checkID"), C.CString("fake_check"), &check)
 
-	return C.GoString(C.run_check(six, check)), fetchError()
+	out, err := C.GoString(C.run_check(six, check)), fetchError()
+
+	C.release_gil(six, state)
+	runtime.UnlockOSThread()
+
+	return out, err
+
 }
 
 func runFakeGetWarnings() ([]string, error) {
@@ -133,10 +178,17 @@ func runFakeGetWarnings() ([]string, error) {
 	var class *C.six_pyobject_t
 	var check *C.six_pyobject_t
 
+	runtime.LockOSThread()
+	state := C.ensure_gil(six)
+
 	C.get_class(six, C.CString("fake_check"), &module, &class)
 	C.get_check(six, class, C.CString(""), C.CString("{\"fake_check\": \"/\"}"), C.CString("checkID"), C.CString("fake_check"), &check)
 
 	warns := C.get_checks_warnings(six, check)
+
+	C.release_gil(six, state)
+	runtime.UnlockOSThread()
+
 	if warns == nil {
 		return nil, fmt.Errorf("get_checks_warnings return NULL: %s", C.GoString(C.get_error(six)))
 	}
@@ -158,7 +210,14 @@ func runFakeGetWarnings() ([]string, error) {
 }
 
 func getIntegrationList() ([]string, error) {
+	runtime.LockOSThread()
+	state := C.ensure_gil(six)
+
 	cstr := C.GoString(C.get_integration_list(six))
+
+	C.release_gil(six, state)
+	runtime.UnlockOSThread()
+
 	var out []string
 	err := json.Unmarshal([]byte(cstr), &out)
 	fmt.Println(cstr)
@@ -171,5 +230,11 @@ func getIntegrationList() ([]string, error) {
 }
 
 func setModuleAttrString(module string, attr string, value string) {
+	runtime.LockOSThread()
+	state := C.ensure_gil(six)
+
 	C.set_module_attr_string(six, C.CString(module), C.CString(attr), C.CString(value))
+
+	C.release_gil(six, state)
+	runtime.UnlockOSThread()
 }

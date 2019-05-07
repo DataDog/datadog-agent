@@ -33,15 +33,32 @@ type parser struct {
 	logParser.Parser
 }
 
-// Parse extracts the date and the status from the raw docker message
-// see https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
+// Parse calls parse to extract the message body, status, timestamp
+// can put them in the Message
 func (p *parser) Parse(msg []byte) (*message.Message, error) {
+	body, status, timestamp, err := parse(msg)
+	parsedMsg := message.NewMessage(body, nil, status)
+	parsedMsg.Timestamp = timestamp
+	return parsedMsg, err
+}
+
+// Unwrap removes the message header of docker logs
+// return log body and the timestamp
+func (p *parser) Unwrap(line []byte) ([]byte, string, error) {
+	body, _, timestamp, err := parse(line)
+	return body, timestamp, err
+}
+
+// parse extracts the date and the status from the raw docker message
+// it returns 1. raw message 2. severity 3. timestamp, 4 error
+// see https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
+func parse(msg []byte) ([]byte, string, string, error) {
 
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
 	if len(msg) < dockerHeaderLength {
-		return message.NewMessage(msg, nil, message.StatusInfo), errors.New("can't parse docker message: expected a 8 bytes header")
+		return msg, message.StatusInfo, "", errors.New("can't parse docker message: expected a 8 bytes header")
 	}
 
 	// Read the first byte to get the status
@@ -70,18 +87,10 @@ func (p *parser) Parse(msg []byte) (*message.Message, error) {
 	idx := bytes.Index(msg, []byte{' '})
 	if idx == -1 || isEmptyMessage(msg[idx+1:]) {
 		// Nothing after the timestamp: empty message
-		return &message.Message{}, nil
+		return nil, "", "", nil
 	}
 
-	parsedMsg := message.NewMessage(msg[idx+1:], nil, status)
-	parsedMsg.Timestamp = string(msg[:idx])
-	return parsedMsg, nil
-}
-
-// Unwrap removes the message header of docker logs
-func (p *parser) Unwrap(line []byte) ([]byte, error) {
-	headerLen := getDockerMetadataLength(line)
-	return line[headerLen:], nil
+	return msg[idx+1:], status, string(msg[:idx]), nil
 }
 
 // getDockerSeverity returns the status of the message based on the value of the

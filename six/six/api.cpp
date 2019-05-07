@@ -50,7 +50,7 @@ create_t *loadAndCreate(const char *dll, const char *python_home)
         // printing to stderr might reset the error, get it now
         int err = GetLastError();
         std::cerr << "Unable to open library " << dll << ", error code: " << err << std::endl;
-        return 0;
+        return NULL;
     }
 
     // dlsym class factory
@@ -59,7 +59,7 @@ create_t *loadAndCreate(const char *dll, const char *python_home)
         // printing to stderr might reset the error, get it now
         int err = GetLastError();
         std::cerr << "Unable to open factory GPA: " << err << std::endl;
-        return 0;
+        return NULL;
     }
     return create;
 }
@@ -67,7 +67,7 @@ six_t *make2(const char *python_home)
 {
     create_t *create = loadAndCreate(DATADOG_AGENT_TWO, python_home);
     if (!create) {
-        return 0;
+        return NULL;
     }
     return AS_TYPE(six_t, create(python_home));
 }
@@ -76,7 +76,7 @@ six_t *make3(const char *python_home)
 {
     create_t *create_three = loadAndCreate(DATADOG_AGENT_THREE, python_home);
     if (!create_three) {
-        return 0;
+        return NULL;
     }
     return AS_TYPE(six_t, create_three(python_home));
 }
@@ -178,9 +178,9 @@ int is_initialized(six_t *six)
     return AS_CTYPE(Six, six)->isInitialized();
 }
 
-const char *get_py_version(const six_t *six)
+py_info_t *get_py_info(six_t *six)
 {
-    return AS_CTYPE(Six, six)->getPyVersion();
+    return AS_TYPE(Six, six)->getPyInfo();
 }
 
 int run_simple_string(const six_t *six, const char *code)

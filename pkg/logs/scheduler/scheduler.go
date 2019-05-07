@@ -59,7 +59,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				s.sources.AddSource(source)
 			}
 		case s.newService(config):
-			log.Infof("Received a new service: %v", config.Entity)
+			log.Debugf("Received a new service: %v", config.Entity)
 			service, err := s.toService(config)
 			if err != nil {
 				log.Warnf("Invalid service: %v", err)

@@ -230,7 +230,7 @@ shared_examples_for "an installed Agent" do
     end
   end
 
-  # We retrieve the value defined in .kitchen.yml because there is no simple way
+  # We retrieve the value defined in kitchen.yml because there is no simple way
   # to set env variables on the target machine or via parameters in Kitchen/Busser
   # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
   let(:skip_windows_signing_check) {

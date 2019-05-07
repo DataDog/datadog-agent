@@ -12,6 +12,7 @@ type QueuablePayloadSenderConf struct {
 	MaxQueuedBytes     int64
 	MaxQueuedPayloads  int
 	ExponentialBackoff backoff.ExponentialConfig
+	InChannelSize      int
 }
 
 // DefaultQueuablePayloadSenderConf constructs a QueuablePayloadSenderConf with default sane options.
@@ -21,5 +22,6 @@ func DefaultQueuablePayloadSenderConf() QueuablePayloadSenderConf {
 		MaxQueuedBytes:     64 * 1024 * 1024, // 64 MB
 		MaxQueuedPayloads:  -1,               // Unlimited
 		ExponentialBackoff: backoff.DefaultExponentialConfig(),
+		InChannelSize:      10,
 	}
 }

@@ -5,8 +5,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	_ "net/http/pprof"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

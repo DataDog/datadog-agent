@@ -2,14 +2,16 @@ package info
 
 // TraceWriterInfo represents statistics from the trace writer.
 type TraceWriterInfo struct {
-	Payloads       int64
-	Traces         int64
-	Events         int64
-	Spans          int64
-	Errors         int64
-	Retries        int64
-	Bytes          int64
-	SingleMaxSpans int64
+	Payloads          int64
+	Traces            int64
+	Events            int64
+	Spans             int64
+	Errors            int64
+	Retries           int64
+	Bytes             int64
+	BytesUncompressed int64
+	BytesEstimated    int64
+	SingleMaxSize     int64
 }
 
 // ServiceWriterInfo represents statistics from the service writer.

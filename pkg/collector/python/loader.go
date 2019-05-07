@@ -90,6 +90,10 @@ func getSixError() error {
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
 func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, error) {
+	if six == nil {
+		return nil, fmt.Errorf("six is not initialized")
+	}
+
 	checks := []check.Check{}
 	moduleName := config.Name
 
@@ -134,9 +138,9 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 	}
 
 	wheelVersion := "unversioned"
-	// getting the wheel version fo the check
+	// getting the wheel version for the check
 	var version *C.char
-	versionAttr := C.CString("__file__")
+	versionAttr := C.CString("__version__")
 	defer C.free(unsafe.Pointer(versionAttr))
 	if res := C.get_attr_string(six, checkModule, versionAttr, &version); res != 0 {
 		wheelVersion = C.GoString(version)

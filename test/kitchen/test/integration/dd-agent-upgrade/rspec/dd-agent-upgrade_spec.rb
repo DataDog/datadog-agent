@@ -4,7 +4,7 @@ describe 'the upgraded agent' do
   it_behaves_like 'an installed Agent'
   it_behaves_like 'a running Agent with no errors'
 
-  # We retrieve the value defined in .kitchen.yml because there is no simple way
+  # We retrieve the value defined in kitchen.yml because there is no simple way
   # to set env variables on the target machine or via parameters in Kitchen/Busser
   # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
   let(:agent_expected_version) {

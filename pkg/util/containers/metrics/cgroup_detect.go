@@ -50,7 +50,7 @@ func (c ContainerCgroup) ContainerStartTime() (int64, error) {
 func (c ContainerCgroup) cgroupFilePath(target, file string) string {
 	mount, ok := c.Mounts[target]
 	if !ok {
-		log.Errorf("Missing target %s from mounts", target)
+		log.Debugf("Missing target %s from mounts", target)
 		return ""
 	}
 	targetPath, ok := c.Paths[target]

@@ -94,7 +94,7 @@ func (t *Tailer) Stop() {
 // start from now if the container has been created before the agent started
 // start from oldest log otherwise
 func (t *Tailer) Start(since time.Time) error {
-	log.Infof("Start tailing container: %v", ShortContainerID(t.ContainerID))
+	log.Debugf("Start tailing container: %v", ShortContainerID(t.ContainerID))
 	return t.tail(since.Format(config.DateFormat))
 }
 

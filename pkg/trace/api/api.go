@@ -10,7 +10,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	"runtime"
+	"net/http/pprof"
 	"sort"
 	"strings"
 	"sync"
@@ -71,7 +71,6 @@ type HTTPReceiver struct {
 
 	maxRequestBodyLength int64
 	debug                bool
-	refuse               int64 // when set to 1 agent will refuse payloads
 
 	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
@@ -101,6 +100,13 @@ func NewHTTPReceiver(
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
 	mux.HandleFunc("/spans", r.httpHandleWithVersion(v01, r.handleTraces))
 	mux.HandleFunc("/services", r.httpHandleWithVersion(v01, r.handleServices))
 	mux.HandleFunc("/v0.1/spans", r.httpHandleWithVersion(v01, r.handleTraces))
@@ -148,7 +154,7 @@ func (r *HTTPReceiver) Listen(addr, logExtra string) error {
 		return fmt.Errorf("cannot create listener: %v", err)
 	}
 
-	log.Infof("listening for traces at http://%s%s", addr, logExtra)
+	log.Infof("Listening for traces at http://%s%s", addr, logExtra)
 
 	go func() {
 		defer watchdog.LogOnPanic()
@@ -176,6 +182,7 @@ func (r *HTTPReceiver) Stop() error {
 		return err
 	}
 	r.wg.Wait()
+	close(r.Out)
 	return nil
 }
 
@@ -218,20 +225,12 @@ func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
-	if atomic.LoadInt64(&r.refuse) == 1 {
-		// using too much memory
-		io.Copy(ioutil.Discard, req.Body)
-		w.WriteHeader(http.StatusTooManyRequests)
-		io.WriteString(w, fmt.Sprintf("request rejected; trace-agent is past memory threshold (apm_config.max_memory: %.0f bytes)", r.conf.MaxMemory))
-		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, []string{"reason:mem"}, 1)
-		return
-	}
 	if !r.PreSampler.Sample(req) {
 		// using too much CPU
 		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(http.StatusTooManyRequests)
-		io.WriteString(w, fmt.Sprintf("request rejected; trace-agent is past cpu threshold (apm_config.max_cpu_percent: %.1f)", r.conf.MaxCPU*100))
-		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, []string{"reason:cpu"}, 1)
+		io.WriteString(w, fmt.Sprintf("memory or CPU threshold exceeded; check trace-agent logs"))
+		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, nil, 1)
 		return
 	}
 
@@ -278,7 +277,7 @@ func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
 			atomic.AddInt64(&ts.TracesDropped, 1)
 			atomic.AddInt64(&ts.SpansDropped, int64(spans))
 
-			msg := fmt.Sprintf("dropping trace; reason: %s", err)
+			msg := fmt.Sprintf("Dropping trace; reason: %s", err)
 			if len(msg) > 150 && !r.debug {
 				// we're not in DEBUG log level, truncate long messages.
 				msg = msg[:150] + "... (set DEBUG log level for more info)"
@@ -297,7 +296,7 @@ func (r *HTTPReceiver) handleServices(v Version, w http.ResponseWriter, req *htt
 
 	mediaType := getMediaType(req)
 	if err := decodeReceiverPayload(req.Body, &servicesMeta, v, mediaType); err != nil {
-		log.Errorf("cannot decode %s services payload: %v", v, err)
+		log.Errorf("Cannot decode %s services payload: %v", v, err)
 		httpDecodingError(err, []string{tagServiceHandler, fmt.Sprintf("v:%s", v)}, w)
 		return
 	}
@@ -381,13 +380,26 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 		CPU: watchdog.CPU(now),
 	}
 
-	rate, err := sampler.CalcPreSampleRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.PreSampler.RealRate())
+	rateCPU, err := sampler.CalcPreSampleRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.PreSampler.RealRate())
 	if err != nil {
-		log.Warnf("problem computing pre-sample rate: %v", err)
+		log.Warnf("Problem computing cpu pre-sample rate: %v", err)
 	}
-
-	r.PreSampler.SetRate(rate)
+	rateMem, err := sampler.CalcPreSampleRate(r.conf.MaxMemory, float64(wi.Mem.Alloc), r.PreSampler.RealRate())
+	if err != nil {
+		log.Warnf("Problem computing mem pre-sample rate: %v", err)
+	}
 	r.PreSampler.SetError(err)
+	if rateCPU < 1 {
+		log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg)
+	}
+	if rateMem < 1 {
+		log.Warnf("Memory threshold exceeded (apm_config.max_memory: %.0f bytes): %d", r.conf.MaxMemory, wi.Mem.Alloc)
+	}
+	if rateCPU < rateMem {
+		r.PreSampler.SetRate(rateCPU)
+	} else {
+		r.PreSampler.SetRate(rateMem)
+	}
 
 	stats := r.PreSampler.Stats()
 
@@ -397,19 +409,6 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 	metrics.Gauge("datadog.trace_agent.heap_alloc", float64(wi.Mem.Alloc), nil, 1)
 	metrics.Gauge("datadog.trace_agent.cpu_percent", wi.CPU.UserAvg*100, nil, 1)
 	metrics.Gauge("datadog.trace_agent.presampler_rate", stats.Rate, nil, 1)
-
-	if float64(wi.Mem.Alloc) > r.conf.MaxMemory && r.conf.MaxMemory > 0 {
-		log.Warn("memory exceeds threshold (apm_config.max_memory), requests will be rate-limited")
-		if atomic.SwapInt64(&r.refuse, 1) != 0 {
-			// we're still not accepting requests, do a garbage collection;,
-			// potentially blocking the program here is the least of our problems
-			runtime.GC()
-		}
-	} else {
-		if atomic.SwapInt64(&r.refuse, 0) == 1 {
-			log.Warn("memory back below threshold (apm_config.max_memory), allowing requests")
-		}
-	}
 }
 
 // Languages returns the list of the languages used in the traces the agent receives.
@@ -450,7 +449,7 @@ func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, 
 		// in v01 we actually get spans that we have to transform in traces
 		var spans []pb.Span
 		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
-			log.Errorf("cannot decode %s traces payload: %v", v, err)
+			log.Errorf("Cannot decode %s traces payload: %v", v, err)
 			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
 			return nil, false
 		}
@@ -461,7 +460,7 @@ func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, 
 		fallthrough
 	case v04:
 		if err := decodeReceiverPayload(req.Body, &traces, v, mediaType); err != nil {
-			log.Errorf("cannot decode %s traces payload: %v", v, err)
+			log.Errorf("Cannot decode %s traces payload: %v", v, err)
 			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
 			return nil, false
 		}
@@ -506,7 +505,7 @@ func tracesFromSpans(spans []pb.Span) pb.Traces {
 func getMediaType(req *http.Request) string {
 	mt, _, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
 	if err != nil {
-		log.Debugf(`error parsing media type: %v, assuming "application/json"`, err)
+		log.Debugf(`Error parsing media type: %v, assuming "application/json"`, err)
 		return "application/json"
 	}
 	return mt

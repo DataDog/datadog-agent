@@ -66,7 +66,7 @@ func Run(ctx context.Context) {
 	if flags.CPUProfile != "" {
 		f, err := os.Create(flags.CPUProfile)
 		if err != nil {
-			log.Critical(err)
+			log.Error(err)
 		}
 		pprof.StartCPUProfile(f)
 		log.Info("CPU profiling started...")
@@ -76,11 +76,11 @@ func Run(ctx context.Context) {
 	if flags.PIDFilePath != "" {
 		err := pidfile.WritePID(flags.PIDFilePath)
 		if err != nil {
-			log.Criticalf("error writing PID file, exiting: %v", err)
+			log.Criticalf("Error writing PID file, exiting: %v", err)
 			os.Exit(1)
 		}
 
-		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), flags.PIDFilePath)
+		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), flags.PIDFilePath)
 		defer os.Remove(flags.PIDFilePath)
 	}
 
@@ -94,14 +94,14 @@ func Run(ctx context.Context) {
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	agnt := NewAgent(ctx, cfg)
-	log.Infof("trace-agent running on host %s", cfg.Hostname)
+	log.Infof("Trace agent running on host %s", cfg.Hostname)
 	agnt.Run()
 
 	// collect memory profile
 	if flags.MemProfile != "" {
 		f, err := os.Create(flags.MemProfile)
 		if err != nil {
-			log.Critical("could not create memory profile: ", err)
+			log.Error("Could not create memory profile: ", err)
 		}
 
 		// get up-to-date statistics
@@ -109,7 +109,7 @@ func Run(ctx context.Context) {
 		// Not using WriteHeapProfile but instead calling WriteTo to
 		// make sure we pass debug=1 and resolve pointers to names.
 		if err := pprof.Lookup("heap").WriteTo(f, 1); err != nil {
-			log.Critical("could not write memory profile: ", err)
+			log.Error("Could not write memory profile: ", err)
 		}
 		f.Close()
 	}

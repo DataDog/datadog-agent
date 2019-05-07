@@ -10,7 +10,6 @@ apm_config:
   max_connections: 50
   max_memory: 30000000
   trace_writer:
-    max_spans_per_payload: 11
     flush_period_seconds: 22
     update_info_period_seconds: 33
     queue:

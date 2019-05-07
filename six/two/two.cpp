@@ -7,18 +7,18 @@
 
 #include "constants.h"
 
-#include "sixstrings.h"
 #include <_util.h>
 #include <aggregator.h>
 #include <cgo_free.h>
 #include <containers.h>
 #include <datadog_agent.h>
 #include <kubeutil.h>
+#include <six_types.h>
+#include <sixstrings.h>
 #include <tagger.h>
 #include <util.h>
 
 #include <algorithm>
-#include <iostream>
 #include <sstream>
 
 extern "C" DATADOG_AGENT_SIX_API Six *create(const char *pythonHome)
@@ -98,9 +98,46 @@ bool Two::isInitialized() const
     return Py_IsInitialized();
 }
 
-const char *Two::getPyVersion() const
+py_info_t *Two::getPyInfo()
 {
-    return Py_GetVersion();
+    PyObject *sys = NULL;
+    PyObject *path = NULL;
+    PyObject *str_path = NULL;
+
+    py_info_t *info = (py_info_t *)malloc(sizeof(*info));
+    if (!info) {
+        setError("could not allocate a py_info_t struct");
+        return NULL;
+    }
+
+    info->version = Py_GetVersion();
+    info->path = NULL;
+
+    sys = PyImport_ImportModule("sys");
+    if (!sys) {
+        setError("could not import module 'sys': " + _fetchPythonError());
+        goto done;
+    }
+
+    path = PyObject_GetAttrString(sys, "path");
+    if (!path) {
+        setError("could not get 'sys.path': " + _fetchPythonError());
+        goto done;
+    }
+
+    str_path = PyObject_Repr(path);
+    if (!str_path) {
+        setError("could not compute a string representation of 'sys.path': " + _fetchPythonError());
+        goto done;
+    }
+
+    info->path = as_string(str_path);
+
+done:
+    Py_XDECREF(sys);
+    Py_XDECREF(path);
+    Py_XDECREF(str_path);
+    return info;
 }
 
 bool Two::runSimpleString(const char *code) const
@@ -452,6 +489,11 @@ char **Two::getCheckWarnings(SixPyObject *check)
 
     Py_ssize_t numWarnings = PyList_Size(warns_list);
     char **warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
+    if (!warnings) {
+        Py_XDECREF(warns_list);
+        setError("could not allocate memory to get warnings: ");
+        return NULL;
+    }
     warnings[numWarnings] = NULL;
 
     for (Py_ssize_t idx = 0; idx < numWarnings; idx++) {

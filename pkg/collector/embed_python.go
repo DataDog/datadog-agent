@@ -17,7 +17,6 @@ func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
 	if err := python.Initialize(paths...); err != nil {
 		log.Errorf("Could not initialize Python: %s", err)
 	}
-	log.Infof("Python init done: %s | %s | %s", python.PythonVersion, python.PythonHome, python.PythonPath)
 	return python.PythonVersion, python.PythonHome, python.PythonPath
 }
 

@@ -588,7 +588,7 @@ func TestReceiverPreSamplerCancel(t *testing.T) {
 					switch resp.StatusCode {
 					case http.StatusTooManyRequests:
 						atomic.AddUint64(&sampled, 1)
-						assert.Contains(string(slurp), "request rejected; trace-agent is past cpu threshold (apm_config.max_cpu_percent:")
+						assert.Contains(string(slurp), "threshold exceeded")
 					case http.StatusOK:
 						// OK
 					}
@@ -761,7 +761,6 @@ func TestWatchdog(t *testing.T) {
 
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	conf.MaxMemory = 1e6
 	conf.WatchdogInterval = time.Millisecond
 
 	outT := make(chan pb.Trace, 5)
@@ -772,9 +771,7 @@ func TestWatchdog(t *testing.T) {
 	defer r.Stop()
 	go func() {
 		for {
-			select {
-			case <-r.Out:
-			}
+			<-r.Out
 		}
 	}()
 
@@ -790,6 +787,7 @@ func TestWatchdog(t *testing.T) {
 	data := body.Bytes()
 
 	// first request is accepted
+	conf.MaxMemory = 1e10
 	resp, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
@@ -799,9 +797,16 @@ func TestWatchdog(t *testing.T) {
 	}
 	time.Sleep(conf.WatchdogInterval)
 
-	// go over board
+	// follow-up requests should trigger a reject
+	r.conf.MaxMemory = 1
 	for tries := 0; tries < 100; tries++ {
-		resp, err = http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data))
+		req, err := http.NewRequest("POST", "http://localhost:8126/v0.4/traces", bytes.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(sampler.TraceCountHeader, "3")
+		resp, err = http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -31,6 +31,7 @@ func TestContainerMetricsTagging(t *testing.T) {
 	expectedMetrics := map[string][]string{
 		"Gauge": {
 			"docker.cpu.shares",
+			"docker.kmem.usage",
 			"docker.mem.cache",
 			"docker.mem.rss",
 			"docker.mem.in_use",
@@ -53,8 +54,8 @@ func TestContainerMetricsTagging(t *testing.T) {
 		},
 	}
 	pauseTags := []string{
-		"docker_image:kubernetes/pause:latest",
-		"image_name:kubernetes/pause",
+		"docker_image:gcr.io/google_containers/pause:latest",
+		"image_name:gcr.io/google_containers/pause",
 		"image_tag:latest",
 		"short_image:pause",
 	}

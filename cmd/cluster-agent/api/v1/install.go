@@ -173,7 +173,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	nodeName := vars["nodeName"]
-	log.Infof("Fetching metadata map on all pods of the node %s", nodeName)
+	log.Debugf("Fetching metadata map on all pods of the node %s", nodeName)
 	metaList, errNodes := as.GetMetadataMapBundleOnNode(nodeName)
 	if errNodes != nil {
 		log.Errorf("Could not collect the service map for %s, err: %v", nodeName, errNodes)

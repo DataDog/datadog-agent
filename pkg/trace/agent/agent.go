@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -58,8 +59,8 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 
 	// inter-component channels
-	rawTraceChan := make(chan pb.Trace, 5000) // about 1000 traces/sec for 5 sec, TODO: move to *model.Trace
-	tracePkgChan := make(chan *writer.TracePackage)
+	rawTraceChan := make(chan pb.Trace, 5000)
+	tracePkgChan := make(chan *writer.TracePackage, 1000)
 	statsChan := make(chan []stats.Bucket)
 	serviceChan := make(chan pb.ServicesMetadata, 50)
 	filteredServiceChan := make(chan pb.ServicesMetadata, 50)
@@ -109,11 +110,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 func (a *Agent) Run() {
 	info.UpdatePreSampler(*a.Receiver.PreSampler.Stats()) // avoid exposing 0
 
-	a.start()
-	a.loop()
-}
-
-func (a *Agent) start() {
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
 		a.TraceWriter,
@@ -128,15 +124,34 @@ func (a *Agent) start() {
 	} {
 		starter.Start()
 	}
+
+	n := 1
+	if config.HasFeature("parallel_process") {
+		n = runtime.NumCPU()
+	}
+	for i := 0; i < n; i++ {
+		go a.work()
+	}
+
+	a.loop()
+}
+
+func (a *Agent) work() {
+	for {
+		select {
+		case t, ok := <-a.Receiver.Out:
+			if !ok {
+				return
+			}
+			a.Process(t)
+		}
+	}
+
 }
 
 func (a *Agent) loop() {
-	ticker := time.NewTicker(a.conf.WatchdogInterval)
-	defer ticker.Stop()
 	for {
 		select {
-		case t := <-a.Receiver.Out:
-			a.Process(t)
 		case <-a.ctx.Done():
 			log.Info("Exiting...")
 			if err := a.Receiver.Stop(); err != nil {
@@ -160,7 +175,7 @@ func (a *Agent) loop() {
 // passes it downstream.
 func (a *Agent) Process(t pb.Trace) {
 	if len(t) == 0 {
-		log.Debugf("skipping received empty trace")
+		log.Debugf("Skipping received empty trace")
 		return
 	}
 
@@ -190,7 +205,7 @@ func (a *Agent) Process(t pb.Trace) {
 	atomic.AddInt64(stat, 1)
 
 	if !a.Blacklister.Allows(root) {
-		log.Debugf("trace rejected by blacklister. root: %v", root)
+		log.Debugf("Trace rejected by blacklister. root: %v", root)
 		atomic.AddInt64(&ts.TracesFiltered, 1)
 		atomic.AddInt64(&ts.SpansFiltered, int64(len(t)))
 		return

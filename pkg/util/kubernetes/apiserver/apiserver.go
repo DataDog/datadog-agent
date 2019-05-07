@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -149,10 +148,9 @@ func (c *APIClient) connect() error {
 type metadataMapperBundle struct {
 	Services apiv1.NamespacesPodsStringsSet
 	mapOnIP  bool // temporary opt-out of the new mapping logic
-	m        sync.RWMutex
 }
 
-func newMetadataResponseBundle() *metadataMapperBundle {
+func newMetadataMapperBundle() *metadataMapperBundle {
 	return &metadataMapperBundle{
 		Services: apiv1.NewNamespacesPodsStringsSet(),
 		mapOnIP:  config.Datadog.GetBool("kubernetes_map_services_on_ip"),
@@ -365,6 +363,8 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 
 func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.MetadataResponseBundle {
 	output := apiv1.NewMetadataResponseBundle()
-	output.Services = input.Services
+	for key, val := range input.Services {
+		output.Services[key] = val
+	}
 	return output
 }

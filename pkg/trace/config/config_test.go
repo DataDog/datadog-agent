@@ -200,6 +200,7 @@ func TestFullIniConfig(t *testing.T) {
 			MaxAge:            time.Second,
 			MaxQueuedBytes:    456,
 			MaxQueuedPayloads: 4,
+			InChannelSize:     10,
 			ExponentialBackoff: backoff.ExponentialConfig{
 				MaxDuration: 4 * time.Second,
 				GrowthBase:  2,
@@ -215,6 +216,7 @@ func TestFullIniConfig(t *testing.T) {
 			MaxAge:            time.Second,
 			MaxQueuedBytes:    456,
 			MaxQueuedPayloads: 4,
+			InChannelSize:     10,
 			ExponentialBackoff: backoff.ExponentialConfig{
 				MaxDuration: 4 * time.Second,
 				GrowthBase:  2,
@@ -224,10 +226,10 @@ func TestFullIniConfig(t *testing.T) {
 	}, c.StatsWriterConfig)
 
 	assert.Equal(writerconfig.TraceWriterConfig{
-		MaxSpansPerPayload: 100,
-		FlushPeriod:        3 * time.Second,
-		UpdateInfoPeriod:   2 * time.Second,
+		FlushPeriod:      3 * time.Second,
+		UpdateInfoPeriod: 2 * time.Second,
 		SenderConfig: writerconfig.QueuablePayloadSenderConf{
+			InChannelSize:     10,
 			MaxAge:            time.Second,
 			MaxQueuedBytes:    456,
 			MaxQueuedPayloads: 4,
@@ -350,7 +352,6 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	assert.Equal(50, c.MaxConnections)
 
 	// Assert Trace Writer
-	assert.Equal(11, c.TraceWriterConfig.MaxSpansPerPayload)
 	assert.Equal(22*time.Second, c.TraceWriterConfig.FlushPeriod)
 	assert.Equal(33*time.Second, c.TraceWriterConfig.UpdateInfoPeriod)
 	assert.Equal(15*time.Second, c.TraceWriterConfig.SenderConfig.MaxAge)

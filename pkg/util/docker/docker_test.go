@@ -8,8 +8,12 @@
 package docker
 
 import (
+	"net"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/network"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -81,5 +85,90 @@ func TestResolveImageName(t *testing.T) {
 		assert.Equal(tc.expected, name, "test %s failed", i)
 		assert.Nil(err, "test %s failed", i)
 
+	}
+}
+
+func TestParseContainerNetworkAddresses(t *testing.T) {
+	ports := []types.Port{
+		{
+			IP:          "0.0.0.0",
+			PrivatePort: 80,
+			PublicPort:  8080,
+			Type:        "tcp",
+		},
+		{
+			PrivatePort: 80,
+			Type:        "tcp",
+		},
+		{
+			PrivatePort: 7000,
+			Type:        "udp",
+		},
+	}
+	netSettings := &types.SummaryNetworkSettings{
+		Networks: map[string]*network.EndpointSettings{
+			"bridge": {
+				IPAMConfig:          nil,
+				Links:               nil,
+				Aliases:             nil,
+				NetworkID:           "NetworkID",
+				EndpointID:          "EndpointID",
+				Gateway:             "172.17.0.1",
+				IPAddress:           "172.17.0.2",
+				IPPrefixLen:         16,
+				IPv6Gateway:         "",
+				GlobalIPv6Address:   "",
+				GlobalIPv6PrefixLen: 0,
+				MacAddress:          "MacAddress",
+			},
+			"network1": {
+				IPAMConfig:          nil,
+				Links:               nil,
+				Aliases:             nil,
+				NetworkID:           "NetworkID",
+				EndpointID:          "EndpointID",
+				Gateway:             "172.18.0.1",
+				IPAddress:           "172.18.0.2",
+				IPPrefixLen:         16,
+				IPv6Gateway:         "",
+				GlobalIPv6Address:   "",
+				GlobalIPv6PrefixLen: 0,
+				MacAddress:          "MacAddress",
+			},
+		},
+	}
+	expectedOutput := []containers.NetworkAddress{
+		{
+			IP:       net.ParseIP("0.0.0.0"),
+			Port:     8080,
+			Protocol: "tcp",
+		},
+		{
+			IP:       net.ParseIP("172.17.0.2"),
+			Port:     80,
+			Protocol: "tcp",
+		},
+		{
+			IP:       net.ParseIP("172.17.0.2"),
+			Port:     7000,
+			Protocol: "udp",
+		},
+		{
+			IP:       net.ParseIP("172.18.0.2"),
+			Port:     80,
+			Protocol: "tcp",
+		},
+		{
+			IP:       net.ParseIP("172.18.0.2"),
+			Port:     7000,
+			Protocol: "udp",
+		},
+	}
+	result := parseContainerNetworkAddresses(ports, netSettings, "mycontainer")
+
+	// Cannot use assert.Equal because the order of elements in result is random
+	assert.Len(t, result, len(expectedOutput))
+	for _, addr := range expectedOutput {
+		assert.Contains(t, result, addr)
 	}
 }

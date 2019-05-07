@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,10 +24,10 @@ import (
 )
 
 /*
-#include <datadog_agent_six.h>
 #cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
 
+#include <datadog_agent_six.h>
 #include <stdlib.h>
 
 // helpers
@@ -179,6 +180,10 @@ func Initialize(paths ...string) error {
 		return fmt.Errorf("unknown requested version of python: %d", pythonVersion)
 	}
 
+	if six == nil {
+		return fmt.Errorf("could not init six lib for python version %d", pythonVersion)
+	}
+
 	if runtime.GOOS == "windows" {
 		_here, _ := executable.Folder()
 		// on windows, override the hardcoded path set during compile time, but only if that path points to nowhere
@@ -192,27 +197,7 @@ func Initialize(paths ...string) error {
 		C.add_python_path(six, C.CString(p))
 	}
 
-	C.init(six)
-
-	if C.is_initialized(six) == 0 {
-		err := C.GoString(C.get_error(six))
-		return fmt.Errorf("%s", err)
-	}
-
-	// store the Python version after killing \n chars within the string
-	if res := C.get_py_version(six); res != nil {
-		PythonVersion = strings.Replace(C.GoString(res), "\n", "", -1)
-
-		// Set python version in the cache
-		key := cache.BuildAgentKey("pythonVersion")
-		cache.Cache.Set(key, PythonVersion, cache.NoExpiration)
-	}
-
-	sendTelemetry(pythonVersion)
-
-	// TODO: query PythonPath
-	// TODO: query PythonHome
-
+	// Setup custom builtin before Six initialization
 	C.initCgoFree(six)
 	C.initDatadogAgentModule(six)
 	C.initAggregatorModule(six)
@@ -221,6 +206,35 @@ func Initialize(paths ...string) error {
 	initContainerFilter() // special init for the container go code
 	C.initContainersModule(six)
 	C.initkubeutilModule(six)
+
+	// Init Six machinery
+	C.init(six)
+
+	if C.is_initialized(six) == 0 {
+		err := C.GoString(C.get_error(six))
+		return fmt.Errorf("%s", err)
+	}
+
+	// Lock the GIL
+	glock := newStickyLock()
+	pyInfo := C.get_py_info(six)
+	glock.unlock()
+
+	// store the Python version after killing \n chars within the string
+	if pyInfo != nil {
+		PythonVersion = strings.Replace(C.GoString(pyInfo.version), "\n", "", -1)
+		// Set python version in the cache
+		key := cache.BuildAgentKey("pythonVersion")
+		cache.Cache.Set(key, PythonVersion, cache.NoExpiration)
+
+		PythonPath = C.GoString(pyInfo.path)
+		C.six_free(six, unsafe.Pointer(pyInfo.path))
+		C.six_free(six, unsafe.Pointer(pyInfo))
+	} else {
+		log.Errorf("Could not query python information: %s", C.GoString(C.get_error(six)))
+	}
+
+	sendTelemetry(pythonVersion)
 
 	return nil
 }

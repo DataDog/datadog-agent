@@ -106,11 +106,11 @@ func getHostAliases() []string {
 		aliases = append(aliases, gceAlias)
 	}
 
-	cfAlias, err := cloudfoudry.GetHostAlias()
+	cfAliases, err := cloudfoundry.GetHostAliases()
 	if err != nil {
 		log.Debugf("no Cloud Foundry Host Alias: %s", err)
-	} else if cfAlias != "" {
-		aliases = append(aliases, cfAlias)
+	} else if cfAliases != nil {
+		aliases = append(aliases, cfAliases...)
 	}
 
 	k8sAlias, err := k8s.GetHostAlias()

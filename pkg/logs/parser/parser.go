@@ -15,7 +15,7 @@ var NoopParser *noopParser
 // Parser parse messages
 type Parser interface {
 	Parse([]byte) (*message.Message, error)
-	Unwrap([]byte) ([]byte, error)
+	Unwrap([]byte) ([]byte, string, error)
 }
 
 type noopParser struct {
@@ -28,6 +28,6 @@ func (p *noopParser) Parse(msg []byte) (*message.Message, error) {
 }
 
 // Unwrap does nothing for NoopParser
-func (p *noopParser) Unwrap(msg []byte) ([]byte, error) {
-	return msg, nil
+func (p *noopParser) Unwrap(msg []byte) ([]byte, string, error) {
+	return msg, "", nil
 }

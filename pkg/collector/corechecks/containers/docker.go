@@ -217,6 +217,7 @@ func (d *DockerCheck) Run() error {
 				}
 			}
 
+			sender.Gauge("docker.kmem.usage", float64(c.KernMemUsage), "", tags)
 			if c.SoftMemLimit > 0 && c.SoftMemLimit < uint64(math.Pow(2, 60)) {
 				sender.Gauge("docker.mem.soft_limit", float64(c.SoftMemLimit), "", tags)
 			}

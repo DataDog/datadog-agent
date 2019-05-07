@@ -48,13 +48,14 @@ func (p *parser) Parse(msg []byte) (*message.Message, error) {
 	return parsedMsg, nil
 }
 
-// Unwrap removes the header of the log line.
-func (p *parser) Unwrap(line []byte) ([]byte, error) {
+// Unwrap removes the header of the log line
+// and return the log and timestamp
+func (p *parser) Unwrap(line []byte) ([]byte, string, error) {
 	components, err := splitLine(line)
 	if err != nil {
-		return line, err
+		return line, "", err
 	}
-	return components[3], nil
+	return components[3], string(components[0]), nil
 }
 
 // getStatus returns the status of the message based on

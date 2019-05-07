@@ -145,6 +145,20 @@ func (c ContainerCgroup) FailedMemoryCount() (uint64, error) {
 	return v, nil
 }
 
+// KernelMemoryUsage returns the number of bytes of kernel memory used by this cgroup, if it exists.
+// If the file does not exist or there is an error, then this will default to 0
+func (c ContainerCgroup) KernelMemoryUsage() (uint64, error) {
+	v, err := c.ParseSingleStat("memory", "memory.kmem.usage_in_bytes")
+	if os.IsNotExist(err) {
+		log.Debugf("Missing cgroup file: %s",
+			c.cgroupFilePath("memory", "memory.kmem.usage_in_bytes"))
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+	return v, nil
+}
+
 // SoftMemLimit returns the soft memory limit of the cgroup, if it exists. If the file does not
 // exist or there is no limit then this will default to 0.
 func (c ContainerCgroup) SoftMemLimit() (uint64, error) {
@@ -384,8 +398,7 @@ func (c ContainerCgroup) ThreadLimit() (uint64, error) {
 	statFile := c.cgroupFilePath("pids", "pids.max")
 	lines, err := readLines(statFile)
 	if os.IsNotExist(err) {
-		log.Debugf("Missing cgroup file: %s",
-			c.cgroupFilePath("pids", "pids.max"))
+		log.Debugf("Missing cgroup file: %s", statFile)
 		return 0, nil
 	} else if err != nil {
 		return 0, err

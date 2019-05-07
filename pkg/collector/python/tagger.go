@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 /*
@@ -36,6 +37,10 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 	}
 
 	cTags := C.malloc(C.size_t(length+1) * C.size_t(unsafe.Sizeof(uintptr(0))))
+	if cTags == nil {
+		log.Errorf("could not allocate memory for tags")
+		return nil
+	}
 
 	// convert the C array to a Go Array so we can index it
 	indexTag := (*[1<<29 - 1]*C.char)(cTags)[: length+1 : length+1]

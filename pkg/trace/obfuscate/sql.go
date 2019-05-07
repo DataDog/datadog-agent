@@ -136,28 +136,26 @@ func (f *groupingFilter) Reset() {
 	f.groupMulti = 0
 }
 
-// sqlObfuscator is a Tokenizer consumer. It calls the Tokenizer Scan() function until tokens
-// are available or if a LEX_ERROR is raised. After retrieving a token, it is sent in the
-// tokenFilter chains so that the token is discarded or replaced.
-type sqlObfuscator struct {
-	tokenizer *Tokenizer
-	filters   []tokenFilter
-	lastToken int
-}
-
 // Process the given SQL or No-SQL string so that the resulting one is properly altered. This
 // function is generic and the behavior changes according to chosen tokenFilter implementations.
 // The process calls all filters inside the []tokenFilter.
-func (t *sqlObfuscator) obfuscate(in string) (string, error) {
-	var out bytes.Buffer
-	t.reset(in)
-	token, buff := t.tokenizer.Scan()
-	for ; token != EOFChar; token, buff = t.tokenizer.Scan() {
+func obfuscateSQLString(in string) (string, error) {
+	tokenizer := NewStringTokenizer(in)
+	filters := []tokenFilter{&discardFilter{}, &replaceFilter{}, &groupingFilter{}}
+	var (
+		out       bytes.Buffer
+		lastToken int
+	)
+	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
+	// retrieving a token, send it to the tokenFilter chains so that the token is discarded
+	// or replaced.
+	token, buff := tokenizer.Scan()
+	for ; token != EOFChar; token, buff = tokenizer.Scan() {
 		if token == LexError {
 			return "", errors.New("the tokenizer was unable to process the string")
 		}
-		for _, f := range t.filters {
-			if token, buff = f.Filter(token, t.lastToken, buff); token == LexError {
+		for _, f := range filters {
+			if token, buff = f.Filter(token, lastToken, buff); token == LexError {
 				return "", errors.New("the tokenizer was unable to process the string")
 			}
 		}
@@ -166,7 +164,7 @@ func (t *sqlObfuscator) obfuscate(in string) (string, error) {
 				switch token {
 				case ',':
 				case '=':
-					if t.lastToken == ':' {
+					if lastToken == ':' {
 						break
 					}
 					fallthrough
@@ -176,29 +174,9 @@ func (t *sqlObfuscator) obfuscate(in string) (string, error) {
 			}
 			out.Write(buff)
 		}
-		t.lastToken = token
+		lastToken = token
 	}
 	return out.String(), nil
-}
-
-// Reset restores the initial states for all components so that memory can be re-used
-func (t *sqlObfuscator) reset(in string) {
-	t.tokenizer.Reset(in)
-	for _, f := range t.filters {
-		f.Reset()
-	}
-}
-
-// newSQLObfuscator returns a new sqlObfuscator capable to process SQL and No-SQL strings.
-func newSQLObfuscator() *sqlObfuscator {
-	return &sqlObfuscator{
-		tokenizer: NewStringTokenizer(""),
-		filters: []tokenFilter{
-			&discardFilter{},
-			&replaceFilter{},
-			&groupingFilter{},
-		},
-	}
 }
 
 // QuantizeSQL generates resource and sql.query meta for SQL spans
@@ -206,7 +184,7 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 	if span.Resource == "" {
 		return
 	}
-	result, err := o.sql.obfuscate(span.Resource)
+	result, err := obfuscateSQLString(span.Resource)
 	if err != nil || result == "" {
 		// we have an error, discard the SQL to avoid polluting user resources.
 		log.Debugf("Error parsing SQL query: %q", span.Resource)

@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/util/input"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -54,7 +55,7 @@ var flareCmd = &cobra.Command{
 		config.SetupLogger(loggerName, "off", "", "", false, true, false)
 		if customerEmail == "" {
 			var err error
-			customerEmail, err = flare.AskForEmail()
+			customerEmail, err = input.AskForEmail()
 			if err != nil {
 				fmt.Println("Error reading email, please retry or contact support")
 				return err
@@ -106,7 +107,7 @@ func requestFlare(caseID string) error {
 
 	fmt.Fprintln(color.Output, fmt.Sprintf("%s is going to be uploaded to Datadog", color.YellowString(filePath)))
 	if !autoconfirm {
-		confirmation := flare.AskForConfirmation("Are you sure you want to upload a flare? [Y/N]")
+		confirmation := input.AskForConfirmation("Are you sure you want to upload a flare? [Y/N]")
 		if !confirmation {
 			fmt.Fprintln(color.Output, fmt.Sprintf("Aborting. (You can still use %s)", color.YellowString(filePath)))
 			return nil

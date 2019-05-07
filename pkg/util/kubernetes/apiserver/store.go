@@ -55,26 +55,23 @@ func (m *metaBundleStore) get(nodeName string) (*metadataMapperBundle, bool) {
 	return metaBundle, true
 }
 
-func (m *metaBundleStore) getOrCreate(nodeName string) *metadataMapperBundle {
+func (m *metaBundleStore) getCopyOrNew(nodeName string) *metadataMapperBundle {
 	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 
-	var metaBundle *metadataMapperBundle
+	metaBundle := newMetadataMapperBundle()
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	v, ok := m.cache.Get(cacheKey)
 	if ok {
-		metaBundle, ok := v.(*metadataMapperBundle)
-		if ok {
-			return metaBundle
+		oldMetaBundle, ok := v.(*metadataMapperBundle)
+		if !ok {
+			log.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
+		} else {
+			metaBundle.DeepCopy(oldMetaBundle)
 		}
-		log.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
 	}
-
-	metaBundle = newMetadataResponseBundle()
-
-	m.cache.Set(cacheKey, metaBundle, cache.NoExpiration)
 
 	return metaBundle
 }

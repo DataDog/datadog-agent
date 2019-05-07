@@ -302,6 +302,7 @@ func initConfig(config Config) {
 	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)
 	config.BindEnvAndSetDefault("bosh_id", "")
+	config.BindEnvAndSetDefault("cf_os_hostname_aliasing", false)
 
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
@@ -388,6 +389,39 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.warmup_duration", 30)         // value in seconds
 	config.BindEnvAndSetDefault("cluster_checks.cluster_tag_name", "cluster_name")
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
+
+	// Declare other keys that don't have a default/env var.
+	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
+	config.SetKnown("metadata_providers")
+	config.SetKnown("config_providers")
+	config.SetKnown("proxy.http")
+	config.SetKnown("proxy.https")
+	config.SetKnown("proxy.no_proxy")
+	config.SetKnown("process_config.dd_agent_env")
+	config.SetKnown("process_config.enabled")
+	config.SetKnown("process_config.intervals.process_realtime")
+	config.SetKnown("process_config.queue_size")
+	config.SetKnown("process_config.max_per_message")
+	config.SetKnown("process_config.intervals.process")
+	config.SetKnown("process_config.blacklist_patterns")
+	config.SetKnown("process_config.intervals.container")
+	config.SetKnown("process_config.intervals.container_realtime")
+	config.SetKnown("process_config.dd_agent_bin")
+	config.SetKnown("apm_config.receiver_port")
+	config.SetKnown("apm_config.env")
+	config.SetKnown("apm_config.apm_non_local_traffic")
+	config.SetKnown("apm_config.extra_sample_rate")
+	config.SetKnown("apm_config.ignore_resources")
+	config.SetKnown("apm_config.max_traces_per_second")
+	config.SetKnown("clustername")
+	config.SetKnown("listeners")
+	config.SetKnown("process.strip_proc_arguments")
+	config.SetKnown("process_config.windows.args_refresh_interval")
+	config.SetKnown("process_config.windows.add_new_args")
+	config.SetKnown("process.additional_endpoints")
+	config.SetKnown("additional_endpoints")
+	config.SetKnown("process.container_source")
+	config.SetKnown("process.intervals.connections")
 
 	setAssetFs(config)
 }
@@ -488,12 +522,18 @@ func LoadWithoutSecret() error {
 }
 
 func load(config Config, origin string, loadSecret bool) error {
-	log.Infof("config.Load()")
 	if err := config.ReadInConfig(); err != nil {
-		log.Warnf("config.load() error %v", err)
+		log.Warnf("Error loading config: %v", err)
 		return err
 	}
-	log.Infof("config.load succeeded")
+
+	knownKeys := config.GetKnownKeys()
+	loadedKeys := config.AllKeys()
+	for _, key := range loadedKeys {
+		if _, found := knownKeys[key]; !found {
+			log.Warnf("Unknown key in config file: %v", key)
+		}
+	}
 
 	if loadSecret {
 		// We have to init the secrets package before we can use it to decrypt

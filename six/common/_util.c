@@ -143,7 +143,11 @@ PyObject *subprocess_output(PyObject *self, PyObject *args)
         raise = 1;
 
     PyGILState_Release(gstate);
+    PyThreadState *Tstate = PyEval_SaveThread();
+
     cb_get_subprocess_output(subprocess_args, &c_stdout, &c_stderr, &ret_code, &exception);
+
+    PyEval_RestoreThread(Tstate);
     gstate = PyGILState_Ensure();
 
     if (raise && strlen(c_stdout) == 0) {

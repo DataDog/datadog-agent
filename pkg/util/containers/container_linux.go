@@ -36,6 +36,10 @@ func (c *Container) FillCgroupLimits() error {
 	if err != nil {
 		return fmt.Errorf("mem limit: %s", err)
 	}
+	c.KernMemUsage, err = c.cgroup.KernelMemoryUsage()
+	if err != nil {
+		return fmt.Errorf("kernel mem usage: %s", err)
+	}
 	c.SoftMemLimit, err = c.cgroup.SoftMemLimit()
 	if err != nil {
 		return fmt.Errorf("soft mem limit: %s", err)

@@ -68,6 +68,7 @@ func computeClientAPIVersion(serverVersion string) (string, error) {
 func GetContainer(client *client.Client, id string) (types.Container, error) {
 	args := filters.NewArgs()
 	args.Add("id", id)
+	// TODO(achntrl): Call dockerUtil inspect instead
 	containers, err := client.ContainerList(context.Background(), types.ContainerListOptions{
 		Filters: args,
 	})
