@@ -189,7 +189,6 @@ func TestFullIniConfig(t *testing.T) {
 	assert.Equal(4, c.ReceiverTimeout)
 	assert.Equal(1234.5, c.MaxMemory)
 	assert.Equal(.85, c.MaxCPU)
-	assert.Equal(40, c.MaxConnections)
 	assert.Equal(5*time.Second, c.WatchdogInterval)
 	assert.EqualValues([]string{"/health", "/500"}, c.Ignore["resource"])
 
@@ -200,6 +199,7 @@ func TestFullIniConfig(t *testing.T) {
 			MaxAge:            time.Second,
 			MaxQueuedBytes:    456,
 			MaxQueuedPayloads: 4,
+			MaxConnections:    1,
 			InChannelSize:     10,
 			ExponentialBackoff: backoff.ExponentialConfig{
 				MaxDuration: 4 * time.Second,
@@ -216,6 +216,7 @@ func TestFullIniConfig(t *testing.T) {
 			MaxAge:            time.Second,
 			MaxQueuedBytes:    456,
 			MaxQueuedPayloads: 4,
+			MaxConnections:    1,
 			InChannelSize:     10,
 			ExponentialBackoff: backoff.ExponentialConfig{
 				MaxDuration: 4 * time.Second,
@@ -233,6 +234,7 @@ func TestFullIniConfig(t *testing.T) {
 			MaxAge:            time.Second,
 			MaxQueuedBytes:    456,
 			MaxQueuedPayloads: 4,
+			MaxConnections:    200,
 			ExponentialBackoff: backoff.ExponentialConfig{
 				MaxDuration: 4 * time.Second,
 				GrowthBase:  2,
@@ -271,7 +273,6 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal(50.0, c.MaxEPS)
 	assert.Equal(0.5, c.MaxCPU)
 	assert.EqualValues(123.4, c.MaxMemory)
-	assert.Equal(12, c.MaxConnections)
 	assert.Equal("0.0.0.0", c.ReceiverHost)
 	assert.True(c.LogThrottling)
 
@@ -349,7 +350,6 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	// watchdog
 	assert.Equal(0.07, c.MaxCPU)
 	assert.Equal(30e6, c.MaxMemory)
-	assert.Equal(50, c.MaxConnections)
 
 	// Assert Trace Writer
 	assert.Equal(22*time.Second, c.TraceWriterConfig.FlushPeriod)

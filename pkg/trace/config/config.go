@@ -87,7 +87,6 @@ type AgentConfig struct {
 	// watchdog
 	MaxMemory        float64       // MaxMemory is the threshold (bytes allocated) above which program panics and exits, to be restarted
 	MaxCPU           float64       // MaxCPU is the max UserAvg CPU the program should consume
-	MaxConnections   int           // (deprecated) MaxConnections is the threshold (opened TCP connections) above which program panics and exits, to be restarted
 	WatchdogInterval time.Duration // WatchdogInterval is the delay between 2 watchdog checks
 
 	// http/s proxying
@@ -143,7 +142,6 @@ func New() *AgentConfig {
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%
-		MaxConnections:   200, // (deprecated) - use ConnectionLimit
 		WatchdogInterval: 20 * time.Second,
 
 		Ignore:                      make(map[string][]string),
