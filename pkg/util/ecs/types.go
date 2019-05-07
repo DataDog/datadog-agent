@@ -47,7 +47,7 @@ type Network struct {
 type Port struct {
 	ContainerPort uint16 `json:"ContainerPort,omitempty"`
 	Protocol      string `json:"Protocol,omitempty"`
-	HostPort      uint16 `json:",omitempty"`
+	HostPort      uint16 `json:"HostPort,omitempty"`
 }
 
 // ContainerStats represents the stats payload for a container
