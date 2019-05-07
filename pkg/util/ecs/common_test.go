@@ -10,59 +10,18 @@ package ecs
 import (
 	"fmt"
 	"net"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// dummyECS allows tests to mock a ECS's responses
-type dummyECS struct {
-	Requests     chan *http.Request
-	TaskListJSON string
-	MetadataJSON string
-}
-
-func newDummyECS() (*dummyECS, error) {
-	return &dummyECS{Requests: make(chan *http.Request, 3)}, nil
-}
-
-func (d *dummyECS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("dummyECS received %s on %s", r.Method, r.URL.Path)
-	d.Requests <- r
-	switch r.URL.Path {
-	case "/":
-		w.Write([]byte(`{"AvailableCommands":["/v2/metadata","/v1/tasks","/license"]}`))
-	case "/v1/tasks":
-		w.Write([]byte(d.TaskListJSON))
-	case "/v2/metadata":
-		w.Write([]byte(d.MetadataJSON))
-	default:
-		w.WriteHeader(http.StatusNotFound)
-	}
-}
-
-func (d *dummyECS) Start() (*httptest.Server, int, error) {
-	ts := httptest.NewServer(d)
-	ecsAgentURL, err := url.Parse(ts.URL)
-	if err != nil {
-		return nil, 0, err
-	}
-	ecsAgentPort, err := strconv.Atoi(ecsAgentURL.Port())
-	if err != nil {
-		return nil, 0, err
-	}
-	return ts, ecsAgentPort, nil
-}
 func TestGetTaskMetadata(t *testing.T) {
 	assert := assert.New(t)
-	ecsinterface, err := newDummyECS()
+	ecsinterface, err := testutil.NewDummyECS()
 	require.Nil(t, err)
 	ts, _, err := ecsinterface.Start()
 	defer ts.Close()

@@ -22,11 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/testutil"
 )
 
 func TestLocateECSHTTP(t *testing.T) {
 	assert := assert.New(t)
-	ecsinterface, err := newDummyECS()
+	ecsinterface, err := testutil.NewDummyECS()
 	require.Nil(t, err)
 	ts, ecs_agent_port, err := ecsinterface.Start()
 	defer ts.Close()
