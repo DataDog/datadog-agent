@@ -8,7 +8,8 @@ require 'pathname'
 
 name 'datadog-agent'
 
-dependency 'datadog-agent-six'
+dependency "python2"
+dependency "python3"
 
 license "Apache-2.0"
 license_file "../LICENSE"
@@ -20,18 +21,36 @@ build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
-  env = {
-    'GOPATH' => gopath.to_path,
-    'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
-  }
+  if windows?
+    env = {
+        'GOPATH' => gopath.to_path,
+        'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+        "Python2_ROOT_DIR" => "#{windows_safe_path(python_2_embedded)}",
+        "Python3_ROOT_DIR" => "#{windows_safe_path(python_3_embedded)}",
+        "CMAKE_INSTALL_PREFIX" => "#{windows_safe_path(python_2_embedded)}",
+    }
+  else
+    env = {
+        'GOPATH' => gopath.to_path,
+        'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+        "Python2_ROOT_DIR" => "#{install_dir}/embedded",
+        "Python3_ROOT_DIR" => "#{install_dir}/embedded",
+        "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
+    }
+  end
+  
   # include embedded path (mostly for `pkg-config` binary)
   env = with_embedded_path(env)
 
   # we assume the go deps are already installed before running omnibus
   if windows?
-    command "inv -e agent.build --six-root=#{Omnibus::Config.source_dir()}/datadog-agent-six --rebuild --no-development --embedded-path=#{install_dir}/embedded", env: env
+    command "inv -e six.build --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\"", :env => env
+    command "mv six/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
+    command "inv -e agent.build --six-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/six --rebuild --no-development --embedded-path=#{install_dir}/embedded", env: env
     command "inv -e systray.build --rebuild --no-development", env: env
   else
+    command "inv -e six.build --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
+    command "inv -e six.install"
     command "inv -e agent.build --rebuild --no-development --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded", env: env
   end
 
