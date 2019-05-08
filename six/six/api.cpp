@@ -10,6 +10,7 @@
 #endif
 
 #include <iostream>
+#include <sstream>
 
 #include <datadog_agent_six.h>
 #include <six.h>
@@ -39,7 +40,7 @@ static void *six_backend = NULL;
 
 #ifdef _WIN32
 
-create_t *loadAndCreate(const char *dll, const char *python_home)
+create_t *loadAndCreate(const char *dll, const char *python_home, char **error)
 {
     // first, add python home to the directory search path for loading DLLs
     SetDllDirectoryA(python_home);
@@ -49,7 +50,9 @@ create_t *loadAndCreate(const char *dll, const char *python_home)
     if (!six_backend) {
         // printing to stderr might reset the error, get it now
         int err = GetLastError();
-        std::cerr << "Unable to open library " << dll << ", error code: " << err << std::endl;
+        std::ostringstream err_msg;
+        err_msg << "Unable to open library " << dll << ", error code: " << err;
+        *error = strdup(err_msg.str().c_str());
         return NULL;
     }
 
@@ -58,23 +61,25 @@ create_t *loadAndCreate(const char *dll, const char *python_home)
     if (!create) {
         // printing to stderr might reset the error, get it now
         int err = GetLastError();
-        std::cerr << "Unable to open factory GPA: " << err << std::endl;
+        std::ostringstream err_msg;
+        err_msg << "Unable to open factory GPA: " << err;
+        *error = strdup(err_msg.str().c_str());
         return NULL;
     }
     return create;
 }
-six_t *make2(const char *python_home)
+six_t *make2(const char *python_home, char **error)
 {
-    create_t *create = loadAndCreate(DATADOG_AGENT_TWO, python_home);
+    create_t *create = loadAndCreate(DATADOG_AGENT_TWO, python_home, error);
     if (!create) {
         return NULL;
     }
     return AS_TYPE(six_t, create(python_home));
 }
 
-six_t *make3(const char *python_home)
+six_t *make3(const char *python_home, char **error)
 {
-    create_t *create_three = loadAndCreate(DATADOG_AGENT_THREE, python_home);
+    create_t *create_three = loadAndCreate(DATADOG_AGENT_THREE, python_home, error);
     if (!create_three) {
         return NULL;
     }
@@ -97,16 +102,19 @@ void destroy(six_t *six)
 }
 
 #else
-six_t *make2(const char *python_home)
+six_t *make2(const char *python_home, char **error)
 {
     if (six_backend != NULL) {
-        std::cerr << "Six already initialized!" << std::endl;
+        std::string err_msg = "Six already initialized!";
+        *error = strdup(err_msg.c_str());
         return NULL;
     }
     // load library
     six_backend = dlopen(DATADOG_AGENT_TWO, RTLD_LAZY | RTLD_GLOBAL);
     if (!six_backend) {
-        std::cerr << " 'two' library: " << dlerror() << std::endl;
+        std::ostringstream err_msg;
+        err_msg << "Unable to open two library: " << dlerror();
+        *error = strdup(err_msg.str().c_str());
         return NULL;
     }
 
@@ -117,24 +125,29 @@ six_t *make2(const char *python_home)
     create_t *create = (create_t *)dlsym(six_backend, "create");
     const char *dlsym_error = dlerror();
     if (dlsym_error) {
-        std::cerr << "Unable to open 'two' factory: " << dlsym_error << std::endl;
+        std::ostringstream err_msg;
+        err_msg << "Unable to open two factory: " << dlsym_error;
+        *error = strdup(err_msg.str().c_str());
         return NULL;
     }
 
     return AS_TYPE(six_t, create(python_home));
 }
 
-six_t *make3(const char *python_home)
+six_t *make3(const char *python_home, char **error)
 {
     if (six_backend != NULL) {
-        std::cerr << "Six already initialized!" << std::endl;
+        std::string err_msg = "Six already initialized!";
+        *error = strdup(err_msg.c_str());
         return NULL;
     }
 
     // load the library
     six_backend = dlopen(DATADOG_AGENT_THREE, RTLD_LAZY | RTLD_GLOBAL);
     if (!six_backend) {
-        std::cerr << "Unable to open 'three' library: " << dlerror() << std::endl;
+        std::ostringstream err_msg;
+        err_msg << "Unable to open three library: " << dlerror();
+        *error = strdup(err_msg.str().c_str());
         return NULL;
     }
 
@@ -145,7 +158,9 @@ six_t *make3(const char *python_home)
     create_t *create_three = (create_t *)dlsym(six_backend, "create");
     const char *dlsym_error = dlerror();
     if (dlsym_error) {
-        std::cerr << "Unable to open 'three' factory: " << dlsym_error << std::endl;
+        std::ostringstream err_msg;
+        err_msg << "Unable to open three factory: " << dlsym_error;
+        *error = strdup(err_msg.str().c_str());
         return NULL;
     }
 
@@ -159,7 +174,7 @@ void destroy(six_t *six)
         destroy_t *destroy = (destroy_t *)dlsym(six_backend, "destroy");
         const char *dlsym_error = dlerror();
         if (dlsym_error) {
-            std::cerr << "Unable to dlopen backend destructor: " << dlsym_error << std::endl;
+            std::cerr << "Unable to dlopen backend destructor: " << dlsym_error;
             return;
         }
         destroy(AS_TYPE(Six, six));

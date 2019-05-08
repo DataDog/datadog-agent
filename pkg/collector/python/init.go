@@ -222,20 +222,25 @@ func Initialize(paths ...string) error {
 		}
 	}
 
+	var pyErr *C.char = nil
 	if pythonVersion == "2" {
-		six = C.make2(C.CString(pythonHome2))
+		six = C.make2(C.CString(pythonHome2), &pyErr)
 		log.Infof("Initializing six with python2 %s", pythonHome2)
 		PythonHome = pythonHome2
 	} else if pythonVersion == "3" {
-		six = C.make3(C.CString(pythonHome3))
+		six = C.make3(C.CString(pythonHome3), &pyErr)
 		log.Infof("Initializing six with python3 %s", pythonHome3)
 		PythonHome = pythonHome3
 	} else {
-		return fmt.Errorf("unknown requested version of python: %d", pythonVersion)
+		return addExpvarPythonInitErrors(fmt.Sprintf("unsuported version of python: %s", pythonVersion))
 	}
 
 	if six == nil {
-		return fmt.Errorf("could not init six lib for python version %d", pythonVersion)
+		err := addExpvarPythonInitErrors(fmt.Sprintf("could not load runtime python for version %s: %s", pythonVersion, C.GoString(pyErr)))
+		if pyErr != nil {
+			C.free(unsafe.Pointer(pyErr))
+		}
+		return err
 	}
 
 	// Set the PYTHONPATH if needed.

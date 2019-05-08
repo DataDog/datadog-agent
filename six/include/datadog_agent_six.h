@@ -18,8 +18,8 @@ struct six_pyobject_s;
 typedef struct six_pyobject_s six_pyobject_t;
 
 // FACTORIES
-DATADOG_AGENT_SIX_API six_t *make2(const char *pythonhome);
-DATADOG_AGENT_SIX_API six_t *make3(const char *pythonhome);
+DATADOG_AGENT_SIX_API six_t *make2(const char *pythonhome, char **error);
+DATADOG_AGENT_SIX_API six_t *make3(const char *pythonhome, char **error);
 
 // API
 DATADOG_AGENT_SIX_API void destroy(six_t *);
