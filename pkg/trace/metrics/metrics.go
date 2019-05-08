@@ -16,6 +16,7 @@ type StatsClient interface {
 	Count(name string, value int64, tags []string, rate float64) error
 	Histogram(name string, value float64, tags []string, rate float64) error
 	Timing(name string, value time.Duration, tags []string, rate float64) error
+	Flush() error
 }
 
 // Client is a global Statsd client. When a client is configured via Configure,
@@ -52,6 +53,13 @@ func Timing(name string, value time.Duration, tags []string, rate float64) error
 		return nil // no-op
 	}
 	return Client.Timing(name, value, tags, rate)
+}
+
+func Flush() error {
+	if Client == nil {
+		return nil // no-op
+	}
+	return Client.Flush()
 }
 
 // Configure creates a statsd client for the given agent's configuration, using the specified global tags.
