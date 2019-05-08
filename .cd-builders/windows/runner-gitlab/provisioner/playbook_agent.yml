@@ -52,6 +52,11 @@
        --shell {{ gitlab_shell }} `
        --tag-list {{ gitlab_tags|join(', ') }} `
        --env "GIT_SSL_NO_VERIFY=true"
+    register: registration_result
+    when:  gitlab_runner_registration_token is defined
+
+  - name:  Output registration result
+    debug: var="registration_result"
     when:  gitlab_runner_registration_token is defined
 
 #      {{ "--env \"%s\"" | format(gitlab_environment) }}

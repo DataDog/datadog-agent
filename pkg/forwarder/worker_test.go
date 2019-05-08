@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package forwarder
 
@@ -30,8 +30,9 @@ func TestNewNoSSLWorker(t *testing.T) {
 	lowPrio := make(chan Transaction)
 	requeue := make(chan Transaction)
 
-	config.Datadog.Set("skip_ssl_validation", true)
-	defer config.Datadog.Set("skip_ssl_validation", false)
+	mockConfig := config.Mock()
+	mockConfig.Set("skip_ssl_validation", true)
+	defer mockConfig.Set("skip_ssl_validation", false)
 
 	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
 	assert.True(t, w.Client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)

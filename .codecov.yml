@@ -1,0 +1,15 @@
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+  branches: null
+
+
+coverage:
+  range: 20..100
+  round: down
+  precision: 2
+
+  status:
+    patch:
+      default:
+        target: '30'

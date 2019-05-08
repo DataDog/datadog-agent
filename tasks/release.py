@@ -7,6 +7,7 @@ import sys
 from datetime import date
 
 from invoke import task, Failure
+from invoke.exceptions import UnexpectedExit
 
 
 @task
@@ -20,8 +21,6 @@ def add_prelude(ctx, version):
     Release on: {1}
 
     - Please refer to the `{0} tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-{2}>`_ for the list of changes on the Core Checks.
-
-    - Please refer to the `{0} tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/{0}>`_ for the list of changes on the Trace Agent.
 
     - Please refer to the `{0} tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/{0}>`_ for the list of changes on the Process Agent.\n""".format(version, date.today(), version.replace('.', '')))
 
@@ -40,7 +39,7 @@ def update_changelog(ctx, new_version):
         print("Error: invalid version: {}".format(new_version_int))
         raise Exit(1)
 
-    # let's avoid loosing uncommitted change with 'git reset --hard'
+    # let's avoid losing uncommitted change with 'git reset --hard'
     try:
         ctx.run("git diff --exit-code HEAD", hide="both")
     except Failure as e:
@@ -59,8 +58,12 @@ def update_changelog(ctx, new_version):
 
     # removing releasenotes from bugfix on the old minor.
     previous_minor = "%s.%s" % (new_version_int[0], new_version_int[1] - 1)
-    ctx.run("git rm `git log {}.0...remotes/origin/{}.x --name-only \
-            | grep releasenotes/notes/`".format(previous_minor, previous_minor))
+    try:
+        log_result = ctx.run("git log {}.0...remotes/origin/{}.x --name-only | \
+                grep releasenotes/notes/".format(previous_minor, previous_minor))
+        ctx.run("git rm --ignore-unmatch {}".format(log_result.stdin))
+    except UnexpectedExit:
+        pass  # non-zero exit code means no matches - nothing to do
 
     # generate the new changelog
     ctx.run("reno report \

@@ -1,4 +1,4 @@
-FROM golang:1.10.3
+FROM golang:1.11.5
 
 RUN sed -i 's/^#\s*\(deb.*universe\)$/\1/g' /etc/apt/sources.list \
     && sed -i 's/^#\s*\(deb.*multiverse\)$/\1/g' /etc/apt/sources.list \
@@ -94,6 +94,9 @@ RUN apt-get install -y apt-utils libtool && apt-get install -y --only-upgrade li
 
 # For some tests
 RUN apt-get install sudo
+
+RUN pip install awscli boto3 sa-rpm-s3
+RUN apt-get install -y libkrb5-dev unixodbc-dev rpm python-deltarpm createrepo yum-utils bison
 
 
 

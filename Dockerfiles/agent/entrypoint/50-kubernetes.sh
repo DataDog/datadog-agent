@@ -5,10 +5,15 @@ if [[ -z "${KUBERNETES}" ]]; then
 fi
 
 # Set a default config for Kubernetes if found
-# Don't override /etc/stackstate-agent/stackstate.yaml if it exists
+# Don't override /etc/datadog-agent/datadog.yaml if it exists
 if [[ ! -e /etc/stackstate-agent/stackstate.yaml ]]; then
-    ln -s  /etc/stackstate-agent/stackstate-kubernetes.yaml \
+    if [[ -e /var/run/docker.sock ]]; then
+        ln -s /etc/stackstate-agent/stackstate-k8s-docker.yaml \
            /etc/stackstate-agent/stackstate.yaml
+    else
+        ln -s /etc/stackstate-agent/stackstate-kubernetes.yaml \
+           /etc/stackstate-agent/stackstate.yaml
+    fi
 fi
 
 # Enable kubernetes integrations (don't fail if integration absent)

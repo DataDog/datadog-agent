@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package serializer
 
@@ -87,7 +87,10 @@ func TestAgentPayloadVersion(t *testing.T) {
 var (
 	jsonPayloads     = forwarder.Payloads{}
 	protobufPayloads = forwarder.Payloads{}
-	jsonString       = []byte("TO JSON")
+	jsonHeader       = []byte("{")
+	jsonFooter       = []byte("}")
+	jsonItem         = []byte("TO JSON")
+	jsonString       = []byte("{TO JSON}")
 	protobufString   = []byte("TO PROTOBUF")
 )
 
@@ -103,6 +106,11 @@ func (p *testPayload) Marshal() ([]byte, error)     { return protobufString, nil
 func (p *testPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return []marshaler.Marshaler{}, nil
 }
+func (p *testPayload) JSONHeader() []byte             { return jsonHeader }
+func (p *testPayload) Len() int                       { return 1 }
+func (p *testPayload) JSONItem(i int) ([]byte, error) { return jsonItem, nil }
+func (p *testPayload) DescribeItem(i int) string      { return "description" }
+func (p *testPayload) JSONFooter() []byte             { return jsonFooter }
 
 type testErrorPayload struct{}
 
@@ -111,6 +119,11 @@ func (p *testErrorPayload) Marshal() ([]byte, error)     { return nil, fmt.Error
 func (p *testErrorPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return []marshaler.Marshaler{}, fmt.Errorf("some error")
 }
+func (p *testErrorPayload) JSONHeader() []byte             { return jsonHeader }
+func (p *testErrorPayload) Len() int                       { return 1 }
+func (p *testErrorPayload) JSONItem(i int) ([]byte, error) { return jsonItem, fmt.Errorf("some error") }
+func (p *testErrorPayload) DescribeItem(i int) string      { return "description" }
+func (p *testErrorPayload) JSONFooter() []byte             { return jsonFooter }
 
 func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 	payloads := forwarder.Payloads{}
@@ -142,10 +155,12 @@ func TestSendV1Events(t *testing.T) {
 }
 
 func TestSendEvents(t *testing.T) {
+	mockConfig := config.Mock()
+
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitEvents", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	config.Datadog.Set("use_v2_api.events", true)
-	defer config.Datadog.Set("use_v2_api.events", nil)
+	mockConfig.Set("use_v2_api.events", true)
+	defer mockConfig.Set("use_v2_api.events", nil)
 
 	s := NewSerializer(f)
 
@@ -176,10 +191,12 @@ func TestSendV1ServiceChecks(t *testing.T) {
 }
 
 func TestSendServiceChecks(t *testing.T) {
+	mockConfig := config.Mock()
+
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitServiceChecks", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	config.Datadog.Set("use_v2_api.service_checks", true)
-	defer config.Datadog.Set("use_v2_api.service_checks", nil)
+	mockConfig.Set("use_v2_api.service_checks", true)
+	defer mockConfig.Set("use_v2_api.service_checks", nil)
 
 	s := NewSerializer(f)
 
@@ -196,6 +213,8 @@ func TestSendServiceChecks(t *testing.T) {
 func TestSendV1Series(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1Series", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
+	config.Datadog.Set("enable_stream_payload_serialization", false)
+	defer config.Datadog.Set("enable_stream_payload_serialization", nil)
 
 	s := NewSerializer(f)
 
@@ -210,10 +229,12 @@ func TestSendV1Series(t *testing.T) {
 }
 
 func TestSendSeries(t *testing.T) {
+	mockConfig := config.Mock()
+
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitSeries", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	config.Datadog.Set("use_v2_api.series", true)
-	defer config.Datadog.Set("use_v2_api.series", nil)
+	mockConfig.Set("use_v2_api.series", true)
+	defer mockConfig.Set("use_v2_api.series", nil)
 
 	s := NewSerializer(f)
 
@@ -289,19 +310,21 @@ func TestSendJSONToV1Intake(t *testing.T) {
 }
 
 func TestSendWithDisabledKind(t *testing.T) {
-	config.Datadog.Set("enable_payloads.events", false)
-	config.Datadog.Set("enable_payloads.series", false)
-	config.Datadog.Set("enable_payloads.service_checks", false)
-	config.Datadog.Set("enable_payloads.sketches", false)
-	config.Datadog.Set("enable_payloads.json_to_v1_intake", false)
+	mockConfig := config.Mock()
+
+	mockConfig.Set("enable_payloads.events", false)
+	mockConfig.Set("enable_payloads.series", false)
+	mockConfig.Set("enable_payloads.service_checks", false)
+	mockConfig.Set("enable_payloads.sketches", false)
+	mockConfig.Set("enable_payloads.json_to_v1_intake", false)
 
 	//restore default values
 	defer func() {
-		config.Datadog.Set("enable_payloads.events", true)
-		config.Datadog.Set("enable_payloads.series", true)
-		config.Datadog.Set("enable_payloads.service_checks", true)
-		config.Datadog.Set("enable_payloads.sketches", true)
-		config.Datadog.Set("enable_payloads.json_to_v1_intake", true)
+		mockConfig.Set("enable_payloads.events", true)
+		mockConfig.Set("enable_payloads.series", true)
+		mockConfig.Set("enable_payloads.service_checks", true)
+		mockConfig.Set("enable_payloads.sketches", true)
+		mockConfig.Set("enable_payloads.json_to_v1_intake", true)
 	}()
 
 	f := &forwarder.MockedForwarder{}

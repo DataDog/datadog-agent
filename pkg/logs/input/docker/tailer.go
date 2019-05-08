@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -13,9 +13,11 @@ import (
 	"io"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/tagger"
+	"github.com/StackVista/stackstate-agent/pkg/tagger/collectors"
 	dockerutil "github.com/StackVista/stackstate-agent/pkg/util/docker"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
@@ -28,6 +30,7 @@ import (
 )
 
 const defaultSleepDuration = 1 * time.Second
+const readTimeout = 30 * time.Second
 const tagsUpdatePeriod = 10 * time.Second
 
 // Tailer tails logs coming from stdout and stderr of a docker container
@@ -37,7 +40,7 @@ type Tailer struct {
 	ContainerID   string
 	outputChan    chan *message.Message
 	decoder       *decoder.Decoder
-	reader        io.ReadCloser
+	reader        *safeReader
 	cli           *client.Client
 	source        *config.LogSource
 	containerTags []string
@@ -47,6 +50,9 @@ type Tailer struct {
 	stop               chan struct{}
 	done               chan struct{}
 	erroredContainerID chan string
+	cancelFunc         context.CancelFunc
+	lastSince          string
+	mutex              sync.Mutex
 }
 
 // NewTailer returns a new Tailer
@@ -61,6 +67,7 @@ func NewTailer(cli *client.Client, containerID string, source *config.LogSource,
 		stop:               make(chan struct{}, 1),
 		done:               make(chan struct{}, 1),
 		erroredContainerID: erroredContainerID,
+		reader:             newSafeReader(),
 	}
 }
 
@@ -74,7 +81,10 @@ func (t *Tailer) Identifier() string {
 func (t *Tailer) Stop() {
 	log.Infof("Stop tailing container: %v", ShortContainerID(t.ContainerID))
 	t.stop <- struct{}{}
+
 	t.reader.Close()
+	// no-op if already closed because of a timeout
+	t.cancelFunc()
 	t.source.RemoveInput(t.ContainerID)
 	// wait for the decoder to be flushed
 	<-t.done
@@ -89,23 +99,48 @@ func (t *Tailer) Start(since time.Time) error {
 	return t.tail(since.Format(config.DateFormat))
 }
 
+func (t *Tailer) getLastSince() string {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	since, err := time.Parse(config.DateFormat, t.lastSince)
+	if err != nil {
+		since = time.Now().UTC()
+	} else {
+		// To avoid sending the last recorded log we add a nanosecond
+		// to the offset
+		since = since.Add(time.Nanosecond)
+	}
+	return since.Format(config.DateFormat)
+}
+
+func (t *Tailer) setLastSince(since string) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	t.lastSince = since
+}
+
 // setupReader sets up the reader that reads the container's logs
 // with the proper configuration
-func (t *Tailer) setupReader(since string) (io.ReadCloser, error) {
+func (t *Tailer) setupReader() error {
 	options := types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true,
 		Timestamps: true,
 		Details:    false,
-		Since:      since,
+		Since:      t.getLastSince(),
 	}
-	return t.cli.ContainerLogs(context.Background(), t.ContainerID, options)
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	reader, err := t.cli.ContainerLogs(ctx, t.ContainerID, options)
+	t.reader.setUnsafeReader(reader)
+	t.cancelFunc = cancelFunc
+	return err
 }
 
 // tail sets up and starts the tailer
 func (t *Tailer) tail(since string) error {
-	reader, err := t.setupReader(since)
+	t.setLastSince(since)
+	err := t.setupReader()
 	if err != nil {
 		// could not start the tailer
 		t.source.Status.Error(err)
@@ -113,8 +148,6 @@ func (t *Tailer) tail(since string) error {
 	}
 	t.source.Status.Success()
 	t.source.AddInput(t.ContainerID)
-
-	t.reader = reader
 
 	go t.keepDockerTagsUpdated()
 	go t.forwardMessages()
@@ -135,9 +168,18 @@ func (t *Tailer) readForever() {
 			return
 		default:
 			inBuf := make([]byte, 4096)
-			n, err := t.reader.Read(inBuf)
+			n, err := t.read(inBuf, readTimeout)
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
+				case isContextCanceled(err):
+					log.Debugf("Restarting reader for container %v after a read timeout", ShortContainerID(t.ContainerID))
+					err := t.setupReader()
+					if err != nil {
+						log.Warnf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.ContainerID), err)
+						t.erroredContainerID <- t.ContainerID
+						return
+					}
+					continue
 				case isClosedConnError(err):
 					// This error is raised when the agent is stopping
 					return
@@ -162,6 +204,28 @@ func (t *Tailer) readForever() {
 	}
 }
 
+// read implement a timeout on t.reader.Read() because it can be blocking (it's a
+// wrapper over an HTTP call). If read timeouts, the tailer will be restarted.
+func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
+	var n int
+	var err error
+	doneReading := make(chan struct{})
+	go func() {
+		n, err = t.reader.Read(buffer)
+		close(doneReading)
+	}()
+
+	select {
+	case <-doneReading:
+	case <-time.After(timeout):
+		// Cancel the docker socket reader context
+		t.cancelFunc()
+		<-doneReading
+	}
+
+	return n, err
+}
+
 // forwardMessages forwards decoded messages to the next pipeline,
 // adding a bit of meta information
 // Note: For docker container logs, we ask for the timestamp
@@ -178,6 +242,7 @@ func (t *Tailer) forwardMessages() {
 		if len(output.Content) > 0 {
 			origin := message.NewOrigin(t.source)
 			origin.Offset = output.Timestamp
+			t.setLastSince(output.Timestamp)
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.containerTags)
 			output.Origin = origin
@@ -198,7 +263,7 @@ func (t *Tailer) keepDockerTagsUpdated() {
 }
 
 func (t *Tailer) checkForNewDockerTags() {
-	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(t.ContainerID), true)
+	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(t.ContainerID), collectors.HighCardinality)
 	if err != nil {
 		log.Warn(err)
 	} else {
@@ -217,4 +282,9 @@ func (t *Tailer) wait() {
 // for more details, see: https://golang.org/src/internal/poll/fd.go#L18.
 func isClosedConnError(err error) bool {
 	return strings.Contains(err.Error(), "use of closed network connection")
+}
+
+// isContextCanceled returns true if the error is related to a canceled context,
+func isContextCanceled(err error) bool {
+	return err == context.Canceled
 }

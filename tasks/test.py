@@ -14,10 +14,11 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .utils import get_build_flags, get_version, pkg_config_path
-from .go import fmt, lint, vet, misspell, ineffassign
+from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses
 from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
+from .trace_agent import integration_tests as trace_integration_tests
 from .cluster_agent import integration_tests as dca_integration_tests
 
 PROFILE_COV = "profile.cov"
@@ -29,6 +30,7 @@ DEFAULT_TOOL_TARGETS = [
 
 DEFAULT_TEST_TARGETS = [
     "./pkg",
+    "./cmd",
 ]
 
 
@@ -278,6 +280,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     agent_integration_tests(ctx, install_deps, race, remote_docker)
     dsd_integration_tests(ctx, install_deps, race, remote_docker)
     dca_integration_tests(ctx, install_deps, race, remote_docker)
+    trace_integration_tests(ctx, install_deps, race, remote_docker)
 
 
 @task

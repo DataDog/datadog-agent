@@ -270,7 +270,6 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Get wheels
 	pyIntegrations, err := getPythonChecks()
 	if err != nil {
 		log.Errorf("Unable to compile list of installed integrations: %v", err)
@@ -278,6 +277,7 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get python wheels
 	integrations = append(integrations, pyIntegrations...)
 
 	// Get go-checks
@@ -285,7 +285,9 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 	integrations = append(integrations, goIntegrations...)
 
 	// Get jmx-checks
-	integrations = append(integrations, check.JMXChecks...)
+	for integration := range check.JMXChecks {
+		integrations = append(integrations, integration)
+	}
 
 	if len(integrations) == 0 {
 		w.Write([]byte("No check (.py) files found."))
@@ -297,29 +299,51 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(res))
 }
 
+// collects the configs in the specified path
+func getConfigsInPath(path string) ([]string, error) {
+	filenames := []string{}
+
+	files, e := readConfDir(path)
+	if e != nil {
+		return []string{}, nil
+	}
+
+	// If a default config is found but a non-default version exists, ignore default
+	sort.Strings(files)
+	lookup := make(map[string]bool)
+	for _, file := range files {
+		checkName := file[:strings.Index(file, ".")]
+		fileName := filepath.Base(file)
+
+		// metrics yaml does not contain the actual check config - skip
+		match, _ := filepath.Match(fileName, "metrics.yaml")
+		if checkName != "metrics" && match {
+			continue
+		}
+
+		if ext := filepath.Ext(fileName); ext == ".default" {
+			if _, exists := lookup[checkName]; exists {
+				continue
+			}
+		}
+
+		filenames = append(filenames, file)
+		lookup[checkName] = true
+	}
+	return filenames, nil
+}
+
 // Sends a list containing the names of all the config files
 func listConfigs(w http.ResponseWriter, r *http.Request) {
 	filenames := []string{}
 	for _, path := range configPaths {
-		files, e := readConfDir(path)
 
-		if e == nil {
-			// If a default config is found but a non-default version exists, ignore default
-			sort.Strings(files)
-			lookup := make(map[string]bool)
-			for _, file := range files {
-				checkName := file[:strings.Index(file, ".")]
-
-				if ext := filepath.Ext(file); ext == ".default" {
-					if _, exists := lookup[checkName]; exists {
-						continue
-					}
-				}
-
-				filenames = append(filenames, file)
-				lookup[checkName] = true
-			}
+		configs, e := getConfigsInPath(path)
+		if e != nil {
+			log.Errorf("Unable to list configurations from %s: %v", path, e)
+			continue
 		}
+		filenames = append(filenames, configs...)
 	}
 
 	if len(filenames) == 0 {

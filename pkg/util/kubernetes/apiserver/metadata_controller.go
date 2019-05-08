@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -44,9 +44,6 @@ type MetadataController struct {
 
 	// Endpoints that need to be added to services mapping.
 	queue workqueue.RateLimitingInterface
-
-	// used in unit tests to wait until objects are synced (tombstones will be ignored)
-	endpoints, nodes chan struct{}
 }
 
 func NewMetadataController(nodeInformer coreinformers.NodeInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
@@ -105,10 +102,6 @@ func (m *MetadataController) processNextWorkItem() bool {
 		log.Debugf("Error syncing endpoints %v: %v", key, err)
 	}
 
-	if m.endpoints != nil {
-		m.endpoints <- struct{}{}
-	}
-
 	return true
 }
 
@@ -121,10 +114,6 @@ func (m *MetadataController) addNode(obj interface{}) {
 	_ = m.store.getOrCreate(node.Name)
 
 	log.Debugf("Detected node %s", node.Name)
-
-	if m.nodes != nil {
-		m.nodes <- struct{}{}
-	}
 }
 
 func (m *MetadataController) deleteNode(obj interface{}) {
@@ -145,10 +134,6 @@ func (m *MetadataController) deleteNode(obj interface{}) {
 	m.store.delete(node.Name)
 
 	log.Debugf("Forgot node %s", node.Name)
-
-	if m.nodes != nil {
-		m.nodes <- struct{}{}
-	}
 }
 
 func (m *MetadataController) addEndpoints(obj interface{}) {

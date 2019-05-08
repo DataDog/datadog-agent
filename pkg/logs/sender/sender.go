@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package sender
 
 import (
 	"context"
 
+	"github.com/StackVista/stackstate-agent/pkg/logs/client"
 	"github.com/StackVista/stackstate-agent/pkg/logs/message"
 	"github.com/StackVista/stackstate-agent/pkg/logs/metrics"
 )
@@ -16,12 +17,12 @@ import (
 type Sender struct {
 	inputChan    chan *message.Message
 	outputChan   chan *message.Message
-	destinations *Destinations
+	destinations *client.Destinations
 	done         chan struct{}
 }
 
 // NewSender returns an new sender.
-func NewSender(inputChan, outputChan chan *message.Message, destinations *Destinations) *Sender {
+func NewSender(inputChan, outputChan chan *message.Message, destinations *client.Destinations) *Sender {
 	return &Sender{
 		inputChan:    inputChan,
 		outputChan:   outputChan,
@@ -57,7 +58,7 @@ func (s *Sender) run() {
 func (s *Sender) send(payload *message.Message) {
 	for {
 		// this call is blocking until payload is sent (or the connection destination context cancelled)
-		err := s.destinations.Main.Send(payload)
+		err := s.destinations.Main.Send(payload.Content)
 		if err != nil {
 			if err == context.Canceled {
 				metrics.DestinationErrors.Add(1)
@@ -66,7 +67,7 @@ func (s *Sender) send(payload *message.Message) {
 				break
 			}
 			switch err.(type) {
-			case *FramingError:
+			case *client.FramingError:
 				metrics.DestinationErrors.Add(1)
 				// the message can not be framed properly,
 				// drop the message
@@ -78,12 +79,9 @@ func (s *Sender) send(payload *message.Message) {
 			}
 		}
 		for _, destination := range s.destinations.Additionals {
-			// try and forget strategy for additional endpoints
-			// this call is also blocking when the connection is not established yet
-			// FIXME: run all `Send` in parallel to avoid the effect on a slow
-			// destination on the others. Potentially add a buffer for secondary
-			// destinations.
-			destination.Send(payload)
+			// send to a queue then send asynchronously for additional endpoints,
+			// it will drop messages if the queue is full
+			destination.SendAsync(payload.Content)
 		}
 
 		metrics.LogsSent.Add(1)

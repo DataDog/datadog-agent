@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package file
 
@@ -40,13 +40,14 @@ func TestContainerdParserShouldFailWithInvalidInput(t *testing.T) {
 	parser := containerdFileParser
 	// Only timestamp
 	var err error
-	msg := []byte("2018-09-20T11:54:11.753589172Z foo")
-	_, err = parser.Parse(msg)
+	log := []byte("2018-09-20T11:54:11.753589172Z foo")
+	msg, err := parser.Parse(log)
 	assert.NotNil(t, err)
+	assert.Equal(t, log, msg.Content)
 
 	// Missing timestamp but with 3 spaces, the message is valid
 	// FIXME: We might want to handle that
-	msg = []byte("stdout F foo bar")
-	_, err = parser.Parse(msg)
+	log = []byte("stdout F foo bar")
+	_, err = parser.Parse(log)
 	assert.Nil(t, err)
 }

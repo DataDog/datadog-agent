@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -303,6 +303,12 @@ func (l *DockerListener) getHostsFromPs(co types.Container) map[string]string {
 	if found {
 		ips["rancher"] = rancherIP
 	}
+
+	if len(ips) == 0 {
+		// Other edge cases require a container inspect, delay it until
+		// template resolution, when GetHosts will be called.
+		return nil
+	}
 	return ips
 }
 
@@ -404,6 +410,13 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 		ips["rancher"] = rancherIP
 	}
 
+	// Some CNI solutions (including ECS awsvpc) do not assign an IP
+	// through docker, but set a valid reachable hostname. Use it if
+	// no IP is discovered.
+	if len(ips) == 0 && cInspect.Config != nil && len(cInspect.Config.Hostname) > 0 {
+		ips["hostname"] = cInspect.Config.Hostname
+	}
+
 	s.hosts = ips
 	return ips, nil
 }
@@ -479,7 +492,7 @@ func parseDockerPort(port nat.Port) ([]ContainerPort, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *DockerService) GetTags() ([]string, error) {
-	tags, err := tagger.Tag(s.GetEntity(), tagger.IsFullCardinality())
+	tags, err := tagger.Tag(s.GetEntity(), tagger.ChecksCardinality)
 	if err != nil {
 		return []string{}, err
 	}

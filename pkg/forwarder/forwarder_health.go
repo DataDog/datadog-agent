@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package forwarder
 
@@ -114,7 +114,7 @@ func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status 
 	if len(apiKey) > 5 {
 		apiKey = apiKey[len(apiKey)-5:]
 	}
-	obfuscatedKey := fmt.Sprintf("API key ending with %s on endpoint %s", apiKey, domain)
+	obfuscatedKey := fmt.Sprintf("API key ending with %s", apiKey)
 	apiKeyStatus.Set(obfuscatedKey, status)
 }
 

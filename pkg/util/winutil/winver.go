@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build windows
 
@@ -9,13 +9,14 @@ package winutil
 
 import (
 	"fmt"
-	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var (
-	k32        = syscall.NewLazyDLL("kernel32.dll")
-	versiondll = syscall.NewLazyDLL("version.dll")
+	k32        = windows.NewLazyDLL("kernel32.dll")
+	versiondll = windows.NewLazyDLL("version.dll")
 
 	procGetModuleHandle          = k32.NewProc("GetModuleHandleW")
 	procGetModuleFileName        = k32.NewProc("GetModuleFileNameW")
@@ -46,7 +47,7 @@ func GetWindowsBuildString() (verstring string, err error) {
 }
 
 func getModuleHandle(fname string) (handle uintptr, err error) {
-	file := syscall.StringToUTF16Ptr(fname)
+	file := windows.StringToUTF16Ptr(fname)
 	handle, _, err = procGetModuleHandle.Call(uintptr(unsafe.Pointer(file)))
 	if handle == 0 {
 		return handle, err
@@ -62,11 +63,11 @@ func getModuleFileName(h uintptr) (fname string, err error) {
 	for {
 		buf := make([]uint16, size)
 		ret, _, err := procGetModuleFileName.Call(h, uintptr(unsafe.Pointer(&buf[0])), uintptr(size))
-		if ret == uintptr(size) || err == syscall.ERROR_INSUFFICIENT_BUFFER {
+		if ret == uintptr(size) || err == windows.ERROR_INSUFFICIENT_BUFFER {
 			size += sizeIncr
 			continue
 		} else if err != nil {
-			fname = syscall.UTF16ToString(buf)
+			fname = windows.UTF16ToString(buf)
 		}
 		break
 	}
@@ -75,7 +76,7 @@ func getModuleFileName(h uintptr) (fname string, err error) {
 }
 
 func getFileVersionInfo(filename string) (block []uint8, err error) {
-	fname := syscall.StringToUTF16Ptr(filename)
+	fname := windows.StringToUTF16Ptr(filename)
 	ret, _, err := procGetFileVersionInfoSizeEx.Call(uintptr(0x02),
 		uintptr(unsafe.Pointer(fname)), uintptr(0))
 	if ret == 0 {
@@ -110,7 +111,7 @@ type tagVSFIXEDFILEINFO struct {
 
 func getVersionInfo(block []uint8) (ver string, err error) {
 
-	subblock := syscall.StringToUTF16Ptr("\\")
+	subblock := windows.StringToUTF16Ptr("\\")
 	var infoptr unsafe.Pointer
 	var ulen uint32
 	ret, _, err := procVerQueryValue.Call(uintptr(unsafe.Pointer(&block[0])),

@@ -60,6 +60,17 @@ api_key:
 #
 #  will result in the raw tag being transformed into "foo:1", "foo:2", "foo:3" tags
 
+# Configure the level of granularity of tags to send for checks and dogstatsd metrics and events.
+# Choices are:
+# - low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
+# - orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
+# - high: add tags about high-cardinality objects (individual containers, user IDs in requests, ...)
+# WARNING: sending container tags for dogstatsd metrics may create more metrics
+# (one per container instead of one per host). This may impact your custom metrics billing.
+#
+# checks_tag_cardinality: orchestrator
+# dogstatsd_tag_cardinality: low
+
 # Histogram and Historate configuration
 #
 # Configure which aggregated value to compute. Possible values are: min, max,
@@ -119,6 +130,11 @@ api_key:
 # Default is '5002' on Windows and macOS ; turned off on Linux
 # GUI_port: -1
 
+# The agent can expose its health check on a dedicated http port.
+# This is useful for orchestrators that support http probes.
+# Default is 0 (disabled), set a valid port number (eg. 5555) to enable.
+# health_port: 0
+
 # The `check_runners` refers to the number of concurrent check runners available
 # for check instance execution. The scheduler will attempt to spread the
 # instances over the collection interval and will _at most_ be running the
@@ -161,6 +177,8 @@ enable_gohai: false
 # python package.
 # procfs_path: /proc
 
+# Disable Python3 validation of python checks
+# disable_py3_validation: false
 
 # BETA: Encrypted Secrets (Linux only)
 #
@@ -224,7 +242,7 @@ metadata_providers:
 # dogstatsd_origin_detection: false
 #
 # The buffer size use to receive statsd packet, in bytes
-# dogstatsd_buffer_size: 1024
+# dogstatsd_buffer_size: 8192
 #
 # Whether dogstatsd should listen to non local UDP traffic
 # dogstatsd_non_local_traffic: false
@@ -292,6 +310,36 @@ metadata_providers:
 #
 # jmx_use_cgroup_memory_limit: true
 #
+# Number of JMX restarts allowed in the restart-interval before giving up
+# jmx_max_restarts: 3
+#
+# Duration of the restart interval in seconds
+# jmx_restart_interval: 5
+#
+# JMXFetch collects multiples instances concurrently. The following options may
+# help fine-tune the level of concurrency and timeouts that come into play during the
+# collection of metrics from configured instances:
+#
+# Defines the maximum level of concurrency. Higher concurrency will increase CPU
+# utilization during metric collection. Lower concurrency will result in lower CPU
+# usage but may increase the total collection time - a value of 1 will process
+# instances serially. The total collection is allowed to take up to `jmx_collection_timeout`
+# seconds.
+# jmx_thread_pool_size: 3
+#
+# Defines the maximum waiting period in seconds before timing up on metric collection.
+# jmx_collection_timeout: 60
+#
+# Defines the maximum level of concurrency. Higher concurrency will increase CPU
+# utilization during reconnection. Lower concurrency will result in lower CPU
+# usage but may increase the total reconnection time - a value of 1 will process
+# instance reconnections serially. In total, reconnections are allowed to take up to
+# `jmx_reconnection_timeout` seconds.
+# jmx_reconnection_thread_pool_size: 3
+#
+# Determines the maximum waiting period in seconds before timing up on instance reconnection.
+# jmx_reconnection_timeout: 10
+#
 {{ end -}}
 {{- if .Autoconfig }}
 # Autoconfig
@@ -319,6 +367,12 @@ metadata_providers:
 #   - name: clusterchecks
 #      grace_time_seconds: 60
 
+{{- if .ClusterChecks }}
+## The kube_services provider watches Kubernetes services for cluster-checks
+#   - name: kube_services
+#     polling: true
+{{ end -}}
+
 #   - name: etcd
 #     polling: true
 #     template_dir: /stackstate/check_configs
@@ -344,6 +398,13 @@ metadata_providers:
 #     template_url: 127.0.0.1
 #     username:
 #     password:
+
+## You can also add additional config providers by name using their default settings,
+## and pooling enabled. This list is available as an environment variable binding.
+#
+# extra_config_providers:
+#   - clusterchecks
+
 {{ end -}}
 {{- if .Logging }}
 # Logging
@@ -411,6 +472,12 @@ metadata_providers:
 #   - name: auto
 #   - name: docker
 #
+## You can also add additional listeners by name using their default settings.
+## This list is available as an environment variable binding.
+#
+# extra_listeners:
+#   - kubelet
+#
 # Exclude containers from metrics and AD based on their name or image:
 # An excluded container will not get any individual container metric reported for it.
 # Please note that the `docker.containers.running`, `.stopped`, `.running.total` and
@@ -467,7 +534,39 @@ metadata_providers:
 # ad_config_poll_interval: 10
 #
 {{ end -}}
+{{- if .ClusterChecks }}
+# Cluster check dispatching
+#
+# The cluster-agent is able to autodiscover cluster resources and dispatch checks on
+# the node-agents (provided the clustercheck config provider is enabled on them).
+#
+# cluster_checks:
+#   Set to true to enable the dispatching logic on the leader cluster-agent.
+#   enabled: "true"
+#
+#   Node-agents that have not queried the cluster-agent for 30 seconds will be deleted,
+#   and their checks re-dispatched to other nodes. This delay is configurable here.
+#   node_expiration_timeout: 30
+#
+#   The cluster-agent needs to wait for all node-agents to report to it before
+#   dispatching configurations. This delay is configurable here.
+#   warmup_duration: 30
+#
+#   If a cluster_name value is set or autodetected, a "cluster_name" tag is added
+#   to all cluster-check configurations sent to the node-agents.
+#   You can use another tag name, or disable it by setting an empty name.
+#   cluster_tag_name: cluster_name
+#
+{{ end -}}
 {{- if .DockerTagging }}
+# Container detection
+#
+# On hosts with mixed workloads, non-containernized processes can
+# mistakenly be detected as containerized. This option can be used to
+# tune the detection logic to your system and avoid false-positives.
+#
+# container_cgroup_prefix: "/docker/"
+#
 # Docker tag extraction
 #
 # We can extract container label or environment variables
@@ -527,6 +626,23 @@ metadata_providers:
 # cri_query_timeout: 5
 #
 {{ end -}}
+{{- if .Containerd}}
+# Containerd integration
+#
+# To activate the Containerd check you'll need to indicate the path of the
+# Containerd socket you're using (and mount it in the container if needed)
+# cri_socket_path: /var/run/containerd/containerd.sock
+#
+# You can configure the timeout (in seconds) for querying the Containerd API
+# cri_query_timeout: 5
+#
+# Activating the Containerd check will also activate the CRI check, as it contains an additional subset of useful metrics.
+#
+# You can specify the namespace that Containerd is using on your system.
+# As the Containerd check only supports Kubernetes, the default value is `k8s.io`
+# https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
+# containerd_namespace: k8s.io
+{{ end -}}
 {{- if .Kubelet }}
 # Kubernetes kubelet connectivity
 #
@@ -552,6 +668,9 @@ metadata_providers:
 # register in the podlist. This option allows to wait for up to a given
 # number of seconds (in 250ms chunks) when a container does not exist in the podlist.
 # kubelet_wait_on_missing_container: 0
+#
+# Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
+# kubelet_cache_pods_duration: 5
 #
 {{ end -}}
 {{- if .KubeApiServer }}
@@ -697,6 +816,18 @@ network_tracer_config:
   initial_connections_from_proc: "true"
 {{ end -}}
 
+{{- if .NetworkTracer }}
+# Network tracer specific settings
+#
+# network_tracer_config:
+#   A boolean indicating the enabled state of the network tracer.
+#   enabled: true
+#   The full path to the location of the unix socket where network traces will be accessed
+#   nettracer_socket: /opt/datadog-agent/run/nettracer.sock
+#   The full path to the file where network-tracer logs will be written.
+#   log_file: /var/log/datadog/network-tracer.log
+{{ end -}}
+
 {{- if .TraceAgent }}
 # Trace Agent Specific Settings
 #
@@ -704,7 +835,7 @@ network_tracer_config:
 #   Whether or not the APM Agent should run
 #   enabled: true
 #   The environment tag that Traces should be tagged with
-#   Will inherit from "env" tag if none is applied here
+#   Will inherit from "env" tag if "none" is applied here
 #   env: none
 #   The port that the Receiver should listen on
 #   receiver_port: 8126

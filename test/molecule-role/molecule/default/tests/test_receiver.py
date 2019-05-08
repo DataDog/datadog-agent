@@ -208,6 +208,8 @@ def test_host_metrics(host):
                 for wv in metrics[name]["agent-win"]:
                     assert win_predicate(wv)
 
+        assert_metric("system.uptime", lambda v: v > 1.0, lambda v: v > 1.0, lambda v: v > 1.0)
+
         assert_metric("system.swap.total", lambda v: v == 0, lambda v: v == 0, lambda v: v > 2000)
         assert_metric("system.swap.pct_free", lambda v: v == 1.0, lambda v: v == 1.0, lambda v: v == 1.0)
 
@@ -229,6 +231,12 @@ def test_host_metrics(host):
         assert_metric("system.fs.file_handles.in_use", lambda v: v > 0.0, lambda v: v > 0.0, lambda v: v > 0.0)
         # only linux
         assert_metric("system.fs.file_handles.max", lambda v: v > 10000.0, lambda v: v > 10000.0, None)
+
+        # Agent metrics
+        assert_metric("stackstate.agent.running", lambda v: v == 1.0, lambda v: v == 1.0, lambda v: v == 1.0)
+        assert_metric("stackstate.process.agent", lambda v: v == 1.0, lambda v: v == 1.0, lambda v: v == 1.0)
+        assert_metric("stackstate.process.processes.host_count", lambda v: v > 1.0, lambda v: v > 1.0, lambda v: v > 1.0)
+        assert_metric("stackstate.process.containers.host_count", lambda v: v == 0.0, lambda v: v == 0.0, lambda v: v == 0.0)
 
     util.wait_until(wait_for_metrics, 30, 3)
 

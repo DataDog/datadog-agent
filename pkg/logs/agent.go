@@ -1,17 +1,19 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package logs
 
 import (
 	"time"
 
+	coreConfig "github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/status/health"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
+	"github.com/StackVista/stackstate-agent/pkg/logs/client"
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/input/container"
 	"github.com/StackVista/stackstate-agent/pkg/logs/input/file"
@@ -20,7 +22,6 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/logs/input/windowsevent"
 	"github.com/StackVista/stackstate-agent/pkg/logs/pipeline"
 	"github.com/StackVista/stackstate-agent/pkg/logs/restart"
-	"github.com/StackVista/stackstate-agent/pkg/logs/sender"
 	"github.com/StackVista/stackstate-agent/pkg/logs/service"
 )
 
@@ -33,30 +34,30 @@ import (
 // + ------------------------------------------------------ +
 type Agent struct {
 	auditor          *auditor.Auditor
-	destinationsCtx  *sender.DestinationsContext
+	destinationsCtx  *client.DestinationsContext
 	pipelineProvider pipeline.Provider
 	inputs           []restart.Restartable
 	health           *health.Handle
 }
 
 // NewAgent returns a new Agent
-func NewAgent(sources *config.LogSources, services *service.Services, endpoints *config.Endpoints) *Agent {
+func NewAgent(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *client.Endpoints) *Agent {
 	health := health.Register("logs-agent")
 
 	// setup the auditor
 	// We pass the health handle to the auditor because it's the end of the pipeline and the most
 	// critical part. Arguably it could also be plugged to the destination.
-	auditor := auditor.New(config.LogsAgent.GetString("logs_config.run_path"), health)
-	destinationsCtx := sender.NewDestinationsContext()
+	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), health)
+	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
 
 	// setup the inputs
 	inputs := []restart.Restartable{
-		file.NewScanner(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
-		container.NewLauncher(sources, services, pipelineProvider, auditor),
-		listener.NewLauncher(sources, config.LogsAgent.GetInt("logs_config.frame_size"), pipelineProvider),
+		file.NewScanner(sources, coreConfig.Datadog.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
+		container.NewLauncher(coreConfig.Datadog.GetBool("logs_config.container_collect_all"), sources, services, pipelineProvider, auditor),
+		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),
 		journald.NewLauncher(sources, pipelineProvider, auditor),
 		windowsevent.NewLauncher(sources, pipelineProvider),
 	}
@@ -104,7 +105,7 @@ func (a *Agent) Stop() {
 		stopper.Stop()
 		close(c)
 	}()
-	timeout := time.Duration(config.LogsAgent.GetInt("logs_config.stop_grace_period")) * time.Second
+	timeout := time.Duration(coreConfig.Datadog.GetInt("logs_config.stop_grace_period")) * time.Second
 	select {
 	case <-c:
 	case <-time.After(timeout):

@@ -36,9 +36,16 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool
 			// cluster
 			tags.AddLow("cluster_name", parseECSClusterName(meta.ClusterName))
 
+			// aws region from cluster arn
+			region := parseFargateRegion(meta.ClusterName)
+			if region != "" {
+				tags.AddLow("region", region)
+			}
+
 			// task
 			tags.AddLow("task_family", meta.Family)
 			tags.AddLow("task_version", meta.Version)
+			tags.AddOrchestrator("task_arn", meta.TaskARN)
 
 			// container
 			tags.AddLow("ecs_container_name", ctr.Name)
@@ -65,12 +72,13 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool
 				}
 			}
 
-			low, high := tags.Compute()
+			low, orch, high := tags.Compute()
 			info := &TagInfo{
-				Source:       ecsFargateCollectorName,
-				Entity:       docker.ContainerIDToEntityName(string(ctr.DockerID)),
-				HighCardTags: high,
-				LowCardTags:  low,
+				Source:               ecsFargateCollectorName,
+				Entity:               docker.ContainerIDToEntityName(string(ctr.DockerID)),
+				HighCardTags:         high,
+				OrchestratorCardTags: orch,
+				LowCardTags:          low,
 			}
 			output = append(output, info)
 		}
@@ -87,4 +95,22 @@ func parseECSClusterName(value string) string {
 	} else {
 		return value
 	}
+}
+
+func parseFargateRegion(arn string) string {
+	arnParts := strings.Split(arn, ":")
+	if len(arnParts) < 4 {
+		return ""
+	}
+	if arnParts[0] != "arn" || arnParts[1] != "aws" {
+		return ""
+	}
+	region := arnParts[3]
+
+	// Sanity check
+	if strings.Count(region, "-") < 2 {
+		return ""
+	}
+
+	return region
 }

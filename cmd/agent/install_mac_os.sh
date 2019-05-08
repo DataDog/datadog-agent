@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
-# Copyright 2018 Datadog, Inc.
+# Copyright 2016-2019 Datadog, Inc.
 
 # Datadog Agent install script for macOS.
 set -e
@@ -23,6 +23,10 @@ fi
 
 if [ -n "$DD_API_KEY" ]; then
     apikey=$DD_API_KEY
+fi
+
+if [ -n "$DD_SITE" ]; then
+    site=$DD_SITE
 fi
 
 if [ $dd_upgrade ]; then
@@ -72,6 +76,9 @@ function new_config() {
     i_cmd="-i ''"
     if [ $(sed --version 2>/dev/null | grep -c "GNU") -ne 0 ]; then i_cmd="-i"; fi
     $sudo_cmd sh -c "sed $i_cmd 's/api_key:.*/api_key: $apikey/' \"/opt/datadog-agent/etc/datadog.yaml\""
+    if [ $site ]; then
+        $sudo_cmd sh -c "sed $i_cmd 's/# site:.*/site: $site/' \"/opt/datadog-agent/etc/datadog.yaml\""
+    fi
     $sudo_cmd chown $real_user:admin "/opt/datadog-agent/etc/datadog.yaml"
     $sudo_cmd chmod 640 /opt/datadog-agent/etc/datadog.yaml
 }

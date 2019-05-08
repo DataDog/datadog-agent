@@ -62,6 +62,13 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     chown -R stackstate-agent:stackstate-agent ${LOG_DIR}
     chown -R stackstate-agent:stackstate-agent ${INSTALL_DIR}
 
+    # Make network tracer configs read-only
+    chmod 0440 ${CONFIG_DIR}/network-tracer.yaml.example || true
+    if [ -f "$CONFIG_DIR/network-tracer.yaml" ]; then
+      chmod 0440 ${CONFIG_DIR}/network-tracer.yaml || true
+    fi
+
+
     # Enable and restart the agent service here on Debian platforms
     # On RHEL, this is done in the posttrans script
     if [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then

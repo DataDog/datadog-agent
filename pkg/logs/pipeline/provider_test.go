@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package pipeline
 
@@ -13,7 +13,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/status/health"
 
 	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
-	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/client"
 )
 
 type ProviderTestSuite struct {
@@ -28,7 +28,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		numberOfPipelines: 3,
 		auditor:           suite.a,
 		pipelines:         []*Pipeline{},
-		endpoints:         config.NewEndpoints(config.Endpoint{}, nil),
+		endpoints:         client.NewEndpoints(client.Endpoint{}, nil),
 	}
 }
 

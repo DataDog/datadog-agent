@@ -25,10 +25,11 @@
       mem_usage_threshold: 35
   ```
 
+- Upstream upgrade to 6.10.2 _[(STAC-3220)](https://stackstate.atlassian.net/browse/STAC-3220)_
 
 ## 2.0.2 (2019-03-28)
 
 **Improvements**
 
 - Disable resource snaps collection _[(STAC-2915)](https://stackstate.atlassian.net/browse/STAC-2915)_
-- Support CentOS 6 _[(STAC-4139)](https://stackstate.atlassian.net/browse/STAC-4278)_
+- Support CentOS 6 _[(STAC-4139)](https://stackstate.atlassian.net/browse/STAC-4139)_

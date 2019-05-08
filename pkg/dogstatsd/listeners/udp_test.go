@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 // +build !windows
 
 package listeners
@@ -117,7 +117,7 @@ func TestUDPReceive(t *testing.T) {
 	require.Nil(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	packetChannel := make(chan *Packet)
+	packetChannel := make(chan Packets)
 	s, err := NewUDPListener(packetChannel, packetPoolUDP)
 	require.NotNil(t, s)
 	assert.Nil(t, err)
@@ -131,8 +131,10 @@ func TestUDPReceive(t *testing.T) {
 	conn.Write(contents)
 
 	select {
-	case packet := <-packetChannel:
+	case packets := <-packetChannel:
+		packet := packets[0]
 		assert.NotNil(t, packet)
+		assert.Equal(t, 1, len(packets))
 		assert.Equal(t, contents, packet.Contents)
 		assert.Equal(t, "", packet.Origin)
 	case <-time.After(2 * time.Second):

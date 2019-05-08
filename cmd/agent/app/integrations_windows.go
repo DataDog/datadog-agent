@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build windows
 // +build cpython
@@ -9,7 +9,6 @@
 package app
 
 import (
-	"os"
 	"path/filepath"
 )
 
@@ -18,22 +17,13 @@ const (
 )
 
 var (
-	relPyPath            = pythonBin
-	relTufConfigFilePath = filepath.Join("..", tufConfigFile)
-	tufPipCachePath      = filepath.Join("c:\\", "ProgramData", "Datadog", "repositories", "cache")
+	relPyPath              = pythonBin
+	relChecksPath          = filepath.Join("Lib", "site-packages", "datadog_checks")
+	relReqAgentReleasePath = filepath.Join("..", reqAgentReleaseFile)
+	relConstraintsPath     = filepath.Join("..", constraintsFile)
 )
 
 func authorizedUser() bool {
 	// TODO: implement something useful
 	return true
-}
-
-func getTUFPipCachePath() (string, error) {
-	if _, err := os.Stat(tufPipCachePath); err != nil {
-		if os.IsNotExist(err) {
-			return tufPipCachePath, err
-		}
-	}
-
-	return tufPipCachePath, nil
 }

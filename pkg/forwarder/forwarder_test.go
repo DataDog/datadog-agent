@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package forwarder
 
@@ -179,9 +179,10 @@ func TestForwarderEndtoEnd(t *testing.T) {
 		atomic.AddInt64(&requests, 1)
 		w.WriteHeader(http.StatusOK)
 	}))
-	ddURL := config.Datadog.Get("dd_url")
-	config.Datadog.Set("dd_url", ts.URL)
-	defer config.Datadog.Set("dd_url", ddURL)
+	mockConfig := config.Mock()
+	ddURL := mockConfig.Get("dd_url")
+	mockConfig.Set("dd_url", ts.URL)
+	defer mockConfig.Set("dd_url", ddURL)
 
 	f := NewDefaultForwarder(map[string][]string{
 		ts.URL:     {"api_key1", "api_key2"},

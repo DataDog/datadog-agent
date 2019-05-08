@@ -1,4 +1,4 @@
-image: stackstate/stackstate-agent-runner-gitlab:latest
+image: stackstate/stackstate-agent-runner-gitlab:deb_20190429
 
 stages:
 - prepare
@@ -64,8 +64,11 @@ clear_deps_win_cache:
       - venv
   when: manual
   script:
-    - "if exist %WIN_CI_PROJECT_DIR%\vendor rd /s/q %WIN_CI_PROJECT_DIR%\vendor"
-    - "if exist %WIN_CI_PROJECT_DIR%\venv rd /s/q %WIN_CI_PROJECT_DIR%\venv"
+    - "if exist %WIN_CI_PROJECT_DIR%\\vendor rd /s/q %WIN_CI_PROJECT_DIR%\\vendor"
+    - "if exist %WIN_CI_PROJECT_DIR%\\venv rd /s/q %WIN_CI_PROJECT_DIR%\\venv"
+    - "if exist C:\\opt\\stackstate-agent rd /s/q C:\\opt\\stackstate-agent"
+  tags:
+    - sts_windows
 
 deps_deb:
   stage: prepare
@@ -135,6 +138,9 @@ unit_tests:
     # We run inv deps again because /go/bin is not cached and we need binaries like golint, misspell
     - inv deps
     - inv -e agent.build --race --precompile-only
+    #TODO: check why formatting rules differ from previous step
+    - gofmt -l -w -s ./pkg ./cmd
+
     - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubeapiserver,kubelet
 
 integration_tests:
@@ -216,6 +222,7 @@ build_deb:
     # We put the deb build on sts-aws because it runs long and we do want to have it run fast.
     # It also cuts into our pipeline quotum
     - sts-aws
+    #- slavko_shell
   cache:
     key: "build-deb-$CI_COMMIT_REF_SLUG"
     paths:
@@ -256,7 +263,7 @@ build_deb:
 
 build_rpm:
   stage: build_and_test
-  image: stackstate/stackstate-agent-runner-gitlab:centos6
+  image: stackstate/stackstate-agent-runner-gitlab:centos6_20190429
   dependencies:
     - deps_rpm
   tags:
@@ -310,6 +317,11 @@ build_win:
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
     - call .gitlab-scripts/windows_build_env.cmd
+# debug
+#    - call .gitlab-scripts/windows_deps.cmd
+#    - inv version -u > version.txt
+#    - whoami
+# /debug
     - call .gitlab-scripts/windows_build.cmd
   after_script:
     - copy %GOPATH%\src\github.com\StackVista\stackstate-agent\omnibus\pkg\*.msi
@@ -331,7 +343,7 @@ test_deb_renaming:
 
 test_rpm_renaming:
   stage: pre_release
-  image: stackstate/stackstate-agent-runner-gitlab:centos6
+  image: stackstate/stackstate-agent-runner-gitlab:centos6_20190429
   dependencies:
     - build_rpm
   before_script: []

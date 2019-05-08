@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package scheduler
 
@@ -184,11 +184,6 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 		sources = append(sources, source)
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)
-			source.Status.Error(err)
-			continue
-		}
-		if err := cfg.Compile(); err != nil {
-			log.Warnf("Could not compile logs configuration: %v", err)
 			source.Status.Error(err)
 			continue
 		}

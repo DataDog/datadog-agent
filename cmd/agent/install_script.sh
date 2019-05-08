@@ -66,6 +66,10 @@ if [ -n "$STS_API_KEY" ]; then
     api_key=$STS_API_KEY
 fi
 
+if [ -n "$STS_SITE" ]; then
+    site="$STS_SITE"
+fi
+
 if [ -n "$STS_URL" ]; then
     sts_url=$STS_URL
 fi

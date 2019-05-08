@@ -24,3 +24,18 @@ func TestReadConfDir(t *testing.T) {
 
 	assert.Equal(t, expected, files)
 }
+
+func TestConfigsInPath(t *testing.T) {
+	files, err := getConfigsInPath("testdata")
+	assert.Nil(t, err)
+
+	sort.Strings(files)
+	expected := []string{
+		"check.yaml",
+		"check.yaml.example",
+		"foo.d/conf.yaml",
+		"foo.d/conf.yaml.example",
+	}
+
+	assert.Equal(t, expected, files)
+}

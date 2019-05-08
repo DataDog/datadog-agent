@@ -20,8 +20,179 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/clusteragent/custommetrics"
 )
 
+func TestDiffAutoscalter(t *testing.T) {
+	testCases := map[string]struct {
+		hpaOld   *autoscalingv2.HorizontalPodAutoscaler
+		hpaNew   *autoscalingv2.HorizontalPodAutoscaler
+		expected bool
+	}{
+		"No-Op": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"kubectl.kubernetes.io/last-applied-configuration": `
+						"apiVersion":"autoscaling/v2beta1",
+						"kind":"HorizontalPodAutoscaler",
+						"metadata":{
+							"annotations":{},
+							"name":"nginxext1",
+							"namespace":
+							"default"
+						},
+						"spec":{
+							"maxReplicas":5,
+							"metrics":[{
+								"external":{
+									"metricName":"nginx.net.request_per_s",
+									"metricSelector":{
+										"matchLabels":{
+											"cluster-name":"sic-kenafeh",
+											"kube_container_name":"nginx"
+										}
+								},
+								"targetValue":5},
+								"type":"External"
+							}],
+							"minReplicas":1,
+							"scaleTargetRef":{
+								"apiVersion":"apps/v1",
+								"kind":"Deployment",
+								"name":"nginx"
+							}
+						}"`,
+					},
+				},
+				Status: autoscalingv2.HorizontalPodAutoscalerStatus{
+					CurrentReplicas: 27,
+				},
+			},
+			&autoscalingv2.HorizontalPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"kubectl.kubernetes.io/last-applied-configuration": `
+						"apiVersion":"autoscaling/v2beta1",
+						"kind":"HorizontalPodAutoscaler",
+						"metadata":{
+							"annotations":{},
+							"name":"nginxext1",
+							"namespace":
+							"default"
+						},
+						"spec":{
+							"maxReplicas":5,
+							"metrics":[{
+								"external":{
+									"metricName":"nginx.net.request_per_s",
+									"metricSelector":{
+										"matchLabels":{
+											"cluster-name":"sic-kenafeh",
+											"kube_container_name":"nginx"
+										}
+								},
+								"targetValue":5},
+								"type":"External"
+							}],
+							"minReplicas":1,
+							"scaleTargetRef":{
+								"apiVersion":"apps/v1",
+								"kind":"Deployment",
+								"name":"nginx"
+							}
+						}"`,
+					},
+				},
+				Status: autoscalingv2.HorizontalPodAutoscalerStatus{
+					CurrentReplicas: 12,
+				},
+			},
+			false,
+		},
+		"Updated": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"kubectl.kubernetes.io/last-applied-configuration": `
+						"apiVersion":"autoscaling/v2beta1",
+						"kind":"HorizontalPodAutoscaler",
+						"metadata":{
+							"annotations":{},
+							"name":"nginxext1",
+							"namespace":
+							"default"
+						},
+						"spec":{
+							"maxReplicas":5,
+							"metrics":[{
+								"external":{
+									"metricName":"nginx.net.request_per_s",
+									"metricSelector":{
+										"matchLabels":{
+											"cluster-name":"sic-kenafeh",
+											"kube_container_name":"nginx"
+										}
+								},
+								"targetValue":5},
+								"type":"External"
+							}],
+							"minReplicas":1,
+							"scaleTargetRef":{
+								"apiVersion":"apps/v1",
+								"kind":"Deployment",
+								"name":"nginx"
+							}
+						}"`,
+					},
+				},
+			},
+			&autoscalingv2.HorizontalPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"kubectl.kubernetes.io/last-applied-configuration": `
+						"apiVersion":"autoscaling/v2beta1",
+						"kind":"HorizontalPodAutoscaler",
+						"metadata":{
+							"annotations":{},
+							"name":"nginxext1",
+							"namespace":
+							"default"
+						},
+						"spec":{
+							"maxReplicas":5,
+							"metrics":[{
+								"external":{
+									"metricName":"nginx.net.request_per_s",
+									"metricSelector":{
+										"matchLabels":{
+											"kube_container_name":"apache"
+										}
+								},
+								"targetValue":5},
+								"type":"External"
+							}],
+							"minReplicas":1,
+							"scaleTargetRef":{
+								"apiVersion":"apps/v1",
+								"kind":"Deployment",
+								"name":"nginx"
+							}
+						}"`,
+					},
+				},
+			},
+			true,
+		},
+	}
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			val := AutoscalerMetricsUpdate(testCase.hpaNew, testCase.hpaOld)
+			assert.Equal(t, testCase.expected, val)
+		})
+	}
+}
+
 func TestInspect(t *testing.T) {
 	metricName := "requests_per_s"
+	metricNameUpper := "ReQuesTs_Per_S"
 
 	testCases := map[string]struct {
 		hpa      *autoscalingv2.HorizontalPodAutoscaler
@@ -88,6 +259,71 @@ func TestInspect(t *testing.T) {
 				},
 			},
 			[]custommetrics.ExternalMetricValue{},
+		},
+		"missing labels, still OK": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: "foo",
+							},
+						},
+					},
+				},
+			},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "foo",
+					Labels:     nil,
+					Timestamp:  0,
+					Value:      0,
+					Valid:      false,
+				},
+			},
+		},
+		"incomplete, missing external metrics": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type:     autoscalingv2.ExternalMetricSourceType,
+							External: nil,
+						},
+					},
+				},
+			},
+			[]custommetrics.ExternalMetricValue{},
+		},
+		"upper cases handled": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: metricNameUpper,
+								MetricSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										// No need to try test upper cased labels/tags as they are not supported in Datadog
+										"dcos_version": "1.9.4",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: metricNameUpper,
+					Labels:     map[string]string{"dcos_version": "1.9.4"},
+					Timestamp:  0,
+					Value:      0,
+					Valid:      false,
+				},
+			},
 		},
 	}
 

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package metrics
 
@@ -51,7 +51,6 @@ type CgroupMemStat struct {
 	TotalActiveFile         uint64
 	TotalUnevictable        uint64
 	MemUsageInBytes         uint64
-	MemFailCnt              uint64
 }
 
 // CgroupTimesStat stores CPU times for a cgroup.
@@ -66,10 +65,13 @@ type CgroupTimesStat struct {
 }
 
 // CgroupIOStat store I/O statistics about a cgroup.
+// Sums are stored in ReadBytes and WriteBytes
 type CgroupIOStat struct {
-	ContainerID string
-	ReadBytes   uint64
-	WriteBytes  uint64
+	ContainerID      string
+	ReadBytes        uint64
+	WriteBytes       uint64
+	DeviceReadBytes  map[string]uint64
+	DeviceWriteBytes map[string]uint64
 }
 
 // ContainerCgroup is a structure that stores paths and mounts for a cgroup.

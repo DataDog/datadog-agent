@@ -33,7 +33,7 @@ The `AgentCheck` base class provides some useful attributes and methods:
 - `self.name`: the name of the check
 - `self.init_config`: the `init_config` section from the check configuration.
 - `self.log`: a [logger](https://docs.python.org/2/library/logging.html).
-- `get_instance_proxy()`: a function returning a dictionary containing informations on the Proxy being used
+- `get_instance_proxy()`: a function returning a dictionary containing information on the Proxy being used
 
 **Warning**: when loading a Python check, the Agent will inspect the available
 modules and packages searching for a subclass of `AgentCheck`. If such a class
@@ -159,9 +159,9 @@ The arguments that needs to be received and then passed to `super` are the
 following:
 
 - `name`: the name of the check.
-- `_init_config`: the init_config section of the configuration.
+- `init_config`: the init_config section of the configuration.
 - `instances`: a one-element list containing the instance options from the
-  configuration file (to be backwards compatible we agent5 checks we have to
+  configuration file (to be backwards compatible with agent5 checks we have to
   pass a list here).
 
 ## Running subprocesses

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // Package agent implements the api endpoints for the `/agent` prefix.
 // This group of endpoints is meant to provide high-level functionalities
@@ -25,12 +25,15 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/collector/py"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/flare"
+	"github.com/StackVista/stackstate-agent/pkg/secrets"
 	"github.com/StackVista/stackstate-agent/pkg/status"
 	"github.com/StackVista/stackstate-agent/pkg/status/health"
 	"github.com/StackVista/stackstate-agent/pkg/tagger"
+	"github.com/StackVista/stackstate-agent/pkg/tagger/collectors"
 	"github.com/StackVista/stackstate-agent/pkg/util"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/StackVista/stackstate-agent/pkg/version"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
@@ -47,7 +50,9 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
+	r.HandleFunc("/config", getRuntimeConfig).Methods("GET")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
+	r.HandleFunc("/secrets", secretInfo).Methods("GET")
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -230,8 +235,21 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonConfig)
 }
 
+func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
+	runtimeConfig, err := yaml.Marshal(config.Datadog.AllSettings())
+	if err != nil {
+		log.Errorf("Unable to marshal runtime config response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	w.Write(runtimeConfig)
+}
+
 func getTaggerList(w http.ResponseWriter, r *http.Request) {
-	response := tagger.List(tagger.IsFullCardinality())
+	// query at the highest cardinality between checks and dogstatsd cardinalities
+	cardinality := collectors.TagCardinality(max(int(tagger.ChecksCardinality), int(tagger.DogstatsdCardinality)))
+	response := tagger.List(cardinality)
 
 	jsonTags, err := json.Marshal(response)
 	if err != nil {
@@ -241,4 +259,30 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(jsonTags)
+}
+
+func secretInfo(w http.ResponseWriter, r *http.Request) {
+	info, err := secrets.GetDebugInfo()
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	jsonInfo, err := json.Marshal(info)
+	if err != nil {
+		log.Errorf("Unable to marshal secrets info response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	w.Write(jsonInfo)
+}
+
+// max returns the maximum value between a and b.
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

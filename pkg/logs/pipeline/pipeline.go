@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package pipeline
 
 import (
+	"github.com/StackVista/stackstate-agent/pkg/logs/client"
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/message"
 	"github.com/StackVista/stackstate-agent/pkg/logs/processor"
@@ -20,18 +21,18 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, endpoints *config.Endpoints, destinationsContext *sender.DestinationsContext) *Pipeline {
+func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
 	// initialize the main destination
-	main := sender.NewDestination(endpoints.Main, destinationsContext)
+	main := client.NewDestination(endpoints.Main, destinationsContext)
 
 	// initialize the additional destinations
-	var additionals []*sender.Destination
+	var additionals []*client.Destination
 	for _, endpoint := range endpoints.Additionals {
-		additionals = append(additionals, sender.NewDestination(endpoint, destinationsContext))
+		additionals = append(additionals, client.NewDestination(endpoint, destinationsContext))
 	}
 
 	// initialize the sender
-	destinations := sender.NewDestinations(main, additionals)
+	destinations := client.NewDestinations(main, additionals)
 	senderChan := make(chan *message.Message, config.ChanSize)
 	sender := sender.NewSender(senderChan, outputChan, destinations)
 
@@ -40,7 +41,7 @@ func NewPipeline(outputChan chan *message.Message, endpoints *config.Endpoints, 
 
 	// initialize the processor
 	encoder := processor.NewEncoder(endpoints.Main.UseProto)
-	processor := processor.New(inputChan, senderChan, encoder)
+	processor := processor.New(inputChan, senderChan, processingRules, encoder)
 
 	return &Pipeline{
 		InputChan: inputChan,

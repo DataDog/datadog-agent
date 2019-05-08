@@ -6,6 +6,8 @@
 package containers
 
 import (
+	"net"
+
 	"github.com/StackVista/stackstate-agent/pkg/util/containers/metrics"
 )
 
@@ -53,13 +55,22 @@ type Container struct {
 	CPULimit       float64
 	SoftMemLimit   uint64
 	MemLimit       uint64
+	MemFailCnt     uint64
 	CPUNrThrottled uint64
 	CPU            *metrics.CgroupTimesStat
 	Memory         *metrics.CgroupMemStat
 	IO             *metrics.CgroupIOStat
 	Network        metrics.ContainerNetStats
+	AddressList    []NetworkAddress
 	StartedAt      int64
 
 	// For internal use only
 	cgroup *metrics.ContainerCgroup
+}
+
+// NetworkAddress represents a tuple IP/Port/Protocol
+type NetworkAddress struct {
+	IP       net.IP
+	Port     int
+	Protocol string
 }

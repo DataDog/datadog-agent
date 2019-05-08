@@ -10,7 +10,7 @@ experimental:
   notify:
     branches:
       only:
-      - master
+        - master
 
 templates:
   job_template: &job_template
@@ -20,23 +20,28 @@ templates:
         USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/StackVista/stackstate-agent
   step_templates:
-  - restore_cache: &restore_source
-      keys:
-      # Cache retrieval is faster than full git checkout
-      - v2-repo-{{ .Revision }}
-  - restore_cache: &restore_deps
-      keys:
-      # The first match will be used. Doing that so new branches
-      # use master's cache but don't pollute it back.
-      - v2-godeps-{{ .Branch }}-{{ .Revision }}
-      - v2-godeps-{{ .Branch }}-
-      - v2-godeps-master-
-  - run: &enter_venv
-      name: add virtualenv to bashrc
-      command: echo "source /go/src/github.com/StackVista/stackstate-agent/venv/bin/activate" >> $BASH_ENV
-  - restore_cache: &restore_artifacts
-      keys:
-      - v2-artifacts-{{ .Revision }}
+    - restore_cache: &restore_deps
+        keys:
+          # The first match will be used. Doing that so new branches
+          # use master's cache but don't pollute it back.
+          #
+          # If incremental dep fails, increase the cache gen number
+          # in restore_deps AND save_deps
+          # See https://github.com/DataDog/datadog-agent/pull/2384
+          - gen8-godeps-{{ .Branch }}-{{ .Revision }}
+          - gen8-godeps-{{ .Branch }}-
+          - gen8-godeps-master-
+    - save_cache: &save_deps
+        key: gen8-godeps-{{ .Branch }}-{{ .Revision }}
+    - restore_cache: &restore_source
+        keys:
+          # Cache retrieval is faster than full git checkout
+          - v2-repo-{{ .Revision }}
+    - save_cache: &save_source
+        key: v2-repo-{{ .Revision }}
+    - run: &enter_venv
+        name: add virtualenv to bashrc
+        command: echo "source /go/src/github.com/DataDog/datadog-agent/venv/bin/activate" >> $BASH_ENV
 
 jobs:
   build:
@@ -49,16 +54,17 @@ jobs:
   checkout_code:
     <<: *job_template
     steps:
-    - checkout
-    - save_cache:
-        key: v2-repo-{{ .Revision }}
-        paths:
-        - /go/src/github.com/StackVista/stackstate-agent
+      - checkout
+      - save_cache:
+          <<: *save_source
+          paths:
+            - /go/src/github.com/DataDog/datadog-agent
 
   dependencies:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
+      - restore_cache: *restore_deps
       - run:
           name: setup virtual env
           command: virtualenv /go/src/github.com/StackVista/stackstate-agent/venv
@@ -73,7 +79,7 @@ jobs:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only
       - save_cache:
-          key: v2-godeps-{{ .Branch }}-{{ .Revision }}
+          <<: *save_deps
           paths:
             - /go/src/github.com/StackVista/stackstate-agent/vendor
             - /go/src/github.com/StackVista/stackstate-agent/venv
@@ -90,6 +96,10 @@ jobs:
       - run:
           name: run unit tests
           command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 4
+      - run:
+          name: upload code coverage results
+          # Never fail on coverage upload
+          command: bash <(curl -s https://codecov.io/bash) -f profile.cov -F linux || true
 
   integration_tests:
     <<: *job_template
@@ -107,7 +117,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - setup_remote_docker
       - run: *enter_venv
       - run:
           command: inv -e lint-releasenote
@@ -118,24 +127,32 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - setup_remote_docker
       - run: *enter_venv
       - run:
           command: inv -e lint-teamassignment
           name: run PR check for team assignment labels
+
+  milestone:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run: *enter_venv
+      - run:
+          command: inv -e lint-milestone
+          name: run PR check for milestone assignment
 
   filename_linting:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - setup_remote_docker
       - run: *enter_venv
       - run:
           name: run filename linting
           command: inv -e lint-filenames
 
-  docker_integration_tests:
+  docker_tests:
     <<: *job_template
     steps:
       - restore_cache: *restore_source

@@ -41,6 +41,7 @@ resource "aws_instance" "gitlab-runner" {
 <powershell>
 net user ${var.INSTANCE_USERNAME} '${var.INSTANCE_PASSWORD}' /add /y
 net localgroup administrators ${var.INSTANCE_USERNAME} /add
+net accounts /maxpwage:unlimited
 
 # Disable Complex Passwords
 # Reference: http://vlasenko.org/2011/04/27/removing-password-complexity-requirements-from-windows-server-2008-core/
@@ -88,7 +89,11 @@ check:
 	ansible windows -i hosts -m win_ping
 
 provision:
+<<<<<<< HEAD:.cd-builders/windows/runner-gitlab/instance.tf
+	.cd-builders/windows/runner-gitlab/instance.tf
+=======
     ansible_gitlab_runner.sh
+>>>>>>> master:.cd-builders/windows/runner-gitlab/instance.tf
 
 MAKEFILE
 

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -172,6 +173,9 @@ func TestGetAgentContainerURLS(t *testing.T) {
 	nets["foo"] = &network.EndpointSettings{IPAddress: "172.17.0.3"}
 
 	co := types.ContainerJSON{
+		Config: &container.Config{
+			Hostname: "ip-172-29-167-5",
+		},
 		ContainerJSONBase: &types.ContainerJSONBase{},
 		NetworkSettings: &types.NetworkSettings{
 			Networks: nets,
@@ -183,7 +187,8 @@ func TestGetAgentContainerURLS(t *testing.T) {
 
 	agentURLS, err := getAgentContainerURLS()
 	assert.NoError(t, err)
-	assert.Len(t, agentURLS, 2)
+	require.Len(t, agentURLS, 3)
 	assert.Contains(t, agentURLS, "http://172.17.0.2:51678/")
 	assert.Contains(t, agentURLS, "http://172.17.0.3:51678/")
+	assert.Equal(t, "http://ip-172-29-167-5:51678/", agentURLS[2])
 }

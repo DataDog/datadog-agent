@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build !windows
 
@@ -91,7 +91,7 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 	suite.Equal("good bye", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetDecodedOffset()))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.decodedOffset))
 }
 
 func (suite *TailerTestSuite) TestTailFromEnd() {
@@ -120,7 +120,7 @@ func (suite *TailerTestSuite) TestTailFromEnd() {
 	suite.Equal("good bye", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetDecodedOffset()))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.decodedOffset))
 }
 
 func (suite *TailerTestSuite) TestRecoverTailing() {
@@ -151,7 +151,7 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 	suite.Equal("good bye", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetDecodedOffset()))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.decodedOffset))
 }
 
 func (suite *TailerTestSuite) TestTailerIdentifier() {

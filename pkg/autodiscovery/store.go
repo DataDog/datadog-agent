@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package autodiscovery
 
@@ -16,6 +16,7 @@ import (
 type store struct {
 	serviceToConfigs  map[string][]integration.Config
 	serviceToTagsHash map[string]string
+	templateToConfigs map[string][]integration.Config
 	loadedConfigs     map[string]integration.Config
 	nameToJMXMetrics  map[string]integration.Data
 	adIDToServices    map[string]map[string]bool
@@ -29,6 +30,7 @@ func newStore() *store {
 	s := store{
 		serviceToConfigs:  make(map[string][]integration.Config),
 		serviceToTagsHash: make(map[string]string),
+		templateToConfigs: make(map[string][]integration.Config),
 		loadedConfigs:     make(map[string]integration.Config),
 		nameToJMXMetrics:  make(map[string]integration.Data),
 		adIDToServices:    make(map[string]map[string]bool),
@@ -63,6 +65,27 @@ func (s *store) addConfigForService(serviceEntity string, config integration.Con
 	} else {
 		s.serviceToConfigs[serviceEntity] = []integration.Config{config}
 	}
+}
+
+// getConfigsForTemplate gets config for a specified template
+func (s *store) getConfigsForTemplate(templateDigest string) []integration.Config {
+	s.m.RLock()
+	defer s.m.RUnlock()
+	return s.templateToConfigs[templateDigest]
+}
+
+// removeConfigsForTemplate removes a config for a specified template
+func (s *store) removeConfigsForTemplate(templateDigest string) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	delete(s.templateToConfigs, templateDigest)
+}
+
+// addConfigForTemplate adds a config for a specified template
+func (s *store) addConfigForTemplate(templateDigest string, config integration.Config) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	s.templateToConfigs[templateDigest] = append(s.templateToConfigs[templateDigest], config)
 }
 
 // getTagsHashForService return the tags hash for a specified service

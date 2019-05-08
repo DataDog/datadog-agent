@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build !windows
 
@@ -9,6 +9,7 @@ package system
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"regexp"
 	"time"
@@ -75,6 +76,9 @@ func (c *IOCheck) nixIO() error {
 		tagbuff.WriteString("device:")
 		tagbuff.WriteString(device)
 		tags := []string{tagbuff.String()}
+		if ioStats.Label != "" {
+			tags = append(tags, fmt.Sprintf("device_label:%s", ioStats.Label))
+		}
 
 		sender.Rate("system.io.r_s", float64(ioStats.ReadCount), "", tags)
 		sender.Rate("system.io.w_s", float64(ioStats.WriteCount), "", tags)

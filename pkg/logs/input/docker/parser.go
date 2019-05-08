@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 // +build docker
 
 package docker
@@ -38,7 +38,7 @@ func (p *parser) Parse(msg []byte) (*message.Message, error) {
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
 	if len(msg) < dockerHeaderLength {
-		return &message.Message{}, errors.New("can't parse docker message: expected a 8 bytes header")
+		return message.NewMessage(msg, nil, message.StatusInfo), errors.New("can't parse docker message: expected a 8 bytes header")
 	}
 
 	// Read the first byte to get the status

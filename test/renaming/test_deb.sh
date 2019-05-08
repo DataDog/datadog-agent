@@ -41,9 +41,13 @@ tar xvf data.tar.gz || true
 
 # Stuff in embedded is not important
 EMBEDDED_DIR="opt/stackstate-agent/embedded/lib/"
+LICENSE_DIR1="/opt/stackstate-agent/licenses/"
+LICENSE_DIR2="/opt/stackstate-agent/LICENSES/"
 
 find . -iname \*datadog\* \
   | grep -v "$EMBEDDED_DIR" \
+  | grep -v "$LICENSE_DIR1" \
+  | grep -v "$LICENSE_DIR2" \
   | grep -v "/opt/stackstate-agent/bin/agent/dist/views/private/images/datadog_icon_white.svg" \
   | grep -v "/opt/stackstate-agent/LICENSES/go_dep-gopkg.in_zorkian_go-datadog-api" \
   | grep -v "/opt/stackstate-agent/LICENSES/go_dep-github.com_DataDog_agent-payload" \

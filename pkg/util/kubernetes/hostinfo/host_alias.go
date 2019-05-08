@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet
 
@@ -16,7 +16,7 @@ import (
 
 // GetHostAlias uses the "kubelet" hostname provider to fetch the kubernetes alias
 func GetHostAlias() (string, error) {
-	name, err := kubelet.HostnameProvider("")
+	name, err := kubelet.HostnameProvider()
 	if err == nil && util.ValidHostname(name) == nil {
 		return name, nil
 	}

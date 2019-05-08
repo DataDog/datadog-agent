@@ -1,17 +1,31 @@
-name 'datadog-puppy'
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https:#www.datadoghq.com/).
+# Copyright 2016-2019 Datadog, Inc.
+
 require './lib/ostools.rb'
+require 'pathname'
+
+name 'stackstate-puppy'
+
+license "Apache-2.0"
+license_file "../LICENSE"
 
 source path: '..'
-
-relative_path 'stackstate-puppy'
-
-whitelist_file ".*"  # temporary hack, TODO: build libz with omnibus
+relative_path 'src/github.com/StackVista/stackstate-agent'
 
 build do
-  ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
-  # the go deps needs to be installed (invoke dep) before running omnibus
-  # TODO: enable omnibus to run invoke deps while building the project
-  command "invoke -e agent.build --puppy --rebuild --use-embedded-libs --no-development"
+  # set GOPATH on the omnibus source dir for this software
+  gopath = Pathname.new(project_dir) + '../../../..'
+  etc_dir = "/etc/stackstate-agent"
+  env = {
+    'GOPATH' => gopath.to_path,
+    'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+  }
+  # include embedded path (mostly for `pkg-config` binary)
+  env = with_embedded_path(env)
+
+  command "invoke agent.build --puppy --rebuild --no-development", env: env
   copy('bin', install_dir)
 
   mkdir "#{install_dir}/run/"
@@ -19,26 +33,22 @@ build do
   if linux?
     # Config
     mkdir '/etc/stackstate-agent'
+    mkdir "/var/log/stackstate-agent"
+
     move 'bin/agent/dist/stackstate.yaml', '/etc/stackstate-agent/stackstate.yaml.example'
-    mkdir '/etc/stackstate-agent/checks.d'
+    move 'bin/agent/dist/conf.d', '/etc/stackstate-agent/'
 
     if debian?
       erb source: "upstart.conf.erb",
           dest: "/etc/init/stackstate-agent6.conf",
           mode: 0644,
           vars: { install_dir: install_dir }
-    end
 
-    if redhat? || debian? || suse?
       erb source: "systemd.service.erb",
           dest: "/lib/systemd/system/stackstate-agent6.service",
           mode: 0644,
           vars: { install_dir: install_dir }
     end
-  end
-
-  if windows?
-    copy "pkg/collector/dist/conf.d/*", "../../extra_package_files/EXAMPLECONFSLOCATION"
   end
 
   # The file below is touched by software builds that don't put anything in the installation

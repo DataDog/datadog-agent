@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package config
 
@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/viper"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 // safeConfig implements Config:
@@ -162,11 +162,8 @@ func (c *safeConfig) BindEnv(input ...string) error {
 		// FIXME: for the purposes of GetEnvVars implementation, we only track env var keys
 		// that are interpolated by viper from the config option key name
 		key := input[0]
-		if !strings.Contains(key, "_key") {
-			// `_key`-suffixed env vars are sensitive: don't track them
-			envVarName := strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
-			c.configEnvVars = append(c.configEnvVars, envVarName)
-		}
+		envVarName := strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
+		c.configEnvVars = append(c.configEnvVars, envVarName)
 	}
 	return c.Viper.BindEnv(input...)
 }
@@ -218,6 +215,13 @@ func (c *safeConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
 	return c.Viper.MergeConfig(in)
+}
+
+// MergeConfigOverride wraps Viper for concurrent access
+func (c *safeConfig) MergeConfigOverride(in io.Reader) error {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.MergeConfigOverride(in)
 }
 
 // AllSettings wraps Viper for concurrent access

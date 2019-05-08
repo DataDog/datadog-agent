@@ -71,6 +71,8 @@ RUN if [ -n "$WITH_JMX" ]; then apt-get update \
 RUN apt-get update \
   # CVE-fixing time!
   && apt-get install -y util-linux ncurses-bin ncurses-base libncursesw5:amd64 \
+  # https://security-tracker.debian.org/tracker/CVE-2018-15686
+  && apt-get install -y libudev1 libsystemd0 \
   # https://security-tracker.debian.org/tracker/CVE-2016-2779
   && rm -f /usr/sbin/runuser \
   # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954
@@ -86,11 +88,11 @@ COPY entrypoint /etc/cont-init.d/
 COPY probe.sh initlog.sh secrets-helper/readsecret.py /
 
 # Extract s6-overlay
-# Done in 2 steps to avoid overriding the /bin --> /usr/bin symlink
-# FIXME: copying it from the extract stage does not work
-RUN tar xzf s6.tgz -C / --exclude="./bin" \
-  && tar xzf s6.tgz -C /usr ./bin \
-  && rm s6.tgz \
+# Buster used to have /bin/ symlinked to /usr/bin, which broke
+# the tar invocation, see #1591 for the changes we made then
+# Is is now back to a dedicated folder
+RUN tar xzf s6.tgz \
+ && rm s6.tgz \
 # Prepare for running without root
 # - Create a stackstate-agent:root user and give it permissions on relevant folders
 # - Remove the /var/run -> /run symlink and create a legit /var/run folder
