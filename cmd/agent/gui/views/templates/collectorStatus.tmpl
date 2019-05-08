@@ -1,4 +1,19 @@
 {{- with .Stats -}}
+  {{ with .pythonInit }}
+    {{- if .Errors }}
+    <div class="stat">
+      <span class="stat_title">Error initializing Python</span>
+      <span class="stat_data">
+      {{ range $err := .Errors -}}
+        <span class="stat_subdata">
+          {{ $err -}}
+        </span>
+      {{ end }}
+      </span>
+    {{- end -}}
+    </div>
+  {{- end }}
+
   <div class="stat">
     <span class="stat_title">Running Checks</span>
     <span class="stat_data">

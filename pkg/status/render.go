@@ -37,6 +37,7 @@ func FormatStatus(data []byte) (string, error) {
 	forwarderStats := stats["forwarderStats"]
 	runnerStats := stats["runnerStats"]
 	pyLoaderStats := stats["pyLoaderStats"]
+	pythonInit := stats["pythonInit"]
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
 	aggregatorStats := stats["aggregatorStats"]
@@ -48,7 +49,7 @@ func FormatStatus(data []byte) (string, error) {
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
-	renderChecksStats(b, runnerStats, pyLoaderStats, autoConfigStats, checkSchedulerStats, "")
+	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, "")
 	renderJMXFetchStatus(b, jmxStats)
 	renderForwarderStatus(b, forwarderStats)
 	renderEndpointsInfos(b, endpointsInfos)
@@ -76,7 +77,7 @@ func FormatDCAStatus(data []byte) (string, error) {
 	title := fmt.Sprintf("Datadog Cluster Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
-	renderChecksStats(b, runnerStats, nil, autoConfigStats, checkSchedulerStats, "")
+	renderChecksStats(b, runnerStats, nil, nil, autoConfigStats, checkSchedulerStats, "")
 	renderForwarderStatus(b, forwarderStats)
 	renderEndpointsInfos(b, endpointsInfos)
 
@@ -163,10 +164,11 @@ func renderHPAStats(w io.Writer, hpaStats interface{}) {
 	}
 }
 
-func renderChecksStats(w io.Writer, runnerStats, pyLoaderStats, autoConfigStats, checkSchedulerStats interface{}, onlyCheck string) {
+func renderChecksStats(w io.Writer, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats interface{}, onlyCheck string) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
 	checkStats["pyLoaderStats"] = pyLoaderStats
+	checkStats["pythonInit"] = pythonInit
 	checkStats["AutoConfigStats"] = autoConfigStats
 	checkStats["CheckSchedulerStats"] = checkSchedulerStats
 	checkStats["OnlyCheck"] = onlyCheck
@@ -185,9 +187,10 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	json.Unmarshal(data, &stats)
 	runnerStats := stats["runnerStats"]
 	pyLoaderStats := stats["pyLoaderStats"]
+	pythonInit := stats["pythonInit"]
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
-	renderChecksStats(b, runnerStats, pyLoaderStats, autoConfigStats, checkSchedulerStats, checkName)
+	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, checkName)
 
 	return b.String(), nil
 }
