@@ -132,7 +132,8 @@ func (r *HTTPReceiver) Start() {
 	// expvar implicitly publishes "/debug/vars" on the same port
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
 	if err := r.Listen(addr, ""); err != nil {
-		osutil.Exitf("%v", err)
+		log.Criticalf("Error creating listener: %v", err)
+		killProcess(err.Error())
 	}
 
 	go r.PreSampler.Run()
@@ -374,6 +375,9 @@ func (r *HTTPReceiver) loop() {
 	}
 }
 
+// killProcess exits the process with the given msg; replaced in tests.
+var killProcess = func(msg string) { osutil.Exitf(msg) }
+
 func (r *HTTPReceiver) watchdog(now time.Time) {
 	wi := watchdog.Info{
 		Mem: watchdog.Mem(),
@@ -386,7 +390,7 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 		metrics.Count("datadog.trace_agent.receiver.suicide", 1, nil, 1)
 		metrics.Flush()
 		log.Criticalf("Killing process. Memory threshold exceeded: %.2fM / %.2fM", current/1024/1024, allowed/1024/1024)
-		osutil.Exitf("OOM killed")
+		killProcess("OOM")
 	}
 
 	rateCPU, err := sampler.CalcPreSampleRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.PreSampler.RealRate())

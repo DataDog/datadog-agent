@@ -55,6 +55,7 @@ func Timing(name string, value time.Duration, tags []string, rate float64) error
 	return Client.Timing(name, value, tags, rate)
 }
 
+// Flush flushes any pending metrics to the agent.
 func Flush() error {
 	if Client == nil {
 		return nil // no-op

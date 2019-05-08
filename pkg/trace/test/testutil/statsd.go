@@ -75,6 +75,12 @@ func (c *TestStatsClient) Gauge(name string, value float64, tags []string, rate 
 	return c.GaugeErr
 }
 
+// Flush implements metrics.StatsClient
+func (c *TestStatsClient) Flush() error {
+	// TODO
+	return nil
+}
+
 // Count records a call to a Count operation and replies with CountErr
 func (c *TestStatsClient) Count(name string, value int64, tags []string, rate float64) error {
 	c.mu.Lock()
