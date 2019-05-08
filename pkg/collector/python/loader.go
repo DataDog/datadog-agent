@@ -91,7 +91,7 @@ func getSixError() error {
 // subclasses of the AgentCheck class and returns the corresponding Check
 func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, error) {
 	if six == nil {
-		return nil, fmt.Errorf("six is not initialized")
+		return nil, fmt.Errorf("python is not initialized")
 	}
 
 	checks := []check.Check{}

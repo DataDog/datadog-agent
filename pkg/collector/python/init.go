@@ -8,11 +8,13 @@
 package python
 
 import (
+	"expvar"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -147,11 +149,37 @@ var (
 	PythonPath = ""
 
 	six *C.six_t = nil
+
+	expvarPyInit *expvar.Map
+	pyInitLock   sync.RWMutex
+	pyInitErrors []string
 )
 
-func sendTelemetry(pythonVersion int) {
+func init() {
+	pyInitErrors = []string{}
+
+	expvarPyInit = expvar.NewMap("pythonInit")
+	expvarPyInit.Set("Errors", expvar.Func(expvarPythonInitErrors))
+}
+
+func expvarPythonInitErrors() interface{} {
+	pyInitLock.RLock()
+	defer pyInitLock.RUnlock()
+
+	return pyInitErrors
+}
+
+func addExpvarPythonInitErrors(msg string) error {
+	pyInitLock.Lock()
+	defer pyInitLock.Unlock()
+
+	pyInitErrors = append(pyInitErrors, msg)
+	return fmt.Errorf(msg)
+}
+
+func sendTelemetry(pythonVersion string) {
 	tags := []string{
-		fmt.Sprintf("python_version:%d", pythonVersion),
+		fmt.Sprintf("python_version:%s", pythonVersion),
 	}
 	if agentVersion, err := version.New(version.AgentVersion, version.Commit); err == nil {
 		tags = append(tags,
@@ -169,7 +197,7 @@ func sendTelemetry(pythonVersion int) {
 }
 
 func Initialize(paths ...string) error {
-	pythonVersion := config.Datadog.GetInt("python_version")
+	pythonVersion := config.Datadog.GetString("python_version")
 
 	// Since the install location can be set by the user on Windows we use relative import
 	if runtime.GOOS == "windows" {
@@ -194,11 +222,11 @@ func Initialize(paths ...string) error {
 		}
 	}
 
-	if pythonVersion == 2 {
+	if pythonVersion == "2" {
 		six = C.make2(C.CString(pythonHome2))
 		log.Infof("Initializing six with python2 %s", pythonHome2)
 		PythonHome = pythonHome2
-	} else if pythonVersion == 3 {
+	} else if pythonVersion == "3" {
 		six = C.make3(C.CString(pythonHome3))
 		log.Infof("Initializing six with python3 %s", pythonHome3)
 		PythonHome = pythonHome3
@@ -230,7 +258,7 @@ func Initialize(paths ...string) error {
 
 	if C.is_initialized(six) == 0 {
 		err := C.GoString(C.get_error(six))
-		return fmt.Errorf("%s", err)
+		return addExpvarPythonInitErrors(err)
 	}
 
 	// Lock the GIL

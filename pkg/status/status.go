@@ -299,6 +299,16 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 		stats["pyLoaderStats"] = nil
 	}
 
+	pythonInitData := expvar.Get("pythonInit")
+	if pythonInitData != nil {
+		pythonInitJSON := []byte(pythonInitData.String())
+		pythonInit := make(map[string]interface{})
+		json.Unmarshal(pythonInitJSON, &pythonInit)
+		stats["pythonInit"] = pythonInit
+	} else {
+		stats["pythonInit"] = nil
+	}
+
 	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
 	hostnameStats := make(map[string]interface{})
 	json.Unmarshal(hostnameStatsJSON, &hostnameStats)

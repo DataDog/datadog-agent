@@ -6,6 +6,16 @@ NOTE: Changes made to this template should be reflected on the following templat
 Collector
 =========
 
+{{ with .pythonInit }}
+  {{- if .Errors }}
+  Error initializing Python
+  =========================
+    {{ range $err := .Errors -}}
+    - {{ $err }}
+    {{ end }}
+  {{- end -}}
+{{- end }}
+
   Running Checks
   ==============
 {{- with .RunnerStats }}
