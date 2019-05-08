@@ -101,7 +101,7 @@ def lint(ctx, targets):
 
 
 @task
-def vet(ctx, targets, six_root=None):
+def vet(ctx, targets, rtloader_root=None):
     """
     Run go vet on targets.
 
@@ -118,7 +118,7 @@ def vet(ctx, targets, six_root=None):
     build_tags = get_default_build_tags()
     build_tags.append("dovet")
 
-    _, _, env = get_build_flags(ctx, six_root=six_root)
+    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
 
     ctx.run("go vet -tags \"{}\" ".format(" ".join(build_tags)) + " ".join(args), env=env)
     # go vet exits with status 1 when it finds an issue, if we're here

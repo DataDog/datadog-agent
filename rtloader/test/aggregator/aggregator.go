@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unsafe"
 
-	common "github.com/DataDog/datadog-agent/six/test/common"
+	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 )
 
 // #cgo CFLAGS: -I../../include

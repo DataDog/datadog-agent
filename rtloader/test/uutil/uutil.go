@@ -1,13 +1,14 @@
-package testutil
+package testuutil
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"runtime"
+	"strings"
+	"unsafe"
 
-	common "github.com/DataDog/datadog-agent/six/test/common"
+	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 )
 
 // #cgo CFLAGS: -I../../include
@@ -15,10 +16,10 @@ import (
 // #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
 // #include <datadog_agent_six.h>
 //
-// extern void headers(char **);
+// extern void getSubprocessOutput(char **, char **, char **, int*, char **);
 //
-// static void initDatadogAgentTests(six_t *six) {
-//    set_headers_cb(six, headers);
+// static void init_utilTests(six_t *six) {
+//    set_get_subprocess_output_cb(six, getSubprocessOutput);
 // }
 import "C"
 
@@ -26,12 +27,6 @@ var (
 	six     *C.six_t
 	tmpfile *os.File
 )
-
-type message struct {
-	Name string `json:"name"`
-	Body string `json:"body"`
-	Time int64  `json:"time"`
-}
 
 func setUp() error {
 	six = (*C.six_t)(common.GetSix())
@@ -45,7 +40,7 @@ func setUp() error {
 		return err
 	}
 
-	C.initDatadogAgentTests(six)
+	C.init_utilTests(six)
 
 	// Updates sys.path so testing Check can be found
 	C.add_python_path(six, C.CString("../python"))
@@ -65,12 +60,12 @@ func run(call string) (string, error) {
 	tmpfile.Truncate(0)
 	code := C.CString(fmt.Sprintf(`
 try:
-	import util
+	import _util
 	import sys
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
-		f.write("{}\n".format(e))
+		f.write("{}: {}\n".format(type(e).__name__, e))
 `, call, tmpfile.Name()))
 
 	runtime.LockOSThread()
@@ -81,23 +76,37 @@ except Exception as e:
 	C.release_gil(six, state)
 	runtime.UnlockOSThread()
 
+	resetTest()
 	if !ret {
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
 
 	output, err := ioutil.ReadFile(tmpfile.Name())
 
-	return string(output), err
+	return strings.TrimSpace(string(output)), err
 }
 
-//export headers
-func headers(in **C.char) {
-	h := map[string]string{
-		"User-Agent":   "Datadog Agent/0.99",
-		"Content-Type": "application/x-www-form-urlencoded",
-		"Accept":       "text/html, */*",
-	}
-	retval, _ := json.Marshal(h)
+func charArrayToSlice(array **C.char) (res []string) {
+	pTags := uintptr(unsafe.Pointer(array))
+	ptrSize := unsafe.Sizeof(*array)
 
-	*in = C.CString(string(retval))
+	for i := uintptr(0); ; i++ {
+		tagPtr := *(**C.char)(unsafe.Pointer(pTags + ptrSize*i))
+		if tagPtr == nil {
+			return
+		}
+		tag := C.GoString(tagPtr)
+		res = append(res, tag)
+	}
+}
+
+//export getSubprocessOutput
+func getSubprocessOutput(cargs **C.char, cstdout **C.char, cstderr **C.char, cretCode *C.int, cexception **C.char) {
+	args = charArrayToSlice(cargs)
+	*cstdout = C.CString(stdout)
+	*cstderr = C.CString(stderr)
+	*cretCode = C.int(retCode)
+	if setException {
+		*cexception = C.CString(exception)
+	}
 }

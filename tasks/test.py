@@ -44,7 +44,7 @@ DEFAULT_TEST_TARGETS = [
 @task()
 def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
     race=False, profile=False, fail_on_fmt=False,
-    six_root=None, python_home_2=None, python_home_3=None, cpus=0,
+    rtloader_root=None, python_home_2=None, python_home_3=None, cpus=0,
     timeout=120):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
@@ -78,7 +78,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     lint(ctx, targets=tool_targets)
     lint_licenses(ctx)
     print("--- Vetting:")
-    vet(ctx, targets=tool_targets, six_root=six_root)
+    vet(ctx, targets=tool_targets, rtloader_root=rtloader_root)
     print("--- Misspelling:")
     misspell(ctx, targets=tool_targets)
     print("--- ineffassigning:")
@@ -87,7 +87,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
 
-    ldflags, gcflags, env = get_build_flags(ctx, six_root=six_root,
+    ldflags, gcflags, env = get_build_flags(ctx, rtloader_root=rtloader_root,
             python_home_2=python_home_2, python_home_3=python_home_3)
 
     if sys.platform == 'win32':

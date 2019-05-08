@@ -153,10 +153,10 @@ run_tests_deb-x64:
   before_script:
     - pip install wheel
     - pip install -r requirements.txt
-    - inv -e six.build --install-prefix=$SRC_PATH/dev
-    - inv -e six.install
-    - inv -e six.format
-    - inv -e six.test
+    - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
+    - inv -e rtloader.install
+    - inv -e rtloader.format
+    - inv -e rtloader.test
     - inv deps
   script:
     - inv -e test --race --profile --cpus 4
@@ -373,7 +373,7 @@ agent_rpm-x64:
 
 # build Agent package for suse-x64
 agent_suse-x64:
-  allow_failure: true  # FIXME: allow to fail until we fix Six build on the builder image
+  allow_failure: true  # FIXME: allow to fail until we fix rtloader build on the builder image
 
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:latest
@@ -408,7 +408,7 @@ agent_suse-x64:
 
 # build Agent package for Windows
 build_windows_msi_x64:
-  allow_failure: true  # FIXME: allow to fail until we fix omnibus build on the builder image
+  allow_failure: false  
 
   ## this is a weird workaround. Can't use the built-in CI_PROJECT_DIR because the path separators
   ## are wrong.  Record the PROJECT dir with the correct path separators to be used later

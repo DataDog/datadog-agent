@@ -1,27 +1,24 @@
-package testcontainers
+package testutil
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"runtime"
-	"strings"
-	"unsafe"
 
-	common "github.com/DataDog/datadog-agent/six/test/common"
+	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 )
 
 // #cgo CFLAGS: -I../../include
 // #cgo !windows LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
 // #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
-//
-// #include <stdlib.h>
 // #include <datadog_agent_six.h>
 //
-// extern int is_excluded(char *, char*);
+// extern void headers(char **);
 //
-// static void initContainersTests(six_t *six) {
-//    set_is_excluded_cb(six, is_excluded);
+// static void initDatadogAgentTests(six_t *six) {
+//    set_headers_cb(six, headers);
 // }
 import "C"
 
@@ -48,7 +45,7 @@ func setUp() error {
 		return err
 	}
 
-	C.initContainersTests(six)
+	C.initDatadogAgentTests(six)
 
 	// Updates sys.path so testing Check can be found
 	C.add_python_path(six, C.CString("../python"))
@@ -68,18 +65,18 @@ func run(call string) (string, error) {
 	tmpfile.Truncate(0)
 	code := C.CString(fmt.Sprintf(`
 try:
-	import containers
+	import util
+	import sys
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
-		f.write("{}: {}\n".format(type(e).__name__, e))
+		f.write("{}\n".format(e))
 `, call, tmpfile.Name()))
 
 	runtime.LockOSThread()
 	state := C.ensure_gil(six)
 
 	ret := C.run_simple_string(six, code) == 1
-	C.free(unsafe.Pointer(code))
 
 	C.release_gil(six, state)
 	runtime.UnlockOSThread()
@@ -90,13 +87,17 @@ except Exception as e:
 
 	output, err := ioutil.ReadFile(tmpfile.Name())
 
-	return strings.TrimSpace(string(output)), err
+	return string(output), err
 }
 
-//export is_excluded
-func is_excluded(name *C.char, image *C.char) C.int {
-	if C.GoString(name) == "foo" {
-		return 1
+//export headers
+func headers(in **C.char) {
+	h := map[string]string{
+		"User-Agent":   "Datadog Agent/0.99",
+		"Content-Type": "application/x-www-form-urlencoded",
+		"Accept":       "text/html, */*",
 	}
-	return 0
+	retval, _ := json.Marshal(h)
+
+	*in = C.CString(string(retval))
 }

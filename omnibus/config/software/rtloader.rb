@@ -1,4 +1,4 @@
-name "datadog-agent-six"
+name "rtloader"
 default_version "master"
 
 dependency "python2"
@@ -20,8 +20,8 @@ if ohai["platform"] != "windows"
     }
     env = with_embedded_path(env)
 
-    command "inv -e six.build --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
-    command "inv -e six.install"
+    command "inv -e rtloader.build --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
+    command "inv -e rtloader.install"
   end
 else
   build do
@@ -32,8 +32,8 @@ else
     }
     env = with_embedded_path(env)
 
-    command "inv -e six.build --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options '-G \"Unix Makefiles\"", :env => env
-    command "mv six/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
+    command "inv -e rtloader.build --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options=\"-G \\\"Unix Makefiles\\\"\"", :env => env
+    command "mv rtloader/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
 
   end
 end

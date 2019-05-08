@@ -8,7 +8,7 @@ require 'pathname'
 
 name 'datadog-agent'
 
-dependency 'datadog-agent-six'
+dependency 'rtloader'
 
 license "Apache-2.0"
 license_file "../LICENSE"
@@ -29,7 +29,7 @@ build do
 
   # we assume the go deps are already installed before running omnibus
   if windows?
-    command "inv -e agent.build --six-root=#{Omnibus::Config.source_dir()}/datadog-agent-six --rebuild --no-development --embedded-path=#{install_dir}/embedded", env: env
+    command "inv -e agent.build --rtloader-root=#{Omnibus::Config.source_dir()}/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded", env: env
     command "inv -e systray.build --rebuild --no-development", env: env
   else
     command "inv -e agent.build --rebuild --no-development --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded", env: env

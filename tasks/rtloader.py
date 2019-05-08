@@ -7,7 +7,7 @@ from invoke import task
 
 def get_six_path():
     here = os.path.abspath(os.path.dirname(__file__))
-    return os.path.join(here, '..', 'six')
+    return os.path.join(here, '..', 'rtloader')
 
 @task
 def build(ctx, install_prefix=None, cmake_options=''):
@@ -16,6 +16,7 @@ def build(ctx, install_prefix=None, cmake_options=''):
     here = os.path.abspath(os.path.dirname(__file__))
     dev_path = os.path.join(here, '..', 'dev')
 
+    print("cmake options {}".format(cmake_options))
     cmake_args = cmake_options + " -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={}".format(install_prefix or dev_path)
 
     ctx.run("cd {} && cmake {} .".format(six_path, cmake_args))

@@ -1,4 +1,4 @@
-package testuutil
+package testtagger
 
 import (
 	"fmt"
@@ -8,18 +8,20 @@ import (
 	"strings"
 	"unsafe"
 
-	common "github.com/DataDog/datadog-agent/six/test/common"
+	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 )
 
 // #cgo CFLAGS: -I../../include
 // #cgo !windows LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
 // #cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
+//
+// #include <stdlib.h>
 // #include <datadog_agent_six.h>
 //
-// extern void getSubprocessOutput(char **, char **, char **, int*, char **);
+// extern char **Tags(char*, int);
 //
-// static void init_utilTests(six_t *six) {
-//    set_get_subprocess_output_cb(six, getSubprocessOutput);
+// static void initTaggerTests(six_t *six) {
+//    set_tags_cb(six, Tags);
 // }
 import "C"
 
@@ -40,7 +42,7 @@ func setUp() error {
 		return err
 	}
 
-	C.init_utilTests(six)
+	C.initTaggerTests(six)
 
 	// Updates sys.path so testing Check can be found
 	C.add_python_path(six, C.CString("../python"))
@@ -60,8 +62,7 @@ func run(call string) (string, error) {
 	tmpfile.Truncate(0)
 	code := C.CString(fmt.Sprintf(`
 try:
-	import _util
-	import sys
+	import tagger
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
@@ -72,41 +73,50 @@ except Exception as e:
 	state := C.ensure_gil(six)
 
 	ret := C.run_simple_string(six, code) == 1
+	C.free(unsafe.Pointer(code))
 
 	C.release_gil(six, state)
 	runtime.UnlockOSThread()
 
-	resetTest()
 	if !ret {
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
 
 	output, err := ioutil.ReadFile(tmpfile.Name())
-
 	return strings.TrimSpace(string(output)), err
 }
 
-func charArrayToSlice(array **C.char) (res []string) {
-	pTags := uintptr(unsafe.Pointer(array))
-	ptrSize := unsafe.Sizeof(*array)
+//export Tags
+func Tags(id *C.char, cardinality C.int) **C.char {
+	goId := C.GoString(id)
 
-	for i := uintptr(0); ; i++ {
-		tagPtr := *(**C.char)(unsafe.Pointer(pTags + ptrSize*i))
-		if tagPtr == nil {
-			return
-		}
-		tag := C.GoString(tagPtr)
-		res = append(res, tag)
-	}
-}
+	length := 4
+	cTags := C.malloc(C.size_t(length) * C.size_t(unsafe.Sizeof(uintptr(0))))
+	// convert the C array to a Go Array so we can index it
+	indexTag := (*[1<<29 - 1]*C.char)(cTags)[:length:length]
+	indexTag[length-1] = nil
 
-//export getSubprocessOutput
-func getSubprocessOutput(cargs **C.char, cstdout **C.char, cstderr **C.char, cretCode *C.int, cexception **C.char) {
-	args = charArrayToSlice(cargs)
-	*cstdout = C.CString(stdout)
-	*cstderr = C.CString(stderr)
-	*cretCode = C.int(retCode)
-	if setException {
-		*cexception = C.CString(exception)
+	if goId != "base" {
+		return nil
 	}
+
+	// dummy value for each cardinality value
+	switch cardinality {
+	case C.DATADOG_AGENT_SIX_TAGGER_LOW:
+		indexTag[0] = C.CString("a")
+		indexTag[1] = C.CString("b")
+		indexTag[2] = C.CString("c")
+	case C.DATADOG_AGENT_SIX_TAGGER_HIGH:
+		indexTag[0] = C.CString("A")
+		indexTag[1] = C.CString("B")
+		indexTag[2] = C.CString("C")
+	case C.DATADOG_AGENT_SIX_TAGGER_ORCHESTRATOR:
+		indexTag[0] = C.CString("1")
+		indexTag[1] = C.CString("2")
+		indexTag[2] = C.CString("3")
+	default:
+		C.free(cTags)
+		return nil
+	}
+	return (**C.char)(cTags)
 }

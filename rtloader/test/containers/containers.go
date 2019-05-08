@@ -1,14 +1,14 @@
-package testkubeutil
+package testcontainers
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"runtime"
+	"strings"
 	"unsafe"
 
-	common "github.com/DataDog/datadog-agent/six/test/common"
+	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 )
 
 // #cgo CFLAGS: -I../../include
@@ -18,18 +18,23 @@ import (
 // #include <stdlib.h>
 // #include <datadog_agent_six.h>
 //
-// extern void getConnectionInfo(char **);
+// extern int is_excluded(char *, char*);
 //
-// static void initKubeUtilTests(six_t *six) {
-//    set_get_connection_info_cb(six, getConnectionInfo);
+// static void initContainersTests(six_t *six) {
+//    set_is_excluded_cb(six, is_excluded);
 // }
 import "C"
 
 var (
-	six        *C.six_t
-	tmpfile    *os.File
-	returnNull bool
+	six     *C.six_t
+	tmpfile *os.File
 )
+
+type message struct {
+	Name string `json:"name"`
+	Body string `json:"body"`
+	Time int64  `json:"time"`
+}
 
 func setUp() error {
 	six = (*C.six_t)(common.GetSix())
@@ -43,7 +48,7 @@ func setUp() error {
 		return err
 	}
 
-	C.initKubeUtilTests(six)
+	C.initContainersTests(six)
 
 	// Updates sys.path so testing Check can be found
 	C.add_python_path(six, C.CString("../python"))
@@ -63,11 +68,11 @@ func run(call string) (string, error) {
 	tmpfile.Truncate(0)
 	code := C.CString(fmt.Sprintf(`
 try:
-	import kubeutil
+	import containers
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
-		f.write("{}\n".format(e))
+		f.write("{}: {}\n".format(type(e).__name__, e))
 `, call, tmpfile.Name()))
 
 	runtime.LockOSThread()
@@ -85,20 +90,13 @@ except Exception as e:
 
 	output, err := ioutil.ReadFile(tmpfile.Name())
 
-	return string(output), err
+	return strings.TrimSpace(string(output)), err
 }
 
-//export getConnectionInfo
-func getConnectionInfo(in **C.char) {
-	if returnNull {
-		return
+//export is_excluded
+func is_excluded(name *C.char, image *C.char) C.int {
+	if C.GoString(name) == "foo" {
+		return 1
 	}
-
-	h := map[string]string{
-		"FooKey": "FooValue",
-		"BarKey": "BarValue",
-	}
-	retval, _ := json.Marshal(h)
-
-	*in = C.CString(string(retval))
+	return 0
 }

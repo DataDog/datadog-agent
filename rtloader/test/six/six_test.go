@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	common "github.com/DataDog/datadog-agent/six/test/common"
+	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 )
 
 func TestMain(m *testing.M) {
