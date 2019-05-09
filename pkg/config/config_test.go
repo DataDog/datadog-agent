@@ -7,7 +7,7 @@ package config
 
 import (
 	"bytes"
-	"fmt"
+	"log"
 	"os"
 	"strings"
 	"testing"
@@ -28,7 +28,7 @@ func setupConfFromYAML(yamlConfig string) Config {
 	conf.SetConfigType("yaml")
 	e := conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
 	if e != nil {
-		fmt.Println(e)
+		log.Println(e)
 	}
 	return conf
 }
@@ -85,7 +85,6 @@ api_key: fakeapikey
 }
 
 func TestUnknownKeysWarning(t *testing.T) {
-
 	yamlBase := `
 site: datadoghq.eu
 `
