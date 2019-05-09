@@ -11,7 +11,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -101,11 +103,7 @@ func NewHTTPReceiver(
 func (r *HTTPReceiver) Start() {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	r.attachDebugHandlers(mux)
 
 	mux.HandleFunc("/spans", r.httpHandleWithVersion(v01, r.handleTraces))
 	mux.HandleFunc("/services", r.httpHandleWithVersion(v01, r.handleServices))
@@ -142,6 +140,37 @@ func (r *HTTPReceiver) Start() {
 		defer watchdog.LogOnPanic()
 		r.loop()
 	}()
+}
+
+func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	mux.HandleFunc("/debug/blockrate", func(w http.ResponseWriter, r *http.Request) {
+		// this endpoint calls runtime.SetBlockProfileRate(v), where v is an optional
+		// query string parameter defaulting to 10000 (1 sample per 10μs blocked).
+		rate := 10000
+		v := r.URL.Query().Get("v")
+		if v != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				http.Error(w, "v must be an integer", http.StatusBadRequest)
+				return
+			}
+			rate = n
+		}
+		runtime.SetBlockProfileRate(rate)
+		w.Write([]byte(fmt.Sprintf("Block profile rate set to %d. It will automatically be disabled again after calling /debug/pprof/block\n", rate)))
+	})
+
+	mux.HandleFunc("/debug/pprof/block", func(w http.ResponseWriter, r *http.Request) {
+		// serve the block profile and reset the rate to 0.
+		pprof.Handler("block").ServeHTTP(w, r)
+		runtime.SetBlockProfileRate(0)
+	})
 }
 
 // Listen creates a new HTTP server listening on the provided address.
