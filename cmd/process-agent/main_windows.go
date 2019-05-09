@@ -20,6 +20,7 @@ import (
 
 var elog debug.Log
 
+// ServiceName is the service name used for the process-agent
 const ServiceName = "datadog-process-agent"
 
 // opts are the command-line options
