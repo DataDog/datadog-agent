@@ -98,6 +98,9 @@ unknown_key.unknown_subkey: true
 `
 	confWithUnknownKeys := setupConfFromYAML(yamlWithUnknownKeys)
 	assert.True(t, checkForUnknownKeys(confWithUnknownKeys))
+
+	confWithUnknownKeys.SetKnown("unknown_key.*")
+	assert.False(t, checkForUnknownKeys(confWithUnknownKeys))
 }
 
 func TestSiteEnvVar(t *testing.T) {
