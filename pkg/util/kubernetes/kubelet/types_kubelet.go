@@ -74,12 +74,18 @@ type Status struct {
 	PodIP          string            `json:"podIP,omitempty"`
 	Containers     []ContainerStatus `json:"containerStatuses,omitempty"`
 	InitContainers []ContainerStatus `json:"initContainerStatuses,omitempty"`
-	Conditions     []Conditions      `json:"conditions,omitempty"`
+	AllContainers  []ContainerStatus
+	Conditions     []Conditions `json:"conditions,omitempty"`
 }
 
-// AllContainers returns the list of init and regular containers
-func (s *Status) AllContainers() []ContainerStatus {
-	return append(s.InitContainers, s.Containers...)
+// GetAllContainers returns the list of init and regular containers
+// the list is created lazily assuming container statuses are not modified
+func (s *Status) GetAllContainers() []ContainerStatus {
+	if len(s.AllContainers) > 0 {
+		return s.AllContainers
+	}
+	s.AllContainers = append(s.InitContainers, s.Containers...)
+	return s.AllContainers
 }
 
 // Conditions contains fields for unmarshalling a Pod.Status.Conditions

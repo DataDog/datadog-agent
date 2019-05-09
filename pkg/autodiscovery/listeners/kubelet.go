@@ -132,7 +132,7 @@ func (l *KubeletListener) processNewPods(pods []*kubelet.Pod, firstRun bool) {
 	for _, pod := range pods {
 		// We ignore the state of the pod but only taking containers with ids
 		// into consideration (not pending)
-		for _, container := range pod.Status.AllContainers() {
+		for _, container := range pod.Status.GetAllContainers() {
 			if !container.IsPending() {
 				l.createService(container.ID, pod, firstRun)
 			}
@@ -205,7 +205,7 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 
 	// AD Identifiers
 	var containerName string
-	for _, container := range pod.Status.AllContainers() {
+	for _, container := range pod.Status.GetAllContainers() {
 		if container.ID == svc.entity {
 			if l.filter.IsExcluded(container.Name, container.Image) {
 				log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, container.Image)

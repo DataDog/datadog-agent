@@ -82,8 +82,9 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 
 		// Detect new containers
 		newContainer := false
-		for _, container := range pod.Status.AllContainers() {
-			// init containers are never ready, we check for ID
+		for _, container := range pod.Status.GetAllContainers() {
+			// We don't check container readiness as init containers are never ready
+			// We check if the container has an ID instead (has run or is running)
 			if !container.IsPending() {
 				if _, found := w.lastSeen[container.ID]; found == false {
 					newContainer = true
