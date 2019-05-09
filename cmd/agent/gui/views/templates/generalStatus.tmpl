@@ -60,6 +60,15 @@
           {{end -}}
         {{- end -}}
       {{- end}}
+      {{- if gt (len .hostTags) 0 }}
+        <span>Host tags: <br>
+          <span class="stat_subdata">
+            {{- range $tag := .hostTags}}
+              {{$tag}}<br>
+            {{- end }}
+          </span>
+        </span>
+      {{- end }}
       Hostname Provider: {{.hostnameStats.provider}}<br>
       {{- if gt (len .hostnameStats.errors) 0 }}
         <span>Unused Hostname Providers: <br>

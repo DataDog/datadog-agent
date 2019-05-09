@@ -45,7 +45,7 @@ func GetStatus() (map[string]interface{}, error) {
 	} else {
 		stats["metadata"] = host.GetPayloadFromCache(hostname)
 	}
-
+	stats["hostTags"] = getHostTagsConfig()
 	stats["config"] = getPartialConfig()
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
 
@@ -207,6 +207,11 @@ func getDCAPartialConfig() map[string]string {
 	conf["log_level"] = config.Datadog.GetString("log_level")
 	conf["confd_path"] = config.Datadog.GetString("confd_path")
 	return conf
+}
+
+// getHostTagsConfig returns config host tags applied to all metrics
+func getHostTagsConfig() []string {
+	return config.Datadog.GetStringSlice("tags")
 }
 
 // getPartialConfig returns config parameters of interest for the status page
