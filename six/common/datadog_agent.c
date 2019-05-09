@@ -100,7 +100,7 @@ PyObject *get_version(PyObject *self, PyObject *args)
     cb_get_version(&v);
 
     if (v != NULL) {
-        PyObject *retval = PyUnicode_FromString(v);
+        PyObject *retval = PyStringFromCString(v);
         cgo_free(v);
         return retval;
     }
@@ -199,7 +199,7 @@ PyObject *get_hostname(PyObject *self, PyObject *args)
     cb_get_hostname(&v);
 
     if (v != NULL) {
-        PyObject *retval = PyUnicode_FromString(v);
+        PyObject *retval = PyStringFromCString(v);
         cgo_free(v);
         return retval;
     }
@@ -217,7 +217,7 @@ PyObject *get_clustername(PyObject *self, PyObject *args)
     cb_get_clustername(&v);
 
     if (v != NULL) {
-        PyObject *retval = PyUnicode_FromString(v);
+        PyObject *retval = PyStringFromCString(v);
         cgo_free(v);
         return retval;
     }
