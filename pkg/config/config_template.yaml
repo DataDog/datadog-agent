@@ -360,6 +360,12 @@ api_key:
   #
   # apm_non_local_traffic: false
 
+  ## @param apm_dd_url - string - optional
+  ## Define the endpoint and port to hit when using a proxy for APM. The traces are forwarded in TCP
+  ## therefore the proxy must be able to handle TCP connections.
+  #
+  # apm_dd_url: <ENDPOINT>:<PORT>
+
   ## @param extra_sample_rate - float - optional - default: 1.0
   ## Extra global sample rate to apply on all the traces
   ## This sample rate is combined to the sample rate from the sampler logic, still promoting interesting traces.
@@ -394,11 +400,7 @@ api_key:
   ## See https://docs.datadoghq.com/tracing/guide/agent-obfuscation
   #
   # obfuscation:
-  #   <SERVICE_NAME>:
-  #     enabled: true
-  #     keep_values:
-  #       - <VALUE_1>
-  #       - <VALUE_2>
+  #     <OBFUSCATION_CONFIGURATION>
 
   ## @param replace_tags - list of objects - optional
   ## Defines a set of rules to replace or remove certain services, resources, tags containing
