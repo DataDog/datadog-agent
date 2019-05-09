@@ -24,12 +24,12 @@ func setupConf() Config {
 
 func setupConfFromYAML(yamlConfig string) Config {
 	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	initConfig(conf)
 	conf.SetConfigType("yaml")
 	e := conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
 	if e != nil {
 		fmt.Println(e)
 	}
-	initConfig(conf)
 	return conf
 }
 
