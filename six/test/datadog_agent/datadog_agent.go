@@ -80,6 +80,7 @@ func tearDown() {
 func run(call string) (string, error) {
 	tmpfile.Truncate(0)
 	code := C.CString(fmt.Sprintf(`
+import sys
 try:
 	import datadog_agent
 	%s

@@ -22,7 +22,12 @@ func TestMain(m *testing.M) {
 func TestGetVersion(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
-		f.write(datadog_agent.get_version())
+		version = datadog_agent.get_version()
+		if sys.version_info.major == 2:
+			assert type(version) == type(b"")
+		else:
+			assert type(version) == type(u"")
+		f.write(version)
 	`, tmpfile.Name())
 	out, err := run(code)
 	if err != nil {
@@ -66,7 +71,12 @@ func TestHeaders(t *testing.T) {
 func TestGetHostname(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
-		f.write(datadog_agent.get_hostname())
+		name = datadog_agent.get_hostname()
+		if sys.version_info.major == 2:
+			assert type(name) == type(b"")
+		else:
+			assert type(name) == type(u"")
+		f.write(name)
 	`, tmpfile.Name())
 	out, err := run(code)
 	if err != nil {
@@ -80,7 +90,12 @@ func TestGetHostname(t *testing.T) {
 func TestGetClustername(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
-		f.write(datadog_agent.get_clustername())
+		name = datadog_agent.get_clustername()
+		if sys.version_info.major == 2:
+			assert type(name) == type(b"")
+		else:
+			assert type(name) == type(u"")
+		f.write(name)
 	`, tmpfile.Name())
 
 	out, err := run(code)
