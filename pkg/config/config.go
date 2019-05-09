@@ -521,12 +521,8 @@ func LoadWithoutSecret() error {
 	return load(Datadog, "datadog.yaml", false)
 }
 
-func load(config Config, origin string, loadSecret bool) error {
-	if err := config.ReadInConfig(); err != nil {
-		log.Warnf("Error loading config: %v", err)
-		return err
-	}
-
+func checkForUnknownKeys(config Config) bool {
+	hasUnknownKeys := false
 	knownKeys := config.GetKnownKeys()
 	loadedKeys := config.AllKeys()
 	for _, key := range loadedKeys {
@@ -542,9 +538,20 @@ func load(config Config, origin string, loadSecret bool) error {
 			}
 			if !found {
 				log.Warnf("Unknown key in config file: %v", key)
+				hasUnknownKeys = true
 			}
 		}
 	}
+	return hasUnknownKeys
+}
+
+func load(config Config, origin string, loadSecret bool) error {
+	if err := config.ReadInConfig(); err != nil {
+		log.Warnf("Error loading config: %v", err)
+		return err
+	}
+
+	checkForUnknownKeys(config)
 
 	if loadSecret {
 		// We have to init the secrets package before we can use it to decrypt

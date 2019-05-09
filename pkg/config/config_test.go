@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -78,6 +79,22 @@ api_key: fakeapikey
 	assert.Nil(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
+}
+
+func TestUnknownKeysWarning(t *testing.T) {
+
+	yamlBase := `
+site: datadoghq.eu
+`
+	confBase := setupConfFromYAML(yamlBase)
+	assert.False(t, checkForUnknownKeys(confBase))
+
+	yamlWithUnknownKeys := `
+site: datadoghq.eu
+unknown_key.unknown_subkey: true
+`
+	confWithUnknownKeys := setupConfFromYAML(yamlWithUnknownKeys)
+	assert.True(t, checkForUnknownKeys(confWithUnknownKeys))
 }
 
 func TestSiteEnvVar(t *testing.T) {
