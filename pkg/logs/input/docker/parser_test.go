@@ -7,6 +7,7 @@
 package docker
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -24,7 +25,7 @@ func TestGetDockerSeverity(t *testing.T) {
 
 func TestDockerStandaloneParserShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := dockerHeader + " " + "anything"
-	parser := dockerParser
+	parser := newDockerParser("container_1")
 	dockerMsg, err := parser.Parse([]byte(validMessage))
 	assert.Nil(t, err)
 	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", dockerMsg.Timestamp)
@@ -33,14 +34,14 @@ func TestDockerStandaloneParserShouldSucceedWithValidInput(t *testing.T) {
 }
 
 func TestDockerStandaloneParserShouldHandleEmptyMessage(t *testing.T) {
-	parser := dockerParser
+	parser := newDockerParser("container_1")
 	msg, err := parser.Parse([]byte(dockerHeader))
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(msg.Content))
 }
 
 func TestDockerStandaloneParserShouldHandleNewlineOnlyMessage(t *testing.T) {
-	parser := dockerParser
+	parser := newDockerParser("container_1")
 	emptyContent := [3]string{"\\n", "\\r", "\\r\\n"}
 
 	for _, em := range emptyContent {
@@ -51,7 +52,7 @@ func TestDockerStandaloneParserShouldHandleNewlineOnlyMessage(t *testing.T) {
 }
 
 func TestDockerStandaloneParserShouldHandleTtyMessage(t *testing.T) {
-	parser := dockerParser
+	parser := newDockerParser("container_1")
 	msg, err := parser.Parse([]byte("2018-06-14T18:27:03.246999277Z foo"))
 	assert.Nil(t, err)
 	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", msg.Timestamp)
@@ -60,7 +61,7 @@ func TestDockerStandaloneParserShouldHandleTtyMessage(t *testing.T) {
 }
 
 func TestDockerStandaloneParserShouldHandleEmptyTtyMessage(t *testing.T) {
-	parser := dockerParser
+	parser := newDockerParser("container_1")
 	msg, err := parser.Parse([]byte("2018-06-14T18:27:03.246999277Z"))
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(msg.Content))
@@ -70,7 +71,7 @@ func TestDockerStandaloneParserShouldHandleEmptyTtyMessage(t *testing.T) {
 }
 
 func TestDockerStandaloneParserShouldFailWithInvalidInput(t *testing.T) {
-	parser := dockerParser
+	parser := newDockerParser("container_1")
 	var msg []byte
 	var err error
 
@@ -78,12 +79,12 @@ func TestDockerStandaloneParserShouldFailWithInvalidInput(t *testing.T) {
 	msg = []byte{}
 	msg = append(msg, []byte{1, 0, 0, 0, 0}...)
 	_, err = parser.Parse(msg)
-	assert.NotNil(t, err)
+	assert.Equal(t, errors.New("Container container_1, can't parse docker message: expected a 8 bytes header"), err)
 
 }
 
 func TestDockerStandaloneParserShouldRemovePartialHeaders(t *testing.T) {
-	parser := dockerParser
+	parser := newDockerParser("container_1")
 	var msgToClean []byte
 	var dockerMsg *message.Message
 	var expectedMsg []byte

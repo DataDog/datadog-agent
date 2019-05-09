@@ -9,9 +9,8 @@ package docker
 import (
 	"bytes"
 	"errors"
-
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	logParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
 // Length of the docker message header.
@@ -26,17 +25,20 @@ const dockerBufferSize = 16 * 1024
 // Escaped CRLF, used for determine empty messages
 var escapedCRLF = []byte{'\\', 'r', '\\', 'n'}
 
-// dockerParser is the parser for stdout/stderr docker logs
-var dockerParser *parser
+type DockerParser struct {
+	containerID	string
+}
 
-type parser struct {
-	logParser.Parser
+func newDockerParser(containerID string) *DockerParser {
+	return &DockerParser {
+		containerID:	containerID,
+	}
 }
 
 // Parse calls parse to extract the message body, status, timestamp
 // can put them in the Message
-func (p *parser) Parse(msg []byte) (*message.Message, error) {
-	body, status, timestamp, err := parse(msg)
+func (p *DockerParser) Parse(msg []byte) (*message.Message, error) {
+	body, status, timestamp, err := parse(msg, p.containerID)
 	parsedMsg := message.NewMessage(body, nil, status)
 	parsedMsg.Timestamp = timestamp
 	return parsedMsg, err
@@ -44,21 +46,20 @@ func (p *parser) Parse(msg []byte) (*message.Message, error) {
 
 // Unwrap removes the message header of docker logs
 // return log body and the timestamp
-func (p *parser) Unwrap(line []byte) ([]byte, string, error) {
-	body, _, timestamp, err := parse(line)
+func (p *DockerParser) Unwrap(line []byte) ([]byte, string, error) {
+	body, _, timestamp, err := parse(line, p.containerID)
 	return body, timestamp, err
 }
 
 // parse extracts the date and the status from the raw docker message
 // it returns 1. raw message 2. severity 3. timestamp, 4 error
-// see https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
-func parse(msg []byte) ([]byte, string, string, error) {
-
+// see https://github.com/moby/moby/blob/master/client/container_logs.go#L36
+func parse(msg []byte, containerID string) ([]byte, string, string, error) {
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
 	if len(msg) < dockerHeaderLength {
-		return msg, message.StatusInfo, "", errors.New("can't parse docker message: expected a 8 bytes header")
+		return msg, message.StatusInfo, "", errors.New(fmt.Sprintf("Container %v, can't parse docker message: expected a 8 bytes header", ShortContainerID(containerID)))
 	}
 
 	// Read the first byte to get the status
