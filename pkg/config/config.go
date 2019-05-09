@@ -531,7 +531,8 @@ func load(config Config, origin string, loadSecret bool) error {
 	loadedKeys := config.AllKeys()
 	for _, key := range loadedKeys {
 		if _, found := knownKeys[key]; !found {
-			//Check if any subkey with a .* is marked as known
+			// Check if any subkey terminated with a '.*' wildcard is marked as known
+			// e.g.: apm_config.* would match all sub-keys of apm_config
 			splitPath := strings.Split(key, ".")
 			for j := range splitPath {
 				subKey := strings.Join(splitPath[:j+1], ".") + ".*"
