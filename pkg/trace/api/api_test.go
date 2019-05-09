@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
 )
@@ -51,6 +52,15 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf.Endpoints[0].APIKey = "test"
 
 	return conf
+}
+
+func TestMain(m *testing.M) {
+	seelog.UseLogger(seelog.Disabled)
+
+	defer func(old func(string)) { killProcess = old }(killProcess)
+	killProcess = func(_ string) {}
+
+	m.Run()
 }
 
 func TestReceiverRequestBodyLength(t *testing.T) {
@@ -756,17 +766,11 @@ func TestWatchdog(t *testing.T) {
 		return
 	}
 
-	defaultMux := http.DefaultServeMux // restore it at the end
-	defer func() { http.DefaultServeMux = defaultMux }()
-
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
 	conf.WatchdogInterval = time.Millisecond
 
-	outT := make(chan pb.Trace, 5)
-	outS := make(chan pb.ServicesMetadata, 5)
-
-	r := NewHTTPReceiver(conf, sampler.NewDynamicConfig("none"), outT, outS)
+	r := newTestReceiverFromConfig(conf)
 	r.Start()
 	defer r.Stop()
 	go func() {
@@ -775,16 +779,11 @@ func TestWatchdog(t *testing.T) {
 		}
 	}()
 
-	traces := pb.Traces{
+	data := msgpTraces(t, pb.Traces{
 		testutil.RandomTrace(10, 20),
 		testutil.RandomTrace(10, 20),
 		testutil.RandomTrace(10, 20),
-	}
-	var body bytes.Buffer
-	if err := msgp.Encode(&body, traces); err != nil {
-		t.Fatal(err)
-	}
-	data := body.Bytes()
+	})
 
 	// first request is accepted
 	conf.MaxMemory = 1e10
@@ -818,4 +817,60 @@ func TestWatchdog(t *testing.T) {
 	if resp.StatusCode != http.StatusTooManyRequests {
 		t.Fatalf("didn't close, got %d", resp.StatusCode)
 	}
+}
+
+func TestOOMKill(t *testing.T) {
+	var kills uint64
+
+	defer func(old func(string)) { killProcess = old }(killProcess)
+	killProcess = func(msg string) {
+		if msg != "OOM" {
+			t.Fatalf("wrong message: %s", msg)
+		}
+		atomic.AddUint64(&kills, 1)
+	}
+
+	conf := config.New()
+	conf.Endpoints[0].APIKey = "apikey_2"
+	conf.WatchdogInterval = time.Millisecond
+	conf.MaxMemory = 0.5 * 1000 * 1000 // 0.5M
+
+	r := newTestReceiverFromConfig(conf)
+	r.Start()
+	defer r.Stop()
+	go func() {
+		for {
+			<-r.Out
+		}
+	}()
+
+	data := msgpTraces(t, pb.Traces{
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+	})
+
+	var wg sync.WaitGroup
+	for tries := 0; tries < 50; tries++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data)); err != nil {
+				t.Fatal(err)
+			}
+		}()
+	}
+	time.Sleep(2 * conf.WatchdogInterval)
+	wg.Wait()
+	if atomic.LoadUint64(&kills) == 0 {
+		t.Fatal("didn't get OOM killed")
+	}
+}
+
+func msgpTraces(t *testing.T, traces pb.Traces) []byte {
+	var body bytes.Buffer
+	if err := msgp.Encode(&body, traces); err != nil {
+		t.Fatal(err)
+	}
+	return body.Bytes()
 }
