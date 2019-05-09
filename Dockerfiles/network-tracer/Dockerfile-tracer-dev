@@ -1,0 +1,5 @@
+FROM ubuntu:xenial
+
+COPY network-tracer /usr/local/bin
+
+CMD network-tracer

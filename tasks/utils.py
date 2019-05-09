@@ -136,6 +136,18 @@ def get_version_ldflags(ctx, prefix=None):
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
     return ldflags
 
+def get_git_commit():
+    """
+    Get the current commit
+    """
+    return check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('utf-8').strip()
+
+def get_go_version():
+    """
+    Get the version of Go used
+    """
+    return check_output(['go', 'version']).decode('utf-8').strip()
+
 def get_root():
     """
     Get the root of the Go project
