@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
