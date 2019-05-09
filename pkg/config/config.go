@@ -531,7 +531,17 @@ func load(config Config, origin string, loadSecret bool) error {
 	loadedKeys := config.AllKeys()
 	for _, key := range loadedKeys {
 		if _, found := knownKeys[key]; !found {
-			log.Warnf("Unknown key in config file: %v", key)
+			//Check if any subkey with a .* is marked as known
+			splitPath := strings.Split(key, ".")
+			for j := range splitPath {
+				subKey := strings.Join(splitPath[:j+1], ".") + ".*"
+				if _, found = knownKeys[subKey]; found {
+					break
+				}
+			}
+			if !found {
+				log.Warnf("Unknown key in config file: %v", key)
+			}
 		}
 	}
 
