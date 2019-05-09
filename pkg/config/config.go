@@ -319,8 +319,6 @@ func initConfig(config Config) {
 
 	// Trace agent
 	config.BindEnvAndSetDefault("apm_config.enabled", true)
-	config.BindEnvAndSetDefault("apm_config.log_throttling", true)
-	config.BindEnvAndSetDefault("apm_config.max_events_per_second", 200)
 
 	// Process agent
 	config.BindEnv("process_config.process_dd_url", "")
@@ -412,14 +410,9 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.receiver_port")
 	config.SetKnown("apm_config.env")
 	config.SetKnown("apm_config.apm_non_local_traffic")
-	config.SetKnown("apm_config.apm_dd_url")
 	config.SetKnown("apm_config.extra_sample_rate")
 	config.SetKnown("apm_config.ignore_resources")
-	config.SetKnown("apm_config.log_file")
 	config.SetKnown("apm_config.max_traces_per_second")
-	config.SetKnown("apm_config.max_memory")
-	config.SetKnown("apm_config.max_cpu_percent")
-	config.SetKnown("apm_config.obfuscation")
 	config.SetKnown("clustername")
 	config.SetKnown("listeners")
 	config.SetKnown("process.strip_proc_arguments")
