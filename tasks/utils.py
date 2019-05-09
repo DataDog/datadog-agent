@@ -30,10 +30,6 @@ def bin_name(name, android=False):
 
 
 def get_multi_python_location(embedded_path=None, six_root=None):
-    if embedded_path is None:
-        # fall back to local dev path
-        embedded_path = "{}/src/github.com/DataDog/datadog-agent/dev".format(os.environ.get('GOPATH'))
-
     if six_root is None:
         six_lib = "{}/lib".format(six_root or embedded_path)
         six_headers = "{}/include".format(six_root or embedded_path)
@@ -59,6 +55,10 @@ def get_build_flags(ctx, static=False, prefix=None, use_venv=False, embedded_pat
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
 
+    if embedded_path is None:
+        # fall back to local dev path
+        embedded_path = "{}/src/github.com/DataDog/datadog-agent/dev".format(os.environ.get('GOPATH'))
+
     six_lib, six_headers = get_multi_python_location(embedded_path, six_root)
 
     # setting python homes in the code
@@ -76,7 +76,7 @@ def get_build_flags(ctx, static=False, prefix=None, use_venv=False, embedded_pat
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
         ldflags += "-s -w -linkmode=external '-extldflags=-static' "
-    elif embedded_path:
+    else:
         ldflags += "-r {}/lib ".format(embedded_path)
 
     if os.environ.get("DELVE"):
