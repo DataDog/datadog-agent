@@ -4,7 +4,7 @@ default_version "19.0.3"
 
 dependency "setuptools3"
 
-source :url => "https://github.com/pypa/pip/archive/#{version}.tar.gz",
+source :url => "https://codeload.github.com/pypa/pip/tar.gz/#{version}",
        :sha256 => "afe5d018b19a8ef00996d6bc3629e6df401efd295c99b38cc4872e07568482ff",
        :extract => :seven_zip
 
