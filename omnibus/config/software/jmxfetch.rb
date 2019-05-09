@@ -15,7 +15,9 @@ end
 default_version jmxfetch_version
 source sha256: jmxfetch_hash
 
-source :url => "https://dl.bintray.com/datadog/datadog-maven/com/datadoghq/jmxfetch/#{version}/jmxfetch-#{version}-jar-with-dependencies.jar"
+source url: "https://dl.bintray.com/datadog/datadog-maven/com/datadoghq/jmxfetch/#{version}/jmxfetch-#{version}-jar-with-dependencies.jar",
+       target_filename: "jmxfetch.jar"
+
 
 jar_dir = "#{install_dir}/bin/agent/dist/jmx"
 
@@ -24,6 +26,6 @@ relative_path "jmxfetch"
 build do
   ship_license "https://raw.githubusercontent.com/DataDog/jmxfetch/master/LICENSE"
   mkdir jar_dir
-  copy "jmxfetch-#{jmxfetch_version}-jar-with-dependencies.jar", "#{jar_dir}/jmxfetch.jar"
+  copy "jmxfetch.jar", "#{jar_dir}/jmxfetch.jar"
   block { File.chmod(0644, "#{jar_dir}/jmxfetch.jar") }
 end
