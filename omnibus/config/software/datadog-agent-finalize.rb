@@ -28,6 +28,11 @@ build do
             # TODO why does this get generated at all
             delete "#{install_dir}/bin/agent/agent.exe~"
 
+            #remove unneccessary copies caused by blanked copy of bin to #{install_dir} in datadog-agent recipe
+            delete "#{install_dir}/bin/agent/libdatadog-agent-three.dll"
+            delete "#{install_dir}/bin/agent/libdatadog-agent-two.dll"
+            delete "#{install_dir}/bin/agent/customaction.dll"
+
             # remove the config files for the subservices; they'll be started
             # based on the config file
             delete "#{conf_dir}/apm.yaml.default"
