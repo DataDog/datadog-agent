@@ -113,9 +113,8 @@ func (s *queuableSender) Send(payload *payload) {
 
 // Stop asks this sender to stop and waits until it correctly stops.
 func (s *queuableSender) Stop() {
-	s.exit <- struct{}{}
-	<-s.exit
 	close(s.in)
+	<-s.exit
 	s.wg.Wait()
 	close(s.monitorCh)
 }
@@ -161,7 +160,12 @@ func (s *queuableSender) Run() {
 
 	for {
 		select {
-		case payload := <-s.in:
+		case payload, more := <-s.in:
+			if !more {
+				log.Info("Exiting payload sender, try flushing whatever is left")
+				s.flushQueue()
+				return
+			}
 			if payload == nil {
 				continue
 			}
@@ -191,10 +195,6 @@ func (s *queuableSender) Run() {
 			// TODO: Is there a way of avoiding this? I want Promises in Go :(((
 			// This serves as a barrier (assuming syncBarrier is an unbuffered channel). Used for testing
 			continue
-		case <-s.exit:
-			log.Info("Exiting payload sender, try flushing whatever is left")
-			s.flushQueue()
-			return
 		}
 	}
 }
