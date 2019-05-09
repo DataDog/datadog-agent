@@ -75,7 +75,7 @@ PUPPY_CORECHECKS = [
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, development=True, precompile_only=False, skip_assets=False,
-          use_venv=False, embedded_path=None, six_root=None, python_home_2=None, python_home_3=None):
+          embedded_path=None, six_root=None, python_home_2=None, python_home_3=None):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -87,9 +87,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
-    ldflags, gcflags, env = get_build_flags(ctx, use_venv=use_venv,
-            embedded_path=embedded_path, six_root=six_root,
-            python_home_2=python_home_2, python_home_3=python_home_3)
+    ldflags, gcflags, env = get_build_flags(ctx, embedded_path=embedded_path,
+            six_root=six_root, python_home_2=python_home_2, python_home_3=python_home_3)
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:

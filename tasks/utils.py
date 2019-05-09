@@ -44,7 +44,7 @@ def get_multi_python_location(embedded_path=None, six_root=None):
 
     return six_lib, six_headers
 
-def get_build_flags(ctx, static=False, prefix=None, use_venv=False, embedded_path=None,
+def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
                     six_root=None, python_home_2=None, python_home_3=None):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
