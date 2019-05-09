@@ -22,9 +22,9 @@ On Windows, install Python 2.7 via the [official installer](https://www.python.o
 ### Additional Windows Tools
 You will also need the Visual Studio for [Visual Studio for Python installer](http://aka.ms/vcpython27)
 
-Download the [gcc toolchain](http://win-builds.org/). 
-- From the graphical package manager, select and install the needed libraries, leave the default (select all) if you're unsure.  
-- Make sure to select x86_64. 
+Download the [gcc toolchain](http://win-builds.org/).
+- From the graphical package manager, select and install the needed libraries, leave the default (select all) if you're unsure.
+- Make sure to select x86_64.
 - Add installation folder to the %PATH%.
 
 
@@ -55,17 +55,21 @@ variables (see Invoke docs for more details).
 
 ### Note
 
-We don't want to pollute your system-wide python installation, so a python 2.7 virtual
+We don't want to pollute your system-wide python installation, so a python virtual
 environment is recommended (though optional). It will help keep an isolated development
 environment and ensure a clean system python.
 
 - Install the virtualenv module:
-```pip install virtualenv```
+```pip2 install virtualenv```
 - Create the virtual environment:
 ```virtualenv $GOPATH/src/github.com/DataDog/datadog-agent/venv```
 - Enable the virtual environment:
 ```source $GOPATH/src/github.com/DataDog/datadog-agent/venv/bin/activate```
+- Specify the path when building the agent:
+```invoke agent.build --python-home-2=$GOPATH/src/github.com/DataDog/datadog-agent/venv```
 
+If you are using python 3 instead (or switching between python versions), you can also
+add `--python-home-3=<path>` pointing to a python3 virtual environment.
 
 ## Golang
 
