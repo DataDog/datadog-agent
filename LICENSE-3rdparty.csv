@@ -89,7 +89,6 @@ core,github.com/mholt/archiver,MIT
 core,github.com/Microsoft/hcsshim,MIT
 core,github.com/mitchellh/go-homedir,MIT
 core,github.com/mitchellh/mapstructure,MIT
-core,github.com/mitchellh/reflectwalk,MIT
 core,github.com/modern-go/concurrent,Apache-2.0
 core,github.com/modern-go/reflect2,Apache-2.0
 core,github.com/nwaples/rardecode,BSD-2-Clause
@@ -110,7 +109,6 @@ core,github.com/prometheus/client_model,Apache-2.0
 core,github.com/prometheus/common,Apache-2.0
 core,github.com/prometheus/procfs,Apache-2.0
 core,github.com/samuel/go-zookeeper,BSD-3-Clause
-core,github.com/sbinet/go-python,Python-2.0
 core,github.com/shirou/gopsutil,BSD-3-Clause
 core,github.com/shirou/w32,BSD-3-Clause
 core,github.com/sirupsen/logrus,MIT

@@ -103,10 +103,6 @@
   revision = "ae77be60afb1dcacde03767a8c37337fad28ac14"
 
 [[constraint]]
-  name = "github.com/mitchellh/reflectwalk"
-  revision = "63d60e9d0dbc60cf9164e6510889b0db6683d98c"
-
-[[constraint]]
   name = "github.com/patrickmn/go-cache"
   version = "~v2.1.0"
 

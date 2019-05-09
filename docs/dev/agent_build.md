@@ -10,20 +10,20 @@ all you have to do is `invoke agent.build`.
 To pick only certain components you have to invoke the task like this:
 
 ```
-invoke agent.build --build-include=zstd,etcd,cpython
+invoke agent.build --build-include=zstd,etcd,python
 ```
 
 Conversely, if you want to exclude something:
 
 ```
-invoke agent.build --build-exclude=systemd,cpython
+invoke agent.build --build-exclude=systemd,python
 ```
 
 This is the complete list of the available components:
 
 * `apm`: make the APM agent execution available.
 * `consul`: enable consul as a configuration store
-* `cpython`: embed the CPython interpreter.
+* `python`: embed the Python interpreter.
 * `docker`: add Docker support (required by AutoDiscovery).
 * `ec2`: enable EC2 hostname detection and metadata collection.
 * `etcd`: enable Etcd as a configuration store.
