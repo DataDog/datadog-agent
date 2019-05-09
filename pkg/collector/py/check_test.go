@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	python "github.com/sbinet/go-python"
@@ -149,7 +150,7 @@ func TestStr(t *testing.T) {
 
 func TestInterval(t *testing.T) {
 	c, _ := getCheckInstance("testcheck", "TestCheck")
-	assert.Equal(t, check.DefaultCheckInterval, c.Interval())
+	assert.Equal(t, defaults.DefaultCheckInterval, c.Interval())
 	c.Configure([]byte("min_collection_interval: 1"), []byte("foo: bar"))
 	assert.Equal(t, time.Duration(1)*time.Second, c.Interval())
 }

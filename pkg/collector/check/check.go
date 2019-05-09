@@ -10,12 +10,6 @@ import (
 	"time"
 )
 
-const (
-	// DefaultCheckInterval is the interval in seconds the scheduler should apply
-	// when no value was provided in Check configuration.
-	DefaultCheckInterval time.Duration = 15 * time.Second
-)
-
 // Check is an interface for types capable to run checks
 type Check interface {
 	Run() error                                          // run the check
