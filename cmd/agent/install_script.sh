@@ -267,6 +267,7 @@ start_instructions="$sudo_cmd service datadog-agent start"
 if command -v systemctl 2>&1; then
   # Use systemd if systemctl binary exists
   restart_cmd="$sudo_cmd systemctl restart datadog-agent.service"
+  start_cmd="$sudo_cmd systemctl start datadog-agent"
   stop_instructions="$sudo_cmd systemctl stop datadog-agent"
   start_instructions="$sudo_cmd systemctl start datadog-agent"
 elif /sbin/init --version 2>&1 | grep -q upstart; then
