@@ -373,6 +373,11 @@ api_key:
   #
   # max_traces_per_second: 10
 
+  ## @param max_events_per_second - integer - optional - default: 200
+  ## Maximum number of APM events per second to sample.
+  #
+  # max_events_per_second: 200
+
   ## @param max_memory - integer - optional - default: 500000000
   ## Maximum memory to allow for the trace agent. The Agent is killed if this number is surpassed.
   #
@@ -387,6 +392,13 @@ api_key:
   ## @param obfuscation - object - optional
   ## Defines obfuscation rules for sensitive data. Disabled by default.
   ## See https://docs.datadoghq.com/tracing/guide/agent-obfuscation
+  #
+  # obfuscation:
+  #   <SERVICE_NAME>:
+  #     enabled: true
+  #     keep_values:
+  #       - <VALUE_1>
+  #       - <VALUE_2>
 
   ## @param replace_tags - list of objects - optional
   ## Defines a set of rules to replace or remove certain services, resources, tags containing
@@ -413,6 +425,16 @@ api_key:
   ## all entries must be surrounded by double quotes and separated by commas.
   #
   # ignore_resources: ["(GET|POST) /healthcheck"]
+
+  ## @param log_file - string - optional
+  ## The full path to the file where APM-agent logs are written.
+  #
+  # log_file: <APM_LOG_FILE_PATH>
+
+  ## @param log_throttling - boolean - default: true
+  ## Limits the total number of warnings and errors to 10 for every 10 second interval.
+  #
+  # log_throttling: true
 
 {{ end -}}
 {{- if .ProcessAgent }}
