@@ -63,8 +63,6 @@ environment and ensure a clean system python.
 ```pip2 install virtualenv```
 - Create the virtual environment:
 ```virtualenv $GOPATH/src/github.com/DataDog/datadog-agent/venv```
-- Enable the virtual environment:
-```source $GOPATH/src/github.com/DataDog/datadog-agent/venv/bin/activate```
 - Specify the path when building the agent:
 ```invoke agent.build --python-home-2=$GOPATH/src/github.com/DataDog/datadog-agent/venv```
 
