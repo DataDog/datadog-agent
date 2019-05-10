@@ -133,7 +133,7 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 
 	// all failed, return error for last failure
 	if checkModule == nil || checkClass == nil {
-		log.Errorf("PyLoader returning %s for %s", err, moduleName)
+		log.Debugf("PyLoader returning %s for %s", err, moduleName)
 		return nil, err
 	}
 
