@@ -82,3 +82,6 @@ trace-agent-msg.h
 
 #visual studio files
 *.aps
+
+# ebpf object files
+pkg/ebpf/c/*.o

@@ -1,17 +1,22 @@
 # Used to compile eBPF code
-FROM fedora:28
+FROM golang:1.11.5
 
 ENV GOPATH /go
 
-# vim-common is needed for xxd
-# vim-minimal needs to be updated first to avoid an RPM conflict on man1/vim.1.gz
-RUN dnf update -y vim-minimal && \
-	dnf install -y -b llvm clang kernel-devel-4.16.3-301.fc28.x86_64 make binutils vim-common golang go-bindata ShellCheck git file rpm sudo
+RUN apt-get update && \
+        apt-get install -y linux-headers-4.9.0-9-all git python3-pip
 
-RUN curl -fsSLo shfmt https://github.com/mvdan/sh/releases/download/v1.3.0/shfmt_v1.3.0_linux_amd64 && \
-	echo "b1925c2c405458811f0c227266402cf1868b4de529f114722c2e3a5af4ac7bb2  shfmt" | sha256sum -c && \
-	chmod +x shfmt && \
-	mv shfmt /usr/bin
-RUN go get -u github.com/fatih/hclfmt
+# Required to run the invoke tasks
+RUN pip3 install invoke==1.0 pyyaml==5.1
+
+# Install clang and llvm version 8
+# 9 does not seem to work correctly
+RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
+        echo "deb http://apt.llvm.org/stretch/ llvm-toolchain-stretch-8 main \
+deb-src http://apt.llvm.org/stretch/ llvm-toolchain-stretch-8 main" >> /etc/apt/sources.list && \
+        apt-get update && \
+        apt-get install -y clang-8 llvm-8 && \
+        ln -sf /usr/bin/clang-8 /usr/bin/clang && \
+        ln -sf /usr/bin/llc-8 /usr/bin/llc
 
 RUN mkdir -p /src /go

@@ -6,9 +6,9 @@ cd $cwd
 set -e
 
 if [[ -f Vagrantfile ]]; then
-  echo "detected vagrant file; will clean up"
-  vagrant destroy -f
-  rm Vagrantfile
+    echo "detected vagrant file; will clean up"
+    VAGRANT_CWD=$(pwd) vagrant destroy -f
+    rm Vagrantfile
 fi
 
 cat <<EOD > Vagrantfile
@@ -18,7 +18,7 @@ Vagrant.configure("2") do |config|
 end
 EOD
 
-vagrant up
+VAGRANT_CWD=$(pwd) vagrant up
 
 # install invoke
 cat <<EOD | vagrant ssh
@@ -71,6 +71,6 @@ sudo apt-get install -y clang-format
 EOD
 
 # necessary to get group membership to be respected
-vagrant reload
+VAGRANT_CWD=$(pwd) vagrant reload
 
 echo "your development environment is ready; use \`VAGRANT_CWD=$cwd vagrant ssh\` to ssh in"

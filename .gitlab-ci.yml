@@ -37,6 +37,7 @@ variables:
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
+  NETWORK_TRACER_BINARIES_DIR: bin/network-tracer
   DEB_S3_BUCKET: apt.datad0g.com
   RPM_S3_BUCKET: yum.datad0g.com
   WIN_S3_BUCKET: dd-agent-mstesting
@@ -172,6 +173,18 @@ run_test_rpm-x64:
     # We also exclude python since centos 6 doesn't ship python and we run 'python' tests on the debian image.
     - inv -e test --race --profile --cpus 4 --build-exclude=systemd,python
 
+# run tests for eBPF code
+run_tests_ebpf:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:latest
+  before_script:
+    - cd $SRC_PATH
+    - inv -e deps
+  tags: [ "runner:main", "size:large" ]
+  script:
+    # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
+    - inv -e network-tracer.test --only-check-bpf-bytes
+
 # scan the dependencies for security vulnerabilities with snyk
 run_security_scan_test:
   stage: source_test
@@ -242,6 +255,18 @@ cluster_agent-build:
     - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTEFACTS_URI/datadog-cluster.yaml
     - $S3_CP_CMD --recursive $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/dist/templates $S3_ARTEFACTS_URI/dist/templates
 
+# build network-tracer bin
+network_tracer-build:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:latest
+  before_script:
+    - cd $SRC_PATH
+    - inv -e deps
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - inv -e network-tracer.build
+    - $S3_CP_CMD $SRC_PATH/$NETWORK_TRACER_BINARIES_DIR/network-tracer $S3_ARTEFACTS_URI/network-tracer
+
 #
 # integration_test
 
@@ -296,6 +321,8 @@ agent_deb-x64:
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    # Retrieve the network-tracer from S3
+    - $S3_CP_CMD $S3_ARTEFACTS_URI/network-tracer $SRC_PATH/$NETWORK_TRACER_BINARIES_DIR/network-tracer
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache
@@ -357,6 +384,8 @@ agent_rpm-x64:
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
+    # Retrieve the network-tracer from S3
+    - $S3_CP_CMD $S3_ARTEFACTS_URI/network-tracer $SRC_PATH/$NETWORK_TRACER_BINARIES_DIR/network-tracer
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache
     - rpm -i $OMNIBUS_BASE_DIR/pkg/*.rpm
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
@@ -388,6 +417,8 @@ agent_suse-x64:
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
+    # Retrieve the network-tracer from S3
+    - $S3_CP_CMD $S3_ARTEFACTS_URI/network-tracer $SRC_PATH/$NETWORK_TRACER_BINARIES_DIR/network-tracer
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR_SUSE/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR_SUSE
     # FIXME: skip the installation step until we fix the preinst/postinst scripts in the rpm package
