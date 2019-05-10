@@ -14,7 +14,7 @@ BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent", android=False))
 
 
 @task
-def build(ctx, race=False, incremental_build=False, use_embedded_libs=False, puppy=False, use_venv=False):
+def build(ctx, race=False, incremental_build=False, puppy=False):
     """
     Build the process agent
     """
@@ -33,7 +33,7 @@ def build(ctx, race=False, incremental_build=False, use_embedded_libs=False, pup
             patch_ver=patch_ver
         ))
 
-    if os.environ['SIGN_WINDOWS']:
+    if os.environ.get('SIGN_WINDOWS', False):
         signcmd = "signtool sign /v /t http://timestamp.verisign.com/scripts/timestamp.dll /fd SHA256 /sm /s \"My\" /sha1 ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C {bin}"
         ctx.run(signcmd.format(bin=BIN_PATH))
 
@@ -47,9 +47,7 @@ def build(ctx, race=False, incremental_build=False, use_embedded_libs=False, pup
         "BuildDate": datetime.datetime.now().strftime("%FT%T%z"),
     }
 
-    ldflags, gcflags, env = get_build_flags(
-        ctx, use_embedded_libs=use_embedded_libs, use_venv=use_venv
-    )
+    ldflags, gcflags, env = get_build_flags(ctx)
 
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
     build_tags = get_default_build_tags(puppy=puppy)

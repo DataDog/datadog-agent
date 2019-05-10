@@ -20,7 +20,7 @@ EBPF_BUILDER_FILE = os.path.join(".", "Dockerfiles", "network-tracer", "Dockerfi
 BPF_TAG = "linux_bpf"
 
 @task
-def build(ctx, race=False, rebuild_ebpf_builder=False, incremental_build=False, use_embedded_libs=False, puppy=False, use_venv=False):
+def build(ctx, race=False, rebuild_ebpf_builder=False, incremental_build=False, puppy=False):
     """
     Build the network_tracer
     """
@@ -40,9 +40,7 @@ def build(ctx, race=False, rebuild_ebpf_builder=False, incremental_build=False, 
         "BuildDate": datetime.datetime.now().strftime("%FT%T%z"),
     }
 
-    ldflags, gcflags, env = get_build_flags(
-        ctx, use_embedded_libs=use_embedded_libs, use_venv=use_venv
-    )
+    ldflags, gcflags, env = get_build_flags(ctx)
 
     # Add custom ld flags
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
