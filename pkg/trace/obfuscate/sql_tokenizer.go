@@ -175,7 +175,12 @@ func (tkn *Tokenizer) Scan() (int, []byte) {
 			if tkn.lastChar == '(' {
 				return tkn.scanVariableIdentifier('%')
 			}
-			return tkn.scanFormatParameter('%')
+			if isLetter(tkn.lastChar) {
+				// format parameter (e.g. '%s')
+				return tkn.scanFormatParameter('%')
+			}
+			// modulo operator (e.g. 'id % 8')
+			return int(ch), []byte{byte(ch)}
 		case '$':
 			return tkn.scanPreparedStatement('$')
 		case '{':
@@ -254,12 +259,6 @@ func (tkn *Tokenizer) scanFormatParameter(prefix rune) (int, []byte) {
 	buffer := &bytes.Buffer{}
 	buffer.WriteRune(prefix)
 	buffer.WriteByte(byte(tkn.lastChar))
-
-	// a format parameter is like '%s' so it should be a letter otherwise
-	// we're having something different
-	if !isLetter(tkn.lastChar) {
-		return LexError, buffer.Bytes()
-	}
 
 	tkn.next()
 	return Variable, buffer.Bytes()
