@@ -48,6 +48,18 @@ func roundFloat(val float64) float64 {
 	return math.Round(val*100) / 100
 }
 
+// Can't use values from math.MaxInt* because this should depend on the machine's word size
+const maxInt = int64(^uint(0) >> 1)
+
+// Compute the increment between two iostats values, taking into account they can overflow
+func incrementWithOverflow(currentValue, lastValue uint64) int64 {
+	ret := int64(currentValue - lastValue)
+	if ret < 0 {
+		ret = ret + maxInt
+	}
+	return ret
+}
+
 func (c *IOCheck) nixIO() error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
@@ -100,34 +112,37 @@ func (c *IOCheck) nixIO() error {
 		}
 
 		// computing kB/s
-		rkbs := float64(ioStats.ReadBytes-lastIOStats.ReadBytes) / kB / deltaSecond
-		wkbs := float64(ioStats.WriteBytes-lastIOStats.WriteBytes) / kB / deltaSecond
-		avgqusz := float64(ioStats.WeightedIO-lastIOStats.WeightedIO) / kB / deltaSecond
+		rkbs := float64(incrementWithOverflow(ioStats.ReadBytes, lastIOStats.ReadBytes)) / kB / deltaSecond
+		wkbs := float64(incrementWithOverflow(ioStats.WriteBytes, lastIOStats.WriteBytes)) / kB / deltaSecond
+		avgqusz := float64(incrementWithOverflow(ioStats.WeightedIO, lastIOStats.WeightedIO)) / kB / deltaSecond
 
 		rAwait := 0.0
 		wAwait := 0.0
-		diffNRIO := float64(ioStats.ReadCount - lastIOStats.ReadCount)
-		diffNWIO := float64(ioStats.WriteCount - lastIOStats.WriteCount)
+		diffNRIO := float64(incrementWithOverflow(ioStats.ReadCount, lastIOStats.ReadCount))
+		diffNWIO := float64(incrementWithOverflow(ioStats.WriteCount, lastIOStats.WriteCount))
 		if diffNRIO != 0 {
-			rAwait = float64(ioStats.ReadTime-lastIOStats.ReadTime) / diffNRIO
+			rAwait = float64(incrementWithOverflow(ioStats.ReadTime, lastIOStats.ReadTime)) / diffNRIO
 		}
 		if diffNWIO != 0 {
-			wAwait = float64(ioStats.WriteTime-lastIOStats.WriteTime) / diffNWIO
+			wAwait = float64(incrementWithOverflow(ioStats.WriteTime, lastIOStats.WriteTime)) / diffNWIO
 		}
 
 		avgrqsz := 0.0
 		aWait := 0.0
 		diffNIO := diffNRIO + diffNWIO
 		if diffNIO != 0 {
-			avgrqsz = float64((ioStats.ReadBytes-lastIOStats.ReadBytes+ioStats.WriteBytes-lastIOStats.WriteBytes)/SectorSize) / diffNIO
-			aWait = float64(ioStats.ReadTime-lastIOStats.ReadTime+ioStats.WriteTime-lastIOStats.WriteTime) / diffNIO
+			avgrqsz = float64((incrementWithOverflow(ioStats.ReadBytes, lastIOStats.ReadBytes)+
+				incrementWithOverflow(ioStats.WriteBytes, lastIOStats.WriteBytes))/SectorSize) / diffNIO
+			aWait = float64(
+				incrementWithOverflow(ioStats.ReadTime, lastIOStats.ReadTime)+
+					incrementWithOverflow(ioStats.WriteTime, lastIOStats.WriteTime)) / diffNIO
 		}
 
 		// we are aligning ourselves with the metric reported by
 		// sysstat, so itv is a time interval in 1/100th of a second
 		itv := delta / 10
 		tput := diffNIO * 100 / itv
-		util := float64(ioStats.IoTime-lastIOStats.IoTime) / itv * 100
+		util := float64(incrementWithOverflow(ioStats.IoTime, lastIOStats.IoTime)) / itv * 100
 		svctime := 0.0
 		if tput != 0 {
 			svctime = util / tput
