@@ -1,0 +1,5 @@
+api_key: "ENC[my_api_key]"
+
+process_config:
+  enabled: 'true'
+secret_backend_command: "./testdata/secret"

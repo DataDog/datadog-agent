@@ -42,6 +42,20 @@
   revision = "43b075bb9705588cd89c71363d6d72937e3020c7"
 
 [[projects]]
+  digest = "1:be57d8791a067eec36e04f2550c9c49b3cf71197dfa84eae599158d7cdd62ae7"
+  name = "github.com/DataDog/gopsutil"
+  packages = [
+    "cpu",
+    "host",
+    "internal/common",
+    "mem",
+    "net",
+    "process",
+  ]
+  pruneopts = ""
+  revision = "233cd0cf42c26d835ed6f0e46f2103432a88b526"
+
+[[projects]]
   branch = "master"
   digest = "1:5430bf8a572af357fba5aab0ac466c31c6d86f03085b3014f2494500c45e3c89"
   name = "github.com/DataDog/mmh3"
@@ -576,6 +590,7 @@
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
+    "jsonpb",
     "proto",
     "protoc-gen-gogo/descriptor",
     "sortkeys",
@@ -768,6 +783,17 @@
   version = "v1.0"
 
 [[projects]]
+  digest = "1:1aa0d09d686e3261044994ddeeecc873f8e0e9597785ba6273a7aaf31f5159d4"
+  name = "github.com/iovisor/gobpf"
+  packages = [
+    "elf",
+    "pkg/bpffs",
+    "pkg/cpuonline",
+  ]
+  pruneopts = ""
+  revision = "98ebf56442afb10e1b43145127de3c1777ed7e95"
+
+[[projects]]
   digest = "1:6f49eae0c1e5dab1dafafee34b207aeb7a42303105960944828c2079b92fc88e"
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
@@ -834,6 +860,7 @@
   digest = "1:d9e483f4b9e306facf126bd90b02d512bd22ea4471e1568867e32221a8abbb16"
   name = "github.com/mailru/easyjson"
   packages = [
+    ".",
     "buffer",
     "jlexer",
     "jwriter",
@@ -1913,10 +1940,15 @@
     "github.com/DataDog/gohai/network",
     "github.com/DataDog/gohai/platform",
     "github.com/DataDog/gohai/processes",
+    "github.com/DataDog/gopsutil/cpu",
+    "github.com/DataDog/gopsutil/host",
+    "github.com/DataDog/gopsutil/mem",
+    "github.com/DataDog/gopsutil/process",
     "github.com/DataDog/mmh3",
     "github.com/DataDog/viper",
     "github.com/DataDog/zstd",
     "github.com/Microsoft/go-winio",
+    "github.com/StackExchange/wmi",
     "github.com/aws/aws-sdk-go/aws",
     "github.com/aws/aws-sdk-go/aws/credentials",
     "github.com/aws/aws-sdk-go/aws/session",
@@ -1952,12 +1984,14 @@
     "github.com/go-ini/ini",
     "github.com/go-ole/go-ole",
     "github.com/gogo/protobuf/gogoproto",
+    "github.com/gogo/protobuf/jsonpb",
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/types",
     "github.com/golang/protobuf/proto",
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
     "github.com/hectane/go-acl",
+    "github.com/iovisor/gobpf/elf",
     "github.com/json-iterator/go",
     "github.com/kardianos/osext",
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/apiserver",
@@ -1965,6 +1999,9 @@
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider",
     "github.com/lxn/walk",
     "github.com/lxn/win",
+    "github.com/mailru/easyjson",
+    "github.com/mailru/easyjson/jlexer",
+    "github.com/mailru/easyjson/jwriter",
     "github.com/mholt/archiver",
     "github.com/openshift/api/quota/v1",
     "github.com/patrickmn/go-cache",

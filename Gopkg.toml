@@ -183,3 +183,11 @@
   name = "github.com/spf13/cast"
   source = "github.com/DataDog/cast"
   revision = "1ee8c8bd14a3d768a7ff681617ed56bc6c204940"
+
+[[constraint]]
+  name = "github.com/DataDog/gopsutil"
+  revision = "233cd0cf42c26d835ed6f0e46f2103432a88b526"
+
+[[constraint]]
+  name = "github.com/iovisor/gobpf"
+  revision = "98ebf56442afb10e1b43145127de3c1777ed7e95"
