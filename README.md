@@ -26,8 +26,12 @@ To build the Agent you need:
  * CMake version 3.12 or later
 
 **Note:** you may want to use a python virtual environment to avoid polluting your
-      system-wide python environment with the agent build/dev dependencies. By default, this environment is only used for dev dependencies listed in `requirements.txt`, if you want the agent to use the virtual environment's interpreter and libraries instead of the system python's ones,
-      add `--use-venv` to the build command.
+      system-wide python environment with the agent build/dev dependencies. You can
+      create a virtual environment using `virtualenv` and then use the `invoke` parameter
+      `--python-home-2=<venv_path>` and/or `--python-home-3=<venv_path>` (depending on
+      the python versions you are using) to use the virtual environment's interpreter
+      and libraries. By default, this environment is only used for dev dependencies
+      listed in `requirements.txt`.
 
 **Note:** You may have previously installed `invoke` via brew on MacOS, or `pip` in
       any other platform. We recommend you use the version pinned in the requirements
@@ -38,11 +42,12 @@ to see the available tasks.
 
 To start working on the Agent, you can build the `master` branch:
 
-1. checkout the repo: `git clone https://github.com/DataDog/datadog-agent.git $GOPATH/src/github.com/DataDog/datadog-agent`.
+1. Checkout the repo: `git clone https://github.com/DataDog/datadog-agent.git $GOPATH/src/github.com/DataDog/datadog-agent`.
 2. cd into the project folder: `cd $GOPATH/src/github.com/DataDog/datadog-agent`.
-3. install project's dependencies: `invoke deps`.
+3. Install project's dependencies: `invoke deps`.
    Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
-4. build the whole project with `invoke agent.build --build-exclude=systemd` (with `--use-venv` to use a python virtualenv)
+4. Build the `six` dependency with `invoke six.build && invoke six.install`. You will need CMake installed and a C++ compiler for this to work.
+5. Build the agent with `invoke agent.build --build-exclude=systemd`
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
 
