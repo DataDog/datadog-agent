@@ -19,10 +19,11 @@ and development, is located under [the docs directory](docs) of the present repo
 ## Getting started
 
 To build the Agent you need:
- * [Go](https://golang.org/doc/install) 1.11.5 or later.
+ * [Go](https://golang.org/doc/install) 1.11.5 or later. You'll also need to set your `$GOPATH` and have `$GOPATH/bin` in your path.
  * Python 2.7 or 3.x along with development libraries.
  * Python dependencies. You may install these with `pip install -r requirements.txt`
    This will also pull in [Invoke](http://www.pyinvoke.org) if not yet installed.
+ * CMake version 3.12 or later
 
 **Note:** you may want to use a python virtual environment to avoid polluting your
       system-wide python environment with the agent build/dev dependencies. By default, this environment is only used for dev dependencies listed in `requirements.txt`, if you want the agent to use the virtual environment's interpreter and libraries instead of the system python's ones,
