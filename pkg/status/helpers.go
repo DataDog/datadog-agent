@@ -185,7 +185,7 @@ func status(check map[string]interface{}) string {
 	return fmt.Sprintf("[%s]", color.GreenString("OK"))
 }
 
-// Renders the message in a yellow color
+// Renders the ntp warning message in a yellow color
 func displayNtpWarning() string {
 	return color.YellowString("NTP offset is high. The application may ignore metrics sent by this agent.")
 }
