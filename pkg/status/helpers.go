@@ -187,7 +187,7 @@ func status(check map[string]interface{}) string {
 	return fmt.Sprintf("[%s]", color.GreenString("OK"))
 }
 
-// Renders the message in a yellow color
+// Renders the message in a red color
 func redText(message string) string {
 	return color.RedString(message)
 }
@@ -197,7 +197,7 @@ func yellowText(message string) string {
 	return color.YellowString(message)
 }
 
-// Renders the message in a yellow color
+// Renders the message in a green color
 func greenText(message string) string {
 	return color.GreenString(message)
 }
