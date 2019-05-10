@@ -23,6 +23,7 @@ func init() {
 	fmap["lastErrorMessage"] = lastErrorMessage
 	fmap["pythonLoaderError"] = pythonLoaderError
 	fmap["status"] = displayStatus
+	fmap["displayNtpWarning"] = displayNtpWarning
 }
 
 // Data is a struct used for filling templates
@@ -146,4 +147,9 @@ func displayStatus(check map[string]interface{}) template.HTML {
 		return template.HTML("[<span class=\"warning\">WARNING</span>]")
 	}
 	return template.HTML("[<span class=\"ok\">OK</span>]")
+}
+
+func displayNtpWarning() template.HTML {
+	return template.HTML("<br><span class=\"warning\">NTP Offset is high. " +
+		"The application may ignore metrics sent by this agent.</span>")
 }

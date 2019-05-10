@@ -26,6 +26,9 @@
       System UTC Time: {{.time}}
       {{- if .ntpOffset}}
         <br>NTP Offset: {{ humanizeDuration .ntpOffset "s"}}
+        {{- if ntpWarning .ntpOffset}}
+        {{displayNtpWarning}}
+        {{- end}}
       {{end}}
       <br>Go Version: {{.platform.goV}}
       <br>Python Version: {{.python_version}}

@@ -36,6 +36,8 @@ func Fmap() template.FuncMap {
 		"formatTitle":        formatTitle,
 		"add":                add,
 		"status":             status,
+		"displayNtpWarning":  displayNtpWarning,
+		"ntpWarning":         ntpWarning,
 		"version":            getVersion,
 	}
 }
@@ -181,6 +183,20 @@ func status(check map[string]interface{}) string {
 		return fmt.Sprintf("[%s]", color.YellowString("WARNING"))
 	}
 	return fmt.Sprintf("[%s]", color.GreenString("OK"))
+}
+
+// Renders the message in a yellow color
+func displayNtpWarning() string {
+	return color.YellowString("NTP offset is high. The application may ignore metrics sent by this agent.")
+}
+
+// Tells if the ntp offset may be too large, resulting in metrics
+// from the agent being dropped by metrics-intake
+func ntpWarning(ntpOffset float64) bool {
+	// Negative offset => clock is in the future, 10 minutes (600s) allowed
+	// Positive offset => clock is in the past, 60 minutes (3600s) allowed
+	// According to https://docs.datadoghq.com/developers/metrics/#submitting-metrics
+	return ntpOffset <= -600 || ntpOffset >= 3600
 }
 
 func getVersion(instances map[string]interface{}) string {

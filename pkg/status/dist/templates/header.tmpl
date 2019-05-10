@@ -31,6 +31,9 @@ NOTE: Changes made to this template should be reflected on the following templat
   ======
     {{- if .ntpOffset }}
     NTP offset: {{ humanizeDuration .ntpOffset "s"}}
+    {{- if ntpWarning .ntpOffset}}
+    {{displayNtpWarning}}
+    {{- end }}
     {{- end }}
     System UTC time: {{.time}}
 
