@@ -26,12 +26,12 @@ const dockerBufferSize = 16 * 1024
 var escapedCRLF = []byte{'\\', 'r', '\\', 'n'}
 
 type DockerParser struct {
-	containerID	string
+	containerID string
 }
 
 func newDockerParser(containerID string) *DockerParser {
-	return &DockerParser {
-		containerID:	containerID,
+	return &DockerParser{
+		containerID: containerID,
 	}
 }
 
