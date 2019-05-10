@@ -51,8 +51,7 @@ type Agent struct {
 	dynConf *sampler.DynamicConfig
 
 	// Used to synchronize on a clean exit
-	ctx   context.Context
-	timer *timing.Set
+	ctx context.Context
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
@@ -86,12 +85,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	sw := writer.NewStatsWriter(conf, statsChan)
 	svcW := writer.NewServiceWriter(conf, filteredServiceChan)
 
-	tset := timing.NewSet(ctx,
-		"datadog.trace_agent.internal.process_trace_ms",
-		"datadog.trace_agent.internal.concentrator_ms",
-		"datadog.trace_agent.internal.sample_ms",
-	)
-
 	return &Agent{
 		Receiver:           r,
 		Concentrator:       c,
@@ -111,7 +104,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		conf:               conf,
 		dynConf:            dynConf,
 		ctx:                ctx,
-		timer:              tset,
 	}
 }
 
@@ -142,7 +134,6 @@ func (a *Agent) Run() {
 		go a.work()
 	}
 
-	a.timer.Autoreport(10 * time.Second)
 	a.loop()
 }
 
@@ -189,7 +180,7 @@ func (a *Agent) Process(t pb.Trace) {
 		return
 	}
 
-	defer a.timer.Measure("datadog.trace_agent.internal.process_trace_ms", time.Now())
+	defer timing.Since("datadog.trace_agent.internal.process_trace_ms", time.Now())
 
 	// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 	root := traceutil.GetRoot(t)
@@ -270,7 +261,7 @@ func (a *Agent) Process(t pb.Trace) {
 
 	go func(pt ProcessedTrace) {
 		defer watchdog.LogOnPanic()
-		defer a.timer.Measure("datadog.trace_agent.internal.concentrator_ms", time.Now())
+		defer timing.Since("datadog.trace_agent.internal.concentrator_ms", time.Now())
 		// Everything is sent to concentrator for stats, regardless of sampling.
 		a.Concentrator.Add(&stats.Input{
 			Trace:     pt.WeightedTrace,
@@ -286,7 +277,7 @@ func (a *Agent) Process(t pb.Trace) {
 	// Run both full trace sampling and transaction extraction in another goroutine.
 	go func(pt ProcessedTrace) {
 		defer watchdog.LogOnPanic()
-		defer a.timer.Measure("datadog.trace_agent.internal.sample_ms", time.Now())
+		defer timing.Since("datadog.trace_agent.internal.sample_ms", time.Now())
 
 		tracePkg := writer.TracePackage{}
 

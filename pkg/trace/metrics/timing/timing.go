@@ -1,8 +1,10 @@
+// Package timing is used to aggregate timing calls within hotpaths to avoid using
+// repeated statsd calls. The package has a default set that reports at 10 second
+// intervals and can be used directly. If a different behaviour or reporting pattern
+// is desired, a custom Set may be created.
 package timing
 
 import (
-	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -10,19 +12,34 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
 
+// AutoreportInterval specifies the interval at which the default set reports.
+const AutoreportInterval = 10 * time.Second
+
+var (
+	defaultSet = NewSet()
+	stopReport = defaultSet.Autoreport(AutoreportInterval)
+)
+
+// Since records the duration for the given metric name as time passed since start.
+// It uses the default set which is reported at 10 second intervals.
+func Since(name string, start time.Time) { defaultSet.Since(name, start) }
+
+// Flush reports the default set. It can be useful to call when the program
+// exits prematurely.
+func Flush() { stopReport() }
+
 // Set represents a set of metrics that can be used for timing. Use NewSet
-// to create a set. It is safe for concurrent use.
+// to create one and Report (or Autoreport) to submit metrics. It is safe for
+// concurrent use.
 type Set struct {
-	c   map[string]*counter // maps names to their aggregates
-	ctx context.Context     // used for cancelling when auto-reporting
+	mu sync.RWMutex        // guards c
+	c  map[string]*counter // maps names to their aggregates
 }
 
-// NewSet returns a new Set containing the given metric names. The context is optional
-// and can be used as cancellation for auto-reporting sets.
-func NewSet(ctx context.Context, names ...string) *Set {
+// NewSet returns a new Set, optionally initialized with the given metric names.
+func NewSet(names ...string) *Set {
 	set := Set{
-		c:   make(map[string]*counter, len(names)),
-		ctx: ctx,
+		c: make(map[string]*counter, len(names)),
 	}
 	for _, name := range names {
 		set.c[name] = newCounter(name)
@@ -30,35 +47,53 @@ func NewSet(ctx context.Context, names ...string) *Set {
 	return &set
 }
 
-// Autoreport enables autoreporting of the Set at the given interval.
-func (s *Set) Autoreport(interval time.Duration) {
+// Autoreport enables autoreporting of the Set at the given interval. It returns a
+// cancellation function.
+func (s *Set) Autoreport(interval time.Duration) (cancelFunc func()) {
+	stop := make(chan struct{})
 	go func() {
+		defer close(stop)
 		tick := time.NewTicker(interval)
 		defer tick.Stop()
 		for {
 			select {
 			case <-tick.C:
 				s.Report()
-			case <-s.ctx.Done():
+			case <-stop:
+				s.Report()
 				return
 			}
 		}
 	}()
+	var once sync.Once // avoid panics
+	return func() {
+		once.Do(func() {
+			stop <- struct{}{}
+			<-stop
+		})
+	}
 }
 
-// Measure measures the time passed since, for the given name. It aggregates on each
-// subsequent call until Report is called.
-func (s *Set) Measure(name string, since time.Time) {
-	ms := float64(time.Since(since) / time.Millisecond)
+// Since records the duration for the given metric name as time passed since start.
+// If name does not exist, as defined by NewSet, it creates it.
+func (s *Set) Since(name string, start time.Time) {
+	s.mu.RLock()
 	c, ok := s.c[name]
+	s.mu.RUnlock()
 	if !ok {
-		panic(fmt.Sprintf("Set: key does not exist: %s", name))
+		c = newCounter(name)
+		s.mu.Lock()
+		s.c[name] = c
+		s.mu.Unlock()
 	}
-	c.add(ms)
+	ms := time.Since(start) / time.Millisecond
+	c.add(float64(ms))
 }
 
 // Report reports all of the Set's metrics to the statsd client.
 func (s *Set) Report() {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for _, c := range s.c {
 		c.flush()
 	}
@@ -68,11 +103,13 @@ type counter struct {
 	// name specifies the name of this counter
 	name string
 
-	// mu synchronizes calls between add and flush, ensuring
-	// that adding doesn't happen while flushing.
-	mu sync.RWMutex
+	// mu keeps count and sum in sync, ensuring that average calculations
+	// are correct between add and flush calls.
+	mu    sync.RWMutex
+	sum   *atomic.Float64
+	count *atomic.Float64
 
-	count, max, sum *atomic.Float64
+	max *atomic.Float64
 }
 
 func newCounter(name string) *counter {
@@ -85,22 +122,22 @@ func newCounter(name string) *counter {
 }
 
 func (c *counter) add(v float64) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	if v > c.max.Load() {
 		c.max.Store(v)
 	}
+	c.mu.RLock()
 	c.count.Add(1)
 	c.sum.Add(v)
+	c.mu.RUnlock()
 }
 
 func (c *counter) flush() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	metrics.Count(c.name+".count", int64(c.count.Load()), nil, 1)
-	metrics.Gauge(c.name+".avg", c.sum.Load()/c.count.Load(), nil, 1)
 	metrics.Gauge(c.name+".max", c.max.Load(), nil, 1)
+	c.mu.Lock()
+	metrics.Gauge(c.name+".avg", c.sum.Load()/c.count.Load(), nil, 1)
 	c.sum.Store(0)
-	c.max.Store(0)
 	c.count.Store(0)
+	c.mu.Unlock()
+	c.max.Store(0)
 }

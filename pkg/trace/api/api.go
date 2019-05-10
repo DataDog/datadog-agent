@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -292,10 +293,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 }
 
 func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
-	now := time.Now()
-	defer func() {
-		metrics.Timing("datadog.trace_agent.internal.normalize_ms", time.Since(now), nil, 1)
-	}()
+	defer timing.Since("datadog.trace_agent.internal.normalize_ms", time.Now())
 	for _, trace := range traces {
 		spans := len(trace)
 
