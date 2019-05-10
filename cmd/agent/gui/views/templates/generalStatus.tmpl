@@ -27,7 +27,7 @@
       {{- if .ntpOffset}}
         <br>NTP Offset: {{ humanizeDuration .ntpOffset "s"}}
         {{- if ntpWarning .ntpOffset}}
-        {{displayNtpWarning}}
+        <br><span class="warning">NTP Offset is high. The application may ignore metrics sent by this agent.</span>
         {{- end}}
       {{end}}
       <br>Go Version: {{.platform.goV}}

@@ -36,7 +36,9 @@ func Fmap() template.FuncMap {
 		"formatTitle":        formatTitle,
 		"add":                add,
 		"status":             status,
-		"displayNtpWarning":  displayNtpWarning,
+		"redText":            redText,
+		"yellowText":         yellowText,
+		"greenText":          greenText,
 		"ntpWarning":         ntpWarning,
 		"version":            getVersion,
 	}
@@ -185,9 +187,19 @@ func status(check map[string]interface{}) string {
 	return fmt.Sprintf("[%s]", color.GreenString("OK"))
 }
 
-// Renders the ntp warning message in a yellow color
-func displayNtpWarning() string {
-	return color.YellowString("NTP offset is high. The application may ignore metrics sent by this agent.")
+// Renders the message in a yellow color
+func redText(message string) string {
+	return color.RedString(message)
+}
+
+// Renders the message in a yellow color
+func yellowText(message string) string {
+	return color.YellowString(message)
+}
+
+// Renders the message in a yellow color
+func greenText(message string) string {
+	return color.GreenString(message)
 }
 
 // Tells if the ntp offset may be too large, resulting in metrics
