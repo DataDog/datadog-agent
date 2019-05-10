@@ -8,7 +8,6 @@ package docker
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -29,7 +28,7 @@ type DockerParser struct {
 	containerID string
 }
 
-func newDockerParser(containerID string) *DockerParser {
+func NewDockerParser(containerID string) *DockerParser {
 	return &DockerParser{
 		containerID: containerID,
 	}
@@ -59,7 +58,7 @@ func parse(msg []byte, containerID string) ([]byte, string, string, error) {
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
 	if len(msg) < dockerHeaderLength {
-		return msg, message.StatusInfo, "", errors.New(fmt.Sprintf("Container %v, can't parse docker message: expected a 8 bytes header", ShortContainerID(containerID)))
+		return msg, message.StatusInfo, "", fmt.Errorf("Can't parse docker message for container %v: expected a 8 bytes header", ShortContainerID(containerID))
 	}
 
 	// Read the first byte to get the status
