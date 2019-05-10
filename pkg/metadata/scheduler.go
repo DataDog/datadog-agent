@@ -6,6 +6,7 @@
 package metadata
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -26,7 +27,8 @@ type Scheduler struct {
 	hostname      string
 	tickers       []*time.Ticker
 	healthHandles []*health.Handle
-	stopChannels  []chan struct{}
+	context       context.Context
+	contextCancel context.CancelFunc
 }
 
 // NewScheduler builds and returns a new Metadata Scheduler
@@ -41,6 +43,8 @@ func NewScheduler(s *serializer.Serializer, hostname string) *Scheduler {
 		log.Errorf("Unable to send host metadata at first run: %v", err)
 	}
 
+	scheduler.context, scheduler.contextCancel = context.WithCancel(context.Background())
+
 	return scheduler
 }
 
@@ -52,9 +56,7 @@ func (c *Scheduler) Stop() {
 	for _, h := range c.healthHandles {
 		h.Deregister()
 	}
-	for _, stopChannel := range c.stopChannels {
-		stopChannel <- struct{}{}
-	}
+	c.contextCancel()
 }
 
 // AddCollector schedules a Metadata Collector at the given interval
@@ -66,12 +68,12 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 
 	sendTicker := time.NewTicker(interval)
 	health := health.Register("metadata-" + name)
-	stopChan := make(chan struct{}, 1)
 
 	go func() {
+		ctx := context.Context(c.context)
 		for {
 			select {
-			case <-stopChan:
+			case <-ctx.Done():
 				return
 			case <-health.C:
 			case <-sendTicker.C:
@@ -83,7 +85,6 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 	}()
 	c.tickers = append(c.tickers, sendTicker)
 	c.healthHandles = append(c.healthHandles, health)
-	c.stopChannels = append(c.stopChannels, stopChan)
 
 	return nil
 }

@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Correctly exits the metadata collector goroutines when scheduler stop is invoked

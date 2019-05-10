@@ -6,6 +6,7 @@
 package metadata
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -31,8 +32,5 @@ func TestStopScheduler(t *testing.T) {
 	c.AddCollector("test", time.Duration(60))
 	c.AddCollector("test2", time.Duration(60))
 	c.Stop()
-	for _, s := range c.stopChannels {
-		_, ok := <-s
-		assert.False(t, ok)
-	}
+	assert.Equal(t, context.Canceled, c.context.Err())
 }
