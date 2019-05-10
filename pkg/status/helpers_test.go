@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
 func TestNtpWarning(t *testing.T) {
 	require.False(t, ntpWarning(1))
 	require.False(t, ntpWarning(-1))

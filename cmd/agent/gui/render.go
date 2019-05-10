@@ -147,4 +147,3 @@ func displayStatus(check map[string]interface{}) template.HTML {
 	}
 	return template.HTML("[<span class=\"ok\">OK</span>]")
 }
-
