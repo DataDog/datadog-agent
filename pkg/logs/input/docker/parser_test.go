@@ -75,7 +75,7 @@ func TestDockerStandaloneParserShouldFailWithInvalidInput(t *testing.T) {
 	msg = []byte{}
 	msg = append(msg, []byte{1, 0, 0, 0, 0}...)
 	_, err = container1Parser.Parse(msg)
-	assert.Equal(t, errors.New("Can't parse docker message for container container_1: expected a 8 bytes header"), err)
+	assert.Equal(t, errors.New("cannot parse docker message for container container_1: expected a 8 bytes header"), err)
 
 }
 
