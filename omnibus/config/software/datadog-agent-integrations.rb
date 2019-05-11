@@ -62,6 +62,14 @@ if suse?
   blacklist_packages.push(/^aerospike==/)  # Temporarily blacklist Aerospike until builder supports new dependency
 end
 
+if arm?
+  # These two checks don't build on ARM
+  blacklist.push('aerospike')
+  blacklist_req.push(/^aerospike==/)
+  blacklist.push('ibm_mq')
+  blacklist_req.push(/^pymqi==/)
+end
+
 final_constraints_file = 'final_constraints.txt'
 agent_requirements_file = 'agent_requirements.txt'
 agent_requirements_in = 'agent_requirements.in'
