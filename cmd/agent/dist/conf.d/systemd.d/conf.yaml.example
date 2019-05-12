@@ -1,0 +1,34 @@
+init_config:
+
+instances:
+    -
+    ## If the number of units managed by systemd is unbounded, those it might infinitely 
+    ## increase the number of metrics for your organization, they might be considered as custom metrics
+    ## and impact your billing. 
+    ## Learn more about custom metrics: https://docs.datadoghq.com/developers/metrics/custom_metrics/#how-is-a-custom-metric-defined
+
+    ## @param unit_names - list of strings - optional
+    ## List of systemd unit to monitor (full name e.g. ssh.service).
+    ## If unit_names and unit_regex are both NOT specified, the check will monitor all units.
+    #
+    # unit_names:
+    #   - <UNIT_NAME>
+
+    ## @param unit_regex - list of strings - optional
+    ## Regex pattern[s] matching the names of processes to monitor.
+    ## If unit_names and unit_regex are both NOT specified, the check will monitor all units.
+    #
+    # unit_regex:
+    #   - <UNIT_NAME>          # match any unit name containing "unit_name"
+    #   - ^<UNIT_NAME>$        # match exactly the unit name "unit_name"
+    #   - ^<PREFIX>            # match unit name with prefix "prefix-"
+    #   - <SUFFIX>$            # match unit name with suffix "-suffix"
+
+    ## @param tags  - list of key:value element - optional
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
+    ##
+    ## Learn more about tagging at https://docs.datadoghq.com/tagging
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>

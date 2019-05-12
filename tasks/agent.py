@@ -59,6 +59,7 @@ AGENT_CORECHECKS = [
     "ntp",
     "uptime",
     "winproc",
+    "systemd",
 ]
 
 PUPPY_CORECHECKS = [
