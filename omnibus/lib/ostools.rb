@@ -25,6 +25,10 @@ def windows?()
     return ohai['platform_family'] == 'windows'
 end
 
+def arm?()
+    return ohai["kernel"]["machine"].start_with?("aarch") || ohai["kernel"]["machine"].start_with?("arm")
+end
+
 def os
     case RUBY_PLATFORM
     when /linux/
