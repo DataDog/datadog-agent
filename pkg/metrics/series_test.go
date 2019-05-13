@@ -6,10 +6,11 @@
 package metrics
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"testing"
+
+	"github.com/json-iterator/go"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -290,37 +291,37 @@ func TestStreamJSONMarshaler(t *testing.T) {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
-			Tags:     nil,
+			Tags:     []string{},
 		},
 	}
 
-	var buffer bytes.Buffer
+	stream := jsoniter.NewStream(jsoniter.ConfigDefault, nil, 0)
 
 	assert.Equal(t, 3, series.Len())
 
-	series.WriteHeader(&buffer)
-	assert.Equal(t, `{"series":[`, buffer.String())
-	buffer.Reset()
+	series.WriteHeader(stream)
+	assert.Equal(t, []byte(`{"series":[`), stream.Buffer())
+	stream.Reset(nil)
 
-	series.WriteFooter(&buffer)
-	assert.Equal(t, `]}`, buffer.String())
-	buffer.Reset()
+	series.WriteFooter(stream)
+	assert.Equal(t, []byte(`]}`), stream.Buffer())
+	stream.Reset(nil)
 
 	// Access an out-of-bounds item
-	err := series.WriteItem(&buffer, 10)
+	err := series.WriteItem(stream, 10)
 	assert.EqualError(t, err, "out of range")
-	err = series.WriteItem(&buffer, -10)
+	err = series.WriteItem(stream, -10)
 	assert.EqualError(t, err, "out of range")
 
 	// Test each item type
 	for i := range series {
-		buffer.Reset()
-		err = series.WriteItem(&buffer, i)
+		stream.Reset(nil)
+		err = series.WriteItem(stream, i)
 		assert.NoError(t, err)
 
 		// Make sure the output is valid and matches the original item
 		item := &Serie{}
-		err = json.Unmarshal(buffer.Bytes(), item)
+		err = json.Unmarshal(stream.Buffer(), item)
 		assert.NoError(t, err)
 		assert.EqualValues(t, series[i], item)
 	}
@@ -341,14 +342,14 @@ func TestStreamJSONMarshalerWithDevice(t *testing.T) {
 		},
 	}
 
-	var buffer bytes.Buffer
+	stream := jsoniter.NewStream(jsoniter.ConfigDefault, nil, 0)
 
-	err := series.WriteItem(&buffer, 0)
+	err := series.WriteItem(stream, 0)
 	assert.NoError(t, err)
 
 	// Make sure the output is valid and fields are as expected
 	item := &Serie{}
-	err = json.Unmarshal(buffer.Bytes(), item)
+	err = json.Unmarshal(stream.Buffer(), item)
 	assert.NoError(t, err)
 	assert.Equal(t, item.Device, "/dev/sda1")
 	assert.Equal(t, item.Tags, []string{"tag1", "tag2:yes"})

@@ -11,7 +11,6 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"io"
 	"strings"
 	"unsafe"
 
@@ -24,11 +23,6 @@ import (
 )
 
 var seriesExpvar = expvar.NewMap("series")
-
-var marshaller = jsoniter.Config{
-	EscapeHTML:                    false,
-	ObjectFieldMustBeSimpleString: true,
-}.Froze()
 
 var (
 	jsonSeparator  = []byte(",")
@@ -226,36 +220,29 @@ func (e Serie) String() string {
 //// for support of the enable_stream_payload_serialization option.
 
 // WriteHeader writes the payload header for this type
-func (series Series) WriteHeader(w io.Writer) {
-	stream := marshaller.BorrowStream(w)
-	defer marshaller.ReturnStream(stream)
+func (series Series) WriteHeader(stream *jsoniter.Stream) error {
 	stream.WriteObjectStart()
 	stream.WriteObjectField("series")
 	stream.WriteArrayStart()
-	stream.Flush()
+	return stream.Flush()
 }
 
 // WriteFooter prints the payload footer for this type
-func (series Series) WriteFooter(w io.Writer) {
-	stream := marshaller.BorrowStream(w)
-	defer marshaller.ReturnStream(stream)
+func (series Series) WriteFooter(stream *jsoniter.Stream) error {
 	stream.WriteArrayEnd()
 	stream.WriteObjectEnd()
-	stream.Flush()
+	return stream.Flush()
 }
 
 // WriteItem prints the json representation of an item
-func (series Series) WriteItem(w io.Writer, i int) error {
+func (series Series) WriteItem(stream *jsoniter.Stream, i int) error {
 	if i < 0 || i > len(series)-1 {
 		return errors.New("out of range")
 	}
 	serie := series[i]
 	populateDeviceField(serie)
-	stream := marshaller.BorrowStream(w)
-	defer marshaller.ReturnStream(stream)
 	stream.WriteVal(serie)
-	stream.Flush()
-	return nil
+	return stream.Flush()
 }
 
 // Len returns the number of items to marshal
@@ -269,6 +256,64 @@ func (series Series) DescribeItem(i int) string {
 		return "out of range"
 	}
 	return fmt.Sprintf("name %q, %d points", series[i].Name, len(series[i].Points))
+}
+
+// encodeSerie is registered to serialize a Serie with
+// limited reflections and heap allocations.
+// Called when using jsoniter
+func encodeSerie(ptr unsafe.Pointer, stream *jsoniter.Stream) {
+	if ptr == nil {
+		return
+	}
+
+	serie := *(*Serie)(ptr)
+	stream.WriteObjectStart()
+
+	stream.WriteObjectField("metric")
+	stream.WriteString(serie.Name)
+	stream.WriteMore()
+
+	stream.WriteObjectField("points")
+	stream.WriteVal(serie.Points)
+	stream.WriteMore()
+
+	stream.WriteObjectField("tags")
+	stream.WriteArrayStart()
+	firstTag := true
+	for _, s := range serie.Tags {
+		if !firstTag {
+			stream.WriteMore()
+		}
+		stream.WriteString(s)
+		firstTag = false
+	}
+	stream.WriteArrayEnd()
+	stream.WriteMore()
+
+	stream.WriteObjectField("host")
+	stream.WriteString(serie.Host)
+	stream.WriteMore()
+
+	if serie.Device != "" {
+		stream.WriteObjectField("device")
+		stream.WriteString(serie.Device)
+		stream.WriteMore()
+	}
+
+	stream.WriteObjectField("type")
+	stream.WriteString(serie.MType.String())
+	stream.WriteMore()
+
+	stream.WriteObjectField("interval")
+	stream.WriteInt64(serie.Interval)
+
+	if serie.SourceTypeName != "" {
+		stream.WriteMore()
+		stream.WriteObjectField("source_type_name")
+		stream.WriteString(serie.SourceTypeName)
+	}
+
+	stream.WriteObjectEnd()
 }
 
 // encodePoints is registered to serialize a Point array with
@@ -302,6 +347,11 @@ func init() {
 	jsoniter.RegisterTypeEncoderFunc(
 		"[]metrics.Point",
 		encodePoints,
+		func(ptr unsafe.Pointer) bool { return ptr == nil },
+	)
+	jsoniter.RegisterTypeEncoderFunc(
+		"metrics.Serie",
+		encodeSerie,
 		func(ptr unsafe.Pointer) bool { return ptr == nil },
 	)
 }
