@@ -521,8 +521,8 @@ func LoadWithoutSecret() error {
 	return load(Datadog, "datadog.yaml", false)
 }
 
-func checkForUnknownKeys(config Config) bool {
-	hasUnknownKeys := false
+func checkForUnknownKeys(config Config) []string {
+	var unknownKeys []string
 	knownKeys := config.GetKnownKeys()
 	loadedKeys := config.AllKeys()
 	for _, key := range loadedKeys {
@@ -537,12 +537,11 @@ func checkForUnknownKeys(config Config) bool {
 				}
 			}
 			if !found {
-				log.Warnf("Unknown key in config file: %v", key)
-				hasUnknownKeys = true
+				unknownKeys = append(unknownKeys, key)
 			}
 		}
 	}
-	return hasUnknownKeys
+	return unknownKeys
 }
 
 func load(config Config, origin string, loadSecret bool) error {
@@ -551,7 +550,10 @@ func load(config Config, origin string, loadSecret bool) error {
 		return err
 	}
 
-	checkForUnknownKeys(config)
+	unknownKeys := checkForUnknownKeys(config)
+	for key := range unknownKeys {
+		log.Warnf("Unknown key in config file: %v", key)
+	}
 
 	if loadSecret {
 		// We have to init the secrets package before we can use it to decrypt
