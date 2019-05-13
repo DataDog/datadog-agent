@@ -550,7 +550,7 @@ func load(config Config, origin string, loadSecret bool) error {
 		return err
 	}
 
-	for key := range findUnknownKeys(config) {
+	for _, key := range findUnknownKeys(config) {
 		log.Warnf("Unknown key in config file: %v", key)
 	}
 
