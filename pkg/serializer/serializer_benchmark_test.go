@@ -43,15 +43,9 @@ func benchmarkJSONStream(b *testing.B, numberOfSeries int) {
 	payloadBuilder := jsonstream.NewPayloadBuilder()
 	b.ResetTimer()
 
-	totalSize := int64(0)
-
 	for n := 0; n < b.N; n++ {
 		results, _ = payloadBuilder.Build(series)
-		for _, r := range results {
-			totalSize += int64(len(*r))
-		}
 	}
-	fmt.Println("Size:", totalSize)
 }
 
 func benchmarkSplit(b *testing.B, numberOfSeries int) {
