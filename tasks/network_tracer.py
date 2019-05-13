@@ -44,7 +44,7 @@ def build(ctx, race=False, rebuild_ebpf_builder=False, incremental_build=False, 
 
     # Add custom ld flags
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
-    build_tags = get_default_build_tags(puppy=puppy).append(BPF_TAG)
+    build_tags = get_default_build_tags(puppy=puppy) + [BPF_TAG]
 
     # TODO static option
     cmd = 'go build {race_opt} {build_type} -tags "{go_build_tags}" '
