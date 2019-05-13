@@ -132,7 +132,7 @@ func (p *testErrorPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 }
 
 func (p *testErrorPayload) WriteHeader(stream *jsoniter.Stream) error {
-	_, err := stream.Write(jsonFooter)
+	_, err := stream.Write(jsonHeader)
 	return err
 }
 func (p *testErrorPayload) WriteFooter(stream *jsoniter.Stream) error {
