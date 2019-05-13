@@ -17,7 +17,6 @@ build do
     # TODO too many things done here, should be split
     block do
         # Conf files
-
         if windows?
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
@@ -70,7 +69,7 @@ build do
             move "#{install_dir}/scripts/datadog-agent-process.service", systemd_directory
             move "#{install_dir}/scripts/datadog-agent-network.service", systemd_directory
 
-            # Move checks and configuration files
+            # Move configuration files
             mkdir "/etc/datadog-agent"
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
@@ -90,9 +89,13 @@ build do
 
             # cleanup clutter
             delete "#{install_dir}/etc"
+
             # The prerm script of the package should use this list to remove the pyc/pyo files
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.py_compiled_files.txt"
             command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print >> #{install_dir}/embedded/.py_compiled_files.txt"
+
+            # Setup pip aliases: `/opt/datadog-agent/embedded/bin/pip` will default to `pip2`
+            link "#{install_dir}/embedded/bin/pip2" "#{install_dir}/embedded/bin/pip"
         elsif osx?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
