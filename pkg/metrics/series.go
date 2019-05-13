@@ -322,6 +322,7 @@ func encodeSerie(ptr unsafe.Pointer, stream *jsoniter.Stream) {
 func encodePoints(ptr unsafe.Pointer, stream *jsoniter.Stream) {
 	if ptr == nil {
 		stream.WriteEmptyArray()
+		return
 	}
 
 	points := *(*[]Point)(ptr)
