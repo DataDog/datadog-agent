@@ -11,5 +11,5 @@ func Example() {
 		// do stuff...
 	}
 	computeThings()
-	Flush()
+	Stop()
 }

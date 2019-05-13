@@ -22,24 +22,24 @@ func TestTiming(t *testing.T) {
 
 	t.Run("report", func(t *testing.T) {
 		stats.Reset()
-		set := NewSet("counter2")
+		var set Set
 		set.Since("counter1", time.Now().Add(-2*time.Second))
 		set.Since("counter1", time.Now().Add(-3*time.Second))
 		set.Report()
 
 		calls := stats.CountCalls
-		assert.Equal(2, len(calls))
+		assert.Equal(1, len(calls))
 		assert.Equal(2., findCall(assert, calls, "counter1.count").Value)
 
 		calls = stats.GaugeCalls
-		assert.Equal(4, len(calls))
+		assert.Equal(2, len(calls))
 		assert.Equal(2500., float64(findCall(assert, calls, "counter1.avg").Value), "avg")
 		assert.Equal(3000., findCall(assert, calls, "counter1.max").Value, "max")
 	})
 
 	t.Run("autoreport", func(t *testing.T) {
 		stats.Reset()
-		set := NewSet("counter1")
+		var set Set
 		set.Since("counter1", time.Now().Add(-1*time.Second))
 		stop := set.Autoreport(time.Millisecond)
 		time.Sleep(5 * time.Millisecond)
@@ -48,7 +48,7 @@ func TestTiming(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		set := NewSet("counter1")
+		var set Set
 		stop := set.Autoreport(time.Millisecond)
 		stop()
 		stop()
@@ -56,8 +56,10 @@ func TestTiming(t *testing.T) {
 
 	t.Run("race", func(t *testing.T) {
 		stats.Reset()
-		set := NewSet("counter1")
-		var wg sync.WaitGroup
+		var (
+			set Set
+			wg  sync.WaitGroup
+		)
 		for i := 0; i < 150; i++ {
 			wg.Add(1)
 			go func() {
@@ -66,7 +68,6 @@ func TestTiming(t *testing.T) {
 				set.Since(fmt.Sprintf("%d", rand.Int()), time.Now().Add(-time.Second))
 			}()
 		}
-
 		for i := 0; i < 150; i++ {
 			wg.Add(1)
 			go func() {
