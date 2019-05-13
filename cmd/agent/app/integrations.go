@@ -36,9 +36,11 @@ const (
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
 	// Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
 	versionSpecifiersPattern = "([><=!]{1,2})([0-9.]*)"
-	yamlFilePattern          = "[\\w_]+\\.yaml.*"
-	downloaderModule         = "datadog_checks.downloader"
-	disclaimer               = "For your security, only use this to install wheels containing an Agent integration " +
+	// e.g. Name: datadog-postgres
+	wheelPackageName = "Name: (\\S)"
+	yamlFilePattern  = "[\\w_]+\\.yaml.*"
+	downloaderModule = "datadog_checks.downloader"
+	disclaimer       = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
 	versionScript = `
 try:
@@ -290,13 +292,38 @@ func install(cmd *cobra.Command, args []string) error {
 		// Specific case when installing from locally available wheel
 		// No compatibility verifications are performed, just install the wheel (with --no-deps still)
 		// Verify that the wheel depends on `datadog_checks_base` to decide if it's an agent check or not
+		wheelPath := args[0]
+
 		fmt.Println(disclaimer)
-		if ok, err := validateBaseDependency(args[0], nil); err != nil {
-			return fmt.Errorf("error while reading the wheel %s: %v", args[0], err)
+		if ok, err := validateBaseDependency(wheelPath, nil); err != nil {
+			return fmt.Errorf("error while reading the wheel %s: %v", wheelPath, err)
 		} else if !ok {
-			return fmt.Errorf("the wheel %s is not an agent check, it will not be installed", args[0])
+			return fmt.Errorf("the wheel %s is not an agent check, it will not be installed", wheelPath)
 		}
-		return pip(append(pipArgs, args[0]), os.Stdout, os.Stderr)
+
+		// Parse the package name from metadata contained within the zip file
+		integration, err := parseWheelPackageName(wheelPath)
+		if err != nil {
+			return err
+		}
+		integration = normalizePackageName(strings.TrimSpace(integration))
+
+		// Install the wheel
+		if err := pip(append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
+			return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
+		}
+
+		// Move configuration files
+		if err := moveConfigurationFilesOf(integration); err != nil {
+			fmt.Printf("Installed %s from %s", integration, wheelPath)
+			return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
+		}
+
+		fmt.Println(color.GreenString(fmt.Sprintf(
+			"Successfully installed %s", integration,
+		)))
+
+		return nil
 	}
 
 	// Additional verification for installation
@@ -468,6 +495,46 @@ func downloadWheel(integration, version string) (string, error) {
 		}
 	}
 	return wheelPath, nil
+}
+
+func parseWheelPackageName(wheelPath string) (string, error) {
+	reader, err := zip.OpenReader(wheelPath)
+	if err != nil {
+		return "", err
+	}
+	defer reader.Close()
+
+	for _, file := range reader.File {
+		if strings.HasSuffix(file.Name, "METADATA") {
+			fileReader, err := file.Open()
+			if err != nil {
+				return "", err
+			}
+			defer fileReader.Close()
+
+			scanner := bufio.NewScanner(fileReader)
+			for scanner.Scan() {
+				line := scanner.Text()
+
+				exp, err := regexp.Compile(wheelPackageName)
+				if err != nil {
+					return "", fmt.Errorf("regexp internal error: %v", err)
+				}
+
+				matches := exp.FindStringSubmatch(line)
+				if matches == nil {
+					return "", fmt.Errorf("could not find a package name for %s", wheelPath)
+				}
+
+				return matches[1], nil
+			}
+			if err := scanner.Err(); err != nil {
+				return "", err
+			}
+		}
+	}
+
+	return "", fmt.Errorf("could not find a METADATA file for %s", wheelPath)
 }
 
 func validateBaseDependency(wheelPath string, baseVersion *semver.Version) (bool, error) {
