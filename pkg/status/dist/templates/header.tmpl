@@ -31,6 +31,9 @@ NOTE: Changes made to this template should be reflected on the following templat
   ======
     {{- if .ntpOffset }}
     NTP offset: {{ humanizeDuration .ntpOffset "s"}}
+    {{- if ntpWarning .ntpOffset}}
+    {{yellowText "NTP offset is high. The web application may ignore metrics sent by this agent."}}
+    {{- end }}
     {{- end }}
     System UTC time: {{.time}}
 

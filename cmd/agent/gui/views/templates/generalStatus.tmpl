@@ -26,6 +26,9 @@
       System UTC Time: {{.time}}
       {{- if .ntpOffset}}
         <br>NTP Offset: {{ humanizeDuration .ntpOffset "s"}}
+        {{- if ntpWarning .ntpOffset}}
+        <br><span class="warning">NTP Offset is high. The web application may ignore metrics sent by this agent.</span>
+        {{- end}}
       {{end}}
       <br>Go Version: {{.platform.goV}}
       <br>Python Version: {{.python_version}}
