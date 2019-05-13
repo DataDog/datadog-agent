@@ -95,6 +95,7 @@ build do
             command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print >> #{install_dir}/embedded/.py_compiled_files.txt"
 
             # Setup pip aliases: `/opt/datadog-agent/embedded/bin/pip` will default to `pip2`
+            delete "#{install_dir}/embedded/bin/pip"
             link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
         elsif osx?
             # Remove linux specific configs
