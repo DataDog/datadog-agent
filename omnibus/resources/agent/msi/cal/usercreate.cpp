@@ -317,7 +317,6 @@ int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data, bool isDC)
         return 0;
     }
     if (ERROR_INSUFFICIENT_BUFFER != err) {
-        err = GetLastError();
         if (!isDC) {
             // can only try this if we're not on a primary/backup DC; on DCs we must
             // be able to contact the domain authority.  
