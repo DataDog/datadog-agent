@@ -26,7 +26,7 @@ def windows?()
 end
 
 def arm?()
-    return ohai["kernel"]["machine"].start_with?("aarch") || ohai["kernel"]["machine"].start_with?("arm")
+    return ohai["kernel"]["machine"].start_with?("aarch", "arm")
 end
 
 def os

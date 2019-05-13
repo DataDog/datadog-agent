@@ -64,10 +64,10 @@ end
 
 if arm?
   # These two checks don't build on ARM
-  blacklist.push('aerospike')
-  blacklist_req.push(/^aerospike==/)
-  blacklist.push('ibm_mq')
-  blacklist_req.push(/^pymqi==/)
+  blacklist_folders.push('aerospike')
+  blacklist_packages.push(/^aerospike==/)
+  blacklist_folders.push('ibm_mq')
+  blacklist_packages.push(/^pymqi==/)
 end
 
 final_constraints_file = 'final_constraints.txt'
