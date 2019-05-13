@@ -12,7 +12,6 @@ import (
 	"expvar"
 	"fmt"
 	"strings"
-	"unsafe"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/gogo/protobuf/proto"
@@ -241,7 +240,7 @@ func (series Series) WriteItem(stream *jsoniter.Stream, i int) error {
 	}
 	serie := series[i]
 	populateDeviceField(serie)
-	stream.WriteVal(serie)
+	encodeSerie(serie, stream)
 	return stream.Flush()
 }
 
@@ -258,15 +257,7 @@ func (series Series) DescribeItem(i int) string {
 	return fmt.Sprintf("name %q, %d points", series[i].Name, len(series[i].Points))
 }
 
-// encodeSerie is registered to serialize a Serie with
-// limited reflections and heap allocations.
-// Called when using jsoniter
-func encodeSerie(ptr unsafe.Pointer, stream *jsoniter.Stream) {
-	if ptr == nil {
-		return
-	}
-
-	serie := *(*Serie)(ptr)
+func encodeSerie(serie *Serie, stream *jsoniter.Stream) {
 	stream.WriteObjectStart()
 
 	stream.WriteObjectField("metric")
@@ -274,7 +265,7 @@ func encodeSerie(ptr unsafe.Pointer, stream *jsoniter.Stream) {
 	stream.WriteMore()
 
 	stream.WriteObjectField("points")
-	stream.WriteVal(serie.Points)
+	encodePoints(serie.Points, stream)
 	stream.WriteMore()
 
 	stream.WriteObjectField("tags")
@@ -316,16 +307,7 @@ func encodeSerie(ptr unsafe.Pointer, stream *jsoniter.Stream) {
 	stream.WriteObjectEnd()
 }
 
-// encodePoints is registered to serialize a Point array with
-// limited reflections and heap allocations.
-// Called when using jsoniter
-func encodePoints(ptr unsafe.Pointer, stream *jsoniter.Stream) {
-	if ptr == nil {
-		stream.WriteEmptyArray()
-		return
-	}
-
-	points := *(*[]Point)(ptr)
+func encodePoints(points []Point, stream *jsoniter.Stream) {
 	var needComa bool
 
 	stream.WriteArrayStart()
@@ -342,17 +324,4 @@ func encodePoints(ptr unsafe.Pointer, stream *jsoniter.Stream) {
 		stream.WriteArrayEnd()
 	}
 	stream.WriteArrayEnd()
-}
-
-func init() {
-	jsoniter.RegisterTypeEncoderFunc(
-		"[]metrics.Point",
-		encodePoints,
-		func(ptr unsafe.Pointer) bool { return ptr == nil },
-	)
-	jsoniter.RegisterTypeEncoderFunc(
-		"metrics.Serie",
-		encodeSerie,
-		func(ptr unsafe.Pointer) bool { return ptr == nil },
-	)
 }
