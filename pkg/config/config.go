@@ -521,7 +521,7 @@ func LoadWithoutSecret() error {
 	return load(Datadog, "datadog.yaml", false)
 }
 
-func checkForUnknownKeys(config Config) []string {
+func findUnknownKeys(config Config) []string {
 	var unknownKeys []string
 	knownKeys := config.GetKnownKeys()
 	loadedKeys := config.AllKeys()
@@ -550,8 +550,7 @@ func load(config Config, origin string, loadSecret bool) error {
 		return err
 	}
 
-	unknownKeys := checkForUnknownKeys(config)
-	for key := range unknownKeys {
+	for key := range findUnknownKeys(config) {
 		log.Warnf("Unknown key in config file: %v", key)
 	}
 

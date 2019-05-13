@@ -89,17 +89,17 @@ func TestUnknownKeysWarning(t *testing.T) {
 site: datadoghq.eu
 `
 	confBase := setupConfFromYAML(yamlBase)
-	assert.Len(t, checkForUnknownKeys(confBase), 0)
+	assert.Len(t, findUnknownKeys(confBase), 0)
 
 	yamlWithUnknownKeys := `
 site: datadoghq.eu
 unknown_key.unknown_subkey: true
 `
 	confWithUnknownKeys := setupConfFromYAML(yamlWithUnknownKeys)
-	assert.Len(t, checkForUnknownKeys(confWithUnknownKeys), 1)
+	assert.Len(t, findUnknownKeys(confWithUnknownKeys), 1)
 
 	confWithUnknownKeys.SetKnown("unknown_key.*")
-	assert.Len(t, checkForUnknownKeys(confWithUnknownKeys), 0)
+	assert.Len(t, findUnknownKeys(confWithUnknownKeys), 0)
 }
 
 func TestSiteEnvVar(t *testing.T) {
