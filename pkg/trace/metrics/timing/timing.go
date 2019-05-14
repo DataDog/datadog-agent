@@ -16,7 +16,7 @@ import (
 const AutoreportInterval = 10 * time.Second
 
 var (
-	defaultSet Set
+	defaultSet = NewSet()
 	stopReport = defaultSet.Autoreport(AutoreportInterval)
 )
 
@@ -29,8 +29,13 @@ func Since(name string, start time.Time) { defaultSet.Since(name, start) }
 // submitted.
 func Stop() { stopReport() }
 
-// Set represents a set of metrics that can be used for timing. A zero value Set is ready
-// to use. Use Report (or Autoreport) to submit metrics. Set is safe for concurrent use.
+// NewSet returns a new, ready to use Set.
+func NewSet() *Set {
+	return &Set{c: make(map[string]*counter)}
+}
+
+// Set represents a set of metrics that can be used for timing. Use NewSet to initialize
+// a new Set. Use Report (or Autoreport) to submit metrics. Set is safe for concurrent use.
 type Set struct {
 	mu sync.RWMutex        // guards c
 	c  map[string]*counter // maps names to their aggregates
@@ -73,18 +78,6 @@ func (s *Set) Since(name string, start time.Time) {
 // getCounter returns the counter with the given name, initializing any unitialized
 // fields of s.
 func (s *Set) getCounter(name string) *counter {
-	s.mu.RLock()
-	mapReady := s.c != nil
-	s.mu.RUnlock()
-	if !mapReady {
-		// initialize nil map
-		s.mu.Lock()
-		if s.c == nil {
-			// if no other goroutine already did
-			s.c = make(map[string]*counter)
-		}
-		s.mu.Unlock()
-	}
 	s.mu.RLock()
 	c, ok := s.c[name]
 	s.mu.RUnlock()

@@ -22,7 +22,7 @@ func TestTiming(t *testing.T) {
 
 	t.Run("report", func(t *testing.T) {
 		stats.Reset()
-		var set Set
+		set := NewSet()
 		set.Since("counter1", time.Now().Add(-2*time.Second))
 		set.Since("counter1", time.Now().Add(-3*time.Second))
 		set.Report()
@@ -39,7 +39,7 @@ func TestTiming(t *testing.T) {
 
 	t.Run("autoreport", func(t *testing.T) {
 		stats.Reset()
-		var set Set
+		set := NewSet()
 		set.Since("counter1", time.Now().Add(-1*time.Second))
 		stop := set.Autoreport(time.Millisecond)
 		time.Sleep(5 * time.Millisecond)
@@ -48,7 +48,7 @@ func TestTiming(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		var set Set
+		set := NewSet()
 		stop := set.Autoreport(time.Millisecond)
 		stop()
 		stop()
@@ -56,10 +56,8 @@ func TestTiming(t *testing.T) {
 
 	t.Run("race", func(t *testing.T) {
 		stats.Reset()
-		var (
-			set Set
-			wg  sync.WaitGroup
-		)
+		set := NewSet()
+		var wg sync.WaitGroup
 		for i := 0; i < 150; i++ {
 			wg.Add(1)
 			go func() {
