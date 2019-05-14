@@ -16,6 +16,7 @@
 
 provisioner:
   name: chef_solo
+  product_name: chef
   product_version: 14.12.9
   install_strategy: always
 
