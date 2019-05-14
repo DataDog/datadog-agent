@@ -54,3 +54,5 @@
 /tasks/trace.py                         @DataDog/apm-agent
 
 /Makefile.trace                         @DataDog/apm-agent
+
+/tools/ebpf/                            @DataDog/burrito

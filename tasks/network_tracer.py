@@ -15,7 +15,7 @@ BIN_DIR = os.path.join(".", "bin", "network-tracer")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("network-tracer", android=False))
 
 EBPF_BUILDER_IMAGE = 'datadog/tracer-bpf-builder'
-EBPF_BUILDER_FILE = os.path.join(".", "Dockerfiles", "network-tracer", "Dockerfile-ebpf")
+EBPF_BUILDER_FILE = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-ebpf")
 
 BPF_TAG = "linux_bpf"
 
@@ -120,12 +120,12 @@ def cfmt(ctx):
 
 
 @task
-def build_docker_image(ctx, image_name):
+def build_dev_docker_image(ctx, image_name):
     """
     Build a network-tracer-agent Docker image (development only)
     """
 
-    dev_file = os.path.join(".", "Dockerfiles", "network-tracer", "Dockerfile-tracer-dev")
+    dev_file = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-tracer-dev")
     cmd = "docker build {directory} -t {image_name} -f {file}"
 
     # Build in a temporary directory to make the docker build context small
@@ -164,11 +164,10 @@ def build_object_files(ctx):
 
     makeCmd = "make -f /ebpf/c/tracer-ebpf.mk build install"
     args = {
-        "circle_url": "TODO",
         "builder": EBPF_BUILDER_IMAGE,
         "makeCmd": makeCmd
     }
-    cmd = "docker run --rm -e CIRCLE_BUILD_URL={circle_url} \
+    cmd = "docker run --rm  \
             -v $(pwd)/pkg/ebpf:/ebpf/ \
             --workdir=/ebpf \
             {builder} \
