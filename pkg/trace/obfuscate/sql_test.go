@@ -390,6 +390,18 @@ func TestMultipleProcess(t *testing.T) {
 			"SELECT articles.* FROM articles WHERE articles.id IN (1, 3, 5)",
 			"SELECT articles.* FROM articles WHERE articles.id IN ( ? )",
 		},
+		{
+			`SELECT id FROM jq_jobs
+WHERE
+schedulable_at <= 1555367948 AND
+queue_name = 'order_jobs' AND
+status = 1 AND
+id % 8 = 3
+ORDER BY
+schedulable_at
+LIMIT 1000`,
+			"SELECT id FROM jq_jobs WHERE schedulable_at <= ? AND queue_name = ? AND status = ? AND id % ? = ? ORDER BY schedulable_at LIMIT ?",
+		},
 	}
 
 	// The consumer is the same between executions
