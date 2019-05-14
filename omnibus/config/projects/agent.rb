@@ -125,7 +125,8 @@ else
   dependency 'cacerts'
 end
 dependency 'datadog-a7'
-dependency 'datadog-agent-integrations'
+dependency 'datadog-agent-integrations-py2'
+dependency 'datadog-agent-integrations-py3'
 if osx?
   dependency 'datadog-agent-mac-app'
 end

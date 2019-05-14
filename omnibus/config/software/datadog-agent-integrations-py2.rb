@@ -6,11 +6,10 @@
 require './lib/ostools.rb'
 require 'json'
 
-name 'datadog-agent-integrations'
+name 'datadog-agent-integrations-py2'
 
 dependency 'datadog-agent'
 dependency 'pip2'
-dependency 'pip3'
 
 if arm?
   # psycopg2 doesn't come with pre-built wheel on the arm architecture.
@@ -33,7 +32,6 @@ end
 
 relative_path 'integrations-core'
 whitelist_file "embedded/lib/python2.7"
-whitelist_file "embedded/lib/python3.7"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
@@ -70,12 +68,13 @@ if arm?
   blacklist_packages.push(/^pymqi==/)
 end
 
-final_constraints_file = 'final_constraints.txt'
-agent_requirements_file = 'agent_requirements.txt'
+final_constraints_file = 'final_constraints-py2.txt'
+agent_requirements_file = 'agent_requirements-py2.txt'
+filtered_agent_requirements_in = 'agent_requirements-py2.in'
 agent_requirements_in = 'agent_requirements.in'
 
 build do
-  # The dir for the confs
+  # The dir for confs
   if osx?
     conf_dir = "#{install_dir}/etc/conf.d"
   else
@@ -83,17 +82,13 @@ build do
   end
   mkdir conf_dir
 
-  # aliases for the pips
+  # aliases for pip
   if windows?
-    pip2 = "#{windows_safe_path(python_2_embedded)}\\Scripts\\pip.exe"
-    pip3 = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
-    python2 = "#{windows_safe_path(python_2_embedded)}\\python.exe"
-    python3 = "#{windows_safe_path(python_3_embedded)}\\python.exe"
+    pip = "#{windows_safe_path(python_2_embedded)}\\Scripts\\pip.exe"
+    python = "#{windows_safe_path(python_2_embedded)}\\python.exe"
   else
-    pip2 = "#{install_dir}/embedded/bin/pip2"
-    pip3 = "#{install_dir}/embedded/bin/pip3"
-    python2 = "#{install_dir}/embedded/bin/python2"
-    python3 = "#{install_dir}/embedded/bin/python3"
+    pip = "#{install_dir}/embedded/bin/pip2"
+    python = "#{install_dir}/embedded/bin/python2"
   end
 
   # Install the checks along with their dependencies
@@ -102,10 +97,8 @@ build do
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{pip2} install wheel==0.30.0"
-    command "#{pip2} install pip-tools==2.0.2"
-    command "#{pip3} install wheel==0.30.0"
-    command "#{pip3} install pip-tools==2.0.2"
+    command "#{pip} install wheel==0.30.0"
+    command "#{pip} install pip-tools==2.0.2"
     uninstall_buildtime_deps = ['six', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
@@ -123,10 +116,10 @@ build do
     #
     if windows?
       static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\#{agent_requirements_in}"
-      static_reqs_out_file = "#{windows_safe_path(project_dir)}\\#{agent_requirements_in}"
+      static_reqs_out_file = "#{windows_safe_path(project_dir)}\\#{filtered_agent_requirements_in}"
     else
       static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/#{agent_requirements_in}"
-      static_reqs_out_file = "#{project_dir}/#{agent_requirements_in}"
+      static_reqs_out_file = "#{project_dir}/#{filtered_agent_requirements_in}"
     end
 
     # Remove any blacklisted requirements from the static-environment req file
@@ -151,24 +144,24 @@ build do
         mode: 0640,
         vars: { requirements: requirements }
 
-    # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python2 -m pip <...>`,
-    # there's no need to refer to `pip2`, the interpreter will pick the right script.
+    # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
+    # there's no need to refer to `pip`, the interpreter will pick the right script.
     if windows?
-      command "#{python2} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_base"
-      command "#{python2} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_downloader --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\""
-      command "#{python2} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}"
+      command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_base"
+      command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_downloader --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\""
+      command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}"
     else
-      command "#{pip2} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      command "#{pip2} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
-      command "#{python2} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
+      command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
+      command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
     end
 
     # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
     uninstall_buildtime_deps.each do |dep|
       if windows?
-        command "#{python2} -m pip uninstall -y #{dep}"
+        command "#{python} -m pip uninstall -y #{dep}"
       else
-        command "#{pip2} uninstall -y #{dep}"
+        command "#{pip} uninstall -y #{dep}"
       end
     end
 
@@ -176,9 +169,9 @@ build do
     # Install static-environment requirements that the Agent and all checks will use
     #
     if windows?
-      command "#{python2} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
+      command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
     else
-      command "#{pip2} install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
+      command "#{pip} install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
     end
 
     #
@@ -187,7 +180,7 @@ build do
 
     # Create a constraint file after installing all the core dependencies and before any integration
     # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
-    command "#{pip2} freeze > #{install_dir}/#{final_constraints_file}"
+    command "#{pip} freeze > #{install_dir}/#{final_constraints_file}"
 
     # Go through every integration package in `integrations-core`, build and install
     Dir.glob("#{project_dir}/*").each do |check_dir|
@@ -244,20 +237,18 @@ build do
 
       File.file?("#{check_dir}/setup.py") || next
       if windows?
-        command "#{python2} -m pip install --no-deps #{windows_safe_path(project_dir)}\\#{check}"
+        command "#{python} -m pip install --no-deps #{windows_safe_path(project_dir)}\\#{check}"
       else
-        command "#{pip2} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
+        command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
       end
     end
   end
 
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
   if windows?
-    command "#{python2} -m pip check"
-    command "#{python3} -m pip check"
+    command "#{python} -m pip check"
   else
-    command "#{pip2} check"
-    command "#{pip3} check"
+    command "#{pip} check"
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
