@@ -239,7 +239,7 @@ build do
       if windows?
         command "#{python2} -m pip install --no-deps #{windows_safe_path(project_dir)}\\#{check}"
       else
-        command "#{pip2} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
+        command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
       end
     end
   end
