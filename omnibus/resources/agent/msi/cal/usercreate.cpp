@@ -291,7 +291,7 @@ bool isDomainController(MSIHANDLE hInstall)
     return ret;
 }
 
-int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data)
+int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data, bool isDC)
 {
     int retval = 0;
     SID *newsid = NULL;
@@ -301,7 +301,9 @@ int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data)
     SID_NAME_USE use;
     std::string narrowdomain;
     DWORD err = 0;
-    BOOL bRet = LookupAccountName(NULL, data.getQualifiedUsername().c_str(), newsid, &cbSid, refDomain, &cchRefDomain, &use);
+    const wchar_t * userToTry = data.getQualifiedUsername().c_str();
+
+    BOOL bRet = LookupAccountName(NULL, userToTry, newsid, &cbSid, refDomain, &cchRefDomain, &use);
     if (bRet) {
         err = GetLastError();
         // this should *never* happen, because we didn't pass in a buffer large enough for
@@ -315,9 +317,50 @@ int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data)
         return 0;
     }
     if (ERROR_INSUFFICIENT_BUFFER != err) {
-        // we don't know what happened
-        WcaLog(LOGMSG_STANDARD, "doesUserExist: Lookup Account Name: Expected insufficient buffer, got error %d 0x%x", err, err);
-        return -1;
+        if (!isDC) {
+            // can only try this if we're not on a primary/backup DC; on DCs we must
+            // be able to contact the domain authority.  
+            if (err >= ERROR_NO_TRUST_LSA_SECRET && err <= ERROR_TRUST_FAILURE) {
+                WcaLog(LOGMSG_STANDARD, "Can't reach domain controller %d", err);
+                // if the user specified a domain, then also must be able to contact
+                // the domain authority
+                if (data.getDomainPtr() == NULL) {
+                    WcaLog(LOGMSG_STANDARD, "trying fully qualified local account");
+                    bRet = LookupAccountName(NULL, data.getFullUsername().c_str(), newsid, &cbSid, refDomain, &cchRefDomain, &use);
+                    if (bRet) {
+                        // this should *never* happen, because we didn't pass in a buffer large enough for
+                        // the sid or the domain name.
+                        WcaLog(LOGMSG_STANDARD, "doesUserExist: Lookup Account Name: Unexpected error %d 0x%x", err, err);
+                        return -1;
+                    }
+                    err = GetLastError();
+                    if (ERROR_NONE_MAPPED == err) {
+                        // this user doesn't exist.  We're done
+                        WcaLog(LOGMSG_STANDARD, "retried user doesn't exist");
+                        return 0;
+                    }
+                    if (ERROR_INSUFFICIENT_BUFFER != err) {
+                        WcaLog(LOGMSG_STANDARD, "Failed retry of lookup account name %d", err);
+                        return -1;
+                    }
+                }
+                else {
+                    WcaLog(LOGMSG_STANDARD, "doesUserExist: Lookup Account Name: supplied domain, but can't check user database %d 0x%x", err, err);
+                    return -1;
+                }
+            }
+            else {
+                WcaLog(LOGMSG_STANDARD, "doesUserExist: Lookup Account Name: Unexpected error %d 0x%x", err, err);
+                return -1;
+            }
+            userToTry = data.getFullUsername().c_str();
+
+        }
+        else {        // we don't know what happened
+            // on a DC, can't try without domain access
+            WcaLog(LOGMSG_STANDARD, "doesUserExist: Lookup Account Name: Expected insufficient buffer, got error %d 0x%x", err, err);
+            return -1;
+        }
     }
     newsid = (SID *) new BYTE[cbSid];
     ZeroMemory(newsid, cbSid);
@@ -326,15 +369,17 @@ int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data)
     ZeroMemory(refDomain, (cchRefDomain + 1) * sizeof(wchar_t));
 
     // try it again
-    bRet = LookupAccountName(NULL, data.getQualifiedUsername().c_str(), newsid, &cbSid, refDomain, &cchRefDomain, &use);
+    bRet = LookupAccountName(NULL, userToTry, newsid, &cbSid, refDomain, &cchRefDomain, &use);
     if (!bRet) {
         err = GetLastError();
         WcaLog(LOGMSG_STANDARD, "Failed to lookup account name %d", GetLastError());
         retval = -1;
+        goto cleanAndFail;
     }
     if (!IsValidSid(newsid)) {
         WcaLog(LOGMSG_STANDARD, "New SID is invalid");
         retval = -1;
+        goto cleanAndFail;
     }
     retval = 1;
     toMbcs(narrowdomain, refDomain);

@@ -7,7 +7,7 @@ int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring&
 DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name);
 DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename);
 bool isDomainController(MSIHANDLE hInstall);
-int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data);
+int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data, bool isDC = false);
 
 void removeUserPermsFromFile(std::wstring &filename, PSID sidremove);
 
