@@ -256,10 +256,9 @@ func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
 	if !r.PreSampler.Sample(req) {
-		// using too much CPU
 		io.Copy(ioutil.Discard, req.Body)
-		w.WriteHeader(http.StatusTooManyRequests)
-		io.WriteString(w, fmt.Sprintf("memory or CPU threshold exceeded; check trace-agent logs"))
+		w.WriteHeader(http.StatusOK) // TODO: this should change to 429 in newer API versions
+		r.replyTraces(v, w)
 		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, nil, 1)
 		return
 	}
