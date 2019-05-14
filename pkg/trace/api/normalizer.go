@@ -264,9 +264,10 @@ func toUTF8(s string) string {
 
 const maxTagLength = 200
 
-// normalizeTag applies some normalization to ensure the tags match the
-// backend requirements
+// normalizeTag applies some normalization to ensure the tags match the backend requirements.
 func normalizeTag(v string) string {
+	// the algorithm works by creating a set of cuts marking start and end offsets in v
+	// that have to be replaced with underscore (_)
 	if len(v) == 0 {
 		return ""
 	}
@@ -278,15 +279,17 @@ func normalizeTag(v string) string {
 	var (
 		i    int  // current byte
 		r    rune // current rune
-		jump int  // tracks how much the for range will advance on the next iteration
+		jump int  // tracks how many bytes the for range advances on its next iteration
 	)
 	tag := []byte(v)
 	for i, r = range v {
-		jump = utf8.RuneLen(r) // next iteration will be i+jump
+		jump = utf8.RuneLen(r) // next i will be i+jump
 		if r == utf8.RuneError {
-			// on invalid UTF-8, the for range advances only 1 byte;
-			// https://golang.org/ref/spec#For_range (point 2)
-			jump = 1
+			// On invalid UTF-8, the for range advances only 1 byte (see: https://golang.org/ref/spec#For_range (point 2)).
+			// However, utf8.RuneError is equivalent to unicode.ReplacementChar so we should rely on utf8.DecodeRune to tell
+			// us whether this is an actual error or just a unicode.ReplacementChar that was present in the string.
+			_, width := utf8.DecodeRune(tag[i:])
+			jump = width
 		}
 		// fast path; all letters (and colons) are ok
 		switch {
@@ -299,8 +302,7 @@ func normalizeTag(v string) string {
 			chars++
 			goto end
 		}
-
-		if r != utf8.RuneError && unicode.IsUpper(r) {
+		if unicode.IsUpper(r) {
 			// lowercase this character
 			if low := unicode.ToLower(r); utf8.RuneLen(r) == utf8.RuneLen(low) {
 				// but only if the width of the lowercased character is the same;
