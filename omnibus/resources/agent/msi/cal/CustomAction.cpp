@@ -38,9 +38,13 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     regkeybase.createSubKey(strRollbackKeyName.c_str(), keyRollback, REG_OPTION_VOLATILE);
     regkeybase.createSubKey(strUninstallKeyName.c_str(), keyInstall);
 
+    // check to see if we're a domain controller.
+    WcaLog(LOGMSG_STANDARD, "checking if this is a domain controller");
+    isDC = isDomainController(hInstall);
+
     // check to see if the supplied dd-agent-user exists
     WcaLog(LOGMSG_STANDARD, "checking to see if the user is already present");
-    if ((ddUserExists = doesUserExist(hInstall, data)) == -1) {
+    if ((ddUserExists = doesUserExist(hInstall, data, isDC)) == -1) {
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
@@ -50,10 +54,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
-    // check to see if we're a domain controller.
-    WcaLog(LOGMSG_STANDARD, "checking if this is a domain controller");
-    isDC = isDomainController(hInstall);
-
+    
     // now we have all the information we need to decide if this is a
     // new installation or an upgrade, and what steps need to be taken
 
