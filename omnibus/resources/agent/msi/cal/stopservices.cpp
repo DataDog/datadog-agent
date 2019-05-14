@@ -766,12 +766,13 @@ int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *p
         retval = services[i].create(hScManager);
         if (retval != 0) {
             WcaLog(LOGMSG_STANDARD, "Failed to install service %d %d 0x%x, rolling back", i, retval, retval);
-            for (i = i - 1; i >= 0; i--) {
-                DWORD rbret = services[i].destroy(hScManager);
+            for (int rbi = i - 1; rbi >= 0; rbi--) {
+                DWORD rbret = services[rbi].destroy(hScManager);
                 if (rbret != 0) {
                     WcaLog(LOGMSG_STANDARD, "Failed to roll back service install %d 0x%x", rbret, rbret);
                 }
             }
+            break;
         }
     }
     WcaLog(LOGMSG_STANDARD, "done installing services");
