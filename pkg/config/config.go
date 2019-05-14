@@ -568,18 +568,37 @@ func LoadWithoutSecret() error {
 	return load(Datadog, "datadog.yaml", false)
 }
 
+func findUnknownKeys(config Config) []string {
+	var unknownKeys []string
+	knownKeys := config.GetKnownKeys()
+	loadedKeys := config.AllKeys()
+	for _, key := range loadedKeys {
+		if _, found := knownKeys[key]; !found {
+			// Check if any subkey terminated with a '.*' wildcard is marked as known
+			// e.g.: apm_config.* would match all sub-keys of apm_config
+			splitPath := strings.Split(key, ".")
+			for j := range splitPath {
+				subKey := strings.Join(splitPath[:j+1], ".") + ".*"
+				if _, found = knownKeys[subKey]; found {
+					break
+				}
+			}
+			if !found {
+				unknownKeys = append(unknownKeys, key)
+			}
+		}
+	}
+	return unknownKeys
+}
+
 func load(config Config, origin string, loadSecret bool) error {
 	if err := config.ReadInConfig(); err != nil {
 		log.Warnf("Error loading config: %v", err)
 		return err
 	}
 
-	knownKeys := config.GetKnownKeys()
-	loadedKeys := config.AllKeys()
-	for _, key := range loadedKeys {
-		if _, found := knownKeys[key]; !found {
-			log.Warnf("Unknown key in config file: %v", key)
-		}
+	for _, key := range findUnknownKeys(config) {
+		log.Warnf("Unknown key in config file: %v", key)
 	}
 
 	if loadSecret {

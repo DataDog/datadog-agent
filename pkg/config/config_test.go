@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"log"
 	"os"
 	"strings"
 	"testing"
@@ -23,9 +24,12 @@ func setupConf() Config {
 
 func setupConfFromYAML(yamlConfig string) Config {
 	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	conf.SetConfigType("yaml")
-	conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
 	initConfig(conf)
+	conf.SetConfigType("yaml")
+	e := conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
+	if e != nil {
+		log.Println(e)
+	}
 	return conf
 }
 
@@ -78,6 +82,24 @@ api_key: fakeapikey
 	assert.Nil(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
+}
+
+func TestUnknownKeysWarning(t *testing.T) {
+	yamlBase := `
+site: datadoghq.eu
+`
+	confBase := setupConfFromYAML(yamlBase)
+	assert.Len(t, findUnknownKeys(confBase), 0)
+
+	yamlWithUnknownKeys := `
+site: datadoghq.eu
+unknown_key.unknown_subkey: true
+`
+	confWithUnknownKeys := setupConfFromYAML(yamlWithUnknownKeys)
+	assert.Len(t, findUnknownKeys(confWithUnknownKeys), 1)
+
+	confWithUnknownKeys.SetKnown("unknown_key.*")
+	assert.Len(t, findUnknownKeys(confWithUnknownKeys), 0)
 }
 
 func TestSiteEnvVar(t *testing.T) {
