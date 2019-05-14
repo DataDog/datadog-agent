@@ -252,8 +252,12 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	c.StatsWriterConfig = readStatsWriterConfigYaml()
 	c.TraceWriterConfig = readTraceWriterConfigYaml()
 
-	// allow an extra 10% of the maximum number of connections for parallel writes to the Datadog API
-	c.TraceWriterConfig.SenderConfig.MaxConnections = int(math.Max(1, float64(c.ConnectionLimit)/10))
+	// allow 1% of maximum connnections for concurrent stats flushes
+	conns1percent := int(math.Max(1, float64(c.ConnectionLimit)/100))
+	c.StatsWriterConfig.SenderConfig.MaxConnections = conns1percent
+	// allow 10% of maximum connnections for concurrent trace flushes
+	conns10percent := int(math.Max(1, float64(c.ConnectionLimit)/10))
+	c.TraceWriterConfig.SenderConfig.MaxConnections = conns10percent
 
 	// undocumented deprecated
 	if config.Datadog.IsSet("apm_config.analyzed_rate_by_service") {

@@ -216,7 +216,7 @@ func TestFullIniConfig(t *testing.T) {
 			MaxAge:            time.Second,
 			MaxQueuedBytes:    456,
 			MaxQueuedPayloads: 4,
-			MaxConnections:    1,
+			MaxConnections:    20,
 			InChannelSize:     10,
 			ExponentialBackoff: backoff.ExponentialConfig{
 				MaxDuration: 4 * time.Second,
