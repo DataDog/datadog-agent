@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
@@ -205,6 +206,8 @@ func (w *TraceWriter) flush() {
 		// nothing to flush
 		return
 	}
+
+	defer timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
 
 	atomic.AddInt64(&w.stats.Traces, int64(numTraces))
 	atomic.AddInt64(&w.stats.Events, int64(numEvents))

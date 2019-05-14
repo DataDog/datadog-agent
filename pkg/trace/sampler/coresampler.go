@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
@@ -58,11 +59,11 @@ type Sampler struct {
 
 	// Sample any signature with a score lower than scoreSamplingOffset
 	// It is basically the number of similar traces per second after which we start sampling
-	signatureScoreOffset *atomicFloat64
+	signatureScoreOffset *atomic.Float64
 	// Logarithm slope for the scoring function
-	signatureScoreSlope *atomicFloat64
+	signatureScoreSlope *atomic.Float64
 	// signatureScoreFactor = math.Pow(signatureScoreSlope, math.Log10(scoreSamplingOffset))
-	signatureScoreFactor *atomicFloat64
+	signatureScoreFactor *atomic.Float64
 
 	exit chan struct{}
 }
@@ -73,9 +74,9 @@ func newSampler(extraRate float64, maxTPS float64) *Sampler {
 		Backend:              NewMemoryBackend(defaultDecayPeriod, defaultDecayFactor),
 		extraRate:            extraRate,
 		maxTPS:               maxTPS,
-		signatureScoreOffset: newFloat64(0),
-		signatureScoreSlope:  newFloat64(0),
-		signatureScoreFactor: newFloat64(0),
+		signatureScoreOffset: atomic.NewFloat(0),
+		signatureScoreSlope:  atomic.NewFloat(0),
+		signatureScoreFactor: atomic.NewFloat(0),
 
 		exit: make(chan struct{}),
 	}

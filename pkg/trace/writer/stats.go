@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
@@ -101,6 +102,8 @@ func (w *StatsWriter) handleStats(s []stats.Bucket) {
 	if len(payloads) == 0 {
 		return
 	}
+
+	defer timing.Since("datadog.trace_agent.stats_writer.encode_ms", time.Now())
 
 	log.Debugf("Going to flush %v entries in %v stat buckets in %v payloads",
 		nbEntries, nbStatBuckets, len(payloads),

@@ -6,24 +6,8 @@ import (
 	"time"
 )
 
-// StatsClientGaugeArgs represents arguments to a StatsClient Gauge method call.
-type StatsClientGaugeArgs struct {
-	Name  string
-	Value float64
-	Tags  []string
-	Rate  float64
-}
-
-// StatsClientCountArgs represents arguments to a StatsClient Count method call.
-type StatsClientCountArgs struct {
-	Name  string
-	Value int64
-	Tags  []string
-	Rate  float64
-}
-
-// StatsClientHistogramArgs represents arguments to a StatsClient Histogram method call.
-type StatsClientHistogramArgs struct {
+// MetricsArgs represents arguments to a StatsClient Gauge method call.
+type MetricsArgs struct {
 	Name  string
 	Value float64
 	Tags  []string
@@ -32,13 +16,13 @@ type StatsClientHistogramArgs struct {
 
 // CountSummary contains a summary of all Count method calls to a particular StatsClient for a particular key.
 type CountSummary struct {
-	Calls []StatsClientCountArgs
+	Calls []MetricsArgs
 	Sum   int64
 }
 
 // GaugeSummary contains a summary of all Gauge method calls to a particular StatsClient for a particular key.
 type GaugeSummary struct {
-	Calls []StatsClientGaugeArgs
+	Calls []MetricsArgs
 	Last  float64
 	Max   float64
 }
@@ -48,11 +32,13 @@ type TestStatsClient struct {
 	mu sync.RWMutex
 
 	GaugeErr       error
-	GaugeCalls     []StatsClientGaugeArgs
+	GaugeCalls     []MetricsArgs
 	CountErr       error
-	CountCalls     []StatsClientCountArgs
+	CountCalls     []MetricsArgs
 	HistogramErr   error
-	HistogramCalls []StatsClientHistogramArgs
+	HistogramCalls []MetricsArgs
+	TimingErr      error
+	TimingCalls    []MetricsArgs
 }
 
 // Reset resets client's internal records.
@@ -65,13 +51,15 @@ func (c *TestStatsClient) Reset() {
 	c.CountCalls = c.CountCalls[:0]
 	c.HistogramErr = nil
 	c.HistogramCalls = c.HistogramCalls[:0]
+	c.TimingErr = nil
+	c.TimingCalls = c.TimingCalls[:0]
 }
 
 // Gauge records a call to a Gauge operation and replies with GaugeErr
 func (c *TestStatsClient) Gauge(name string, value float64, tags []string, rate float64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.GaugeCalls = append(c.GaugeCalls, StatsClientGaugeArgs{Name: name, Value: value, Tags: tags, Rate: rate})
+	c.GaugeCalls = append(c.GaugeCalls, MetricsArgs{Name: name, Value: value, Tags: tags, Rate: rate})
 	return c.GaugeErr
 }
 
@@ -85,7 +73,7 @@ func (c *TestStatsClient) Flush() error {
 func (c *TestStatsClient) Count(name string, value int64, tags []string, rate float64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.CountCalls = append(c.CountCalls, StatsClientCountArgs{Name: name, Value: value, Tags: tags, Rate: rate})
+	c.CountCalls = append(c.CountCalls, MetricsArgs{Name: name, Value: float64(value), Tags: tags, Rate: rate})
 	return c.CountErr
 }
 
@@ -93,13 +81,16 @@ func (c *TestStatsClient) Count(name string, value int64, tags []string, rate fl
 func (c *TestStatsClient) Histogram(name string, value float64, tags []string, rate float64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.HistogramCalls = append(c.HistogramCalls, StatsClientHistogramArgs{Name: name, Value: value, Tags: tags, Rate: rate})
+	c.HistogramCalls = append(c.HistogramCalls, MetricsArgs{Name: name, Value: value, Tags: tags, Rate: rate})
 	return c.HistogramErr
 }
 
 // Timing records a call to a Timing operation.
 func (c *TestStatsClient) Timing(name string, value time.Duration, tags []string, rate float64) error {
-	panic("(TestStatsClient).Timing is not implemented")
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.TimingCalls = append(c.TimingCalls, MetricsArgs{Name: name, Value: float64(value), Tags: tags, Rate: rate})
+	return c.TimingErr
 }
 
 // GetCountSummaries computes summaries for all names supplied as parameters to Count calls.
@@ -118,7 +109,7 @@ func (c *TestStatsClient) GetCountSummaries() map[string]*CountSummary {
 		}
 
 		summary.Calls = append(summary.Calls, countCall)
-		summary.Sum += countCall.Value
+		summary.Sum += int64(countCall.Value)
 	}
 
 	return result
