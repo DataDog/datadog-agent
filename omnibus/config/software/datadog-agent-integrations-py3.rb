@@ -237,7 +237,7 @@ build do
 
       File.file?("#{check_dir}/setup.py") || next
       if windows?
-        command "#{python2} -m pip install --no-deps #{windows_safe_path(project_dir)}\\#{check}"
+        command "#{python} -m pip install --no-deps #{windows_safe_path(project_dir)}\\#{check}"
       else
         command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
       end
