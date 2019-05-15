@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
@@ -443,6 +444,9 @@ func TestNormalizeTag(t *testing.T) {
 			}(),
 			out: "a", // 'b' should have been truncated
 		},
+		{"a" + string(unicode.ReplacementChar), "a"},
+		{"a" + string(unicode.ReplacementChar) + string(unicode.ReplacementChar), "a"},
+		{"a" + string(unicode.ReplacementChar) + string(unicode.ReplacementChar) + "b", "a_b"},
 	} {
 		t.Run("", func(t *testing.T) {
 			assert.Equal(t, tt.out, normalizeTag(tt.in), tt.in)
