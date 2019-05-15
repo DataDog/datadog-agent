@@ -70,7 +70,8 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 	health := health.Register("metadata-" + name)
 
 	go func() {
-		ctx := context.Context(c.context)
+		ctx, cancelCtxFunc := context.WithCancel(c.context)
+		defer cancelCtxFunc()
 		for {
 			select {
 			case <-ctx.Done():
