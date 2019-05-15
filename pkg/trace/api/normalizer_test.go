@@ -431,7 +431,6 @@ func TestNormalizeTag(t *testing.T) {
 		{in: "test\x99\x8faaa", out: "test_aaa"},
 		{in: "test\x99\x8f", out: "test"},
 		{in: strings.Repeat("a", 888), out: strings.Repeat("a", 200)},
-		{in: strings.Repeat("a", 888), out: strings.Repeat("a", 200)},
 		{
 			in: func() string {
 				b := bytes.NewBufferString("a")
@@ -447,6 +446,7 @@ func TestNormalizeTag(t *testing.T) {
 		},
 		{"a" + string(unicode.ReplacementChar), "a"},
 		{"a" + string(unicode.ReplacementChar) + string(unicode.ReplacementChar), "a"},
+		{"a" + string(unicode.ReplacementChar) + string(unicode.ReplacementChar) + "b", "a_b"},
 	} {
 		t.Run("", func(t *testing.T) {
 			assert.Equal(t, tt.out, normalizeTag(tt.in), tt.in)
