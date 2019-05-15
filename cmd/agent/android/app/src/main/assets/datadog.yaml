@@ -91,7 +91,6 @@ logs_config:
   open_files_limit: 100
   run_path: ""
 logs_enabled: false
-logset: ""
 metadata_collectors:
 - interval: 60
   name: resources
