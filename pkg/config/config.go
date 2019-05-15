@@ -348,7 +348,6 @@ func initConfig(config Config) {
 	config.BindEnv("logs_config.processing_rules")
 
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
-	config.BindEnvAndSetDefault("logset", "")
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	config.BindEnv("logs_config.dd_url")
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)

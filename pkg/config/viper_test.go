@@ -78,8 +78,6 @@ func TestGetConfigEnvVars(t *testing.T) {
 
 	config.BindEnv("app_key")
 	assert.Contains(t, config.GetEnvVars(), "DD_APP_KEY")
-	config.BindEnv("logset")
-	assert.Contains(t, config.GetEnvVars(), "DD_LOGSET")
 	config.BindEnv("logs_config.run_path")
 	assert.Contains(t, config.GetEnvVars(), "DD_LOGS_CONFIG.RUN_PATH")
 
