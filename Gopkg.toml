@@ -107,10 +107,6 @@
   version = "~v2.1.0"
 
 [[constraint]]
-  name = "github.com/sbinet/go-python"
-  branch = "master"
-
-[[constraint]]
   name = "github.com/shirou/gopsutil"
   version = "^v2.18.12"
 
