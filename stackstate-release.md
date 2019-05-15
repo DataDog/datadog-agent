@@ -24,6 +24,12 @@
       amount_top_mem_usage: 3
       mem_usage_threshold: 35
   ```
+  
+- Report localhost connections within the same network namespace _[(STAC-2891)](https://stackstate.atlassian.net/browse/STAC-2891)_
+  
+  This feature adds support to identify localhost connections within docker containers within the same network namespace.
+  
+  The network namespace of the reported connection can be observed in StackState on the connection between the components
 
 - Upstream upgrade to 6.10.2 _[(STAC-3220)](https://stackstate.atlassian.net/browse/STAC-3220)_
 

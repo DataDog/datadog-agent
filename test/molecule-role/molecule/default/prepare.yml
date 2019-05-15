@@ -125,12 +125,71 @@
         state: present
       when: ansible_distribution == "CentOS"
 
+- name: Prepare Network Connection Namespaces VM (pre)
+  hosts: agent-connection-namespaces
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Install python for Ansible
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream)
+      become: true
+      changed_when: false
+    - name: Install python-pip
+      become: true
+      apt:
+        name: python-pip
+        state: present
+        update_cache: yes
+    - name: Installing multiple python packages in Ansible
+      pip:
+        name: boto,boto3
+    - name: Add Docker GPG APT key
+      become: true
+      apt_key: url=https://download.docker.com/linux/ubuntu/gpg
+    - name: Add Docker APT repository
+      become: true
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable
+    - name: Install APT packages
+      become: true
+      apt:
+        name: [apt-transport-https, ca-certificates, curl, software-properties-common, docker-ce]
+        state: present
+        update_cache: yes
+      register: apt_res
+      retries: 5
+      delay: 5
+      until: apt_res is success
+    - name: Add user to docker group
+      become: true
+      user:
+        name: ubuntu
+        groups: docker
+        append: True
+    - name: Restart sshd to apply group change
+      shell: sleep 1; pkill -u {{ ansible_ssh_user }} sshd
+      async: 3
+      poll: 2
+    - name: Cleanup netcat-1 container
+      shell: "docker stop netcat-1 || true && docker rm netcat-1 || true"
+    - name: Setup netcat 1 docker container
+      shell: "docker run -it -d --name netcat-1 ubuntu && docker exec -itd --user root netcat-1 sh -c 'apt-get update && apt-get install -y nmap && ncat --broker --listen -p 9091'"
+    - name: Cleanup netcat-2 container
+      shell: "docker stop netcat-2 || true && docker rm netcat-2 || true"
+    - name: Setup netcat 2 docker container
+      shell: "docker run -it -d --name netcat-2 ubuntu && docker exec -itd --user root netcat-2 sh -c 'apt-get update && apt-get install -y nmap && ncat --broker --listen -p 9091'"
+
 - name: Prepare Windows Agent (pre)
   hosts: agent_win_vm
   gather_facts: false
   vars_files:
     - common_vars.yml
   tasks:
+    - name: disable enhanced exit codes
+      win_chocolatey_feature:
+        name: useEnhancedExitCodes
+        state: disabled
     - name: Install netcat
       win_chocolatey:
         name: netcat
@@ -293,3 +352,17 @@
       shell: "/usr/bin/stress --vm 1 --vm-bytes 248M --timeout {{ max_test_time }} --verbose"
       async: "{{ max_test_time }}"
       poll: 0
+
+- name: Prepare Connection Namespace VM with local docker connections
+  hosts: agent-connection-namespaces
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Wait a bit for the process agent to start
+      pause:
+        seconds: 20
+    - name: Connect to netcat 1 docker container
+      shell: "docker exec -itd netcat-1 sh -c 'yes | ncat 127.0.0.1 9091'"
+    - name: Connect to netcat 2 docker container
+      shell: "docker exec -itd netcat-2 sh -c 'yes | ncat 127.0.0.1 9091'"

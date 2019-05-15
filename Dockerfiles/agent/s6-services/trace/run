@@ -2,4 +2,4 @@
 
 foreground { /initlog.sh "starting trace-agent" }
 fdmove -c 2 1
-trace-agent --config=/etc/datadog-agent/datadog.yaml
+trace-agent --config=/etc/stackstate-agent/stackstate.yaml

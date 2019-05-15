@@ -60,6 +60,21 @@ def _find_outgoing_connection(json_data, port, origin, dest):
                 )
 
 
+def _find_outgoing_connection_in_namespace(json_data, port, scope, origin, dest):
+    """Find Connection as seen from the sending endpoint"""
+    return next(connection for message in json_data["messages"]
+                for connection in message["message"]["Connections"]["connections"]
+                if connection["remoteEndpoint"]["endpoint"]["port"] == port and
+                connection["remoteEndpoint"]["endpoint"]["ip"]["address"] == dest and
+                connection["localEndpoint"]["endpoint"]["ip"]["address"] == origin and
+                "scope" in connection["remoteEndpoint"] and
+                connection["remoteEndpoint"]["scope"] == scope and
+                "namespace" in connection["remoteEndpoint"] and "namespace" in connection["localEndpoint"] and
+                connection["remoteEndpoint"]["namespace"] == connection["localEndpoint"]["namespace"] and
+                connection["direction"] == "OUTGOING"
+                )
+
+
 def _find_incoming_connection(json_data, port, origin, dest):
     """Find Connection as seen from the receiving endpoint"""
     return next(connection for message in json_data["messages"]
@@ -67,6 +82,21 @@ def _find_incoming_connection(json_data, port, origin, dest):
                 if connection["localEndpoint"]["endpoint"]["port"] == port and
                 connection["localEndpoint"]["endpoint"]["ip"]["address"] == dest and
                 connection["remoteEndpoint"]["endpoint"]["ip"]["address"] == origin
+                )
+
+
+def _find_incoming_connection_in_namespace(json_data, port, scope, origin, dest):
+    """Find Connection as seen from the receiving endpoint"""
+    return next(connection for message in json_data["messages"]
+                for connection in message["message"]["Connections"]["connections"]
+                if connection["localEndpoint"]["endpoint"]["port"] == port and
+                connection["localEndpoint"]["endpoint"]["ip"]["address"] == dest and
+                connection["remoteEndpoint"]["endpoint"]["ip"]["address"] == origin and
+                "scope" in connection["localEndpoint"] and
+                connection["localEndpoint"]["scope"] == scope and
+                "namespace" in connection["remoteEndpoint"] and "namespace" in connection["localEndpoint"] and
+                connection["remoteEndpoint"]["namespace"] == connection["localEndpoint"]["namespace"] and
+                connection["direction"] == "INCOMING"
                 )
 
 
@@ -164,7 +194,7 @@ def test_created_connection_before_start(host):
 
 
 def test_host_metrics(host):
-    url = "http://localhost:7070/api/topic/sts_metrics?limit=1000"
+    url = "http://localhost:7070/api/topic/sts_metrics?limit=2000"
 
     def wait_for_metrics():
         data = host.check_output("curl \"%s\"" % url)
@@ -342,3 +372,35 @@ def test_topology_components(host):
         assert _component_filtered("process", "urn:process:/agent-centos", "/usr/bin/stress")
 
     util.wait_until(wait_for_components, 30, 3)
+
+
+def test_connection_network_namespaces_relations(host):
+    url = "http://localhost:7070/api/topic/sts_correlate_endpoints?limit=1500"
+
+    def wait_for_connection():
+        data = host.check_output("curl \"%s\"" % url)
+        json_data = json.loads(data)
+        with open("./topic-correlate-endpoint.json", 'w') as f:
+            json.dump(json_data, f, indent=4)
+
+        # assert that we find a outgoing localhost connection between 127.0.0.1 to 127.0.0.1 to port 9091 on
+        # agent-connection-namespaces host within the same network namespace.
+        outgoing_conn = _find_outgoing_connection_in_namespace(json_data, 9091, "agent-connection-namespaces", "127.0.0.1", "127.0.0.1")
+        print outgoing_conn
+
+        incoming_conn = _find_incoming_connection_in_namespace(json_data, 9091, "agent-connection-namespaces", "127.0.0.1", "127.0.0.1")
+        print incoming_conn
+
+        # assert that the connections are in the same namespace
+        outgoing_local_namespace = outgoing_conn["localEndpoint"]["namespace"]
+        outgoing_remote_namespace = outgoing_conn["remoteEndpoint"]["namespace"]
+        incoming_local_namespace = incoming_conn["localEndpoint"]["namespace"]
+        incoming_remote_namespace = incoming_conn["remoteEndpoint"]["namespace"]
+        assert (
+            outgoing_local_namespace == outgoing_remote_namespace and
+            incoming_local_namespace == incoming_remote_namespace and
+            incoming_remote_namespace == outgoing_local_namespace and
+            incoming_local_namespace == outgoing_remote_namespace
+        )
+
+    util.wait_until(wait_for_connection, 30, 3)

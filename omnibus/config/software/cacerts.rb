@@ -14,14 +14,14 @@
 # limitations under the License.
 #
 
-name "cacerts_override"
+name "cacerts"
 
 # We always pull the latest version,
 # so the hashsum check will break every time the file is updated on the remote
 default_version "latest"
 
 source url: "https://curl.haxx.se/ca/cacert.pem",
-       sha256: "c1fd9b235896b1094ee97bfb7e042f93530b5e300781f59b45edf84ee8c75000",
+       sha256: "cb2eca3fbfa232c9e3874e3852d43b33589f27face98eef10242a853d83a437a",
        target_filename: "cacert.pem"
 
 relative_path "cacerts-#{version}"

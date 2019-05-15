@@ -73,3 +73,12 @@ def test_stackstate_process_agent_no_log_errors(host):
     for line in process_agent_log.splitlines():
         print("Considering: %s" % line)
         assert not re.search("error", line, re.IGNORECASE)
+
+
+def test_agent_namespaces_docker(host):
+    hostname = host.ansible.get_variables()["inventory_hostname"]
+    if hostname == "agent-connection-namespaces":
+        f = host.file('/etc/docker/')
+        assert f.is_directory
+    else:
+        pass

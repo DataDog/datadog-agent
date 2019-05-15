@@ -2,4 +2,4 @@
 
 foreground { /initlog.sh "starting process-agent" }
 fdmove -c 2 1
-process-agent --config=/etc/datadog-agent/datadog.yaml
+process-agent --config=/etc/stackstate-agent/stackstate.yaml

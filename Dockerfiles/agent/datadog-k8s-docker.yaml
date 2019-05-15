@@ -1,6 +1,6 @@
 ## Provides autodetected defaults, for kubernetes environments
 ## where configuration templates are set as docker labels
-## please see datadog.yaml.example for all supported options
+## please see stackstate.yaml.example for all supported options
 
 # Autodiscovery for Kubernetes
 listeners:

@@ -2,4 +2,4 @@
 
 foreground { /initlog.sh "starting network-tracer" }
 fdmove -c 2 1
-network-tracer --config=/etc/datadog-agent/network-tracer.yaml
+network-tracer --config=/etc/stackstate-agent/network-tracer.yaml

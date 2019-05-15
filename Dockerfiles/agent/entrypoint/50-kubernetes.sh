@@ -5,7 +5,7 @@ if [[ -z "${KUBERNETES}" ]]; then
 fi
 
 # Set a default config for Kubernetes if found
-# Don't override /etc/datadog-agent/datadog.yaml if it exists
+# Don't override /etc/stackstate-agent/datadog.yaml if it exists
 if [[ ! -e /etc/stackstate-agent/stackstate.yaml ]]; then
     if [[ -e /var/run/docker.sock ]]; then
         ln -s /etc/stackstate-agent/stackstate-k8s-docker.yaml \
