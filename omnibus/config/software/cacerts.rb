@@ -21,7 +21,8 @@ name "cacerts_override"
 default_version "latest"
 
 source url: "https://curl.haxx.se/ca/cacert.pem",
-       sha256: "c1fd9b235896b1094ee97bfb7e042f93530b5e300781f59b45edf84ee8c75000"
+       sha256: "c1fd9b235896b1094ee97bfb7e042f93530b5e300781f59b45edf84ee8c75000",
+       target_filename: "cacert.pem"
 
 relative_path "cacerts-#{version}"
 
@@ -35,7 +36,6 @@ build do
 
   # Windows does not support symlinks
   unless windows?
-    delete "#{install_dir}/embedded/ssl/cert.pem"
     link "#{install_dir}/embedded/ssl/certs/cacert.pem", "#{install_dir}/embedded/ssl/cert.pem"
 
     block { File.chmod(0644, "#{install_dir}/embedded/ssl/certs/cacert.pem") }

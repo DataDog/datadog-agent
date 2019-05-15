@@ -10,6 +10,6 @@ call %WORKON_HOME%\venv\Scripts\activate.bat
 
 IF EXIST %GOPATH%\src\github.com\StackVista\stackstate-agent\vendor GOTO VENDOR_EXIST
 
-inv -e deps
+inv -e deps -v
 
 :VENDOR_EXIST

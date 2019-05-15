@@ -147,6 +147,11 @@
       args:
         executable: cmd
 
+    - name: Install git
+      win_chocolatey:
+        name: git
+        state: present
+
 #     Not able to execute normally
 #    - name: Tune git config
 #      win_shell: git config --global http.sslcainfo "C:\Program Files\Git\mingw64\ssl\certs\ca-bundle.crt"

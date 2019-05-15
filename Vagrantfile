@@ -75,6 +75,18 @@ Vagrant.configure("2") do |config|
       # Does not share . by default unless :share_cwd => true
       box.vm.synced_folder '.', '/vagrant', disabled: !properties[:share_cwd]
 
+      # Configure winrm if booting windows machine
+      if "#{hostname}".start_with?("win")
+        # box.vm.communicator = "winrm"
+        box.winrm.username = "vagrant"
+        box.winrm.password = "vagrant"
+        # Allow to use basic auth for login
+        box.vm.provision "shell", inline: "Set-Item -Path WSMan:\\localhost\\Service\\Auth\\Basic -Value $true"
+        box.vm.provision "shell", inline: "choco feature enable -n=allowGlobalConfirmation"
+        # Install powershell 6 with linux remoting
+        box.vm.provision "shell", inline: "iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/softasap/sa-win/master/GetPowershell6LinuxRemoting.ps1'))"
+      end
+
       # Installs the agent by default unless :install => false
       if !properties.key?(:install) or properties[:install]
 
@@ -90,24 +102,26 @@ Vagrant.configure("2") do |config|
                            path: "./cmd/agent/install_script.sh",
                            privileged: false
         else
-          $script = <<-SCRIPT
-          Import-Module c:\\vagrant\\cmd\\agent\\install_script.ps1
-          install -stsApikey API_KEY -stsUrl http://192.168.56.1:7077/stsAgent -codeName #{agent_version[:branch]}
-          SCRIPT
+          if properties[:share_cwd]
+            $script = <<-SCRIPT
+            Import-Module c:\\vagrant\\cmd\\agent\\install_script.ps1
+            install -stsApikey API_KEY -stsUrl http://192.168.56.1:7077/stsAgent -codeName #{agent_version[:branch]}
+            SCRIPT
 
-          box.vm.provision "shell",
-                           env: {
-                               :WIN_REPO => "https://stackstate-agent-2#{agent_version[:repo_suffix]}.s3.amazonaws.com/windows",
-                           },
-                           inline: $script,
-                           privileged: true
+            box.vm.provision "shell",
+                             env: {
+                                 :WIN_REPO => "https://stackstate-agent-2#{agent_version[:repo_suffix]}.s3.amazonaws.com/windows",
+                             },
+                             inline: $script,
+                             privileged: true
+          end
         end
 
       end
 
       box.vm.provider :virtualbox do |v|
-        v.memory = 1024
-        v.cpus = 1
+        v.memory = 8192
+        v.cpus = 4
         # v.memory = 16384
         # v.cpus = 4
       end

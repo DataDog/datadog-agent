@@ -13,7 +13,7 @@ if exist \opt\stackstate-agent rd /s/q \opt\stackstate-agent
 if exist %GOPATH%\src\github.com\StackVista\stackstate-agent rd /s/q %GOPATH%\src\github.com\StackVista\stackstate-agent
 REM mkdir %GOPATH%\src\github.com\StackVista\stackstate-agent
 REM xcopy /q/h/e/s * %GOPATH%\src\github.com\StackVista\stackstate-agent
-mkdir -p c:\gopath\src\github.com\StackVista\
+mkdir c:\gopath\src\github.com\StackVista\
 mklink /J %GOPATH%\src\github.com\StackVista\stackstate-agent %WIN_CI_PROJECT_DIR%
 cd %GOPATH%\src\github.com\StackVista\stackstate-agent
 IF EXIST %GOPATH%\src\github.com\StackVista\stackstate-agent\venv GOTO VENV_EXIST
