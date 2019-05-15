@@ -2,6 +2,20 @@ param(
     [Parameter(Mandatory=$false)][switch]$uninstall = $false
 )
 
+
+# Get the ID and security principal of the current user account
+$myWindowsID = [System.Security.Principal.WindowsIdentity]::GetCurrent();
+$myWindowsPrincipal = New-Object System.Security.Principal.WindowsPrincipal($myWindowsID);
+
+# Get the security principal for the administrator role
+$adminRole = [System.Security.Principal.WindowsBuiltInRole]::Administrator;
+
+# Check to see if we are currently running as an administrator
+if (!$myWindowsPrincipal.IsInRole($adminRole))
+{
+    Write-Host -ForegroundColor Red "This script requires an elevated shell"
+    return
+}
 $upgrade_code = "0c50421b-aefb-4f15-a809-7af256d608a5"
 $product_name = "Datadog Agent"
 $ddagentuser_name = "ddagentuser"
