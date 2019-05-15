@@ -9,6 +9,7 @@ import (
 	fmtlog "log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -745,6 +746,66 @@ func BenchmarkWatchdog(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		r.watchdog(now)
+	}
+}
+
+func TestWatchdog(t *testing.T) {
+	if testing.Short() {
+		return
+	}
+	os.Setenv("DD_APM_FEATURES", "429")
+	defer os.Unsetenv("DD_APM_FEATURES")
+
+	conf := config.New()
+	conf.Endpoints[0].APIKey = "apikey_2"
+	conf.WatchdogInterval = time.Millisecond
+
+	r := newTestReceiverFromConfig(conf)
+	r.Start()
+	defer r.Stop()
+	go func() {
+		for {
+			<-r.Out
+		}
+	}()
+
+	data := msgpTraces(t, pb.Traces{
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+	})
+
+	// first request is accepted
+	conf.MaxMemory = 1e10
+	resp, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("got %d", resp.StatusCode)
+	}
+	time.Sleep(conf.WatchdogInterval)
+
+	// follow-up requests should trigger a reject
+	r.conf.MaxMemory = 1
+	for tries := 0; tries < 100; tries++ {
+		req, err := http.NewRequest("POST", "http://localhost:8126/v0.4/traces", bytes.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(sampler.TraceCountHeader, "3")
+		resp, err = http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode == http.StatusTooManyRequests {
+			break // 👍
+		}
+		time.Sleep(2 * conf.WatchdogInterval)
+	}
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("didn't close, got %d", resp.StatusCode)
 	}
 }
 
