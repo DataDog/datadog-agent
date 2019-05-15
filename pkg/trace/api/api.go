@@ -74,6 +74,7 @@ type HTTPReceiver struct {
 
 	maxRequestBodyLength int64
 	debug                bool
+	presamplerResponse   int // HTTP status code when refusing
 
 	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
@@ -83,6 +84,10 @@ type HTTPReceiver struct {
 func NewHTTPReceiver(
 	conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan pb.Trace, services chan pb.ServicesMetadata,
 ) *HTTPReceiver {
+	presamplerResponse := http.StatusOK
+	if config.HasFeature("429") {
+		presamplerResponse = http.StatusTooManyRequests
+	}
 	// use buffered channels so that handlers are not waiting on downstream processing
 	return &HTTPReceiver{
 		Stats:      info.NewReceiverStats(),
@@ -95,6 +100,7 @@ func NewHTTPReceiver(
 
 		maxRequestBodyLength: maxRequestBodyLength,
 		debug:                strings.ToLower(conf.LogLevel) == "debug",
+		presamplerResponse:   presamplerResponse,
 
 		exit: make(chan struct{}),
 	}
@@ -258,7 +264,7 @@ func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
 	if !r.PreSampler.Sample(req) {
 		io.Copy(ioutil.Discard, req.Body)
-		w.WriteHeader(http.StatusOK) // TODO: this should change to 429 in newer API versions
+		w.WriteHeader(r.presamplerResponse)
 		r.replyTraces(v, w)
 		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, nil, 1)
 		return
