@@ -1,7 +1,29 @@
+ <#
+ .SYNOPSIS
+
+ Collects the status of a Datadog Agent installation.
+
+ .DESCRIPTION
+
+ Collects the status of the Datadog Agent installation.  Returns status of the
+ MSI installer database, as well as the existence of the datadog user and 
+ required registry keys.
+
+ .PARAMETER uninstall
+
+ Indicates that the script should attempt to uninstall the agent. Should only
+ be supplied if so instructed by a Datadog support engineer.
+
+ .INPUTS
+
+ None
+
+ #>
+ 
+
 param(
     [Parameter(Mandatory=$false)][switch]$uninstall = $false
 )
-
 
 # Get the ID and security principal of the current user account
 $myWindowsID = [System.Security.Principal.WindowsIdentity]::GetCurrent();
