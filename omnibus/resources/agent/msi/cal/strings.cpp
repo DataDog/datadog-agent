@@ -231,9 +231,6 @@ bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst,
     *dst=szValueBuf;
     *len = cchValueBuf;
     toMbcs(propval, szValueBuf);
-    WcaLog(LOGMSG_STANDARD, "loaded property %s = %s", propertyname.c_str(), propval.c_str());
-
-    
     return true;
 }
 
