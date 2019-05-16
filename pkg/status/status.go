@@ -217,11 +217,6 @@ func getDCAPartialConfig() map[string]string {
 	return conf
 }
 
-// getHostTagsConfig returns config host tags applied to all metrics
-func getHostTagsConfig() []string {
-	return config.Datadog.GetStringSlice("tags")
-}
-
 // getPartialConfig returns config parameters of interest for the status page
 func getPartialConfig() map[string]string {
 	conf := make(map[string]string)
