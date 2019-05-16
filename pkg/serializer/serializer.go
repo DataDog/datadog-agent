@@ -104,16 +104,13 @@ type Serializer struct {
 func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
 	s := &Serializer{
 		Forwarder:            forwarder,
+		seriesPayloadBuilder: jsonstream.NewPayloadBuilder(),
 		enableEvents:         config.Datadog.GetBool("enable_payloads.events"),
 		enableSeries:         config.Datadog.GetBool("enable_payloads.series"),
 		enableServiceChecks:  config.Datadog.GetBool("enable_payloads.service_checks"),
 		enableSketches:       config.Datadog.GetBool("enable_payloads.sketches"),
 		enableJSONToV1Intake: config.Datadog.GetBool("enable_payloads.json_to_v1_intake"),
 		enableJSONStream:     jsonstream.Available && config.Datadog.GetBool("enable_stream_payload_serialization"),
-	}
-
-	if s.enableJSONStream {
-		s.seriesPayloadBuilder = jsonstream.NewPayloadBuilder()
 	}
 
 	if !s.enableEvents {
