@@ -129,7 +129,7 @@ def get_version_ldflags(ctx, prefix=None):
     flags
     """
     payload_v = get_payload_version()
-    commit = ctx.run("git rev-parse --short HEAD", hide=True).stdout.strip()
+    commit = get_git_commit()
 
     ldflags = "-X {}/pkg/version.Commit={} ".format(REPO_PATH, commit)
     ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True, prefix=prefix))
