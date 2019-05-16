@@ -43,6 +43,7 @@ func New(content []byte, origin *Origin, status string, timestamp string, rawDat
 		status: status,
 	}
 }
+
 // GetStatus gets the status of the message if status is not set, StatusInfo will be returned.
 func (m *Message) GetStatus() string {
 	if m.status == "" {
