@@ -9,10 +9,10 @@ import "github.com/DataDog/datadog-agent/pkg/logs/config"
 
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
-	Content []byte
-	Origin *Origin
+	Content    []byte
+	Origin     *Origin
 	RawDataLen int
-	Timestamp string
+	Timestamp  string
 
 	status string
 }
@@ -31,12 +31,12 @@ func NewPartialMessage3(content []byte, origin *Origin, status string) *Message 
 
 func NewFullMessage(content []byte, origin *Origin, status string, timestamp string, rawDataLen int) *Message {
 	return &Message{
-		Content: content,
-		Origin:  origin,
-		Timestamp: timestamp,
+		Content:    content,
+		Origin:     origin,
+		Timestamp:  timestamp,
 		RawDataLen: rawDataLen,
 
-		status:  status,
+		status: status,
 	}
 }
 

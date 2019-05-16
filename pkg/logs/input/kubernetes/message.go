@@ -11,15 +11,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-
 type Message struct {
 	DDMessage *message.Message
-	Flag string
+	Flag      string
 }
 
 func NewKubernetesMessage(content []byte, status string, timestamp string, flag string) *Message {
 	return &Message{
 		DDMessage: message.NewPartialMessage(content, status, timestamp),
-		Flag: flag,
+		Flag:      flag,
 	}
 }

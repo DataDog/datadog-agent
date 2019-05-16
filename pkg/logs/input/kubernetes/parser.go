@@ -66,7 +66,6 @@ func parse(msg []byte) ([]byte, string, string, string, error) {
 	return content, status, timestamp, flag, nil
 }
 
-
 // getStatus returns the status of the message based on
 // the value of the STREAM_TYPE field in the header,
 // returns the status INFO by default
@@ -80,4 +79,3 @@ func getStatus(streamType []byte) string {
 		return message.StatusInfo
 	}
 }
-
