@@ -245,8 +245,8 @@ def test_host_metrics(host):
 
         # Memory
         assert_metric("system.mem.total", lambda v: v > 900.0, lambda v: v > 900.0, lambda v: v > 2000.0)
-        assert_metric("system.mem.usable", lambda v: 1000.0 > v > 300.0, lambda v: 1000.0 > v > 300.0, lambda v: 1800.0 > v > 600.0)
-        assert_metric("system.mem.pct_usable", lambda v: 1.0 > v > 0.3, lambda v: 1.0 > v > 0.3, lambda v: 1.0 > v > 0.4)
+        assert_metric("system.mem.usable", lambda v: 1000.0 > v > 300.0, lambda v: 1000.0 > v > 300.0, lambda v: 1000.0 > v > 500.0)
+        assert_metric("system.mem.pct_usable", lambda v: 1.0 > v > 0.3, lambda v: 1.0 > v > 0.3, lambda v: 1.0 > v > 0.2)
 
         # Load - only linux
         assert_metric("system.load.norm.1", lambda v: v >= 0.0, lambda v: v >= 0.0, None)

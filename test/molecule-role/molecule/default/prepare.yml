@@ -131,16 +131,6 @@
   vars_files:
     - common_vars.yml
   tasks:
-    - name: Install python for Ansible
-      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream)
-      become: true
-      changed_when: false
-    - name: Install python-pip
-      become: true
-      apt:
-        name: python-pip
-        state: present
-        update_cache: yes
     - name: Installing multiple python packages in Ansible
       pip:
         name: boto,boto3
@@ -229,7 +219,7 @@
     - common_vars.yml
   tasks:
     - name: Connect to Ubuntu Agent
-      win_command: nc -w {{ max_test_time }} {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_before_start_windows }}
+      win_command: nc {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_before_start_windows }}
       async: "{{ max_test_time }}"
       poll: 0
 
@@ -307,7 +297,7 @@
     - common_vars.yml
   tasks:
     - name: Connect to Ubuntu agent
-      win_command: nc -w {{ max_test_time }} {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_after_start_windows }}
+      win_command: nc {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_after_start_windows }}
       async: "{{ max_test_time }}"
       poll: 0
 
