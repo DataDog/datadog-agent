@@ -534,7 +534,7 @@ static void cleanup_tcp_conn(
 
     // Will hold the full connection data to send through the perf buffer
     tcp_conn_t t = {
-        .tup = (conn_tuple_t){
+        .tup = (conn_tuple_t) {
             .pid = 0,
         },
     };

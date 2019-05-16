@@ -8,7 +8,7 @@ FLAGS=-D__KERNEL__ -D__ASM_SYSREG_H -D__BPF_TRACING__ -DCIRCLE_BUILD_URL=\"$(CIR
 		-Wunused \
 		-Wall \
 		-Werror \
-		-O2 -emit-llvm -c ebpf/c/tracer-ebpf.c \
+		-O2 -emit-llvm -c /ebpf/c/tracer-ebpf.c \
 		$(foreach path,$(LINUX_HEADERS), -I $(path)/arch/x86/include -I $(path)/arch/x86/include/generated -I $(path)/include -I $(path)/include/generated/uapi -I $(path)/arch/x86/include/uapi -I $(path)/include/uapi)
 
 build:
