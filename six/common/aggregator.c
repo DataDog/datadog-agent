@@ -223,7 +223,7 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     // aggregator.submit_event(self, check_id, event)
     if (!PyArg_ParseTuple(args, "OsO", &check, &check_id, &event_dict)) {
         PyGILState_Release(gstate);
-        // returning NULL to raise error
+        // error is set by PyArg_ParseTuple but we return NULL to raise
         return NULL;
     }
 
@@ -240,20 +240,23 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    // notice: PyDict_GetItemString returns a borrowed ref
+    // notice: PyDict_GetItemString returns a borrowed ref or NULL if key was not found
     ev->title = as_string(PyDict_GetItemString(event_dict, "msg_title"));
     ev->text = as_string(PyDict_GetItemString(event_dict, "msg_text"));
-    ev->ts = PyLong_AsLong(PyDict_GetItemString(event_dict, "timestamp"));
+    // PyLong_AsLong will fail if called passing a NULL argument, be safe
+    if (PyDict_GetItemString(event_dict, "timestamp") != NULL) {
+        ev->ts = PyLong_AsLong(PyDict_GetItemString(event_dict, "timestamp"));
+    } else {
+        ev->ts = 0;
+    }
     ev->priority = as_string(PyDict_GetItemString(event_dict, "priority"));
     ev->host = as_string(PyDict_GetItemString(event_dict, "host"));
     ev->alert_type = as_string(PyDict_GetItemString(event_dict, "alert_type"));
     ev->aggregation_key = as_string(PyDict_GetItemString(event_dict, "aggregation_key"));
     ev->source_type_name = as_string(PyDict_GetItemString(event_dict, "source_type_name"));
     ev->event_type = as_string(PyDict_GetItemString(event_dict, "event_type"));
-    // process the list of tags
+    // process the list of tags, set ev->tags = NULL if tags are missing
     py_tags = PyDict_GetItemString(event_dict, "tags");
-    // PyDict_GetItemString returns NULL if tags are missing from the event dict
-    // but it's ok and we can send the event anyways
     if (py_tags != NULL) {
         ev->tags = py_tag_to_c(py_tags);
         if (ev->tags == NULL) {
