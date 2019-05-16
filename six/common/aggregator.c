@@ -262,6 +262,8 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
             // we need to return NULL to raise the exception set by PyErr_SetString
             return NULL;
         }
+    } else {
+        ev->tags = NULL;
     }
 
     // send the event
