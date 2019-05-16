@@ -11,11 +11,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
+// Message struct encapsulates Datadog message and flag info.
 type Message struct {
 	DDMessage *message.Message
 	Flag      string
 }
 
+// NewKubernetesMessage creates new instance of kubernetes message.
 func NewKubernetesMessage(content []byte, status string, timestamp string, flag string) *Message {
 	return &Message{
 		DDMessage: message.NewPartialMessage(content, status, timestamp),
