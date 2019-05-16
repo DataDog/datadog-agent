@@ -37,26 +37,35 @@ type parser struct {
 // Example:
 // 2018-09-20T11:54:11.753589172Z stdout F This is my message
 func (p *parser) Parse(msg []byte) (*message.Message, error) {
-	components, err := splitLine(msg)
-	if err != nil {
-		return message.NewMessage(msg, nil, message.StatusInfo), err
-	}
-	status := getStatus(components[1])
-
-	parsedMsg := message.NewMessage(components[3], nil, status)
-	parsedMsg.Timestamp = string(components[0])
-	return parsedMsg, nil
+	content, status, timestamp, _, err := parse(msg)
+	return message.NewPartialMessage(content, status, timestamp), err
 }
 
 // Unwrap removes the header of the log line
 // and return the log and timestamp
 func (p *parser) Unwrap(line []byte) ([]byte, string, error) {
-	components, err := splitLine(line)
-	if err != nil {
-		return line, "", err
-	}
-	return components[3], string(components[0]), nil
+	content, _, timestamp, _, err := parse(line)
+	return content, timestamp, err
 }
+
+func parse(msg []byte) ([]byte, string, string, string, error) {
+	var status = message.StatusInfo
+	var flag string
+	var timestamp string
+	components := bytes.SplitN(msg, delimiter, 4)
+	if len(components) < 3 {
+		return msg, status, timestamp, flag, errors.New("cannot parse the log line")
+	}
+	var content []byte
+	if len(components) > 3 {
+		content = components[3]
+	}
+	status = getStatus(components[1])
+	timestamp = string(components[0])
+	flag = string(components[2])
+	return content, status, timestamp, flag, nil
+}
+
 
 // getStatus returns the status of the message based on
 // the value of the STREAM_TYPE field in the header,
@@ -72,19 +81,3 @@ func getStatus(streamType []byte) string {
 	}
 }
 
-// splitLine splits the log line into the four components using ,
-// returns an error if it failed.
-func splitLine(msg []byte) ([][]byte, error) {
-	components := bytes.SplitN(msg, delimiter, 4)
-
-	if len(components) < 3 {
-		return nil, errors.New("can't parse the log line")
-	}
-
-	// Empty message
-	if len(components) == 3 {
-		components = append(components, []byte(nil))
-	}
-
-	return components, nil
-}

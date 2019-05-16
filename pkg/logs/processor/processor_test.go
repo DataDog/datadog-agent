@@ -141,6 +141,5 @@ func newSource(ruleType, replacePlaceholder, pattern string) config.LogSource {
 }
 
 func newMessage(content []byte, source *config.LogSource, status string) *message.Message {
-	origin := message.NewOrigin(source)
-	return message.NewMessage(content, origin, status)
+	return message.NewPartialMessage2(content, source, status)
 }

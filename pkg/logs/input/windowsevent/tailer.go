@@ -119,7 +119,7 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 	}
 	jsonEvent = replaceTextKeyToValue(jsonEvent)
 	log.Debug("Sending JSON:", string(jsonEvent))
-	return message.NewMessage(jsonEvent, message.NewOrigin(t.source), message.StatusInfo), nil
+	return message.NewPartialMessage2(jsonEvent, t.source, message.StatusInfo), nil
 }
 
 // extractTaskName looks for the TASK_ID in {"Event": {"System": {"Task": <TASK_ID> }}}

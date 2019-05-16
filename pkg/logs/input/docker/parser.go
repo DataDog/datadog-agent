@@ -38,9 +38,7 @@ func NewDockerParser(containerID string) *DockerParser {
 // can put them in the Message
 func (p *DockerParser) Parse(msg []byte) (*message.Message, error) {
 	body, status, timestamp, err := parse(msg, p.containerID)
-	parsedMsg := message.NewMessage(body, nil, status)
-	parsedMsg.Timestamp = timestamp
-	return parsedMsg, err
+	return message.NewPartialMessage(body, status, timestamp), err
 }
 
 // Unwrap removes the message header of docker logs
