@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 )
 
 var (
@@ -39,7 +39,7 @@ func TestCommonConfigure(t *testing.T) {
 
 	err := mycheck.CommonConfigure([]byte(defaultsInstance))
 	assert.NoError(t, err)
-	assert.Equal(t, check.DefaultCheckInterval, mycheck.Interval())
+	assert.Equal(t, defaults.DefaultCheckInterval, mycheck.Interval())
 	mockSender.AssertNumberOfCalls(t, "DisableDefaultHostname", 0)
 
 	mockSender.On("DisableDefaultHostname", true).Return().Once()

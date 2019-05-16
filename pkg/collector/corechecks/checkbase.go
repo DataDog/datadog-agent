@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -47,7 +48,7 @@ func NewCheckBase(name string) CheckBase {
 	return CheckBase{
 		checkName:     name,
 		checkID:       check.ID(name),
-		checkInterval: check.DefaultCheckInterval,
+		checkInterval: defaults.DefaultCheckInterval,
 	}
 }
 

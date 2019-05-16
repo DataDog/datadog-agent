@@ -16,6 +16,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -312,6 +313,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_thread_pool_size", 3)
 	config.BindEnvAndSetDefault("jmx_reconnection_thread_pool_size", 3)
 	config.BindEnvAndSetDefault("jmx_collection_timeout", 60)
+	config.BindEnvAndSetDefault("jmx_check_period", defaults.DefaultCheckInterval/time.Millisecond)
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 10)
 
 	// Go_expvar server port
