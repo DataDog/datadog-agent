@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Protect KubeUtil.rawConnectionInfo map against race update.
+
