@@ -39,13 +39,21 @@ func GetStatus() (map[string]interface{}, error) {
 
 	stats["version"] = version.AgentVersion
 	hostname, err := util.GetHostname()
+
+	var metadata *host.Payload
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache("unknown")
+		metadata = host.GetPayloadFromCache("unknown")
 	} else {
-		stats["metadata"] = host.GetPayloadFromCache(hostname)
+		metadata = host.GetPayloadFromCache(hostname)
 	}
-	stats["hostTags"] = getHostTagsConfig()
+	stats["metadata"] = metadata
+
+	hostTags := make([]string, 0, len(metadata.HostTags.System)+len(metadata.HostTags.GoogleCloudPlatform))
+	hostTags = append(hostTags, metadata.HostTags.System...)
+	hostTags = append(hostTags, metadata.HostTags.GoogleCloudPlatform...)
+	stats["hostTags"] = hostTags
+
 	stats["config"] = getPartialConfig()
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
 
