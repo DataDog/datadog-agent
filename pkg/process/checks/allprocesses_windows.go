@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
-	"syscall"
 	"time"
 	"unsafe"
 
@@ -16,16 +15,13 @@ import (
 	process "github.com/DataDog/gopsutil/process"
 	"github.com/StackExchange/wmi"
 	"github.com/shirou/w32"
-)
 
-const (
-	NoMoreFiles   = 0x12
-	MaxPathLength = 260
+	"golang.org/x/sys/windows"
 )
 
 var (
-	modpsapi                  = syscall.NewLazyDLL("psapi.dll")
-	modkernel                 = syscall.NewLazyDLL("kernel32.dll")
+	modpsapi                  = windows.NewLazyDLL("psapi.dll")
+	modkernel                 = windows.NewLazyDLL("kernel32.dll")
 	procGetProcessMemoryInfo  = modpsapi.NewProc("GetProcessMemoryInfo")
 	procGetProcessHandleCount = modkernel.NewProc("GetProcessHandleCount")
 	procGetProcessIoCounters  = modkernel.NewProc("GetProcessIoCounters")
@@ -67,19 +63,15 @@ type IO_COUNTERS struct {
 	OtherTransferCount  uint64
 }
 
-func getProcessMemoryInfo(h syscall.Handle, mem *process.PROCESS_MEMORY_COUNTERS) (err error) {
-	r1, _, e1 := syscall.Syscall(procGetProcessMemoryInfo.Addr(), 3, uintptr(h), uintptr(unsafe.Pointer(mem)), uintptr(unsafe.Sizeof(*mem)))
+func getProcessMemoryInfo(h windows.Handle, mem *process.PROCESS_MEMORY_COUNTERS) (err error) {
+	r1, _, e1 := procGetProcessMemoryInfo.Call(uintptr(h), uintptr(unsafe.Pointer(mem)), uintptr(unsafe.Sizeof(*mem)))
 	if r1 == 0 {
-		if e1 != 0 {
-			err = error(e1)
-		} else {
-			err = syscall.EINVAL
-		}
+		return e1
 	}
-	return
+	return nil
 }
 
-func getProcessHandleCount(h syscall.Handle, count *uint32) (err error) {
+func getProcessHandleCount(h windows.Handle, count *uint32) (err error) {
 	r1, _, e1 := procGetProcessHandleCount.Call(uintptr(h), uintptr(unsafe.Pointer(count)))
 	if r1 == 0 {
 		return e1
@@ -87,7 +79,7 @@ func getProcessHandleCount(h syscall.Handle, count *uint32) (err error) {
 	return nil
 }
 
-func getProcessIoCounters(h syscall.Handle, counters *IO_COUNTERS) (err error) {
+func getProcessIoCounters(h windows.Handle, counters *IO_COUNTERS) (err error) {
 	r1, _, e1 := procGetProcessIoCounters.Call(uintptr(h), uintptr(unsafe.Pointer(counters)))
 	if r1 == 0 {
 		return e1
@@ -129,7 +121,7 @@ func getWin32Proc(pid uint32) (Win32_Process, error) {
 func getAllProcesses(cfg *config.AgentConfig) (map[int32]*process.FilledProcess, error) {
 	allProcsSnap := w32.CreateToolhelp32Snapshot(w32.TH32CS_SNAPPROCESS, 0)
 	if allProcsSnap == 0 {
-		return nil, syscall.GetLastError()
+		return nil, windows.GetLastError()
 	}
 	procs := make(map[int32]*process.FilledProcess)
 
@@ -208,8 +200,8 @@ func getAllProcesses(cfg *config.AgentConfig) (map[int32]*process.FilledProcess,
 		}
 		procHandle := cp.procHandle
 
-		var CPU syscall.Rusage
-		if err := syscall.GetProcessTimes(procHandle, &CPU.CreationTime, &CPU.ExitTime, &CPU.KernelTime, &CPU.UserTime); err != nil {
+		var CPU windows.Rusage
+		if err := windows.GetProcessTimes(procHandle, &CPU.CreationTime, &CPU.ExitTime, &CPU.KernelTime, &CPU.UserTime); err != nil {
 			log.Debugf("Could not get process times for %v %v", pid, err)
 			continue
 		}
@@ -277,11 +269,11 @@ func getAllProcesses(cfg *config.AgentConfig) (map[int32]*process.FilledProcess,
 	return procs, nil
 }
 
-func getUsernameForProcess(h syscall.Handle) (name string, err error) {
+func getUsernameForProcess(h windows.Handle) (name string, err error) {
 	name = ""
 	err = nil
-	var t syscall.Token
-	err = syscall.OpenProcessToken(h, syscall.TOKEN_QUERY, &t)
+	var t windows.Token
+	err = windows.OpenProcessToken(h, windows.TOKEN_QUERY, &t)
 	if err != nil {
 		log.Debugf("Failed to open process token %v", err)
 		return
@@ -360,7 +352,7 @@ func rebuildProcessMapFromWMI() {
 
 	for pid, proc := range wmimap {
 		if pid == 0 {
-			// PID 0 is System Process, will cause syscall.OpenProcess to fail with ERROR_INVALID_PARAMETER.
+			// PID 0 is System Process, will cause windows.OpenProcess to fail with ERROR_INVALID_PARAMETER.
 			continue
 		}
 		cp := cachedProcess{}
@@ -383,14 +375,14 @@ type cachedProcess struct {
 	userName       string
 	executablePath string
 	commandLine    string
-	procHandle     syscall.Handle
+	procHandle     windows.Handle
 	parsedArgs     []string
 }
 
 func (cp *cachedProcess) fill(proc *Win32_Process) (err error) {
 	// 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't
-	// defined in syscall
-	cp.procHandle, err = syscall.OpenProcess(0x1000, false, uint32(proc.ProcessID))
+	// defined in x/sys/windows
+	cp.procHandle, err = windows.OpenProcess(0x1000, false, uint32(proc.ProcessID))
 	if err != nil {
 		log.Debugf("Couldn't open process %v %v", proc.ProcessID, err)
 		return err
@@ -419,8 +411,8 @@ func (cp *cachedProcess) fill(proc *Win32_Process) (err error) {
 
 func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error) {
 	// 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't
-	// defined in syscall
-	cp.procHandle, err = syscall.OpenProcess(0x1000, false, uint32(pe32.Th32ProcessID))
+	// defined in x/sys/windows
+	cp.procHandle, err = windows.OpenProcess(0x1000, false, uint32(pe32.Th32ProcessID))
 	if err != nil {
 		log.Infof("Couldn't open process %v %v", pe32.Th32ProcessID, err)
 		return err
@@ -443,5 +435,5 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 }
 
 func (cp *cachedProcess) close() {
-	syscall.CloseHandle(cp.procHandle)
+	windows.CloseHandle(cp.procHandle)
 }
