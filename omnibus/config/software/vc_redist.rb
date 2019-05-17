@@ -15,4 +15,9 @@ build do
   # that require them.
   command "XCOPY /YEH .\\*.* \"#{windows_safe_path(python_2_embedded)}\" /IR"
 
+  #
+  # also copy them to the bin/agent directory, so we can (optionally) install on
+  # 2008.
+  copy '*.dll', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
+  copy '*.manifest', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
 end
