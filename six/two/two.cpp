@@ -380,8 +380,8 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
         // Reset `klass` at every iteration so its state is always clean when we
         // continue the loop or return early. Reset at first iteration is useless
         // but it keeps the code readable.
-        klass = NULL;
         Py_XDECREF(klass);
+        klass = NULL;
 
         // get the symbol in current list item
         PyObject *symbol = PyList_GetItem(dir, i);
@@ -454,8 +454,8 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
     // we couldn't find any good subclass, set an error and reset
     // `klass` state for one last time before moving to `done`.
     setError("cannot find a subclass");
-    klass = NULL;
     Py_XDECREF(klass);
+    klass = NULL;
 
 done:
     Py_XDECREF(dir);
