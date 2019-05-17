@@ -376,23 +376,29 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
 
     PyObject *klass = NULL;
     for (int i = 0; i < PyList_GET_SIZE(dir); i++) {
-        // get symbol name
-        char *symbol_name = NULL;
+        // get the symbol in current list item
         PyObject *symbol = PyList_GetItem(dir, i);
-        if (symbol != NULL) {
-            // PyString_AsString returns NULL if `symbol` is not a string object at all
-            symbol_name = PyString_AsString(symbol);
+        if (symbol == NULL) {
+            // This should never happen as it means we're out of bounds
+            PyErr_Clear();
+            setError("there was an error browsing dir() output");
+            return NULL;
         }
 
+        // get symbol name
+        char *symbol_name = PyString_AsString(symbol);
         if (symbol_name == NULL) {
+            // PyString_AsString returns NULL if `symbol` is not a string object
+            // and raises TypeError. Let's clear the error and keep going.
+            PyErr_Clear();
             continue;
         }
 
         // get symbol instance. It's a new ref but in case of success we don't
-        // DecRef since we return it and the caller
-        // will be owner
+        // DecRef since we return it and the caller will be owner
         klass = PyObject_GetAttrString(module, symbol_name);
         if (klass == NULL) {
+            PyErr_Clear();
             continue;
         }
 
@@ -419,6 +425,7 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
         PyObject *children = PyObject_CallMethod(klass, func_name, NULL);
         if (children == NULL) {
             Py_XDECREF(klass);
+            PyErr_Clear();
             continue;
         }
 
