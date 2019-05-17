@@ -31,14 +31,16 @@ type SingleLineHandler struct {
 	outputChan     chan *message.Message
 	shouldTruncate bool
 	parser         parser.Parser
+	lineLimit int
 }
 
 // NewSingleLineHandler returns a new SingleLineHandler
-func NewSingleLineHandler(outputChan chan *message.Message, parser parser.Parser) *SingleLineHandler {
+func NewSingleLineHandler(outputChan chan *message.Message, parser parser.Parser, lineLimit int) *SingleLineHandler {
 	return &SingleLineHandler{
 		lineChan:   make(chan []byte),
 		outputChan: outputChan,
 		parser:     parser,
+		lineLimit: lineLimit,
 	}
 }
 
@@ -85,7 +87,7 @@ func (h *SingleLineHandler) process(line []byte) {
 		content = line
 	}
 
-	if lineLen < contentLenLimit {
+	if lineLen < h.lineLimit {
 		// send content
 		// add 1 to take into account '\n' that we didn't include in content
 		output, err := h.parser.Parse(content)
@@ -125,10 +127,11 @@ type MultiLineHandler struct {
 	newContentRe      *regexp.Regexp
 	flushTimeout      time.Duration
 	parser            parser.Parser
+	lineLimit int
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler
-func NewMultiLineHandler(outputChan chan *message.Message, newContentRe *regexp.Regexp, flushTimeout time.Duration, parser parser.Parser) *MultiLineHandler {
+func NewMultiLineHandler(outputChan chan *message.Message, newContentRe *regexp.Regexp, flushTimeout time.Duration, parser parser.Parser, lineLimit int) *MultiLineHandler {
 	return &MultiLineHandler{
 		lineChan:     make(chan []byte),
 		outputChan:   outputChan,
@@ -136,6 +139,7 @@ func NewMultiLineHandler(outputChan chan *message.Message, newContentRe *regexp.
 		newContentRe: newContentRe,
 		flushTimeout: flushTimeout,
 		parser:       parser,
+		lineLimit: lineLimit,
 	}
 }
 
@@ -205,7 +209,10 @@ func (h *MultiLineHandler) process(line []byte) {
 		// add '\n' to content in lineBuffer
 		h.lineBuffer.AddEndOfLine()
 	}
-	if len(line)+h.lineBuffer.Length() < contentLenLimit {
+	// NOTES: this check takes into account the length of "...TRUNCATED..."
+	// which in some scenario is outputting an ending message with
+	// ...TRUNCATED... as only content, see unit test line_handler_test.go/TestMultiLineHandler
+	if len(line)+h.lineBuffer.Length() < h.lineLimit {
 		// add line to content in lineBuffer
 		h.lineBuffer.Add(line)
 	} else {

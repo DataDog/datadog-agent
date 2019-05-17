@@ -13,9 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
-// contentLenLimit represents the length limit above which we want to truncate the output content
-var contentLenLimit = 256 * 1000
-
 // Input represents a list of bytes consumed by the Decoder
 type Input struct {
 	content []byte
@@ -33,34 +30,38 @@ type Decoder struct {
 
 	lineBuffer  *bytes.Buffer
 	lineHandler LineHandler
+	// contentLenLimit represents the length limit above which we want to truncate the output content
+	contentLenLimit int
+
 }
 
 // InitializeDecoder returns a properly initialized Decoder
 func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder {
 	inputChan := make(chan *Input)
 	outputChan := make(chan *message.Message)
-
+	lineLimit := 256 * 1000
 	var lineHandler LineHandler
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, defaultFlushTimeout, parser)
+			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, defaultFlushTimeout, parser, lineLimit)
 		}
 	}
 	if lineHandler == nil {
-		lineHandler = NewSingleLineHandler(outputChan, parser)
+		lineHandler = NewSingleLineHandler(outputChan, parser, lineLimit)
 	}
 
-	return New(inputChan, outputChan, lineHandler)
+	return New(inputChan, outputChan, lineHandler, lineLimit)
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *Input, OutputChan chan *message.Message, lineHandler LineHandler) *Decoder {
+func New(InputChan chan *Input, OutputChan chan *message.Message, lineHandler LineHandler, contentLenLimit int) *Decoder {
 	var lineBuffer bytes.Buffer
 	return &Decoder{
 		InputChan:   InputChan,
 		OutputChan:  OutputChan,
 		lineBuffer:  &lineBuffer,
 		lineHandler: lineHandler,
+		contentLenLimit: contentLenLimit,
 	}
 }
 
@@ -88,7 +89,7 @@ func (d *Decoder) run() {
 func (d *Decoder) decodeIncomingData(inBuf []byte) {
 	i, j := 0, 0
 	n := len(inBuf)
-	maxj := contentLenLimit - d.lineBuffer.Len()
+	maxj := d.contentLenLimit - d.lineBuffer.Len()
 
 	for ; j < n; j++ {
 		if j == maxj {
@@ -96,12 +97,12 @@ func (d *Decoder) decodeIncomingData(inBuf []byte) {
 			d.lineBuffer.Write(inBuf[i:j])
 			d.sendLine()
 			i = j
-			maxj = i + contentLenLimit
+			maxj = i + d.contentLenLimit
 		} else if inBuf[j] == '\n' {
 			d.lineBuffer.Write(inBuf[i:j])
 			d.sendLine()
 			i = j + 1 // +1 as we skip the `\n`
-			maxj = i + contentLenLimit
+			maxj = i + d.contentLenLimit
 		}
 	}
 	d.lineBuffer.Write(inBuf[i:j])

@@ -108,7 +108,7 @@ func (u *MockFailingParser) Unwrap(line []byte) ([]byte, string, error) {
 
 func TestSingleLineHandler(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	h := NewSingleLineHandler(outputChan, parser.NoopParser)
+	h := NewSingleLineHandler(outputChan, parser.NoopParser, 100)
 	h.Start()
 
 	var output *message.Message
@@ -149,7 +149,7 @@ func TestSingleLineHandler(t *testing.T) {
 
 func TestTrimSingleLine(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	h := NewSingleLineHandler(outputChan, parser.NoopParser)
+	h := NewSingleLineHandler(outputChan, parser.NoopParser, 100)
 	h.Start()
 
 	var output *message.Message
@@ -168,52 +168,78 @@ func TestTrimSingleLine(t *testing.T) {
 func TestMultiLineHandler(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
 	outputChan := make(chan *message.Message, 10)
-	h := NewMultiLineHandler(outputChan, re, 100*time.Millisecond, parser.NoopParser)
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NoopParser, 20)
 	h.Start()
 
 	var output *message.Message
 
 	// two lines long message should be sent
-	h.Handle([]byte("1. first line"))
-	h.Handle([]byte("second line"))
+	h.Handle([]byte("1.first"))
+	h.Handle([]byte("second"))
 
 	// one line long message should be sent
 	h.Handle([]byte("2. first line"))
 
 	output = <-outputChan
-	assert.Equal(t, "1. first line"+"\\n"+"second line", string(output.Content))
-	assert.Equal(t, len("1. first line"+"second line")+2, output.RawDataLen)
+	var expectedContent = "1.first\\nsecond"
+	assert.Equal(t, expectedContent, string(output.Content))
+	assert.Equal(t, len(expectedContent), output.RawDataLen)
 
 	output = <-outputChan
 	assert.Equal(t, "2. first line", string(output.Content))
 	assert.Equal(t, len("2. first line")+1, output.RawDataLen)
 
 	// too long line should be truncated
-	h.Handle([]byte(strings.Repeat("a", contentLenLimit+10)))
-	output = <-outputChan
-	assert.Equal(t, contentLenLimit+len(TRUNCATED)+10, len(output.Content))
-	assert.Equal(t, contentLenLimit+10, output.RawDataLen)
+	h.Handle([]byte("3. stringssssssize20"))
+	h.Handle([]byte("con"))
 
-	h.Handle([]byte(strings.Repeat("a", 10)))
 	output = <-outputChan
-	assert.Equal(t, string(TRUNCATED)+strings.Repeat("a", 10), string(output.Content))
-	assert.Equal(t, 10+1, output.RawDataLen)
+	assert.Equal(t, "3. stringssssssize20...TRUNCATED...", string(output.Content))
+	assert.Equal(t, len("3. stringssssssize20"), output.RawDataLen)
 
-	// twice too long lines should be double truncated
-	h.Handle([]byte(strings.Repeat("a", contentLenLimit+10)))
 	output = <-outputChan
-	assert.Equal(t, contentLenLimit+len(TRUNCATED)+10, len(output.Content))
-	assert.Equal(t, contentLenLimit+10, output.RawDataLen)
+	assert.Equal(t, "...TRUNCATED...con", string(output.Content))
+	assert.Equal(t, 4, output.RawDataLen)
 
-	h.Handle([]byte(strings.Repeat("a", contentLenLimit+10)))
-	output = <-outputChan
-	assert.Equal(t, len(TRUNCATED)+contentLenLimit+len(TRUNCATED)+10, len(output.Content))
-	assert.Equal(t, contentLenLimit+10, output.RawDataLen)
+	// second line + TRUNCATED too long
+	h.Handle([]byte("4. stringssssssize20"))
+	h.Handle([]byte("continue"))
 
-	h.Handle([]byte(strings.Repeat("a", 10)))
 	output = <-outputChan
-	assert.Equal(t, string(TRUNCATED)+strings.Repeat("a", 10), string(output.Content))
-	assert.Equal(t, 10+1, output.RawDataLen)
+	assert.Equal(t, "4. stringssssssize20...TRUNCATED...", string(output.Content))
+	assert.Equal(t, len("4. stringssssssize20"), output.RawDataLen)
+
+	output = <-outputChan
+	assert.Equal(t, "...TRUNCATED...continue...TRUNCATED...", string(output.Content))
+	assert.Equal(t, 8, output.RawDataLen)
+
+	output = <-outputChan
+	assert.Equal(t, "...TRUNCATED...", string(output.Content))
+	assert.Equal(t, 0, output.RawDataLen)
+
+	// continuous too long lines
+	h.Handle([]byte("5. stringssssssize20"))
+	longLineTracingSpaces := "continu             "
+	h.Handle([]byte(longLineTracingSpaces))
+	h.Handle([]byte("end"))
+	shortLineTracingSpaces := "6. next line      "
+	h.Handle([]byte(shortLineTracingSpaces))
+
+	output = <-outputChan
+	assert.Equal(t, "5. stringssssssize20...TRUNCATED...", string(output.Content))
+	assert.Equal(t, len("5. stringssssssize20"), output.RawDataLen)
+
+	output = <-outputChan
+	assert.Equal(t, "...TRUNCATED...continu             ...TRUNCATED...", string(output.Content))
+	assert.Equal(t, len(longLineTracingSpaces), output.RawDataLen)
+
+	output = <-outputChan
+	assert.Equal(t, "...TRUNCATED...end", string(output.Content))
+	assert.Equal(t, len("end\n"), output.RawDataLen)
+
+	output = <-outputChan
+	assert.Equal(t, "6. next line", string(output.Content))
+	assert.Equal(t, len(shortLineTracingSpaces) + 1, output.RawDataLen)
 
 	h.Stop()
 }
@@ -221,7 +247,7 @@ func TestMultiLineHandler(t *testing.T) {
 func TestTrimMultiLine(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
 	outputChan := make(chan *message.Message, 10)
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NoopParser)
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NoopParser, 100)
 	h.Start()
 
 	var output *message.Message
@@ -247,7 +273,7 @@ func TestUnwrapMultiLine(t *testing.T) {
 
 	re := regexp.MustCompile("[0-9]+\\.")
 	outputChan := make(chan *message.Message, 10)
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockUnwrapper(header))
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockUnwrapper(header), 100)
 	h.Start()
 
 	var output *message.Message
@@ -283,7 +309,7 @@ func TestUnwrapTSMultiLineTimestamp(t *testing.T) {
 
 	re := regexp.MustCompile("Exception")
 	outputChan := make(chan *message.Message, 10)
-	h := NewMultiLineHandler(outputChan, re, 10*time.Second, NewMockTSParser(header))
+	h := NewMultiLineHandler(outputChan, re, 10*time.Microsecond, NewMockTSParser(header), 200)
 	h.Start()
 
 	var output *message.Message
@@ -308,7 +334,7 @@ func TestUnwrapTSMultiLineTimestamp(t *testing.T) {
 func TestSingleLineHandlerDropsEmptyMessages(t *testing.T) {
 	const header = "HEADER"
 	outputChan := make(chan *message.Message, 10)
-	h := NewSingleLineHandler(outputChan, NewMockParser(header))
+	h := NewSingleLineHandler(outputChan, NewMockParser(header), 100)
 	h.Start()
 
 	line := header
@@ -325,7 +351,7 @@ func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
 	const header = "HEADER"
 	outputChan := make(chan *message.Message, 10)
 	re := regexp.MustCompile("[0-9]+\\.")
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockParser(header))
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockParser(header), 100)
 	h.Start()
 
 	h.Handle([]byte(header))
@@ -342,7 +368,7 @@ func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
 func TestSingleLineHandlerSendsRawInvalidMessages(t *testing.T) {
 	const header = "HEADER"
 	outputChan := make(chan *message.Message, 10)
-	h := NewSingleLineHandler(outputChan, NewMockFailingParser(header))
+	h := NewSingleLineHandler(outputChan, NewMockFailingParser(header), 100)
 	h.Start()
 
 	h.Handle([]byte("one message"))
@@ -357,7 +383,7 @@ func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
 	const header = "HEADER"
 	outputChan := make(chan *message.Message, 10)
 	re := regexp.MustCompile("[0-9]+\\.")
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockFailingParser(header))
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockFailingParser(header), 100)
 	h.Start()
 
 	h.Handle([]byte("1.third line"))
