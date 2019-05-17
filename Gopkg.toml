@@ -191,3 +191,7 @@
 [[constraint]]
   name = "github.com/florianl/go-conntrack"
   revision = "6d50e184fe3ef7ba0640303db5e6a5610bf4a297"
+
+[[override]]
+  name = "golang.org/x/sys"
+  revision = "61b9204099cb1bebc803c9ffb9b2d3acd9d457d9"
