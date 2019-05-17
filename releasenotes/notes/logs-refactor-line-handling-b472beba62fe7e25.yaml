@@ -1,6 +1,7 @@
 ---
 enhancements:
   - |
-    Refactor kubernetes/parser.
-    Refactor logs/message.
-    Improve unit tests for multiline handler.
+    Separate the message.Message and decoder output concept
+    Refactor kubernetes/parser
+    Add more unit tests for multi line handler cases
+    Update Parser function signature
