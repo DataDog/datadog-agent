@@ -24,7 +24,7 @@ var (
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
-	// Local network tracer
+	// Local system probe
 	useLocalTracer bool
 	localTracer    *ebpf.Tracer
 	tracerClientID string
@@ -34,20 +34,20 @@ type ConnectionsCheck struct {
 func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemInfo) {
 	var err error
 
-	if cfg.EnableLocalNetworkTracer {
-		log.Info("starting network tracer locally")
+	if cfg.EnableLocalSystemProbe {
+		log.Info("starting system probe locally")
 		c.useLocalTracer = true
 
 		// Checking whether the current kernel version is supported by the tracer
 		if _, err = ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); err != nil {
 			// err is always returned when false, so the above catches the !ok case as well
-			log.Warnf("network tracer unsupported by OS: %s", err)
+			log.Warnf("system probe unsupported by OS: %s", err)
 			return
 		}
 
-		t, err := ebpf.NewTracer(config.TracerConfigFromConfig(cfg))
+		t, err := ebpf.NewTracer(config.SysProbeConfigFromConfig(cfg))
 		if err != nil {
-			log.Errorf("failed to create network tracer: %s", err)
+			log.Errorf("failed to create system probe: %s", err)
 			return
 		}
 
@@ -56,11 +56,11 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemIn
 		c.tracerClientID = fmt.Sprintf("%d", os.Getpid())
 	} else {
 		// Calling the remote tracer will cause it to initialize and check connectivity
-		net.SetNetworkTracerSocketPath(cfg.NetworkTracerSocketPath)
-		net.GetRemoteNetworkTracerUtil()
+		net.SetSystemProbeSocketPath(cfg.SystemProbeSocketPath)
+		net.GetRemoteSystemProbeUtil()
 	}
 
-	// Run the check one time on init to register the client on the network tracer
+	// Run the check one time on init to register the client on the system probe
 	c.Run(cfg, 0)
 }
 
@@ -102,13 +102,13 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 func (c *ConnectionsCheck) getConnections() ([]ebpf.ConnectionStats, error) {
 	if c.useLocalTracer { // If local tracer is set up, use that
 		if c.localTracer == nil {
-			return nil, fmt.Errorf("using local network tracer, but no tracer was initialized")
+			return nil, fmt.Errorf("using local system probe, but no tracer was initialized")
 		}
 		cs, err := c.localTracer.GetActiveConnections(c.tracerClientID)
 		return cs.Conns, err
 	}
 
-	tu, err := net.GetRemoteNetworkTracerUtil()
+	tu, err := net.GetRemoteSystemProbeUtil()
 	if err != nil {
 		if net.ShouldLogTracerUtilError() {
 			return nil, err

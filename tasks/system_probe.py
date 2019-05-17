@@ -11,8 +11,8 @@ from subprocess import check_output, CalledProcessError
 from .utils import bin_name, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit
 from .build_tags import get_default_build_tags
 
-BIN_DIR = os.path.join(".", "bin", "network-tracer")
-BIN_PATH = os.path.join(BIN_DIR, bin_name("network-tracer", android=False))
+BIN_DIR = os.path.join(".", "bin", "system-probe")
+BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe", android=False))
 
 EBPF_BUILDER_IMAGE = 'datadog/tracer-bpf-builder'
 EBPF_BUILDER_FILE = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-ebpf")
@@ -23,7 +23,7 @@ BPF_TAG = "linux_bpf"
 @task
 def build(ctx, race=False, incremental_build=False):
     """
-    Build the network_tracer
+    Build the system_probe
     """
 
     build_object_files(ctx, install=True)
@@ -46,7 +46,7 @@ def build(ctx, race=False, incremental_build=False):
 
     # TODO static option
     cmd = 'go build {race_opt} {build_type} -tags "{go_build_tags}" '
-    cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/network-tracer'
+    cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
 
     args = {
         "race_opt": "-race" if race else "",
@@ -64,7 +64,7 @@ def build(ctx, race=False, incremental_build=False):
 @task
 def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_build=False):
     """
-    Build the network_tracer using a container
+    Build the system_probe using a container
     This can be used when the current OS don't have up to date linux headers
     """
 
@@ -80,7 +80,7 @@ def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_bui
     if should_use_sudo(ctx):
         docker_cmd = "sudo " + docker_cmd
 
-    cmd = "invoke -e network-tracer.build"
+    cmd = "invoke -e system-probe.build"
 
     if race:
         cmd += " --race"
@@ -157,7 +157,7 @@ def cfmt(ctx):
 @task
 def build_dev_docker_image(ctx, image_name, push=False):
     """
-    Build a network-tracer-agent Docker image (development only)
+    Build a system-probe-agent Docker image (development only)
     if push is set to true the image will be pushed to the given registry
     """
 

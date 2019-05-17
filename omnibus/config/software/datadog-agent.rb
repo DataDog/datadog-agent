@@ -72,7 +72,7 @@ build do
 
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-  move 'bin/agent/dist/network-tracer.yaml', "#{conf_dir}/network-tracer.yaml.example"
+  move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
 
   copy 'bin', install_dir
@@ -99,8 +99,8 @@ build do
     copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
   else
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
-    copy 'bin/network-tracer/network-tracer', "#{install_dir}/embedded/bin"
-    block { File.chmod(0755, "#{install_dir}/embedded/bin/network-tracer") }
+    copy 'bin/system-probe/system-probe', "#{install_dir}/embedded/bin"
+    block { File.chmod(0755, "#{install_dir}/embedded/bin/system-probe") }
   end
 
   if linux?
@@ -113,8 +113,8 @@ build do
           dest: "#{install_dir}/scripts/datadog-agent-process.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_debian.network.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-network.conf",
+      erb source: "upstart_debian.sysprobe.conf.erb",
+          dest: "#{install_dir}/scripts/datadog-agent-sysprobe.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_debian.trace.conf.erb",
@@ -129,8 +129,8 @@ build do
           dest: "#{install_dir}/scripts/datadog-agent-process",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.network.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-network",
+      erb source: "sysvinit_debian.sysprobe.erb",
+          dest: "#{install_dir}/scripts/datadog-agent-sysprobe",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.trace.erb",
@@ -148,8 +148,8 @@ build do
           dest: "#{install_dir}/scripts/datadog-agent-process.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.network.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-network.conf",
+      erb source: "upstart_redhat.sysprobe.conf.erb",
+          dest: "#{install_dir}/scripts/datadog-agent-sysprobe.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_redhat.trace.conf.erb",
@@ -166,8 +166,8 @@ build do
         dest: "#{install_dir}/scripts/datadog-agent-process.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
-    erb source: "systemd.network.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent-network.service",
+    erb source: "systemd.sysprobe.service.erb",
+        dest: "#{install_dir}/scripts/datadog-agent-sysprobe.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
     erb source: "systemd.trace.service.erb",

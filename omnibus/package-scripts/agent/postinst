@@ -62,10 +62,10 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     chown -R dd-agent:dd-agent ${LOG_DIR}
     chown -R dd-agent:dd-agent ${INSTALL_DIR}
 
-    # Make network tracer configs read-only
-    chmod 0440 ${CONFIG_DIR}/network-tracer.yaml.example || true
-    if [ -f "$CONFIG_DIR/network-tracer.yaml" ]; then
-      chmod 0440 ${CONFIG_DIR}/network-tracer.yaml || true
+    # Make system-probe configs read-only
+    chmod 0440 ${CONFIG_DIR}/system-probe.yaml.example || true
+    if [ -f "$CONFIG_DIR/system-probe.yaml" ]; then
+      chmod 0440 ${CONFIG_DIR}/system-probe.yaml || true
     fi
 
 
