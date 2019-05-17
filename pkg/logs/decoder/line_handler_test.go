@@ -239,7 +239,7 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "6. next line", string(output.Content))
-	assert.Equal(t, len(shortLineTracingSpaces) + 1, output.RawDataLen)
+	assert.Equal(t, len(shortLineTracingSpaces)+1, output.RawDataLen)
 
 	h.Stop()
 }

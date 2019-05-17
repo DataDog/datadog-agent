@@ -35,6 +35,7 @@ func (h *MockLineHandler) Stop() {
 }
 
 var contentLenLimit = 100
+
 func TestDecodeIncomingData(t *testing.T) {
 	h := NewMockLineHandler()
 	d := New(nil, nil, h, contentLenLimit)

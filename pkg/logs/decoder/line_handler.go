@@ -31,7 +31,7 @@ type SingleLineHandler struct {
 	outputChan     chan *message.Message
 	shouldTruncate bool
 	parser         parser.Parser
-	lineLimit int
+	lineLimit      int
 }
 
 // NewSingleLineHandler returns a new SingleLineHandler
@@ -40,7 +40,7 @@ func NewSingleLineHandler(outputChan chan *message.Message, parser parser.Parser
 		lineChan:   make(chan []byte),
 		outputChan: outputChan,
 		parser:     parser,
-		lineLimit: lineLimit,
+		lineLimit:  lineLimit,
 	}
 }
 
@@ -127,7 +127,7 @@ type MultiLineHandler struct {
 	newContentRe      *regexp.Regexp
 	flushTimeout      time.Duration
 	parser            parser.Parser
-	lineLimit int
+	lineLimit         int
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler
@@ -139,7 +139,7 @@ func NewMultiLineHandler(outputChan chan *message.Message, newContentRe *regexp.
 		newContentRe: newContentRe,
 		flushTimeout: flushTimeout,
 		parser:       parser,
-		lineLimit: lineLimit,
+		lineLimit:    lineLimit,
 	}
 }
 

@@ -32,7 +32,6 @@ type Decoder struct {
 	lineHandler LineHandler
 	// contentLenLimit represents the length limit above which we want to truncate the output content
 	contentLenLimit int
-
 }
 
 // InitializeDecoder returns a properly initialized Decoder
@@ -57,10 +56,10 @@ func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder 
 func New(InputChan chan *Input, OutputChan chan *message.Message, lineHandler LineHandler, contentLenLimit int) *Decoder {
 	var lineBuffer bytes.Buffer
 	return &Decoder{
-		InputChan:   InputChan,
-		OutputChan:  OutputChan,
-		lineBuffer:  &lineBuffer,
-		lineHandler: lineHandler,
+		InputChan:       InputChan,
+		OutputChan:      OutputChan,
+		lineBuffer:      &lineBuffer,
+		lineHandler:     lineHandler,
 		contentLenLimit: contentLenLimit,
 	}
 }
