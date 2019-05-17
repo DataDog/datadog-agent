@@ -17,7 +17,7 @@ import (
 )
 
 func newMessage(content []byte, source *config.LogSource, status string) *message.Message {
-	return message.NewPartialMessage2(content, source, status)
+	return message.NewPartialMessage2(content, status, source)
 }
 
 func TestSender(t *testing.T) {

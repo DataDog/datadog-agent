@@ -17,17 +17,17 @@ type Message struct {
 	status string
 }
 
-// NewPartialMessage3 constructs message with partial information.
-func NewPartialMessage3(content []byte, origin *Origin, status string) *Message {
+// NewPartialMessage3 constructs message with content, status and origin.
+func NewPartialMessage3(content []byte, status string, origin *Origin) *Message {
 	return New(content, origin, status, "", 0)
 }
 
-// NewPartialMessage2 constructs message with partial information.
-func NewPartialMessage2(content []byte, source *config.LogSource, status string) *Message {
-	return NewPartialMessage3(content, NewOrigin(source), status)
+// NewPartialMessage2 constructs message with content, status and log source.
+func NewPartialMessage2(content []byte, status string, source *config.LogSource) *Message {
+	return NewPartialMessage3(content, status, NewOrigin(source))
 }
 
-// NewPartialMessage constructs message with partial information.
+// NewPartialMessage constructs message with content, status and timestamp.
 func NewPartialMessage(content []byte, status string, timestamp string) *Message {
 	return New(content, nil, status, timestamp, 0)
 }

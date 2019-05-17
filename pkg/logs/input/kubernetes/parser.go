@@ -17,6 +17,7 @@ const (
 	// Kubernetes log stream types
 	stdout = "stdout"
 	stderr = "stderr"
+	numberOfComponents = 4 // timestamp stream flag message
 )
 
 var (
@@ -52,12 +53,12 @@ func parse(msg []byte) ([]byte, string, string, string, error) {
 	var status = message.StatusInfo
 	var flag string
 	var timestamp string
-	components := bytes.SplitN(msg, delimiter, 4)
-	if len(components) < 3 {
+	components := bytes.SplitN(msg, delimiter, numberOfComponents)
+	if len(components) < numberOfComponents - 1 {
 		return msg, status, timestamp, flag, errors.New("cannot parse the log line")
 	}
 	var content []byte
-	if len(components) > 3 {
+	if len(components) > numberOfComponents - 1 {
 		content = components[3]
 	}
 	status = getStatus(components[1])
