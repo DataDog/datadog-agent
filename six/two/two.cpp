@@ -370,6 +370,7 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
 
     PyObject *dir = PyObject_Dir(module);
     if (dir == NULL) {
+        PyErr_Clear();
         setError("there was an error calling dir() on module object");
         return NULL;
     }
@@ -382,7 +383,7 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
             // This should never happen as it means we're out of bounds
             PyErr_Clear();
             setError("there was an error browsing dir() output");
-            return NULL;
+            goto done;
         }
 
         // get symbol name
