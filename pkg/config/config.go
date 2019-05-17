@@ -714,9 +714,7 @@ func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) 
 	}
 
 	keysPerDomain := map[string][]string{
-		ddURL: {
-			config.GetString("api_key"),
-		},
+		ddURL: strings.Split(config.GetString("api_key"), ","),
 	}
 
 	var additionalEndpoints map[string][]string
