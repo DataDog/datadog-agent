@@ -4,7 +4,7 @@
 // Copyright 2019 Datadog, Inc.
 #include "containers.h"
 
-#include <sixstrings.h>
+#include <stringutils.h>
 
 // these must be set by the Agent
 static cb_is_excluded_t cb_is_excluded = NULL;
@@ -13,7 +13,8 @@ static cb_is_excluded_t cb_is_excluded = NULL;
 static PyObject *is_excluded(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
-    { "is_excluded", (PyCFunction)is_excluded, METH_VARARGS, "Returns whether a container is excluded per name and image." },
+    { "is_excluded", (PyCFunction)is_excluded, METH_VARARGS,
+      "Returns whether a container is excluded per name and image." },
     { NULL, NULL } // guards
 };
 

@@ -5,8 +5,8 @@
 #include "_util.h"
 
 #include <cgo_free.h>
-#include <sixstrings.h>
 #include <stdio.h>
+#include <stringutils.h>
 
 // must be set by the caller
 static cb_get_subprocess_output_t cb_get_subprocess_output = NULL;

@@ -4,7 +4,7 @@
 // Copyright 2019 Datadog, Inc.
 #include "aggregator.h"
 
-#include <sixstrings.h>
+#include <stringutils.h>
 
 // these must be set by the Agent
 static cb_submit_metric_t cb_submit_metric = NULL;
@@ -23,7 +23,8 @@ static PyMethodDef methods[] = {
     { NULL, NULL } // guards
 };
 
-static void add_constants(PyObject *m) {
+static void add_constants(PyObject *m)
+{
     PyModule_AddIntConstant(m, "GAUGE", DATADOG_AGENT_SIX_GAUGE);
     PyModule_AddIntConstant(m, "RATE", DATADOG_AGENT_SIX_RATE);
     PyModule_AddIntConstant(m, "COUNT", DATADOG_AGENT_SIX_COUNT);
@@ -36,7 +37,8 @@ static void add_constants(PyObject *m) {
 #ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, AGGREGATOR_MODULE_NAME, NULL, -1, methods };
 
-PyMODINIT_FUNC PyInit_aggregator(void) {
+PyMODINIT_FUNC PyInit_aggregator(void)
+{
     PyObject *m = PyModule_Create(&module_def);
     add_constants(m);
     return m;
@@ -47,25 +49,30 @@ PyMODINIT_FUNC PyInit_aggregator(void) {
 // module object storage
 static PyObject *module;
 
-void Py2_init_aggregator() {
+void Py2_init_aggregator()
+{
     module = Py_InitModule(AGGREGATOR_MODULE_NAME, methods);
     add_constants(module);
 }
 #endif
 
-void _set_submit_metric_cb(cb_submit_metric_t cb) {
+void _set_submit_metric_cb(cb_submit_metric_t cb)
+{
     cb_submit_metric = cb;
 }
 
-void _set_submit_service_check_cb(cb_submit_service_check_t cb) {
+void _set_submit_service_check_cb(cb_submit_service_check_t cb)
+{
     cb_submit_service_check = cb;
 }
 
-void _set_submit_event_cb(cb_submit_event_t cb) {
+void _set_submit_event_cb(cb_submit_event_t cb)
+{
     cb_submit_event = cb;
 }
 
-static char **py_tag_to_c(PyObject *py_tags) {
+static char **py_tag_to_c(PyObject *py_tags)
+{
     char **tags = NULL;
     char *err = NULL;
     PyObject *py_tags_list = NULL; // new reference
@@ -90,7 +97,7 @@ static char **py_tag_to_c(PyObject *py_tags) {
         goto done;
     }
 
-    if (!(tags = malloc(sizeof(*tags) * (len+1)))) {
+    if (!(tags = malloc(sizeof(*tags) * (len + 1)))) {
         PyErr_SetString(PyExc_RuntimeError, "could not allocate memory for tags");
         goto done;
     }
@@ -115,7 +122,8 @@ done:
     return tags;
 }
 
-static void free_tags(char **tags) {
+static void free_tags(char **tags)
+{
     int i;
     for (i = 0; tags[i] != NULL; i++) {
         free(tags[i]);
@@ -123,7 +131,8 @@ static void free_tags(char **tags) {
     free(tags);
 }
 
-static PyObject *submit_metric(PyObject *self, PyObject *args) {
+static PyObject *submit_metric(PyObject *self, PyObject *args)
+{
     if (cb_submit_metric == NULL) {
         Py_RETURN_NONE;
     }
@@ -159,7 +168,8 @@ error:
     return NULL;
 }
 
-static PyObject *submit_service_check(PyObject *self, PyObject *args) {
+static PyObject *submit_service_check(PyObject *self, PyObject *args)
+{
     if (cb_submit_service_check == NULL) {
         Py_RETURN_NONE;
     }
@@ -196,7 +206,8 @@ error:
     return NULL;
 }
 
-static PyObject *submit_event(PyObject *self, PyObject *args) {
+static PyObject *submit_event(PyObject *self, PyObject *args)
+{
     if (cb_submit_event == NULL) {
         Py_RETURN_NONE;
     }

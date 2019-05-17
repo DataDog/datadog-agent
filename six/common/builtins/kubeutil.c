@@ -5,7 +5,7 @@
 #include "kubeutil.h"
 
 #include "cgo_free.h"
-#include <sixstrings.h>
+#include <stringutils.h>
 
 // these must be set by the Agent
 static cb_get_connection_info_t cb_get_connection_info = NULL;
