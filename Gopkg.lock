@@ -503,6 +503,13 @@
   version = "v1.7.0"
 
 [[projects]]
+  digest = "1:011900e7ee97686e7817937becc3bbeb9b9aa919d0a8c99e770710d9edee6230"
+  name = "github.com/florianl/go-conntrack"
+  packages = ["."]
+  pruneopts = ""
+  revision = "6d50e184fe3ef7ba0640303db5e6a5610bf4a297"
+
+[[projects]]
   digest = "1:eb53021a8aa3f599d29c7102e65026242bdedce998a54837dc67f14b6a97c5fd"
   name = "github.com/fsnotify/fsnotify"
   packages = ["."]
@@ -850,7 +857,10 @@
 [[projects]]
   digest = "1:961dc3b1d11f969370533390fdf203813162980c858e1dabe827b60940c909a5"
   name = "github.com/magiconair/properties"
-  packages = ["."]
+  packages = [
+    ".",
+    "assert",
+  ]
   pruneopts = ""
   revision = "c2353362d570a7bfa228149c62842019201cfb71"
   version = "v1.8.0"
@@ -891,6 +901,17 @@
   pruneopts = ""
   revision = "c12348ce28de40eed0136aa2b644d0ee0650e56c"
   version = "v1.0.1"
+
+[[projects]]
+  branch = "master"
+  digest = "1:553ee59f3f84185be7b28d17e13ce8d91bd08500bdaf6cbfae287a7ef281cde4"
+  name = "github.com/mdlayher/netlink"
+  packages = [
+    ".",
+    "nlenc",
+  ]
+  pruneopts = ""
+  revision = "0087c778e46953b58a4434583a8274f8e8aa2b78"
 
 [[projects]]
   digest = "1:46c2c64337672f517d7b6d68efe9e458aeb82fa683a08187fcdd7b22acde3253"
@@ -1981,6 +2002,7 @@
     "github.com/docker/go-connections/nat",
     "github.com/dustin/go-humanize",
     "github.com/fatih/color",
+    "github.com/florianl/go-conntrack",
     "github.com/go-ini/ini",
     "github.com/go-ole/go-ole",
     "github.com/gogo/protobuf/gogoproto",
@@ -1999,6 +2021,7 @@
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider",
     "github.com/lxn/walk",
     "github.com/lxn/win",
+    "github.com/magiconair/properties/assert",
     "github.com/mailru/easyjson",
     "github.com/mailru/easyjson/jlexer",
     "github.com/mailru/easyjson/jwriter",

@@ -414,6 +414,7 @@ static int read_conn_tuple(conn_tuple_t* tuple, tracer_status_t* status, struct 
         bpf_probe_read(&daddr_l, sizeof(u32), ((char*)skp) + status->offset_daddr);
 
         if (!saddr_l || !daddr_l) {
+            log_debug("ERR(read_conn_tuple.v4): src/dst addr not set src:%d,dst:%d\n", saddr_l, daddr_l);
             return 0;
         }
     } else {
@@ -422,7 +423,17 @@ static int read_conn_tuple(conn_tuple_t* tuple, tracer_status_t* status, struct 
         bpf_probe_read(&daddr_h, sizeof(daddr_h), ((char*)skp) + status->offset_daddr_ipv6);
         bpf_probe_read(&daddr_l, sizeof(daddr_l), ((char*)skp) + status->offset_daddr_ipv6 + sizeof(u64));
 
-        if (!(saddr_h || saddr_l) || !(daddr_h || daddr_l)) {
+        // We can only pass 4 args to bpf_trace_printk
+        // so split those 2 statements to be able to log everything
+        if (!(saddr_h || saddr_l)) {
+            log_debug("ERR(read_conn_tuple.v6): src addr not set: src_l:%d,src_h:%d\n",
+                saddr_l, saddr_h);
+            return 0;
+        }
+
+        if (!(daddr_h || daddr_l)) {
+            log_debug("ERR(read_conn_tuple.v6): dst addr not set: dst_l:%d,dst_h:%d\n",
+                daddr_l, daddr_h);
             return 0;
         }
     }
@@ -432,6 +443,7 @@ static int read_conn_tuple(conn_tuple_t* tuple, tracer_status_t* status, struct 
     bpf_probe_read(&dport, sizeof(dport), ((char*)skp) + status->offset_dport);
 
     if (sport == 0 || dport == 0) {
+        log_debug("ERR(read_conn_tuple.v4): src/dst port not set: src:%d, dst:%d\n", sport, dport);
         return 0;
     }
 
@@ -872,6 +884,7 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
 
     if (sk == NULL) {
+        log_debug("ERR(tcp_v4_destroy_sock): socket is null \n");
         return 0;
     }
 
@@ -886,6 +899,7 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
     bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + status->offset_dport + sizeof(lport));
 
     if (lport == 0) {
+        log_debug("ERR(tcp_v4_destroy_sock): lport is 0 \n");
         return 0;
     }
 
@@ -893,7 +907,6 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
 
     if (val != NULL) {
         __u8 state = PORT_CLOSED;
-
         bpf_map_update_elem(&port_bindings, &lport, &state, BPF_ANY);
     }
 

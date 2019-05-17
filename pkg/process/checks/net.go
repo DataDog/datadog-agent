@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -131,6 +132,11 @@ func (c *ConnectionsCheck) formatConnections(conns []ebpf.ConnectionStats) []*mo
 			createTimeForPID[conn.Pid] = 0
 		}
 
+		source, dest, ok := formatIPs(conn.Source, conn.Dest)
+		if !ok {
+			continue
+		}
+
 		cxs = append(cxs, &model.Connection{
 			Pid:           int32(conn.Pid),
 			PidCreateTime: createTimeForPID[conn.Pid],
@@ -138,11 +144,11 @@ func (c *ConnectionsCheck) formatConnections(conns []ebpf.ConnectionStats) []*mo
 			Family:        formatFamily(conn.Family),
 			Type:          formatType(conn.Type),
 			Laddr: &model.Addr{
-				Ip:   conn.Source,
+				Ip:   source,
 				Port: int32(conn.SPort),
 			},
 			Raddr: &model.Addr{
-				Ip:   conn.Dest,
+				Ip:   dest,
 				Port: int32(conn.DPort),
 			},
 			TotalBytesSent:     conn.MonotonicSentBytes,
@@ -152,9 +158,26 @@ func (c *ConnectionsCheck) formatConnections(conns []ebpf.ConnectionStats) []*mo
 			LastBytesReceived:  conn.LastRecvBytes,
 			LastRetransmits:    conn.LastRetransmits,
 			Direction:          formatDirection(conn.Direction),
+			IpTranslation:      formatIPTranslation(conn.IPTranslation),
 		})
 	}
 	return cxs
+}
+
+// These are written as strings via the easyjson marshaller in ebpf.Address
+func formatIPs(sourceIP, destIP interface{}) (string, string, bool) {
+	source, ok := sourceIP.(string)
+	if !ok {
+		log.Errorf("failed to cast source IP interface to string %s", sourceIP)
+		return "", "", false
+	}
+
+	dest, ok := destIP.(string)
+	if !ok {
+		log.Errorf("failed to cast dest IP interface to string %s", destIP)
+		return "", "", false
+	}
+	return source, dest, true
 }
 
 func formatFamily(f ebpf.ConnectionFamily) model.ConnectionFamily {
@@ -189,6 +212,19 @@ func formatDirection(d ebpf.ConnectionDirection) model.ConnectionDirection {
 		return model.ConnectionDirection_local
 	default:
 		return model.ConnectionDirection_unspecified
+	}
+}
+
+func formatIPTranslation(ct *netlink.IPTranslation) *model.IPTranslation {
+	if ct == nil {
+		return nil
+	}
+
+	return &model.IPTranslation{
+		ReplSrcIP:   ct.ReplSrcIP,
+		ReplDstIP:   ct.ReplDstIP,
+		ReplSrcPort: int32(ct.ReplSrcPort),
+		ReplDstPort: int32(ct.ReplDstPort),
 	}
 }
 

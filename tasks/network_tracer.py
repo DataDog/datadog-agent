@@ -155,18 +155,22 @@ def cfmt(ctx):
 
 
 @task
-def build_dev_docker_image(ctx, image_name):
+def build_dev_docker_image(ctx, image_name, push=False):
     """
     Build a network-tracer-agent Docker image (development only)
+    if push is set to true the image will be pushed to the given registry
     """
 
     dev_file = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-tracer-dev")
     cmd = "docker build {directory} -t {image_name} -f {file}"
+    push_cmd = "docker push {image_name}"
 
     # Build in a temporary directory to make the docker build context small
     with tempdir() as d:
         shutil.copy(BIN_PATH, d)
         ctx.run(cmd.format(directory=d, image_name=image_name, file=dev_file))
+        if push:
+            ctx.run(push_cmd.format(image_name=image_name))
 
 
 @task
@@ -176,8 +180,13 @@ def codegen(ctx):
     """
 
     ctx.run("go get -u github.com/mailru/easyjson/...")
-    path = os.path.join(".", "pkg", "ebpf", "event_common.go")
-    ctx.run("easyjson {}".format(path))
+    ebpf_path = os.path.join(".", "pkg", "ebpf")
+    paths = [
+        os.path.join(ebpf_path, "event_common.go"),
+        os.path.join(ebpf_path, "netlink", "event.go"),
+    ]
+    for path in paths:
+        ctx.run("easyjson {}".format(path))
 
 
 @task
