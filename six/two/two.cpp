@@ -375,7 +375,7 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
         return NULL;
     }
 
-    PyObject *klass;
+    PyObject *klass = NULL;
     for (int i = 0; i < PyList_GET_SIZE(dir); i++) {
         // Reset `klass` at every iteration so its state is always clean when we
         // continue the loop or return early. Reset at first iteration is useless
