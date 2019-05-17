@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Refactor parser for kubernetes input logs.

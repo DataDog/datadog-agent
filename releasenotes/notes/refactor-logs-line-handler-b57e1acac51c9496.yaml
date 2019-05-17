@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Refactor logs/decoder/line_handler to take in content
-    limit as parameter for better testing.

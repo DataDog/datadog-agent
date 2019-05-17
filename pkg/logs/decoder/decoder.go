@@ -18,6 +18,10 @@ type Input struct {
 	content []byte
 }
 
+// defaultContentLenLimit represents the length limit above which we want to
+// truncate the output content
+const defaultContentLenLimit = 256 * 1000
+
 // NewInput returns a new input
 func NewInput(content []byte) *Input {
 	return &Input{content}
@@ -28,9 +32,8 @@ type Decoder struct {
 	InputChan  chan *Input
 	OutputChan chan *message.Message
 
-	lineBuffer  *bytes.Buffer
-	lineHandler LineHandler
-	// contentLenLimit represents the length limit above which we want to truncate the output content
+	lineBuffer      *bytes.Buffer
+	lineHandler     LineHandler
 	contentLenLimit int
 }
 
@@ -38,7 +41,7 @@ type Decoder struct {
 func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder {
 	inputChan := make(chan *Input)
 	outputChan := make(chan *message.Message)
-	lineLimit := 256 * 1000
+	lineLimit := defaultContentLenLimit
 	var lineHandler LineHandler
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
