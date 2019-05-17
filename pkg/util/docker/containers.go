@@ -175,11 +175,11 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.C
 //  - 'Up about an hour'
 func parseContainerHealth(status string) string {
 	// Avoid allocations in most cases by just checking for '('
-	if strings.IndexByte(status, '(') == -1 {
-		return ""
-	}
 	if strings.Index(status, "unhealthy") >= 0 {
 		return "unhealthy"
+	}
+	if strings.IndexByte(status, '(') == -1 {
+		return ""
 	}
 	all := healthRe.FindAllStringSubmatch(status, -1)
 	if len(all) < 1 || len(all[0]) < 2 {
