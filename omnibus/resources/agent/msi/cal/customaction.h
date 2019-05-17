@@ -22,6 +22,7 @@ bool InitLsaString(
 	LPCWSTR pwszString);
 
 PSID GetSidForUser(LPCWSTR host, LPCWSTR user);
+bool GetNameForSid(LPCWSTR host, PSID sid, std::wstring& namestr);
 
 LSA_HANDLE GetPolicyHandle();
 
