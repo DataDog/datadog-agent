@@ -658,7 +658,7 @@ func TestIsExpired(t *testing.T) {
 
 func findConnection(l, r net.Addr, c *Connections) (*ConnectionStats, bool) {
 	for _, conn := range c.Conns {
-		if addrMatches(l, conn.Source, conn.SPort) && addrMatches(r, conn.Dest, conn.DPort) {
+		if addrMatches(l, conn.SourceAddr().String(), conn.SPort) && addrMatches(r, conn.DestAddr().String(), conn.DPort) {
 			return &conn, true
 		}
 	}
