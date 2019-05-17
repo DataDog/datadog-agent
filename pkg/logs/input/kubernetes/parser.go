@@ -8,7 +8,6 @@ package kubernetes
 import (
 	"bytes"
 	"errors"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	lineParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
@@ -37,16 +36,9 @@ type parser struct {
 // see https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/kuberuntime/logs/logs.go
 // Example:
 // 2018-09-20T11:54:11.753589172Z stdout F This is my message
-func (p *parser) Parse(msg []byte) (*message.Message, error) {
+func (p *parser) Parse(msg []byte) ([]byte, string, string, error) {
 	content, status, timestamp, _, err := parse(msg)
-	return message.NewPartialMessage(content, status, timestamp), err
-}
-
-// Unwrap removes the header of the log line
-// and return the log and timestamp
-func (p *parser) Unwrap(line []byte) ([]byte, string, error) {
-	content, _, timestamp, _, err := parse(line)
-	return content, timestamp, err
+	return content, status, timestamp, err
 }
 
 func parse(msg []byte) ([]byte, string, string, string, error) {

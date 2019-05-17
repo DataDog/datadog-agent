@@ -9,38 +9,22 @@ import "github.com/DataDog/datadog-agent/pkg/logs/config"
 
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
-	Content    []byte
-	Origin     *Origin
-	RawDataLen int
-	Timestamp  string
-
-	status string
+	Content []byte
+	Origin  *Origin
+	status  string
 }
 
-// NewPartialMessage3 constructs message with content, status and origin.
-func NewPartialMessage3(content []byte, status string, origin *Origin) *Message {
-	return New(content, origin, status, "", 0)
+// NewMessageWithSource constructs message with content, status and log source.
+func NewMessageWithSource(content []byte, status string, source *config.LogSource) *Message {
+	return NewMessage(content, NewOrigin(source), status)
 }
 
-// NewPartialMessage2 constructs message with content, status and log source.
-func NewPartialMessage2(content []byte, status string, source *config.LogSource) *Message {
-	return NewPartialMessage3(content, status, NewOrigin(source))
-}
-
-// NewPartialMessage constructs message with content, status and timestamp.
-func NewPartialMessage(content []byte, status string, timestamp string) *Message {
-	return New(content, nil, status, timestamp, 0)
-}
-
-// New constructs message with full information.
-func New(content []byte, origin *Origin, status string, timestamp string, rawDataLen int) *Message {
+// NewMessage constructs message with full information.
+func NewMessage(content []byte, origin *Origin, status string) *Message {
 	return &Message{
-		Content:    content,
-		Origin:     origin,
-		Timestamp:  timestamp,
-		RawDataLen: rawDataLen,
-
-		status: status,
+		Content: content,
+		Origin:  origin,
+		status:  status,
 	}
 }
 
@@ -51,9 +35,4 @@ func (m *Message) GetStatus() string {
 		m.status = StatusInfo
 	}
 	return m.status
-}
-
-// SetStatus sets the status of the message
-func (m *Message) SetStatus(status string) {
-	m.status = status
 }

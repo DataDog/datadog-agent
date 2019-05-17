@@ -9,7 +9,6 @@ package docker
 import (
 	"bytes"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // Length of the docker message header.
@@ -36,9 +35,9 @@ func NewDockerParser(containerID string) *DockerParser {
 
 // Parse calls parse to extract the message body, status, timestamp
 // can put them in the Message
-func (p *DockerParser) Parse(msg []byte) (*message.Message, error) {
+func (p *DockerParser) Parse(msg []byte) (*parser.Message, error) {
 	body, status, timestamp, err := parse(msg, p.containerID)
-	return message.NewPartialMessage(body, status, timestamp), err
+	return parser.NewMessage(body, status, timestamp), err
 }
 
 // Unwrap removes the message header of docker logs

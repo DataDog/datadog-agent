@@ -14,7 +14,7 @@ import (
 func TestNoopParserHandleMessages(t *testing.T) {
 	parser := NoopParser
 	testMsg := []byte("Foo")
-	msg, err := parser.Parse(testMsg)
+	msg, _, _, err := parser.Parse(testMsg)
 	assert.Nil(t, err)
-	assert.Equal(t, testMsg, msg.Content)
+	assert.Equal(t, testMsg, msg)
 }

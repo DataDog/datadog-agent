@@ -61,10 +61,11 @@ func (t *Tailer) forwardMessages() {
 		// the decoder has successfully been flushed
 		t.done <- struct{}{}
 	}()
-	for output := range t.decoder.OutputChan {
-		output.Origin = message.NewOrigin(t.source)
-		output.SetStatus(message.StatusInfo)
-		t.outputChan <- output
+	for decoderMsg := range t.decoder.OutputChan {
+		t.outputChan <- message.NewMessageWithSource(
+			decoderMsg.Content,
+			message.StatusInfo,
+			t.source)
 	}
 }
 
