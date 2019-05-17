@@ -377,10 +377,15 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
     PyObject *klass = NULL;
     for (int i = 0; i < PyList_GET_SIZE(dir); i++) {
         // get symbol name
-        char *symbol_name;
+        char *symbol_name = NULL;
         PyObject *symbol = PyList_GetItem(dir, i);
         if (symbol != NULL) {
+            // PyString_AsString returns NULL if `symbol` is not a string object at all
             symbol_name = PyString_AsString(symbol);
+        }
+
+        if (symbol_name == NULL) {
+            continue;
         }
 
         // get symbol instance. It's a new ref but in case of success we don't
