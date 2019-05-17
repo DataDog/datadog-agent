@@ -25,17 +25,13 @@ def build(ctx, race=False, incremental_build=False, puppy=False):
         maj_ver, min_ver, patch_ver = ver.split(".")
         resdir = os.path.join(".", "cmd", "process-agent", "windows_resources")
 
-        ctx.run("windmc --target pe-x86-64 -r {resdir} {resdir}/process-agent-msg.mc",format(resdir=resdir))
+        ctx.run("windmc --target pe-x86-64 -r {resdir} {resdir}/process-agent-msg.mc".format(resdir=resdir))
 
         ctx.run("windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/process-agent/windows_resources/process-agent.rc --target=pe-x86-64 -O coff -o cmd/process-agent/rsrc.syso".format(
             maj_ver=maj_ver,
             min_ver=min_ver,
             patch_ver=patch_ver
         ))
-
-    if os.environ.get('SIGN_WINDOWS', False):
-        signcmd = "signtool sign /v /t http://timestamp.verisign.com/scripts/timestamp.dll /fd SHA256 /sm /s \"My\" /sha1 ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C {bin}"
-        ctx.run(signcmd.format(bin=BIN_PATH))
 
     # TODO use pkg/version for this
     main = "main."
@@ -44,7 +40,7 @@ def build(ctx, race=False, incremental_build=False, puppy=False):
         "GoVersion": get_go_version(),
         "GitBranch": get_git_branch_name(),
         "GitCommit": get_git_commit(),
-        "BuildDate": datetime.datetime.now().strftime("%FT%T%z"),
+        "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
     ldflags, gcflags, env = get_build_flags(ctx)

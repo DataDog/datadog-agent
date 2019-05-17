@@ -1,3 +1,5 @@
+// +build linux_bpf
+
 package ebpf
 
 import (
@@ -9,8 +11,6 @@ import (
 )
 
 func TestEbpfBytesCorrect(t *testing.T) {
-	// TODO(sami): remove this once object files are back
-	t.SkipNow()
 	bs, err := ioutil.ReadFile("c/tracer-ebpf.o")
 	require.NoError(t, err)
 
