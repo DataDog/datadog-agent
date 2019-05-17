@@ -6,7 +6,7 @@
 #include "datadog_agent.h"
 #include "util.h"
 
-#include <sixstrings.h>
+#include <stringutils.h>
 
 static PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *get_hostname(PyObject *self, PyObject *args);
@@ -22,7 +22,8 @@ static PyMethodDef methods[] = {
 #ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, UTIL_MODULE_NAME, NULL, -1, methods };
 
-PyMODINIT_FUNC PyInit_util(void) {
+PyMODINIT_FUNC PyInit_util(void)
+{
     return PyModule_Create(&module_def);
 }
 #endif
@@ -31,13 +32,15 @@ PyMODINIT_FUNC PyInit_util(void) {
 // in Python2 keep the object alive for the program lifetime
 static PyObject *module;
 
-void Py2_init_util() {
+void Py2_init_util()
+{
     module = Py_InitModule(UTIL_MODULE_NAME, methods);
 }
 #endif
 
 // headers entry point is provided in the `datadog_agent module.
 
-PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs) {
+PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs)
+{
     return _public_headers(self, args, kwargs);
 }

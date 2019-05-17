@@ -14,7 +14,7 @@
 #include <datadog_agent.h>
 #include <kubeutil.h>
 #include <six_types.h>
-#include <sixstrings.h>
+#include <stringutils.h>
 #include <tagger.h>
 #include <util.h>
 
