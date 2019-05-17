@@ -415,9 +415,15 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
             continue;
         }
 
-        // `klass` is actually `base` itself, ignore
-        if (PyObject_RichCompareBool(klass, base, Py_EQ)) {
+        // check whether `klass` is actually `base` itself
+        int retval = PyObject_RichCompareBool(klass, base, Py_EQ);
+        if (retval == 1) {
+            // `klass` is `base`, ignore
             Py_XDECREF(klass);
+            continue;
+        } else if (retval == -1) {
+            // an error occurred calling __eq__, clear and continue
+            PyErr_Clear();
             continue;
         }
 
