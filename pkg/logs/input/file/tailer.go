@@ -215,8 +215,8 @@ func (t *Tailer) forwardMessages() {
 		atomic.StoreInt32(&t.shouldStop, 1)
 		t.done <- struct{}{}
 	}()
-	for decoderMsg := range t.decoder.OutputChan {
-		offset := t.decodedOffset + int64(decoderMsg.RawDataLen)
+	for output := range t.decoder.OutputChan {
+		offset := t.decodedOffset + int64(output.RawDataLen)
 		identifier := t.Identifier()
 		if !t.shouldTrackOffset() {
 			offset = 0
@@ -227,7 +227,7 @@ func (t *Tailer) forwardMessages() {
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
-		t.outputChan <- message.NewMessage(decoderMsg.Content, origin, decoderMsg.Status)
+		t.outputChan <- message.NewMessage(output.Content, origin, output.Status)
 	}
 }
 

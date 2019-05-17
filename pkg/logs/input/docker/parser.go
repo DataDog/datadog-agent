@@ -35,16 +35,8 @@ func NewDockerParser(containerID string) *DockerParser {
 
 // Parse calls parse to extract the message body, status, timestamp
 // can put them in the Message
-func (p *DockerParser) Parse(msg []byte) (*parser.Message, error) {
-	body, status, timestamp, err := parse(msg, p.containerID)
-	return parser.NewMessage(body, status, timestamp), err
-}
-
-// Unwrap removes the message header of docker logs
-// return log body and the timestamp
-func (p *DockerParser) Unwrap(line []byte) ([]byte, string, error) {
-	body, _, timestamp, err := parse(line, p.containerID)
-	return body, timestamp, err
+func (p *DockerParser) Parse(msg []byte) ([]byte, string, string, error) {
+	return parse(msg, p.containerID)
 }
 
 // parse extracts the date and the status from the raw docker message

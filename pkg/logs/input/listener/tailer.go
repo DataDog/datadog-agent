@@ -61,9 +61,9 @@ func (t *Tailer) forwardMessages() {
 		// the decoder has successfully been flushed
 		t.done <- struct{}{}
 	}()
-	for decoderMsg := range t.decoder.OutputChan {
+	for output := range t.decoder.OutputChan {
 		t.outputChan <- message.NewMessageWithSource(
-			decoderMsg.Content,
+			output.Content,
 			message.StatusInfo,
 			t.source)
 	}
