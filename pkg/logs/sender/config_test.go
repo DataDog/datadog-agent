@@ -11,8 +11,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 type ConfigTestSuite struct {
@@ -61,10 +60,10 @@ func (suite *ConfigTestSuite) TestLogsEndpointConfig() {
 }
 
 func (suite *ConfigTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndValidOverride() {
-	var endpoints *client.Endpoints
+	var endpoints *config.Endpoints
 
 	var err error
-	var endpoint client.Endpoint
+	var endpoint config.Endpoint
 
 	suite.config.Set("api_key", "azerty")
 	suite.config.Set("logs_config.socks5_proxy_address", "boz:1234")

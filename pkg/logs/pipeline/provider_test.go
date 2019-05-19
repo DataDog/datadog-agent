@@ -6,6 +6,7 @@
 package pipeline
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -13,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
 )
 
 type ProviderTestSuite struct {
@@ -28,7 +28,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		numberOfPipelines: 3,
 		auditor:           suite.a,
 		pipelines:         []*Pipeline{},
-		endpoints:         client.NewEndpoints(client.Endpoint{}, nil),
+		endpoints:         config.NewEndpoints(config.Endpoint{}, nil),
 	}
 }
 

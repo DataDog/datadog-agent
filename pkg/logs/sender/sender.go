@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
@@ -67,7 +68,7 @@ func (s *Sender) send(payload *message.Message) {
 				break
 			}
 			switch err.(type) {
-			case *client.FramingError:
+			case *tcp.FramingError:
 				metrics.DestinationErrors.Add(1)
 				// the message can not be framed properly,
 				// drop the message

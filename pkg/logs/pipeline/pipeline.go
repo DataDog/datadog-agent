@@ -7,6 +7,7 @@ package pipeline
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
@@ -21,14 +22,14 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
+func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *tcp.DestinationsContext) *Pipeline {
 	// initialize the main destination
-	main := client.NewDestination(endpoints.Main, destinationsContext)
+	main := tcp.NewDestination(endpoints.Main, destinationsContext)
 
 	// initialize the additional destinations
-	var additionals []*client.Destination
+	var additionals []client.Destination
 	for _, endpoint := range endpoints.Additionals {
-		additionals = append(additionals, client.NewDestination(endpoint, destinationsContext))
+		additionals = append(additionals, tcp.NewDestination(endpoint, destinationsContext))
 	}
 
 	// initialize the sender
