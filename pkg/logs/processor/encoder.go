@@ -6,6 +6,7 @@
 package processor
 
 import (
+	"encoding/json"
 	"regexp"
 	"time"
 	"unicode"
@@ -28,12 +29,19 @@ var rawEncoder raw
 // Proto is an encoder implementation that writes messages as protocol buffers.
 var protoEncoder proto
 
-// NewEncoder returns an encoder.
-func NewEncoder(useProto bool) Encoder {
+// jsonEncoder is an encoder implementation that writes messages as JSON
+var aJsonEncoder jsonEncoder
+
+// NewTCPEncoder returns an encoder.
+func NewTCPEncoder(useProto bool) Encoder {
 	if useProto {
 		return &protoEncoder
 	}
 	return &rawEncoder
+}
+
+func NewHTTPEncoder() Encoder {
+	return &aJsonEncoder
 }
 
 var rfc5424Pattern, _ = regexp.Compile("<[0-9]{1,3}>[0-9] ")
@@ -105,7 +113,7 @@ type proto struct{}
 
 func (p *proto) encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
 	return (&pb.Log{
-		Message:   p.toValidUtf8(redactedMsg),
+		Message:   toValidUtf8(redactedMsg),
 		Status:    msg.GetStatus(),
 		Timestamp: time.Now().UTC().UnixNano(),
 		Hostname:  getHostname(),
@@ -115,7 +123,43 @@ func (p *proto) encode(msg *message.Message, redactedMsg []byte) ([]byte, error)
 	}).Marshal()
 }
 
-func (p *proto) toValidUtf8(msg []byte) string {
+// getHostname returns the hostname for the agent.
+func getHostname() string {
+	// Compute the hostname
+	hostname, err := util.GetHostname()
+	if err != nil {
+		// this scenario is not likely to happen since the agent can not start without a hostname
+		hostname = "unknown"
+	}
+	return hostname
+}
+
+type jsonEncoder struct{}
+
+type jsonPayload struct {
+	Message   string `json:"message"`
+	Status    string `json:"status"`
+	Timestamp int64  `json:"timestamp"`
+	Hostname  string `json:"hostname"`
+	Service   string `json:"service"`
+	Source    string `json:"ddsource"`
+	Tags      string `json:"ddtags"`
+}
+
+func (j *jsonEncoder) encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
+	return json.Marshal(jsonPayload{
+		Message:   toValidUtf8(redactedMsg),
+		Status:    msg.GetStatus(),
+		// TODO(achntrl): use a constant
+		Timestamp: time.Now().UTC().UnixNano() / 1000000,
+		Hostname:  getHostname(),
+		Service:   msg.Origin.Service(),
+		Source:    msg.Origin.Source(),
+		Tags:      msg.Origin.TagsToString(),
+	})
+}
+
+func toValidUtf8(msg []byte) string {
 	if utf8.Valid(msg) {
 		return string(msg)
 	}
@@ -129,15 +173,4 @@ func (p *proto) toValidUtf8(msg []byte) string {
 		}
 	}
 	return string(str)
-}
-
-// getHostname returns the hostname for the agent.
-func getHostname() string {
-	// Compute the hostname
-	hostname, err := util.GetHostname()
-	if err != nil {
-		// this scenario is not likely to happen since the agent can not start without a hostname
-		hostname = "unknown"
-	}
-	return hostname
 }

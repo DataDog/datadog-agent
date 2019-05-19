@@ -15,7 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const endpointPrefix = "agent-intake.logs."
+const tcpEndpointPrefix = "agent-intake.logs."
+const httpEndpointPrefix = "https://http-intake.logs."
 
 var logsEndpoints = map[string]int{
 	"agent-intake.logs.datadoghq.com": 10516,
@@ -30,6 +31,15 @@ func BuildEndpoints() (*logsConfig.Endpoints, error) {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}
 
+	useHTTP := config.Datadog.GetBool("logs_config.use_http")
+	if useHTTP {
+		return buildHTTPEndpoints()
+	}
+
+	return buildTCPEndpoints()
+}
+
+func buildTCPEndpoints() (*logsConfig.Endpoints, error) {
 	var useSSL bool
 	useProto := config.Datadog.GetBool("logs_config.dev_mode_use_proto")
 	proxyAddress := config.Datadog.GetString("logs_config.socks5_proxy_address")
@@ -61,7 +71,7 @@ func BuildEndpoints() (*logsConfig.Endpoints, error) {
 	default:
 		// If no proxy is set, we default to 'logs_config.dd_url' if set, or to 'site'.
 		// if none of them is set, we default to the US agent endpoint.
-		main.Host = config.GetMainEndpoint(endpointPrefix, "logs_config.dd_url")
+		main.Host = config.GetMainEndpoint(tcpEndpointPrefix, "logs_config.dd_url")
 		if port, found := logsEndpoints[main.Host]; found {
 			main.Port = port
 		} else {
@@ -82,14 +92,28 @@ func BuildEndpoints() (*logsConfig.Endpoints, error) {
 		additionals[i].ProxyAddress = proxyAddress
 	}
 
-	return logsConfig.NewEndpoints(main, additionals), nil
+	return logsConfig.NewEndpoints(main, additionals, false), nil
+}
+
+func buildHTTPEndpoints() (*logsConfig.Endpoints, error) {
+	// only works with DD_URL for now
+	main := logsConfig.Endpoint{
+		APIKey:       getLogsAPIKey(config.Datadog),
+		// TODO(achntrl): Support proxy
+		//ProxyAddress: <proxyAddress>,
+	}
+
+	main.Host = config.GetMainEndpoint(httpEndpointPrefix, "logs_config.dd_url")
+	var additionals []logsConfig.Endpoint
+
+	return logsConfig.NewEndpoints(main, additionals, true), nil
 }
 
 func isSetAndNotEmpty(config config.Config, key string) bool {
 	return config.IsSet(key) && len(config.GetString(key)) > 0
 }
 
-//getLogsApiKey provides the dd api key used by the main logs agent sender.
+// getLogsAPIKey provides the dd api key used by the main logs agent sender.
 func getLogsAPIKey(config config.Config) string {
 	if isSetAndNotEmpty(config, "logs_config.api_key") {
 		return config.GetString("logs_config.api_key")

@@ -6,6 +6,7 @@
 package processor
 
 import (
+	"encoding/json"
 	"testing"
 
 	"strings"
@@ -18,9 +19,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewEncoder(t *testing.T) {
-	assert.Equal(t, &protoEncoder, NewEncoder(true))
-	assert.Equal(t, &rawEncoder, NewEncoder(false))
+func TestNewTCPEncoder(t *testing.T) {
+	assert.Equal(t, &protoEncoder, NewTCPEncoder(true))
+	assert.Equal(t, &rawEncoder, NewTCPEncoder(false))
 }
 
 func TestRawEncoder(t *testing.T) {
@@ -190,9 +191,44 @@ func TestProtoEncoderHandleInvalidUTF8(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestProtoEncoderToValidUTF8(t *testing.T) {
-	assert.Equal(t, "a�z", protoEncoder.toValidUtf8([]byte("a\xfez")))
-	assert.Equal(t, "a��z", protoEncoder.toValidUtf8([]byte("a\xc0\xafz")))
-	assert.Equal(t, "a���z", protoEncoder.toValidUtf8([]byte("a\xed\xa0\x80z")))
-	assert.Equal(t, "a����z", protoEncoder.toValidUtf8([]byte("a\xf0\x8f\xbf\xbfz")))
+func TestJsonEncoder(t *testing.T) {
+	logsConfig := &config.LogsConfig{
+		Service:        "Service",
+		Source:         "Source",
+		SourceCategory: "SourceCategory",
+		Tags:           []string{"foo:bar", "baz"},
+	}
+
+	source := config.NewLogSource("", logsConfig)
+
+	rawMessage := "message"
+	msg := newMessage([]byte(rawMessage), source, message.StatusError)
+	msg.Origin.LogSource = source
+	msg.Origin.SetTags([]string{"a", "b:c"})
+
+	redactedMessage := "redacted"
+
+	jsonMessage, err := aJsonEncoder.encode(msg, []byte(redactedMessage))
+	assert.Nil(t, err)
+
+	log := &jsonPayload{}
+	err = json.Unmarshal(jsonMessage, log)
+	assert.Nil(t, err)
+
+	assert.NotEmpty(t, log.Hostname)
+
+	assert.Equal(t, logsConfig.Service, log.Service)
+	assert.Equal(t, logsConfig.Source, log.Source)
+	assert.Equal(t, "a,b:c,ddsourcecategory:"+logsConfig.SourceCategory+",foo:bar,baz", log.Tags)
+
+	assert.Equal(t, redactedMessage, log.Message)
+	assert.Equal(t, message.StatusError, log.Status)
+	assert.NotEmpty(t, log.Timestamp)
+}
+
+func TestEncoderToValidUTF8(t *testing.T) {
+	assert.Equal(t, "a�z", toValidUtf8([]byte("a\xfez")))
+	assert.Equal(t, "a��z", toValidUtf8([]byte("a\xc0\xafz")))
+	assert.Equal(t, "a���z", toValidUtf8([]byte("a\xed\xa0\x80z")))
+	assert.Equal(t, "a����z", toValidUtf8([]byte("a\xf0\x8f\xbf\xbfz")))
 }

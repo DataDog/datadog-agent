@@ -19,12 +19,14 @@ type Endpoint struct {
 type Endpoints struct {
 	Main        Endpoint
 	Additionals []Endpoint
+	UseHTTP     bool
 }
 
 // NewEndpoints returns a new endpoints composite.
-func NewEndpoints(main Endpoint, additionals []Endpoint) *Endpoints {
+func NewEndpoints(main Endpoint, additionals []Endpoint, useHTTP bool) *Endpoints {
 	return &Endpoints{
 		Main:        main,
 		Additionals: additionals,
+		UseHTTP:     useHTTP,
 	}
 }
