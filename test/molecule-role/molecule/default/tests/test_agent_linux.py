@@ -25,7 +25,7 @@ def test_stackstate_process_agent_running_and_enabled(host):
     assert not host.ansible("service", "name=stackstate-agent-process state=started", become=True)['changed']
 
 
-def test_stackstate_agent_log(host):
+def test_stackstate_agent_log(host, hostname):
     agent_log_path = "/var/log/stackstate-agent/agent.log"
 
     # Check for presence of success
@@ -37,6 +37,9 @@ def test_stackstate_agent_log(host):
     util.wait_until(wait_for_check_successes, 30, 3)
 
     agent_log = host.file(agent_log_path).content_string
+    with open("./{}.log".format(hostname), 'w') as f:
+        f.write(agent_log.encode('utf-8'))
+
     # Check for errors
     for line in agent_log.splitlines():
         print("Considering: %s" % line)
@@ -52,8 +55,7 @@ def test_stackstate_agent_log(host):
         assert not re.search("\\| error \\|", line, re.IGNORECASE)
 
 
-def test_stackstate_process_agent_no_log_errors(host):
-    hostname = host.ansible.get_variables()["inventory_hostname"]
+def test_stackstate_process_agent_no_log_errors(host, hostname):
     process_agent_log_path = "/var/log/stackstate-agent/process-agent.log"
 
     # Check for presence of success
@@ -68,6 +70,8 @@ def test_stackstate_process_agent_no_log_errors(host):
     util.wait_until(wait_for_check_successes, 30, 3)
 
     process_agent_log = host.file(process_agent_log_path).content_string
+    with open("./{}-process.log".format(hostname), 'w') as f:
+        f.write(process_agent_log.encode('utf-8'))
 
     # Check for errors
     for line in process_agent_log.splitlines():

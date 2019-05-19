@@ -198,8 +198,6 @@
     - name: Open listening port for windows {{ connection_port_before_start_windows }}
       shell: "nohup ncat --broker --listen -p {{ connection_port_before_start_windows }} &"
       become: true
-    - debug: msg="Ubuntu public ip -> {{ hostvars['agent-ubuntu']['ansible_host'] }}"
-    - debug: msg="Ubuntu private ip -> {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }}"
 
 - name: Prepare Fedora Agent connecting before start
   hosts: agent-fedora

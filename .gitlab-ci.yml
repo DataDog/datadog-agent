@@ -416,8 +416,10 @@ molecule_tests:
    - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
    - cd $CI_PROJECT_DIR/test && ./molecule.sh test
   artifacts:
+    when: always
     paths:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/default/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/default/*.log
     expire_in: 1 week
 
 release_deb:

@@ -36,7 +36,7 @@ def test_generic_events(host):
         for message in json_data["messages"]:
             events[message["message"]["GenericEvent"]["host"]].add(message["message"]["GenericEvent"]["name"])
 
-        print events
+        print(events)
         assert events["agent-ubuntu"] == {"System.Agent Startup", "processStateEvent"}
         assert events["agent-fedora"] == {"System.Agent Startup", "processStateEvent"}
         assert events["agent-centos"] == {"System.Agent Startup", "processStateEvent"}
@@ -117,32 +117,32 @@ def test_created_connection_after_start_with_metrics(host):
     def wait_for_connection():
         data = host.check_output("curl \"%s\"" % url)
         json_data = json.loads(data)
-        with open("./topic-correlate-endpoint.json", 'w') as f:
+        with open("./topic-correlate-endpoint-after.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
         outgoing_conn = _find_outgoing_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_private_ip)
-        print outgoing_conn
+        print(outgoing_conn)
         assert outgoing_conn["direction"] == "OUTGOING"
         assert outgoing_conn["connectionType"] == "TCP"
         assert outgoing_conn["bytesSentPerSecond"] > 10.0
         assert outgoing_conn["bytesReceivedPerSecond"] == 0.0
 
         incoming_conn = _find_incoming_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_private_ip)
-        print incoming_conn
+        print(incoming_conn)
         assert incoming_conn["direction"] == "INCOMING"
         assert incoming_conn["connectionType"] == "TCP"
         assert incoming_conn["bytesSentPerSecond"] == 0.0
         assert incoming_conn["bytesReceivedPerSecond"] > 10.0
 
         outgoing_conn = _find_outgoing_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_private_ip)
-        print outgoing_conn
+        print(outgoing_conn)
         assert outgoing_conn["direction"] == "OUTGOING"
         assert outgoing_conn["connectionType"] == "TCP"
         assert outgoing_conn["bytesSentPerSecond"] == 0.0       # We don't collect metrics on Windows
         assert outgoing_conn["bytesReceivedPerSecond"] == 0.0
 
         incoming_conn = _find_incoming_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_private_ip)
-        print incoming_conn
+        print(incoming_conn)
         assert incoming_conn["direction"] == "INCOMING"
         assert incoming_conn["connectionType"] == "TCP"
         assert incoming_conn["bytesSentPerSecond"] == 0.0
@@ -168,25 +168,26 @@ def test_created_connection_before_start(host):
     def wait_for_connection():
         data = host.check_output("curl \"%s\"" % url)
         json_data = json.loads(data)
-        print(json.dumps(json_data))
+        with open("./topic-correlate-endpoint-before.json", 'w') as f:
+            json.dump(json_data, f, indent=4)
 
         outgoing_conn = _find_outgoing_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_private_ip)
-        print outgoing_conn
+        print(outgoing_conn)
         assert outgoing_conn["direction"] == "NONE"          # Outgoing gets no direction from Linux /proc scanning
         assert outgoing_conn["connectionType"] == "TCP"
 
         incoming_conn = _find_incoming_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_private_ip)
-        print incoming_conn
+        print(incoming_conn)
         assert incoming_conn["direction"] == "INCOMING"
         assert incoming_conn["connectionType"] == "TCP"
 
         outgoing_conn = _find_outgoing_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_private_ip)
-        print outgoing_conn
+        print(outgoing_conn)
         assert outgoing_conn["direction"] == "OUTGOING"
         assert outgoing_conn["connectionType"] == "TCP"
 
         incoming_conn = _find_incoming_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_private_ip)
-        print incoming_conn
+        print(incoming_conn)
         assert incoming_conn["direction"] == "INCOMING"
         assert incoming_conn["connectionType"] == "TCP"
 
@@ -217,8 +218,6 @@ def test_host_metrics(host):
             values = [value["value"] for value in metric["value"]]
             metrics[m_name][m_host] += values
 
-        print json.dumps(metrics, indent=4)
-
         # These values are based on an ec2 micro instance for ubuntu and fedora
         # and small instance for windows
         # (as created by molecule.yml)
@@ -245,7 +244,7 @@ def test_host_metrics(host):
 
         # Memory
         assert_metric("system.mem.total", lambda v: v > 900.0, lambda v: v > 900.0, lambda v: v > 2000.0)
-        assert_metric("system.mem.usable", lambda v: 1000.0 > v > 300.0, lambda v: 1000.0 > v > 300.0, lambda v: 1000.0 > v > 500.0)
+        assert_metric("system.mem.usable", lambda v: 1000.0 > v > 300.0, lambda v: 1000.0 > v > 300.0, lambda v: 1500.0 > v > 400.0)
         assert_metric("system.mem.pct_usable", lambda v: 1.0 > v > 0.3, lambda v: 1.0 > v > 0.3, lambda v: 1.0 > v > 0.2)
 
         # Load - only linux
@@ -253,7 +252,7 @@ def test_host_metrics(host):
 
         # CPU
         assert_metric("system.cpu.idle", lambda v: v > 0.0, lambda v: v > 0.0, lambda v: v > 0.0)
-        assert_metric("system.cpu.iowait", lambda v: 0.1 > v >= 0.0, lambda v: 0.1 > v >= 0.0, lambda v: 0.1 > v >= 0.0)
+        assert_metric("system.cpu.iowait", lambda v: v >= 0.0, lambda v: v >= 0.0, lambda v: v >= 0.0)
         assert_metric("system.cpu.system", lambda v: v > 0.0, lambda v: v > 0.0, lambda v: v > 0.0)
         assert_metric("system.cpu.user", lambda v: v >= 0.0, lambda v: v >= 0.0, lambda v: v >= 0.0)
 
@@ -334,7 +333,8 @@ def test_topology_components(host):
         assert _component_data("process", "urn:process:/agent-centos", "/opt/stackstate-agent/bin/agent/agent")["hostTags"] == ["os:linux"]
         assert _component_data("process", "urn:process:/agent-win", "\"C:\\Program Files\\StackState\\StackState Agent\\embedded\\agent.exe\"")["hostTags"] == ["os:windows"]
 
-        # assert that process filtering works correctly. Process should be filtered unless it's a top resource using process
+        # Assert that process filtering works correctly.
+        # Process should be filtered unless it's a top resource using process
         def _component_filtered(type_name, external_id_prefix, command):
             _data = _component_data(type_name, external_id_prefix, command)
             if _data is not None:
@@ -380,16 +380,16 @@ def test_connection_network_namespaces_relations(host):
     def wait_for_connection():
         data = host.check_output("curl \"%s\"" % url)
         json_data = json.loads(data)
-        with open("./topic-correlate-endpoint.json", 'w') as f:
+        with open("./topic-correlate-endpoint-netns.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
         # assert that we find a outgoing localhost connection between 127.0.0.1 to 127.0.0.1 to port 9091 on
         # agent-connection-namespaces host within the same network namespace.
         outgoing_conn = _find_outgoing_connection_in_namespace(json_data, 9091, "agent-connection-namespaces", "127.0.0.1", "127.0.0.1")
-        print outgoing_conn
+        print(outgoing_conn)
 
         incoming_conn = _find_incoming_connection_in_namespace(json_data, 9091, "agent-connection-namespaces", "127.0.0.1", "127.0.0.1")
-        print incoming_conn
+        print(incoming_conn)
 
         # assert that the connections are in the same namespace
         outgoing_local_namespace = outgoing_conn["localEndpoint"]["namespace"]
