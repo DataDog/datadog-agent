@@ -37,7 +37,7 @@ var (
 	BuildDate string
 )
 
-const loggerName = ddconfig.LoggerName("SYSPROBE")
+const loggerName = ddconfig.LoggerName("SYS-PROBE")
 
 func main() {
 	// Parse flags
