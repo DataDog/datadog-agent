@@ -176,8 +176,8 @@ func (t *Tracer) setupExpvars() {
 
 	expvar.Publish("tracer.perf_received", expvar.Func(func() interface{} { return atomic.LoadUint64(&t.perfReceived) }))
 	expvar.Publish("tracer.perf_lost", expvar.Func(func() interface{} { return atomic.LoadUint64(&t.perfLost) }))
-	expvar.Publish("tracer.skipped_conns", expvar.Func(func() interface{} { atomic.LoadUint64(&t.skippedConns) }))
-	expvar.Publish("tracer.expired_tcp_conns", expvar.Func(func() interface{} { atomic.LoadUint64(&t.expiredTCPConns) }))
+	expvar.Publish("tracer.skipped_conns", expvar.Func(func() interface{} { return atomic.LoadUint64(&t.skippedConns) }))
+	expvar.Publish("tracer.expired_tcp_conns", expvar.Func(func() interface{} { return atomic.LoadUint64(&t.expiredTCPConns) }))
 }
 
 // shouldSkipConnection returns whether or not the tracer should ignore a given connection:
