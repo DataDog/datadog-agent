@@ -9,7 +9,7 @@ import (
 
 // TestDecodeZstd05Payload ensures backward compatibility with our intake
 func TestDecodeZstd05Payload(t *testing.T) {
-	file := "./test_zstd.0.5.dump"
+	file := "./testdata/test_zstd.0.5.dump"
 	expected := Message{
 		Header: MessageHeader{
 			Version:  MessageV3,
