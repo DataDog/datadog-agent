@@ -169,6 +169,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
         LOCALGROUP_MEMBERS_INFO_0 lmi0;
         memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_0));
         DWORD nErr  = 0;
+        std::wstring groupname;
         // since we just created the user, fix up all the rights we want
         hr = -1;
         sid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
@@ -199,7 +200,21 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
         }
         // add the user to the "performance monitor users" group
         lmi0.lgrmi0_sid = sid;
-        nErr = NetLocalGroupAddMembers(NULL, L"Performance Monitor Users", 0, (LPBYTE)&lmi0, 1);
+        // need to look up the group name by SID; the group name can be localized
+        {
+            PSID groupsid = NULL;
+            if(!ConvertStringSidToSid(L"S-1-5-32-558", &groupsid)) {
+                WcaLog(LOGMSG_STANDARD, "failed to convert sid string to sid; attempting default");
+                groupname = L"Performance Monitor Users";
+            } else {
+                if(!GetNameForSid(NULL, groupsid, groupname)) {
+                    WcaLog(LOGMSG_STANDARD, "failed to get group name for sid; using default");
+                    groupname = L"Performance Monitor Users";
+                }
+                LocalFree((LPVOID) groupsid);
+            }
+        }
+        nErr = NetLocalGroupAddMembers(NULL, groupname.c_str(), 0, (LPBYTE)&lmi0, 1);
         if (nErr == NERR_Success) {
             WcaLog(LOGMSG_STANDARD, "Added ddagentuser to Performance Monitor Users");
         }
