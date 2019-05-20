@@ -11,6 +11,11 @@
   version = "~v1.3.0"
 
 [[constraint]]
+  name = "github.com/DataDog/zstd.v0.5"
+  source = "github.com/DataDog/zstd"
+  revision = "2b373cbe6ac0c8e6960bbd18026ceb269eef89f5"
+
+[[constraint]]
   name = "github.com/Microsoft/go-winio"
   version = "~v0.4.7"
 
