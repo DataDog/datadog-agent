@@ -117,7 +117,9 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 	var checkModule *C.six_pyobject_t
 	var checkClass *C.six_pyobject_t
 	for _, name = range modules {
-		if res := C.get_class(six, C.CString(name), &checkModule, &checkClass); res != 0 {
+		moduleName := C.CString(name)
+		defer C.free(unsafe.Pointer(moduleName))
+		if res := C.get_class(six, moduleName, &checkModule, &checkClass); res != 0 {
 			if strings.HasPrefix(name, fmt.Sprintf("%s.", wheelNamespace)) {
 				loadedAsWheel = true
 			}
