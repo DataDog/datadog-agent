@@ -191,10 +191,58 @@ func TestSubmitEvent(t *testing.T) {
 	}
 }
 
+func TestSubmitEventMissingFields(t *testing.T) {
+	code := `
+	ev = {
+		'msg_text': 'Event message',
+	}
+	aggregator.submit_event(None, 'submit_event_id', ev)
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+	if checkID != "submit_event_id" {
+		t.Fatalf("Unexpected id value: %s", checkID)
+	}
+	if _event.title != "" {
+		t.Fatalf("Unexpected event title: %s", _event.title)
+	}
+	if _event.text != "Event message" {
+		t.Fatalf("Unexpected event text: %s", _event.text)
+	}
+	if _event.ts != 0 {
+		t.Fatalf("Unexpected event ts: %d", _event.ts)
+	}
+	if _event.priority != "" {
+		t.Fatalf("Unexpected event priority: %s", _event.priority)
+	}
+	if _event.host != "" {
+		t.Fatalf("Unexpected event host: %s", _event.host)
+	}
+	if _event.alertType != "" {
+		t.Fatalf("Unexpected event alert_type: %s", _event.alertType)
+	}
+	if _event.aggregationKey != "" {
+		t.Fatalf("Unexpected event aggregation_key: %s", _event.aggregationKey)
+	}
+	if _event.sourceTypeName != "" {
+		t.Fatalf("Unexpected event source_type_name: %s", _event.sourceTypeName)
+	}
+	if _event.eventType != "" {
+		t.Fatalf("Unexpected event event_type: %s", _event.eventType)
+	}
+	if _event.tags != nil {
+		t.Fatal("Tags should be nil")
+	}
+}
+
 func TestEventCheckEventNotDict(t *testing.T) {
 	code := `
-	ev = "some event"
-	aggregator.submit_event(None, 'submit_event_id', ev)
+	aggregator.submit_event(None, 'id', "I should be a dict")
 	`
 	out, err := run(code)
 
