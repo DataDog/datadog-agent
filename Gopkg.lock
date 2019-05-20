@@ -72,12 +72,20 @@
   version = "v1.7.0"
 
 [[projects]]
-  digest = "1:34d4c1b61fa208e523726ddb85d01b8caa8f2de0cd656d91c81b6b86daea485c"
+  digest = "1:31631e8c076fdda45675347ac76f4e3466b65648064704f38c6e73b5d0f91c39"
   name = "github.com/DataDog/zstd"
   packages = ["."]
   pruneopts = ""
-  revision = "aebefd9fcb99f22cd691ef778a12ed68f0e6a1ab"
-  version = "v1.3.4"
+  revision = "69c5189b6513b1503c9c5332fb2e96362e51d547"
+  version = "v1.3.8"
+
+[[projects]]
+  digest = "1:f3662169bf21f0406cdad064a592c5a052e8ba32f64a360d755544cd5a98dba8"
+  name = "github.com/DataDog/zstd.v0.5"
+  packages = ["."]
+  pruneopts = ""
+  revision = "2b373cbe6ac0c8e6960bbd18026ceb269eef89f5"
+  source = "github.com/DataDog/zstd"
 
 [[projects]]
   digest = "1:a45cafbc9101cf1a3ce81f08296af380ece9c05b4acc92831eeeb0f61a5a7ef5"
@@ -1968,6 +1976,7 @@
     "github.com/DataDog/mmh3",
     "github.com/DataDog/viper",
     "github.com/DataDog/zstd",
+    "github.com/DataDog/zstd.v0.5",
     "github.com/Microsoft/go-winio",
     "github.com/StackExchange/wmi",
     "github.com/aws/aws-sdk-go/aws",
