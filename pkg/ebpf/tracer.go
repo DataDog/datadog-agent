@@ -174,7 +174,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 
 // setupExpvars setups up debug http endpoint and exposes some metrics for tracer
 func (t *Tracer) setupExpvars(port int) {
-	go http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	go http.ListenAndServe(fmt.Sprintf("localhost:%d", port), nil)
 
 	expvar.Publish("tracer.perf_received", expvar.Func(func() interface{} { return atomic.LoadUint64(&t.perfReceived) }))
 	expvar.Publish("tracer.perf_lost", expvar.Func(func() interface{} { return atomic.LoadUint64(&t.perfLost) }))
