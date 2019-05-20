@@ -117,4 +117,4 @@ EOD
 # necessary to get group membership to be respected
 vagrant reload
 
-echo "your development environment is ready; use \`grant ssh\` to ssh in"
+ echo "your development environment is ready; use \`VAGRANT_CWD=$cwd vagrant ssh\` to ssh in"
