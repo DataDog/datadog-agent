@@ -1,7 +1,7 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides: datadog-agent-network
+# Provides: datadog-agent-sysprobe
 # Short-Description: Start and stop datadog system-probe agent
 # Description: Datadog System Probe Agent
 # Required-Start: $remote_fs
@@ -17,7 +17,7 @@ INSTALL_DIR="/opt/datadog-agent"
 AGENTPATH="$INSTALL_DIR/embedded/bin/system-probe"
 PIDFILE="$INSTALL_DIR/run/system-probe.pid"
 AGENT_ARGS="--config=$ETC_DIR/system-probe.yaml --pid=$PIDFILE"
-NAME="datadog-agent-network"
+NAME="datadog-agent-sysprobe"
 DESC="Datadog System Probe Agent"
 
 
