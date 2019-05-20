@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -114,7 +115,9 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not start polling bpf events: %s", err)
 	}
 
-	tr.setupExpvars()
+	if config.ExpVarPort > 0 {
+		tr.setupExpvars(config.ExpVarPort)
+	}
 
 	return tr, nil
 }
@@ -170,9 +173,9 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 	return pm, nil
 }
 
-// setupExpvars setups up endpoint 8080 as the debug http endpoint and exposes some metrics for tracer
-func (t *Tracer) setupExpvars() {
-	go http.ListenAndServe(":8080", nil)
+// setupExpvars setups up debug http endpoint and exposes some metrics for tracer
+func (t *Tracer) setupExpvars(port int) {
+	go http.ListenAndServe(":"+strconv.Itoa(port), nil)
 
 	expvar.Publish("tracer.perf_received", expvar.Func(func() interface{} { return atomic.LoadUint64(&t.perfReceived) }))
 	expvar.Publish("tracer.perf_lost", expvar.Func(func() interface{} { return atomic.LoadUint64(&t.perfLost) }))

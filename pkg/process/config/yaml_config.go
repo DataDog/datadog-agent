@@ -89,6 +89,10 @@ func (a *AgentConfig) loadNetworkYamlConfig(path string) error {
 	a.LogLevel = config.Datadog.GetString("log_level")
 	a.StatsdPort = config.Datadog.GetInt("dogstatsd_port")
 
+	if expvarPort := config.Datadog.GetInt(key(netNS, "nettracer_expvar_port")); expvarPort > 0 {
+		a.NetworkTracerExpVarPort = expvarPort
+	}
+
 	return nil
 }
 
