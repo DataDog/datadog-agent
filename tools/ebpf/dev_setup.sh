@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 
 cwd="$(dirname "$0")"
-cd $cwd
+cd "$cwd"
 
 set -ex
 
-VAGRANT_CWD=$(pwd)
+VAGRANT_CWD="$(pwd)"
+export VAGRANT_CWD
 
 if [[ -f Vagrantfile ]]; then
     echo "detected vagrant file; will clean up"
