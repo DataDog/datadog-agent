@@ -153,3 +153,5 @@ core,github.com/DataDog/datadog-go,MIT
 core,github.com/tinylib/msgp,MIT
 process,github.com/DataDog/gopsutil,BSD-3-Clause
 network,github.com/iovisor/gobpf,Apache-2.0
+network,github.com/florianl/go-conntrack,MIT
+network,github.com/mdlayher/netlink,MIT

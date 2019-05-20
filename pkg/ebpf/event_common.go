@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
 )
 
 // ConnectionType will be either TCP or UDP
@@ -70,8 +72,9 @@ type Connections struct {
 //easyjson:json
 type ConnectionStats struct {
 	// Source & Dest represented as a string to handle both IPv4 & IPv6
-	Source string `json:"source"`
-	Dest   string `json:"dest"`
+	// Note: As ebpf.Address is an interface, we need to use interface{} for easyjson
+	Source interface{} `json:"source,string"`
+	Dest   interface{} `json:"dest,string"`
 
 	MonotonicSentBytes uint64 `json:"monotonic_sent_bytes"`
 	LastSentBytes      uint64 `json:"last_sent_bytes"`
@@ -88,11 +91,22 @@ type ConnectionStats struct {
 	Pid   uint32 `json:"pid"`
 	NetNS uint32 `json:"net_ns"`
 
-	SPort     uint16              `json:"sport"`
-	DPort     uint16              `json:"dport"`
-	Type      ConnectionType      `json:"type"`
-	Family    ConnectionFamily    `json:"family"`
-	Direction ConnectionDirection `json:"direction"`
+	SPort         uint16                 `json:"sport"`
+	DPort         uint16                 `json:"dport"`
+	Type          ConnectionType         `json:"type"`
+	Family        ConnectionFamily       `json:"family"`
+	Direction     ConnectionDirection    `json:"direction"`
+	IPTranslation *netlink.IPTranslation `json:"conntrack"`
+}
+
+// SourceAddr returns the source address in the Address abstraction
+func (c ConnectionStats) SourceAddr() Address {
+	return c.Source.(Address)
+}
+
+// DestAddr returns the dest address in the Address abstraction
+func (c ConnectionStats) DestAddr() Address {
+	return c.Dest.(Address)
 }
 
 func (c ConnectionStats) String() string {
@@ -124,16 +138,56 @@ func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 	if _, err := buffer.Write(buf[:]); err != nil {
 		return nil, err
 	}
-	if _, err := buffer.WriteString(c.Source); err != nil {
+	if _, err := buffer.Write(c.SourceAddr().Bytes()); err != nil {
 		return nil, err
 	}
+	buffer.WriteRune('|')
 	// Family (4 bits) + Type (4 bits) = 8 bits
 	p1 := uint8(c.Family)<<4 | uint8(c.Type)
 	if err := buffer.WriteByte(p1); err != nil {
 		return nil, err
 	}
-	if _, err := buffer.WriteString(c.Dest); err != nil {
+	buffer.WriteRune('|')
+	if _, err := buffer.Write(c.DestAddr().Bytes()); err != nil {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
+
+// BeautifyKey returns a human readable byte key (used for debugging purposes)
+// it should be in sync with ByteKey
+// Note: This is only used in /debug/* endpoints
+func BeautifyKey(key string) string {
+	bytesToAddress := func(buf []byte) Address {
+		if len(buf) == 4 {
+			return V4AddressFromBytes(buf)
+		}
+		return V6AddressFromBytes(buf)
+	}
+
+	raw := []byte(key)
+
+	// First 8 bytes are pid and ports
+	h := binary.LittleEndian.Uint64(raw[:8])
+	pid := h >> 32
+	sport := (h >> 16) & 0xffff
+	dport := h & 0xffff
+
+	// Them we have the source addr, family + type and dest addr
+	parts := bytes.Split(raw[8:], []byte{'|'})
+
+	var source, dest Address
+	var family, typ uint8
+	if len(parts) == 3 {
+		source = bytesToAddress(parts[0])
+		dest = bytesToAddress(parts[2])
+		if len(parts[1]) == 1 {
+			family = (parts[1][0] >> 4) & 0xf
+			typ = parts[1][0] & 0xf
+		}
+	}
+
+	return fmt.Sprintf(keyFmt, pid, source, sport, dest, dport, family, typ)
 }

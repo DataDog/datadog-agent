@@ -371,7 +371,11 @@ message Connection {
 	uint32 lastRetransmits = 18;
 	ConnectionDirection direction = 19;
 
-	uint32 netNS = 20; // Network namespace
+	// Network namespace
+	uint32 netNS = 20;
+
+	// the conntrack entry associated with the connection. May be null on systems which don't support querying conntrack.
+	IPTranslation ipTranslation = 21;
 }
 
 message Addr {
@@ -381,6 +385,13 @@ message Addr {
 	int32  port = 3;
 	string containerId = 5; // post-resolution field
 	int32  hostId = 6;      // post-resolution field
+}
+
+message IPTranslation {
+	string replSrcIP  = 1;
+	string replDstIP  = 2;
+	int32 replSrcPort = 3;
+	int32 replDstPort = 4;
 }
 
 message MemoryStat {

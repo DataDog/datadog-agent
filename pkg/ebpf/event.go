@@ -3,8 +3,6 @@
 package ebpf
 
 import (
-	"encoding/binary"
-	"net"
 	"unsafe"
 )
 
@@ -47,6 +45,10 @@ func (t *ConnTuple) copy() *ConnTuple {
 	}
 }
 
+func (t *ConnTuple) isTCP() bool {
+	return connType(uint(t.metadata)) == TCP
+}
+
 /* conn_stats_ts_t
 __u64 sent_bytes;
 __u64 recv_bytes;
@@ -66,13 +68,23 @@ func (cs *ConnStatsWithTimestamp) isExpired(latestTime uint64, timeout uint64) b
 func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) ConnectionStats {
 	metadata := uint(t.metadata)
 	family := connFamily(metadata)
+
+	var source, dest Address
+	if family == AFINET {
+		source = V4Address(uint32(t.saddr_l))
+		dest = V4Address(uint32(t.daddr_l))
+	} else {
+		source = V6Address(uint64(t.saddr_l), uint64(t.saddr_h))
+		dest = V6Address(uint64(t.daddr_l), uint64(t.daddr_h))
+	}
+
 	return ConnectionStats{
 		Pid:                  uint32(t.pid),
 		Type:                 connType(metadata),
 		Family:               family,
 		NetNS:                uint32(t.netns),
-		Source:               ipString(uint64(t.saddr_h), uint64(t.saddr_l), family),
-		Dest:                 ipString(uint64(t.daddr_h), uint64(t.daddr_l), family),
+		Source:               source,
+		Dest:                 dest,
 		SPort:                uint16(t.sport),
 		DPort:                uint16(t.dport),
 		MonotonicSentBytes:   uint64(s.sent_bytes),
@@ -80,19 +92,6 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) Conn
 		MonotonicRetransmits: uint32(tcpStats.retransmits),
 		LastUpdateEpoch:      uint64(s.timestamp),
 	}
-}
-
-func ipString(addr_h, addr_l uint64, family ConnectionFamily) string {
-	if family == AFINET {
-		buf := make([]byte, 4)
-		binary.LittleEndian.PutUint32(buf, uint32(addr_l))
-		return net.IPv4(buf[0], buf[1], buf[2], buf[3]).String()
-	}
-
-	buf := make([]byte, 16)
-	binary.LittleEndian.PutUint64(buf, uint64(addr_h))
-	binary.LittleEndian.PutUint64(buf[8:], uint64(addr_l))
-	return net.IP(buf).String()
 }
 
 func connType(m uint) ConnectionType {

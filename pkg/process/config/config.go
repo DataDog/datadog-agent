@@ -29,6 +29,8 @@ var (
 	// defaultNetworkLogFilePath is the default logging file for the network tracer
 	defaultNetworkLogFilePath = "/var/log/datadog/network-tracer.log"
 
+	defaultConntrackShortTermBufferSize = 10000
+
 	processChecks   = []string{"process", "rtprocess"}
 	containerChecks = []string{"container", "rtcontainer"}
 )
@@ -71,18 +73,20 @@ type AgentConfig struct {
 	ProcessExpVarPort  int
 
 	// Network collection configuration
-	EnableNetworkTracing     bool
-	EnableLocalNetworkTracer bool // To have the network tracer embedded in the process-agent
-	EnableDebugProfiling     bool
-	DisableTCPTracing        bool
-	DisableUDPTracing        bool
-	DisableIPv6Tracing       bool
-	CollectLocalDNS          bool
-	NetworkTracerSocketPath  string
-	NetworkTracerLogFile     string
-	MaxTrackedConnections    uint
-	NetworkBPFDebug          bool
-	ExcludedBPFLinuxVersions []string
+	EnableNetworkTracing         bool
+	EnableLocalNetworkTracer     bool // To have the network tracer embedded in the process-agent
+	EnableDebugProfiling         bool
+	DisableTCPTracing            bool
+	DisableUDPTracing            bool
+	DisableIPv6Tracing           bool
+	CollectLocalDNS              bool
+	NetworkTracerSocketPath      string
+	NetworkTracerLogFile         string
+	MaxTrackedConnections        uint
+	NetworkBPFDebug              bool
+	ExcludedBPFLinuxVersions     []string
+	EnableConntrack              bool
+	ConntrackShortTermBufferSize int
 
 	// Check config
 	EnabledChecks  []string
@@ -164,14 +168,16 @@ func NewDefaultAgentConfig() *AgentConfig {
 		StatsdPort: 8125,
 
 		// Network collection configuration
-		EnableNetworkTracing:     false,
-		EnableLocalNetworkTracer: false,
-		DisableTCPTracing:        false,
-		DisableUDPTracing:        false,
-		DisableIPv6Tracing:       false,
-		NetworkTracerSocketPath:  defaultNetworkTracerSocketPath,
-		NetworkTracerLogFile:     defaultNetworkLogFilePath,
-		MaxTrackedConnections:    maxMaxTrackedConnections,
+		EnableNetworkTracing:         false,
+		EnableLocalNetworkTracer:     false,
+		DisableTCPTracing:            false,
+		DisableUDPTracing:            false,
+		DisableIPv6Tracing:           false,
+		NetworkTracerSocketPath:      defaultNetworkTracerSocketPath,
+		NetworkTracerLogFile:         defaultNetworkLogFilePath,
+		MaxTrackedConnections:        maxMaxTrackedConnections,
+		EnableConntrack:              true,
+		ConntrackShortTermBufferSize: defaultConntrackShortTermBufferSize,
 
 		// Check config
 		EnabledChecks: containerChecks,
