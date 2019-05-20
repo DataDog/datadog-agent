@@ -170,30 +170,14 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 	return pm, nil
 }
 
-func (t *Tracer) getPerfReceived() interface{} {
-	return atomic.LoadUint64(&t.perfReceived)
-}
-
-func (t *Tracer) getPerfLost() interface{} {
-	return atomic.LoadUint64(&t.perfLost)
-}
-
-func (t *Tracer) getSkippedConns() interface{} {
-	return atomic.LoadUint64(&t.skippedConns)
-}
-
-func (t *Tracer) getExpiredTCPConns() interface{} {
-	return atomic.LoadUint64(&t.expiredTCPConns)
-}
-
 // setupExpvars setups up endpoint 8080 as the debug
 func (t *Tracer) setupExpvars() {
 	go http.ListenAndServe(":8080", nil)
 
-	expvar.Publish("tracer.perf_received", expvar.Func(t.getPerfReceived))
-	expvar.Publish("tracer.perf_lost", expvar.Func(t.getPerfLost))
-	expvar.Publish("tracer.skipped_conns", expvar.Func(t.getSkippedConns))
-	expvar.Publish("tracer.expired_tcp_conns", expvar.Func(t.getExpiredTCPConns))
+	expvar.Publish("tracer.perf_received", expvar.Func(func() interface{} { return atomic.LoadUint64(&t.perfReceived) }))
+	expvar.Publish("tracer.perf_lost", expvar.Func(func() interface{} { return atomic.LoadUint64(&t.perfLost) }))
+	expvar.Publish("tracer.skipped_conns", expvar.Func(func() interface{} { atomic.LoadUint64(&t.skippedConns) }))
+	expvar.Publish("tracer.expired_tcp_conns", expvar.Func(func() interface{} { atomic.LoadUint64(&t.expiredTCPConns) }))
 }
 
 // shouldSkipConnection returns whether or not the tracer should ignore a given connection:
