@@ -29,15 +29,15 @@ configure_file(constants.h.in constants.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_library(datadog-agent-three SHARED
     three.cpp
-    ../common/sixstrings.c
-    ../common/aggregator.c
-    ../common/datadog_agent.c
-    ../common/util.c
-    ../common/_util.c
     ../common/cgo_free.c
-    ../common/tagger.c
-    ../common/kubeutil.c
-    ../common/containers.c
+    ../common/stringutils.c
+    ../common/builtins/aggregator.c
+    ../common/builtins/datadog_agent.c
+    ../common/builtins/util.c
+    ../common/builtins/_util.c
+    ../common/builtins/tagger.c
+    ../common/builtins/kubeutil.c
+    ../common/builtins/containers.c
 )
 
 if(WIN32)
@@ -49,6 +49,7 @@ target_include_directories(datadog-agent-three PRIVATE .)
 target_include_directories(datadog-agent-three PUBLIC
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/common
+    ${CMAKE_SOURCE_DIR}/common/builtins
     ${Python3_INCLUDE_DIRS}
 )
 target_link_libraries(datadog-agent-three ${Python3_LIBRARIES} datadog-agent-six)

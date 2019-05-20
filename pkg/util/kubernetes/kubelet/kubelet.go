@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -47,6 +48,7 @@ var (
 // KubeUtil is a struct to hold the kubelet api url
 // Instantiate with GetKubeUtil
 type KubeUtil struct {
+	sync.RWMutex
 	// used to setup the KubeUtil
 	initRetry retry.Retrier
 
@@ -365,7 +367,8 @@ func (ku *KubeUtil) setupTLS(verifyTLS bool, caPath string, transport *http.Tran
 		return err
 	}
 	transport.TLSClientConfig = tlsConf
-
+	ku.Lock()
+	defer ku.Unlock()
 	ku.rawConnectionInfo["verify_tls"] = fmt.Sprintf("%v", verifyTLS)
 	if verifyTLS {
 		ku.rawConnectionInfo["ca_cert"] = caPath
@@ -383,6 +386,8 @@ func (ku *KubeUtil) setCertificates(crt, key string, tlsConfig *tls.Config) erro
 	}
 	tlsConfig.Certificates = certs
 
+	ku.Lock()
+	defer ku.Unlock()
 	ku.rawConnectionInfo["client_crt"] = crt
 	ku.rawConnectionInfo["client_key"] = key
 
@@ -394,12 +399,16 @@ func (ku *KubeUtil) setBearerToken(tokenPath string) error {
 	if err != nil {
 		return err
 	}
+	ku.Lock()
+	defer ku.Unlock()
 	ku.kubeletApiRequestHeaders.Set("Authorization", fmt.Sprintf("bearer %s", token))
 	ku.rawConnectionInfo["token"] = token
 	return nil
 }
 
 func (ku *KubeUtil) resetCredentials() {
+	ku.Lock()
+	defer ku.Unlock()
 	ku.kubeletApiRequestHeaders.Del(authorizationHeaderKey)
 	ku.rawConnectionInfo = make(map[string]string)
 }
@@ -449,6 +458,8 @@ func (ku *KubeUtil) GetKubeletApiEndpoint() string {
 //   - client_crt: path to the client cert if set
 //   - client_key: path to the client key if set
 func (ku *KubeUtil) GetRawConnectionInfo() map[string]string {
+	ku.Lock()
+	defer ku.Unlock()
 	if _, ok := ku.rawConnectionInfo["url"]; !ok {
 		ku.rawConnectionInfo["url"] = ku.kubeletApiEndpoint
 	}
@@ -763,7 +774,13 @@ func checkKubeletHTTPSConnection(ku *KubeUtil, httpsPort int) error {
 			return err
 
 		} else if strings.Contains(err.Error(), "x509: certificate signed by unknown authority") {
-			log.Debugf(`The kubelet server certificate is signed by unknown authority, the current cacert is %s. Is the kubelet issuing self-signed certificates? Please validate the kubelet certificate with "openssl verify -CAfile %s ${KUBELET_CERTIFICATE}" to avoid this error: %v`, ku.rawConnectionInfo["ca_cert"], ku.rawConnectionInfo["ca_cert"], err)
+			ku.RLock()
+			certString, ok := ku.rawConnectionInfo["ca_cert"]
+			ku.RUnlock()
+			if !ok {
+				certString = "<not-set>"
+			}
+			log.Debugf(`The kubelet server certificate is signed by unknown authority, the current cacert is %s. Is the kubelet issuing self-signed certificates? Please validate the kubelet certificate with "openssl verify -CAfile %s ${KUBELET_CERTIFICATE}" to avoid this error: %v`, certString, certString, err)
 			return err
 
 		} else {

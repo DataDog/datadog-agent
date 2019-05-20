@@ -6,7 +6,7 @@
 #include "three.h"
 
 #include "constants.h"
-#include "sixstrings.h"
+#include "stringutils.h"
 
 #include <_util.h>
 #include <aggregator.h>

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
-#ifndef DATADOG_AGENT_SIX_SIXSTRINGS_H
-#define DATADOG_AGENT_SIX_SIXSTRINGS_H
+#ifndef DATADOG_AGENT_SIX_STRINGUTILS_H
+#define DATADOG_AGENT_SIX_STRINGUTILS_H
 
 #ifdef __cplusplus
 extern "C" {

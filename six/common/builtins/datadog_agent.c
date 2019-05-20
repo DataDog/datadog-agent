@@ -5,7 +5,7 @@
 #include "datadog_agent.h"
 #include "cgo_free.h"
 
-#include <sixstrings.h>
+#include <stringutils.h>
 
 // these must be set by the Agent
 static cb_get_version_t cb_get_version = NULL;
@@ -245,7 +245,8 @@ static PyObject *log_message(PyObject *self, PyObject *args)
 
 // set_external_tags receive the following data:
 // [('hostname', {'source_type': ['tag1', 'tag2']})]
-static PyObject *set_external_tags(PyObject *self, PyObject *args) {
+static PyObject *set_external_tags(PyObject *self, PyObject *args)
+{
     PyObject *input_list = NULL;
     PyGILState_STATE gstate = PyGILState_Ensure();
 
@@ -267,7 +268,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
     char *source_type = NULL;
     int input_len = PyList_Size(input_list);
     int i;
-    for (i=0; i<input_len; i++) {
+    for (i = 0; i < input_len; i++) {
         PyObject *tuple = PyList_GetItem(input_list, i);
 
         // list must contain only tuples in form ('hostname', {'source_type': ['tag1', 'tag2']},)
@@ -312,7 +313,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
         // allocate an array of char* to store the tags we'll send to the Go function
         char **tags;
         int tags_len = PyList_Size(value);
-        if(!(tags = (char **)malloc(sizeof(*tags)*tags_len+1))) {
+        if (!(tags = (char **)malloc(sizeof(*tags) * tags_len + 1))) {
             PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
             goto error;
         }
@@ -320,7 +321,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
 
         // copy the list of tags into an array of char*
         int j, actual_size = 0;
-        for (j=0; j<tags_len; j++) {
+        for (j = 0; j < tags_len; j++) {
             PyObject *s = PyList_GetItem(value, j);
             if (s == NULL) {
                 continue;
@@ -330,7 +331,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
             // cleanup and return error
             if (tag == NULL) {
                 int k;
-                for (k=0; k<actual_size; k++) {
+                for (k = 0; k < actual_size; k++) {
                     free(tags[k]);
                 }
                 free(tags);
@@ -346,7 +347,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
         cb_set_external_tags(hostname, source_type, tags);
 
         // cleanup
-        for (j=0; j<actual_size; j++) {
+        for (j = 0; j < actual_size; j++) {
             free(tags[j]);
         }
         free(tags);

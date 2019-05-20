@@ -4,7 +4,7 @@
 // Copyright 2019 Datadog, Inc.
 #include "aggregator.h"
 
-#include <sixstrings.h>
+#include <stringutils.h>
 
 // these must be set by the Agent
 static cb_submit_metric_t cb_submit_metric = NULL;

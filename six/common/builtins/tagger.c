@@ -5,7 +5,7 @@
 // Copyright 2019 Datadog, Inc.
 
 #include "cgo_free.h"
-#include "sixstrings.h"
+#include "stringutils.h"
 #include <tagger.h>
 
 // these must be set by the Agent
@@ -21,10 +21,10 @@ int parseArgs(PyObject *args, char **id, int *cardinality)
     }
     PyGILState_Release(gstate);
     return 1;
-
 }
 
-PyObject *buildTagsList(char **tags) {
+PyObject *buildTagsList(char **tags)
+{
     if (tags == NULL)
         Py_RETURN_NONE;
 
@@ -49,9 +49,8 @@ PyObject *tag(PyObject *self, PyObject *args)
     if (!parseArgs(args, &id, &cardinality))
         return NULL;
 
-    if (cardinality != DATADOG_AGENT_SIX_TAGGER_LOW
-            && cardinality != DATADOG_AGENT_SIX_TAGGER_ORCHESTRATOR
-            && cardinality != DATADOG_AGENT_SIX_TAGGER_HIGH) {
+    if (cardinality != DATADOG_AGENT_SIX_TAGGER_LOW && cardinality != DATADOG_AGENT_SIX_TAGGER_ORCHESTRATOR
+        && cardinality != DATADOG_AGENT_SIX_TAGGER_HIGH) {
         PyGILState_STATE gstate = PyGILState_Ensure();
         PyErr_SetString(PyExc_TypeError, "Invalid cardinality");
         PyGILState_Release(gstate);
@@ -86,12 +85,13 @@ void _set_tags_cb(cb_tags_t cb)
 }
 
 static PyMethodDef methods[] = {
-    { "tag", (PyCFunction)tag, METH_VARARGS, "Get tags for an entity."},
-    { "get_tags", (PyCFunction)get_tags, METH_VARARGS, "(Deprecated) Get tags for an entity."},
+    { "tag", (PyCFunction)tag, METH_VARARGS, "Get tags for an entity." },
+    { "get_tags", (PyCFunction)get_tags, METH_VARARGS, "(Deprecated) Get tags for an entity." },
     { NULL, NULL } // guards
 };
 
-static void add_constants(PyObject *m) {
+static void add_constants(PyObject *m)
+{
     PyModule_AddIntConstant(m, "LOW", DATADOG_AGENT_SIX_TAGGER_LOW);
     PyModule_AddIntConstant(m, "ORCHESTRATOR", DATADOG_AGENT_SIX_TAGGER_ORCHESTRATOR);
     PyModule_AddIntConstant(m, "HIGH", DATADOG_AGENT_SIX_TAGGER_HIGH);

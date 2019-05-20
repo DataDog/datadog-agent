@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -50,7 +51,7 @@ func NewPythonCheck(name string, class *C.six_pyobject_t) *PythonCheck {
 	pyCheck := &PythonCheck{
 		ModuleName:   name,
 		class:        class,
-		interval:     check.DefaultCheckInterval,
+		interval:     defaults.DefaultCheckInterval,
 		lastWarnings: []error{},
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)

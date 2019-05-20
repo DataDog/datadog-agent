@@ -2,11 +2,12 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
-#include "sixstrings.h"
+#include "stringutils.h"
 
 #include <six_types.h>
 
-char *as_string(PyObject *object) {
+char *as_string(PyObject *object)
+{
     if (object == NULL) {
         return NULL;
     }
@@ -35,7 +36,8 @@ char *as_string(PyObject *object) {
     return retval;
 }
 
-PyObject *from_json(const char *data) {
+PyObject *from_json(const char *data)
+{
     PyObject *retval = NULL;
     PyObject *json = NULL;
     PyObject *loads = NULL;
@@ -64,7 +66,8 @@ done:
     return retval;
 }
 
-char *as_json(PyObject *object) {
+char *as_json(PyObject *object)
+{
     char *retval = NULL;
     PyObject *json = NULL;
     PyObject *dumps = NULL;

@@ -14,7 +14,7 @@
 #include <datadog_agent.h>
 #include <kubeutil.h>
 #include <six_types.h>
-#include <sixstrings.h>
+#include <stringutils.h>
 #include <tagger.h>
 #include <util.h>
 
@@ -370,42 +370,63 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
 
     PyObject *dir = PyObject_Dir(module);
     if (dir == NULL) {
+        PyErr_Clear();
         setError("there was an error calling dir() on module object");
         return NULL;
     }
 
     PyObject *klass = NULL;
     for (int i = 0; i < PyList_GET_SIZE(dir); i++) {
-        // get symbol name
-        char *symbol_name;
+        // Reset `klass` at every iteration so its state is always clean when we
+        // continue the loop or return early. Reset at first iteration is useless
+        // but it keeps the code readable.
+        Py_XDECREF(klass);
+        klass = NULL;
+
+        // get the symbol in current list item
         PyObject *symbol = PyList_GetItem(dir, i);
-        if (symbol != NULL) {
-            symbol_name = PyString_AsString(symbol);
+        if (symbol == NULL) {
+            // This should never happen as it means we're out of bounds
+            PyErr_Clear();
+            setError("there was an error browsing dir() output");
+            goto done;
+        }
+
+        // get symbol name
+        char *symbol_name = PyString_AsString(symbol);
+        if (symbol_name == NULL) {
+            // PyString_AsString returns NULL if `symbol` is not a string object
+            // and raises TypeError. Let's clear the error and keep going.
+            PyErr_Clear();
+            continue;
         }
 
         // get symbol instance. It's a new ref but in case of success we don't
-        // DecRef since we return it and the caller
-        // will be owner
+        // DecRef since we return it and the caller will be owner
         klass = PyObject_GetAttrString(module, symbol_name);
         if (klass == NULL) {
+            PyErr_Clear();
             continue;
         }
 
         // not a class, ignore
         if (!PyType_Check(klass)) {
-            Py_XDECREF(klass);
             continue;
         }
 
         // this is an unrelated class, ignore
         if (!PyType_IsSubtype((PyTypeObject *)klass, (PyTypeObject *)base)) {
-            Py_XDECREF(klass);
             continue;
         }
 
-        // `klass` is actually `base` itself, ignore
-        if (PyObject_RichCompareBool(klass, base, Py_EQ)) {
-            Py_XDECREF(klass);
+        // check whether `klass` is actually `base` itself
+        int retval = PyObject_RichCompareBool(klass, base, Py_EQ);
+        if (retval == 1) {
+            // `klass` is indeed `base`, continue
+            continue;
+        } else if (retval == -1) {
+            // an error occurred calling __eq__, clear and continue
+            PyErr_Clear();
             continue;
         }
 
@@ -413,7 +434,7 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
         char func_name[] = "__subclasses__";
         PyObject *children = PyObject_CallMethod(klass, func_name, NULL);
         if (children == NULL) {
-            Py_XDECREF(klass);
+            PyErr_Clear();
             continue;
         }
 
@@ -423,7 +444,6 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
 
         // Agent integrations are supposed to have no subclasses
         if (children_count > 0) {
-            Py_XDECREF(klass);
             continue;
         }
 
@@ -431,7 +451,10 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
         goto done;
     }
 
+    // we couldn't find any good subclass, set an error and reset
+    // `klass` state for one last time before moving to `done`.
     setError("cannot find a subclass");
+    Py_XDECREF(klass);
     klass = NULL;
 
 done:

@@ -6,7 +6,9 @@
 package metadata
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -20,4 +22,15 @@ func TestNewScheduler(t *testing.T) {
 	c := NewScheduler(s, "hostname")
 	assert.Equal(t, fwd, c.srl.Forwarder)
 	assert.Equal(t, "hostname", c.hostname)
+}
+
+func TestStopScheduler(t *testing.T) {
+	fwd := forwarder.NewDefaultForwarder(nil)
+	fwd.Start()
+	s := serializer.NewSerializer(fwd)
+	c := NewScheduler(s, "hostname")
+	c.AddCollector("test", time.Duration(60))
+	c.AddCollector("test2", time.Duration(60))
+	c.Stop()
+	assert.Equal(t, context.Canceled, c.context.Err())
 }
