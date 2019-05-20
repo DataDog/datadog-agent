@@ -395,9 +395,14 @@ func initConfig(config Config) {
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
 	config.SetKnown("metadata_providers")
 	config.SetKnown("config_providers")
+	config.SetKnown("clustername")
+	config.SetKnown("listeners")
+	config.SetKnown("additional_endpoints")
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
+
+	// Process
 	config.SetKnown("process_config.dd_agent_env")
 	config.SetKnown("process_config.enabled")
 	config.SetKnown("process_config.intervals.process_realtime")
@@ -408,15 +413,14 @@ func initConfig(config Config) {
 	config.SetKnown("process_config.intervals.container")
 	config.SetKnown("process_config.intervals.container_realtime")
 	config.SetKnown("process_config.dd_agent_bin")
-	config.SetKnown("clustername")
-	config.SetKnown("listeners")
 	config.SetKnown("process.strip_proc_arguments")
 	config.SetKnown("process_config.windows.args_refresh_interval")
 	config.SetKnown("process_config.windows.add_new_args")
 	config.SetKnown("process.additional_endpoints")
-	config.SetKnown("additional_endpoints")
 	config.SetKnown("process.container_source")
 	config.SetKnown("process.intervals.connections")
+	config.SetKnown("network_tracer_config.enabled")
+	config.SetKnown("network_tracer_config.log_file")
 
 	// APM
 	config.SetKnown("apm_config.enabled")
