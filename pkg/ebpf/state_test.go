@@ -230,7 +230,7 @@ func TestCleanupClient(t *testing.T) {
 	assert.Equal(t, "1", clients[0])
 
 	// Should delete the client 1
-	state.(*networkState).RemoveExpiredClients(time.Now().Add(wait))
+	state.(*networkState).RemoveExpiredClients(time.Now().Add(150 * time.Millisecond))
 
 	clients = state.(*networkState).getClients()
 	assert.Equal(t, 0, len(clients))
