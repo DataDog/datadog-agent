@@ -203,7 +203,7 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 		cAgentConfig := C.CString(string(agentConfig))
 		defer C.free(unsafe.Pointer(cAgentConfig))
 
-		res := C.get_check_deprecated(six, c.class, (*C.char)(cInitConfig), (*C.char)(cInstance), (*C.char)(cAgentConfig), (*C.char)(cCheckID), (*C.char)(cCheckName), &check)
+		res := C.get_check_deprecated(six, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, &check)
 		if res == 0 {
 			return fmt.Errorf("could not invoke '%s' python check constructor: %s", c.ModuleName, getSixError())
 		}
