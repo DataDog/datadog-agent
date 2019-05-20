@@ -170,7 +170,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 	return pm, nil
 }
 
-// setupExpvars setups up endpoint 8080 as the debug
+// setupExpvars setups up endpoint 8080 as the debug http endpoint and exposes some metrics for tracer
 func (t *Tracer) setupExpvars() {
 	go http.ListenAndServe(":8080", nil)
 
