@@ -6,7 +6,9 @@
 package providers
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -55,6 +57,36 @@ func NewFileConfigProvider(paths []string) *FileConfigProvider {
 	return &FileConfigProvider{
 		paths:  paths,
 		Errors: make(map[string]string),
+	}
+}
+
+func getEnvvar(envVar []byte) ([]byte, error) {
+	if len(envVar) == 0 {
+		return nil, fmt.Errorf("env var name is missing")
+	}
+	value, found := os.LookupEnv(string(envVar))
+	if !found {
+		return nil, fmt.Errorf("failed to retrieve envvar %s", envVar)
+	}
+	return []byte(value), nil
+}
+
+// replaceEnvVars replaces variables with the format %%env_MY_VAR%%
+func replaceEnvVars(config *integration.Config) {
+	for i := 0; i < len(config.Instances); i++ {
+		vars := config.GetTemplateVariablesForInstance(i)
+		for _, v := range vars {
+			if "env" == string(v.Name) {
+				resolvedVar, err := getEnvvar(v.Key)
+				if err != nil {
+					log.Warnf("variable not replaced: %s", err)
+					continue
+				}
+				// init config vars are replaced by the first found
+				config.InitConfig = bytes.Replace(config.InitConfig, v.Raw, resolvedVar, -1)
+				config.Instances[i] = bytes.Replace(config.Instances[i], v.Raw, resolvedVar, -1)
+			}
+		}
 	}
 }
 
@@ -304,6 +336,8 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 	if len(cf.DockerImages) > 0 && len(cf.ADIdentifiers) == 0 {
 		return config, errors.New("the 'docker_images' section is deprecated, please use 'ad_identifiers' instead")
 	}
+
+	replaceEnvVars(&config)
 
 	return config, err
 }
