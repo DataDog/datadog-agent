@@ -8,11 +8,11 @@
 package python
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -54,8 +54,8 @@ func testHeaders(t *testing.T) {
 	require.NotNil(t, headers)
 
 	h := util.HTTPHeaders()
-	jsonPayload, _ := json.Marshal(h)
-	assert.Equal(t, string(jsonPayload), C.GoString(headers))
+	yamlPayload, _ := yaml.Marshal(h)
+	assert.Equal(t, string(yamlPayload), C.GoString(headers))
 }
 
 func testGetConfig(t *testing.T) {
@@ -66,7 +66,7 @@ func testGetConfig(t *testing.T) {
 
 	GetConfig(C.CString("cmd_port"), &config)
 	require.NotNil(t, config)
-	assert.Equal(t, "5001", C.GoString(config))
+	assert.Equal(t, "5001\n", C.GoString(config))
 }
 
 func testSetExternalTags(t *testing.T) {
@@ -77,8 +77,8 @@ func testSetExternalTags(t *testing.T) {
 	payload := externalhost.GetPayload()
 	require.NotNil(t, payload)
 
-	jsonPayload, _ := json.Marshal(payload)
+	yamlPayload, _ := yaml.Marshal(payload)
 	assert.Equal(t,
-		"[[\"test_hostname\",{\"test_source_type\":[\"tag1\",\"tag2\"]}]]",
-		string(jsonPayload))
+		"- - test_hostname\n  - test_source_type:\n    - tag1\n    - tag2\n",
+		string(yamlPayload))
 }

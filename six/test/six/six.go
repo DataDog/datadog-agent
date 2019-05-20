@@ -9,7 +9,6 @@ package testsix
 import "C"
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/six/test/common"
+	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -219,7 +219,7 @@ func getIntegrationList() ([]string, error) {
 	runtime.UnlockOSThread()
 
 	var out []string
-	err := json.Unmarshal([]byte(cstr), &out)
+	err := yaml.Unmarshal([]byte(cstr), &out)
 	fmt.Println(cstr)
 	fmt.Println(out)
 	if err != nil {

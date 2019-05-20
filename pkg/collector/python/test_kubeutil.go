@@ -47,11 +47,11 @@ func testGetKubeletConnectionInfoNotCached(t *testing.T) {
 
 	var payload *C.char
 	GetKubeletConnectionInfo(&payload)
-	assert.Equal(t, "{\"conn1\":\"a\",\"conn2\":\"b\"}", C.GoString(payload))
+	assert.Equal(t, "conn1: a\nconn2: b\n", C.GoString(payload))
 
 	testConnections = map[string]string{"conn3": "c"}
 
 	// testing caching
 	GetKubeletConnectionInfo(&payload)
-	assert.Equal(t, "{\"conn1\":\"a\",\"conn2\":\"b\"}", C.GoString(payload))
+	assert.Equal(t, "conn1: a\nconn2: b\n", C.GoString(payload))
 }

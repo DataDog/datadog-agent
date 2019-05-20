@@ -1,7 +1,6 @@
 package testdatadogagent
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -10,6 +9,7 @@ import (
 	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/six/test/common"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // #cgo CFLAGS: -I../../include
@@ -44,9 +44,9 @@ var (
 )
 
 type message struct {
-	Name string `json:"name"`
-	Body string `json:"body"`
-	Time int64  `json:"time"`
+	Name string `yaml:"name"`
+	Body string `yaml:"body"`
+	Time int64  `yaml:"time"`
 }
 
 func setUp() error {
@@ -121,7 +121,7 @@ func getConfig(key *C.char, in **C.char) {
 		*in = C.CString("\"warning\"")
 	case "foo":
 		m := message{C.GoString(key), "Hello", 123456}
-		b, _ := json.Marshal(m)
+		b, _ := yaml.Marshal(m)
 		*in = C.CString(string(b))
 	default:
 		*in = C.CString("null")
@@ -135,7 +135,7 @@ func headers(in **C.char) {
 		"Content-Type": "application/x-www-form-urlencoded",
 		"Accept":       "text/html, */*",
 	}
-	retval, _ := json.Marshal(h)
+	retval, _ := yaml.Marshal(h)
 
 	*in = C.CString(string(retval))
 }

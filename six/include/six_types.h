@@ -82,9 +82,9 @@ typedef void (*cb_submit_event_t)(char *, event_t *);
 //
 // (version)
 typedef void (*cb_get_version_t)(char **);
-// (key, json_result)
+// (key, yaml_result)
 typedef void (*cb_get_config_t)(char *, char **);
-// (json_result)
+// (yaml_result)
 typedef void (*cb_headers_t)(char **);
 // (hostname)
 typedef void (*cb_get_hostname_t)(char **);
@@ -110,7 +110,7 @@ typedef char **(*cb_tags_t)(char *, int);
 
 // kubeutil
 //
-// (json_result)
+// (yaml_result)
 typedef void (*cb_get_connection_info_t)(char **);
 
 // containers
