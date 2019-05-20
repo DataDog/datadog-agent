@@ -202,7 +202,7 @@ def build_object_files(ctx, install=True):
 
     flags = [
         '-D__KERNEL__',
-        '-D__ASM_SYSREG_H',
+        '-DCONFIG_64BIT',
         '-D__BPF_TRACING__',
         '-Wno-unused-value',
         '-Wno-pointer-sign',
@@ -216,13 +216,22 @@ def build_object_files(ctx, install=True):
         os.path.join(c_dir, "tracer-ebpf.c"),
     ]
 
+    # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
+    arch = check_output('''uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
+                    -e s/sun4u/sparc64/ \
+                    -e s/arm.*/arm/ -e s/sa110/arm/ \
+                    -e s/s390x/s390/ -e s/parisc64/parisc/ \
+                    -e s/ppc.*/powerpc/ -e s/mips.*/mips/ \
+                    -e s/sh[234].*/sh/ -e s/aarch64.*/arm64/ \
+                    -e s/riscv.*/riscv/''', shell=True).decode('utf-8').strip()
+
     subdirs = [
         "include",
         "include/uapi",
         "include/generated/uapi",
-        "arch/x86/include",
-        "arch/x86/include/uapi",
-        "arch/x86/include/generated",
+        "arch/{}/include".format(arch),
+        "arch/{}/include/uapi".format(arch),
+        "arch/{}/include/generated".format(arch),
     ]
 
     for d in linux_headers:
