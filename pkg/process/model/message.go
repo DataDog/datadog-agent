@@ -203,6 +203,8 @@ func ReadHeader(data []byte) (MessageHeader, int, error) {
 		return readHeaderV1(data)
 	case MessageV2:
 		return readHeaderV2(data)
+	case MessageV3:
+		return readHeaderV3(data)
 	default:
 		return MessageHeader{}, 0, fmt.Errorf("invalid message version: %d", uint8(data[0]))
 	}
