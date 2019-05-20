@@ -21,6 +21,7 @@
 // handler stuff
 #include <execinfo.h>
 #include <csignal>
+#include <sys/types.h>
 
 #include <unistd.h>
 #include <algorithm>
@@ -55,7 +56,10 @@ void signalHandler(int sig, siginfo_t*, void*) {
   }
 
   free(symbols);
-  exit(1);
+
+  // trying to get core dump too
+  signal(sig, SIG_DFL);
+  kill(getpid(), sig);
 }
 
 Two::Two(const char *python_home)
@@ -68,8 +72,8 @@ Two::Two(const char *python_home)
     sa.sa_flags = SA_SIGINFO;
     sa.sa_sigaction = signalHandler;
 
+    // on segfault
     sigaction(SIGSEGV, &sa, NULL);
-    sigaction(SIGABRT, &sa, NULL);
 
     initPythonHome(python_home);
 }
