@@ -456,7 +456,8 @@ const char *Two::runCheck(SixPyObject *check)
 
     // result will be eventually returned as a copy and the corresponding Python
     // string decref'ed, caller will be responsible for memory deallocation.
-    char *ret, *ret_copy = NULL;
+    char *ret = NULL;
+    char *ret_copy = NULL;
     char run[] = "run";
     PyObject *result = NULL;
 
