@@ -118,16 +118,26 @@ dependency 'datadog-agent-prepare'
 # Datadog agent
 dependency 'datadog-agent'
 
+python_runtimes = ENV['PYTHON_RUNTIMES'].split(',')
+
 # Additional software
 if windows?
-  dependency 'cacerts_py2'
-  dependency 'cacerts_py3'
+  dependency 'cacerts_py2' if python_runtimes.include? "2"
+  dependency 'cacerts_py3' if python_runtimes.include? "3"
 else
   dependency 'cacerts'
 end
-dependency 'datadog-a7'
-dependency 'datadog-agent-integrations-py2'
-dependency 'datadog-agent-integrations-py3'
+
+if python_runtimes.include? "2"
+  dependency 'datadog-a7-py2'
+  dependency 'datadog-agent-integrations-py2'
+end
+
+if python_runtimes.include? "3"
+  dependency 'datadog-a7-py3'
+  dependency 'datadog-agent-integrations-py3'
+end
+
 if osx?
   dependency 'datadog-agent-mac-app'
 end
