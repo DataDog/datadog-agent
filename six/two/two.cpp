@@ -516,7 +516,7 @@ char **Two::getCheckWarnings(SixPyObject *check)
     for (Py_ssize_t idx = 0; idx < numWarnings; idx++) {
         PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
         if (warn == NULL) {
-            setError("there was an error browsing warnings list");
+            setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
             warnings = NULL;
             goto done;
         }
@@ -524,7 +524,6 @@ char **Two::getCheckWarnings(SixPyObject *check)
     }
 
 done:
-    PyErr_Clear();
     Py_XDECREF(warns_list);
     return warnings;
 }
