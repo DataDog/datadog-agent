@@ -244,8 +244,7 @@ func (t *Tailer) forwardMessages() {
 			t.setLastSince(output.Timestamp)
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.tagProvider.GetTags())
-			output.Origin = origin
-			t.outputChan <- output
+			t.outputChan <- message.NewMessage(output.Content, origin, output.Status)
 		}
 	}
 }

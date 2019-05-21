@@ -34,9 +34,11 @@ func (h *MockLineHandler) Stop() {
 	close(h.lineChan)
 }
 
+const contentLenLimit = 100
+
 func TestDecodeIncomingData(t *testing.T) {
 	h := NewMockLineHandler()
-	d := New(nil, nil, h)
+	d := New(nil, nil, h, contentLenLimit)
 
 	var line []byte
 
@@ -100,7 +102,7 @@ func TestDecodeIncomingData(t *testing.T) {
 
 func TestDecoderLifeCycle(t *testing.T) {
 	h := NewMockLineHandler()
-	d := New(nil, nil, h)
+	d := New(nil, nil, h, contentLenLimit)
 
 	// lineHandler should not receive any lines
 	d.Start()

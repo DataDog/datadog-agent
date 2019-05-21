@@ -5,16 +5,21 @@
 
 package message
 
+import "github.com/DataDog/datadog-agent/pkg/logs/config"
+
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
-	Content    []byte
-	Origin     *Origin
-	status     string
-	Timestamp  string
-	RawDataLen int
+	Content []byte
+	Origin  *Origin
+	status  string
 }
 
-// NewMessage returns a new message
+// NewMessageWithSource constructs message with content, status and log source.
+func NewMessageWithSource(content []byte, status string, source *config.LogSource) *Message {
+	return NewMessage(content, NewOrigin(source), status)
+}
+
+// NewMessage constructs message with full information.
 func NewMessage(content []byte, origin *Origin, status string) *Message {
 	return &Message{
 		Content: content,
@@ -23,15 +28,11 @@ func NewMessage(content []byte, origin *Origin, status string) *Message {
 	}
 }
 
-// GetStatus returns the status of the message
+// GetStatus gets the status of the message.
+// if status is not set, StatusInfo will be returned.
 func (m *Message) GetStatus() string {
 	if m.status == "" {
 		m.status = StatusInfo
 	}
 	return m.status
-}
-
-// SetStatus sets the status of the message
-func (m *Message) SetStatus(status string) {
-	m.status = status
 }
