@@ -654,7 +654,7 @@ func installedVersion(integration string) (*semver.Version, error) {
 
 	outputStr := strings.TrimSpace(string(output))
 	if outputStr == "" {
-		return nil, nil
+		return nil, nil // Either python couldn't import the check or the check didn't have a __version__
 	}
 
 	version, err := semver.NewVersion(outputStr)
