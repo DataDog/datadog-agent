@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+enhancements:
   - |
-    Add option ``cf_os_hostname_alias`` to send the OS hostname as an alias when using the BOSH agent on Cloud Foundry
+    Add option ``cf_os_hostname_aliasing`` to send the OS hostname as an alias when using the BOSH agent on Cloud Foundry
