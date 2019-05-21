@@ -7,6 +7,7 @@ package status
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 // ConsumeSources ensures that another component is consuming the channel to prevent
@@ -27,7 +28,7 @@ func CreateSources(sourcesArray []*config.LogSource) *config.LogSources {
 	}
 	ConsumeSources(logSources)
 	var isRunning int32 = 1
-	Init(&isRunning, logSources)
+	Init(&isRunning, logSources, metrics.LogsExpvars)
 
 	return logSources
 }

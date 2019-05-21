@@ -206,6 +206,14 @@
 
         Logs Agent is not running </br>
       {{- end }}
+      {{- if .metrics }}
+
+         Metrics
+        {{ printDashes "Metrics" "=" }}
+        {{- range $metric_key, $metric_value := .metrics }}
+          {{$metric_key}}: {{$metric_value}}
+        {{- end }}
+      {{- end }}
       {{- if .errors }}
 
         <span class="error stat_subtitle">Errors</span>
