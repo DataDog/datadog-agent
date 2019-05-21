@@ -166,6 +166,8 @@ PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs)
     PyObject *headers_dict = from_yaml(data);
     cgo_free(data);
     if (headers_dict == NULL || !PyDict_Check(headers_dict)) {
+        // if headers_dict is not a dict we don't need to old a ref to it
+        Py_XDECREF(headers_dict);
         Py_RETURN_NONE;
     }
 
