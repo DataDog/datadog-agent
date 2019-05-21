@@ -484,8 +484,10 @@ done:
 
 char **Two::getCheckWarnings(SixPyObject *check)
 {
-    if (check == NULL)
+    if (check == NULL) {
         return NULL;
+    }
+
     PyObject *py_check = reinterpret_cast<PyObject *>(check);
 
     char func_name[] = "get_warnings";
