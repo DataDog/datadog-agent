@@ -37,11 +37,11 @@ type parser struct {
 // Example:
 // 2018-09-20T11:54:11.753589172Z stdout F This is my message
 func (p *parser) Parse(msg []byte) ([]byte, string, string, error) {
-	content, status, timestamp, _, err := parse(msg)
+	content, status, timestamp, _, err := p.ParseFull(msg)
 	return content, status, timestamp, err
 }
 
-func parse(msg []byte) ([]byte, string, string, string, error) {
+func (p *parser) ParseFull(msg []byte) ([]byte, string, string, string, error) {
 	var status = message.StatusInfo
 	var flag string
 	var timestamp string

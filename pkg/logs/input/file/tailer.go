@@ -57,11 +57,16 @@ type Tailer struct {
 // NewTailer returns an initialized Tailer
 func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration, isWildcardPath bool) *Tailer {
 	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
-	var parser lineParser.Parser
+	var dc *decoder.Decoder
+	var contentLenLimit = decoder.DefaultContentLenLimit
+	var flushTimeout = decoder.DefaultFlushTimeout
 	if source.GetSourceType() == config.KubernetesSourceType {
-		parser = kubernetes.Parser
+		var outputChan = make(chan *decoder.Output)
+		var lineHandlerRunner = decoder.NewLineHandler(outputChan, kubernetes.Parser, source, contentLenLimit)
+		var lineHandlerWrapper = kubernetes.NewLineHandler(lineHandlerRunner, flushTimeout, contentLenLimit)
+		dc = decoder.NewDecoderWithLineHandlerRunner(outputChan, lineHandlerWrapper, contentLenLimit)
 	} else {
-		parser = lineParser.NoopParser
+		dc = decoder.InitializeDecoder(source, lineParser.NoopParser, contentLenLimit)
 	}
 	var tagProvider tag.Provider
 	if source.Config.Identifier != "" {
@@ -72,7 +77,7 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 	return &Tailer{
 		path:           path,
 		outputChan:     outputChan,
-		decoder:        decoder.InitializeDecoder(source, parser),
+		decoder:        dc,
 		source:         source,
 		tagProvider:    tagProvider,
 		readOffset:     0,

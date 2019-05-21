@@ -120,7 +120,7 @@ func TestTrimSingleLine(t *testing.T) {
 	h.Handle([]byte(line))
 	output = <-outputChan
 	assert.Equal(t, "foo"+whitespace+"bar", string(output.Content))
-	assert.Equal(t, len(line)+1, output.RawDataLen)
+	assert.Equal(t, len("foo"+whitespace+"bar")+1, output.RawDataLen)
 
 	h.Stop()
 }

@@ -12,9 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
-// defaultContentLenLimit represents the length limit above which we want to
+// DefaultContentLenLimit represents the length limit above which we want to
 // truncate the output content
-const defaultContentLenLimit = 256 * 1000
+const DefaultContentLenLimit = 256 * 1000
 
 // Input represents a list of bytes consumed by the Decoder
 type Input struct {
@@ -46,47 +46,40 @@ func NewOutput(content []byte, status string, rawDataLen int, timestamp string) 
 
 // Decoder splits raw data into lines and passes them to a lineHandler that emits outputs
 type Decoder struct {
-	InputChan  chan *Input
-	OutputChan chan *Output
-
-	lineBuffer      *bytes.Buffer
-	lineHandler     LineHandler
-	contentLenLimit int
+	InputChan         chan *Input
+	OutputChan        chan *Output
+	contentLenLimit   int
+	lineBuffer        *bytes.Buffer
+	lineHandlerRunner LineHandlerRunner
 }
 
 // InitializeDecoder returns a properly initialized Decoder
-func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder {
+func InitializeDecoder(source *config.LogSource, parser parser.Parser, contentLenLimit int) *Decoder {
 	inputChan := make(chan *Input)
 	outputChan := make(chan *Output)
-	lineLimit := defaultContentLenLimit
-	var lineHandler LineHandler
-	for _, rule := range source.Config.ProcessingRules {
-		if rule.Type == config.MultiLine {
-			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, defaultFlushTimeout, parser, lineLimit)
-		}
-	}
-	if lineHandler == nil {
-		lineHandler = NewSingleLineHandler(outputChan, parser, lineLimit)
-	}
+	return New(inputChan, outputChan, NewLineHandler(outputChan, parser, source, contentLenLimit), contentLenLimit)
+}
 
-	return New(inputChan, outputChan, lineHandler, lineLimit)
+// NewDecoderWithLineHandlerRunner returns a initialized decoder by passing specified LineHandlerRunner
+func NewDecoderWithLineHandlerRunner(outputChan chan *Output, handlerRunner LineHandlerRunner, contentLenLimit int) *Decoder {
+	return New(make(chan *Input), outputChan, handlerRunner, contentLenLimit)
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *Input, OutputChan chan *Output, lineHandler LineHandler, contentLenLimit int) *Decoder {
+func New(InputChan chan *Input, OutputChan chan *Output, handlerRunner LineHandlerRunner, contentLenLimit int) *Decoder {
 	var lineBuffer bytes.Buffer
 	return &Decoder{
-		InputChan:       InputChan,
-		OutputChan:      OutputChan,
-		lineBuffer:      &lineBuffer,
-		lineHandler:     lineHandler,
-		contentLenLimit: contentLenLimit,
+		InputChan:         InputChan,
+		OutputChan:        OutputChan,
+		lineBuffer:        &lineBuffer,
+		lineHandlerRunner: handlerRunner,
+		contentLenLimit:   contentLenLimit,
 	}
 }
 
 // Start starts the Decoder
 func (d *Decoder) Start() {
-	d.lineHandler.Start()
+	d.lineHandlerRunner.Start()
 	go d.run()
 }
 
@@ -101,7 +94,7 @@ func (d *Decoder) run() {
 		d.decodeIncomingData(data.content)
 	}
 	// finish to stop decoder
-	d.lineHandler.Stop()
+	d.lineHandlerRunner.Stop()
 }
 
 // decodeIncomingData splits raw data based on '\n', creates and processes new lines
@@ -132,5 +125,5 @@ func (d *Decoder) sendLine() {
 	content := make([]byte, d.lineBuffer.Len())
 	copy(content, d.lineBuffer.Bytes())
 	d.lineBuffer.Reset()
-	d.lineHandler.Handle(content)
+	d.lineHandlerRunner.Handle(content)
 }

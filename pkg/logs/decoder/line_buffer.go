@@ -51,7 +51,7 @@ func (l *LineBuffer) AddIncompleteLine(line []byte) {
 }
 
 // AddTruncate stores TRUNCATED in buffer
-func (l *LineBuffer) AddTruncate(line []byte) {
+func (l *LineBuffer) AddTruncate() {
 	l.buffer.Write(TRUNCATED)
 }
 
