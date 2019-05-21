@@ -324,7 +324,6 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
             PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
             goto error;
         }
-        tags[tags_len] = NULL;
 
         // copy the list of tags into an array of char*
         int j, actual_size = 0;
@@ -335,22 +334,16 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
             }
 
             char *tag = as_string(s);
-            // cleanup and return error
             if (tag == NULL) {
-                int k;
-                for (k = 0; k < actual_size; k++) {
-                    free(tags[k]);
-                }
-                free(tags);
-                // raise an exception
-                PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
-                goto error;
+                // ignore invalid tag
+                continue;
             }
+
             tags[actual_size] = tag;
             actual_size++;
         }
+        tags[actual_size] = NULL;
 
-        // finally, invoke the Go function
         cb_set_external_tags(hostname, source_type, tags);
 
         // cleanup

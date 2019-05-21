@@ -16,11 +16,18 @@ char *as_string(PyObject *object)
 
 // DATADOG_AGENT_THREE implementation is the default
 #ifdef DATADOG_AGENT_TWO
-    if (!PyString_Check(object)) {
+    if (!PyString_Check(object) && !PyUnicode_Check(object)) {
         return NULL;
     }
 
-    retval = _strdup(PyString_AS_STRING(object));
+    char *tmp = PyString_AsString(object);
+    if (tmp == NULL) {
+        // PyString_AsString might raise an error when python can't encode a
+        // unicode string to byte
+        PyErr_Clear();
+        return  NULL;
+    }
+    retval = _strdup(tmp);
 #else
     if (!PyUnicode_Check(object)) {
         return NULL;
