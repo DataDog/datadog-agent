@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
+const nanoToMillis = 1000000
+
 // Encoder turns a message into a raw byte array ready to be sent.
 type Encoder interface {
 	encode(msg *message.Message, redactedMsg []byte) ([]byte, error)
@@ -150,8 +152,7 @@ func (j *jsonEncoder) encode(msg *message.Message, redactedMsg []byte) ([]byte, 
 	return json.Marshal(jsonPayload{
 		Message:   toValidUtf8(redactedMsg),
 		Status:    msg.GetStatus(),
-		// TODO(achntrl): use a constant
-		Timestamp: time.Now().UTC().UnixNano() / 1000000,
+		Timestamp: time.Now().UTC().UnixNano() / nanoToMillis,
 		Hostname:  getHostname(),
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
