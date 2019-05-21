@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mailru/easyjson"
@@ -74,6 +75,7 @@ func (nt *NetworkTracer) Run() {
 	httpMux.HandleFunc("/status", func(w http.ResponseWriter, req *http.Request) {})
 
 	httpMux.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {
+		now := time.Now()
 		cs, err := nt.tracer.GetActiveConnections(getClientID(req))
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
@@ -81,6 +83,7 @@ func (nt *NetworkTracer) Run() {
 			return
 		}
 		writeConnections(w, cs)
+		log.Infof("Got request on /connections: retrieved %d connections in %+v", len(cs.Conns), time.Now().Sub(now))
 	})
 
 	httpMux.HandleFunc("/debug/net_maps", func(w http.ResponseWriter, req *http.Request) {

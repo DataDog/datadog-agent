@@ -135,6 +135,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 			select {
 			case conn, ok := <-closedChannel:
 				if !ok {
+					log.Infof("Exiting closed connections polling")
 					return
 				}
 				atomic.AddUint64(&t.perfReceived, 1)
@@ -157,7 +158,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				skip := atomic.SwapUint64(&t.skippedConns, 0)
 				tcpExpired := atomic.SwapUint64(&t.expiredTCPConns, 0)
 				if lost > 0 {
-					log.Debugf("closed connection polling: %d received, %d lost, %d skipped, %d expired TCP", recv, lost, skip, tcpExpired)
+					log.Errorf("closed connection polling: %d received, %d lost, %d skipped, %d expired TCP", recv, lost, skip, tcpExpired)
 				}
 			}
 		}
@@ -280,6 +281,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 }
 
 func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
+	now := time.Now()
 	// Byte keys of the connections to remove
 	keys := make([]string, 0, len(entries))
 	// Used to create the keys
@@ -308,6 +310,8 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 	}
 
 	t.state.RemoveConnections(keys)
+
+	log.Infof("Removed %d entries in %+v", len(keys), time.Now().Sub(now))
 }
 
 // getTCPStats reads tcp related stats for the given ConnTuple

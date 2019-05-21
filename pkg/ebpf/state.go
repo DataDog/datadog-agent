@@ -371,12 +371,13 @@ func (ns *networkState) RemoveConnections(keys []string) {
 
 	// Flush log line if any metric is non zero
 	if ns.telemetry.unorderedConns > 0 || ns.telemetry.resets > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 {
-		log.Debugf("state telemetry: [%d unordered conns] [%d stats resets] [%d connections dropped due to stats] [%d closed connections dropped]",
+		log.Warnf("state telemetry: [%d unordered conns] [%d stats resets] [%d connections dropped due to stats] [%d closed connections dropped]",
 			ns.telemetry.unorderedConns,
 			ns.telemetry.resets,
 			ns.telemetry.closedConnDropped,
 			ns.telemetry.connDropped)
 	}
+
 	ns.telemetry = telemetry{}
 }
 
