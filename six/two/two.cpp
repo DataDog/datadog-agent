@@ -557,10 +557,10 @@ std::string Two::_fetchPythonError()
                     // docs are not clear but `PyList_Size` can actually fail and in case it would
                     // return -1, see https://github.com/python/cpython/blob/2.7/Objects/listobject.c#L170
                     if (len == -1) {
-                        // don't fetch the actual error or the caller might think
-                        // it was the root cause, while it's not. Just return
-                        // "unknown error".
-                        PyErr_Clear();
+                        // don't fetch the actual error or the caller might think it was the root cause,
+                        // while it's not. Setting `ret_val` empty will make the function return "unknown error".
+                        // PyErr_Clear() will be called before returning.
+                        ret_val = "";
                         goto done;
                     }
 
@@ -568,11 +568,9 @@ std::string Two::_fetchPythonError()
                     for (int i = 0; i < len; i++) {
                         PyObject *s = PyList_GetItem(fmt_exc, i); // borrowed ref
                         if (s == NULL) {
-                            // Unlikely to happen, but we can't afford a corrupted error state. Same
-                            // as above, do not propagate this error upstream to avoid confusing
-                            // the caller.
+                            // unlikely to happen but same as above, do not propagate this error upstream
+                            // to avoid confusing the caller. PyErr_Clear() will be called before returning.
                             ret_val = "";
-                            PyErr_Clear();
                             goto done;
                         }
                         ret_val += PyString_AsString(s);
@@ -608,8 +606,10 @@ done:
         ret_val = "unknown error";
     }
 
-    // clean up and return the string
+    // something might've gone wrong while fetching the error, ensure
+    // the error state is clean before returning
     PyErr_Clear();
+
     Py_XDECREF(ptype);
     Py_XDECREF(pvalue);
     Py_XDECREF(ptraceback);
