@@ -87,7 +87,6 @@ type AgentConfig struct {
 	ExcludedBPFLinuxVersions     []string
 	EnableConntrack              bool
 	ConntrackShortTermBufferSize int
-	NetworkTracerExpVarPort      int
 
 	// Check config
 	EnabledChecks  []string
