@@ -563,6 +563,9 @@ std::string Two::_fetchPythonError()
                         // while it's not. Setting `ret_val` empty will make the function return "unknown error".
                         // PyErr_Clear() will be called before returning.
                         ret_val = "";
+                        Py_XDECREF(traceback);
+                        Py_XDECREF(format_exception);
+                        Py_XDECREF(fmt_exc);
                         goto done;
                     }
 
@@ -573,6 +576,9 @@ std::string Two::_fetchPythonError()
                             // unlikely to happen but same as above, do not propagate this error upstream
                             // to avoid confusing the caller. PyErr_Clear() will be called before returning.
                             ret_val = "";
+                            Py_XDECREF(traceback);
+                            Py_XDECREF(format_exception);
+                            Py_XDECREF(fmt_exc);
                             goto done;
                         }
                         ret_val += PyString_AsString(s);
