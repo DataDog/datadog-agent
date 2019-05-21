@@ -489,12 +489,13 @@ char **Two::getCheckWarnings(SixPyObject *check)
     }
 
     PyObject *py_check = reinterpret_cast<PyObject *>(check);
+    char **warnings = NULL;
 
     char func_name[] = "get_warnings";
     PyObject *warns_list = PyObject_CallMethod(py_check, func_name, NULL);
     if (warns_list == NULL) {
         setError("error invoking 'get_warnings' method: " + _fetchPythonError());
-        return NULL;
+        goto done;
     }
 
     Py_ssize_t numWarnings = PyList_Size(warns_list);
@@ -502,27 +503,28 @@ char **Two::getCheckWarnings(SixPyObject *check)
     // return -1, see https://github.com/python/cpython/blob/2.7/Objects/listobject.c#L170
     if (numWarnings == -1) {
         setError("error computing 'len(warnings)': " + _fetchPythonError());
-        return NULL;
+        goto done;
     }
 
-    char **warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
+    warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
     if (!warnings) {
-        Py_XDECREF(warns_list);
-        setError("could not allocate memory to get warnings: ");
-        return NULL;
+        setError("could not allocate memory to store warnings");
+        goto done;
     }
     warnings[numWarnings] = NULL;
 
     for (Py_ssize_t idx = 0; idx < numWarnings; idx++) {
         PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
         if (warn == NULL) {
-            PyErr_Clear();
             setError("there was an error browsing warnings list");
-            return NULL;
+            warnings = NULL;
+            goto done;
         }
         warnings[idx] = as_string(warn);
     }
 
+done:
+    PyErr_Clear();
     Py_XDECREF(warns_list);
     return warnings;
 }
