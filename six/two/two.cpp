@@ -341,7 +341,6 @@ done:
     Py_XDECREF(name);
     Py_XDECREF(check_id);
     Py_XDECREF(init_config);
-    Py_XDECREF(instance);
     Py_XDECREF(agent_config);
     Py_XDECREF(args);
     Py_XDECREF(kwargs);
