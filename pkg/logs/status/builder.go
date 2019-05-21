@@ -38,7 +38,7 @@ func (b *Builder) BuildStatus() Status {
 	return Status{
 		IsRunning:     b.getIsRunning(),
 		Integrations:  b.getIntegrations(),
-		StatusMetrics: b.getStatusMetrics(),
+		StatusMetrics: b.getMetricsStatus(),
 		Warnings:      b.getWarnings(),
 		Errors:        b.getErrors(),
 	}
@@ -138,7 +138,8 @@ func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 	return dictionary
 }
 
-func (b *Builder) getStatusMetrics() map[string]int64 {
+// getMetricsStatus exposes some aggregated metrics of the log agent on the agent status
+func (b *Builder) getMetricsStatus() map[string]int64 {
 	var metrics = make(map[string]int64, 2)
 	metrics["LogsProcessed"] = b.logsExpVars.Get("LogsProcessed").(*expvar.Int).Value()
 	metrics["LogsSent"] = b.logsExpVars.Get("LogsSent").(*expvar.Int).Value()

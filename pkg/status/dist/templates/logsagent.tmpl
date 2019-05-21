@@ -14,8 +14,8 @@ Logs Agent
 
    Metrics
   {{ printDashes "Metrics" "=" }}
-  {{- range $metric_key, $metric_value := .metrics }}
-    {{$metric_key}}: {{$metric_value}}
+  {{- range $metric_name, $metric_value := .metrics }}
+    {{$metric_name}}: {{$metric_value}}
   {{- end }}
 {{- end }}
 
