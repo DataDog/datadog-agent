@@ -257,9 +257,9 @@ build do
   copy "#{project_dir}/requirements-agent-release.txt", "#{install_dir}/"
 
   if windows?
-    patch :source => "0001-create-regex-at-runtime.patch", :target => "#{windows_safe_path(python_2_embedded)}/Lib/site-packages"
+    patch :source => "0001-create-regex-at-runtime.patch", :target => "#{windows_safe_path(python_2_embedded)}\\Lib\\site-packages\\yaml"
   else
-    patch :source => "0001-create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages"
+    patch :source => "0001-create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml"
   end
 
 end
