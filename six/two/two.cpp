@@ -498,6 +498,8 @@ char **Two::getCheckWarnings(SixPyObject *check)
     }
 
     Py_ssize_t numWarnings = PyList_Size(warns_list);
+    // docs are not clear but `PyList_Size` can actually fail and in case it would
+    // return -1, see https://github.com/python/cpython/blob/2.7/Objects/listobject.c#L170
     if (numWarnings == -1) {
         setError("error computing 'len(warnings)': " + _fetchPythonError());
         return NULL;
@@ -551,8 +553,9 @@ std::string Two::_fetchPythonError()
             if (format_exception != NULL) {
                 PyObject *fmt_exc = PyObject_CallFunctionObjArgs(format_exception, ptype, pvalue, ptraceback, NULL);
                 if (fmt_exc != NULL) {
-                    // Unlikely to happen but PyList_Size might fail, handle error
                     Py_ssize_t len = PyList_Size(fmt_exc);
+                    // docs are not clear but `PyList_Size` can actually fail and in case it would
+                    // return -1, see https://github.com/python/cpython/blob/2.7/Objects/listobject.c#L170
                     if (len == -1) {
                         // don't fetch the actual error or the caller might think
                         // it was the root cause, while it's not. Just return
