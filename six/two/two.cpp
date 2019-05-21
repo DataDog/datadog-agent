@@ -498,6 +498,11 @@ char **Two::getCheckWarnings(SixPyObject *check)
     }
 
     Py_ssize_t numWarnings = PyList_Size(warns_list);
+    if (numWarnings == -1) {
+        setError("error computing 'len(warnings)': " + _fetchPythonError());
+        return NULL;
+    }
+
     char **warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
     if (!warnings) {
         Py_XDECREF(warns_list);
@@ -540,8 +545,18 @@ std::string Two::_fetchPythonError()
             if (format_exception != NULL) {
                 PyObject *fmt_exc = PyObject_CallFunctionObjArgs(format_exception, ptype, pvalue, ptraceback, NULL);
                 if (fmt_exc != NULL) {
+                    // Unlikely to happen but PyList_Size might fail, handle error
+                    Py_ssize_t len = PyList_Size(fmt_exc);
+                    if (len == -1) {
+                        // don't fetch the actual error or the caller might think
+                        // it was the root cause, while it's not. Just return
+                        // "unknown error".
+                        PyErr_Clear();
+                        goto done;
+                    }
+
                     // "format_exception" returns a list of strings (one per line)
-                    for (int i = 0; i < PyList_Size(fmt_exc); i++) {
+                    for (int i = 0; i < len; i++) {
                         ret_val += PyString_AsString(PyList_GetItem(fmt_exc, i));
                     }
                 }
@@ -570,6 +585,7 @@ std::string Two::_fetchPythonError()
         }
     }
 
+done:
     if (ret_val == "") {
         ret_val = "unknown error";
     }
