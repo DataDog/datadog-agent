@@ -513,8 +513,14 @@ char **Two::getCheckWarnings(SixPyObject *check)
 
     for (Py_ssize_t idx = 0; idx < numWarnings; idx++) {
         PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
+        if (warn == NULL) {
+            PyErr_Clear();
+            setError("there was an error browsing warnings list");
+            return NULL;
+        }
         warnings[idx] = as_string(warn);
     }
+
     Py_XDECREF(warns_list);
     return warnings;
 }
@@ -557,7 +563,16 @@ std::string Two::_fetchPythonError()
 
                     // "format_exception" returns a list of strings (one per line)
                     for (int i = 0; i < len; i++) {
-                        ret_val += PyString_AsString(PyList_GetItem(fmt_exc, i));
+                        PyObject *s = PyList_GetItem(fmt_exc, i); // borrowed ref
+                        if (s == NULL) {
+                            // Unlikely to happen, but we can't afford a corrupted error state. Same
+                            // as above, do not propagate this error upstream to avoid confusing
+                            // the caller.
+                            ret_val = "";
+                            PyErr_Clear();
+                            goto done;
+                        }
+                        ret_val += PyString_AsString(s);
                     }
                 }
                 Py_XDECREF(fmt_exc);
