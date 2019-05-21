@@ -199,22 +199,6 @@ error:
     return NULL;
 }
 
-SixPyObject *Two::getCheckClass(const char *module)
-{
-    PyObject *obj_module = NULL;
-    PyObject *klass = NULL;
-
-done:
-    Py_XDECREF(obj_module);
-    Py_XDECREF(klass);
-
-    if (klass == NULL) {
-        return NULL;
-    }
-
-    return reinterpret_cast<SixPyObject *>(klass);
-}
-
 bool Two::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyClass)
 {
     PyObject *obj_module = NULL;
