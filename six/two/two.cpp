@@ -492,13 +492,15 @@ char **Two::getCheckWarnings(SixPyObject *check)
     char **warnings = NULL;
 
     char func_name[] = "get_warnings";
+    Py_ssize_t numWarnings;
+
     PyObject *warns_list = PyObject_CallMethod(py_check, func_name, NULL);
     if (warns_list == NULL) {
         setError("error invoking 'get_warnings' method: " + _fetchPythonError());
         goto done;
     }
 
-    Py_ssize_t numWarnings = PyList_Size(warns_list);
+    numWarnings = PyList_Size(warns_list);
     // docs are not clear but `PyList_Size` can actually fail and in case it would
     // return -1, see https://github.com/python/cpython/blob/2.7/Objects/listobject.c#L170
     if (numWarnings == -1) {
