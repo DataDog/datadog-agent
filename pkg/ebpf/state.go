@@ -51,7 +51,7 @@ type telemetry struct {
 	unorderedConns    int
 	closedConnDropped int
 	connDropped       int
-	underflows        int
+	resets            int
 }
 
 type stats struct {
@@ -277,18 +277,27 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 	return conns
 }
 
+// checkStatsUnderflow checks if we are going to have an underflow when computing last stats and if it's the case it resets the stats to avoid it
+func (ns *networkState) checkStatsUnderflow(key string, st *stats, c *ConnectionStats) {
+	if c.MonotonicSentBytes < st.totalSent || c.MonotonicRecvBytes < st.totalRecv || c.MonotonicRetransmits < st.totalRetransmits {
+		ns.telemetry.resets++
+		log.Debugf("Stats reset triggered for key:%s, stats:%+v, connection:%+v", BeautifyKey(key), *st, *c)
+		st.totalSent = 0
+		st.totalRecv = 0
+		st.totalRetransmits = 0
+	}
+}
+
 // This is used to update the stats when we process a closed connection that became active again
-// in this case we want the stats to reflect the new active connections in order to avoid underflows
+// in this case we want the stats to reflect the new active connections in order to avoid resets
 func (ns *networkState) updateConnWithStatWithActiveConn(client *client, key string, active ConnectionStats, closed *ConnectionStats) {
 	if st, ok := client.stats[key]; ok {
-		// Check for underflow
-		if closed.MonotonicSentBytes < st.totalSent || closed.MonotonicRecvBytes < st.totalRecv || closed.MonotonicRetransmits < st.totalRetransmits {
-			ns.telemetry.underflows++
-		} else {
-			closed.LastSentBytes = closed.MonotonicSentBytes - st.totalSent
-			closed.LastRecvBytes = closed.MonotonicRecvBytes - st.totalRecv
-			closed.LastRetransmits = closed.MonotonicRetransmits - st.totalRetransmits
-		}
+		// Check for underflows
+		ns.checkStatsUnderflow(key, st, closed)
+
+		closed.LastSentBytes = closed.MonotonicSentBytes - st.totalSent
+		closed.LastRecvBytes = closed.MonotonicRecvBytes - st.totalRecv
+		closed.LastRetransmits = closed.MonotonicRetransmits - st.totalRetransmits
 
 		// Update stats object with latest values
 		st.totalSent = active.MonotonicSentBytes
@@ -303,14 +312,12 @@ func (ns *networkState) updateConnWithStatWithActiveConn(client *client, key str
 
 func (ns *networkState) updateConnWithStats(client *client, key string, c *ConnectionStats) {
 	if st, ok := client.stats[key]; ok {
-		// Check for underflow
-		if c.MonotonicSentBytes < st.totalSent || c.MonotonicRecvBytes < st.totalRecv || c.MonotonicRetransmits < st.totalRetransmits {
-			ns.telemetry.underflows++
-		} else {
-			c.LastSentBytes = c.MonotonicSentBytes - st.totalSent
-			c.LastRecvBytes = c.MonotonicRecvBytes - st.totalRecv
-			c.LastRetransmits = c.MonotonicRetransmits - st.totalRetransmits
-		}
+		// Check for underflows
+		ns.checkStatsUnderflow(key, st, c)
+
+		c.LastSentBytes = c.MonotonicSentBytes - st.totalSent
+		c.LastRecvBytes = c.MonotonicRecvBytes - st.totalRecv
+		c.LastRetransmits = c.MonotonicRetransmits - st.totalRetransmits
 
 		// Update stats object with latest values
 		st.totalSent = c.MonotonicSentBytes
@@ -363,10 +370,10 @@ func (ns *networkState) RemoveConnections(keys []string) {
 	}
 
 	// Flush log line if any metric is non zero
-	if ns.telemetry.unorderedConns > 0 || ns.telemetry.underflows > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 {
-		log.Debugf("state telemetry: [%d unordered conns] [%d stats underflows] [%d connections dropped due to stats] [%d closed connections dropped]",
+	if ns.telemetry.unorderedConns > 0 || ns.telemetry.resets > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 {
+		log.Debugf("state telemetry: [%d unordered conns] [%d stats resets] [%d connections dropped due to stats] [%d closed connections dropped]",
 			ns.telemetry.unorderedConns,
-			ns.telemetry.underflows,
+			ns.telemetry.resets,
 			ns.telemetry.closedConnDropped,
 			ns.telemetry.connDropped)
 	}
@@ -390,7 +397,7 @@ func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipp
 	return map[string]interface{}{
 		"clients": clientInfo,
 		"telemetry": map[string]int{
-			"underflows":                   ns.telemetry.underflows,
+			"resets":                       ns.telemetry.resets,
 			"unordered_conns":              ns.telemetry.unorderedConns,
 			"closed_conn_dropped":          ns.telemetry.closedConnDropped,
 			"conn_dropped":                 ns.telemetry.connDropped,
