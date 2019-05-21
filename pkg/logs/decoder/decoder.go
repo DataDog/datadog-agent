@@ -9,12 +9,12 @@ import (
 	"bytes"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
-// contentLenLimit represents the length limit above which we want to truncate the output content
-var contentLenLimit = 256 * 1000
+// defaultContentLenLimit represents the length limit above which we want to
+// truncate the output content
+const defaultContentLenLimit = 256 * 1000
 
 // Input represents a list of bytes consumed by the Decoder
 type Input struct {
@@ -26,41 +26,61 @@ func NewInput(content []byte) *Input {
 	return &Input{content}
 }
 
+// Output represents the fields parsed from decoder.
+type Output struct {
+	Content    []byte
+	Status     string
+	RawDataLen int
+	Timestamp  string
+}
+
+// NewOutput returns a new output.
+func NewOutput(content []byte, status string, rawDataLen int, timestamp string) *Output {
+	return &Output{
+		Content:    content,
+		Status:     status,
+		RawDataLen: rawDataLen,
+		Timestamp:  timestamp,
+	}
+}
+
 // Decoder splits raw data into lines and passes them to a lineHandler that emits outputs
 type Decoder struct {
 	InputChan  chan *Input
-	OutputChan chan *message.Message
+	OutputChan chan *Output
 
-	lineBuffer  *bytes.Buffer
-	lineHandler LineHandler
+	lineBuffer      *bytes.Buffer
+	lineHandler     LineHandler
+	contentLenLimit int
 }
 
 // InitializeDecoder returns a properly initialized Decoder
 func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder {
 	inputChan := make(chan *Input)
-	outputChan := make(chan *message.Message)
-
+	outputChan := make(chan *Output)
+	lineLimit := defaultContentLenLimit
 	var lineHandler LineHandler
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, defaultFlushTimeout, parser)
+			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, defaultFlushTimeout, parser, lineLimit)
 		}
 	}
 	if lineHandler == nil {
-		lineHandler = NewSingleLineHandler(outputChan, parser)
+		lineHandler = NewSingleLineHandler(outputChan, parser, lineLimit)
 	}
 
-	return New(inputChan, outputChan, lineHandler)
+	return New(inputChan, outputChan, lineHandler, lineLimit)
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *Input, OutputChan chan *message.Message, lineHandler LineHandler) *Decoder {
+func New(InputChan chan *Input, OutputChan chan *Output, lineHandler LineHandler, contentLenLimit int) *Decoder {
 	var lineBuffer bytes.Buffer
 	return &Decoder{
-		InputChan:   InputChan,
-		OutputChan:  OutputChan,
-		lineBuffer:  &lineBuffer,
-		lineHandler: lineHandler,
+		InputChan:       InputChan,
+		OutputChan:      OutputChan,
+		lineBuffer:      &lineBuffer,
+		lineHandler:     lineHandler,
+		contentLenLimit: contentLenLimit,
 	}
 }
 
@@ -88,7 +108,7 @@ func (d *Decoder) run() {
 func (d *Decoder) decodeIncomingData(inBuf []byte) {
 	i, j := 0, 0
 	n := len(inBuf)
-	maxj := contentLenLimit - d.lineBuffer.Len()
+	maxj := d.contentLenLimit - d.lineBuffer.Len()
 
 	for ; j < n; j++ {
 		if j == maxj {
@@ -96,12 +116,12 @@ func (d *Decoder) decodeIncomingData(inBuf []byte) {
 			d.lineBuffer.Write(inBuf[i:j])
 			d.sendLine()
 			i = j
-			maxj = i + contentLenLimit
+			maxj = i + d.contentLenLimit
 		} else if inBuf[j] == '\n' {
 			d.lineBuffer.Write(inBuf[i:j])
 			d.sendLine()
 			i = j + 1 // +1 as we skip the `\n`
-			maxj = i + contentLenLimit
+			maxj = i + d.contentLenLimit
 		}
 	}
 	d.lineBuffer.Write(inBuf[i:j])

@@ -227,8 +227,7 @@ func (t *Tailer) forwardMessages() {
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
-		output.Origin = origin
-		t.outputChan <- output
+		t.outputChan <- message.NewMessage(output.Content, origin, output.Status)
 	}
 }
 
