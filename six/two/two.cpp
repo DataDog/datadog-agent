@@ -285,6 +285,9 @@ bool Two::getCheck(SixPyObject *py_class, const char *init_config_str, const cha
     }
 
     instances = PyTuple_New(1);
+    // As stated in the Python C-API documentation https://github.com/python/cpython/blob/2.7/Doc/c-api/intro.rst#reference-count-details,
+    //  `PyTuple_SetItem`  takes over ownership of the given item (instance in this case).
+    // This means that we should NOT DECREF it
     if (PyTuple_SetItem(instances, 0, instance) != 0) {
         setError("Could not create Tuple for instances: " + _fetchPythonError());
         goto done;
@@ -338,6 +341,9 @@ bool Two::getCheck(SixPyObject *py_class, const char *init_config_str, const cha
     }
 
 done:
+    // We purposefully avoid calling Py_XDECREF on instance because we lost ownership earlier by
+    // calling PyTuple_SetItem. More details are available in the comment above this PyTuple_SetItem
+    // call
     Py_XDECREF(name);
     Py_XDECREF(check_id);
     Py_XDECREF(init_config);
