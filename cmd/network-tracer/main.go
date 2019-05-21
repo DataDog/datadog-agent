@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-process-agent/statsd"
 
 	_ "net/http/pprof"
 )
@@ -84,6 +85,12 @@ func main() {
 	if !cfg.EnableNetworkTracing {
 		log.Info("network tracer not enabled. exiting.")
 		gracefulExit()
+	}
+
+	// configure statsd
+	if err := statsd.Configure(cfg); err != nil {
+		log.Criticalf("Error configuring statsd: %s", err)
+		os.Exit(1)
 	}
 
 	nettracer, err := CreateNetworkTracer(cfg)

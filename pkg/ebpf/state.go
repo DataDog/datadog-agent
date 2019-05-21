@@ -2,7 +2,9 @@ package ebpf
 
 import (
 	"bytes"
+	"expvar"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,10 +50,10 @@ type NetworkState interface {
 }
 
 type telemetry struct {
-	unorderedConns    int
-	closedConnDropped int
-	connDropped       int
-	underflows        int
+	unorderedConns    uint64
+	closedConnDropped uint64
+	connDropped       uint64
+	underflows        uint64
 }
 
 type stats struct {
@@ -89,7 +91,7 @@ func NewDefaultNetworkState() NetworkState {
 
 // NewNetworkState creates a new network state
 func NewNetworkState(clientExpiry time.Duration, maxClosedConns, maxClientStats int) NetworkState {
-	return &networkState{
+	ns := &networkState{
 		clients:        map[string]*client{},
 		telemetry:      telemetry{},
 		clientExpiry:   clientExpiry,
@@ -97,6 +99,16 @@ func NewNetworkState(clientExpiry time.Duration, maxClosedConns, maxClientStats 
 		maxClientStats: maxClientStats,
 		buf:            &bytes.Buffer{},
 	}
+	ns.setupExpvars()
+	return ns
+}
+
+// setupExpvars exposes some metrics for tracer
+func (ns *networkState) setupExpvars() {
+	expvar.Publish("tracer.underflows", expvar.Func(func() interface{} { return atomic.LoadUint64(&ns.telemetry.underflows) }))
+	expvar.Publish("tracer.unordered_conns", expvar.Func(func() interface{} { return atomic.LoadUint64(&ns.telemetry.unorderedConns) }))
+	expvar.Publish("tracer.closed_conn_dropped", expvar.Func(func() interface{} { return atomic.LoadUint64(&ns.telemetry.closedConnDropped) }))
+	expvar.Publish("tracer.conn_dropped", expvar.Func(func() interface{} { return atomic.LoadUint64(&ns.telemetry.connDropped) }))
 }
 
 func (ns *networkState) getClients() []string {
@@ -388,15 +400,15 @@ func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipp
 
 	return map[string]interface{}{
 		"clients": clientInfo,
-		"telemetry": map[string]int{
+		"telemetry": map[string]uint64{
 			"underflows":                   ns.telemetry.underflows,
 			"unordered_conns":              ns.telemetry.unorderedConns,
 			"closed_conn_dropped":          ns.telemetry.closedConnDropped,
 			"conn_dropped":                 ns.telemetry.connDropped,
-			"closed_conn_polling_lost":     int(closedPollLost),
-			"closed_conn_polling_received": int(closedPollReceived),
-			"ok_conns_skipped":             int(tracerSkipped), // Skipped connections (e.g. Local DNS requests)
-			"expired_tcp_conns":            int(expiredTCP),
+			"closed_conn_polling_lost":     closedPollLost,
+			"closed_conn_polling_received": closedPollReceived,
+			"ok_conns_skipped":             tracerSkipped, // Skipped connections (e.g. Local DNS requests)
+			"expired_tcp_conns":            expiredTCP,
 		},
 		"current_time":       time.Now().Unix(),
 		"latest_bpf_time_ns": ns.latestTimeEpoch,

@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/dd-go/statsd"
 	"github.com/mailru/easyjson"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -115,6 +117,13 @@ func (nt *NetworkTracer) Run() {
 
 		writeAsJSON(w, stats)
 	})
+
+	go func() {
+		heartbeat := time.NewTicker(15 * time.Second)
+		for _ := range heartbeat.C {
+			statsd.Client.Gauge("datadog.networktracer.agent", 1, []string{"version:" + Version}, 1)
+		}
+	}()
 
 	http.Serve(nt.conn.GetListener(), httpMux)
 }
