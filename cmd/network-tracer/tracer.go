@@ -120,7 +120,7 @@ func (nt *NetworkTracer) Run() {
 
 	go func() {
 		heartbeat := time.NewTicker(15 * time.Second)
-		for _ := range heartbeat.C {
+		for range heartbeat.C {
 			statsd.Client.Gauge("datadog.networktracer.agent", 1, []string{"version:" + Version}, 1)
 		}
 	}()
