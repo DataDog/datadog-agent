@@ -5,6 +5,7 @@ package netlink
 import (
 	"bytes"
 	"context"
+	"expvar"
 	"fmt"
 	"net"
 	"sync"
@@ -15,6 +16,14 @@ import (
 
 	ct "github.com/florianl/go-conntrack"
 )
+
+var (
+	conntrackExpvar *expvar.Map
+)
+
+func init() {
+	conntrackExpvar = expvar.NewMap("conntrack")
+}
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
@@ -90,6 +99,7 @@ func NewConntracker(procRoot string, stbSize int) (Conntracker, error) {
 	}
 	ctr.loadInitialState(sessions)
 
+	go ctr.expvarStats()
 	go ctr.run()
 
 	nfct.Register(context.Background(), ct.Ct, ct.NetlinkCtNew|ct.NetlinkCtExpectedNew|ct.NetlinkCtUpdate, ctr.register)
@@ -98,6 +108,26 @@ func NewConntracker(procRoot string, stbSize int) (Conntracker, error) {
 	log.Infof("initialized conntrack")
 
 	return ctr, nil
+}
+
+func (ctr *realConntracker) expvarStats() {
+	ticker := time.NewTicker(5 * time.Second)
+	for range ticker.C {
+		stats := ctr.GetStats()
+
+		for metric, val := range stats {
+			switch v := val.(type) {
+			case int64:
+				currVal := &expvar.Int{}
+				currVal.Set(v)
+				conntrackExpvar.Set(metric, currVal)
+			case float64:
+				currVal := &expvar.Float{}
+				currVal.Set(v)
+				conntrackExpvar.Set(metric, currVal)
+			}
+		}
+	}
 }
 
 func (ctr *realConntracker) GetTranslationForConn(ip string, port uint16) *IPTranslation {
@@ -133,8 +163,8 @@ func (ctr *realConntracker) GetStats() map[string]interface{} {
 	ctr.Unlock()
 
 	m := map[string]interface{}{
-		"state_size":             size,
-		"short_term_buffer_size": stBufSize,
+		"state_size":             int64(size),
+		"short_term_buffer_size": int64(stBufSize),
 	}
 
 	if ctr.stats.gets != 0 {

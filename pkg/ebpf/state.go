@@ -3,14 +3,17 @@ package ebpf
 import (
 	"bytes"
 	"expvar"
+	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var _ NetworkState = &networkState{}
+var (
+	_           NetworkState = &networkState{}
+	probeExpvar *expvar.Map
+)
 
 const (
 	// DEBUGCLIENT is the ClientID for debugging
@@ -22,6 +25,10 @@ const (
 	defaultMaxClientStats = 75000
 	defaultClientExpiry   = 2 * time.Minute
 )
+
+func init() {
+	probeExpvar = expvar.NewMap("systemprobe")
+}
 
 // NetworkState takes care of handling the logic for:
 // - closed connections
@@ -99,16 +106,10 @@ func NewNetworkState(clientExpiry time.Duration, maxClosedConns, maxClientStats 
 		maxClientStats: maxClientStats,
 		buf:            &bytes.Buffer{},
 	}
-	ns.setupExpvars()
-	return ns
-}
 
-// setupExpvars exposes some metrics for tracer
-func (ns *networkState) setupExpvars() {
-	expvar.Publish("tracer.underflows", expvar.Func(func() interface{} { return atomic.LoadUint64(&ns.telemetry.underflows) }))
-	expvar.Publish("tracer.unordered_conns", expvar.Func(func() interface{} { return atomic.LoadUint64(&ns.telemetry.unorderedConns) }))
-	expvar.Publish("tracer.closed_conn_dropped", expvar.Func(func() interface{} { return atomic.LoadUint64(&ns.telemetry.closedConnDropped) }))
-	expvar.Publish("tracer.conn_dropped", expvar.Func(func() interface{} { return atomic.LoadUint64(&ns.telemetry.connDropped) }))
+	go ns.expvarStats()
+
+	return ns
 }
 
 func (ns *networkState) getClients() []string {
@@ -382,6 +383,24 @@ func (ns *networkState) RemoveConnections(keys []string) {
 			ns.telemetry.connDropped)
 	}
 	ns.telemetry = telemetry{}
+}
+
+func (ns *networkState) expvarStats() {
+	ticker := time.NewTicker(5 * time.Second)
+	for range ticker.C {
+		stats := map[string]uint64{
+			"underflows":          ns.telemetry.underflows,
+			"unordered_conns":     ns.telemetry.unorderedConns,
+			"closed_conn_dropped": ns.telemetry.closedConnDropped,
+			"conn_dropped":        ns.telemetry.connDropped,
+		}
+
+		for m, val := range stats {
+			currVal := &expvar.Int{}
+			currVal.Set(int64(val))
+			probeExpvar.Set(fmt.Sprintf("state.%s", m), currVal)
+		}
+	}
 }
 
 // GetStats returns a map of statistics about the current network state

@@ -114,11 +114,31 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not start polling bpf events: %s", err)
 	}
 
+	// run a http service for expvar endpoint
 	if config.ExpVarPort > 0 {
-		tr.setupExpvars(config.ExpVarPort)
+		go http.ListenAndServe(fmt.Sprintf("localhost:%d", config.ExpVarPort), nil)
 	}
+	go tr.expvarStats()
 
 	return tr, nil
+}
+
+func (t *Tracer) expvarStats() {
+	ticker := time.NewTicker(5 * time.Second)
+	for range ticker.C {
+		stats := map[string]uint64{
+			"lost":        atomic.LoadUint64(&t.perfLost),
+			"received":    atomic.LoadUint64(&t.perfReceived),
+			"skipped":     atomic.LoadUint64(&t.skippedConns),
+			"expired_tcp": atomic.LoadUint64(&t.expiredTCPConns),
+		}
+
+		for metric, val := range stats {
+			currVal := &expvar.Int{}
+			currVal.Set(int64(val))
+			probeExpvar.Set(fmt.Sprintf("network.%s", metric), currVal)
+		}
+	}
 }
 
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
@@ -170,16 +190,6 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 	}()
 
 	return pm, nil
-}
-
-// setupExpvars setups up debug http endpoint and exposes some metrics for tracer
-func (t *Tracer) setupExpvars(port int) {
-	go http.ListenAndServe(fmt.Sprintf("localhost:%d", port), nil)
-
-	expvar.Publish("tracer.perf_received", expvar.Func(func() interface{} { return atomic.LoadUint64(&t.perfReceived) }))
-	expvar.Publish("tracer.perf_lost", expvar.Func(func() interface{} { return atomic.LoadUint64(&t.perfLost) }))
-	expvar.Publish("tracer.skipped_conns", expvar.Func(func() interface{} { return atomic.LoadUint64(&t.skippedConns) }))
-	expvar.Publish("tracer.expired_tcp_conns", expvar.Func(func() interface{} { return atomic.LoadUint64(&t.expiredTCPConns) }))
 }
 
 // shouldSkipConnection returns whether or not the tracer should ignore a given connection:
