@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/dd-go/statsd"
 	"github.com/mailru/easyjson"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
