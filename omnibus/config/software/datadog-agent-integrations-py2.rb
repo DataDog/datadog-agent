@@ -92,155 +92,154 @@ build do
   end
 
   # Install the checks along with their dependencies
-  block do
-    #
-    # Prepare the build env, these dependencies are only needed to build and
-    # install the core integrations.
-    #
-    command "#{pip} install wheel==0.30.0"
-    command "#{pip} install pip-tools==2.0.2"
-    uninstall_buildtime_deps = ['six', 'click', 'first', 'pip-tools']
-    nix_build_env = {
-      "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
-      "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
-      "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
-      "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
-      "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
-    }
 
-    #
-    # Prepare the requirements file containing ALL the dependencies needed by
-    # any integration. This will provide the "static Python environment" of the Agent.
-    # We don't use the .in file provided by the base check directly because we
-    # want to filter out things before installing.
-    #
+  #
+  # Prepare the build env, these dependencies are only needed to build and
+  # install the core integrations.
+  #
+  command "#{pip} install wheel==0.30.0"
+  command "#{pip} install pip-tools==2.0.2"
+  uninstall_buildtime_deps = ['six', 'click', 'first', 'pip-tools']
+  nix_build_env = {
+    "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
+    "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
+    "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
+    "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
+    "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
+  }
+
+  #
+  # Prepare the requirements file containing ALL the dependencies needed by
+  # any integration. This will provide the "static Python environment" of the Agent.
+  # We don't use the .in file provided by the base check directly because we
+  # want to filter out things before installing.
+  #
+  if windows?
+    static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\#{agent_requirements_in}"
+    static_reqs_out_file = "#{windows_safe_path(project_dir)}\\#{filtered_agent_requirements_in}"
+  else
+    static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/#{agent_requirements_in}"
+    static_reqs_out_file = "#{project_dir}/#{filtered_agent_requirements_in}"
+  end
+
+  # Remove any blacklisted requirements from the static-environment req file
+  requirements = Array.new
+  File.open("#{static_reqs_in_file}", 'r+').readlines().each do |line|
+    blacklist_flag = false
+    blacklist_packages.each do |blacklist_regex|
+      re = Regexp.new(blacklist_regex).freeze
+      if re.match line
+        blacklist_flag = true
+      end
+    end
+
+    if !blacklist_flag
+      requirements.push(line)
+    end
+  end
+
+  # Render the filtered requirements file
+  erb source: "static_requirements.txt.erb",
+      dest: "#{static_reqs_out_file}",
+      mode: 0640,
+      vars: { requirements: requirements }
+
+  # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
+  # there's no need to refer to `pip`, the interpreter will pick the right script.
+  if windows?
+    command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_base"
+    command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_downloader --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\""
+    command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}"
+  else
+    command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
+    command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
+    command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
+  end
+
+  # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
+  uninstall_buildtime_deps.each do |dep|
     if windows?
-      static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\#{agent_requirements_in}"
-      static_reqs_out_file = "#{windows_safe_path(project_dir)}\\#{filtered_agent_requirements_in}"
+      command "#{python} -m pip uninstall -y #{dep}"
     else
-      static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/#{agent_requirements_in}"
-      static_reqs_out_file = "#{project_dir}/#{filtered_agent_requirements_in}"
+      command "#{pip} uninstall -y #{dep}"
+    end
+  end
+
+  #
+  # Install static-environment requirements that the Agent and all checks will use
+  #
+  if windows?
+    command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
+  else
+    command "#{pip} install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
+  end
+
+  #
+  # Install Core integrations
+  #
+
+  # Create a constraint file after installing all the core dependencies and before any integration
+  # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
+  command "#{pip} freeze > #{install_dir}/#{final_constraints_file}"
+
+  # Go through every integration package in `integrations-core`, build and install
+  Dir.glob("#{project_dir}/*").each do |check_dir|
+    check = check_dir.split('/').last
+
+    # do not install blacklisted integrations
+    next if !File.directory?("#{check_dir}") || blacklist_folders.include?(check)
+
+    # If there is no manifest file, then we should assume the folder does not
+    # contain a working check and move onto the next
+    manifest_file_path = "#{check_dir}/manifest.json"
+
+    # If there is no manifest file, then we should assume the folder does not
+    # contain a working check and move onto the next
+    File.exist?(manifest_file_path) || next
+
+    manifest = JSON.parse(File.read(manifest_file_path))
+    manifest['supported_os'].include?(os) || next
+
+    check_conf_dir = "#{conf_dir}/#{check}.d"
+
+    # For each conf file, if it already exists, that means the `datadog-agent` software def
+    # wrote it first. In that case, since the agent's confs take precedence, skip the conf
+
+    # Copy the check config to the conf directories
+    conf_file_example = "#{check_dir}/datadog_checks/#{check}/data/conf.yaml.example"
+    if File.exist? conf_file_example
+      mkdir check_conf_dir
+      copy conf_file_example, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.example"
     end
 
-    # Remove any blacklisted requirements from the static-environment req file
-    requirements = Array.new
-    File.open("#{static_reqs_in_file}", 'r+').readlines().each do |line|
-      blacklist_flag = false
-      blacklist_packages.each do |blacklist_regex|
-        re = Regexp.new(blacklist_regex).freeze
-        if re.match line
-          blacklist_flag = true
-        end
-      end
+    # Copy the default config, if it exists
+    conf_file_default = "#{check_dir}/datadog_checks/#{check}/data/conf.yaml.default"
+    if File.exist? conf_file_default
+      mkdir check_conf_dir
+      copy conf_file_default, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.default"
+    end
 
-      if !blacklist_flag
-        requirements.push(line)
+    # Copy the metric file, if it exists
+    metrics_yaml = "#{check_dir}/datadog_checks/#{check}/data/metrics.yaml"
+    if File.exist? metrics_yaml
+      mkdir check_conf_dir
+      copy metrics_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/metrics.yaml"
+    end
+
+    # We don't have auto_conf on windows yet
+    if os != 'windows'
+      auto_conf_yaml = "#{check_dir}/datadog_checks/#{check}/data/auto_conf.yaml"
+      if File.exist? auto_conf_yaml
+        mkdir check_conf_dir
+        copy auto_conf_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
       end
     end
 
-    # Render the filtered requirements file
-    erb source: "static_requirements.txt.erb",
-        dest: "#{static_reqs_out_file}",
-        mode: 0640,
-        vars: { requirements: requirements }
-
-    # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
-    # there's no need to refer to `pip`, the interpreter will pick the right script.
+    File.file?("#{check_dir}/setup.py") || next
     if windows?
-      command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_base"
-      command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_downloader --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\""
-      command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}"
+      command "#{python} -m pip install --no-deps #{windows_safe_path(project_dir)}\\#{check}"
     else
-      command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
-    end
-
-    # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
-    uninstall_buildtime_deps.each do |dep|
-      if windows?
-        command "#{python} -m pip uninstall -y #{dep}"
-      else
-        command "#{pip} uninstall -y #{dep}"
-      end
-    end
-
-    #
-    # Install static-environment requirements that the Agent and all checks will use
-    #
-    if windows?
-      command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
-    else
-      command "#{pip} install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
-    end
-
-    #
-    # Install Core integrations
-    #
-
-    # Create a constraint file after installing all the core dependencies and before any integration
-    # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
-    command "#{pip} freeze > #{install_dir}/#{final_constraints_file}"
-
-    # Go through every integration package in `integrations-core`, build and install
-    Dir.glob("#{project_dir}/*").each do |check_dir|
-      check = check_dir.split('/').last
-
-      # do not install blacklisted integrations
-      next if !File.directory?("#{check_dir}") || blacklist_folders.include?(check)
-
-      # If there is no manifest file, then we should assume the folder does not
-      # contain a working check and move onto the next
-      manifest_file_path = "#{check_dir}/manifest.json"
-
-      # If there is no manifest file, then we should assume the folder does not
-      # contain a working check and move onto the next
-      File.exist?(manifest_file_path) || next
-
-      manifest = JSON.parse(File.read(manifest_file_path))
-      manifest['supported_os'].include?(os) || next
-
-      check_conf_dir = "#{conf_dir}/#{check}.d"
-
-      # For each conf file, if it already exists, that means the `datadog-agent` software def
-      # wrote it first. In that case, since the agent's confs take precedence, skip the conf
-
-      # Copy the check config to the conf directories
-      conf_file_example = "#{check_dir}/datadog_checks/#{check}/data/conf.yaml.example"
-      if File.exist? conf_file_example
-        mkdir check_conf_dir
-        copy conf_file_example, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.example"
-      end
-
-      # Copy the default config, if it exists
-      conf_file_default = "#{check_dir}/datadog_checks/#{check}/data/conf.yaml.default"
-      if File.exist? conf_file_default
-        mkdir check_conf_dir
-        copy conf_file_default, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.default"
-      end
-
-      # Copy the metric file, if it exists
-      metrics_yaml = "#{check_dir}/datadog_checks/#{check}/data/metrics.yaml"
-      if File.exist? metrics_yaml
-        mkdir check_conf_dir
-        copy metrics_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/metrics.yaml"
-      end
-
-      # We don't have auto_conf on windows yet
-      if os != 'windows'
-        auto_conf_yaml = "#{check_dir}/datadog_checks/#{check}/data/auto_conf.yaml"
-        if File.exist? auto_conf_yaml
-          mkdir check_conf_dir
-          copy auto_conf_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
-        end
-      end
-
-      File.file?("#{check_dir}/setup.py") || next
-      if windows?
-        command "#{python} -m pip install --no-deps #{windows_safe_path(project_dir)}\\#{check}"
-      else
-        command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
-      end
+      command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
     end
   end
 
@@ -262,5 +261,4 @@ build do
   else
     patch :source => "create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml/reader.py"
   end
-
 end
