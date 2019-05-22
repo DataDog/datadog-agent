@@ -23,11 +23,10 @@ type Replacer struct {
 	ReplFunc func(b []byte) []byte
 }
 
-var apiKeyReplacer, uriPasswordReplacer, appKeyReplacer, passwordReplacer, tokenReplacer, snmpReplacer Replacer
+var apiKeyReplacer, uriPasswordReplacer, appKeyReplacer, passwordReplacer, tokenReplacer, snmpReplacer, certReplacer Replacer
 var commentRegex = regexp.MustCompile(`^\s*#.*$`)
 var blankRegex = regexp.MustCompile(`^\s*$`)
-
-var replacers []Replacer
+var singleLineReplacers, multiLineReplacers []Replacer
 
 func init() {
 	apiKeyReplacer := Replacer{
@@ -43,8 +42,8 @@ func init() {
 		Repl:  []byte(`$1$2:********@`),
 	}
 	passwordReplacer = Replacer{
-		Regex: matchYAMLKeyPart(`pass(word)?`),
-		Hints: []string{"pass"},
+		Regex: matchYAMLKeyPart(`(pass(word)?|pwd)`),
+		Hints: []string{"pass", "pwd"},
 		Repl:  []byte(`$1 ********`),
 	}
 	tokenReplacer = Replacer{
@@ -57,7 +56,12 @@ func init() {
 		Hints: []string{"community_string", "authKey", "privKey"},
 		Repl:  []byte(`$1 ********`),
 	}
-	replacers = []Replacer{apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
+	certReplacer = Replacer{
+		Regex: matchCert(),
+		Repl:  []byte(`********`),
+	}
+	singleLineReplacers = []Replacer{apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
+	multiLineReplacers = []Replacer{certReplacer}
 }
 
 func matchYAMLKeyPart(part string) *regexp.Regexp {
@@ -66,6 +70,17 @@ func matchYAMLKeyPart(part string) *regexp.Regexp {
 
 func matchYAMLKey(key string) *regexp.Regexp {
 	return regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key))
+}
+
+func matchCert() *regexp.Regexp {
+	/*
+	   Try to match as accurately as possible RFC 7468's ABNF
+	   Backreferences are not available in go, so we cannot verify
+	   here that the BEGIN label is the same as the END label.
+	*/
+	return regexp.MustCompile(
+		`-----BEGIN (?:.*)-----[A-Za-z0-9=\+\/\s]*-----END (?:.*)-----`,
+	)
 }
 
 // CredentialsCleanerFile scrubs credentials from file in path
@@ -85,15 +100,17 @@ func CredentialsCleanerBytes(file []byte) ([]byte, error) {
 }
 
 func credentialsCleaner(file io.Reader) ([]byte, error) {
-	var finalFile string
+	var cleanedFile []byte
 
 	scanner := bufio.NewScanner(file)
 
+	// First, we go through the file line by line, applying any
+	// single-line replacer that matches the line.
 	first := true
 	for scanner.Scan() {
 		b := scanner.Bytes()
 		if !commentRegex.Match(b) && !blankRegex.Match(b) && string(b) != "" {
-			for _, repl := range replacers {
+			for _, repl := range singleLineReplacers {
 				containsHint := false
 				for _, hint := range repl.Hints {
 					if strings.Contains(string(b), hint) {
@@ -110,10 +127,10 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 				}
 			}
 			if !first {
-				finalFile += "\n"
+				cleanedFile = append(cleanedFile, byte('\n'))
 			}
 
-			finalFile += string(b)
+			cleanedFile = append(cleanedFile, b...)
 			first = false
 		}
 	}
@@ -122,5 +139,14 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 		return nil, err
 	}
 
-	return []byte(finalFile), nil
+	// Then we apply multiline replacers on the cleaned file
+	for _, repl := range multiLineReplacers {
+		if repl.ReplFunc != nil {
+			cleanedFile = repl.Regex.ReplaceAllFunc(cleanedFile, repl.ReplFunc)
+		} else {
+			cleanedFile = repl.Regex.ReplaceAll(cleanedFile, repl.Repl)
+		}
+	}
+
+	return cleanedFile, nil
 }
