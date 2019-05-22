@@ -1,0 +1,43 @@
+From f1e261fa80161d3149ecbac0cb13fa14961969f6 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Thomas=20Herv=C3=A9?= <thomas.herve@datadoghq.com>
+Date: Fri, 17 May 2019 13:47:57 +0200
+Subject: [PATCH] Create NON_PRINTABLE regex at runtime
+
+---
+ reader.py | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/reader.py b/reader.py
+index b2f10b0..807c760 100644
+--- a/reader.py
++++ b/reader.py
+@@ -71,6 +71,7 @@ class Reader(object):
+         self.index = 0
+         self.line = 0
+         self.column = 0
++        self._non_printable = None
+         if isinstance(stream, unicode):
+             self.name = "<unicode string>"
+             self.check_printable(stream)
+@@ -136,10 +137,15 @@ class Reader(object):
+                 self.encoding = 'utf-8'
+         self.update(1)
+
+-    if has_ucs4:
+-        NON_PRINTABLE = re.compile(u'[^\x09\x0A\x0D\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFFFD\U00010000-\U0010ffff]')
+-    else:
+-        NON_PRINTABLE = re.compile(u'[^\x09\x0A\x0D\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFFFD]')
++    @property
++    def NON_PRINTABLE(self):
++        if self._non_printable is None:
++            if has_ucs4:
++                self._non_printable = re.compile(u'[^\x09\x0A\x0D\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFFFD\U00010000-\U0010ffff]')
++            else:
++                self._non_printable = re.compile(u'[^\x09\x0A\x0D\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFFFD]')
++        return self._non_printable
++
+     def check_printable(self, data):
+         match = self.NON_PRINTABLE.search(data)
+         if match:
+--
+2.19.0.windows.1
