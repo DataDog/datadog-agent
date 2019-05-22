@@ -1002,7 +1002,7 @@ dev_master_quay:
     - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} quay.io/datawhale/dogstatsd-dev:master
 
 # deploys nightlies to agent-dev
-dev_master_quay:
+dev_master_nightly:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_nightly
   variables:
