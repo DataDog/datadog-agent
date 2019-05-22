@@ -2,6 +2,38 @@
 Release Notes
 =============
 
+.. _Release Notes_6.11.2:
+
+6.11.2
+======
+
+.. _Release Notes_6.11.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-05-22
+
+- Please refer to the `6.11.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6110>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.11.1 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.11.1>`_ for the list of changes on the Process Agent.
+
+
+.. _Release Notes_6.11.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add option `cf_os_hostname_aliasing` to send the OS hostname as an alias when using the BOSH agent on Cloud Foundry.
+
+
+.. _Release Notes_6.11.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes problem in which Windows Agent wouldn't install on non-English machines due to assumption that "Performance Monitor Users" didn't need to be localized.
+- Windows Installer is now more resilient to missing domain controller.
+
 .. _Release Notes_6.11.1:
 
 6.11.1
