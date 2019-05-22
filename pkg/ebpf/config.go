@@ -44,6 +44,9 @@ type Config struct {
 	// ConntrackShortTermBufferSize is the maximum number of short term conntracked connections that will
 	// held in memory at once
 	ConntrackShortTermBufferSize int
+
+	// ExpVarPort specifies a port to run golang's expvar debug endpoint. expvar will not run if not specified
+	ExpVarPort int
 }
 
 // NewDefaultConfig enables traffic collection for all connection types

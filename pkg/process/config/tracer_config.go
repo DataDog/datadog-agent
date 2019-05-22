@@ -41,6 +41,7 @@ func TracerConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 	tracerConfig.BPFDebug = cfg.NetworkBPFDebug
 	tracerConfig.EnableConntrack = cfg.EnableConntrack
 	tracerConfig.ConntrackShortTermBufferSize = cfg.ConntrackShortTermBufferSize
+	tracerConfig.ExpVarPort = cfg.NetworkTracerExpVarPort
 
 	return tracerConfig
 }
