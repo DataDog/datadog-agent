@@ -4,21 +4,21 @@ package net
 
 import "github.com/DataDog/datadog-agent/pkg/ebpf"
 
-// RemoteNetTracerUtil is only implemented on linux
-type RemoteNetTracerUtil struct{}
+// RemoteSysProbeUtil is only implemented on linux
+type RemoteSysProbeUtil struct{}
 
-// SetNetworkTracerSocketPath is only implemented on linux
-func SetNetworkTracerSocketPath(_ string) {
+// SetSystemProbeSocketPath is only implemented on linux
+func SetSystemProbeSocketPath(_ string) {
 	// no-op
 }
 
-// GetRemoteNetworkTracerUtil is only implemented on linux
-func GetRemoteNetworkTracerUtil() (*RemoteNetTracerUtil, error) {
-	return &RemoteNetTracerUtil{}, nil
+// GetRemoteSystemProbeUtil is only implemented on linux
+func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
+	return &RemoteSysProbeUtil{}, nil
 }
 
 // GetConnections is only implemented on linux
-func (r *RemoteNetTracerUtil) GetConnections(clientID string) ([]ebpf.ConnectionStats, error) {
+func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]ebpf.ConnectionStats, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 

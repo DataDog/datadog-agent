@@ -16,7 +16,7 @@ env DD_LOG_TO_CONSOLE=false
 setuid dd-agent
 
 script
-  exec <%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/datadog.yaml --network-config=<%= etc_dir %>/network-tracer.yaml --pid=<%= install_dir %>/run/process-agent.pid
+  exec <%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/datadog.yaml --sysprobe-config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/process-agent.pid
 end script
 
 post-stop script

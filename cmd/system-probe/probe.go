@@ -21,9 +21,9 @@ import (
 // ErrTracerUnsupported is the unsupported error prefix, for error-class matching from callers
 var ErrTracerUnsupported = errors.New("tracer unsupported")
 
-// NetworkTracer maintains and starts the underlying network connection collection process as well as
+// SystemProbe maintains and starts the underlying network connection collection process as well as
 // exposes these connections over HTTP (via UDS)
-type NetworkTracer struct {
+type SystemProbe struct {
 	cfg *config.AgentConfig
 
 	supported bool
@@ -31,11 +31,11 @@ type NetworkTracer struct {
 	conn      net.Conn
 }
 
-// CreateNetworkTracer creates a NetworkTracer as well as it's UDS socket after confirming that the OS supports BPF-based
-// network tracing
-func CreateNetworkTracer(cfg *config.AgentConfig) (*NetworkTracer, error) {
+// CreateSystemProbe creates a SystemProbe as well as it's UDS socket after confirming that the OS supports BPF-based
+// system probe
+func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 	var err error
-	nt := &NetworkTracer{}
+	nt := &SystemProbe{}
 
 	// Checking whether the current OS + kernel version is supported by the tracer
 	if nt.supported, err = ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); err != nil {
@@ -44,7 +44,7 @@ func CreateNetworkTracer(cfg *config.AgentConfig) (*NetworkTracer, error) {
 
 	log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
 
-	t, err := ebpf.NewTracer(config.TracerConfigFromConfig(cfg))
+	t, err := ebpf.NewTracer(config.SysProbeConfigFromConfig(cfg))
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func CreateNetworkTracer(cfg *config.AgentConfig) (*NetworkTracer, error) {
 }
 
 // Run makes available the HTTP endpoint for network collection
-func (nt *NetworkTracer) Run() {
+func (nt *SystemProbe) Run() {
 	httpMux := http.DefaultServeMux
 
 	// If profiling is disabled, then we should overwrite handlers for the pprof endpoints
@@ -157,8 +157,8 @@ func writeAsJSON(w http.ResponseWriter, data interface{}) {
 	w.Write(buf)
 }
 
-// Close will stop all network tracing activities
-func (nt *NetworkTracer) Close() {
+// Close will stop all system probe activities
+func (nt *SystemProbe) Close() {
 	nt.conn.Stop()
 	nt.tracer.Stop()
 }

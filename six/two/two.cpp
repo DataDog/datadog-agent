@@ -199,22 +199,6 @@ error:
     return NULL;
 }
 
-SixPyObject *Two::getCheckClass(const char *module)
-{
-    PyObject *obj_module = NULL;
-    PyObject *klass = NULL;
-
-done:
-    Py_XDECREF(obj_module);
-    Py_XDECREF(klass);
-
-    if (klass == NULL) {
-        return NULL;
-    }
-
-    return reinterpret_cast<SixPyObject *>(klass);
-}
-
 bool Two::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyClass)
 {
     PyObject *obj_module = NULL;
@@ -477,7 +461,8 @@ const char *Two::runCheck(SixPyObject *check)
 
     // result will be eventually returned as a copy and the corresponding Python
     // string decref'ed, caller will be responsible for memory deallocation.
-    char *ret, *ret_copy = NULL;
+    char *ret = NULL;
+    char *ret_copy = NULL;
     char run[] = "run";
     PyObject *result = NULL;
 
@@ -504,30 +489,48 @@ done:
 
 char **Two::getCheckWarnings(SixPyObject *check)
 {
-    if (check == NULL)
-        return NULL;
-    PyObject *py_check = reinterpret_cast<PyObject *>(check);
-
-    char func_name[] = "get_warnings";
-    PyObject *warns_list = PyObject_CallMethod(py_check, func_name, NULL);
-    if (warns_list == NULL) {
-        setError("error invoking 'get_warnings' method: " + _fetchPythonError());
+    if (check == NULL) {
         return NULL;
     }
 
-    Py_ssize_t numWarnings = PyList_Size(warns_list);
-    char **warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+    char **warnings = NULL;
+
+    char func_name[] = "get_warnings";
+    Py_ssize_t numWarnings;
+
+    PyObject *warns_list = PyObject_CallMethod(py_check, func_name, NULL);
+    if (warns_list == NULL) {
+        setError("error invoking 'get_warnings' method: " + _fetchPythonError());
+        goto done;
+    }
+
+    numWarnings = PyList_Size(warns_list);
+    // docs are not clear but `PyList_Size` can actually fail and in case it would
+    // return -1, see https://github.com/python/cpython/blob/2.7/Objects/listobject.c#L170
+    if (numWarnings == -1) {
+        setError("error computing 'len(warnings)': " + _fetchPythonError());
+        goto done;
+    }
+
+    warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
     if (!warnings) {
-        Py_XDECREF(warns_list);
-        setError("could not allocate memory to get warnings: ");
-        return NULL;
+        setError("could not allocate memory to store warnings");
+        goto done;
     }
     warnings[numWarnings] = NULL;
 
     for (Py_ssize_t idx = 0; idx < numWarnings; idx++) {
         PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
+        if (warn == NULL) {
+            setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
+            warnings = NULL;
+            goto done;
+        }
         warnings[idx] = as_string(warn);
     }
+
+done:
     Py_XDECREF(warns_list);
     return warnings;
 }
@@ -558,9 +561,33 @@ std::string Two::_fetchPythonError()
             if (format_exception != NULL) {
                 PyObject *fmt_exc = PyObject_CallFunctionObjArgs(format_exception, ptype, pvalue, ptraceback, NULL);
                 if (fmt_exc != NULL) {
+                    Py_ssize_t len = PyList_Size(fmt_exc);
+                    // docs are not clear but `PyList_Size` can actually fail and in case it would
+                    // return -1, see https://github.com/python/cpython/blob/2.7/Objects/listobject.c#L170
+                    if (len == -1) {
+                        // don't fetch the actual error or the caller might think it was the root cause,
+                        // while it's not. Setting `ret_val` empty will make the function return "unknown error".
+                        // PyErr_Clear() will be called before returning.
+                        ret_val = "";
+                        Py_XDECREF(traceback);
+                        Py_XDECREF(format_exception);
+                        Py_XDECREF(fmt_exc);
+                        goto done;
+                    }
+
                     // "format_exception" returns a list of strings (one per line)
-                    for (int i = 0; i < PyList_Size(fmt_exc); i++) {
-                        ret_val += PyString_AsString(PyList_GetItem(fmt_exc, i));
+                    for (int i = 0; i < len; i++) {
+                        PyObject *s = PyList_GetItem(fmt_exc, i); // borrowed ref
+                        if (s == NULL) {
+                            // unlikely to happen but same as above, do not propagate this error upstream
+                            // to avoid confusing the caller. PyErr_Clear() will be called before returning.
+                            ret_val = "";
+                            Py_XDECREF(traceback);
+                            Py_XDECREF(format_exception);
+                            Py_XDECREF(fmt_exc);
+                            goto done;
+                        }
+                        ret_val += PyString_AsString(s);
                     }
                 }
                 Py_XDECREF(fmt_exc);
@@ -588,12 +615,15 @@ std::string Two::_fetchPythonError()
         }
     }
 
+done:
     if (ret_val == "") {
         ret_val = "unknown error";
     }
 
-    // clean up and return the string
+    // something might've gone wrong while fetching the error, ensure
+    // the error state is clean before returning
     PyErr_Clear();
+
     Py_XDECREF(ptype);
     Py_XDECREF(pvalue);
     Py_XDECREF(ptraceback);

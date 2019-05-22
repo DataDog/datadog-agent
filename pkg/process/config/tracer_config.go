@@ -12,33 +12,33 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-// TracerConfigFromConfig returns a valid tracer-bpf config sourced from our agent config
-func TracerConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
+// SysProbeConfigFromConfig returns a valid tracer-bpf config sourced from our agent config
+func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 	tracerConfig := ebpf.NewDefaultConfig()
 
 	if !isIPv6EnabledOnHost() {
 		tracerConfig.CollectIPv6Conns = false
-		log.Info("network tracer IPv6 tracing disabled by system")
+		log.Info("system probe IPv6 tracing disabled by system")
 	} else if cfg.DisableIPv6Tracing {
 		tracerConfig.CollectIPv6Conns = false
-		log.Info("network tracer IPv6 tracing disabled by configuration")
+		log.Info("system probe IPv6 tracing disabled by configuration")
 	}
 
 	if cfg.DisableUDPTracing {
 		tracerConfig.CollectUDPConns = false
-		log.Info("network tracer UDP tracing disabled by configuration")
+		log.Info("system probe UDP tracing disabled by configuration")
 	}
 
 	if cfg.DisableTCPTracing {
 		tracerConfig.CollectTCPConns = false
-		log.Info("network tracer TCP tracing disabled by configuration")
+		log.Info("system probe TCP tracing disabled by configuration")
 	}
 
 	tracerConfig.CollectLocalDNS = cfg.CollectLocalDNS
 
 	tracerConfig.MaxTrackedConnections = cfg.MaxTrackedConnections
 	tracerConfig.ProcRoot = getProcRoot()
-	tracerConfig.BPFDebug = cfg.NetworkBPFDebug
+	tracerConfig.BPFDebug = cfg.SysProbeBPFDebug
 	tracerConfig.EnableConntrack = cfg.EnableConntrack
 	tracerConfig.ConntrackShortTermBufferSize = cfg.ConntrackShortTermBufferSize
 	tracerConfig.ExpVarPort = cfg.SystemProbeExpVarPort

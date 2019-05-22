@@ -32,7 +32,7 @@ var (
 )
 
 func TestTCPSendAndReceive(t *testing.T) {
-	// Enable BPF-based network tracer
+	// Enable BPF-based system probe
 	tr, err := NewTracer(NewDefaultConfig())
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func TestTCPSendAndReceive(t *testing.T) {
 }
 
 func TestPreexistingConnectionDirection(t *testing.T) {
-	// Start the client and server before we enable the network tracer to test that the tracer picks
+	// Start the client and server before we enable the system probe to test that the tracer picks
 	// up the pre-existing connection
 	doneChan := make(chan struct{})
 
@@ -115,7 +115,7 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Enable BPF-based network tracer
+	// Enable BPF-based system probe
 	tr, err := NewTracer(NewDefaultConfig())
 	require.NoError(t, err)
 	defer tr.Stop()
@@ -222,7 +222,7 @@ func TestTCPRemoveEntries(t *testing.T) {
 }
 
 func TestTCPRetransmit(t *testing.T) {
-	// Enable BPF-based network tracer
+	// Enable BPF-based system probe
 	tr, err := NewTracer(NewDefaultConfig())
 	if err != nil {
 		t.Fatal(err)
@@ -275,7 +275,7 @@ func TestTCPRetransmit(t *testing.T) {
 }
 
 func TestTCPShortlived(t *testing.T) {
-	// Enable BPF-based network tracer
+	// Enable BPF-based system probe
 	tr, err := NewTracer(NewDefaultConfig())
 	if err != nil {
 		t.Fatal(err)
@@ -395,7 +395,7 @@ func TestTCPOverIPv6(t *testing.T) {
 }
 
 func TestTCPCollectionDisabled(t *testing.T) {
-	// Enable BPF-based network tracer with TCP disabled
+	// Enable BPF-based system probe with TCP disabled
 	config := NewDefaultConfig()
 	config.CollectTCPConns = false
 
@@ -438,7 +438,7 @@ func TestTCPCollectionDisabled(t *testing.T) {
 }
 
 func TestUDPSendAndReceive(t *testing.T) {
-	// Enable BPF-based network tracer
+	// Enable BPF-based system probe
 	tr, err := NewTracer(NewDefaultConfig())
 	if err != nil {
 		t.Fatal(err)
@@ -481,7 +481,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 }
 
 func TestUDPDisabled(t *testing.T) {
-	// Enable BPF-based network tracer with UDP disabled
+	// Enable BPF-based system probe with UDP disabled
 	config := NewDefaultConfig()
 	config.CollectUDPConns = false
 
@@ -523,7 +523,7 @@ func TestUDPDisabled(t *testing.T) {
 }
 
 func TestLocalDNSCollectionDisabled(t *testing.T) {
-	// Enable BPF-based network tracer with DNS disabled (by default)
+	// Enable BPF-based system probe with DNS disabled (by default)
 	config := NewDefaultConfig()
 
 	tr, err := NewTracer(config)
@@ -551,7 +551,7 @@ func TestLocalDNSCollectionDisabled(t *testing.T) {
 }
 
 func TestLocalDNSCollectionEnabled(t *testing.T) {
-	// Enable BPF-based network tracer with DNS enabled
+	// Enable BPF-based system probe with DNS enabled
 	config := NewDefaultConfig()
 	config.CollectLocalDNS = true
 
@@ -589,7 +589,7 @@ func isLocalDNS(c ConnectionStats) bool {
 }
 
 func TestTooSmallBPFMap(t *testing.T) {
-	// Enable BPF-based network tracer with BPF maps size = 1
+	// Enable BPF-based system probe with BPF maps size = 1
 	config := NewDefaultConfig()
 	config.MaxTrackedConnections = 1
 
@@ -681,7 +681,7 @@ func runBenchtests(b *testing.B, payloads []int, prefix string, f func(p int) fu
 func BenchmarkUDPEcho(b *testing.B) {
 	runBenchtests(b, payloadSizesUDP, "", benchEchoUDP)
 
-	// Enable BPF-based network tracer
+	// Enable BPF-based system probe
 	t, err := NewTracer(NewDefaultConfig())
 	if err != nil {
 		b.Fatal(err)
@@ -730,7 +730,7 @@ func benchEchoUDP(size int) func(b *testing.B) {
 func BenchmarkTCPEcho(b *testing.B) {
 	runBenchtests(b, payloadSizesTCP, "", benchEchoTCP)
 
-	// Enable BPF-based network tracer
+	// Enable BPF-based system probe
 	t, err := NewTracer(NewDefaultConfig())
 	if err != nil {
 		b.Fatal(err)
@@ -743,7 +743,7 @@ func BenchmarkTCPEcho(b *testing.B) {
 func BenchmarkTCPSend(b *testing.B) {
 	runBenchtests(b, payloadSizesTCP, "", benchSendTCP)
 
-	// Enable BPF-based network tracer
+	// Enable BPF-based system probe
 	t, err := NewTracer(NewDefaultConfig())
 	if err != nil {
 		b.Fatal(err)

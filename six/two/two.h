@@ -22,7 +22,6 @@ public:
     bool addPythonPath(const char *path);
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
-    SixPyObject *getCheckClass(const char *module);
 
     bool getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyClass);
     bool getAttrString(SixPyObject *obj, const char *attributeName, char *&value) const;

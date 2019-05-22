@@ -24,10 +24,10 @@ var (
 	// This mirrors the configuration for the infrastructure agent.
 	defaultProxyPort = 3128
 
-	// defaultNetworkTracerSocketPath is the default unix socket path to be used for connecting to the network tracer
-	defaultNetworkTracerSocketPath = "/opt/datadog-agent/run/nettracer.sock"
-	// defaultNetworkLogFilePath is the default logging file for the network tracer
-	defaultNetworkLogFilePath = "/var/log/datadog/network-tracer.log"
+	// defaultSystemProbeSocketPath is the default unix socket path to be used for connecting to the system probe
+	defaultSystemProbeSocketPath = "/opt/datadog-agent/run/sysprobe.sock"
+	// defaultSystemProbeFilePath is the default logging file for the system probe
+	defaultSystemProbeFilePath = "/var/log/datadog/system-probe.log"
 
 	defaultConntrackShortTermBufferSize = 10000
 
@@ -72,18 +72,18 @@ type AgentConfig struct {
 	StatsdPort         int
 	ProcessExpVarPort  int
 
-	// Network collection configuration
-	EnableNetworkTracing         bool
-	EnableLocalNetworkTracer     bool // To have the network tracer embedded in the process-agent
+	// System probe collection configuration
+	EnableSystemProbe            bool
+	EnableLocalSystemProbe       bool // To have the system probe embedded in the process-agent
 	EnableDebugProfiling         bool
 	DisableTCPTracing            bool
 	DisableUDPTracing            bool
 	DisableIPv6Tracing           bool
 	CollectLocalDNS              bool
-	NetworkTracerSocketPath      string
-	NetworkTracerLogFile         string
+	SystemProbeSocketPath        string
+	SystemProbeLogFile           string
 	MaxTrackedConnections        uint
-	NetworkBPFDebug              bool
+	SysProbeBPFDebug             bool
 	ExcludedBPFLinuxVersions     []string
 	EnableConntrack              bool
 	ConntrackShortTermBufferSize int
@@ -168,14 +168,14 @@ func NewDefaultAgentConfig() *AgentConfig {
 		StatsdHost: "127.0.0.1",
 		StatsdPort: 8125,
 
-		// Network collection configuration
-		EnableNetworkTracing:         false,
-		EnableLocalNetworkTracer:     false,
+		// System probe collection configuration
+		EnableSystemProbe:            false,
+		EnableLocalSystemProbe:       false,
 		DisableTCPTracing:            false,
 		DisableUDPTracing:            false,
 		DisableIPv6Tracing:           false,
-		NetworkTracerSocketPath:      defaultNetworkTracerSocketPath,
-		NetworkTracerLogFile:         defaultNetworkLogFilePath,
+		SystemProbeSocketPath:        defaultSystemProbeSocketPath,
+		SystemProbeLogFile:           defaultSystemProbeFilePath,
 		MaxTrackedConnections:        maxMaxTrackedConnections,
 		EnableConntrack:              true,
 		ConntrackShortTermBufferSize: defaultConntrackShortTermBufferSize,
@@ -250,9 +250,9 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		return nil, err
 	}
 
-	// For network tracing, there is an additional config file that is shared with the network-tracer
+	// For system probe, there is an additional config file that is shared with the system-probe
 	loadConfigIfExists(netYamlPath)
-	if err = cfg.loadNetworkYamlConfig(netYamlPath); err != nil {
+	if err = cfg.loadSysProbeYamlConfig(netYamlPath); err != nil {
 		return nil, err
 	}
 
@@ -299,27 +299,27 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	return cfg, nil
 }
 
-// NewNetworkAgentConfig returns a network-tracer specific AgentConfig using a configuration file. It can be nil
+// NewSystemProbeConfig returns a system-probe specific AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
-func NewNetworkAgentConfig(loggerName config.LoggerName, yamlPath string) (*AgentConfig, error) {
+func NewSystemProbeConfig(loggerName config.LoggerName, yamlPath string) (*AgentConfig, error) {
 	cfg := NewDefaultAgentConfig()
 
-	// When the network-tracer is enabled in a separate container, we need a way to also disable the network-tracer
+	// When the system-probe is enabled in a separate container, we need a way to also disable the system-probe
 	// packaged in the main agent container (without disabling network collection on the process-agent).
 	//
 	// If this environment flag is set, it'll sure it will not start
-	if ok, _ := isAffirmative(os.Getenv("DD_NETWORK_TRACING_EXTERNAL")); ok {
-		cfg.EnableNetworkTracing = false
+	if ok, _ := isAffirmative(os.Getenv("DD_SYSTEM_PROBE_EXTERNAL")); ok {
+		cfg.EnableSystemProbe = false
 		return cfg, nil
 	}
 
 	loadConfigIfExists(yamlPath)
-	if err := cfg.loadNetworkYamlConfig(yamlPath); err != nil {
+	if err := cfg.loadSysProbeYamlConfig(yamlPath); err != nil {
 		return nil, err
 	}
 
-	// (Re)configure the logging from our configuration, with the network tracer log file + config options
-	if err := setupLogger(loggerName, cfg.NetworkTracerLogFile, cfg); err != nil {
+	// (Re)configure the logging from our configuration, with the system probe log file + config options
+	if err := setupLogger(loggerName, cfg.SystemProbeLogFile, cfg); err != nil {
 		log.Errorf("failed to setup configured logger: %s", err)
 		return nil, err
 	}
@@ -336,14 +336,14 @@ func loadEnvVariables() {
 		"DD_PROCESS_AGENT_URL":              "process_config.process_dd_url",
 
 		// Note: this feature is in development and should not be used in production environments
-		"DD_NETWORK_TRACING_ENABLED":  "network_tracer_config.enabled",
-		"DD_NETTRACER_SOCKET":         "network_tracer_config.nettracer_socket",
-		"DD_DISABLE_TCP_TRACING":      "network_tracer_config.disable_tcp",
-		"DD_DISABLE_UDP_TRACING":      "network_tracer_config.disable_udp",
-		"DD_DISABLE_IPV6_TRACING":     "network_tracer_config.disable_ipv6",
-		"DD_COLLECT_LOCAL_DNS":        "network_tracer_config.collect_local_dns",
-		"DD_USE_LOCAL_NETWORK_TRACER": "network_tracer_config.use_local_network_tracer",
-		"DD_ENABLE_PROFILING":         "network_tracer_config.debug_profiling_enabled",
+		"DD_SYSTEM_PROBE_ENABLED":   "system_probe_config.enabled",
+		"DD_SYSPROBE_SOCKET":        "system_probe_config.sysprobe_socket",
+		"DD_DISABLE_TCP_TRACING":    "system_probe_config.disable_tcp",
+		"DD_DISABLE_UDP_TRACING":    "system_probe_config.disable_udp",
+		"DD_DISABLE_IPV6_TRACING":   "system_probe_config.disable_ipv6",
+		"DD_COLLECT_LOCAL_DNS":      "system_probe_config.collect_local_dns",
+		"DD_USE_LOCAL_SYSTEM_PROBE": "system_probe_config.use_local_system_probe",
+		"DD_ENABLE_PROFILING":       "system_probe_config.debug_profiling_enabled",
 
 		"DD_DOGSTATSD_PORT": "dogstatsd_port",
 		"DD_BIND_HOST":      "bind_host",

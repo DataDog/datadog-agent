@@ -526,33 +526,33 @@ api_key:
   #   - '*pass*d*'
 
 {{ end -}}
-{{- if .NetworkTracer }}
+{{- if .SystemProbe }}
 
 ##################################
-## Network Tracer Configuration ##
+## System Probe Configuration ##
 ##################################
 
-## @param network_tracer_config - custom object - optional
+## @param system_probe_config - custom object - optional
 ## Beta Agent
-## Enter specific configurations for your Network Tracer data collection.
+## Enter specific configurations for your System Probe data collection.
 ## Uncomment this parameter and the one below to enable them.
 #
-# network_tracer_config:
+# system_probe_config:
 
   ## @param enabled - boolean - optional - default: false
-  ## Set to true to enable the Network Tracer.
+  ## Set to true to enable the System Probe.
   #
   # enabled: false
 
-  ## @param nettracer_socket - string - optional - default: /opt/datadog-agent/run/nettracer.sock
-  ## The full path to the location of the unix socket where network traces are accessed.
+  ## @param sysprobe_socket - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
+  ## The full path to the location of the unix socket where system probes are accessed.
   #
-  # nettracer_socket: /opt/datadog-agent/run/nettracer.sock
+  # sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock
 
-  ## @param log_file - string - optional - default: /var/log/datadog/network-tracer.log
-  ## The full path to the file where network-tracer logs are written.
+  ## @param log_file - string - optional - default: /var/log/datadog/system-probe.log
+  ## The full path to the file where system-probe logs are written.
   #
-  # log_file: /var/log/datadog/network-tracer.log
+  # log_file: /var/log/datadog/system-probe.log
 
 {{ end -}}
 {{- if .Dogstatsd }}
