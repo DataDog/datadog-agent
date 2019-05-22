@@ -51,7 +51,7 @@ type telemetry struct {
 	unorderedConns    int
 	closedConnDropped int
 	connDropped       int
-	resets            int
+	statsResets       int
 }
 
 type stats struct {
@@ -277,10 +277,10 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 	return conns
 }
 
-// checkStatsUnderflow checks if we are going to have an underflow when computing last stats and if it's the case it resets the stats to avoid it
-func (ns *networkState) checkStatsUnderflow(key string, st *stats, c *ConnectionStats) {
+// handleStatsUnderflow checks if we are going to have an underflow when computing last stats and if it's the case it resets the stats to avoid it
+func (ns *networkState) handleStatsUnderflow(key string, st *stats, c *ConnectionStats) {
 	if c.MonotonicSentBytes < st.totalSent || c.MonotonicRecvBytes < st.totalRecv || c.MonotonicRetransmits < st.totalRetransmits {
-		ns.telemetry.resets++
+		ns.telemetry.statsResets++
 		log.Debugf("Stats reset triggered for key:%s, stats:%+v, connection:%+v", BeautifyKey(key), *st, *c)
 		st.totalSent = 0
 		st.totalRecv = 0
@@ -293,7 +293,7 @@ func (ns *networkState) checkStatsUnderflow(key string, st *stats, c *Connection
 func (ns *networkState) updateConnWithStatWithActiveConn(client *client, key string, active ConnectionStats, closed *ConnectionStats) {
 	if st, ok := client.stats[key]; ok {
 		// Check for underflows
-		ns.checkStatsUnderflow(key, st, closed)
+		ns.handleStatsUnderflow(key, st, closed)
 
 		closed.LastSentBytes = closed.MonotonicSentBytes - st.totalSent
 		closed.LastRecvBytes = closed.MonotonicRecvBytes - st.totalRecv
@@ -313,7 +313,7 @@ func (ns *networkState) updateConnWithStatWithActiveConn(client *client, key str
 func (ns *networkState) updateConnWithStats(client *client, key string, c *ConnectionStats) {
 	if st, ok := client.stats[key]; ok {
 		// Check for underflows
-		ns.checkStatsUnderflow(key, st, c)
+		ns.handleStatsUnderflow(key, st, c)
 
 		c.LastSentBytes = c.MonotonicSentBytes - st.totalSent
 		c.LastRecvBytes = c.MonotonicRecvBytes - st.totalRecv
@@ -370,10 +370,10 @@ func (ns *networkState) RemoveConnections(keys []string) {
 	}
 
 	// Flush log line if any metric is non zero
-	if ns.telemetry.unorderedConns > 0 || ns.telemetry.resets > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 {
-		log.Warnf("state telemetry: [%d unordered conns] [%d stats resets] [%d connections dropped due to stats] [%d closed connections dropped]",
+	if ns.telemetry.unorderedConns > 0 || ns.telemetry.statsResets > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 {
+		log.Warnf("state telemetry: [%d unordered conns] [%d stats stats_resets] [%d connections dropped due to stats] [%d closed connections dropped]",
 			ns.telemetry.unorderedConns,
-			ns.telemetry.resets,
+			ns.telemetry.statsResets,
 			ns.telemetry.closedConnDropped,
 			ns.telemetry.connDropped)
 	}
@@ -398,7 +398,7 @@ func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipp
 	return map[string]interface{}{
 		"clients": clientInfo,
 		"telemetry": map[string]int{
-			"resets":                       ns.telemetry.resets,
+			"stats_resets":                 ns.telemetry.statsResets,
 			"unordered_conns":              ns.telemetry.unorderedConns,
 			"closed_conn_dropped":          ns.telemetry.closedConnDropped,
 			"conn_dropped":                 ns.telemetry.connDropped,

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -74,16 +75,27 @@ func (nt *NetworkTracer) Run() {
 
 	httpMux.HandleFunc("/status", func(w http.ResponseWriter, req *http.Request) {})
 
+	var runCounter uint64
 	httpMux.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {
 		now := time.Now()
-		cs, err := nt.tracer.GetActiveConnections(getClientID(req))
+		id := getClientID(req)
+		cs, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
 			w.WriteHeader(500)
 			return
 		}
 		writeConnections(w, cs)
-		log.Infof("Got request on /connections: retrieved %d connections in %+v", len(cs.Conns), time.Now().Sub(now))
+
+		count := atomic.AddUint64(&runCounter, 1)
+		args := []interface{}{id, count, len(cs.Conns), time.Now().Sub(now)}
+		msg := "Got request on /connections?client_id=%s (count: %d): retrieved %d connections in %s"
+		switch {
+		case count <= 5, count%20 == 0:
+			log.Infof(msg, args...)
+		default:
+			log.Debugf(msg, args...)
+		}
 	})
 
 	httpMux.HandleFunc("/debug/net_maps", func(w http.ResponseWriter, req *http.Request) {

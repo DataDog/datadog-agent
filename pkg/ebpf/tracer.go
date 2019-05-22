@@ -311,7 +311,7 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 
 	t.state.RemoveConnections(keys)
 
-	log.Infof("Removed %d entries in %+v", len(keys), time.Now().Sub(now))
+	log.Debugf("Removed %d entries in %s", len(keys), time.Now().Sub(now))
 }
 
 // getTCPStats reads tcp related stats for the given ConnTuple
