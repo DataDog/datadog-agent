@@ -1001,6 +1001,17 @@ dev_master_quay:
     - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx quay.io/datawhale/agent-dev:master-jmx
     - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} quay.io/datawhale/dogstatsd-dev:master
 
+# deploys nightlies to agent-dev
+dev_master_quay:
+  <<: *docker_tag_job_definition
+  <<: *run_when_triggered_on_nightly
+  variables:
+    <<: *docker_hub_variables
+  script:
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-jmx
+    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}
+
 #
 # Check Deploy
 #
