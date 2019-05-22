@@ -12,11 +12,7 @@ Release Notes
 Prelude
 -------
 
-Release on: 2019-05-22
-
-- Please refer to the `6.11.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6110>`_ for the list of changes on the Core Checks.
-- Please refer to the `6.11.1 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.11.1>`_ for the list of changes on the Process Agent.
-
+Release on: 2019-05-23
 
 .. _Release Notes_6.11.2_Enhancement Notes:
 
