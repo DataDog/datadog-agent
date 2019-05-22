@@ -45,7 +45,7 @@ type Config struct {
 	// held in memory at once
 	ConntrackShortTermBufferSize int
 
-	// ExpVarPort specifies a port to run golang's expvar debug endpoint. expvar will not run if not specified
+	// ExpVarPort specifies a port to run golang's expvar debug endpoint
 	ExpVarPort int
 }
 
