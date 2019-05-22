@@ -1,9 +1,9 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides: datadog-agent-network
-# Short-Description: Start and stop datadog network-tracer agent
-# Description: Datadog Network Tracer Agent
+# Provides: datadog-agent-sysprobe
+# Short-Description: Start and stop datadog system-probe agent
+# Description: Datadog System Probe Agent
 # Required-Start: $remote_fs
 # Required-Stop: $remote_fs
 # Default-Start: 2 3 4 5
@@ -14,11 +14,11 @@
 
 ETC_DIR="/etc/datadog-agent"
 INSTALL_DIR="/opt/datadog-agent"
-AGENTPATH="$INSTALL_DIR/embedded/bin/network-tracer"
-PIDFILE="$INSTALL_DIR/run/network-tracer.pid"
-AGENT_ARGS="--config=$ETC_DIR/network-tracer.yaml --pid=$PIDFILE"
-NAME="datadog-agent-network"
-DESC="Datadog Network Tracer Agent"
+AGENTPATH="$INSTALL_DIR/embedded/bin/system-probe"
+PIDFILE="$INSTALL_DIR/run/system-probe.pid"
+AGENT_ARGS="--config=$ETC_DIR/system-probe.yaml --pid=$PIDFILE"
+NAME="datadog-agent-sysprobe"
+DESC="Datadog System Probe Agent"
 
 
 

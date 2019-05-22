@@ -14,7 +14,7 @@
 /cmd/agent/app/integrations*.go         @DataDog/prodsec @DataDog/agent-integrations @DataDog/agent-core
 /cmd/cluster-agent/                     @DataDog/container-integrations
 /cmd/process-agent/                     @DataDog/burrito
-/cmd/network-tracer/                    @DataDog/burrito
+/cmd/system-probe/                      @DataDog/burrito
 
 /docs/                                  @DataDog/baklava @DataDog/agent-core
 

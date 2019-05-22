@@ -94,24 +94,24 @@ echo "
 log_level: "debug"
 log_to_console: true
 
-network_tracer_config:
+system_probe_config:
   enabled: true
-  log_file: "/home/vagrant/network-tracer.log"
+  log_file: "/home/vagrant/system-probe.log"
   bpf_debug: true
-" | sudo tee /etc/datadog-agent/network-tracer.yaml
+" | sudo tee /etc/datadog-agent/system-probe.yaml
 EOD
 
 echo "Adding some aliases and login help"
 cat <<EOD | vagrant ssh
 echo 'alias goforit="cd /home/vagrant/go/src/github.com/DataDog/datadog-agent"' >> ~/.bashrc
-echo 'alias curl_agent="curl -s --unix-socket /opt/datadog-agent/run/nettracer.sock"'
+echo 'alias curl_agent="curl -s --unix-socket /opt/datadog-agent/run/sysprobe.sock"'
 echo 'echo "----------------------------------------------
 Hi and welcome in the ebpf dev env, quick help:
 - \`goforit\` to go to the datadog-agent root dir
 - \`invoke -e deps\` to retrieve the required dependencies
-- \`invoke -e network-tracer.build\` to build a network-tracer (will be in ./bin/network-tracer/network-tracer)
-- \`invoke -e network-tracer.nettop\` to run nettop (a simple eBPF connection logger)
-- \`curl_agent\` http://unix/debug/stats to query endpoints on the network-tracer
+- \`invoke -e system-probe.build\` to build a system-probe (will be in ./bin/system-probe/system-probe)
+- \`invoke -e system-probe.nettop\` to run nettop (a simple eBPF connection logger)
+- \`curl_agent\` http://unix/debug/stats to query endpoints on the system-probe
 ----------------------------------------------"' >> ~/.profile
 EOD
 

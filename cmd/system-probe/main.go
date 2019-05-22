@@ -37,11 +37,11 @@ var (
 	BuildDate string
 )
 
-const loggerName = ddconfig.LoggerName("NETWORK")
+const loggerName = ddconfig.LoggerName("SYS-PROBE")
 
 func main() {
 	// Parse flags
-	flag.StringVar(&opts.configPath, "config", "/etc/datadog-agent/network-tracer.yaml", "Path to network-tracer config formatted as YAML")
+	flag.StringVar(&opts.configPath, "config", "/etc/datadog-agent/system-probe.yaml", "Path to system-probe config formatted as YAML")
 	flag.StringVar(&opts.pidFilePath, "pid", "", "Path to set pidfile for process")
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 	flag.Parse()
@@ -74,28 +74,28 @@ func main() {
 	}
 
 	// Parsing YAML config files
-	cfg, err := config.NewNetworkAgentConfig(loggerName, opts.configPath)
+	cfg, err := config.NewSystemProbeConfig(loggerName, opts.configPath)
 	if err != nil {
 		log.Criticalf("Failed to create agent config: %s", err)
 		os.Exit(1)
 	}
 
-	// Exit if network tracer is disabled
-	if !cfg.EnableNetworkTracing {
-		log.Info("network tracer not enabled. exiting.")
+	// Exit if system probe is disabled
+	if !cfg.EnableSystemProbe {
+		log.Info("system probe not enabled. exiting.")
 		gracefulExit()
 	}
 
-	nettracer, err := CreateNetworkTracer(cfg)
+	sysprobe, err := CreateSystemProbe(cfg)
 	if err != nil && strings.HasPrefix(err.Error(), ErrTracerUnsupported.Error()) {
 		// If tracer is unsupported by this operating system, then exit gracefully
 		log.Infof("%s, exiting.", err)
 		gracefulExit()
 	} else if err != nil {
-		log.Criticalf("failed to create network tracer: %s", err)
+		log.Criticalf("failed to create system probe: %s", err)
 		os.Exit(1)
 	}
-	defer nettracer.Close()
+	defer sysprobe.Close()
 
 	platform, err := util.GetPlatform()
 	if err != nil {
@@ -103,9 +103,9 @@ func main() {
 	} else {
 		log.Infof("running on platform: %s", platform)
 	}
-	log.Infof("running network-tracer with version: %s", versionString(", "))
-	go nettracer.Run()
-	log.Infof("network tracer started")
+	log.Infof("running system-probe with version: %s", versionString(", "))
+	go sysprobe.Run()
+	log.Infof("system probe started")
 
 	// Handles signals, which tells us whether we should exit.
 	e := make(chan bool)

@@ -22,13 +22,13 @@ import (
 const loggerName ddconfig.LoggerName = "PROCESS"
 
 var opts struct {
-	configPath    string
-	netConfigPath string
-	pidfilePath   string
-	debug         bool
-	version       bool
-	check         string
-	info          bool
+	configPath         string
+	sysProbeConfigPath string
+	pidfilePath        string
+	debug              bool
+	version            bool
+	check              string
+	info               bool
 }
 
 // version info sourced from build flags
@@ -100,7 +100,7 @@ func runAgent(exit chan bool) {
 		}()
 	}
 
-	cfg, err := config.NewAgentConfig(loggerName, opts.configPath, opts.netConfigPath)
+	cfg, err := config.NewAgentConfig(loggerName, opts.configPath, opts.sysProbeConfigPath)
 	if err != nil {
 		log.Criticalf("Error parsing config: %s", err)
 		os.Exit(1)
@@ -207,7 +207,7 @@ func printResults(cfg *config.AgentConfig, ch checks.Check) error {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	if cfg.EnableLocalNetworkTracer && ch.Name() == checks.Connections.Name() {
+	if cfg.EnableLocalSystemProbe && ch.Name() == checks.Connections.Name() {
 		fmt.Printf("Waiting 5 seconds to allow for active connections to transmit data\n")
 		time.Sleep(5 * time.Second)
 	} else {
