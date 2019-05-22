@@ -118,7 +118,7 @@ dependency 'datadog-agent-prepare'
 # Datadog agent
 dependency 'datadog-agent'
 
-python_runtimes = ENV['PYTHON_RUNTIMES'].split(',')
+python_runtimes = ENV['PYTHON_RUNTIMES'].nil? ? ['2'] : ENV['PYTHON_RUNTIMES'].split(',')
 
 # Additional software
 if windows?
