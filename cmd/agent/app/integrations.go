@@ -37,10 +37,10 @@ const (
 	// Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
 	versionSpecifiersPattern = "([><=!]{1,2})([0-9.]*)"
 	// e.g. Name: datadog-postgres
-	wheelPackageName = "Name: (\\S)"
-	yamlFilePattern  = "[\\w_]+\\.yaml.*"
-	downloaderModule = "datadog_checks.downloader"
-	disclaimer       = "For your security, only use this to install wheels containing an Agent integration " +
+	wheelPackageNamePattern = "Name: (\\S+)"
+	yamlFilePattern         = "[\\w_]+\\.yaml.*"
+	downloaderModule        = "datadog_checks.downloader"
+	disclaimer              = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
 	versionScript = `
 try:
@@ -516,14 +516,14 @@ func parseWheelPackageName(wheelPath string) (string, error) {
 			for scanner.Scan() {
 				line := scanner.Text()
 
-				exp, err := regexp.Compile(wheelPackageName)
+				exp, err := regexp.Compile(wheelPackageNamePattern)
 				if err != nil {
 					return "", fmt.Errorf("regexp internal error: %v", err)
 				}
 
 				matches := exp.FindStringSubmatch(line)
 				if matches == nil {
-					return "", fmt.Errorf("could not find a package name for %s", wheelPath)
+					continue
 				}
 
 				return matches[1], nil
@@ -534,7 +534,7 @@ func parseWheelPackageName(wheelPath string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("could not find a METADATA file for %s", wheelPath)
+	return "", fmt.Errorf("package name not found in wheel: %s", wheelPath)
 }
 
 func validateBaseDependency(wheelPath string, baseVersion *semver.Version) (bool, error) {

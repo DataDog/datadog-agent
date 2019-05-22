@@ -142,3 +142,35 @@ func TestNormalizePackageName(t *testing.T) {
 	assert.Equal(t, normalizePackageName("datadog-checks_base"), "datadog-checks-base")
 	assert.Equal(t, normalizePackageName("datadog_checks_downloader"), "datadog-checks-downloader")
 }
+
+func TestParseWheelPackageNameValidCases(t *testing.T) {
+	tests := map[string]struct {
+		wheelFileName string
+		expectedName  string
+	}{
+		"name as first line":  {"datadog_cisco_aci_name_first_line_valid.whl", "datadog-cisco-aci-1"},
+		"name as second line": {"datadog_cisco_aci_name_second_line_valid.whl", "datadog-cisco-aci-2"},
+	}
+	for name, test := range tests {
+		t.Logf("Running test %s", name)
+		name, err := parseWheelPackageName("./testdata/integrations/" + test.wheelFileName)
+		assert.Equal(t, test.expectedName, name)
+		assert.Equal(t, nil, err)
+	}
+}
+
+func TestParseWheelPackageNameErrorCases(t *testing.T) {
+	tests := map[string]struct {
+		wheelFileName string
+		expectedErr   string
+	}{
+		"wheel file not found":            {"datadog_cisco_aci_does_not_exist.whl", "no such file or directory"},
+		"package name not found in wheel": {"datadog_cisco_aci_no_name_invalid.whl", "package name not found in wheel"},
+	}
+	for name, test := range tests {
+		t.Logf("Running test %s", name)
+		name, err := parseWheelPackageName("./testdata/integrations/" + test.wheelFileName)
+		assert.Equal(t, "", name)
+		assert.Contains(t, err.Error(), test.expectedErr)
+	}
+}
