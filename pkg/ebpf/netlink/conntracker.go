@@ -125,6 +125,8 @@ func (ctr *realConntracker) expvarStats() {
 				currVal := &expvar.Float{}
 				currVal.Set(v)
 				conntrackExpvar.Set(metric, currVal)
+			default:
+				log.Errorf("unknown value type for stats: %s, value: %v", metric, v)
 			}
 		}
 	}
