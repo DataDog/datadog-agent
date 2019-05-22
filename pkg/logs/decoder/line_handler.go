@@ -75,8 +75,8 @@ func (h *Handler) RunWithTimer(timeout time.Duration, process func([]byte), send
 	}
 }
 
-// NewLineHandler returns appropriate LineHandler according to the source.
-func NewLineHandler(outputChan chan *Output, parser parser.Parser, source *config.LogSource, contentLenLimit int) LineHandlerRunner {
+// NewLineHandlerRunner returns appropriate LineHandler according to the source.
+func NewLineHandlerRunner(outputChan chan *Output, parser parser.Parser, source *config.LogSource, contentLenLimit int) LineHandlerRunner {
 	var lineHandlerRunner LineHandlerRunner
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
@@ -210,14 +210,11 @@ func (h *MultiLineHandler) process(line []byte) {
 		// send content from lineBuffer
 		h.sendContent()
 	}
+	line = unwrappedLine
 	if !h.lineBuffer.IsEmpty() {
-		// unwrap all the following lines
-		line = unwrappedLine
 		// add '\n' to content in lineBuffer
 		h.lineBuffer.AddEndOfLine()
 	}
-
-	line = unwrappedLine
 
 	// NOTES: this check takes into account the length of "...TRUNCATED..."
 	// which in some scenario is outputting an ending message with

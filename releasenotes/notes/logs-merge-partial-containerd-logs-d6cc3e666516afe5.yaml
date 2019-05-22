@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Merge the logs cut by containerd due to its length limitation.
+fixes:
+  - |
+    logs input decoder truncation unexpected behaviour.

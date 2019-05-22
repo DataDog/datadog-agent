@@ -57,7 +57,7 @@ type Decoder struct {
 func InitializeDecoder(source *config.LogSource, parser parser.Parser, contentLenLimit int) *Decoder {
 	inputChan := make(chan *Input)
 	outputChan := make(chan *Output)
-	return New(inputChan, outputChan, NewLineHandler(outputChan, parser, source, contentLenLimit), contentLenLimit)
+	return New(inputChan, outputChan, NewLineHandlerRunner(outputChan, parser, source, contentLenLimit), contentLenLimit)
 }
 
 // NewDecoderWithLineHandlerRunner returns a initialized decoder by passing specified LineHandlerRunner

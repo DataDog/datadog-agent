@@ -62,7 +62,7 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 	var flushTimeout = decoder.DefaultFlushTimeout
 	if source.GetSourceType() == config.KubernetesSourceType {
 		var outputChan = make(chan *decoder.Output)
-		var lineHandlerRunner = decoder.NewLineHandler(outputChan, kubernetes.Parser, source, contentLenLimit)
+		var lineHandlerRunner = decoder.NewLineHandlerRunner(outputChan, kubernetes.Parser, source, contentLenLimit)
 		var lineHandlerWrapper = kubernetes.NewLineHandler(lineHandlerRunner, flushTimeout, contentLenLimit)
 		dc = decoder.NewDecoderWithLineHandlerRunner(outputChan, lineHandlerWrapper, contentLenLimit)
 	} else {
