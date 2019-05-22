@@ -8,5 +8,6 @@
 ---
 deprecations:
   - |
-    On Windows, the metrics `system.swap.*` are being deprecated.  They have
-    been replaced by the more accurate `system.mem.*` metrics.
+    On Windows, the metrics `system.swap.*` are being deprecated and will be
+    removed in a future major version of the Agent.  They have been replaced
+    by the more accurate `system.mem.*` metrics.
