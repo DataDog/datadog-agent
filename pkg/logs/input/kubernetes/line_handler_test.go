@@ -175,25 +175,25 @@ func TestLineHandler_ContentLineTooLong(t *testing.T) {
 	wrapper.Stop()
 }
 
-func TestLineHandler_ExceedContentLengthLimit(t *testing.T) {
-	var outputChan = make(chan *decoder.Output, 3)
+func TestLineHandler_TimeoutSendPartialMessage(t *testing.T) {
+	var outputChan = make(chan *decoder.Output)
 	var lineHandlerRunner = decoder.NewMultiLineHandler(outputChan, regexp.MustCompile("[0-9]+\\. "), 10*time.Microsecond, Parser, 22)
 	var wrapper = NewLineHandler(lineHandlerRunner, 10*time.Microsecond, 22)
 	wrapper.Start()
 
 	wrapper.Handle([]byte("2019-05-15T13:34:26.011123506Z stdout P 1. message cut "))
 	wrapper.Handle([]byte("2019-05-15T13:34:26.011123507Z stdout P by "))
-	wrapper.Handle([]byte("2019-05-15T13:34:26.011123508Z stdout F application"))
+	time.Sleep(1 * time.Second)
+	wrapper.Handle([]byte("2019-05-15T13:34:26.011123508Z stdout F kubernetes "))
 	var output *decoder.Output
-	output = <-outputChan
-	assert.Equal(t, "1. message cut by appl...TRUNCATED...", string(output.Content))
 
 	output = <-outputChan
-	assert.Equal(t, "...TRUNCATED...ication...TRUNCATED...", string(output.Content))
+	assert.Equal(t, "2019-05-15T13:34:26.011123507Z", output.Timestamp)
+	assert.Equal(t, "1. message cut by", string(output.Content))
 
 	output = <-outputChan
 	assert.Equal(t, "2019-05-15T13:34:26.011123508Z", output.Timestamp)
-	assert.Equal(t, "...TRUNCATED...", string(output.Content))
+	assert.Equal(t, "kubernetes", string(output.Content))
 	wrapper.Stop()
 }
 
