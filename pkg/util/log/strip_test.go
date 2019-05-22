@@ -200,6 +200,12 @@ func TestConfigPassword(t *testing.T) {
 	assertClean(t,
 		`pwd: p@ssw0r`,
 		`pwd: ********`)
+	assertClean(t,
+		`cert_key_password: p@ssw0r`,
+		`cert_key_password: ********`)
+	assertClean(t,
+		`cert_key_password: 🔑 🔒 🔐 🔓`,
+		`cert_key_password: ********`)
 }
 
 func TestSNMPConfig(t *testing.T) {
