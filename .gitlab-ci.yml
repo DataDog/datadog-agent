@@ -1004,7 +1004,6 @@ dev_master_quay:
 # deploys nightlies to agent-dev
 dev_master_nightly:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_nightly
   variables:
     <<: *docker_hub_variables
   script:
