@@ -8,9 +8,8 @@ require 'pathname'
 
 name 'datadog-agent'
 
-python_runtimes = ENV['PYTHON_RUNTIMES'].nil? ? ['2'] : ENV['PYTHON_RUNTIMES'].split(',')
-dependency "python2" if python_runtimes.include? "2"
-dependency "python3" if python_runtimes.include? "3"
+dependency "python2" if with_python_runtime? "2"
+dependency "python3" if with_python_runtime? "3"
 
 license "Apache-2.0"
 license_file "../LICENSE"

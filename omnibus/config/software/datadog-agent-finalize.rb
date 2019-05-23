@@ -95,8 +95,7 @@ build do
             command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print >> #{install_dir}/embedded/.py_compiled_files.txt"
 
             # Setup pip aliases: `/opt/datadog-agent/embedded/bin/pip` will default to `pip2`
-            python_runtimes = ENV['PYTHON_RUNTIMES'].nil? ? ['2'] : ENV['PYTHON_RUNTIMES'].split(',')
-            if python_runtimes.include? "2"
+            if with_python_runtime? "2"
                 delete "#{install_dir}/embedded/bin/pip"
                 link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
             end
