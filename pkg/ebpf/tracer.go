@@ -123,7 +123,7 @@ func (t *Tracer) expvarStats() {
 	for ; true; <-ticker.C {
 		stats := map[string]uint64{
 			"lost":        atomic.LoadUint64(&t.perfLost),
-			"received":    atomic.LoadUint64(&t.perfReceived),
+			"closed_conns":    atomic.LoadUint64(&t.perfReceived),
 			"skipped":     atomic.LoadUint64(&t.skippedConns),
 			"expired_tcp": atomic.LoadUint64(&t.expiredTCPConns),
 		}
