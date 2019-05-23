@@ -974,8 +974,8 @@ func TestStatsResetOnUnderflow(t *testing.T) {
 		Pid:                123,
 		Type:               TCP,
 		Family:             AFINET,
-		Source:             V4AddressFromString("127.0.0.1"),
-		Dest:               V4AddressFromString("127.0.0.1"),
+		Source:             util.AddressFromString("127.0.0.1"),
+		Dest:               util.AddressFromString("127.0.0.1"),
 		MonotonicSentBytes: 3,
 	}
 
@@ -1010,8 +1010,8 @@ func TestDoubleCloseOnTwoClients(t *testing.T) {
 		Pid:                123,
 		Type:               TCP,
 		Family:             AFINET,
-		Source:             V4AddressFromString("127.0.0.1"),
-		Dest:               V4AddressFromString("127.0.0.1"),
+		Source:             util.AddressFromString("127.0.0.1"),
+		Dest:               util.AddressFromString("127.0.0.1"),
 		MonotonicSentBytes: 3,
 		LastSentBytes:      3,
 	}
