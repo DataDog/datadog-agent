@@ -158,7 +158,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				skip := atomic.SwapUint64(&t.skippedConns, 0)
 				tcpExpired := atomic.SwapUint64(&t.expiredTCPConns, 0)
 				if lost > 0 {
-					log.Errorf("closed connection polling: %d received, %d lost, %d skipped, %d expired TCP", recv, lost, skip, tcpExpired)
+					log.Warnf("closed connection polling: %d received, %d lost, %d skipped, %d expired TCP", recv, lost, skip, tcpExpired)
 				}
 			}
 		}

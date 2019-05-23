@@ -77,7 +77,7 @@ func (nt *SystemProbe) Run() {
 
 	var runCounter uint64
 	httpMux.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {
-		now := time.Now()
+		start := time.Now()
 		id := getClientID(req)
 		cs, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
@@ -88,14 +88,7 @@ func (nt *SystemProbe) Run() {
 		writeConnections(w, cs)
 
 		count := atomic.AddUint64(&runCounter, 1)
-		args := []interface{}{id, count, len(cs.Conns), time.Now().Sub(now)}
-		msg := "Got request on /connections?client_id=%s (count: %d): retrieved %d connections in %s"
-		switch {
-		case count <= 5, count%20 == 0:
-			log.Infof(msg, args...)
-		default:
-			log.Debugf(msg, args...)
-		}
+		logRequests(id, count, len(cs.Conns), start)
 	})
 
 	httpMux.HandleFunc("/debug/net_maps", func(w http.ResponseWriter, req *http.Request) {
@@ -132,6 +125,17 @@ func (nt *SystemProbe) Run() {
 	})
 
 	http.Serve(nt.conn.GetListener(), httpMux)
+}
+
+func logRequests(client string, count uint64, connectionsCount int, start time.Time) {
+	args := []interface{}{client, count, connectionsCount, time.Now().Sub(start)}
+	msg := "Got request on /connections?client_id=%s (count: %d): retrieved %d connections in %s"
+	switch {
+	case count <= 5, count%20 == 0:
+		log.Infof(msg, args...)
+	default:
+		log.Debugf(msg, args...)
+	}
 }
 
 func getClientID(req *http.Request) string {
