@@ -64,15 +64,12 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 
 // Run makes available the HTTP endpoint for network collection
 func (nt *SystemProbe) Run() {
-	httpMux := http.DefaultServeMux
-
-	// If profiling is disabled, then we should overwrite handlers for the pprof endpoints
-	// that were registered in init():
-	// https://github.com/golang/go/blob/5bd88b0/src/net/http/pprof/pprof.go#L72-L78
-	// We can only do this by creating a new HTTP Mux that does not have these endpoints handled
-	if !nt.cfg.EnableDebugProfiling {
-		httpMux = http.NewServeMux()
+	// if a debug port is specified, we expose the default handler to that port
+	if nt.cfg.SystemProbeDebugPort > 0 {
+		go http.ListenAndServe(fmt.Sprintf("localhost:%d", nt.cfg.SystemProbeDebugPort), http.DefaultServeMux)
 	}
+
+	httpMux := http.NewServeMux()
 
 	httpMux.HandleFunc("/status", func(w http.ResponseWriter, req *http.Request) {})
 
@@ -131,11 +128,6 @@ func (nt *SystemProbe) Run() {
 			statsd.Client.Gauge("datadog.system_probe.agent", 1, []string{"version:" + Version}, 1)
 		}
 	}()
-
-	// if a debug port is specified, we expose our expvar to that port
-	if nt.cfg.SystemProbeExpVarPort > 0 {
-		go http.ListenAndServe(fmt.Sprintf("localhost:%d", nt.cfg.SystemProbeExpVarPort), nil)
-	}
 
 	http.Serve(nt.conn.GetListener(), httpMux)
 }

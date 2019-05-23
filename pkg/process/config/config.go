@@ -75,7 +75,6 @@ type AgentConfig struct {
 	// System probe collection configuration
 	EnableSystemProbe            bool
 	EnableLocalSystemProbe       bool // To have the system probe embedded in the process-agent
-	EnableDebugProfiling         bool
 	DisableTCPTracing            bool
 	DisableUDPTracing            bool
 	DisableIPv6Tracing           bool
@@ -87,7 +86,7 @@ type AgentConfig struct {
 	ExcludedBPFLinuxVersions     []string
 	EnableConntrack              bool
 	ConntrackShortTermBufferSize int
-	SystemProbeExpVarPort        int
+	SystemProbeDebugPort         int
 
 	// Check config
 	EnabledChecks  []string

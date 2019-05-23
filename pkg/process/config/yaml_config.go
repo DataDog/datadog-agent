@@ -38,9 +38,6 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	a.CollectLocalDNS = config.Datadog.GetBool(key(spNS, "collect_local_dns"))
 
-	// Whether agent should expose profiling endpoints over the unix socket
-	a.EnableDebugProfiling = config.Datadog.GetBool(key(spNS, "debug_profiling_enabled"))
-
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
 		a.EnabledChecks = append(a.EnabledChecks, "connections")
 		a.EnableSystemProbe = true
@@ -89,8 +86,9 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	a.LogLevel = config.Datadog.GetString("log_level")
 	a.StatsdPort = config.Datadog.GetInt("dogstatsd_port")
 
-	if expvarPort := config.Datadog.GetInt(key(spNS, "expvar_port")); expvarPort > 0 {
-		a.SystemProbeExpVarPort = expvarPort
+	// The tcp port that agent should expose expvar and pprof endpoint to
+	if debugPort := config.Datadog.GetInt(key(spNS, "debug_port")); debugPort > 0 {
+		a.SystemProbeDebugPort = debugPort
 	}
 
 	return nil

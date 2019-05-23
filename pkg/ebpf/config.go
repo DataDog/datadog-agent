@@ -45,8 +45,8 @@ type Config struct {
 	// held in memory at once
 	ConntrackShortTermBufferSize int
 
-	// ExpVarPort specifies a port to run golang's expvar debug endpoint
-	ExpVarPort int
+	// DebugPort specifies a port to run golang's expvar and pprof debug endpoint
+	DebugPort int
 }
 
 // NewDefaultConfig enables traffic collection for all connection types
