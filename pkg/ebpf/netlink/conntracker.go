@@ -158,7 +158,7 @@ func (ctr *realConntracker) ClearShortLived() {
 }
 
 func (ctr *realConntracker) GetStats() map[string]interface{} {
-	// only a few stats are are locked
+	// only a few stats are locked
 	ctr.Lock()
 	size := len(ctr.state)
 	stBufSize := len(ctr.shortLivedBuffer)

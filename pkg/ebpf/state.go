@@ -389,12 +389,14 @@ func (ns *networkState) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
 	// starts running the body immediately instead waiting for the first tick
 	for ; true; <-ticker.C {
+		ns.Lock()
 		stats := map[string]uint64{
 			"underflows":          ns.telemetry.underflows,
 			"unordered_conns":     ns.telemetry.unorderedConns,
 			"closed_conn_dropped": ns.telemetry.closedConnDropped,
 			"conn_dropped":        ns.telemetry.connDropped,
 		}
+		ns.Unlock()
 
 		for m, val := range stats {
 			currVal := &expvar.Int{}
