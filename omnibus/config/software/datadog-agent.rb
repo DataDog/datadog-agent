@@ -8,8 +8,8 @@ require 'pathname'
 
 name 'datadog-agent'
 
-dependency "python2"
-dependency "python3"
+dependency "python2" if with_python_runtime? "2"
+dependency "python3" if with_python_runtime? "3"
 
 license "Apache-2.0"
 license_file "../LICENSE"

@@ -120,14 +120,22 @@ dependency 'datadog-agent'
 
 # Additional software
 if windows?
-  dependency 'cacerts_py2'
-  dependency 'cacerts_py3'
+  dependency 'cacerts_py2' if with_python_runtime? "2"
+  dependency 'cacerts_py3' if with_python_runtime? "3"
 else
   dependency 'cacerts'
 end
-dependency 'datadog-a7'
-dependency 'datadog-agent-integrations-py2'
-dependency 'datadog-agent-integrations-py3'
+
+if with_python_runtime? "2"
+  dependency 'datadog-a7-py2'
+  dependency 'datadog-agent-integrations-py2'
+end
+
+if with_python_runtime? "3"
+  dependency 'datadog-a7-py3'
+  dependency 'datadog-agent-integrations-py3'
+end
+
 if osx?
   dependency 'datadog-agent-mac-app'
 end
