@@ -5,7 +5,6 @@ package netlink
 import (
 	"bytes"
 	"context"
-	"expvar"
 	"fmt"
 	"net"
 	"sync"
@@ -17,14 +16,6 @@ import (
 
 	ct "github.com/florianl/go-conntrack"
 )
-
-var (
-	conntrackExpvar *expvar.Map
-)
-
-func init() {
-	conntrackExpvar = expvar.NewMap("conntrack")
-}
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
@@ -108,19 +99,6 @@ func NewConntracker(procRoot string, stbSize int) (Conntracker, error) {
 	log.Infof("initialized conntrack")
 
 	return ctr, nil
-}
-
-func (ctr *realConntracker) expvarStats() {
-	ticker := time.NewTicker(5 * time.Second)
-	// starts running the body immediately instead waiting for the first tick
-	for ; true; <-ticker.C {
-		stats := ctr.GetStats()
-		for metric, val := range stats {
-			currVal := &expvar.Int{}
-			currVal.Set(val)
-			conntrackExpvar.Set(metric, currVal)
-		}
-	}
 }
 
 func (ctr *realConntracker) GetTranslationForConn(ip util.Address, port uint16) *IPTranslation {
@@ -243,9 +221,6 @@ func (ctr *realConntracker) unregister(c ct.Conn) int {
 }
 
 func (ctr *realConntracker) run() {
-	// only starts updating expvar when conntracker runs
-	go ctr.expvarStats()
-
 	for range ctr.compactTicker.C {
 		ctr.compact()
 	}

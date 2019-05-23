@@ -2,8 +2,6 @@ package ebpf
 
 import (
 	"bytes"
-	"expvar"
-	"fmt"
 	"sync"
 	"time"
 
@@ -11,8 +9,7 @@ import (
 )
 
 var (
-	_           NetworkState = &networkState{}
-	probeExpvar *expvar.Map
+	_ NetworkState = &networkState{}
 )
 
 const (
@@ -25,10 +22,6 @@ const (
 	defaultMaxClientStats = 75000
 	defaultClientExpiry   = 2 * time.Minute
 )
-
-func init() {
-	probeExpvar = expvar.NewMap("systemprobe")
-}
 
 // NetworkState takes care of handling the logic for:
 // - closed connections
@@ -50,17 +43,17 @@ type NetworkState interface {
 	RemoveConnections(keys []string)
 
 	// GetStats returns a map of statistics about the current network state
-	GetStats(closedPollLost, closedPollReceived, tracerSkippedCount, expiredTCP uint64) map[string]interface{}
+	GetStats(closedPollLost, closedPollReceived, tracerSkippedCount, expiredTCP int64) map[string]interface{}
 
 	// DebugNetworkState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
 }
 
 type telemetry struct {
-	unorderedConns    uint64
-	closedConnDropped uint64
-	connDropped       uint64
-	statsResets       uint64
+	unorderedConns    int64
+	closedConnDropped int64
+	connDropped       int64
+	statsResets       int64
 }
 
 type stats struct {
@@ -98,7 +91,7 @@ func NewDefaultNetworkState() NetworkState {
 
 // NewNetworkState creates a new network state
 func NewNetworkState(clientExpiry time.Duration, maxClosedConns, maxClientStats int) NetworkState {
-	ns := &networkState{
+	return &networkState{
 		clients:        map[string]*client{},
 		telemetry:      telemetry{},
 		clientExpiry:   clientExpiry,
@@ -106,10 +99,6 @@ func NewNetworkState(clientExpiry time.Duration, maxClosedConns, maxClientStats 
 		maxClientStats: maxClientStats,
 		buf:            &bytes.Buffer{},
 	}
-
-	go ns.expvarStats()
-
-	return ns
 }
 
 func (ns *networkState) getClients() []string {
@@ -394,29 +383,8 @@ func (ns *networkState) RemoveConnections(keys []string) {
 	ns.telemetry = telemetry{}
 }
 
-func (ns *networkState) expvarStats() {
-	ticker := time.NewTicker(5 * time.Second)
-	// starts running the body immediately instead waiting for the first tick
-	for ; true; <-ticker.C {
-		ns.Lock()
-		stats := map[string]uint64{
-			"stats_resets":        ns.telemetry.statsResets,
-			"unordered_conns":     ns.telemetry.unorderedConns,
-			"closed_conn_dropped": ns.telemetry.closedConnDropped,
-			"conn_dropped":        ns.telemetry.connDropped,
-		}
-		ns.Unlock()
-
-		for m, val := range stats {
-			currVal := &expvar.Int{}
-			currVal.Set(int64(val))
-			probeExpvar.Set(fmt.Sprintf("state.%s", m), currVal)
-		}
-	}
-}
-
 // GetStats returns a map of statistics about the current network state
-func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipped, expiredTCP uint64) map[string]interface{} {
+func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipped, expiredTCP int64) map[string]interface{} {
 	ns.Lock()
 	defer ns.Unlock()
 
@@ -431,7 +399,7 @@ func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipp
 
 	return map[string]interface{}{
 		"clients": clientInfo,
-		"telemetry": map[string]uint64{
+		"telemetry": map[string]int64{
 			"stats_resets":                 ns.telemetry.statsResets,
 			"unordered_conns":              ns.telemetry.unorderedConns,
 			"closed_conn_dropped":          ns.telemetry.closedConnDropped,

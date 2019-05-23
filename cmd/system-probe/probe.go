@@ -69,6 +69,8 @@ func (nt *SystemProbe) Run() {
 		go http.ListenAndServe(fmt.Sprintf("localhost:%d", nt.cfg.SystemProbeDebugPort), http.DefaultServeMux)
 	}
 
+	// We don't want the endpoint for systemprobe output to be mixed with pprof and expvar
+	// We can only do this by creating a new HTTP Mux that does not have these endpoints handled
 	httpMux := http.NewServeMux()
 
 	httpMux.HandleFunc("/status", func(w http.ResponseWriter, req *http.Request) {})
