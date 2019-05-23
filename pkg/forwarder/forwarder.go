@@ -71,8 +71,9 @@ const (
 	hostMetadataEndpoint  = "/api/v2/host_metadata"
 	metadataEndpoint      = "/api/v2/metadata"
 
-	apiHTTPHeaderKey     = "DD-Api-Key"
-	versionHTTPHeaderKey = "DD-Agent-Version"
+	apiHTTPHeaderKey       = "DD-Api-Key"
+	versionHTTPHeaderKey   = "DD-Agent-Version"
+	useragentHTTPHeaderKey = "User-Agent"
 )
 
 // Payloads is a slice of pointers to byte arrays, an alias for the slices of
@@ -205,6 +206,7 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payloads Payl
 				t.Payload = payload
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
+				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
 
 				for key := range extra {
 					t.Headers.Set(key, extra.Get(key))
