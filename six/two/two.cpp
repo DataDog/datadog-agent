@@ -18,14 +18,9 @@
 #include <tagger.h>
 #include <util.h>
 
-// handler stuff
-#include <execinfo.h>
-#include <csignal>
-#include <sys/types.h>
-
-#include <unistd.h>
 #include <algorithm>
 #include <sstream>
+#include <unistd.h>
 
 extern "C" DATADOG_AGENT_SIX_API Six *create(const char *pythonHome)
 {
@@ -37,44 +32,11 @@ extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p)
     delete p;
 }
 
-void signalHandler(int sig, siginfo_t*, void*) {
-#define STACKTRACE_SIZE 100
-  void *buffer[STACKTRACE_SIZE];
-  char **symbols;
-
-  size_t nptrs = backtrace(buffer, STACKTRACE_SIZE);
-  std::cerr << "HANDLER CAUGHT signal Error: signal " << sig << std::endl;
-  symbols = backtrace_symbols(buffer, nptrs);
-  if (symbols == NULL) {
-      std::cerr << "Error getting backtrace symbols" << std::endl;
-      exit(1);
-  }
-
-  std::cerr << "C-LAND STACKTRACE: " << std::endl;
-  for(int i=0; i<nptrs ; i++) {
-      std::cerr << symbols[i] << std::endl;
-  }
-
-  free(symbols);
-
-  // trying to get core dump too
-  signal(sig, SIG_DFL);
-  kill(getpid(), sig);
-}
-
 Two::Two(const char *python_home)
     : Six()
     , _baseClass(NULL)
     , _pythonPaths()
 {
-    // register signal handlers
-    struct sigaction sa;
-    sa.sa_flags = SA_SIGINFO;
-    sa.sa_sigaction = signalHandler;
-
-    // on segfault
-    sigaction(SIGSEGV, &sa, NULL);
-
     initPythonHome(python_home);
 }
 

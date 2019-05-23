@@ -281,6 +281,18 @@ void clear_error(six_t *six)
     AS_TYPE(Six, six)->clearError();
 }
 
+#ifndef WIN32
+/*
+ * C-land crash handling
+ */
+
+DATADOG_AGENT_SIX_API int handle_crashes(const six_t *six, const int enable)
+{
+    // enable implicit cast to bool
+    return AS_CTYPE(Six, six)->handleCrashes(enable) ? 1 : 0;
+}
+#endif
+
 /*
  * memory management
  */
