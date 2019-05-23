@@ -16,13 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestConntrackExpvar(t *testing.T) {
-	rt := newConntracker()
-	go rt.run()
-	<-time.After(time.Second)
-	assert.Equal(t, conntrackExpvar.String(), "{\"short_term_buffer_size\": 0, \"state_size\": 0}")
-}
-
 func TestIsNat(t *testing.T) {
 	c := map[ct.ConnAttrType][]byte{
 		ct.AttrOrigIPv4Src: {1, 1, 1, 1},
