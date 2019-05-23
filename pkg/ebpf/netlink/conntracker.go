@@ -99,7 +99,6 @@ func NewConntracker(procRoot string, stbSize int) (Conntracker, error) {
 	}
 	ctr.loadInitialState(sessions)
 
-	go ctr.expvarStats()
 	go ctr.run()
 
 	nfct.Register(context.Background(), ct.Ct, ct.NetlinkCtNew|ct.NetlinkCtExpectedNew|ct.NetlinkCtUpdate, ctr.register)
@@ -112,7 +111,8 @@ func NewConntracker(procRoot string, stbSize int) (Conntracker, error) {
 
 func (ctr *realConntracker) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
-	for range ticker.C {
+	// starts running the body immediately instead waiting for the first tick
+	for ; true; <-ticker.C {
 		stats := ctr.GetStats()
 
 		for metric, val := range stats {
@@ -252,6 +252,9 @@ func (ctr *realConntracker) unregister(c ct.Conn) int {
 }
 
 func (ctr *realConntracker) run() {
+	// only starts updating expvar when conntracker runs
+	go ctr.expvarStats()
+
 	for range ctr.compactTicker.C {
 		ctr.compact()
 	}

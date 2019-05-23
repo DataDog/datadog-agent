@@ -125,7 +125,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 func (t *Tracer) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
-	for range ticker.C {
+	// starts running the body immediately instead waiting for the first tick
+	for ; true; <-ticker.C {
 		stats := map[string]uint64{
 			"lost":        atomic.LoadUint64(&t.perfLost),
 			"received":    atomic.LoadUint64(&t.perfReceived),

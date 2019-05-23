@@ -31,6 +31,15 @@ var (
 	payloadSizesUDP   = []int{2 << 5, 2 << 8, 2 << 12, 2 << 14}
 )
 
+func TestTracerExpvar(t *testing.T) {
+	tr, err := NewTracer(NewDefaultConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	<-time.After(time.Second)
+	assert.Equal(t, probeExpvar.String(), "{\"network.expired_tcp\": 0, \"network.lost\": 0, \"network.received\": 0, \"network.skipped\": 0, \"state.closed_conn_dropped\": 0, \"state.conn_dropped\": 0, \"state.underflows\": 0, \"state.unordered_conns\": 0}")
+}
+
 func TestTCPSendAndReceive(t *testing.T) {
 	// Enable BPF-based system probe
 	tr, err := NewTracer(NewDefaultConfig())

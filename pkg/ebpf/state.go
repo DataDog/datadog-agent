@@ -387,7 +387,8 @@ func (ns *networkState) RemoveConnections(keys []string) {
 
 func (ns *networkState) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
-	for range ticker.C {
+	// starts running the body immediately instead waiting for the first tick
+	for ; true; <-ticker.C {
 		stats := map[string]uint64{
 			"underflows":          ns.telemetry.underflows,
 			"unordered_conns":     ns.telemetry.unorderedConns,

@@ -8,10 +8,18 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	ct "github.com/florianl/go-conntrack"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestConntrackExpvar(t *testing.T) {
+	rt := newConntracker()
+	go rt.run()
+	<-time.After(time.Second)
+	assert.Equal(t, conntrackExpvar.String(), "{\"short_term_buffer_size\": 0, \"state_size\": 0}")
+}
 
 func TestIsNat(t *testing.T) {
 	c := map[ct.ConnAttrType][]byte{
@@ -71,6 +79,7 @@ func newConntracker() *realConntracker {
 		state:               make(map[connKey]*IPTranslation),
 		shortLivedBuffer:    make(map[connKey]*IPTranslation),
 		maxShortLivedBuffer: 10000,
+		compactTicker:       time.NewTicker(time.Hour),
 	}
 }
 
