@@ -5,6 +5,12 @@
 // Copyright 2019 Datadog, Inc.
 #ifndef DATADOG_AGENT_SIX_THREE_H
 #define DATADOG_AGENT_SIX_THREE_H
+
+// Some preprocessor sanity for builds (2+3 common sources)
+#ifndef DATADOG_AGENT_THREE
+#error Build requires defining DATADOG_AGENT_THREE
+#endif
+
 #include <map>
 #include <mutex>
 #include <string>

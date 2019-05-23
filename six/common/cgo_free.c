@@ -12,7 +12,7 @@ void _set_cgo_free_cb(cb_cgo_free_t cb) {
 }
 
 // On windows we cannot free memory block from another DLL. Agent's Callbacks
-// will return memory block to free, this is why we need to a pointer to CGO
+// will return memory block to free, this is why we need a pointer to a CGO
 // free method to release memory allocated in the agent once we're done with
 // them.
 void cgo_free(void *ptr) {

@@ -14,7 +14,14 @@ char *as_string(PyObject *object)
 
     char *retval = NULL;
 
-#ifdef DATADOG_AGENT_THREE
+// DATADOG_AGENT_THREE implementation is the default
+#ifdef DATADOG_AGENT_TWO
+    if (!PyString_Check(object)) {
+        return NULL;
+    }
+
+    retval = _strdup(PyString_AS_STRING(object));
+#else
     if (!PyUnicode_Check(object)) {
         return NULL;
     }
@@ -26,13 +33,8 @@ char *as_string(PyObject *object)
 
     retval = _strdup(PyBytes_AS_STRING(temp_bytes));
     Py_XDECREF(temp_bytes);
-#else
-    if (!PyString_Check(object)) {
-        return NULL;
-    }
-
-    retval = _strdup(PyString_AS_STRING(object));
 #endif
+
     return retval;
 }
 

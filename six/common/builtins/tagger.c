@@ -33,6 +33,8 @@ PyObject *buildTagsList(char **tags)
     for (i = 0; tags[i]; i++) {
         PyObject *pyTag = PyStringFromCString(tags[i]);
         cgo_free(tags[i]);
+
+        // PyList_Append does not steal references so no DECREF necessary for pyTag
         PyList_Append(res, pyTag);
     }
     cgo_free(tags);
@@ -41,17 +43,22 @@ PyObject *buildTagsList(char **tags)
 
 PyObject *tag(PyObject *self, PyObject *args)
 {
-    if (cb_tags == NULL)
+    if (cb_tags == NULL) {
+        // Py_RETURN_NONE macro increases the refcount on Py_None
         Py_RETURN_NONE;
+    }
 
     char *id;
     int cardinality;
-    if (!parseArgs(args, &id, &cardinality))
+    if (!parseArgs(args, &id, &cardinality)) {
         return NULL;
+    }
 
     if (cardinality != DATADOG_AGENT_SIX_TAGGER_LOW && cardinality != DATADOG_AGENT_SIX_TAGGER_ORCHESTRATOR
         && cardinality != DATADOG_AGENT_SIX_TAGGER_HIGH) {
         PyGILState_STATE gstate = PyGILState_Ensure();
+
+        // The refcount for the error type: PyExc_TypeError need not be incremented
         PyErr_SetString(PyExc_TypeError, "Invalid cardinality");
         PyGILState_Release(gstate);
         return NULL;
@@ -62,13 +69,16 @@ PyObject *tag(PyObject *self, PyObject *args)
 
 PyObject *get_tags(PyObject *self, PyObject *args)
 {
-    if (cb_tags == NULL)
+    if (cb_tags == NULL) {
+        // Py_RETURN_NONE macro increases the refcount on Py_None
         Py_RETURN_NONE;
+    }
 
     char *id;
     int highCard;
-    if (!parseArgs(args, &id, &highCard))
+    if (!parseArgs(args, &id, &highCard)) {
         return NULL;
+    }
 
     int cardinality;
     if (highCard > 0)
@@ -106,9 +116,7 @@ PyMODINIT_FUNC PyInit_tagger(void)
     add_constants(module);
     return module;
 }
-#endif
-
-#ifdef DATADOG_AGENT_TWO
+#elif defined(DATADOG_AGENT_TWO)
 // in Python2 keep the object alive for the program lifetime
 static PyObject *module;
 
