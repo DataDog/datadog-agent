@@ -254,9 +254,12 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 	}
 
 	// Parse configuration
-	err = yaml.Unmarshal(yamlFile, &cf)
-	if err != nil {
-		return config, err
+	// Try UnmarshalStrict first, so we can warn about duplicated keys
+	if strictErr := yaml.UnmarshalStrict(yamlFile, &cf); strictErr != nil {
+		if err := yaml.Unmarshal(yamlFile, &cf); err != nil {
+			return config, err
+		}
+		log.Warnf("reading config file %v: %v\n", fpath, strictErr)
 	}
 
 	// If no valid instances were found & this is neither a metrics file, nor a logs file
