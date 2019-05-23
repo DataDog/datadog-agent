@@ -281,7 +281,14 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
         WcaLog(LOGMSG_STANDARD, "registry perm update failed");
         er = ERROR_INSTALL_FAILURE;
     }
-
+    {
+        // attempt to add the symlink.  We're not going to fail in case of failure,
+        // so we can ignore return ocde if it's already there.
+        std::wstring embedded = installdir + L"\\embedded";
+        std::wstring bindir = installdir + L"\\bin";
+        BOOL bRet = CreateSymbolicLink(embedded.c_str(), bindir.c_str(), SYMBOLIC_LINK_FLAG_DIRECTORY);
+        WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink %d %d", bRet, GetLastError());
+    }
 LExit:
     if (sid) {
         delete[](BYTE *) sid;
@@ -509,6 +516,8 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
             DoStartSvc(hInstall, agentService);
         }
     }
+    std::wstring embedded = installdir + L"\\embedded";
+    RemoveDirectory(embedded.c_str());
 
     if (sid) {
         delete[](BYTE *) sid;
