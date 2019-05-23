@@ -121,7 +121,7 @@ func (nt *SystemProbe) Run() {
 	go func() {
 		heartbeat := time.NewTicker(15 * time.Second)
 		for range heartbeat.C {
-			statsd.Client.Gauge("datadog.networktracer.agent", 1, []string{"version:" + Version}, 1)
+			statsd.Client.Gauge("datadog.system_probe.agent", 1, []string{"version:" + Version}, 1)
 		}
 	}()
 
