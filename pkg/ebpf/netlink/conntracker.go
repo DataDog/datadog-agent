@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	ct "github.com/florianl/go-conntrack"
+	"github.com/pkg/errors"
 )
 
 const (
