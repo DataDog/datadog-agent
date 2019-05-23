@@ -967,6 +967,82 @@ func TestSameKeyEdgeCases(t *testing.T) {
 	})
 }
 
+func TestStatsResetOnUnderflow(t *testing.T) {
+	conn := ConnectionStats{
+		Pid:                123,
+		Type:               TCP,
+		Family:             AFINET,
+		Source:             V4AddressFromString("127.0.0.1"),
+		Dest:               V4AddressFromString("127.0.0.1"),
+		MonotonicSentBytes: 3,
+	}
+
+	client := "client"
+
+	state := NewDefaultNetworkState()
+
+	// Register the client
+	assert.Len(t, state.Connections(client, latestEpochTime(), nil), 0)
+
+	// Get the connections once to register stats
+	conns := state.Connections(client, latestEpochTime(), []ConnectionStats{conn})
+	require.Len(t, conns, 1)
+
+	// Expect LastStats to be 3
+	conn.LastSentBytes = 3
+	assert.Equal(t, conn, conns[0])
+
+	// Get the connections again but by simulating an underflow
+	conn.MonotonicSentBytes--
+
+	conns = state.Connections(client, latestEpochTime(), []ConnectionStats{conn})
+	require.Len(t, conns, 1)
+	expected := conn
+	expected.LastSentBytes = 2
+	// We expect the LastStats to be 2
+	assert.Equal(t, expected, conns[0])
+}
+
+func TestDoubleCloseOnTwoClients(t *testing.T) {
+	conn := ConnectionStats{
+		Pid:                123,
+		Type:               TCP,
+		Family:             AFINET,
+		Source:             V4AddressFromString("127.0.0.1"),
+		Dest:               V4AddressFromString("127.0.0.1"),
+		MonotonicSentBytes: 3,
+		LastSentBytes:      3,
+	}
+
+	expectedConn := conn
+	expectedConn.MonotonicSentBytes *= 2
+	expectedConn.LastSentBytes *= 2
+
+	client1 := "1"
+	client2 := "2"
+
+	state := NewDefaultNetworkState()
+
+	// Register the clients
+	assert.Len(t, state.Connections(client1, latestEpochTime(), nil), 0)
+	assert.Len(t, state.Connections(client2, latestEpochTime(), nil), 0)
+
+	// Store the closed connection twice
+	state.StoreClosedConnection(conn)
+	conn.LastUpdateEpoch++
+	state.StoreClosedConnection(conn)
+
+	// Get the connections for client1 we should have only one with stats = 2*conn
+	conns := state.Connections(client1, latestEpochTime(), nil)
+	require.Len(t, conns, 1)
+	assert.Equal(t, expectedConn, conns[0])
+
+	// Same for client2
+	conns = state.Connections(client2, latestEpochTime(), nil)
+	require.Len(t, conns, 1)
+	assert.Equal(t, expectedConn, conns[0])
+}
+
 func generateRandConnections(n int) []ConnectionStats {
 	cs := make([]ConnectionStats, 0, n)
 	for i := 0; i < n; i++ {

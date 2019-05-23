@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mailru/easyjson"
@@ -73,14 +75,20 @@ func (nt *SystemProbe) Run() {
 
 	httpMux.HandleFunc("/status", func(w http.ResponseWriter, req *http.Request) {})
 
+	var runCounter uint64
 	httpMux.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {
-		cs, err := nt.tracer.GetActiveConnections(getClientID(req))
+		start := time.Now()
+		id := getClientID(req)
+		cs, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
 			w.WriteHeader(500)
 			return
 		}
 		writeConnections(w, cs)
+
+		count := atomic.AddUint64(&runCounter, 1)
+		logRequests(id, count, len(cs.Conns), start)
 	})
 
 	httpMux.HandleFunc("/debug/net_maps", func(w http.ResponseWriter, req *http.Request) {
@@ -117,6 +125,17 @@ func (nt *SystemProbe) Run() {
 	})
 
 	http.Serve(nt.conn.GetListener(), httpMux)
+}
+
+func logRequests(client string, count uint64, connectionsCount int, start time.Time) {
+	args := []interface{}{client, count, connectionsCount, time.Now().Sub(start)}
+	msg := "Got request on /connections?client_id=%s (count: %d): retrieved %d connections in %s"
+	switch {
+	case count <= 5, count%20 == 0:
+		log.Infof(msg, args...)
+	default:
+		log.Debugf(msg, args...)
+	}
 }
 
 func getClientID(req *http.Request) string {
