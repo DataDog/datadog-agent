@@ -277,17 +277,6 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 	return conns
 }
 
-// handleStatsUnderflow checks if we are going to have an underflow when computing last stats and if it's the case it resets the stats to avoid it
-func (ns *networkState) handleStatsUnderflow(key string, st *stats, c *ConnectionStats) {
-	if c.MonotonicSentBytes < st.totalSent || c.MonotonicRecvBytes < st.totalRecv || c.MonotonicRetransmits < st.totalRetransmits {
-		ns.telemetry.statsResets++
-		log.Debugf("Stats reset triggered for key:%s, stats:%+v, connection:%+v", BeautifyKey(key), *st, *c)
-		st.totalSent = 0
-		st.totalRecv = 0
-		st.totalRetransmits = 0
-	}
-}
-
 // This is used to update the stats when we process a closed connection that became active again
 // in this case we want the stats to reflect the new active connections in order to avoid resets
 func (ns *networkState) updateConnWithStatWithActiveConn(client *client, key string, active ConnectionStats, closed *ConnectionStats) {
@@ -327,6 +316,17 @@ func (ns *networkState) updateConnWithStats(client *client, key string, c *Conne
 		c.LastSentBytes = c.MonotonicSentBytes
 		c.LastRecvBytes = c.MonotonicRecvBytes
 		c.LastRetransmits = c.MonotonicRetransmits
+	}
+}
+
+// handleStatsUnderflow checks if we are going to have an underflow when computing last stats and if it's the case it resets the stats to avoid it
+func (ns *networkState) handleStatsUnderflow(key string, st *stats, c *ConnectionStats) {
+	if c.MonotonicSentBytes < st.totalSent || c.MonotonicRecvBytes < st.totalRecv || c.MonotonicRetransmits < st.totalRetransmits {
+		ns.telemetry.statsResets++
+		log.Debugf("Stats reset triggered for key:%s, stats:%+v, connection:%+v", BeautifyKey(key), *st, *c)
+		st.totalSent = 0
+		st.totalRecv = 0
+		st.totalRetransmits = 0
 	}
 }
 
