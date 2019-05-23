@@ -99,8 +99,11 @@ build do
     copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
   else
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
-    copy 'bin/system-probe/system-probe', "#{install_dir}/embedded/bin"
-    block { File.chmod(0755, "#{install_dir}/embedded/bin/system-probe") }
+    # We don't use the system-probe in macOS builds
+    if !osx?
+      copy 'bin/system-probe/system-probe', "#{install_dir}/embedded/bin"
+      block { File.chmod(0755, "#{install_dir}/embedded/bin/system-probe") }
+    end
   end
 
   if linux?
