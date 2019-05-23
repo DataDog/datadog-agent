@@ -30,7 +30,7 @@ func init() {
 type Conntracker interface {
 	GetTranslationForConn(ip util.Address, port uint16) *IPTranslation
 	ClearShortLived()
-	GetStats() map[string]interface{}
+	GetStats() map[string]int64
 	Close()
 }
 
@@ -115,16 +115,10 @@ func (ctr *realConntracker) expvarStats() {
 	// starts running the body immediately instead waiting for the first tick
 	for ; true; <-ticker.C {
 		stats := ctr.GetStats()
-
 		for metric, val := range stats {
-			switch v := val.(type) {
-			case int64:
-				currVal := &expvar.Int{}
-				currVal.Set(v)
-				conntrackExpvar.Set(metric, currVal)
-			default:
-				log.Errorf("unknown value type for stats: %s, value: %v", metric, v)
-			}
+			currVal := &expvar.Int{}
+			currVal.Set(val)
+			conntrackExpvar.Set(metric, currVal)
 		}
 	}
 }
@@ -154,14 +148,14 @@ func (ctr *realConntracker) ClearShortLived() {
 	ctr.shortLivedBuffer = make(map[connKey]*IPTranslation, len(ctr.shortLivedBuffer))
 }
 
-func (ctr *realConntracker) GetStats() map[string]interface{} {
+func (ctr *realConntracker) GetStats() map[string]int64 {
 	// only a few stats are locked
 	ctr.Lock()
 	size := len(ctr.state)
 	stBufSize := len(ctr.shortLivedBuffer)
 	ctr.Unlock()
 
-	m := map[string]interface{}{
+	m := map[string]int64{
 		"state_size":             int64(size),
 		"short_term_buffer_size": int64(stBufSize),
 	}
