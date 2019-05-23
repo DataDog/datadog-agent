@@ -203,8 +203,11 @@ run_security_scan_test:
     - inv deps
   script:
     - set +x     # don't print the api key to the logs
+    # send the list of the dependencies to snyk
     - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
-      snyk monitor # send the list of the dependencies to snyk
+      snyk monitor --project-name=datadog-agent-requirements.txt --file=requirements.txt --package-manager=pip
+    - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
+      snyk monitor --project-name=datadog-agent-gopkg.lock --file=Gopkg.lock
 
 #
 # binary_build

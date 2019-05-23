@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 // ConnectionType will be either TCP or UDP
@@ -100,13 +101,13 @@ type ConnectionStats struct {
 }
 
 // SourceAddr returns the source address in the Address abstraction
-func (c ConnectionStats) SourceAddr() Address {
-	return c.Source.(Address)
+func (c ConnectionStats) SourceAddr() util.Address {
+	return c.Source.(util.Address)
 }
 
 // DestAddr returns the dest address in the Address abstraction
-func (c ConnectionStats) DestAddr() Address {
-	return c.Dest.(Address)
+func (c ConnectionStats) DestAddr() util.Address {
+	return c.Dest.(util.Address)
 }
 
 func (c ConnectionStats) String() string {
@@ -160,11 +161,11 @@ const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
 // it should be in sync with ByteKey
 // Note: This is only used in /debug/* endpoints
 func BeautifyKey(key string) string {
-	bytesToAddress := func(buf []byte) Address {
+	bytesToAddress := func(buf []byte) util.Address {
 		if len(buf) == 4 {
-			return V4AddressFromBytes(buf)
+			return util.V4AddressFromBytes(buf)
 		}
-		return V6AddressFromBytes(buf)
+		return util.V6AddressFromBytes(buf)
 	}
 
 	raw := []byte(key)
@@ -178,7 +179,7 @@ func BeautifyKey(key string) string {
 	// Them we have the source addr, family + type and dest addr
 	parts := bytes.Split(raw[8:], []byte{'|'})
 
-	var source, dest Address
+	var source, dest util.Address
 	var family, typ uint8
 	if len(parts) == 3 {
 		source = bytesToAddress(parts[0])

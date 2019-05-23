@@ -45,6 +45,10 @@ func TestParseContainerHealth(t *testing.T) {
 			input:    "Up 1 minute (health: unhealthy)",
 			expected: "unhealthy",
 		},
+		{
+			input:    "Up 1 minute (unhealthy)",
+			expected: "unhealthy",
+		},
 	} {
 		assert.Equal(tc.expected, parseContainerHealth(tc.input), "test %d failed", i)
 	}

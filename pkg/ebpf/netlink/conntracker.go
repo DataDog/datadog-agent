@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	ct "github.com/florianl/go-conntrack"
@@ -27,14 +28,14 @@ func init() {
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
-	GetTranslationForConn(ip string, port uint16) *IPTranslation
+	GetTranslationForConn(ip util.Address, port uint16) *IPTranslation
 	ClearShortLived()
 	GetStats() map[string]interface{}
 	Close()
 }
 
 type connKey struct {
-	ip   string
+	ip   util.Address
 	port uint16
 }
 
@@ -121,10 +122,6 @@ func (ctr *realConntracker) expvarStats() {
 				currVal := &expvar.Int{}
 				currVal.Set(v)
 				conntrackExpvar.Set(metric, currVal)
-			case float64:
-				currVal := &expvar.Float{}
-				currVal.Set(v)
-				conntrackExpvar.Set(metric, currVal)
 			default:
 				log.Errorf("unknown value type for stats: %s, value: %v", metric, v)
 			}
@@ -132,7 +129,7 @@ func (ctr *realConntracker) expvarStats() {
 	}
 }
 
-func (ctr *realConntracker) GetTranslationForConn(ip string, port uint16) *IPTranslation {
+func (ctr *realConntracker) GetTranslationForConn(ip util.Address, port uint16) *IPTranslation {
 	then := time.Now().UnixNano()
 
 	ctr.Lock()
@@ -171,15 +168,15 @@ func (ctr *realConntracker) GetStats() map[string]interface{} {
 
 	if ctr.stats.gets != 0 {
 		m["gets_total"] = ctr.stats.gets
-		m["nanoseconds_per_get"] = float64(ctr.stats.getTimeTotal) / float64(ctr.stats.gets)
+		m["nanoseconds_per_get"] = ctr.stats.getTimeTotal / ctr.stats.gets
 	}
 	if ctr.stats.registers != 0 {
 		m["registers_total"] = ctr.stats.registers
-		m["nanoseconds_per_register"] = float64(ctr.stats.registersTotalTime) / float64(ctr.stats.registers)
+		m["nanoseconds_per_register"] = ctr.stats.registersTotalTime / ctr.stats.registers
 	}
 	if ctr.stats.unregisters != 0 {
 		m["unregisters_total"] = ctr.stats.unregisters
-		m["nanoseconds_per_unregister"] = float64(ctr.stats.unregistersTotalTime) / float64(ctr.stats.unregisters)
+		m["nanoseconds_per_unregister"] = ctr.stats.unregistersTotalTime / ctr.stats.unregisters
 
 	}
 
@@ -346,7 +343,7 @@ func formatIPTranslation(c ct.Conn) *IPTranslation {
 
 func formatKey(c ct.Conn) (k connKey) {
 	if ip, err := c.OrigSrcIP(); err == nil {
-		k.ip = ip.String()
+		k.ip = util.AddressFromNetIP(ip)
 	}
 	if port, err := c.Uint16(ct.AttrOrigPortSrc); err == nil {
 		k.port = NtohsU16(port)

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,8 +16,8 @@ var (
 		Pid:                123,
 		Type:               1,
 		Family:             0,
-		Source:             V4AddressFromString("192.168.0.1"),
-		Dest:               V4AddressFromString("192.168.0.103"),
+		Source:             util.AddressFromString("192.168.0.1"),
+		Dest:               util.AddressFromString("192.168.0.103"),
 		SPort:              123,
 		DPort:              35000,
 		MonotonicSentBytes: 123123,
@@ -31,8 +33,8 @@ func TestBeautifyKey(t *testing.T) {
 			Pid:    345,
 			Type:   0,
 			Family: 1,
-			Source: V4AddressFromString("127.0.0.1"),
-			Dest:   V4AddressFromString("192.168.0.103"),
+			Source: util.AddressFromString("127.0.0.1"),
+			Dest:   util.AddressFromString("192.168.0.103"),
 			SPort:  4444,
 			DPort:  8888,
 		},
@@ -46,8 +48,8 @@ func TestBeautifyKey(t *testing.T) {
 
 func TestConnStatsByteKey(t *testing.T) {
 	buf := new(bytes.Buffer)
-	addrA := V4AddressFromString("127.0.0.1")
-	addrB := V4AddressFromString("127.0.0.2")
+	addrA := util.AddressFromString("127.0.0.1")
+	addrB := util.AddressFromString("127.0.0.2")
 
 	for _, test := range []struct {
 		a ConnectionStats
@@ -66,11 +68,11 @@ func TestConnStatsByteKey(t *testing.T) {
 			b: ConnectionStats{Source: addrA, Dest: addrB},
 		},
 		{ // Source is different
-			a: ConnectionStats{Source: V4AddressFromString("123.255.123.0"), Dest: addrB},
+			a: ConnectionStats{Source: util.AddressFromString("123.255.123.0"), Dest: addrB},
 			b: ConnectionStats{Source: addrA, Dest: addrB},
 		},
 		{ // Dest is different
-			a: ConnectionStats{Source: addrA, Dest: V4AddressFromString("129.0.1.2")},
+			a: ConnectionStats{Source: addrA, Dest: util.AddressFromString("129.0.1.2")},
 			b: ConnectionStats{Source: addrA, Dest: addrB},
 		},
 		{ // Source port is different

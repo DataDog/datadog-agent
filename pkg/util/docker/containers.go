@@ -171,9 +171,13 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.C
 
 // Parse the health out of a container status. The format is either:
 //  - 'Up 5 seconds (health: starting)'
+//  - 'Up 18 hours (unhealthy)'
 //  - 'Up about an hour'
 func parseContainerHealth(status string) string {
 	// Avoid allocations in most cases by just checking for '('
+	if strings.Index(status, "unhealthy") >= 0 {
+		return "unhealthy"
+	}
 	if strings.IndexByte(status, '(') == -1 {
 		return ""
 	}
