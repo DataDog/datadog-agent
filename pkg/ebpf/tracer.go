@@ -7,7 +7,6 @@ import (
 	"expvar"
 	"fmt"
 	"net"
-	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -114,10 +113,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not start polling bpf events: %s", err)
 	}
 
-	// run a http service for expvar endpoint
-	if config.ExpVarPort > 0 {
-		go http.ListenAndServe(fmt.Sprintf("localhost:%d", config.ExpVarPort), nil)
-	}
 	go tr.expvarStats()
 
 	return tr, nil

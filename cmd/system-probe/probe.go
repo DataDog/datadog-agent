@@ -125,6 +125,11 @@ func (nt *SystemProbe) Run() {
 		}
 	}()
 
+	// if a debug port is specified, we expose our expvar to that port
+	if nt.cfg.SystemProbeExpVarPort > 0 {
+		go http.ListenAndServe(fmt.Sprintf("localhost:%d", nt.cfg.SystemProbeExpVarPort), nil)
+	}
+
 	http.Serve(nt.conn.GetListener(), httpMux)
 }
 
