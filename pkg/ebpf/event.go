@@ -4,6 +4,8 @@ package ebpf
 
 import (
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 /*
@@ -69,13 +71,13 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) Conn
 	metadata := uint(t.metadata)
 	family := connFamily(metadata)
 
-	var source, dest Address
+	var source, dest util.Address
 	if family == AFINET {
-		source = V4Address(uint32(t.saddr_l))
-		dest = V4Address(uint32(t.daddr_l))
+		source = util.V4Address(uint32(t.saddr_l))
+		dest = util.V4Address(uint32(t.daddr_l))
 	} else {
-		source = V6Address(uint64(t.saddr_l), uint64(t.saddr_h))
-		dest = V6Address(uint64(t.daddr_l), uint64(t.daddr_h))
+		source = util.V6Address(uint64(t.saddr_l), uint64(t.saddr_h))
+		dest = util.V6Address(uint64(t.daddr_l), uint64(t.daddr_h))
 	}
 
 	return ConnectionStats{
