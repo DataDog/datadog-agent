@@ -15,6 +15,7 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMoveConfigurationsFiles(t *testing.T) {
@@ -151,9 +152,11 @@ func TestParseWheelPackageNameValidCases(t *testing.T) {
 		"name as first line":  {"datadog_cisco_aci_name_first_line_valid.whl", "datadog-cisco-aci-1"},
 		"name as second line": {"datadog_cisco_aci_name_second_line_valid.whl", "datadog-cisco-aci-2"},
 	}
+	pwd, err := os.Getwd()
+	require.Nil(t, err)
 	for name, test := range tests {
 		t.Logf("Running test %s", name)
-		name, err := parseWheelPackageName("./testdata/integrations/" + test.wheelFileName)
+		name, err := parseWheelPackageName(filepath.Join(pwd, "testdata", "integrations", test.wheelFileName))
 		assert.Equal(t, test.expectedName, name)
 		assert.Equal(t, nil, err)
 	}
@@ -167,9 +170,11 @@ func TestParseWheelPackageNameErrorCases(t *testing.T) {
 		"wheel file not found":            {"datadog_cisco_aci_does_not_exist.whl", "no such file or directory"},
 		"package name not found in wheel": {"datadog_cisco_aci_no_name_invalid.whl", "package name not found in wheel"},
 	}
+	pwd, err := os.Getwd()
+	require.Nil(t, err)
 	for name, test := range tests {
 		t.Logf("Running test %s", name)
-		name, err := parseWheelPackageName("./testdata/integrations/" + test.wheelFileName)
+		name, err := parseWheelPackageName(filepath.Join(pwd, "testdata", "integrations", test.wheelFileName))
 		assert.Equal(t, "", name)
 		assert.Contains(t, err.Error(), test.expectedErr)
 	}
