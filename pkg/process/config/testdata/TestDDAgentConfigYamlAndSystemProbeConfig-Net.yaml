@@ -1,0 +1,4 @@
+system_probe_config:
+    enabled: true
+    bpf_debug: true
+    sysprobe_socket: /var/my-location/system-probe.log

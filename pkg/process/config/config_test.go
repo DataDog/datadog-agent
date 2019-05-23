@@ -167,7 +167,7 @@ func TestDefaultConfig(t *testing.T) {
 	os.Unsetenv("DOCKER_DD_AGENT")
 }
 
-func TestAgentConfigYamlAndNetworkConfig(t *testing.T) {
+func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	defer restoreGlobalConfig()
 
@@ -175,7 +175,7 @@ func TestAgentConfigYamlAndNetworkConfig(t *testing.T) {
 
 	agentConfig, err := NewAgentConfig(
 		"test",
-		"./testdata/TestDDAgentConfigYamlAndNetworkConfig.yaml",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml",
 		"",
 	)
 	assert.NoError(err)
@@ -196,8 +196,8 @@ func TestAgentConfigYamlAndNetworkConfig(t *testing.T) {
 
 	agentConfig, err = NewAgentConfig(
 		"test",
-		"./testdata/TestDDAgentConfigYamlAndNetworkConfig.yaml",
-		"./testdata/TestDDAgentConfigYamlAndNetworkConfig-Net.yaml",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml",
 	)
 	assert.NoError(err)
 
@@ -211,9 +211,9 @@ func TestAgentConfigYamlAndNetworkConfig(t *testing.T) {
 	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
-	assert.Equal("/var/my-location/network-tracer.log", agentConfig.NetworkTracerSocketPath)
+	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeSocketPath)
 	assert.Equal(append(processChecks, "connections"), agentConfig.EnabledChecks)
-	assert.True(agentConfig.NetworkBPFDebug)
+	assert.True(agentConfig.SysProbeBPFDebug)
 	assert.Empty(agentConfig.ExcludedBPFLinuxVersions)
 	assert.False(agentConfig.DisableTCPTracing)
 	assert.False(agentConfig.DisableUDPTracing)
@@ -221,8 +221,8 @@ func TestAgentConfigYamlAndNetworkConfig(t *testing.T) {
 
 	agentConfig, err = NewAgentConfig(
 		"test",
-		"./testdata/TestDDAgentConfigYamlAndNetworkConfig.yaml",
-		"./testdata/TestDDAgentConfigYamlAndNetworkConfig-Net-2.yaml",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net-2.yaml",
 	)
 	assert.NoError(err)
 
@@ -236,9 +236,9 @@ func TestAgentConfigYamlAndNetworkConfig(t *testing.T) {
 	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
-	assert.False(agentConfig.NetworkBPFDebug)
+	assert.False(agentConfig.SysProbeBPFDebug)
 	assert.Equal(agentConfig.ExcludedBPFLinuxVersions, []string{"5.5.0", "4.2.1"})
-	assert.Equal("/var/my-location/network-tracer.log", agentConfig.NetworkTracerSocketPath)
+	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeSocketPath)
 	assert.Equal(append(processChecks, "connections"), agentConfig.EnabledChecks)
 	assert.True(agentConfig.DisableTCPTracing)
 	assert.True(agentConfig.DisableUDPTracing)

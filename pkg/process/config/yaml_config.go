@@ -17,58 +17,58 @@ import (
 )
 
 const (
-	ns    = "process_config"
-	netNS = "network_tracer_config"
+	ns   = "process_config"
+	spNS = "system_probe_config"
 )
 
 func key(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
 
-// Network-specific configuration
-func (a *AgentConfig) loadNetworkYamlConfig(path string) error {
+// SystemProbe specific configuration
+func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	loadEnvVariables()
 
-	a.EnableLocalNetworkTracer = config.Datadog.GetBool(key(netNS, "use_local_network_tracer"))
+	a.EnableLocalSystemProbe = config.Datadog.GetBool(key(spNS, "use_local_system_probe"))
 
 	// Whether agent should disable collection for TCP, UDP, or IPv6 connection type respectively
-	a.DisableTCPTracing = config.Datadog.GetBool(key(netNS, "disable_tcp"))
-	a.DisableUDPTracing = config.Datadog.GetBool(key(netNS, "disable_udp"))
-	a.DisableIPv6Tracing = config.Datadog.GetBool(key(netNS, "disable_ipv6"))
+	a.DisableTCPTracing = config.Datadog.GetBool(key(spNS, "disable_tcp"))
+	a.DisableUDPTracing = config.Datadog.GetBool(key(spNS, "disable_udp"))
+	a.DisableIPv6Tracing = config.Datadog.GetBool(key(spNS, "disable_ipv6"))
 
-	a.CollectLocalDNS = config.Datadog.GetBool(key(netNS, "collect_local_dns"))
+	a.CollectLocalDNS = config.Datadog.GetBool(key(spNS, "collect_local_dns"))
 
 	// Whether agent should expose profiling endpoints over the unix socket
-	a.EnableDebugProfiling = config.Datadog.GetBool(key(netNS, "debug_profiling_enabled"))
+	a.EnableDebugProfiling = config.Datadog.GetBool(key(spNS, "debug_profiling_enabled"))
 
-	if config.Datadog.GetBool(key(netNS, "enabled")) {
+	if config.Datadog.GetBool(key(spNS, "enabled")) {
 		a.EnabledChecks = append(a.EnabledChecks, "connections")
-		a.EnableNetworkTracing = true
+		a.EnableSystemProbe = true
 	}
 
-	a.NetworkBPFDebug = config.Datadog.GetBool(key(netNS, "bpf_debug"))
-	if config.Datadog.IsSet(key(netNS, "excluded_linux_versions")) {
-		a.ExcludedBPFLinuxVersions = config.Datadog.GetStringSlice(key(netNS, "excluded_linux_versions"))
+	a.SysProbeBPFDebug = config.Datadog.GetBool(key(spNS, "bpf_debug"))
+	if config.Datadog.IsSet(key(spNS, "excluded_linux_versions")) {
+		a.ExcludedBPFLinuxVersions = config.Datadog.GetStringSlice(key(spNS, "excluded_linux_versions"))
 	}
 
 	// The full path to the location of the unix socket where connections will be accessed
-	if socketPath := config.Datadog.GetString(key(netNS, "nettracer_socket")); socketPath != "" {
-		a.NetworkTracerSocketPath = socketPath
+	if socketPath := config.Datadog.GetString(key(spNS, "sysprobe_socket")); socketPath != "" {
+		a.SystemProbeSocketPath = socketPath
 	}
 
-	if config.Datadog.IsSet(key(netNS, "enable_conntrack")) {
-		a.EnableConntrack = config.Datadog.GetBool(key(netNS, "enable_conntrack"))
+	if config.Datadog.IsSet(key(spNS, "enable_conntrack")) {
+		a.EnableConntrack = config.Datadog.GetBool(key(spNS, "enable_conntrack"))
 	}
-	if s := config.Datadog.GetInt(key(netNS, "conntrack_short_term_buffer_size")); s > 0 {
+	if s := config.Datadog.GetInt(key(spNS, "conntrack_short_term_buffer_size")); s > 0 {
 		a.ConntrackShortTermBufferSize = s
 	}
 
-	if logFile := config.Datadog.GetString(key(netNS, "log_file")); logFile != "" {
+	if logFile := config.Datadog.GetString(key(spNS, "log_file")); logFile != "" {
 		a.LogFile = logFile
 	}
 
 	// The maximum number of connections per message. Note: Only change if the defaults are causing issues.
-	if mcpm := config.Datadog.GetInt(key(netNS, "max_conns_per_message")); mcpm > 0 {
+	if mcpm := config.Datadog.GetInt(key(spNS, "max_conns_per_message")); mcpm > 0 {
 		if mcpm <= maxConnsMessageBatch {
 			a.MaxConnsPerMessage = mcpm
 		} else {
@@ -77,7 +77,7 @@ func (a *AgentConfig) loadNetworkYamlConfig(path string) error {
 	}
 
 	// The maximum number of connections the tracer can track
-	if mtc := config.Datadog.GetInt64(key(netNS, "max_tracked_connections")); mtc > 0 {
+	if mtc := config.Datadog.GetInt64(key(spNS, "max_tracked_connections")); mtc > 0 {
 		if mtc <= maxMaxTrackedConnections {
 			a.MaxTrackedConnections = uint(mtc)
 		} else {

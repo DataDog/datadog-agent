@@ -1,6 +1,6 @@
-network_tracer_config:
+system_probe_config:
     enabled: true
-    nettracer_socket: /var/my-location/network-tracer.log
+    sysprobe_socket: /var/my-location/system-probe.log
     disable_tcp: true
     disable_udp: true
     disable_ipv6: true

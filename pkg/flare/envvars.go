@@ -62,7 +62,7 @@ var envvarNameWhitelist = []string{
 	"DD_CONTAINER_WHITELIST",
 	"DD_CONTAINER_CACHE_DURATION",
 	"DD_PROCESS_AGENT_CONTAINER_SOURCE",
-	"DD_NETWORK_TRACING_ENABLED",
+	"DD_SYSTEM_PROBE_ENABLED",
 }
 
 func getWhitelistedEnvvars() []string {

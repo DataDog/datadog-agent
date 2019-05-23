@@ -1,0 +1,4 @@
+#!/usr/bin/execlineb -P
+
+foreground { /initlog.sh "starting system-probe" }
+system-probe --config=/etc/datadog-agent/system-probe.yaml

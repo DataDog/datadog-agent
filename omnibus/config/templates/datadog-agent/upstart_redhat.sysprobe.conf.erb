@@ -1,4 +1,4 @@
-description "Datadog Network Tracer"
+description "Datadog System Probe"
 
 stop on (runlevel [!2345] or stopping datadog-agent)
 
@@ -12,18 +12,18 @@ script
   # Logging to console from the agent is disabled since the agent already logs using file or
   # syslog depending on its configuration. We then redirect the stdout/stderr of the agent process
   # to log panic/crashes.
-  exec <%= install_dir %>/embedded/bin/network-tracer --config=<%= etc_dir %>/network-tracer.yaml --pid=<%= install_dir %>/run/network-tracer.pid &>> /var/log/datadog/network-tracer-errors.log
+  exec <%= install_dir %>/embedded/bin/system-probe --config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/system-probe.pid &>> /var/log/datadog/system-probe-errors.log
 end script
 
 pre-start script
   # Manual rotation of errors log
-  log_file_size=`du -b /var/log/datadog/network-tracer-errors.log | cut -f1`
+  log_file_size=`du -b /var/log/datadog/system-probe-errors.log | cut -f1`
   if [ -n "$log_file_size" ] && [ $log_file_size -gt 5242880 ]; then
     # Rotate log file if it's larger than 5MB
-    mv /var/log/datadog/network-tracer-errors.log /var/log/datadog/network-tracer-errors.log.1
+    mv /var/log/datadog/system-probe-errors.log /var/log/datadog/system-probe-errors.log.1
   fi
 end script
 
 post-stop script
-  rm -f <%= install_dir %>/run/network-tracer.pid
+  rm -f <%= install_dir %>/run/system-probe.pid
 end script

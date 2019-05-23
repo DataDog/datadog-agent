@@ -160,6 +160,9 @@ func (h *MultiLineHandler) run() {
 	flushTimer := time.NewTimer(h.flushTimeout)
 	defer func() {
 		flushTimer.Stop()
+		// last send before closing the channel to flush lineBuffer. This can occur when
+		// container stops before meeting sendContent condition.
+		h.sendContent()
 		close(h.outputChan)
 	}()
 	for {
