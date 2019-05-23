@@ -7,7 +7,6 @@ package decoder
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
@@ -132,6 +131,5 @@ func (d *Decoder) sendLine() {
 	content := make([]byte, d.lineBuffer.Len())
 	copy(content, d.lineBuffer.Bytes())
 	d.lineBuffer.Reset()
-	fmt.Printf("sendLine from decoder: %v\n", string(content))
 	d.lineHandler.Handle(content)
 }
