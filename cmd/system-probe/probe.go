@@ -63,16 +63,28 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 
 // Run makes available the HTTP endpoint for network collection
 func (nt *SystemProbe) Run() {
-	httpMux := http.DefaultServeMux
+	httpMux := http.NewServeMux()
 
-	// If profiling is disabled, then we should overwrite handlers for the pprof endpoints
-	// that were registered in init():
-	// https://github.com/golang/go/blob/5bd88b0/src/net/http/pprof/pprof.go#L72-L78
-	// We can only do this by creating a new HTTP Mux that does not have these endpoints handled
-	if !nt.cfg.EnableDebugProfiling {
-		httpMux = http.NewServeMux()
+	if nt.cfg.EnableDebugProfiling {
+		nt.setupDebugProfiling(httpMux)
 	}
 
+	go func() {
+		heartbeat := time.NewTicker(15 * time.Second)
+		for range heartbeat.C {
+			statsd.Client.Gauge("datadog.system_probe.agent", 1, []string{"version:" + Version}, 1)
+		}
+	}()
+
+	// if a debug port is specified, we expose our expvar to that port
+	if nt.cfg.SystemProbeExpVarPort > 0 {
+		go http.ListenAndServe(fmt.Sprintf("localhost:%d", nt.cfg.SystemProbeExpVarPort), http.DefaultServeMux)
+	}
+
+	http.Serve(nt.conn.GetListener(), httpMux)
+}
+
+func (nt *SystemProbe) setupDebugProfiling(httpMux *http.ServeMux) {
 	httpMux.HandleFunc("/status", func(w http.ResponseWriter, req *http.Request) {})
 
 	httpMux.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {
@@ -117,20 +129,6 @@ func (nt *SystemProbe) Run() {
 
 		writeAsJSON(w, stats)
 	})
-
-	go func() {
-		heartbeat := time.NewTicker(15 * time.Second)
-		for range heartbeat.C {
-			statsd.Client.Gauge("datadog.system_probe.agent", 1, []string{"version:" + Version}, 1)
-		}
-	}()
-
-	// if a debug port is specified, we expose our expvar to that port
-	if nt.cfg.SystemProbeExpVarPort > 0 {
-		go http.ListenAndServe(fmt.Sprintf("localhost:%d", nt.cfg.SystemProbeExpVarPort), nil)
-	}
-
-	http.Serve(nt.conn.GetListener(), httpMux)
 }
 
 func getClientID(req *http.Request) string {
