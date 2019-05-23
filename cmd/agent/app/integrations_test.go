@@ -164,7 +164,7 @@ func TestParseWheelPackageNameErrorCases(t *testing.T) {
 		wheelFileName string
 		expectedErr   string
 	}{
-		"wheel file not found":            {"datadog_cisco_aci_does_not_exist.whl", "no such file or directory"},
+		"error operning archive file":     {"datadog_cisco_aci_does_not_exist.whl", "error operning archive file"},
 		"package name not found in wheel": {"datadog_cisco_aci_no_name_invalid.whl", "package name not found in wheel"},
 	}
 	for name, test := range tests {

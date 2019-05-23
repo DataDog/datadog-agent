@@ -500,7 +500,7 @@ func downloadWheel(integration, version string) (string, error) {
 func parseWheelPackageName(wheelPath string) (string, error) {
 	reader, err := zip.OpenReader(wheelPath)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error operning archive file: %v", err)
 	}
 	defer reader.Close()
 
