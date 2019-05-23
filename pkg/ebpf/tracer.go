@@ -12,6 +12,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
@@ -23,7 +24,7 @@ type Tracer struct {
 
 	state          NetworkState
 	portMapping    *PortMapping
-	localAddresses map[string]struct{}
+	localAddresses map[util.Address]struct{}
 
 	conntracker netlink.Conntracker
 
@@ -85,8 +86,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("failed to read initial pid->port mapping: %s", err)
 	}
 
-	localAddresses := readLocalAddresses()
-
 	conntracker := netlink.NewNoOpConntracker()
 	if config.EnableConntrack {
 		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackShortTermBufferSize); err != nil {
@@ -101,7 +100,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		config:         config,
 		state:          NewDefaultNetworkState(),
 		portMapping:    portMapping,
-		localAddresses: localAddresses,
+		localAddresses: readLocalAddresses(),
 		buffer:         make([]ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
 		conntracker:    conntracker,
@@ -461,13 +460,13 @@ func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionD
 	return OUTGOING
 }
 
-func (t *Tracer) isLocalAddress(address Address) bool {
-	_, ok := t.localAddresses[address.String()]
+func (t *Tracer) isLocalAddress(address util.Address) bool {
+	_, ok := t.localAddresses[address]
 	return ok
 }
 
-func readLocalAddresses() map[string]struct{} {
-	addresses := make(map[string]struct{}, 0)
+func readLocalAddresses() map[util.Address]struct{} {
+	addresses := make(map[util.Address]struct{}, 0)
 
 	interfaces, err := net.Interfaces()
 	if err != nil {
@@ -486,9 +485,9 @@ func readLocalAddresses() map[string]struct{} {
 		for _, addr := range addrs {
 			switch v := addr.(type) {
 			case *net.IPNet:
-				addresses[v.IP.String()] = struct{}{}
+				addresses[util.AddressFromNetIP(v.IP)] = struct{}{}
 			case *net.IPAddr:
-				addresses[v.IP.String()] = struct{}{}
+				addresses[util.AddressFromNetIP(v.IP)] = struct{}{}
 			}
 		}
 

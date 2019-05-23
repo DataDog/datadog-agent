@@ -2,6 +2,8 @@
 
 package netlink
 
+import "github.com/DataDog/datadog-agent/pkg/process/util"
+
 type noOpConntracker struct{}
 
 // NewNoOpConntracker creates a conntracker which always returns empty information
@@ -9,7 +11,7 @@ func NewNoOpConntracker() Conntracker {
 	return &noOpConntracker{}
 }
 
-func (*noOpConntracker) GetTranslationForConn(ip string, port uint16) *IPTranslation {
+func (*noOpConntracker) GetTranslationForConn(ip util.Address, port uint16) *IPTranslation {
 	return nil
 }
 

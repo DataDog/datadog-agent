@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -130,8 +132,8 @@ func TestRemoveConnections(t *testing.T) {
 		Pid:                  123,
 		Type:                 UDP,
 		Family:               AFINET,
-		Source:               V4AddressFromString("127.0.0.1"),
-		Dest:                 V4AddressFromString("127.0.0.1"),
+		Source:               util.AddressFromString("127.0.0.1"),
+		Dest:                 util.AddressFromString("127.0.0.1"),
 		SPort:                31890,
 		DPort:                80,
 		MonotonicSentBytes:   12345,
@@ -166,8 +168,8 @@ func TestRetrieveClosedConnection(t *testing.T) {
 		Pid:                  123,
 		Type:                 TCP,
 		Family:               AFINET,
-		Source:               V4AddressFromString("127.0.0.1"),
-		Dest:                 V4AddressFromString("127.0.0.1"),
+		Source:               util.AddressFromString("127.0.0.1"),
+		Dest:                 util.AddressFromString("127.0.0.1"),
 		SPort:                31890,
 		DPort:                80,
 		MonotonicSentBytes:   12345,
@@ -249,8 +251,8 @@ func TestLastStats(t *testing.T) {
 		Pid:                  123,
 		Type:                 TCP,
 		Family:               AFINET,
-		Source:               V4AddressFromString("127.0.0.1"),
-		Dest:                 V4AddressFromString("127.0.0.1"),
+		Source:               util.AddressFromString("127.0.0.1"),
+		Dest:                 util.AddressFromString("127.0.0.1"),
 		SPort:                31890,
 		DPort:                80,
 		MonotonicSentBytes:   36,
@@ -329,8 +331,8 @@ func TestLastStatsForClosedConnection(t *testing.T) {
 		Pid:                  123,
 		Type:                 TCP,
 		Family:               AFINET,
-		Source:               V4AddressFromString("127.0.0.1"),
-		Dest:                 V4AddressFromString("127.0.0.1"),
+		Source:               util.AddressFromString("127.0.0.1"),
+		Dest:                 util.AddressFromString("127.0.0.1"),
 		SPort:                31890,
 		DPort:                80,
 		MonotonicSentBytes:   36,
@@ -382,8 +384,8 @@ func TestRaceConditions(t *testing.T) {
 				Pid:                  1 + i,
 				Type:                 TCP,
 				Family:               AFINET,
-				Source:               V4AddressFromString("127.0.0.1"),
-				Dest:                 V4AddressFromString("127.0.0.1"),
+				Source:               util.AddressFromString("127.0.0.1"),
+				Dest:                 util.AddressFromString("127.0.0.1"),
 				SPort:                uint16(rand.Int()),
 				DPort:                uint16(rand.Int()),
 				MonotonicSentBytes:   uint64(rand.Int()),
@@ -430,8 +432,8 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		Pid:                123,
 		Type:               TCP,
 		Family:             AFINET,
-		Source:             V4AddressFromString("127.0.0.1"),
-		Dest:               V4AddressFromString("127.0.0.1"),
+		Source:             util.AddressFromString("127.0.0.1"),
+		Dest:               util.AddressFromString("127.0.0.1"),
 		MonotonicSentBytes: 3,
 	}
 
@@ -523,8 +525,8 @@ func TestSameKeyEdgeCases(t *testing.T) {
 			Pid:                123,
 			Type:               TCP,
 			Family:             AFINET,
-			Source:             V4AddressFromString("127.0.0.1"),
-			Dest:               V4AddressFromString("127.0.0.1"),
+			Source:             util.AddressFromString("127.0.0.1"),
+			Dest:               util.AddressFromString("127.0.0.1"),
 			SPort:              9000,
 			DPort:              1234,
 			MonotonicSentBytes: 1,
@@ -974,8 +976,8 @@ func generateRandConnections(n int) []ConnectionStats {
 			Pid:                  123,
 			Type:                 TCP,
 			Family:               AFINET,
-			Source:               V4AddressFromString("127.0.0.1"),
-			Dest:                 V4AddressFromString("127.0.0.1"),
+			Source:               util.AddressFromString("127.0.0.1"),
+			Dest:                 util.AddressFromString("127.0.0.1"),
 			SPort:                uint16(rand.Intn(math.MaxUint16)),
 			DPort:                uint16(rand.Intn(math.MaxUint16)),
 			MonotonicRecvBytes:   rand.Uint64(),

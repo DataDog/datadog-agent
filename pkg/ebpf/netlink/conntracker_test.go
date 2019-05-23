@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+
 	ct "github.com/florianl/go-conntrack"
 	"github.com/stretchr/testify/assert"
 )
@@ -29,7 +31,7 @@ func TestRegisterNonNat(t *testing.T) {
 	c := makeUntranslatedConn("10.0.0.0:8080", "50.30.40.10:12345")
 
 	rt.register(c)
-	translation := rt.GetTranslationForConn("10.0.0.0", 8080)
+	translation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 8080)
 	assert.Nil(t, translation)
 }
 
@@ -38,7 +40,7 @@ func TestRegisterNat(t *testing.T) {
 	c := makeTranslatedConn("10.0.0.0:12345", "50.30.40.10:80", "20.0.0.0:80")
 
 	rt.register(c)
-	translation := rt.GetTranslationForConn("10.0.0.0", 12345)
+	translation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345)
 	assert.NotNil(t, translation)
 	assert.Equal(t, &IPTranslation{
 		ReplSrcIP:   "20.0.0.0",
@@ -49,14 +51,14 @@ func TestRegisterNat(t *testing.T) {
 
 	// even after unregistering, we should be able to access the conn
 	rt.unregister(c)
-	translation2 := rt.GetTranslationForConn("10.0.0.0", 12345)
+	translation2 := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345)
 	assert.NotNil(t, translation2)
 
 	// double unregisters should never happen, though it will be treated as a no-op
 	rt.unregister(c)
 
 	rt.ClearShortLived()
-	translation3 := rt.GetTranslationForConn("10.0.0.0", 12345)
+	translation3 := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345)
 	assert.Nil(t, translation3)
 
 	// triple unregisters should never happen, though it will be treated as a no-op
