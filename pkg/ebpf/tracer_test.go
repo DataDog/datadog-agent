@@ -40,6 +40,16 @@ func TestTracerExpvar(t *testing.T) {
 	assert.Equal(t, probeExpvar.String(), "{\"conntrack.not\": 0, \"network.closed_conn_dropped\": 0, \"network.closed_conn_polling_lost\": 0, \"network.closed_conn_polling_received\": 0, \"network.conn_dropped\": 0, \"network.expired_tcp_conns\": 0, \"network.ok_conns_skipped\": 0, \"network.stats_resets\": 0, \"network.unordered_conns\": 0}")
 }
 
+func TestSnakeToCamel(t *testing.T) {
+	for test, exp := range map[string]string{
+		"closed_conn_dropped":              "ClosedConnDropped",
+		"closed_conn_polling_lost":         "ClosedConnPollingLost",
+		"Conntrack_short_Term_Buffer_size": "ConntrackShortTermBufferSize",
+	} {
+		assert.Equal(t, exp, snakeToCapInitialCamel(test))
+	}
+}
+
 func TestTCPSendAndReceive(t *testing.T) {
 	// Enable BPF-based system probe
 	tr, err := NewTracer(NewDefaultConfig())

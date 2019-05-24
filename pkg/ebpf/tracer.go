@@ -7,6 +7,7 @@ import (
 	"expvar"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -125,6 +126,30 @@ func NewTracer(config *Config) (*Tracer, error) {
 	return tr, nil
 }
 
+// snakeToCapInitialCamel converts a snake case to Camel case with capital initial
+func snakeToCapInitialCamel(s string) string {
+	n := ""
+	capNext := true
+	for _, v := range s {
+		if v >= 'A' && v <= 'Z' {
+			n += string(v)
+		}
+		if v >= 'a' && v <= 'z' {
+			if capNext {
+				n += strings.ToUpper(string(v))
+			} else {
+				n += string(v)
+			}
+		}
+		if v == '_' {
+			capNext = true
+		} else {
+			capNext = false
+		}
+	}
+	return n
+}
+
 func (t *Tracer) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
 	// starts running the body immediately instead waiting for the first tick
@@ -139,7 +164,7 @@ func (t *Tracer) expvarStats() {
 				for metric, val := range telemetry.(map[string]int64) {
 					currVal := &expvar.Int{}
 					currVal.Set(val)
-					probeExpvar.Set(fmt.Sprintf("network.%s", metric), currVal)
+					probeExpvar.Set(fmt.Sprintf("Network%s", snakeToCapInitialCamel(metric)), currVal)
 				}
 			}
 		}
@@ -148,7 +173,7 @@ func (t *Tracer) expvarStats() {
 			for metric, val := range conntrackStats.(map[string]int64) {
 				currVal := &expvar.Int{}
 				currVal.Set(val)
-				probeExpvar.Set(fmt.Sprintf("conntrack.%s", metric), currVal)
+				probeExpvar.Set(fmt.Sprintf("Conntrack%s", snakeToCapInitialCamel(metric)), currVal)
 			}
 		}
 	}
