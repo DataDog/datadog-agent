@@ -27,6 +27,14 @@ func (c ConnectionType) String() string {
 	return "UDP"
 }
 
+const (
+	// AFINET represents v4 connections
+	AFINET ConnectionFamily = 0
+
+	// AFINET6 represents v6 connections
+	AFINET6 ConnectionFamily = 1
+)
+
 // ConnectionFamily will be either v4 or v6
 type ConnectionFamily uint8
 
@@ -54,14 +62,6 @@ func (d ConnectionDirection) String() string {
 		return "incoming"
 	}
 }
-
-const (
-	// AFINET represents v4 connections
-	AFINET ConnectionFamily = 0
-
-	// AFINET6 represents v6 connections
-	AFINET6 ConnectionFamily = 1
-)
 
 // Connections wraps a collection of ConnectionStats
 //easyjson:json
@@ -127,6 +127,11 @@ func (c ConnectionStats) String() string {
 }
 
 // ByteKey returns a unique key for this connection represented as a byte array
+// It's as following:
+
+//    32b     16b     16b      4b      4b      4/16b       4/16b
+// |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  | DestAddr
+//
 func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 	buffer.Reset()
 	// Byte-packing to improve creation speed
@@ -139,19 +144,21 @@ func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 	if _, err := buffer.Write(buf[:]); err != nil {
 		return nil, err
 	}
-	if _, err := buffer.Write(c.SourceAddr().Bytes()); err != nil {
-		return nil, err
-	}
-	buffer.WriteRune('|')
+
 	// Family (4 bits) + Type (4 bits) = 8 bits
 	p1 := uint8(c.Family)<<4 | uint8(c.Type)
 	if err := buffer.WriteByte(p1); err != nil {
 		return nil, err
 	}
-	buffer.WriteRune('|')
+
+	if _, err := buffer.Write(c.SourceAddr().Bytes()); err != nil {
+		return nil, err
+	}
+
 	if _, err := buffer.Write(c.DestAddr().Bytes()); err != nil {
 		return nil, err
 	}
+
 	return buffer.Bytes(), nil
 }
 
@@ -176,19 +183,19 @@ func BeautifyKey(key string) string {
 	sport := (h >> 16) & 0xffff
 	dport := h & 0xffff
 
-	// Them we have the source addr, family + type and dest addr
-	parts := bytes.Split(raw[8:], []byte{'|'})
+	// Then we have the family, type
+	family := (raw[8] >> 4) & 0xf
+	typ := raw[8] & 0xf
 
-	var source, dest util.Address
-	var family, typ uint8
-	if len(parts) == 3 {
-		source = bytesToAddress(parts[0])
-		dest = bytesToAddress(parts[2])
-		if len(parts[1]) == 1 {
-			family = (parts[1][0] >> 4) & 0xf
-			typ = parts[1][0] & 0xf
-		}
+	// Finally source addr, dest addr
+	addrSize := 4
+	if ConnectionFamily(family) == AFINET6 {
+		addrSize = 16
 	}
+	fmt.Printf("addrSize = %+v\n", addrSize)
+
+	source := bytesToAddress(raw[9 : 9+addrSize])
+	dest := bytesToAddress(raw[9+addrSize : 9+2*addrSize])
 
 	return fmt.Sprintf(keyFmt, pid, source, sport, dest, dport, family, typ)
 }
