@@ -21,7 +21,7 @@ index d6d1279..80ce604 100644
 +AC_HELP_STRING([--disable-keyutils],don't enable using keyutils for keyring ccache @<:@enabled@:>@), , enable_keyutils=yes)
 +if test "$enable_keyutils" = yes; then
    AC_CHECK_HEADERS([keyutils.h],
-     AC_CHECK_LIB(keyutils, add_key,
+     AC_CHECK_LIB(keyutils, add_key, 
        [dnl Pre-reqs were found
         AC_DEFINE(USE_KEYRING_CCACHE, 1, [Define if the keyring ccache should be enabled])
         LIBS="-lkeyutils $LIBS"
