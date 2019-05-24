@@ -26,6 +26,7 @@ const (
 	maxExpBackoffCount    = 7
 	connectionTimeout     = 20 * time.Second
 	statusConnectionError = "connection_error"
+	unlimitedRetries      = uint(0)
 )
 
 // A ConnectionManager manages connections
@@ -44,7 +45,7 @@ func NewConnectionManager(endpoint Endpoint) *ConnectionManager {
 
 // NewConnection returns an initialized connection to the intake.
 // It blocks until a connection is available
-func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error) {
+func (cm *ConnectionManager) NewConnection(ctx context.Context, maxRetries uint) (net.Conn, error) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 
@@ -67,6 +68,10 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 			cm.backoff(ctx, retries)
 		}
 		retries++
+
+		if maxRetries > 0 && retries >= maxRetries {
+			return nil, ctx.Err()
+		}
 
 		// Check if we should continue.
 		select {

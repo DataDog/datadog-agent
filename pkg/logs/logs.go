@@ -6,12 +6,14 @@
 package logs
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"sync/atomic"
-
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"sync/atomic"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
@@ -21,8 +23,9 @@ import (
 
 const (
 	// key used to display a warning message on the agent status
-	invalidProcessingRules = "invalid_global_processing_rules"
-	invalidEndpoints       = "invalid_endpoints"
+	invalidProcessingRules    = "invalid_global_processing_rules"
+	invalidEndpoints          = "invalid_endpoints"
+	unreachable_main_endpoint = "unreachable_main_endpoint"
 )
 
 var (
@@ -59,6 +62,12 @@ func Start() error {
 		return errors.New(message)
 	}
 
+	if !TestConnection(endpoints.Main) {
+		message := fmt.Sprintf("Unreachable datadog log intake: %s:%d", endpoints.Main.Host, endpoints.Main.Port)
+		status.AddGlobalError(unreachable_main_endpoint, message)
+		return errors.New(message)
+	}
+
 	// setup global processing rules
 	processingRules, err := config.GlobalProcessingRules()
 	if err != nil {
@@ -80,6 +89,22 @@ func Start() error {
 	}
 
 	return nil
+}
+
+func TestConnection(endpoint client.Endpoint) bool {
+	cm := client.NewConnectionManager(endpoint)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	conn, err := cm.NewConnection(ctx, 3)
+	res := conn != nil && err == nil
+	if conn != nil {
+		cm.CloseConnection(conn)
+	}
+	return res
+}
+
+func TestDestination(endpoint client.Endpoint) bool {
+	d := client.NewDestination(endpoint, context.Background())
 }
 
 // Stop stops properly the logs-agent to prevent data loss,

@@ -69,7 +69,7 @@ func (d *Destination) Send(payload []byte) error {
 
 		// We work only if we have a started destination context
 		ctx := d.destinationsContext.Context()
-		if d.conn, err = d.connManager.NewConnection(ctx); err != nil {
+		if d.conn, err = d.connManager.NewConnection(ctx, unlimitedRetries); err != nil {
 			return err
 		}
 	}
