@@ -13,6 +13,7 @@ import (
 	"net"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -75,7 +76,7 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 }
 
 // GetConnections returns a set of active network connections, retrieved from the system probe service
-func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]ebpf.ConnectionStats, error) {
+func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]*model.Connection, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID), nil)
 	if err != nil {
 		return nil, err
@@ -98,10 +99,10 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]ebpf.ConnectionS
 	return unmarshal(body, contentType)
 }
 
-func unmarshal(body []byte, contentType string) ([]ebpf.ConnectionStats, error) {
+func unmarshal(body []byte, contentType string) ([]*model.Connection, error) {
 	var (
 		err   error
-		conns *ebpf.Connections
+		conns *model.Connections
 	)
 
 	if strings.Contains(contentType, contentTypeProtobuf) {

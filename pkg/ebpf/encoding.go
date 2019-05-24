@@ -16,59 +16,50 @@ var jsonMarshaler = jsonpb.Marshaler{}
 func MarshalProtobuf(conns *Connections) ([]byte, error) {
 	agentConns := make([]*agent.Connection, len(conns.Conns))
 	for i, conn := range conns.Conns {
-		agentConns[i] = toAgentConnection(conn)
+		agentConns[i] = FormatConnection(conn)
 	}
 	payload := &agent.Connections{Conns: agentConns}
 	return proto.Marshal(payload)
 }
 
 // UnmarshalConnections deserializes a Protobuf message into a Connections object
-func UnmarshalProtobuf(blob []byte) (*Connections, error) {
-	payload := new(agent.Connections)
-	if err := proto.Unmarshal(blob, payload); err != nil {
+func UnmarshalProtobuf(blob []byte) (*agent.Connections, error) {
+	conns := new(agent.Connections)
+	if err := proto.Unmarshal(blob, conns); err != nil {
 		return nil, err
 	}
-	conns := make([]ConnectionStats, len(payload.Conns))
-	for i, conn := range payload.Conns {
-		ebpfConn := fromAgentConnection(conn)
-		conns[i] = ebpfConn
-	}
-	return &Connections{Conns: conns}, nil
+	return conns, nil
 }
 
 // MarshalJSON serializes a Connections object into a JSON document
 func MarshalJSON(conns *Connections) ([]byte, error) {
 	agentConns := make([]*agent.Connection, len(conns.Conns))
 	for i, conn := range conns.Conns {
-		agentConns[i] = toAgentConnection(conn)
+		agentConns[i] = FormatConnection(conn)
 	}
 	payload := &agent.Connections{Conns: agentConns}
-
 	writer := new(bytes.Buffer)
 	err := jsonMarshaler.Marshal(writer, payload)
 	return writer.Bytes(), err
 }
 
 // UnmarshalJSON deserializes a JSON document into a Connections object
-func UnmarshalJSON(blob []byte) (*Connections, error) {
-	payload := new(agent.Connections)
+func UnmarshalJSON(blob []byte) (*agent.Connections, error) {
+	conns := new(agent.Connections)
 	reader := bytes.NewReader(blob)
-	if err := jsonpb.Unmarshal(reader, payload); err != nil {
+	if err := jsonpb.Unmarshal(reader, conns); err != nil {
 		return nil, err
 	}
-	conns := make([]ConnectionStats, len(payload.Conns))
-	for i, conn := range payload.Conns {
-		ebpfConn := fromAgentConnection(conn)
-		conns[i] = ebpfConn
-	}
-	return &Connections{Conns: conns}, nil
+	return conns, nil
 }
 
-func toAgentConnection(conn ConnectionStats) *agent.Connection {
-	agentConn := &agent.Connection{
+func FormatConnection(conn ConnectionStats) *agent.Connection {
+	return &agent.Connection{
 		Pid:                int32(conn.Pid),
-		Family:             agent.ConnectionFamily(conn.Family),
-		Type:               agent.ConnectionType(conn.Type),
+		Laddr:              formatAddr(conn.Source, conn.SPort),
+		Raddr:              formatAddr(conn.Dest, conn.DPort),
+		Family:             formatFamily(conn.Family),
+		Type:               formatType(conn.Type),
 		TotalBytesSent:     conn.MonotonicSentBytes,
 		TotalBytesReceived: conn.MonotonicRecvBytes,
 		TotalRetransmits:   conn.MonotonicRetransmits,
@@ -77,61 +68,62 @@ func toAgentConnection(conn ConnectionStats) *agent.Connection {
 		LastRetransmits:    conn.LastRetransmits,
 		Direction:          agent.ConnectionDirection(conn.Direction),
 		NetNS:              conn.NetNS,
+		IpTranslation:      formatIPTranslation(conn.IPTranslation),
 	}
-
-	if conn.Source != nil {
-		agentConn.Laddr = &agent.Addr{Ip: conn.Source.String(), Port: int32(conn.SPort)}
-	}
-
-	if conn.Dest != nil {
-		agentConn.Raddr = &agent.Addr{Ip: conn.Dest.String(), Port: int32(conn.DPort)}
-	}
-
-	if conn.IPTranslation != nil {
-		agentConn.IpTranslation = &agent.IPTranslation{
-			ReplSrcIP:   conn.IPTranslation.ReplSrcIP,
-			ReplDstIP:   conn.IPTranslation.ReplDstIP,
-			ReplSrcPort: int32(conn.IPTranslation.ReplSrcPort),
-			ReplDstPort: int32(conn.IPTranslation.ReplDstPort),
-		}
-	}
-
-	return agentConn
 }
 
-func fromAgentConnection(agentConn *agent.Connection) ConnectionStats {
-	conn := ConnectionStats{
-		MonotonicSentBytes:   agentConn.TotalBytesSent,
-		LastSentBytes:        agentConn.LastBytesSent,
-		MonotonicRecvBytes:   agentConn.TotalBytesReceived,
-		LastRecvBytes:        agentConn.LastBytesReceived,
-		MonotonicRetransmits: agentConn.TotalRetransmits,
-		LastRetransmits:      agentConn.LastRetransmits,
-		Pid:                  uint32(agentConn.Pid),
-		NetNS:                agentConn.NetNS,
-		Type:                 ConnectionType(agentConn.Type),
-		Family:               ConnectionFamily(agentConn.Family),
-		Direction:            ConnectionDirection(agentConn.Direction),
+func formatAddr(addr util.Address, port uint16) *agent.Addr {
+	if addr == nil {
+		return nil
 	}
 
-	if agentConn.Laddr != nil {
-		conn.Source = util.AddressFromString(agentConn.Laddr.Ip)
-		conn.SPort = uint16(agentConn.Laddr.Port)
+	return &agent.Addr{Ip: addr.String(), Port: int32(port)}
+}
+
+func formatFamily(f ConnectionFamily) agent.ConnectionFamily {
+	switch f {
+	case AFINET:
+		return agent.ConnectionFamily_v4
+	case AFINET6:
+		return agent.ConnectionFamily_v6
+	default:
+		return -1
+	}
+}
+
+func formatType(f ConnectionType) agent.ConnectionType {
+	switch f {
+	case TCP:
+		return agent.ConnectionType_tcp
+	case UDP:
+		return agent.ConnectionType_udp
+	default:
+		return -1
+	}
+}
+
+func formatDirection(d ConnectionDirection) agent.ConnectionDirection {
+	switch d {
+	case INCOMING:
+		return agent.ConnectionDirection_incoming
+	case OUTGOING:
+		return agent.ConnectionDirection_outgoing
+	case LOCAL:
+		return agent.ConnectionDirection_local
+	default:
+		return agent.ConnectionDirection_unspecified
+	}
+}
+
+func formatIPTranslation(ct *netlink.IPTranslation) *agent.IPTranslation {
+	if ct == nil {
+		return nil
 	}
 
-	if agentConn.Raddr != nil {
-		conn.Dest = util.AddressFromString(agentConn.Raddr.Ip)
-		conn.DPort = uint16(agentConn.Raddr.Port)
+	return &agent.IPTranslation{
+		ReplSrcIP:   ct.ReplSrcIP,
+		ReplDstIP:   ct.ReplDstIP,
+		ReplSrcPort: int32(ct.ReplSrcPort),
+		ReplDstPort: int32(ct.ReplDstPort),
 	}
-
-	if agentConn.IpTranslation != nil {
-		conn.IPTranslation = &netlink.IPTranslation{
-			ReplSrcIP:   agentConn.IpTranslation.ReplSrcIP,
-			ReplDstIP:   agentConn.IpTranslation.ReplDstIP,
-			ReplSrcPort: uint16(agentConn.IpTranslation.ReplSrcPort),
-			ReplDstPort: uint16(agentConn.IpTranslation.ReplDstPort),
-		}
-	}
-
-	return conn
 }

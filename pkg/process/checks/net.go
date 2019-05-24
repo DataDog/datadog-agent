@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -99,13 +98,17 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	return batchConnections(cfg, groupID, c.formatConnections(conns)), nil
 }
 
-func (c *ConnectionsCheck) getConnections() ([]ebpf.ConnectionStats, error) {
+func (c *ConnectionsCheck) getConnections() ([]*model.Connection, error) {
 	if c.useLocalTracer { // If local tracer is set up, use that
 		if c.localTracer == nil {
 			return nil, fmt.Errorf("using local system probe, but no tracer was initialized")
 		}
 		cs, err := c.localTracer.GetActiveConnections(c.tracerClientID)
-		return cs.Conns, err
+		conns := make([]*model.Connection, len(cs.Conns))
+		for i, ebpfConn := range cs.Conns {
+			conns[i] = ebpf.FormatConnection(ebpfConn)
+		}
+		return conns, err
 	}
 
 	tu, err := net.GetRemoteSystemProbeUtil()
@@ -119,98 +122,21 @@ func (c *ConnectionsCheck) getConnections() ([]ebpf.ConnectionStats, error) {
 	return tu.GetConnections(c.tracerClientID)
 }
 
-// Connections are split up into a chunks of at most 100 connections per message to
-// limit the message size on intake.
-func (c *ConnectionsCheck) formatConnections(conns []ebpf.ConnectionStats) []*model.Connection {
+func (c *ConnectionsCheck) formatConnections(conns []*model.Connection) []*model.Connection {
 	// Process create-times required to construct unique process hash keys on the backend
-	createTimeForPID := Process.createTimesforPIDs(connectionStatsPIDs(conns))
-
-	cxs := make([]*model.Connection, 0, len(conns))
+	createTimeForPID := Process.createTimesforPIDs(connectionPIDs(conns))
 	for _, conn := range conns {
-		// default creation time to ensure network connections from short-lived processes are not dropped
 		if _, ok := createTimeForPID[conn.Pid]; !ok {
 			createTimeForPID[conn.Pid] = 0
 		}
 
-		if conn.Source == nil || conn.Dest == nil {
-			continue
-		}
-
-		cxs = append(cxs, &model.Connection{
-			Pid:           int32(conn.Pid),
-			PidCreateTime: createTimeForPID[conn.Pid],
-			NetNS:         conn.NetNS,
-			Family:        formatFamily(conn.Family),
-			Type:          formatType(conn.Type),
-			Laddr: &model.Addr{
-				Ip:   conn.Source.String(),
-				Port: int32(conn.SPort),
-			},
-			Raddr: &model.Addr{
-				Ip:   conn.Dest.String(),
-				Port: int32(conn.DPort),
-			},
-			TotalBytesSent:     conn.MonotonicSentBytes,
-			TotalBytesReceived: conn.MonotonicRecvBytes,
-			TotalRetransmits:   conn.MonotonicRetransmits,
-			LastBytesSent:      conn.LastSentBytes,
-			LastBytesReceived:  conn.LastRecvBytes,
-			LastRetransmits:    conn.LastRetransmits,
-			Direction:          formatDirection(conn.Direction),
-			IpTranslation:      formatIPTranslation(conn.IPTranslation),
-		})
+		conn.PidCreateTime = createTimeForPID[conn.Pid]
 	}
-	return cxs
+	return conns
 }
 
-func formatFamily(f ebpf.ConnectionFamily) model.ConnectionFamily {
-	switch f {
-	case ebpf.AFINET:
-		return model.ConnectionFamily_v4
-	case ebpf.AFINET6:
-		return model.ConnectionFamily_v6
-	default:
-		return -1
-	}
-}
-
-func formatType(f ebpf.ConnectionType) model.ConnectionType {
-	switch f {
-	case ebpf.TCP:
-		return model.ConnectionType_tcp
-	case ebpf.UDP:
-		return model.ConnectionType_udp
-	default:
-		return -1
-	}
-}
-
-func formatDirection(d ebpf.ConnectionDirection) model.ConnectionDirection {
-	switch d {
-	case ebpf.INCOMING:
-		return model.ConnectionDirection_incoming
-	case ebpf.OUTGOING:
-		return model.ConnectionDirection_outgoing
-	case ebpf.LOCAL:
-		return model.ConnectionDirection_local
-	default:
-		return model.ConnectionDirection_unspecified
-	}
-}
-
-func formatIPTranslation(ct *netlink.IPTranslation) *model.IPTranslation {
-	if ct == nil {
-		return nil
-	}
-
-	return &model.IPTranslation{
-		ReplSrcIP:   ct.ReplSrcIP,
-		ReplDstIP:   ct.ReplDstIP,
-		ReplSrcPort: int32(ct.ReplSrcPort),
-		ReplDstPort: int32(ct.ReplDstPort),
-	}
-}
-
+// Connections are split up into a chunks of at most 100 connections per message to
+// limit the message size on intake.
 func batchConnections(cfg *config.AgentConfig, groupID int32, cxs []*model.Connection) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -243,19 +169,6 @@ func groupSize(total, maxBatchSize int) int32 {
 		groupSize++
 	}
 	return int32(groupSize)
-}
-
-func connectionStatsPIDs(conns []ebpf.ConnectionStats) []uint32 {
-	ps := make(map[uint32]struct{}) // Map used to represent a set
-	for _, c := range conns {
-		ps[c.Pid] = struct{}{}
-	}
-
-	pids := make([]uint32, 0, len(ps))
-	for pid := range ps {
-		pids = append(pids, pid)
-	}
-	return pids
 }
 
 func connectionPIDs(conns []*model.Connection) []int32 {
