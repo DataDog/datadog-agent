@@ -32,15 +32,9 @@ import (
 const (
 	reqAgentReleaseFile = "requirements-agent-release.txt"
 	constraintsFile     = "final_constraints.txt"
-	datadogPkgPattern   = "datadog-.*"
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
-	// Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
-	versionSpecifiersPattern = "([><=!]{1,2})([0-9.]*)"
-	// e.g. Name: datadog-postgres
-	wheelPackageNamePattern = "Name: (\\S+)"
-	yamlFilePattern         = "[\\w_]+\\.yaml.*"
-	downloaderModule        = "datadog_checks.downloader"
-	disclaimer              = "For your security, only use this to install wheels containing an Agent integration " +
+	downloaderModule    = "datadog_checks.downloader"
+	disclaimer          = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
 	versionScript = `
 try:
@@ -52,6 +46,11 @@ except ImportError:
 )
 
 var (
+	datadogPkgNameRe    = regexp.MustCompile("datadog-.*")
+	yamlFileNameRe      = regexp.MustCompile("[\\w_]+\\.yaml.*")
+	wheelPackageNameRe  = regexp.MustCompile("Name: (\\S+)")           // e.g. Name: datadog-postgres
+	versionSpecifiersRe = regexp.MustCompile("([><=!]{1,2})([0-9.]*)") // Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
+
 	allowRoot    bool
 	verbose      int
 	useSysPython bool
@@ -180,12 +179,7 @@ func validateArgs(args []string, local bool) error {
 	}
 
 	if !local {
-		exp, err := regexp.Compile(datadogPkgPattern)
-		if err != nil {
-			return fmt.Errorf("internal error: %v", err)
-		}
-
-		if !exp.MatchString(args[0]) {
+		if !datadogPkgNameRe.MatchString(args[0]) {
 			return fmt.Errorf("invalid package name - this manager only handles datadog packages")
 		}
 	} else {
@@ -516,12 +510,7 @@ func parseWheelPackageName(wheelPath string) (string, error) {
 			for scanner.Scan() {
 				line := scanner.Text()
 
-				exp, err := regexp.Compile(wheelPackageNamePattern)
-				if err != nil {
-					return "", fmt.Errorf("regexp internal error: %v", err)
-				}
-
-				matches := exp.FindStringSubmatch(line)
+				matches := wheelPackageNameRe.FindStringSubmatch(line)
 				if matches == nil {
 					continue
 				}
@@ -559,11 +548,7 @@ func validateBaseDependency(wheelPath string, baseVersion *semver.Version) (bool
 						// Simply trying to verify that the base package is a dependency
 						return true, nil
 					}
-					exp, err := regexp.Compile(versionSpecifiersPattern)
-					if err != nil {
-						return false, fmt.Errorf("internal error: %v", err)
-					}
-					matches := exp.FindAllStringSubmatch(line, -1)
+					matches := versionSpecifiersRe.FindAllStringSubmatch(line, -1)
 
 					if matches == nil {
 						// base check not pinned, so it is compatible with whatever version we pass
@@ -708,15 +693,11 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 		return err
 	}
 
-	exp, err := regexp.Compile(yamlFilePattern)
-	if err != nil {
-		return fmt.Errorf("internal error: %v", err)
-	}
 	errorMsg := ""
 	for _, file := range files {
 		filename := file.Name()
 		// Replace existing file
-		if !exp.MatchString(filename) {
+		if !yamlFileNameRe.MatchString(filename) {
 			continue
 		}
 		src := filepath.Join(srcFolder, filename)
