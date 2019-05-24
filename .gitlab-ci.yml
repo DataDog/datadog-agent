@@ -1201,8 +1201,8 @@ deploy_process_and_sysprobe:
     # Use tag or shortened branch with short commit hash to identify the binary
     - export SHORT_REF=$(echo $CI_COMMIT_REF_NAME | cut -d'/' -f2- | cut -c -10 | sed -E 's/[^[:alnum:]]+/-/g')
     - export NAME=${CI_COMMIT_TAG:-$SHORT_REF}
-    - $S3_CP_CMD ./out/opt/datadog-agent/embedded/bin/process-agent s3://$PROCESS_S3_BUCKET/process-agent-amd64-$NAME-${CI_COMMIT_SHA:0:7}
-    - $S3_CP_CMD ./out/opt/datadog-agent/embedded/bin/system-probe s3://$PROCESS_S3_BUCKET/system-probe-amd64-$NAME-${CI_COMMIT_SHA:0:7}
+    - $S3_CP_CMD --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23 ./out/opt/datadog-agent/embedded/bin/process-agent s3://$PROCESS_S3_BUCKET/process-agent-amd64-$NAME-${CI_COMMIT_SHA:0:7}
+    - $S3_CP_CMD --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23 ./out/opt/datadog-agent/embedded/bin/system-probe s3://$PROCESS_S3_BUCKET/system-probe-amd64-$NAME-${CI_COMMIT_SHA:0:7}
 
 #
 # Docker releases
