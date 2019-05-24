@@ -167,6 +167,97 @@ func TestComputeEvents(t *testing.T) {
 	}
 }
 
+// TestComputeMem checks the computeMem methos
+func TestComputeMem(t *testing.T) {
+	containerdCheck := &ContainerdCheck{
+		instance:  &ContainerdConfig{},
+		CheckBase: corechecks.NewCheckBase("containerd"),
+	}
+	mocked := mocksender.NewMockSender(containerdCheck.ID())
+	mocked.SetupAcceptAll()
+
+	tests := []struct {
+		name     string
+		mem      *cgroups.MemoryStat
+		expected map[string]float64
+	}{
+		{
+			name:     "nothing",
+			mem:      &cgroups.MemoryStat{},
+			expected: map[string]float64{},
+		},
+		{
+			name: "missing one of the MemoryEntries, missing entries in the others",
+			mem: &cgroups.MemoryStat{
+				Usage: &cgroups.MemoryEntry{
+					Usage: 1,
+				},
+				Kernel: &cgroups.MemoryEntry{
+					Max: 2,
+				},
+				Swap: &cgroups.MemoryEntry{
+					Limit: 3,
+				},
+			},
+			expected: map[string]float64{
+				"containerd.mem.current.usage": 1,
+				"containerd.mem.kernel.max":    2,
+				"containerd.mem.swap.limit":    3,
+			},
+		},
+		{
+			name: "full MemoryEntries, some regular metrics",
+			mem: &cgroups.MemoryStat{
+				Usage: &cgroups.MemoryEntry{
+					Usage:   1,
+					Max:     2,
+					Limit:   3,
+					Failcnt: 0,
+				},
+				Kernel: &cgroups.MemoryEntry{
+					Usage:   1,
+					Max:     2,
+					Limit:   3,
+					Failcnt: 0,
+				},
+				Swap: &cgroups.MemoryEntry{
+					Usage:   1,
+					Max:     2,
+					Limit:   3,
+					Failcnt: 0,
+				},
+				Cache:        20,
+				RSSHuge:      1212,
+				InactiveAnon: 1234,
+			},
+			expected: map[string]float64{
+				"containerd.mem.current.usage":   1,
+				"containerd.mem.current.max":     2,
+				"containerd.mem.current.limit":   3,
+				"containerd.mem.current.failcnt": 0,
+				"containerd.mem.kernel.max":      2,
+				"containerd.mem.kernel.usage":    1,
+				"containerd.mem.kernel.limit":    3,
+				"containerd.mem.kernel.failcnt":  0,
+				"containerd.mem.swap.limit":      3,
+				"containerd.mem.swap.max":        2,
+				"containerd.mem.swap.usage":      1,
+				"containerd.mem.swap.failcnt":    0,
+				"containerd.mem.cache":           20,
+				"containerd.mem.rsshuge":         1212,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			computeMem(mocked, test.mem, []string{})
+			for name, val := range test.expected {
+				mocked.AssertMetric(t, "Gauge", name, val, "", []string{})
+			}
+		})
+	}
+}
+
 // TestConvertTaskToMetrics checks the convertTasktoMetrics
 func TestConvertTaskToMetrics(t *testing.T) {
 	typeurl.Register(&cgroups.Metrics{}, "io.containerd.cgroups.v1.Metrics") // Need to register the type to be used in UnmarshalAny later on.
