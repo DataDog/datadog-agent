@@ -12,8 +12,6 @@ Logs Agent
 
 {{- if .metrics }}
 
-   Metrics
-  {{ printDashes "Metrics" "=" }}
   {{- range $metric_name, $metric_value := .metrics }}
     {{$metric_name}}: {{$metric_value}}
   {{- end }}
