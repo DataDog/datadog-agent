@@ -18,7 +18,7 @@ build do
   if windows?
     # this pins a dependency of pylint->datadog-a7, later versions (up to v3.7.1) are broken.
     command "#{python3} -m pip install configparser==3.5.0"
-    command "#{python3} -m pip install datadog-a7==#{version} --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\""
+    command "#{python3} -m pip install datadog-a7==#{version}
   else
     command "#{pip3} install configparser==3.5.0"
     command "#{pip3} install datadog-a7==#{version}"
