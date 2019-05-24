@@ -104,6 +104,10 @@ build do
                 link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
             end
 
+            # Strip symbols
+            strip_symbols(install_dir, "#{install_dir}/symbols")
+            delete "#{install_dir}/symbols"
+
         elsif osx?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
