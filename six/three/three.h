@@ -8,7 +8,7 @@
 
 // Some preprocessor sanity for builds (2+3 common sources)
 #ifndef DATADOG_AGENT_THREE
-#error Build requires defining DATADOG_AGENT_THREE
+#    error Build requires defining DATADOG_AGENT_THREE
 #endif
 
 #include <map>

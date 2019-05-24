@@ -11,7 +11,7 @@
 
 #ifdef DATADOG_AGENT_THREE
 PyMODINIT_FUNC PyInit_kubeutil(void);
-#endif  // ifdef DATADOG_AGENT_THREE
+#endif // ifdef DATADOG_AGENT_THREE
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,4 +27,4 @@ void _set_get_connection_info_cb(cb_get_connection_info_t);
 }
 #endif
 
-#endif  // DATADOG_AGENT_SIX_KUBEUTIL_H
+#endif // DATADOG_AGENT_SIX_KUBEUTIL_H
