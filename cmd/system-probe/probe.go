@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -18,12 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
-)
-
-const (
-	contentTypeHeader   = "Content-type"
-	contentTypeProtobuf = "application/protobuf"
-	contentTypeJSON     = "application/json"
 )
 
 // ErrTracerUnsupported is the unsupported error prefix, for error-class matching from callers
@@ -99,7 +92,8 @@ func (nt *SystemProbe) Run() {
 			return
 		}
 		encoding := req.Header.Get("Accept")
-		writeConnections(w, encoding, cs)
+		marshaler := ebpf.GetMarshaler(encoding)
+		writeConnections(w, marshaler, cs)
 
 		count := atomic.AddUint64(&runCounter, 1)
 		logRequests(id, count, len(cs.Conns), start)
@@ -114,7 +108,8 @@ func (nt *SystemProbe) Run() {
 		}
 
 		encoding := req.Header.Get("Accept")
-		writeConnections(w, encoding, cs)
+		marshaler := ebpf.GetMarshaler(encoding)
+		writeConnections(w, marshaler, cs)
 	})
 
 	httpMux.HandleFunc("/debug/net_state", func(w http.ResponseWriter, req *http.Request) {
@@ -168,15 +163,15 @@ func getClientID(req *http.Request) string {
 	return clientID
 }
 
-func writeConnections(w http.ResponseWriter, encoding string, cs *ebpf.Connections) {
-	marshaler := getMarshaler(w, encoding)
-	buf, err := marshaler(cs)
+func writeConnections(w http.ResponseWriter, marshaler ebpf.Marshaler, cs *ebpf.Connections) {
+	buf, err := marshaler.Marshal(cs)
 	if err != nil {
 		log.Errorf("unable to marshall connections: %s", err)
 		w.WriteHeader(500)
 		return
 	}
 
+	w.Header().Set("Content-type", marshaler.ContentType())
 	w.Write(buf)
 	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
 }
@@ -189,18 +184,6 @@ func writeAsJSON(w http.ResponseWriter, data interface{}) {
 		return
 	}
 	w.Write(buf)
-}
-
-type marshaler func(*ebpf.Connections) ([]byte, error)
-
-func getMarshaler(w http.ResponseWriter, accept string) marshaler {
-	if strings.Contains(accept, contentTypeProtobuf) {
-		w.Header().Set(contentTypeHeader, contentTypeProtobuf)
-		return ebpf.MarshalProtobuf
-	}
-
-	w.Header().Set(contentTypeHeader, contentTypeProtobuf)
-	return ebpf.MarshalJSON
 }
 
 // Close will stop all system probe activities

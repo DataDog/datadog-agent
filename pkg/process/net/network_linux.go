@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"time"
 
 	"context"
@@ -96,21 +95,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]*model.Connectio
 	}
 
 	contentType := resp.Header.Get("Content-type")
-	return unmarshal(body, contentType)
-}
-
-func unmarshal(body []byte, contentType string) ([]*model.Connection, error) {
-	var (
-		err   error
-		conns *model.Connections
-	)
-
-	if strings.Contains(contentType, contentTypeProtobuf) {
-		conns, err = ebpf.UnmarshalProtobuf(body)
-	} else {
-		conns, err = ebpf.UnmarshalJSON(body)
-	}
-
+	conns, err := ebpf.GetUnmarshaler(contentType).Unmarshal(body)
 	if err != nil {
 		return nil, err
 	}
