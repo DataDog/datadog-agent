@@ -362,7 +362,10 @@ func loadEnvVariables() {
 	} {
 		if v, ok := os.LookupEnv(envKey); ok {
 			// We don't want to overwrite environment variables with encrypted secrets
-			if isSecret(v) {
+			// Note: This will cause decryption to break for non-standard environment flags used in agent 5 which may
+			//       hurt users transitioning from A5 to A6, but since secrets aren't supported in A5, it's likely
+			//       not an issue.
+			if isEncryptedSecret(v) {
 				continue
 			}
 
@@ -371,21 +374,25 @@ func loadEnvVariables() {
 	}
 
 	// Support API_KEY and DD_API_KEY but prefer DD_API_KEY.
-	if key, ddkey := os.Getenv("API_KEY"), os.Getenv("DD_API_KEY"); ddkey != "" && !isSecret(ddkey) {
-		log.Info("overriding API key from env DD_API_KEY value")
-		config.Datadog.Set("api_key", strings.TrimSpace(strings.Split(ddkey, ",")[0]))
-	} else if key != "" && !isSecret(key) {
-		log.Info("overriding API key from env API_KEY value")
-		config.Datadog.Set("api_key", strings.TrimSpace(strings.Split(key, ",")[0]))
+	apiKey, envKey := os.Getenv("DD_API_KEY"), "DD_API_KEY"
+	if apiKey == "" {
+		apiKey, envKey = os.Getenv("API_KEY"), "API_KEY"
 	}
 
-	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" && !isSecret(v) {
+	if !isEncryptedSecret(apiKey) { // We don't want to overwrite the API KEY provided as an environment variable
+		log.Infof("overriding API key from env %s value", envKey)
+		config.Datadog.Set("api_key", strings.TrimSpace(strings.Split(apiKey, ",")[0]))
+	}
+
+	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" && !isEncryptedSecret(v) {
 		config.Datadog.Set("process_config.custom_sensitive_words", strings.Split(v, ","))
 	}
 }
 
-func isSecret(v string) bool {
-	return strings.HasPrefix(v, "ENC[")
+// Note: this is copied from isEnc() @ pkg/secrets/secrets.go
+func isEncryptedSecret(str string) bool {
+	str = strings.Trim(str, " 	") // Trimming space and tabs
+	return strings.HasPrefix(str, "ENC[") && strings.HasSuffix(str, "]")
 }
 
 // IsBlacklisted returns a boolean indicating if the given command is blacklisted by our config.
