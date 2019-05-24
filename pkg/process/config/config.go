@@ -87,6 +87,8 @@ type AgentConfig struct {
 	ExcludedBPFLinuxVersions     []string
 	EnableConntrack              bool
 	ConntrackShortTermBufferSize int
+	MaxClosedConnectionsBuffered int
+	MaxConnectionsStateBuffered  int
 
 	// Check config
 	EnabledChecks  []string
