@@ -49,12 +49,15 @@ type Config struct {
 	// BPFDebug enables bpf debug logs
 	BPFDebug bool
 
-	//  EnableConntrack enables probing conntrack for network address translation via netlink
+	// EnableConntrack enables probing conntrack for network address translation via netlink
 	EnableConntrack bool
 
 	// ConntrackShortTermBufferSize is the maximum number of short term conntracked connections that will
 	// held in memory at once
 	ConntrackShortTermBufferSize int
+
+	// DebugPort specifies a port to run golang's expvar and pprof debug endpoint
+	DebugPort int
 }
 
 // NewDefaultConfig enables traffic collection for all connection types

@@ -8,7 +8,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var _ NetworkState = &networkState{}
+var (
+	_ NetworkState = &networkState{}
+)
 
 const (
 	// DEBUGCLIENT is the ClientID for debugging
@@ -35,17 +37,17 @@ type NetworkState interface {
 	RemoveConnections(keys []string)
 
 	// GetStats returns a map of statistics about the current network state
-	GetStats(closedPollLost, closedPollReceived, tracerSkippedCount, expiredTCP uint64) map[string]interface{}
+	GetStats(closedPollLost, closedPollReceived, tracerSkippedCount, expiredTCP int64) map[string]interface{}
 
 	// DebugNetworkState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
 }
 
 type telemetry struct {
-	unorderedConns    int
-	closedConnDropped int
-	connDropped       int
-	statsResets       int
+	unorderedConns    int64
+	closedConnDropped int64
+	connDropped       int64
+	statsResets       int64
 }
 
 type stats struct {
@@ -377,7 +379,7 @@ func (ns *networkState) RemoveConnections(keys []string) {
 }
 
 // GetStats returns a map of statistics about the current network state
-func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipped, expiredTCP uint64) map[string]interface{} {
+func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipped, expiredTCP int64) map[string]interface{} {
 	ns.Lock()
 	defer ns.Unlock()
 
@@ -392,15 +394,15 @@ func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipp
 
 	return map[string]interface{}{
 		"clients": clientInfo,
-		"telemetry": map[string]int{
+		"telemetry": map[string]int64{
 			"stats_resets":                 ns.telemetry.statsResets,
 			"unordered_conns":              ns.telemetry.unorderedConns,
 			"closed_conn_dropped":          ns.telemetry.closedConnDropped,
 			"conn_dropped":                 ns.telemetry.connDropped,
-			"closed_conn_polling_lost":     int(closedPollLost),
-			"closed_conn_polling_received": int(closedPollReceived),
-			"ok_conns_skipped":             int(tracerSkipped), // Skipped connections (e.g. Local DNS requests)
-			"expired_tcp_conns":            int(expiredTCP),
+			"closed_conn_polling_lost":     closedPollLost,
+			"closed_conn_polling_received": closedPollReceived,
+			"ok_conns_skipped":             tracerSkipped, // Skipped connections (e.g. Local DNS requests)
+			"expired_tcp_conns":            expiredTCP,
 		},
 		"current_time":       time.Now().Unix(),
 		"latest_bpf_time_ns": ns.latestTimeEpoch,

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
@@ -73,6 +74,7 @@ func newConntracker() *realConntracker {
 		state:               make(map[connKey]*IPTranslation),
 		shortLivedBuffer:    make(map[connKey]*IPTranslation),
 		maxShortLivedBuffer: 10000,
+		compactTicker:       time.NewTicker(time.Hour),
 		maxStateSize:        10000,
 	}
 }

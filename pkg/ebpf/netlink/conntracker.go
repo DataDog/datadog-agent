@@ -26,7 +26,7 @@ const (
 type Conntracker interface {
 	GetTranslationForConn(ip util.Address, port uint16) *IPTranslation
 	ClearShortLived()
-	GetStats() map[string]interface{}
+	GetStats() map[string]int64
 	Close()
 }
 
@@ -171,29 +171,29 @@ func (ctr *realConntracker) ClearShortLived() {
 	ctr.shortLivedBuffer = make(map[connKey]*IPTranslation, len(ctr.shortLivedBuffer))
 }
 
-func (ctr *realConntracker) GetStats() map[string]interface{} {
-	// only a few stats are are locked
+func (ctr *realConntracker) GetStats() map[string]int64 {
+	// only a few stats are locked
 	ctr.Lock()
 	size := len(ctr.state)
 	stBufSize := len(ctr.shortLivedBuffer)
 	ctr.Unlock()
 
-	m := map[string]interface{}{
-		"state_size":             size,
-		"short_term_buffer_size": stBufSize,
+	m := map[string]int64{
+		"state_size":             int64(size),
+		"short_term_buffer_size": int64(stBufSize),
 	}
 
 	if ctr.stats.gets != 0 {
 		m["gets_total"] = ctr.stats.gets
-		m["nanoseconds_per_get"] = float64(ctr.stats.getTimeTotal) / float64(ctr.stats.gets)
+		m["nanoseconds_per_get"] = ctr.stats.getTimeTotal / ctr.stats.gets
 	}
 	if ctr.stats.registers != 0 {
 		m["registers_total"] = ctr.stats.registers
-		m["nanoseconds_per_register"] = float64(ctr.stats.registersTotalTime) / float64(ctr.stats.registers)
+		m["nanoseconds_per_register"] = ctr.stats.registersTotalTime / ctr.stats.registers
 	}
 	if ctr.stats.unregisters != 0 {
 		m["unregisters_total"] = ctr.stats.unregisters
-		m["nanoseconds_per_unregister"] = float64(ctr.stats.unregistersTotalTime) / float64(ctr.stats.unregisters)
+		m["nanoseconds_per_unregister"] = ctr.stats.unregistersTotalTime / ctr.stats.unregisters
 
 	}
 
