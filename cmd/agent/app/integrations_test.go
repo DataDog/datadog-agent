@@ -148,8 +148,8 @@ func TestParseWheelPackageNameValidCases(t *testing.T) {
 		wheelFileName string
 		expectedName  string
 	}{
-		"name as first line":  {"datadog_cisco_aci_name_first_line_valid.whl", "datadog-cisco-aci-1"},
-		"name as second line": {"datadog_cisco_aci_name_second_line_valid.whl", "datadog-cisco-aci-2"},
+		"name as first line":  {"datadog_my_integration_name_first_line_valid.whl", "datadog-my-integration"},
+		"name as second line": {"datadog_my_integration_name_second_line_valid.whl", "datadog-my-integration"},
 	}
 	for name, test := range tests {
 		t.Logf("Running test %s", name)
@@ -164,8 +164,8 @@ func TestParseWheelPackageNameErrorCases(t *testing.T) {
 		wheelFileName string
 		expectedErr   string
 	}{
-		"error operning archive file":     {"datadog_cisco_aci_does_not_exist.whl", "error operning archive file"},
-		"package name not found in wheel": {"datadog_cisco_aci_no_name_invalid.whl", "package name not found in wheel"},
+		"error operning archive file":     {"datadog_my_integration_does_not_exist.whl", "error operning archive file"},
+		"package name not found in wheel": {"datadog_my_integration_no_name_invalid.whl", "package name not found in wheel"},
 	}
 	for name, test := range tests {
 		t.Logf("Running test %s", name)
