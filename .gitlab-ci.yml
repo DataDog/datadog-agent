@@ -3,6 +3,7 @@ stages:
   - binary_build
   - integration_test
   - package_build
+  - internal_deploy
   - check_deploy
   - testkitchen_deploy
   - testkitchen_testing
@@ -1188,7 +1189,7 @@ deploy_puppy:
 
 # deploy process agent and system-probe to staging bucket
 deploy_process_and_sysprobe:
-  stage: deploy
+  stage: internal_deploy
   when: manual
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
