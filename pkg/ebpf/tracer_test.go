@@ -37,7 +37,8 @@ func TestTracerExpvar(t *testing.T) {
 	defer tr.Stop()
 
 	<-time.After(time.Second)
-	assert.Equal(t, probeExpvar.String(), "{\"conntrack.not\": 0, \"network.closed_conn_dropped\": 0, \"network.closed_conn_polling_lost\": 0, \"network.closed_conn_polling_received\": 0, \"network.conn_dropped\": 0, \"network.expired_tcp_conns\": 0, \"network.ok_conns_skipped\": 0, \"network.stats_resets\": 0, \"network.unordered_conns\": 0}")
+
+	assert.Equal(t, "{\"ConntrackNot\": 0, \"NetworkClosedConnDropped\": 0, \"NetworkClosedConnPollingLost\": 0, \"NetworkClosedConnPollingReceived\": 0, \"NetworkConnDropped\": 0, \"NetworkExpiredTcpConns\": 0, \"NetworkOkConnsSkipped\": 0, \"NetworkStatsResets\": 0, \"NetworkUnorderedConns\": 0}", probeExpvar.String())
 }
 
 func TestSnakeToCamel(t *testing.T) {
