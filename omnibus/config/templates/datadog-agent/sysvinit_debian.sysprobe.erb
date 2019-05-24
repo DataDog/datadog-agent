@@ -51,12 +51,25 @@ do_start()
 	# on this one.  As a last resort, sleep for some time.
 }
 
+#
+# Function that tries to mount debugfs
+#
+mount_debugfs()
+{
+  if [ -d /sys/kernel/debug ]; then
+    if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
+      mount -t debugfs none /sys/kernel/debug
+    fi
+  fi
+}
+
 
 #
 # Start the agent and wait for it to be up
 #
 start_and_wait()
 {
+  mount_debugfs
 	log_daemon_msg "Starting $DESC" "$NAME"
 	do_start
 	case "$?" in

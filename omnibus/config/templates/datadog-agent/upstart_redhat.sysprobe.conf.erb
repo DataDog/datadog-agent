@@ -22,6 +22,13 @@ pre-start script
     # Rotate log file if it's larger than 5MB
     mv /var/log/datadog/system-probe-errors.log /var/log/datadog/system-probe-errors.log.1
   fi
+
+  # mount debugfs before start
+  if [ -d /sys/kernel/debug ]; then
+    if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
+      mount -t debugfs none /sys/kernel/debug
+    fi
+  fi
 end script
 
 post-stop script
