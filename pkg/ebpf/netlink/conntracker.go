@@ -52,6 +52,9 @@ type realConntracker struct {
 	// the maximum size of the short lived buffer
 	maxShortLivedBuffer int
 
+	// The maximum size the state map will grow before we reject new entries
+	maxStateSize int
+
 	statsTicker   *time.Ticker
 	compactTicker *time.Ticker
 	stats         struct {
@@ -65,7 +68,7 @@ type realConntracker struct {
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
-func NewConntracker(procRoot string, deleteBufferSize int) (Conntracker, error) {
+func NewConntracker(procRoot string, deleteBufferSize, maxStateSize int) (Conntracker, error) {
 	var (
 		err         error
 		conntracker Conntracker
@@ -74,7 +77,7 @@ func NewConntracker(procRoot string, deleteBufferSize int) (Conntracker, error) 
 	done := make(chan struct{})
 
 	go func() {
-		conntracker, err = newConntrackerOnce(procRoot, deleteBufferSize)
+		conntracker, err = newConntrackerOnce(procRoot, deleteBufferSize, maxStateSize)
 		done <- struct{}{}
 	}()
 
@@ -86,7 +89,7 @@ func NewConntracker(procRoot string, deleteBufferSize int) (Conntracker, error) 
 	}
 }
 
-func newConntrackerOnce(procRoot string, deleteBufferSize int) (Conntracker, error) {
+func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Conntracker, error) {
 	if deleteBufferSize <= 0 {
 		return nil, fmt.Errorf("short term buffer size is less than 0")
 	}
@@ -111,6 +114,7 @@ func newConntrackerOnce(procRoot string, deleteBufferSize int) (Conntracker, err
 		state:               make(map[connKey]*IPTranslation),
 		shortLivedBuffer:    make(map[connKey]*IPTranslation),
 		maxShortLivedBuffer: deleteBufferSize,
+		maxStateSize:        maxStateSize,
 	}
 
 	// seed the state
@@ -219,6 +223,11 @@ func (ctr *realConntracker) register(c ct.Conn) int {
 	now := time.Now().UnixNano()
 	ctr.Lock()
 	defer ctr.Unlock()
+
+	if len(ctr.state) >= ctr.maxStateSize {
+		log.Warnf("exceeded maximum conntrack state size: %d entries", ctr.maxStateSize)
+		return 0
+	}
 
 	ctr.state[formatKey(c)] = formatIPTranslation(c)
 

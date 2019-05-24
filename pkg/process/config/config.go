@@ -87,6 +87,8 @@ type AgentConfig struct {
 	EnableConntrack              bool
 	ConntrackShortTermBufferSize int
 	SystemProbeDebugPort         int
+	MaxClosedConnectionsBuffered int
+	MaxConnectionsStateBuffered  int
 
 	// Check config
 	EnabledChecks  []string

@@ -29,8 +29,19 @@ type Config struct {
 	// tcp_close is not intercepted for some reason.
 	TCPConnTimeout time.Duration
 
-	// MaxTrackedConnections specifies the maximum number of connections we can track, this will be the size of the BPF maps
+	// MaxTrackedConnections specifies the maximum number of connections we can track, this will be the size of the eBPF + Conntrack.
 	MaxTrackedConnections uint
+
+	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
+	// get flushed on every client request (default 30s check interval)
+	MaxClosedConnectionsBuffered int
+
+	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
+	// the stats for a connection so we can accurately determine traffic change between client requests.
+	MaxConnectionsStateBuffered int
+
+	// ClientStateExpiry specifies the max time a client (e.g. process-agent)'s state will be stored in memory before being evicted.
+	ClientStateExpiry time.Duration
 
 	// ProcRoot is the root path to the proc filesystem
 	ProcRoot string
@@ -62,6 +73,10 @@ func NewDefaultConfig() *Config {
 		ProcRoot:              "/proc",
 		BPFDebug:              false,
 		EnableConntrack:       true,
+		// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
+		MaxClosedConnectionsBuffered: 50000,
+		MaxConnectionsStateBuffered:  75000,
+		ClientStateExpiry:            2 * time.Minute,
 	}
 }
 

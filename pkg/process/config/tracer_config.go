@@ -43,6 +43,14 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 	tracerConfig.ConntrackShortTermBufferSize = cfg.ConntrackShortTermBufferSize
 	tracerConfig.DebugPort = cfg.SystemProbeDebugPort
 
+	if mccb := cfg.MaxClosedConnectionsBuffered; mccb > 0 {
+		tracerConfig.MaxClosedConnectionsBuffered = mccb
+	}
+
+	if mcsb := cfg.MaxConnectionsStateBuffered; mcsb > 0 {
+		tracerConfig.MaxConnectionsStateBuffered = mcsb
+	}
+
 	return tracerConfig
 }
 

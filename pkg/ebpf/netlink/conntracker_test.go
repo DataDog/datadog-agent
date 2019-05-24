@@ -75,6 +75,7 @@ func newConntracker() *realConntracker {
 		shortLivedBuffer:    make(map[connKey]*IPTranslation),
 		maxShortLivedBuffer: 10000,
 		compactTicker:       time.NewTicker(time.Hour),
+		maxStateSize:        10000,
 	}
 }
 
