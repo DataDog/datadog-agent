@@ -174,6 +174,7 @@ func TestComputeMem(t *testing.T) {
 		CheckBase: corechecks.NewCheckBase("containerd"),
 	}
 	mocked := mocksender.NewMockSender(containerdCheck.ID())
+	mocked.SetupAcceptAll()
 
 	tests := []struct {
 		name     string
