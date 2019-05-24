@@ -210,7 +210,7 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			continue
 		}
 
-		if metrics.Memory.Size() > 0 {
+		if metrics.Memory != nil {
 			computeMem(sender, metrics.Memory, tags)
 		}
 
@@ -280,6 +280,7 @@ func computeHugetlb(sender aggregator.Sender, huge []*cgroups.HugetlbStat, tags 
 }
 
 func computeMem(sender aggregator.Sender, mem *cgroups.MemoryStat, tags []string) {
+
 	memList := map[string]*cgroups.MemoryEntry{
 		"containerd.mem.current":    mem.Usage,
 		"containerd.mem.kernel_tcp": mem.KernelTCP,
@@ -296,7 +297,7 @@ func computeMem(sender aggregator.Sender, mem *cgroups.MemoryStat, tags []string
 }
 
 func parseAndSubmitMem(metricName string, sender aggregator.Sender, stat *cgroups.MemoryEntry, tags []string) {
-	if stat.Size() == 0 {
+	if stat == nil || stat.Size() == 0 {
 		return
 	}
 	sender.Gauge(fmt.Sprintf("%s.usage", metricName), float64(stat.Usage), "", tags)
