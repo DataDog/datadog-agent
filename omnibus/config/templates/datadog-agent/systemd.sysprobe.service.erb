@@ -1,6 +1,7 @@
 [Unit]
 Description="Datadog System Probe"
-After=network.target
+After=network.target datadog-agent.service
+BindsTo=datadog-agent.service
 
 [Service]
 Type=simple
