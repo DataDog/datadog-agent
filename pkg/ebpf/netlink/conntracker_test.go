@@ -73,6 +73,7 @@ func newConntracker() *realConntracker {
 		state:               make(map[connKey]*IPTranslation),
 		shortLivedBuffer:    make(map[connKey]*IPTranslation),
 		maxShortLivedBuffer: 10000,
+		maxStateSize:        10000,
 	}
 }
 

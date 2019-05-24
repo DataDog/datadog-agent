@@ -88,17 +88,19 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	conntracker := netlink.NewNoOpConntracker()
 	if config.EnableConntrack {
-		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackShortTermBufferSize); err != nil {
+		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackShortTermBufferSize, int(config.MaxTrackedConnections)); err != nil {
 			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		} else {
 			conntracker = c
 		}
 	}
 
+	state := NewNetworkState(config.ClientStateExpiry, config.MaxClosedConnectionsBuffered, config.MaxConnectionsStateBuffered)
+
 	tr := &Tracer{
 		m:              m,
 		config:         config,
-		state:          NewDefaultNetworkState(),
+		state:          state,
 		portMapping:    portMapping,
 		localAddresses: readLocalAddresses(),
 		buffer:         make([]ConnectionStats, 0, 512),
