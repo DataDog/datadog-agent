@@ -166,7 +166,7 @@ func (t *Tracer) expvarStats() {
 				for metric, val := range telemetry.(map[string]int64) {
 					currVal := &expvar.Int{}
 					currVal.Set(val)
-					probeExpvar.Set(fmt.Sprintf("Network%s", snakeToCapInitialCamel(metric)), currVal)
+					probeExpvar.Set(snakeToCapInitialCamel(metric), currVal)
 				}
 			}
 		}

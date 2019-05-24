@@ -21,6 +21,6 @@ func (*noOpConntracker) Close() {}
 
 func (*noOpConntracker) GetStats() map[string]int64 {
 	return map[string]int64{
-		"not": 0,
+		"noop_conntracker": 0,
 	}
 }
