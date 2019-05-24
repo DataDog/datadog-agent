@@ -128,10 +128,9 @@ func (c ConnectionStats) String() string {
 
 // ByteKey returns a unique key for this connection represented as a byte array
 // It's as following:
-
+//
 //    32b     16b     16b      4b      4b     32/128b      32/128b
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
-//
 func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 	buffer.Reset()
 	// Byte-packing to improve creation speed
