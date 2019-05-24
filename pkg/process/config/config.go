@@ -379,7 +379,7 @@ func loadEnvVariables() {
 		apiKey, envKey = os.Getenv("API_KEY"), "API_KEY"
 	}
 
-	if !isEncryptedSecret(apiKey) { // We don't want to overwrite the API KEY provided as an environment variable
+	if apiKey != "" && !isEncryptedSecret(apiKey) { // We don't want to overwrite the API KEY provided as an environment variable
 		log.Infof("overriding API key from env %s value", envKey)
 		config.Datadog.Set("api_key", strings.TrimSpace(strings.Split(apiKey, ",")[0]))
 	}
