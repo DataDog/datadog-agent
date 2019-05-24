@@ -110,6 +110,17 @@ func main() {
 	} else {
 		log.Infof("running on platform: %s", platform)
 	}
+
+	mountFile, err := os.Open("/proc/mounts")
+	if err != nil {
+		log.Criticalf("failed to find mount info: %s", err)
+	}
+
+	mounted := util.IsDebugfsMounted(mountFile)
+	if !mounted {
+		log.Criticalf("debugfs is not mounted, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs")
+	}
+
 	log.Infof("running system-probe with version: %s", versionString(", "))
 	go sysprobe.Run()
 	log.Infof("system probe started")

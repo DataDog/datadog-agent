@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -110,6 +111,19 @@ func GetPlatform() (string, error) {
 	}
 
 	return "", fmt.Errorf("error retrieving platform, with python: %s, with lsb_release: %s", pyErr, lsbErr)
+}
+
+func IsDebugfsMounted(file io.Reader) bool {
+	mounted := false
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		// the space here is to exclude "/sys/kernel/debug/tracing"
+		if strings.Contains(scanner.Text(), "/sys/kernel/debug ") {
+			mounted = true
+			break
+		}
+	}
+	return mounted
 }
 
 func execCmd(head string, args ...string) (string, error) {
