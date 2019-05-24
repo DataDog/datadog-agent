@@ -25,9 +25,7 @@ PyMODINIT_FUNC PyInit_containers(void)
 {
     return PyModule_Create(&module_def);
 }
-#endif
-
-#ifdef DATADOG_AGENT_TWO
+#elif defined(DATADOG_AGENT_TWO)
 // in Python2 keep the object alive for the program lifetime
 static PyObject *module;
 
@@ -45,17 +43,20 @@ void _set_is_excluded_cb(cb_is_excluded_t cb)
 PyObject *is_excluded(PyObject *self, PyObject *args)
 {
     // callback must be set
-    if (cb_is_excluded == NULL)
+    if (cb_is_excluded == NULL) {
         Py_RETURN_NONE;
+    }
 
     char *name;
     char *image;
-    if (!PyArg_ParseTuple(args, "ss", &name, &image))
+    if (!PyArg_ParseTuple(args, "ss", &name, &image)) {
         return NULL;
+    }
 
     int result = cb_is_excluded(name, image);
 
-    if (result > 0)
+    if (result > 0) {
         Py_RETURN_TRUE;
+    }
     Py_RETURN_FALSE;
 }
