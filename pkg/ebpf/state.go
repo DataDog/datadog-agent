@@ -13,12 +13,6 @@ var _ NetworkState = &networkState{}
 const (
 	// DEBUGCLIENT is the ClientID for debugging
 	DEBUGCLIENT = "-1"
-
-	// defaultMaxClosedConns & defaultMaxClientStats are the maximum number of objects that can be stored in-memory.
-	// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
-	defaultMaxClosedConns = 50000 // ~100 bytes per conn = 5MB
-	defaultMaxClientStats = 75000
-	defaultClientExpiry   = 2 * time.Minute
 )
 
 // NetworkState takes care of handling the logic for:
@@ -84,7 +78,8 @@ type networkState struct {
 
 // NewDefaultNetworkState creates a new network state with default settings
 func NewDefaultNetworkState() NetworkState {
-	return NewNetworkState(defaultClientExpiry, defaultMaxClosedConns, defaultMaxClientStats)
+	defaultC := NewDefaultConfig()
+	return NewNetworkState(defaultC.ClientStateExpiry, defaultC.MaxClosedConnectionsBuffered, defaultC.MaxConnectionsStateBuffered)
 }
 
 // NewNetworkState creates a new network state
