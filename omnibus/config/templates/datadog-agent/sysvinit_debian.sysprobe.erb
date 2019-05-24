@@ -69,7 +69,7 @@ mount_debugfs()
 #
 start_and_wait()
 {
-  mount_debugfs
+	mount_debugfs
 	log_daemon_msg "Starting $DESC" "$NAME"
 	do_start
 	case "$?" in
