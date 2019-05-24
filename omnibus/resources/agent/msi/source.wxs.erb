@@ -227,17 +227,21 @@
 
         </Component>
         <Component Id="SIXDLLS" Guid="E81FBBB0-7BB9-4D52-A5F1-36A2123E6979">
+          <?if $(var.IncludePython2) = true ?>
           <File Id="twodll"
                 Name="libdatadog-agent-two.dll"
                 Vital="yes"
                 KeyPath="yes"
                 DiskId="1"
                 Source="$(var.BinFiles)/libdatadog-agent-two.dll"/>
+          <?endif ?>
+          <?if $(var.IncludePython3) = true ?>
           <File Id="threedll"
                 Name="libdatadog-agent-three.dll"
                 Vital="yes"
                 DiskId="1"
                 Source="$(var.BinFiles)/libdatadog-agent-three.dll"/>
+            <?endif ?>
         </Component>
         <Component Id="MSVCRUNTIME" Guid="30ce4f57-47ce-47c0-8564-e510d69787a9">
             <Condition> <![CDATA[VersionNT <= 601]]> </Condition>
