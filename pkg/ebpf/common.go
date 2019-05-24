@@ -15,9 +15,9 @@ var (
 	// Minimum kernel version -> max(3.15 - eBPF,
 	//                               3.18 - tables/maps,
 	//                               4.1 - kprobes,
-	//                               4.3 - perf events)
-	// 	                      -> 4.3
-	minRequiredKernelCode = linuxKernelVersionCode(4, 3, 0)
+	//                               4.4 - perf events)
+	// 	                      -> 4.4
+	minRequiredKernelCode = linuxKernelVersionCode(4, 4, 0)
 )
 
 var (

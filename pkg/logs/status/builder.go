@@ -6,6 +6,7 @@
 package status
 
 import (
+	"expvar"
 	"strings"
 	"sync/atomic"
 
@@ -14,29 +15,32 @@ import (
 
 // Builder is used to build the status.
 type Builder struct {
-	isRunning *int32
-	sources   *config.LogSources
-	warnings  *config.Messages
-	errors    *config.Messages
+	isRunning   *int32
+	sources     *config.LogSources
+	warnings    *config.Messages
+	errors      *config.Messages
+	logsExpVars *expvar.Map
 }
 
 // NewBuilder returns a new builder.
-func NewBuilder(isRunning *int32, sources *config.LogSources, warnings *config.Messages, errors *config.Messages) *Builder {
+func NewBuilder(isRunning *int32, sources *config.LogSources, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
 	return &Builder{
-		isRunning: isRunning,
-		sources:   sources,
-		warnings:  warnings,
-		errors:    errors,
+		isRunning:   isRunning,
+		sources:     sources,
+		warnings:    warnings,
+		errors:      errors,
+		logsExpVars: logExpVars,
 	}
 }
 
 // BuildStatus returns the status of the logs-agent.
 func (b *Builder) BuildStatus() Status {
 	return Status{
-		IsRunning:    b.getIsRunning(),
-		Integrations: b.getIntegrations(),
-		Warnings:     b.getWarnings(),
-		Errors:       b.getErrors(),
+		IsRunning:     b.getIsRunning(),
+		Integrations:  b.getIntegrations(),
+		StatusMetrics: b.getMetricsStatus(),
+		Warnings:      b.getWarnings(),
+		Errors:        b.getErrors(),
 	}
 }
 
@@ -132,4 +136,12 @@ func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 		}
 	}
 	return dictionary
+}
+
+// getMetricsStatus exposes some aggregated metrics of the log agent on the agent status
+func (b *Builder) getMetricsStatus() map[string]int64 {
+	var metrics = make(map[string]int64, 2)
+	metrics["LogsProcessed"] = b.logsExpVars.Get("LogsProcessed").(*expvar.Int).Value()
+	metrics["LogsSent"] = b.logsExpVars.Get("LogsSent").(*expvar.Int).Value()
+	return metrics
 }

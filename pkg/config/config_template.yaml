@@ -701,6 +701,11 @@ api_key:
 #
 # jmx_restart_interval: 5
 
+## @param jmx_check_period - integer - optional - default: 15000
+## Duration of the period for check collections in milliseconds.
+#
+# jmx_check_period: 15000
+
 ## @param jmx_thread_pool_size - integer - optional - default: 3
 ## JMXFetch collects multiples instances concurrently. Defines the maximum level of concurrency:
 ##   * Higher concurrency increases CPU utilization during metric collection.
