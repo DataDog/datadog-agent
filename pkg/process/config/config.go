@@ -240,7 +240,10 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	cfg := NewDefaultAgentConfig()
 
 	// For Agent 6 we will have a YAML config file to use.
-	loadConfigIfExists(yamlPath)
+	if err := loadConfigIfExists(yamlPath); err != nil {
+		return nil, err
+	}
+
 	if err := cfg.loadProcessYamlConfig(yamlPath); err != nil {
 		return nil, err
 	}

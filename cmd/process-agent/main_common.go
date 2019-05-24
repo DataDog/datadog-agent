@@ -106,8 +106,6 @@ func runAgent(exit chan bool) {
 		os.Exit(1)
 	}
 
-	log.Errorf("API ENDPOINTS: %+v", cfg.APIEndpoints)
-
 	// Tagger must be initialized after agent config has been setup
 	tagger.Init()
 	defer tagger.Stop()
