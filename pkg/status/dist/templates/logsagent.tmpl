@@ -10,6 +10,13 @@ Logs Agent
   Logs Agent is not running
 {{- end }}
 
+{{- if .metrics }}
+
+  {{- range $metric_name, $metric_value := .metrics }}
+    {{$metric_name}}: {{$metric_value}}
+  {{- end }}
+{{- end }}
+
 {{- if .errors }}
 
   Errors
