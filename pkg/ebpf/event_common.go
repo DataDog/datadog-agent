@@ -192,7 +192,6 @@ func BeautifyKey(key string) string {
 	if ConnectionFamily(family) == AFINET6 {
 		addrSize = 16
 	}
-	fmt.Printf("addrSize = %+v\n", addrSize)
 
 	source := bytesToAddress(raw[9 : 9+addrSize])
 	dest := bytesToAddress(raw[9+addrSize : 9+2*addrSize])
