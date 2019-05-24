@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -17,7 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
-	"github.com/mailru/easyjson/jwriter"
+)
+
+const (
+	contentTypeHeader   = "Content-type"
+	contentTypeProtobuf = "application/protobuf"
+	contentTypeJSON     = "application/json"
 )
 
 // ErrTracerUnsupported is the unsupported error prefix, for error-class matching from callers
@@ -92,7 +98,8 @@ func (nt *SystemProbe) Run() {
 			w.WriteHeader(500)
 			return
 		}
-		writeConnections(w, cs)
+		encoding := req.Header.Get("Accept")
+		writeConnections(w, encoding, cs)
 
 		count := atomic.AddUint64(&runCounter, 1)
 		logRequests(id, count, len(cs.Conns), start)
@@ -106,7 +113,8 @@ func (nt *SystemProbe) Run() {
 			return
 		}
 
-		writeConnections(w, cs)
+		encoding := req.Header.Get("Accept")
+		writeConnections(w, encoding, cs)
 	})
 
 	httpMux.HandleFunc("/debug/net_state", func(w http.ResponseWriter, req *http.Request) {
@@ -160,21 +168,17 @@ func getClientID(req *http.Request) string {
 	return clientID
 }
 
-func writeConnections(w http.ResponseWriter, cs *ebpf.Connections) {
-	jw := &jwriter.Writer{}
-	cs.MarshalEasyJSON(jw)
-	if err := jw.Error; err != nil {
-		log.Errorf("unable to marshall connections into JSON: %s", err)
-		w.WriteHeader(500)
-		return
-	}
-	bytesWritten, err := jw.DumpTo(w)
+func writeConnections(w http.ResponseWriter, encoding string, cs *ebpf.Connections) {
+	marshaler := getMarshaler(w, encoding)
+	buf, err := marshaler(cs)
 	if err != nil {
-		log.Errorf("unable to dump JSON to response: %s", err)
+		log.Errorf("unable to marshall connections: %s", err)
 		w.WriteHeader(500)
 		return
 	}
-	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), bytesWritten)
+
+	w.Write(buf)
+	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
 }
 
 func writeAsJSON(w http.ResponseWriter, data interface{}) {
@@ -185,6 +189,18 @@ func writeAsJSON(w http.ResponseWriter, data interface{}) {
 		return
 	}
 	w.Write(buf)
+}
+
+type marshaler func(*ebpf.Connections) ([]byte, error)
+
+func getMarshaler(w http.ResponseWriter, accept string) marshaler {
+	if strings.Contains(accept, contentTypeProtobuf) {
+		w.Header().Set(contentTypeHeader, contentTypeProtobuf)
+		return ebpf.MarshalProtobuf
+	}
+
+	w.Header().Set(contentTypeHeader, contentTypeProtobuf)
+	return ebpf.MarshalJSON
 }
 
 // Close will stop all system probe activities
