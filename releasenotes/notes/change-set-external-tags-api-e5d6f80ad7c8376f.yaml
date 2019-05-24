@@ -1,0 +1,16 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    A change in the 'set_external_tags' function from the 'datadog_agent' Python
+    module might affect custom checks that use it by silently dropping single tags
+    defined with the 'unicode' type. Before upgrading, custom checks that call the
+    function directly like  'datadog_agent.set_external_tags(...)', should be
+    changed to call the method with the same signature from the base class, like
+    'self.set_external_tags(...)'.
