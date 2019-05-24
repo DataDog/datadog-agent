@@ -104,6 +104,7 @@ PyObject *subprocess_output(PyObject *self, PyObject *args)
         goto error;
     }
 
+    // We already PyList_Check cmd_args, so PyList_Size won't fail and return -1
     subprocess_args_sz = PyList_Size(cmd_args);
     if (subprocess_args_sz == 0) {
         PyErr_SetString(PyExc_TypeError, "invalid command: empty list");
@@ -142,11 +143,13 @@ PyObject *subprocess_output(PyObject *self, PyObject *args)
     if (cmd_raise_on_empty == Py_True)
         raise = 1;
 
+    // Release the GIL so Python can execute other checks while Go runs the subprocess
     PyGILState_Release(gstate);
     PyThreadState *Tstate = PyEval_SaveThread();
 
     cb_get_subprocess_output(subprocess_args, &c_stdout, &c_stderr, &ret_code, &exception);
 
+    // Acquire the GIL now that Go is done
     PyEval_RestoreThread(Tstate);
     gstate = PyGILState_Ensure();
 

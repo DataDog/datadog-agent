@@ -34,7 +34,7 @@ PyObject *buildTagsList(char **tags)
         PyObject *pyTag = PyStringFromCString(tags[i]);
         cgo_free(tags[i]);
         PyList_Append(res, pyTag);
-        // PyList_Append increment refcount on pyTag
+        // PyList_Append (unlike `PyList_SetItem`) increments the refcount on pyTag
         Py_XDECREF(pyTag);
     }
     cgo_free(tags);
