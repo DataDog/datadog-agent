@@ -358,22 +358,31 @@ func loadEnvVariables() {
 		"DD_LOG_LEVEL":      "log_level",
 	} {
 		if v, ok := os.LookupEnv(envKey); ok {
+			// We don't want to overwrite environment variables with encrypted secrets
+			if isSecret(v) {
+				continue
+			}
+
 			config.Datadog.Set(cfgKey, v)
 		}
 	}
 
 	// Support API_KEY and DD_API_KEY but prefer DD_API_KEY.
-	if key, ddkey := os.Getenv("API_KEY"), os.Getenv("DD_API_KEY"); ddkey != "" {
+	if key, ddkey := os.Getenv("API_KEY"), os.Getenv("DD_API_KEY"); ddkey != "" && !isSecret(ddkey) {
 		log.Info("overriding API key from env DD_API_KEY value")
 		config.Datadog.Set("api_key", strings.TrimSpace(strings.Split(ddkey, ",")[0]))
-	} else if key != "" {
+	} else if key != "" && !isSecret(key) {
 		log.Info("overriding API key from env API_KEY value")
 		config.Datadog.Set("api_key", strings.TrimSpace(strings.Split(key, ",")[0]))
 	}
 
-	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" {
+	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" && !isSecret(v) {
 		config.Datadog.Set("process_config.custom_sensitive_words", strings.Split(v, ","))
 	}
+}
+
+func isSecret(v string) bool {
+	return strings.HasPrefix(v, "ENC[")
 }
 
 // IsBlacklisted returns a boolean indicating if the given command is blacklisted by our config.
