@@ -19,7 +19,7 @@ import (
 type Pipeline struct {
 	InputChan chan *message.Message
 	processor *processor.Processor
-	sender    *sender.Sender
+	sender    sender.Sender
 }
 
 // NewPipeline returns a new Pipeline
@@ -27,7 +27,12 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	// initialize the sender
 	destinations := client.NewDestinations(endpoints, destinationsContext)
 	senderChan := make(chan *message.Message, config.ChanSize)
-	sender := sender.NewSender(senderChan, outputChan, destinations)
+	var newsender sender.Sender
+	if coreConfig.Datadog.GetBool("logs_config.use_http") {
+		newsender = sender.NewBatchSender(senderChan, outputChan, destinations)
+	} else {
+		newsender = sender.NewSingleSender(senderChan, outputChan, destinations)
+	}
 
 	// initialize the input chan
 	inputChan := make(chan *message.Message, config.ChanSize)
@@ -44,7 +49,7 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	return &Pipeline{
 		InputChan: inputChan,
 		processor: processor,
-		sender:    sender,
+		sender:    newsender,
 	}
 }
 
