@@ -3,6 +3,7 @@ package ebpf
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -15,7 +16,7 @@ var (
 	testConn = ConnectionStats{
 		Pid:                123,
 		Type:               1,
-		Family:             0,
+		Family:             AFINET,
 		Source:             util.AddressFromString("192.168.0.1"),
 		Dest:               util.AddressFromString("192.168.0.103"),
 		SPort:              123,
@@ -32,11 +33,21 @@ func TestBeautifyKey(t *testing.T) {
 		{
 			Pid:    345,
 			Type:   0,
-			Family: 1,
-			Source: util.AddressFromString("127.0.0.1"),
-			Dest:   util.AddressFromString("192.168.0.103"),
+			Family: AFINET6,
+			Source: util.AddressFromNetIP(net.ParseIP("::7f00:35:0:1")),
+			Dest:   util.AddressFromNetIP(net.ParseIP("2001:db8::2:1")),
 			SPort:  4444,
 			DPort:  8888,
+		},
+		{
+			Pid:       32065,
+			Type:      0,
+			Family:    AFINET,
+			Direction: 2,
+			Source:    util.AddressFromString("172.21.148.124"),
+			Dest:      util.AddressFromString("130.211.21.187"),
+			SPort:     52012,
+			DPort:     443,
 		},
 	} {
 		bk, err := c.ByteKey(buf)
