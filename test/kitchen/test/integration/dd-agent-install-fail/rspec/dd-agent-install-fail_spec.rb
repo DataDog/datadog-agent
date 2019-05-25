@@ -7,7 +7,6 @@ def check_user_exists(name)
   outp
 end
 shared_examples_for 'a device with no files installed' do
-  # skip program files check for now; pyc files being left
   it 'has no DataDog program files directory' do
     expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog")
   end
