@@ -85,7 +85,7 @@ package :msi do
   wix_candle_extension 'WixUtilExtension'
   wix_light_extension 'WixUtilExtension'
   extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
-  
+
   additional_sign_files [
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
@@ -156,6 +156,7 @@ dependency 'version-manifest'
 # the `extra_package_file` directive.
 # This must be the last dependency in the project.
 dependency 'datadog-agent-finalize'
+dependency 'datadog-agent-strip'
 
 if linux?
   extra_package_file '/etc/init/datadog-agent.conf'
