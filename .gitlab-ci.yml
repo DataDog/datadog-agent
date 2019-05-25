@@ -333,7 +333,7 @@ agent_deb-x64:
     - $S3_CP_CMD $S3_ARTEFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache
+    - inv -e agent.omnibus-build --log-level debug --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache
     - dpkg -c $OMNIBUS_BASE_DIR/pkg/datadog-agent*_amd64.deb
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent*_amd64.deb $S3_ARTEFACTS_URI/datadog-agent_amd64.deb
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-agent*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
