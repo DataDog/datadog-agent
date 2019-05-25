@@ -64,7 +64,7 @@ def strip_symbols(path, symboldir)
         elfdir = File.dirname(debugfile)
         FileUtils.mkdir_p "#{symboldir}/#{elfdir}" unless Dir.exist? "#{symboldir}/#{elfdir}"
 
-	    puts "stripping ${elf}, putting debug info into ${debugfile}"
+        log.debug(log_key) { "stripping ${elf}, putting debug info into ${debugfile}" }
 	    shellout("objcopy --only-keep-debug #{elf} #{symboldir}/#{debugfile}")
 	    shellout("strip --strip-debug --strip-unneeded #{elf}")
 	    shellout("objcopy --add-gnu-debuglink=#{symboldir}/#{debugfile} #{elf}")
