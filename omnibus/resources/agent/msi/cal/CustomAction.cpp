@@ -368,7 +368,7 @@ LExit:
     return WcaFinalize(er);
 }
 
-BOOL DeleteDirectory(const TCHAR* sPath);
+BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext);
 extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall) {
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     HRESULT hr = WcaInitialize(hInstall, "CA: DoRollback");
@@ -393,12 +393,12 @@ extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall) {
     }
     {
         std::wstring dir_to_delete;
-        dir_to_delete = programdataroot + L"bin";
-        DeleteDirectory(dir_to_delete.c_str());
-        dir_to_delete = programdataroot + L"embedded2";
-        DeleteDirectory(dir_to_delete.c_str());
-        dir_to_delete = programdataroot + L"embedded3";
-        DeleteDirectory(dir_to_delete.c_str());
+        dir_to_delete = installdir + L"bin";
+        DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
+        dir_to_delete = installdir + L"embedded2";
+        DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
+        dir_to_delete = installdir + L"embedded3";
+        DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
     }
 LExit:
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;

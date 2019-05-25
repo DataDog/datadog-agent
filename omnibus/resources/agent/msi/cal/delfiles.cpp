@@ -4,67 +4,96 @@ BOOL IsDots(const TCHAR* str) {
     if (wcscmp(str, L".") && wcscmp(str, L"..")) return FALSE;
     return TRUE;
 }
-BOOL DeleteDirectory(const TCHAR* sPath) {
-    HANDLE hFind;    // file handle
+BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext) {
+    HANDLE hFind;
     WIN32_FIND_DATA FindFileData;
 
-    TCHAR DirPath[MAX_PATH];
-    TCHAR FileName[MAX_PATH];
+    std::wstring DirPath = dirname;
+    DirPath += L"\\";
+    DirPath += ext;
 
-    wcscpy(DirPath, sPath);
-    wcscat(DirPath, L"\\*.pyc");    // searching all files
-    wcscpy(FileName, sPath);
-    wcscat(FileName, L"\\");
-
-    // find the first file
-    hFind = FindFirstFile(DirPath, &FindFileData);
-    if (hFind == INVALID_HANDLE_VALUE) return FALSE;
-    wcscpy(DirPath, FileName);
-
+    hFind = FindFirstFile(DirPath.c_str(), &FindFileData);
+    DWORD err = GetLastError();
     bool bSearch = true;
-    while (bSearch) {    // until we find an entry
-        if (FindNextFile(hFind, &FindFileData)) {
-            if (IsDots(FindFileData.cFileName)) continue;
-            wcscat(FileName, FindFileData.cFileName);
+    if (INVALID_HANDLE_VALUE == hFind && err != ERROR_FILE_NOT_FOUND) {
+        return FALSE;
+    } else if (hFind != INVALID_HANDLE_VALUE)
+    {
+        for (bool bContinue = true; bContinue; bContinue = FindNextFile(hFind, &FindFileData))
+        {
+            if (IsDots(FindFileData.cFileName))
+            {
+                continue;
+            }
+            std::wstring FileName = dirname;
+            FileName += L"\\";
+            FileName += FindFileData.cFileName;
             if ((FindFileData.dwFileAttributes &
-                FILE_ATTRIBUTE_DIRECTORY)) {
+                FILE_ATTRIBUTE_DIRECTORY))
+            {
 
                 // we have found a directory, recurse
-                if (!DeleteDirectory(FileName)) {
+                if (!DeleteFilesInDirectory(FileName.c_str(), ext))
+                {
                     FindClose(hFind);
                     return FALSE;    // directory couldn't be deleted
                 }
-                // remove the empty directory
-                RemoveDirectory(FileName);
-                wcscpy(FileName, DirPath);
             }
             else {
                 if (FindFileData.dwFileAttributes &
                     FILE_ATTRIBUTE_READONLY)
+                {
                     // change read-only file mode
-                    _wchmod(FileName, _S_IWRITE);
-                if (!DeleteFile(FileName)) {    // delete the file
-                    FindClose(hFind);
-                    return FALSE;
+                    _wchmod(FileName.c_str(), _S_IWRITE);
                 }
-                wcscpy(FileName, DirPath);
+                if (!DeleteFile(FileName.c_str())) {    // delete the file
+                    WcaLog(LOGMSG_STANDARD, "Failed to delete pyc file");
+                }
             }
         }
-        else {
-            // no more files there
-            if (GetLastError() == ERROR_NO_MORE_FILES)
-                bSearch = false;
-            else {
-                // some error occurred; close the handle and return FALSE
-                FindClose(hFind);
-                return FALSE;
-            }
-
+        err = GetLastError();
+        FindClose(hFind);                  // close the file handle
+        if (ERROR_NO_MORE_FILES != err) {
+            return FALSE;
         }
-
     }
-    FindClose(hFind);                  // close the file handle
+    // now go back and redo, just looking for the directories.
+    DirPath = dirname;
+    DirPath += L"\\*";
 
+    hFind = FindFirstFile(DirPath.c_str(), &FindFileData);
+    if (INVALID_HANDLE_VALUE == hFind) {
+        return FALSE;
+    }
+    else if (hFind != INVALID_HANDLE_VALUE)
+    {
+        for (bool bContinue = true; bContinue; bContinue = FindNextFile(hFind, &FindFileData))
+        {
+            if (IsDots(FindFileData.cFileName))
+            {
+                continue;
+            }
+            if ((FindFileData.dwFileAttributes &
+                FILE_ATTRIBUTE_DIRECTORY))
+            {
+                std::wstring FileName = dirname;
+                FileName += L"\\";
+                FileName += FindFileData.cFileName;
+
+                // we have found a directory, recurse
+                if (!DeleteFilesInDirectory(FileName.c_str(), ext))
+                {
+                    FindClose(hFind);
+                    return FALSE;    // directory couldn't be deleted
+                }
+            }
+        }
+        err = GetLastError();
+        FindClose(hFind);                  // close the file handle
+        if (ERROR_NO_MORE_FILES != err) {
+            return FALSE;
+        }
+    }
+    
     return TRUE;
-
 }
