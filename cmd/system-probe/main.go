@@ -13,6 +13,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -84,6 +85,12 @@ func main() {
 	if !cfg.EnableSystemProbe {
 		log.Info("system probe not enabled. exiting.")
 		gracefulExit()
+	}
+
+	// configure statsd
+	if err := statsd.Configure(cfg); err != nil {
+		log.Criticalf("Error configuring statsd: %s", err)
+		os.Exit(1)
 	}
 
 	sysprobe, err := CreateSystemProbe(cfg)

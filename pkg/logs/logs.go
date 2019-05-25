@@ -8,6 +8,7 @@ package logs
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
@@ -49,7 +50,7 @@ func Start() error {
 	adScheduler = scheduler.NewScheduler(sources, services)
 
 	// setup the status
-	status.Init(&isRunning, sources)
+	status.Init(&isRunning, sources, metrics.LogsExpvars)
 
 	// setup the server config
 	endpoints, err := sender.BuildEndpoints()

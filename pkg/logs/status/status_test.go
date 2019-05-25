@@ -7,6 +7,7 @@ package status
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -99,4 +100,25 @@ func TestMetrics(t *testing.T) {
 	AddGlobalError("bar", "I am an error")
 	expected = `{"DestinationErrors": 0, "DestinationLogsDropped": {}, "Errors": "I am an error", "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": "Unique Warning"}`
 	assert.Equal(t, expected, metrics.LogsExpvars.String())
+}
+
+func TestStatusMetrics(t *testing.T) {
+	defer Clear()
+	createSources()
+
+	status := Get()
+	assert.Equal(t, int64(0), status.StatusMetrics["LogsProcessed"])
+	assert.Equal(t, int64(0), status.StatusMetrics["LogsSent"])
+
+	metrics.LogsProcessed.Set(5)
+	metrics.LogsSent.Set(3)
+	status = Get()
+
+	assert.Equal(t, int64(5), status.StatusMetrics["LogsProcessed"])
+	assert.Equal(t, int64(3), status.StatusMetrics["LogsSent"])
+
+	metrics.LogsProcessed.Set(math.MaxInt64)
+	metrics.LogsProcessed.Add(1)
+	status = Get()
+	assert.Equal(t, int64(math.MinInt64), status.StatusMetrics["LogsProcessed"])
 }

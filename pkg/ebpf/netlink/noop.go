@@ -19,8 +19,8 @@ func (*noOpConntracker) ClearShortLived() {}
 
 func (*noOpConntracker) Close() {}
 
-func (*noOpConntracker) GetStats() map[string]interface{} {
-	return map[string]interface{}{
-		"not": "running",
+func (*noOpConntracker) GetStats() map[string]int64 {
+	return map[string]int64{
+		"noop_conntracker": 0,
 	}
 }

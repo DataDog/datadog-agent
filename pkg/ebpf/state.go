@@ -8,17 +8,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var _ NetworkState = &networkState{}
+var (
+	_ NetworkState = &networkState{}
+)
 
 const (
 	// DEBUGCLIENT is the ClientID for debugging
 	DEBUGCLIENT = "-1"
-
-	// defaultMaxClosedConns & defaultMaxClientStats are the maximum number of objects that can be stored in-memory.
-	// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
-	defaultMaxClosedConns = 50000 // ~100 bytes per conn = 5MB
-	defaultMaxClientStats = 75000
-	defaultClientExpiry   = 2 * time.Minute
 )
 
 // NetworkState takes care of handling the logic for:
@@ -41,17 +37,17 @@ type NetworkState interface {
 	RemoveConnections(keys []string)
 
 	// GetStats returns a map of statistics about the current network state
-	GetStats(closedPollLost, closedPollReceived, tracerSkippedCount, expiredTCP uint64) map[string]interface{}
+	GetStats(closedPollLost, closedPollReceived, tracerSkippedCount, expiredTCP int64) map[string]interface{}
 
 	// DebugNetworkState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
 }
 
 type telemetry struct {
-	unorderedConns    int
-	closedConnDropped int
-	connDropped       int
-	statsResets       int
+	unorderedConns    int64
+	closedConnDropped int64
+	connDropped       int64
+	statsResets       int64
 }
 
 type stats struct {
@@ -84,7 +80,8 @@ type networkState struct {
 
 // NewDefaultNetworkState creates a new network state with default settings
 func NewDefaultNetworkState() NetworkState {
-	return NewNetworkState(defaultClientExpiry, defaultMaxClosedConns, defaultMaxClientStats)
+	defaultC := NewDefaultConfig()
+	return NewNetworkState(defaultC.ClientStateExpiry, defaultC.MaxClosedConnectionsBuffered, defaultC.MaxConnectionsStateBuffered)
 }
 
 // NewNetworkState creates a new network state
@@ -382,7 +379,7 @@ func (ns *networkState) RemoveConnections(keys []string) {
 }
 
 // GetStats returns a map of statistics about the current network state
-func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipped, expiredTCP uint64) map[string]interface{} {
+func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipped, expiredTCP int64) map[string]interface{} {
 	ns.Lock()
 	defer ns.Unlock()
 
@@ -397,15 +394,15 @@ func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipp
 
 	return map[string]interface{}{
 		"clients": clientInfo,
-		"telemetry": map[string]int{
+		"telemetry": map[string]int64{
 			"stats_resets":                 ns.telemetry.statsResets,
 			"unordered_conns":              ns.telemetry.unorderedConns,
 			"closed_conn_dropped":          ns.telemetry.closedConnDropped,
 			"conn_dropped":                 ns.telemetry.connDropped,
-			"closed_conn_polling_lost":     int(closedPollLost),
-			"closed_conn_polling_received": int(closedPollReceived),
-			"ok_conns_skipped":             int(tracerSkipped), // Skipped connections (e.g. Local DNS requests)
-			"expired_tcp_conns":            int(expiredTCP),
+			"closed_conn_polling_lost":     closedPollLost,
+			"closed_conn_polling_received": closedPollReceived,
+			"ok_conns_skipped":             tracerSkipped, // Skipped connections (e.g. Local DNS requests)
+			"expired_tcp_conns":            expiredTCP,
 		},
 		"current_time":       time.Now().Unix(),
 		"latest_bpf_time_ns": ns.latestTimeEpoch,

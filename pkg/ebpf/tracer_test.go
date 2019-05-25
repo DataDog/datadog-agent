@@ -31,6 +31,26 @@ var (
 	payloadSizesUDP   = []int{2 << 5, 2 << 8, 2 << 12, 2 << 14}
 )
 
+func TestTracerExpvar(t *testing.T) {
+	tr, err := NewTracer(NewDefaultConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	<-time.After(time.Second)
+
+	assert.Equal(t, "{\"ClosedConnDropped\": 0, \"ClosedConnPollingLost\": 0, \"ClosedConnPollingReceived\": 0, \"ConnDropped\": 0, \"ConntrackNoopConntracker\": 0, \"ExpiredTcpConns\": 0, \"OkConnsSkipped\": 0, \"StatsResets\": 0, \"UnorderedConns\": 0}", probeExpvar.String())
+}
+
+func TestSnakeToCamel(t *testing.T) {
+	for test, exp := range map[string]string{
+		"closed_conn_dropped":              "ClosedConnDropped",
+		"closed_conn_polling_lost":         "ClosedConnPollingLost",
+		"Conntrack_short_Term_Buffer_size": "ConntrackShortTermBufferSize",
+	} {
+		assert.Equal(t, exp, snakeToCapInitialCamel(test))
+	}
+}
+
 func TestTCPSendAndReceive(t *testing.T) {
 	// Enable BPF-based system probe
 	tr, err := NewTracer(NewDefaultConfig())

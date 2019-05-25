@@ -4,8 +4,10 @@ package ebpf
 
 import (
 	"bytes"
+	"expvar"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,6 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
+
+var (
+	probeExpvar *expvar.Map
+)
+
+func init() {
+	probeExpvar = expvar.NewMap("systemprobe")
+}
 
 type Tracer struct {
 	m *bpflib.Module
@@ -31,10 +41,10 @@ type Tracer struct {
 	perfMap *bpflib.PerfMap
 
 	// Telemetry
-	perfReceived    uint64
-	perfLost        uint64
-	skippedConns    uint64
-	expiredTCPConns uint64
+	perfReceived    int64
+	perfLost        int64
+	skippedConns    int64
+	expiredTCPConns int64
 
 	buffer     []ConnectionStats
 	bufferLock sync.Mutex
@@ -88,17 +98,19 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	conntracker := netlink.NewNoOpConntracker()
 	if config.EnableConntrack {
-		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackShortTermBufferSize); err != nil {
+		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackShortTermBufferSize, int(config.MaxTrackedConnections)); err != nil {
 			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		} else {
 			conntracker = c
 		}
 	}
 
+	state := NewNetworkState(config.ClientStateExpiry, config.MaxClosedConnectionsBuffered, config.MaxConnectionsStateBuffered)
+
 	tr := &Tracer{
 		m:              m,
 		config:         config,
-		state:          NewDefaultNetworkState(),
+		state:          state,
 		portMapping:    portMapping,
 		localAddresses: readLocalAddresses(),
 		buffer:         make([]ConnectionStats, 0, 512),
@@ -111,7 +123,62 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not start polling bpf events: %s", err)
 	}
 
+	go tr.expvarStats()
+
 	return tr, nil
+}
+
+// snakeToCapInitialCamel converts a snake case to Camel case with capital initial
+func snakeToCapInitialCamel(s string) string {
+	n := ""
+	capNext := true
+	for _, v := range s {
+		if v >= 'A' && v <= 'Z' {
+			n += string(v)
+		}
+		if v >= 'a' && v <= 'z' {
+			if capNext {
+				n += strings.ToUpper(string(v))
+			} else {
+				n += string(v)
+			}
+		}
+		if v == '_' {
+			capNext = true
+		} else {
+			capNext = false
+		}
+	}
+	return n
+}
+
+func (t *Tracer) expvarStats() {
+	ticker := time.NewTicker(5 * time.Second)
+	// starts running the body immediately instead waiting for the first tick
+	for ; true; <-ticker.C {
+		stats, err := t.GetStats()
+		if err != nil {
+			continue
+		}
+
+		if states, ok := stats["state"]; ok {
+			if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
+				for metric, val := range telemetry.(map[string]int64) {
+					currVal := &expvar.Int{}
+					currVal.Set(val)
+					probeExpvar.Set(snakeToCapInitialCamel(metric), currVal)
+				}
+			}
+		}
+
+		if conntrackStats, ok := stats["conntrack"]; ok {
+			for metric, val := range conntrackStats.(map[string]int64) {
+				currVal := &expvar.Int{}
+				currVal.Set(val)
+				probeExpvar.Set(fmt.Sprintf("Conntrack%s", snakeToCapInitialCamel(metric)), currVal)
+			}
+		}
+	}
 }
 
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
@@ -137,11 +204,11 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 					log.Infof("Exiting closed connections polling")
 					return
 				}
-				atomic.AddUint64(&t.perfReceived, 1)
+				atomic.AddInt64(&t.perfReceived, 1)
 				cs := decodeRawTCPConn(conn)
 				cs.Direction = t.determineConnectionDirection(&cs)
 				if t.shouldSkipConnection(&cs) {
-					atomic.AddUint64(&t.skippedConns, 1)
+					atomic.AddInt64(&t.skippedConns, 1)
 				} else {
 					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.SourceAddr(), cs.SPort)
 					t.state.StoreClosedConnection(cs)
@@ -150,12 +217,12 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				if !ok {
 					return
 				}
-				atomic.AddUint64(&t.perfLost, lostCount)
+				atomic.AddInt64(&t.perfLost, int64(lostCount))
 			case <-ticker.C:
-				recv := atomic.SwapUint64(&t.perfReceived, 0)
-				lost := atomic.SwapUint64(&t.perfLost, 0)
-				skip := atomic.SwapUint64(&t.skippedConns, 0)
-				tcpExpired := atomic.SwapUint64(&t.expiredTCPConns, 0)
+				recv := atomic.SwapInt64(&t.perfReceived, 0)
+				lost := atomic.SwapInt64(&t.perfLost, 0)
+				skip := atomic.SwapInt64(&t.skippedConns, 0)
+				tcpExpired := atomic.SwapInt64(&t.expiredTCPConns, 0)
 				if lost > 0 {
 					log.Warnf("closed connection polling: %d received, %d lost, %d skipped, %d expired TCP", recv, lost, skip, tcpExpired)
 				}
@@ -240,14 +307,14 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 		} else if stats.isExpired(latestTime, t.timeoutForConn(nextKey)) {
 			expired = append(expired, nextKey.copy())
 			if nextKey.isTCP() {
-				atomic.AddUint64(&t.expiredTCPConns, 1)
+				atomic.AddInt64(&t.expiredTCPConns, 1)
 			}
 		} else {
 			conn := connStats(nextKey, stats, t.getTCPStats(tcpMp, nextKey))
 			conn.Direction = t.determineConnectionDirection(&conn)
 
 			if t.shouldSkipConnection(&conn) {
-				atomic.AddUint64(&t.skippedConns, 1)
+				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
 				// lookup conntrack in for active
 				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.SourceAddr(), conn.SPort)
@@ -390,10 +457,10 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		return nil, fmt.Errorf("internal state not yet initialized")
 	}
 
-	lost := atomic.LoadUint64(&t.perfLost)
-	received := atomic.LoadUint64(&t.perfReceived)
-	skipped := atomic.LoadUint64(&t.skippedConns)
-	expiredTCP := atomic.LoadUint64(&t.expiredTCPConns)
+	lost := atomic.LoadInt64(&t.perfLost)
+	received := atomic.LoadInt64(&t.perfReceived)
+	skipped := atomic.LoadInt64(&t.skippedConns)
+	expiredTCP := atomic.LoadInt64(&t.expiredTCPConns)
 
 	stateStats := t.state.GetStats(lost, received, skipped, expiredTCP)
 	conntrackStats := t.conntracker.GetStats()
