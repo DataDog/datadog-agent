@@ -9,10 +9,7 @@ end
 shared_examples_for 'a device with no files installed' do
   # skip program files check for now; pyc files being left
   it 'has no DataDog program files directory' do
-    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin")
-    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\embedded")
-    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\embedded2")
-    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\embedded3")
+    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog")
   end
   it 'has no DataDog program data directory' do
     expect(File).not_to exist("#{ENV['ProgramData']}\\DataDog\\conf.d")

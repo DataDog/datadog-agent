@@ -55,7 +55,7 @@ remote_file temp_file do
 end
 
 execute "install-agent" do
-  command "echo %TIME% && start /wait msiexec /log install.log /q /i #{temp_file} #{install_options} && echo %TIME% && sc interrogate datadogagent 2>&1"
+  command "echo %TIME% && start /wait msiexec /q /i #{temp_file} #{install_options} && echo %TIME% && sc interrogate datadogagent 2>&1"
   status_out = `sc interrogate datadogagent 2>&1`
   puts status_out
   action :run
