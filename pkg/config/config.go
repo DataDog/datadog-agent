@@ -607,39 +607,49 @@ func load(config Config, origin string, loadSecret bool) error {
 	}
 
 	if loadSecret {
-		// We have to init the secrets package before we can use it to decrypt
-		// anything.
-		secrets.Init(
-			config.GetString("secret_backend_command"),
-			config.GetStringSlice("secret_backend_arguments"),
-			config.GetInt("secret_backend_timeout"),
-			config.GetInt("secret_backend_output_max_size"),
-		)
-
-		if config.GetString("secret_backend_command") != "" {
-			// Viper doesn't expose the final location of the file it
-			// loads. Since we are searching for 'datadog.yaml' in multiple
-			// locations we let viper determine the one to use before
-			// updating it.
-			yamlConf, err := yaml.Marshal(config.AllSettings())
-			if err != nil {
-				return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
-			}
-
-			finalYamlConf, err := secrets.Decrypt(yamlConf, origin)
-			if err != nil {
-				return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
-			}
-			r := bytes.NewReader(finalYamlConf)
-			if err = config.MergeConfigOverride(r); err != nil {
-				return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
-			}
+		if err := ResolveSecrets(config, origin); err != nil {
+			return err
 		}
 	}
 
 	loadProxyFromEnv(config)
 	sanitizeAPIKey(config)
 	applyOverrides(config)
+	return nil
+}
+
+// ResolveSecrets merges all the secret values from origin into config. Secret values
+// are identified by a value of the form "ENC[key]" where key is the secret key.
+// See: https://github.com/DataDog/datadog-agent/blob/master/docs/agent/secrets.md
+func ResolveSecrets(config Config, origin string) error {
+	// We have to init the secrets package before we can use it to decrypt
+	// anything.
+	secrets.Init(
+		config.GetString("secret_backend_command"),
+		config.GetStringSlice("secret_backend_arguments"),
+		config.GetInt("secret_backend_timeout"),
+		config.GetInt("secret_backend_output_max_size"),
+	)
+
+	if config.GetString("secret_backend_command") != "" {
+		// Viper doesn't expose the final location of the file it
+		// loads. Since we are searching for 'datadog.yaml' in multiple
+		// locations we let viper determine the one to use before
+		// updating it.
+		yamlConf, err := yaml.Marshal(config.AllSettings())
+		if err != nil {
+			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
+		}
+
+		finalYamlConf, err := secrets.Decrypt(yamlConf, origin)
+		if err != nil {
+			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
+		}
+		r := bytes.NewReader(finalYamlConf)
+		if err = config.MergeConfigOverride(r); err != nil {
+			return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
+		}
+	}
 	return nil
 }
 
