@@ -82,6 +82,7 @@ PyObject *subprocess_output(PyObject *self, PyObject *args)
     if (!cb_get_subprocess_output)
         Py_RETURN_NONE;
 
+    int i;
     int raise = 0;
     int ret_code = 0;
     int subprocess_args_sz;
@@ -91,44 +92,42 @@ PyObject *subprocess_output(PyObject *self, PyObject *args)
     char *exception = NULL;
     PyObject *cmd_args = NULL;
     PyObject *cmd_raise_on_empty = NULL;
-    PyObject *py_result = NULL;
+    PyObject *pyResult = NULL;
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
     if (!PyArg_ParseTuple(args, "O|O:get_subprocess_output", &cmd_args, &cmd_raise_on_empty)) {
-        goto error;
+        goto cleanup;
     }
 
     if (!PyList_Check(cmd_args)) {
         PyErr_SetString(PyExc_TypeError, "command args not a list");
-        goto error;
+        goto cleanup;
     }
 
+    // We already PyList_Check cmd_args, so PyList_Size won't fail and return -1
     subprocess_args_sz = PyList_Size(cmd_args);
     if (subprocess_args_sz == 0) {
         PyErr_SetString(PyExc_TypeError, "invalid command: empty list");
-        goto error;
+        goto cleanup;
     }
 
     if (!(subprocess_args = (char **)malloc(sizeof(*subprocess_args) * (subprocess_args_sz + 1)))) {
         PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
-        goto error;
+        goto cleanup;
     }
 
-    subprocess_args[subprocess_args_sz] = NULL;
-    int i;
+    // init to NULL for safety - could use memset, but this is safer.
+    for (i = 0; i <= subprocess_args_sz; i++) {
+        subprocess_args[i] = NULL;
+    }
+
     for (i = 0; i < subprocess_args_sz; i++) {
         char *subprocess_arg = as_string(PyList_GetItem(cmd_args, i));
 
         if (subprocess_arg == NULL) {
-            // cleanup
-            int j;
-            for (j = 0; j < i; j++)
-                free(subprocess_args[j]);
-            free(subprocess_args);
-
             PyErr_SetString(PyExc_TypeError, "command argument must be valid strings");
-            goto error;
+            goto cleanup;
         }
 
         subprocess_args[i] = subprocess_arg;
@@ -136,39 +135,36 @@ PyObject *subprocess_output(PyObject *self, PyObject *args)
 
     if (cmd_raise_on_empty != NULL && !PyBool_Check(cmd_raise_on_empty)) {
         PyErr_SetString(PyExc_TypeError, "bad raise_on_empty argument: should be bool");
-        goto error;
+        goto cleanup;
     }
 
-    if (cmd_raise_on_empty == Py_True)
+    if (cmd_raise_on_empty == Py_True) {
         raise = 1;
+    }
 
+    // Release the GIL so Python can execute other checks while Go runs the subprocess
     PyGILState_Release(gstate);
     PyThreadState *Tstate = PyEval_SaveThread();
 
     cb_get_subprocess_output(subprocess_args, &c_stdout, &c_stderr, &ret_code, &exception);
 
+    // Acquire the GIL now that Go is done
     PyEval_RestoreThread(Tstate);
     gstate = PyGILState_Ensure();
 
     if (raise && strlen(c_stdout) == 0) {
         raiseEmptyOutputError();
-        goto error;
+        goto cleanup;
     }
-
-    for (i = 0; subprocess_args[i]; i++)
-        free(subprocess_args[i]);
-    free(subprocess_args);
 
     if (exception) {
         PyErr_SetString(PyExc_Exception, exception);
-        cgo_free(exception);
-        goto error;
+        goto cleanup;
     }
 
     PyObject *pyStdout = NULL;
     if (c_stdout) {
         pyStdout = PyStringFromCString(c_stdout);
-        cgo_free(c_stdout);
     } else {
         Py_INCREF(Py_None);
         pyStdout = Py_None;
@@ -177,13 +173,12 @@ PyObject *subprocess_output(PyObject *self, PyObject *args)
     PyObject *pyStderr = NULL;
     if (c_stderr) {
         pyStderr = PyStringFromCString(c_stderr);
-        cgo_free(c_stderr);
     } else {
         Py_INCREF(Py_None);
         pyStderr = Py_None;
     }
 
-    PyObject *pyResult = PyTuple_New(3);
+    pyResult = PyTuple_New(3);
     PyTuple_SetItem(pyResult, 0, pyStdout);
     PyTuple_SetItem(pyResult, 1, pyStderr);
 #ifdef DATADOG_AGENT_THREE
@@ -192,17 +187,27 @@ PyObject *subprocess_output(PyObject *self, PyObject *args)
     PyTuple_SetItem(pyResult, 2, PyInt_FromLong(ret_code));
 #endif
 
-    PyGILState_Release(gstate);
-    return pyResult;
-
-error:
-    if (c_stdout)
+cleanup:
+    if (c_stdout) {
         cgo_free(c_stdout);
-    if (c_stderr)
+    }
+    if (c_stderr) {
         cgo_free(c_stderr);
-    if (exception)
+    }
+    if (exception) {
         cgo_free(exception);
+    }
+
+    if (subprocess_args) {
+        for (i = 0; i <= subprocess_args_sz && subprocess_args[i]; i++) {
+            free(subprocess_args[i]);
+        }
+        free(subprocess_args);
+    }
+
+    // Please note that if we get here we have a matching PyGILState_Ensure above, so we're safe.
     PyGILState_Release(gstate);
-    // we need to return NULL to raise the exception set by PyErr_SetString
-    return NULL;
+
+    // pyResult will be NULL in the face of error to raise the exception set by PyErr_SetString
+    return pyResult;
 }
