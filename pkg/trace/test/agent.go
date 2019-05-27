@@ -74,9 +74,9 @@ func (s *agentRunner) Run(conf []byte) error {
 		case <-timeout:
 			return fmt.Errorf("agent: timed out waiting for start, log:\n%s", s.Log())
 		default:
-			if strings.Contains(s.log.String(), "listening for traces at") {
+			if strings.Contains(s.log.String(), "Listening for traces at") {
 				if s.verbose {
-					log.Print("agent: listening for traces")
+					log.Print("agent: Listening for traces")
 				}
 				return nil
 			}
