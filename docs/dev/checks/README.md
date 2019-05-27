@@ -234,15 +234,23 @@ Using the `subprocess` and `multiprocessing` modules provided by the python stan
 supported_, and may result in your Agent crashing and/or creating processes that remain in a stuck or zombie
 state.
 
-### Built-in packages
+### Custom built-in modules
 
-The Agent provides a set of python packages that are built-in and only available
-within the embedded CPython interpreter:
+A set of Python modules is provided capable to interact with a running Agent at
+a quite low level. These modules are built-in but only available in the embedded
+CPython interpreter within a running Agent and are mostly used in the `AgentCheck`
+base class, that exposes convenient wrappers to be used in Integrations and Custom
+checks code.
 
+**These modules should never be used directly.**
+
+- [_util](python/_util.md)
 - [aggregator](python/aggregator.md)
-- [datadog-agent](python/datadog_agent.md)
-
-
+- [containers](python/containers.md)
+- [datadog_agent](python/datadog_agent.md)
+- [kubeutil](python/kubeutil.md)
+- [tagger](python/tagger.md)
+- [util](python/util.md)
 
 [custom-checks]: https://docs.datadoghq.com/developers/write_agent_check/?tab=agentv6
 [collector]: /pkg/collector
