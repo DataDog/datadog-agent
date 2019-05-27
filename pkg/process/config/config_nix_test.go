@@ -85,3 +85,28 @@ func TestAgentConfigYamlEnc2(t *testing.T) {
 	assert.Equal("secret_encrypted_key", ep.APIKey)
 	assert.Equal("secret_burrito.com", ep.Endpoint.String())
 }
+
+func TestDontOverwriteEnvVarsWithEncryptedSecrets(t *testing.T) {
+	assert := assert.New(t)
+	defer restoreGlobalConfig()
+
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+
+	os.Setenv("DD_API_KEY", "ABC")
+	agentConfig, err := NewAgentConfig(
+		"test",
+		"./testdata/TestDDAgentConfigYamlEnc2.yaml",
+		"",
+	)k
+	loadEnvVariables()
+	os.Unsetenv("DD_API_KEY")
+
+	assert.True(config.Datadog.IsSet("api_key"))
+
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	os.Setenv("DD_API_KEY", "ENC[ABC]")
+	loadEnvVariables()
+	os.Unsetenv("DD_API_KEY")
+
+	assert.False(config.Datadog.IsSet("api_key"))
+}

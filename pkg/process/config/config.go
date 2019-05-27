@@ -224,7 +224,7 @@ func loadConfigIfExists(path string) error {
 			config.Datadog.SetConfigFile(path)
 		}
 
-		if err := config.Load(); err != nil {
+		if err := config.LoadWithoutSecret(); err != nil {
 			return err
 		}
 	} else {
@@ -247,6 +247,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	if err := cfg.loadProcessYamlConfig(yamlPath); err != nil {
 		return nil, err
 	}
+
+	fmt.Println("rawr", cfg.APIEndpoints)
 
 	// (Re)configure the logging from our configuration
 	if err := setupLogger(loggerName, cfg.LogFile, cfg); err != nil {
@@ -361,14 +363,6 @@ func loadEnvVariables() {
 		"DD_LOG_LEVEL":      "log_level",
 	} {
 		if v, ok := os.LookupEnv(envKey); ok {
-			// We don't want to overwrite environment variables with encrypted secrets
-			// Note: This will cause decryption to break for non-standard environment flags used in agent 5 which may
-			//       hurt users transitioning from A5 to A6, but since secrets aren't supported in A5, it's likely
-			//       not an issue.
-			if isEncryptedSecret(v) {
-				continue
-			}
-
 			config.Datadog.Set(cfgKey, v)
 		}
 	}
@@ -379,20 +373,14 @@ func loadEnvVariables() {
 		apiKey, envKey = os.Getenv("API_KEY"), "API_KEY"
 	}
 
-	if apiKey != "" && !isEncryptedSecret(apiKey) { // We don't want to overwrite the API KEY provided as an environment variable
+	if apiKey != "" { // We don't want to overwrite the API KEY provided as an environment variable
 		log.Infof("overriding API key from env %s value", envKey)
 		config.Datadog.Set("api_key", strings.TrimSpace(strings.Split(apiKey, ",")[0]))
 	}
 
-	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" && !isEncryptedSecret(v) {
+	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" {
 		config.Datadog.Set("process_config.custom_sensitive_words", strings.Split(v, ","))
 	}
-}
-
-// Note: this is copied from isEnc() @ pkg/secrets/secrets.go
-func isEncryptedSecret(str string) bool {
-	str = strings.Trim(str, " 	") // Trimming space and tabs
-	return strings.HasPrefix(str, "ENC[") && strings.HasSuffix(str, "]")
 }
 
 // IsBlacklisted returns a boolean indicating if the given command is blacklisted by our config.
