@@ -10,7 +10,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func applyEnv() {
+// loadEnv loads all known environment variables into the global config.
+func loadEnv() {
 	// Warning: do not use BindEnv to bind config variables. They will be overridden
 	// when using the legacy config loader.
 	for _, override := range []struct{ env, key string }{
