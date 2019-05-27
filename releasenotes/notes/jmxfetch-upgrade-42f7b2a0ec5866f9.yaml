@@ -8,4 +8,6 @@
 ---
 enhancements:
   - |
-    Upgraded JMXFetch to 0.28.0. See https://github.com/DataDog/jmxfetch/releases/tag/0.28.0
+    Upgraded JMXFetch to 0.29.1. See https://github.com/DataDog/jmxfetch/releases/tag/0.28.0,
+    https://github.com/DataDog/jmxfetch/releases/tag/0.29.0 and
+    https://github.com/DataDog/jmxfetch/releases/tag/0.29.1
