@@ -229,8 +229,9 @@ bool Two::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyC
 
     obj_class = _findSubclassOf(_baseClass, obj_module);
     if (obj_class == NULL) {
+        // `_findSubclassOf` does not set the interpreter's error flag, but leaves an error on six
         std::ostringstream err;
-        err << "unable to find a subclass of the base check in module '" << module << "': " << _fetchPythonError();
+        err << "unable to find a subclass of the base check in module '" << module << "': " << getError();
         setError(err.str());
         Py_XDECREF(obj_module);
         return false;

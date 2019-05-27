@@ -83,7 +83,10 @@ public:
 
 private:
     void initPythonHome(const char *pythonHome = NULL);
+    // return new reference, returns NULL on error with clean interpreter error flag
     PyObject *_importFrom(const char *module, const char *name);
+    // return new reference, returns NULL on error with clean interpreter error flag
+    // and an error set on six
     PyObject *_findSubclassOf(PyObject *base, PyObject *moduleName);
     PyObject *_getClass(const char *module, const char *base);
     std::string _fetchPythonError();
