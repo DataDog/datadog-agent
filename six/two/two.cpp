@@ -77,17 +77,32 @@ bool Two::init()
     if (_pythonPaths.size()) {
         char pathchr[] = "path";
         PyObject *path = PySys_GetObject(pathchr); // borrowed
+        if (path == NULL) {
+            // sys.path doesn't exist, which should never happen.
+            // No exception is set on the interpreter, so no need to handle any.
+            setError("could not access sys.path");
+            goto done;
+        }
         for (PyPaths::iterator pit = _pythonPaths.begin(); pit != _pythonPaths.end(); ++pit) {
             PyObject *p = PyString_FromString((*pit).c_str());
-            PyList_Append(path, p);
+            if (p == NULL) {
+                setError("could not set pythonPath: " + _fetchPythonError());
+                goto done;
+            }
+            int retval = PyList_Append(path, p);
             Py_XDECREF(p);
+            if (retval == -1) {
+                setError("could not append path to pythonPath: " + _fetchPythonError());
+                goto done;
+            }
         }
     }
 
     // import the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
 
-    // save tread state and release the GIL
+done:
+    // save thread state and release the GIL
     _threadState = PyEval_SaveThread();
 
     return _baseClass != NULL;
