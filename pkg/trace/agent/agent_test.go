@@ -3,14 +3,12 @@ package agent
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -37,69 +35,6 @@ type mockSamplerEngine struct {
 
 func newMockSampler(wantSampled bool, wantRate float64) *Sampler {
 	return &Sampler{engine: testutil.NewMockEngine(wantSampled, wantRate)}
-}
-
-func TestWatchdog(t *testing.T) {
-	if testing.Short() {
-		return
-	}
-
-	conf := config.New()
-	conf.Endpoints[0].APIKey = "apikey_2"
-	conf.MaxMemory = 1e7
-	conf.WatchdogInterval = time.Millisecond
-
-	// save the global mux aside, we don't want to break other tests
-	defaultMux := http.DefaultServeMux
-	http.DefaultServeMux = http.NewServeMux()
-
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	agnt := NewAgent(ctx, conf)
-
-	defer func() {
-		cancelFunc()
-		// We need to manually close the receiver as the Run() func
-		// should have been broken and interrupted by the watchdog panic
-		agnt.Receiver.Stop()
-		http.DefaultServeMux = defaultMux
-	}()
-
-	var killed bool
-	defer func() {
-		if r := recover(); r != nil {
-			killed = true
-			switch v := r.(type) {
-			case string:
-				if strings.HasPrefix(v, "exceeded max memory") {
-					t.Logf("watchdog worked, trapped the right error: %s", v)
-					runtime.GC() // make sure we clean up after allocating all this
-					return
-				}
-			}
-			t.Fatalf("unexpected error: %v", r)
-		}
-	}()
-
-	// allocating a lot of memory
-	buf := make([]byte, 2*int64(conf.MaxMemory))
-	buf[0] = 1
-	buf[len(buf)-1] = 1
-
-	// override the default die, else our test would stop, use a plain panic() instead
-	oldDie := dieFunc
-	defer func() { dieFunc = oldDie }()
-	dieFunc = func(format string, args ...interface{}) {
-		panic(fmt.Sprintf(format, args...))
-	}
-
-	// after some time, the watchdog should kill this
-	agnt.Run()
-
-	// without this. runtime could be smart and free memory before we Run()
-	buf[0] = 2
-	buf[len(buf)-1] = 2
-
-	assert.True(t, killed)
 }
 
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
@@ -565,20 +500,6 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	}
 }
 
-func BenchmarkWatchdog(b *testing.B) {
-	conf := config.New()
-	conf.Endpoints[0].APIKey = "apikey_2"
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	defer cancelFunc()
-	ta := NewAgent(ctx, conf)
-
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		ta.watchdog()
-	}
-}
-
 // Mimicks behaviour of agent Process function
 func formatTrace(t pb.Trace) pb.Trace {
 	for _, span := range t {
@@ -624,9 +545,20 @@ func benchThroughput(file string) func(*testing.B) {
 		// start the agent without the trace and stats writers; we will be draining
 		// these channels ourselves in the benchmarks, plus we don't want the writers
 		// resource usage to show up in the results.
-		agnt.start()
 		agnt.tracePkgChan = make(chan *writer.TracePackage)
-		go agnt.loop()
+		go agnt.Run()
+
+		// wait for receiver to start:
+		for {
+			resp, err := http.Get("http://localhost:8126/v0.4/traces")
+			if err != nil {
+				time.Sleep(time.Millisecond)
+				continue
+			}
+			if resp.StatusCode == 400 {
+				break
+			}
+		}
 
 		// drain every other channel to avoid blockage.
 		exit := make(chan bool)

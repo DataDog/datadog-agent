@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -10,9 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
-	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
@@ -60,8 +60,8 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 
 	// inter-component channels
-	rawTraceChan := make(chan pb.Trace, 5000) // about 1000 traces/sec for 5 sec, TODO: move to *model.Trace
-	tracePkgChan := make(chan *writer.TracePackage)
+	rawTraceChan := make(chan pb.Trace, 5000)
+	tracePkgChan := make(chan *writer.TracePackage, 1000)
 	statsChan := make(chan []stats.Bucket)
 	serviceChan := make(chan pb.ServicesMetadata, 50)
 	filteredServiceChan := make(chan pb.ServicesMetadata, 50)
@@ -111,11 +111,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 func (a *Agent) Run() {
 	info.UpdatePreSampler(*a.Receiver.PreSampler.Stats()) // avoid exposing 0
 
-	a.start()
-	a.loop()
-}
-
-func (a *Agent) start() {
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
 		a.TraceWriter,
@@ -130,19 +125,36 @@ func (a *Agent) start() {
 	} {
 		starter.Start()
 	}
+
+	n := 1
+	if config.HasFeature("parallel_process") {
+		n = runtime.NumCPU()
+	}
+	for i := 0; i < n; i++ {
+		go a.work()
+	}
+
+	a.loop()
+}
+
+func (a *Agent) work() {
+	for {
+		select {
+		case t, ok := <-a.Receiver.Out:
+			if !ok {
+				return
+			}
+			a.Process(t)
+		}
+	}
+
 }
 
 func (a *Agent) loop() {
-	ticker := time.NewTicker(a.conf.WatchdogInterval)
-	defer ticker.Stop()
 	for {
 		select {
-		case t := <-a.Receiver.Out:
-			a.Process(t)
-		case <-ticker.C:
-			a.watchdog()
 		case <-a.ctx.Done():
-			log.Info("exiting")
+			log.Info("Exiting...")
 			if err := a.Receiver.Stop(); err != nil {
 				log.Error(err)
 			}
@@ -164,9 +176,11 @@ func (a *Agent) loop() {
 // passes it downstream.
 func (a *Agent) Process(t pb.Trace) {
 	if len(t) == 0 {
-		log.Debugf("skipping received empty trace")
+		log.Debugf("Skipping received empty trace")
 		return
 	}
+
+	defer timing.Since("datadog.trace_agent.internal.process_trace_ms", time.Now())
 
 	// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 	root := traceutil.GetRoot(t)
@@ -194,7 +208,7 @@ func (a *Agent) Process(t pb.Trace) {
 	atomic.AddInt64(stat, 1)
 
 	if !a.Blacklister.Allows(root) {
-		log.Debugf("trace rejected by blacklister. root: %v", root)
+		log.Debugf("Trace rejected by blacklister. root: %v", root)
 		atomic.AddInt64(&ts.TracesFiltered, 1)
 		atomic.AddInt64(&ts.SpansFiltered, int64(len(t)))
 		return
@@ -247,6 +261,7 @@ func (a *Agent) Process(t pb.Trace) {
 
 	go func(pt ProcessedTrace) {
 		defer watchdog.LogOnPanic()
+		defer timing.Since("datadog.trace_agent.internal.concentrator_ms", time.Now())
 		// Everything is sent to concentrator for stats, regardless of sampling.
 		a.Concentrator.Add(&stats.Input{
 			Trace:     pt.WeightedTrace,
@@ -262,6 +277,7 @@ func (a *Agent) Process(t pb.Trace) {
 	// Run both full trace sampling and transaction extraction in another goroutine.
 	go func(pt ProcessedTrace) {
 		defer watchdog.LogOnPanic()
+		defer timing.Since("datadog.trace_agent.internal.sample_ms", time.Now())
 
 		tracePkg := writer.TracePackage{}
 
@@ -301,39 +317,6 @@ func (a *Agent) sample(pt ProcessedTrace) (sampled bool, rate float64) {
 	}
 
 	return sampledScore || sampledPriority, sampler.CombineRates(ratePriority, rateScore)
-}
-
-// dieFunc is used by watchdog to kill the agent; replaced in tests.
-var dieFunc = func(fmt string, args ...interface{}) {
-	osutil.Exitf(fmt, args...)
-}
-
-func (a *Agent) watchdog() {
-	var wi watchdog.Info
-	wi.CPU = watchdog.CPU()
-	wi.Mem = watchdog.Mem()
-	wi.Net = watchdog.Net()
-
-	if float64(wi.Mem.Alloc) > a.conf.MaxMemory && a.conf.MaxMemory > 0 {
-		dieFunc("exceeded max memory (current=%d, max=%d)", wi.Mem.Alloc, int64(a.conf.MaxMemory))
-	}
-	if int(wi.Net.Connections) > a.conf.MaxConnections && a.conf.MaxConnections > 0 {
-		dieFunc("exceeded max connections (current=%d, max=%d)", wi.Net.Connections, a.conf.MaxConnections)
-	}
-
-	info.UpdateWatchdogInfo(wi)
-
-	// Adjust pre-sampling dynamically
-	rate, err := sampler.CalcPreSampleRate(a.conf.MaxCPU, wi.CPU.UserAvg, a.Receiver.PreSampler.RealRate())
-	if err != nil {
-		log.Warnf("problem computing pre-sample rate: %v", err)
-	}
-	a.Receiver.PreSampler.SetRate(rate)
-	a.Receiver.PreSampler.SetError(err)
-
-	preSamplerStats := a.Receiver.PreSampler.Stats()
-	metrics.Gauge("datadog.trace_agent.presampler_rate", preSamplerStats.Rate, nil, 1)
-	info.UpdatePreSampler(*preSamplerStats)
 }
 
 func traceContainsError(trace pb.Trace) bool {

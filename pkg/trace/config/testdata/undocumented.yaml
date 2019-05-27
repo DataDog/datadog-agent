@@ -7,10 +7,9 @@ apm_config:
   max_events_per_second: 1000.0
   receiver_port: 25
   max_cpu_percent: 7
-  max_connections: 50
+  max_connections: 50 # deprecated
   max_memory: 30000000
   trace_writer:
-    max_spans_per_payload: 11
     flush_period_seconds: 22
     update_info_period_seconds: 33
     queue:

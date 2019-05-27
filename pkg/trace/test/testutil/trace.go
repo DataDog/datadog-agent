@@ -51,7 +51,7 @@ func genNextLevel(prevLevel []*pb.Span, maxSpans int) []*pb.Span {
 			news.Start = prev.Start + randStart
 			// random duration
 			timeLeft -= randStart
-			news.Duration = rand.Int63n(timeLeft)
+			news.Duration = rand.Int63n(timeLeft) + 1
 			timeLeft -= news.Duration
 
 			curSpans = append(curSpans, news)

@@ -67,7 +67,8 @@ type AgentConfig struct {
 	// Receiver
 	ReceiverHost    string
 	ReceiverPort    int
-	ConnectionLimit int // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
+	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
 	ReceiverTimeout int
 
 	// Writers
@@ -80,14 +81,13 @@ type AgentConfig struct {
 	StatsdPort int
 
 	// logging
-	LogLevel             string
-	LogFilePath          string
-	LogThrottlingEnabled bool
+	LogLevel      string
+	LogFilePath   string
+	LogThrottling bool
 
 	// watchdog
 	MaxMemory        float64       // MaxMemory is the threshold (bytes allocated) above which program panics and exits, to be restarted
 	MaxCPU           float64       // MaxCPU is the max UserAvg CPU the program should consume
-	MaxConnections   int           // (deprecated) MaxConnections is the threshold (opened TCP connections) above which program panics and exits, to be restarted
 	WatchdogInterval time.Duration // WatchdogInterval is the delay between 2 watchdog checks
 
 	// http/s proxying
@@ -137,14 +137,13 @@ func New() *AgentConfig {
 		StatsdHost: "localhost",
 		StatsdPort: 8125,
 
-		LogLevel:             "INFO",
-		LogFilePath:          DefaultLogFilePath,
-		LogThrottlingEnabled: true,
+		LogLevel:      "INFO",
+		LogFilePath:   DefaultLogFilePath,
+		LogThrottling: true,
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%
-		MaxConnections:   200, // in practice, rarely goes over 20
-		WatchdogInterval: time.Minute,
+		WatchdogInterval: 20 * time.Second,
 
 		Ignore:                      make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
@@ -247,4 +246,10 @@ func prepareConfig(path string) (*AgentConfig, error) {
 	}
 	cfg.ConfigPath = cfgPath
 	return cfg, nil
+}
+
+// HasFeature returns true if the feature f is present. Features are values
+// of the DD_APM_FEATURES environment variable.
+func HasFeature(f string) bool {
+	return strings.Contains(os.Getenv("DD_APM_FEATURES"), f)
 }

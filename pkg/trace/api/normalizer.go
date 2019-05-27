@@ -264,106 +264,115 @@ func toUTF8(s string) string {
 
 const maxTagLength = 200
 
-// normalizeTag applies some normalization to ensure the tags match the
-// backend requirements
-func normalizeTag(tag string) string {
-	if len(tag) == 0 {
+// normalizeTag applies some normalization to ensure the tags match the backend requirements.
+func normalizeTag(v string) string {
+	// the algorithm works by creating a set of cuts marking start and end offsets in v
+	// that have to be replaced with underscore (_)
+	if len(v) == 0 {
 		return ""
 	}
 	var (
-		trim   int      // start character (if trimming)
-		wiping bool     // true when the previous character has been discarded
-		wipe   [][2]int // sections to discard: (start, end) pairs
-		chars  int      // number of characters processed
+		trim  int      // start character (if trimming)
+		cuts  [][2]int // sections to discard: (start, end) pairs
+		chars int      // number of characters processed
 	)
 	var (
-		i int  // current byte
-		c rune // current rune
+		i    int  // current byte
+		r    rune // current rune
+		jump int  // tracks how many bytes the for range advances on its next iteration
 	)
-	norm := []byte(tag)
-	for i, c = range tag {
+	tag := []byte(v)
+	for i, r = range v {
+		jump = utf8.RuneLen(r) // next i will be i+jump
+		if r == utf8.RuneError {
+			// On invalid UTF-8, the for range advances only 1 byte (see: https://golang.org/ref/spec#For_range (point 2)).
+			// However, utf8.RuneError is equivalent to unicode.ReplacementChar so we should rely on utf8.DecodeRune to tell
+			// us whether this is an actual error or just a unicode.ReplacementChar that was present in the string.
+			_, width := utf8.DecodeRune(tag[i:])
+			jump = width
+		}
+		// fast path; all letters (and colons) are ok
+		switch {
+		case r >= 'a' && r <= 'z' || r == ':':
+			chars++
+			goto end
+		case r >= 'A' && r <= 'Z':
+			// lower-case
+			tag[i] += 'a' - 'A'
+			chars++
+			goto end
+		}
+		if unicode.IsUpper(r) {
+			// lowercase this character
+			if low := unicode.ToLower(r); utf8.RuneLen(r) == utf8.RuneLen(low) {
+				// but only if the width of the lowercased character is the same;
+				// there are some rare edge-cases where this is not the case, such
+				// as \u017F (ſ)
+				utf8.EncodeRune(tag[i:], low)
+				r = low
+			}
+		}
+		switch {
+		case unicode.IsLetter(r):
+			chars++
+		case chars == 0:
+			// this character can not start the string, trim
+			trim = i + jump
+			goto end
+		case unicode.IsDigit(r) || r == '.' || r == '/' || r == '-':
+			chars++
+		default:
+			// illegal character
+			if n := len(cuts); n > 0 && cuts[n-1][1] >= i {
+				// merge intersecting cuts
+				cuts[n-1][1] += jump
+			} else {
+				// start a new cut
+				cuts = append(cuts, [2]int{i, i + jump})
+			}
+		}
+	end:
+		if i+jump >= 2*maxTagLength {
+			// bail early if the tag contains a lot of non-letter/digit characters.
+			// If a tag is test🍣🍣[...]🍣, then it's unlikely to be a properly formatted tag
+			break
+		}
 		if chars >= maxTagLength {
 			// we've reached the maximum
 			break
 		}
-		// fast path; all letters (and colons) are ok
-		switch {
-		case c >= 'a' && c <= 'z' || c == ':':
-			chars++
-			wiping = false
-			continue
-		case c >= 'A' && c <= 'Z':
-			// lower-case
-			norm[i] += 'a' - 'A'
-			chars++
-			wiping = false
-			continue
-		}
-
-		if utf8.ValidRune(c) && unicode.IsUpper(c) {
-			// lowercase this character
-			if low := unicode.ToLower(c); utf8.RuneLen(c) == utf8.RuneLen(low) {
-				// but only if the width of the lowercased character is the same;
-				// there are some rare edge-cases where this is not the case, such
-				// as \u017F (ſ)
-				utf8.EncodeRune(norm[i:], low)
-				c = low
-			}
-		}
-		switch {
-		case unicode.IsLetter(c):
-			chars++
-			wiping = false
-		case chars == 0:
-			// this character can not start the string, trim
-			trim = i + utf8.RuneLen(c)
-			continue
-		case unicode.IsDigit(c) || c == '.' || c == '/' || c == '-':
-			chars++
-			wiping = false
-		default:
-			// illegal character
-			if !wiping {
-				// start a new cut
-				wipe = append(wipe, [2]int{i, i + utf8.RuneLen(c)})
-				wiping = true
-			} else {
-				// lengthen current cut
-				wipe[len(wipe)-1][1] += utf8.RuneLen(c)
-			}
-		}
 	}
 
-	norm = norm[trim : i+utf8.RuneLen(c)] // trim start and end
-	if len(wipe) == 0 {
+	tag = tag[trim : i+jump] // trim start and end
+	if len(cuts) == 0 {
 		// tag was ok, return it as it is
-		return string(norm)
+		return string(tag)
 	}
 	delta := trim // cut offsets delta
-	for _, cut := range wipe {
+	for _, cut := range cuts {
 		// start and end of cut, including delta from previous cuts:
 		start, end := cut[0]-delta, cut[1]-delta
 
-		if end >= len(norm) {
+		if end >= len(tag) {
 			// this cut includes the end of the string; discard it
 			// completely and finish the loop.
-			norm = norm[:start]
+			tag = tag[:start]
 			break
 		}
 		// replace the beginning of the cut with '_'
-		norm[start] = '_'
+		tag[start] = '_'
 		if end-start == 1 {
 			// nothing to discard
 			continue
 		}
 		// discard remaining characters in the cut
-		copy(norm[start+1:], norm[end:])
+		copy(tag[start+1:], tag[end:])
 
 		// shorten the slice
-		norm = norm[:len(norm)-(end-start)+1]
+		tag = tag[:len(tag)-(end-start)+1]
 
 		// count the new delta for future cuts
 		delta += cut[1] - cut[0] - 1
 	}
-	return string(norm)
+	return string(tag)
 }

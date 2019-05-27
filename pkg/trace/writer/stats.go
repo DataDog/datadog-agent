@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
@@ -76,14 +77,14 @@ func (w *StatsWriter) Start() {
 func (w *StatsWriter) Run() {
 	defer close(w.exit)
 
-	log.Debug("starting stats writer")
+	log.Debug("Starting stats writer")
 
 	for {
 		select {
 		case stats := <-w.InStats:
 			w.handleStats(stats)
 		case <-w.exit:
-			log.Info("exiting stats writer")
+			log.Info("Exiting stats writer")
 			return
 		}
 	}
@@ -102,7 +103,9 @@ func (w *StatsWriter) handleStats(s []stats.Bucket) {
 		return
 	}
 
-	log.Debugf("going to flush %v entries in %v stat buckets in %v payloads",
+	defer timing.Since("datadog.trace_agent.stats_writer.encode_ms", time.Now())
+
+	log.Debugf("Going to flush %v entries in %v stat buckets in %v payloads",
 		nbEntries, nbStatBuckets, len(payloads),
 	)
 
@@ -121,7 +124,7 @@ func (w *StatsWriter) handleStats(s []stats.Bucket) {
 		// synchronously send the payloads one after the other
 		data, err := stats.EncodePayload(p)
 		if err != nil {
-			log.Errorf("encoding issue: %v", err)
+			log.Errorf("Encoding issue: %v", err)
 			return
 		}
 
@@ -262,7 +265,7 @@ func (w *StatsWriter) monitor() {
 			switch e.typ {
 			case eventTypeSuccess:
 				url := e.stats.host
-				log.Debugf("flushed stat payload; url: %s, time:%s, size:%d bytes", url, e.stats.sendTime,
+				log.Debugf("Flushed stat payload; url: %s, time:%s, size:%d bytes", url, e.stats.sendTime,
 					len(e.payload.bytes))
 				tags := []string{"url:" + url}
 				metrics.Gauge("datadog.trace_agent.stats_writer.flush_duration",
@@ -270,15 +273,15 @@ func (w *StatsWriter) monitor() {
 				atomic.AddInt64(&w.info.Payloads, 1)
 			case eventTypeFailure:
 				url := e.stats.host
-				log.Errorf("failed to flush stat payload; url:%s, time:%s, size:%d bytes, error: %s",
+				log.Errorf("Failed to flush stat payload; url:%s, time:%s, size:%d bytes, error: %s",
 					url, e.stats.sendTime, len(e.payload.bytes), e.err)
 				atomic.AddInt64(&w.info.Errors, 1)
 			case eventTypeRetry:
-				log.Errorf("retrying flush stat payload, retryNum: %d, delay:%s, error: %s",
+				log.Errorf("Retrying flush stat payload, retryNum: %d, delay:%s, error: %s",
 					e.retryNum, e.retryDelay, e.err)
 				atomic.AddInt64(&w.info.Retries, 1)
 			default:
-				log.Debugf("don't know how to handle event with type %T", e)
+				log.Debugf("Unable to handle event with type %T", e)
 			}
 
 		case <-infoTicker.C:

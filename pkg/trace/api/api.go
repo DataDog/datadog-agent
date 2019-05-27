@@ -10,8 +10,13 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/http/pprof"
+	"os"
+	"runtime"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -20,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -69,7 +75,9 @@ type HTTPReceiver struct {
 
 	maxRequestBodyLength int64
 	debug                bool
+	presamplerResponse   int // HTTP status code when refusing
 
+	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
 }
 
@@ -77,6 +85,10 @@ type HTTPReceiver struct {
 func NewHTTPReceiver(
 	conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan pb.Trace, services chan pb.ServicesMetadata,
 ) *HTTPReceiver {
+	presamplerResponse := http.StatusOK
+	if config.HasFeature("429") {
+		presamplerResponse = http.StatusTooManyRequests
+	}
 	// use buffered channels so that handlers are not waiting on downstream processing
 	return &HTTPReceiver{
 		Stats:      info.NewReceiverStats(),
@@ -89,6 +101,7 @@ func NewHTTPReceiver(
 
 		maxRequestBodyLength: maxRequestBodyLength,
 		debug:                strings.ToLower(conf.LogLevel) == "debug",
+		presamplerResponse:   presamplerResponse,
 
 		exit: make(chan struct{}),
 	}
@@ -96,45 +109,21 @@ func NewHTTPReceiver(
 
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
-	// FIXME[1.x]: remove all those legacy endpoints + code that goes with it
-	http.HandleFunc("/spans", r.httpHandleWithVersion(v01, r.handleTraces))
-	http.HandleFunc("/services", r.httpHandleWithVersion(v01, r.handleServices))
-	http.HandleFunc("/v0.1/spans", r.httpHandleWithVersion(v01, r.handleTraces))
-	http.HandleFunc("/v0.1/services", r.httpHandleWithVersion(v01, r.handleServices))
-	http.HandleFunc("/v0.2/traces", r.httpHandleWithVersion(v02, r.handleTraces))
-	http.HandleFunc("/v0.2/services", r.httpHandleWithVersion(v02, r.handleServices))
-	http.HandleFunc("/v0.3/traces", r.httpHandleWithVersion(v03, r.handleTraces))
-	http.HandleFunc("/v0.3/services", r.httpHandleWithVersion(v03, r.handleServices))
+	mux := http.NewServeMux()
 
-	// current collector API
-	http.HandleFunc("/v0.4/traces", r.httpHandleWithVersion(v04, r.handleTraces))
-	http.HandleFunc("/v0.4/services", r.httpHandleWithVersion(v04, r.handleServices))
+	r.attachDebugHandlers(mux)
 
-	// expvar implicitly publishes "/debug/vars" on the same port
-	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
-	if err := r.Listen(addr, ""); err != nil {
-		osutil.Exitf("%v", err)
-	}
+	mux.HandleFunc("/spans", r.httpHandleWithVersion(v01, r.handleTraces))
+	mux.HandleFunc("/services", r.httpHandleWithVersion(v01, r.handleServices))
+	mux.HandleFunc("/v0.1/spans", r.httpHandleWithVersion(v01, r.handleTraces))
+	mux.HandleFunc("/v0.1/services", r.httpHandleWithVersion(v01, r.handleServices))
+	mux.HandleFunc("/v0.2/traces", r.httpHandleWithVersion(v02, r.handleTraces))
+	mux.HandleFunc("/v0.2/services", r.httpHandleWithVersion(v02, r.handleServices))
+	mux.HandleFunc("/v0.3/traces", r.httpHandleWithVersion(v03, r.handleTraces))
+	mux.HandleFunc("/v0.3/services", r.httpHandleWithVersion(v03, r.handleServices))
+	mux.HandleFunc("/v0.4/traces", r.httpHandleWithVersion(v04, r.handleTraces))
+	mux.HandleFunc("/v0.4/services", r.httpHandleWithVersion(v04, r.handleServices))
 
-	go r.PreSampler.Run()
-
-	go func() {
-		defer watchdog.LogOnPanic()
-		r.logStats()
-	}()
-}
-
-// Listen creates a new HTTP server listening on the provided address.
-func (r *HTTPReceiver) Listen(addr, logExtra string) error {
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return fmt.Errorf("cannot listen on %s: %v", addr, err)
-	}
-
-	ln, err := newRateLimitedListener(listener, r.conf.ConnectionLimit)
-	if err != nil {
-		return fmt.Errorf("cannot create listener: %v", err)
-	}
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
 		timeout = time.Duration(r.conf.ReceiverTimeout) * time.Second
@@ -143,19 +132,105 @@ func (r *HTTPReceiver) Listen(addr, logExtra string) error {
 		ReadTimeout:  timeout,
 		WriteTimeout: timeout,
 		ErrorLog:     stdlog.New(writableFunc(log.Error), "http.Server: ", 0),
+		Handler:      mux,
 	}
-	log.Infof("listening for traces at http://%s%s", addr, logExtra)
 
-	go func() {
-		defer watchdog.LogOnPanic()
-		ln.Refresh(r.conf.ConnectionLimit)
-	}()
+	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
+	ln, err := r.listenTCP(addr)
+	if err != nil {
+		killProcess("Error creating tcp listener: %v", err)
+	}
 	go func() {
 		defer watchdog.LogOnPanic()
 		r.server.Serve(ln)
 	}()
+	log.Infof("Listening for traces at http://%s", addr)
 
-	return nil
+	if path := r.conf.ReceiverSocket; path != "" {
+		ln, err := r.listenUnix(path)
+		if err != nil {
+			killProcess("Error creating UDS listener: %v", err)
+		}
+		go func() {
+			defer watchdog.LogOnPanic()
+			r.server.Serve(ln)
+		}()
+		log.Infof("Listening for traces at unix://%s", path)
+	}
+
+	go r.PreSampler.Run()
+
+	go func() {
+		defer watchdog.LogOnPanic()
+		r.loop()
+	}()
+}
+
+func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	mux.HandleFunc("/debug/blockrate", func(w http.ResponseWriter, r *http.Request) {
+		// this endpoint calls runtime.SetBlockProfileRate(v), where v is an optional
+		// query string parameter defaulting to 10000 (1 sample per 10μs blocked).
+		rate := 10000
+		v := r.URL.Query().Get("v")
+		if v != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				http.Error(w, "v must be an integer", http.StatusBadRequest)
+				return
+			}
+			rate = n
+		}
+		runtime.SetBlockProfileRate(rate)
+		w.Write([]byte(fmt.Sprintf("Block profile rate set to %d. It will automatically be disabled again after calling /debug/pprof/block\n", rate)))
+	})
+
+	mux.HandleFunc("/debug/pprof/block", func(w http.ResponseWriter, r *http.Request) {
+		// serve the block profile and reset the rate to 0.
+		pprof.Handler("block").ServeHTTP(w, r)
+		runtime.SetBlockProfileRate(0)
+	})
+}
+
+// listenUnix returns a *net.Listener listening on the given "unix" socket path.
+func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
+	fi, err := os.Stat(path)
+	if err == nil {
+		// already exists
+		if fi.Mode()&os.ModeSocket == 0 {
+			return nil, fmt.Errorf("cannot reuse %q; not a unix socket", path)
+		}
+		if err := os.Remove(path); err != nil {
+			return nil, fmt.Errorf("unable to remove stale socket: %v", err)
+		}
+	}
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(path, 0722); err != nil {
+		return nil, fmt.Errorf("error setting socket permissions: %v", err)
+	}
+	return ln, err
+}
+
+// listenTCP creates a new HTTP server listening on the provided TCP address.
+func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
+	tcpln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	ln, err := newRateLimitedListener(tcpln, r.conf.ConnectionLimit)
+	go func() {
+		defer watchdog.LogOnPanic()
+		ln.Refresh(r.conf.ConnectionLimit)
+	}()
+	return ln, err
 }
 
 // Stop stops the receiver and shuts down the HTTP server.
@@ -165,10 +240,15 @@ func (r *HTTPReceiver) Stop() error {
 
 	r.PreSampler.Stop()
 
-	expiry := time.Now().Add(20 * time.Second) // give it 20 seconds
+	expiry := time.Now().Add(5 * time.Second) // give it 5 seconds
 	ctx, cancel := context.WithDeadline(context.Background(), expiry)
 	defer cancel()
-	return r.server.Shutdown(ctx)
+	if err := r.server.Shutdown(ctx); err != nil {
+		return err
+	}
+	r.wg.Wait()
+	close(r.Out)
+	return nil
 }
 
 func (r *HTTPReceiver) httpHandle(fn http.HandlerFunc) http.HandlerFunc {
@@ -212,7 +292,9 @@ func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
 	if !r.PreSampler.Sample(req) {
 		io.Copy(ioutil.Discard, req.Body)
+		w.WriteHeader(r.presamplerResponse)
 		r.replyTraces(v, w)
+		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, nil, 1)
 		return
 	}
 
@@ -221,30 +303,34 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		return
 	}
 
-	// We successfully decoded the payload
 	r.replyTraces(v, w)
 
-	// We parse the tags from the header
-	tags := info.Tags{
+	ts := r.Stats.GetTagStats(info.Tags{
 		Lang:          req.Header.Get("Datadog-Meta-Lang"),
 		LangVersion:   req.Header.Get("Datadog-Meta-Lang-Version"),
 		Interpreter:   req.Header.Get("Datadog-Meta-Lang-Interpreter"),
 		TracerVersion: req.Header.Get("Datadog-Meta-Tracer-Version"),
-	}
+	})
 
-	// We get the address of the struct holding the stats associated to the tags
-	ts := r.Stats.GetTagStats(tags)
+	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
+	atomic.AddInt64(&ts.TracesBytes, int64(req.Body.(*LimitedReader).Count))
+	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
-	bytesRead := req.Body.(*LimitedReader).Count
-	if bytesRead > 0 {
-		atomic.AddInt64(&ts.TracesBytes, int64(bytesRead))
-	}
+	r.wg.Add(1)
+	go func() {
+		defer func() {
+			r.wg.Done()
+			watchdog.LogOnPanic()
+		}()
+		r.processTraces(ts, traces)
+	}()
+}
 
-	// normalize data
+func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
+	defer timing.Since("datadog.trace_agent.internal.normalize_ms", time.Now())
 	for _, trace := range traces {
 		spans := len(trace)
 
-		atomic.AddInt64(&ts.TracesReceived, 1)
 		atomic.AddInt64(&ts.SpansReceived, int64(spans))
 
 		err := normalizeTrace(trace)
@@ -252,25 +338,16 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			atomic.AddInt64(&ts.TracesDropped, 1)
 			atomic.AddInt64(&ts.SpansDropped, int64(spans))
 
-			msg := fmt.Sprintf("dropping trace; reason: %s", err)
+			msg := fmt.Sprintf("Dropping trace; reason: %s", err)
 			if len(msg) > 150 && !r.debug {
 				// we're not in DEBUG log level, truncate long messages.
 				msg = msg[:150] + "... (set DEBUG log level for more info)"
 			}
 			log.Errorf(msg)
-		} else {
-			select {
-			case r.Out <- trace:
-				// if our downstream consumer is slow, we drop the trace on the floor
-				// this is a safety net against us using too much memory
-				// when clients flood us
-			default:
-				atomic.AddInt64(&ts.TracesDropped, 1)
-				atomic.AddInt64(&ts.SpansDropped, int64(spans))
-
-				log.Errorf("dropping trace; reason: rate-limited")
-			}
+			continue
 		}
+
+		r.Out <- trace
 	}
 }
 
@@ -280,7 +357,7 @@ func (r *HTTPReceiver) handleServices(v Version, w http.ResponseWriter, req *htt
 
 	mediaType := getMediaType(req)
 	if err := decodeReceiverPayload(req.Body, &servicesMeta, v, mediaType); err != nil {
-		log.Errorf("cannot decode %s services payload: %v", v, err)
+		log.Errorf("Cannot decode %s services payload: %v", v, err)
 		httpDecodingError(err, []string{tagServiceHandler, fmt.Sprintf("v:%s", v)}, w)
 		return
 	}
@@ -308,8 +385,8 @@ func (r *HTTPReceiver) handleServices(v Version, w http.ResponseWriter, req *htt
 	r.services <- servicesMeta
 }
 
-// logStats periodically submits stats about the receiver to statsd
-func (r *HTTPReceiver) logStats() {
+// loop periodically submits stats about the receiver to statsd
+func (r *HTTPReceiver) loop() {
 	defer close(r.exit)
 
 	var lastLog time.Time
@@ -317,13 +394,18 @@ func (r *HTTPReceiver) logStats() {
 
 	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
+	tw := time.NewTicker(r.conf.WatchdogInterval)
+	defer tw.Stop()
 
 	for {
 		select {
 		case <-r.exit:
 			return
+		case now := <-tw.C:
+			r.watchdog(now)
 		case now := <-t.C:
 			metrics.Gauge("datadog.trace_agent.heartbeat", 1, nil, 1)
+			metrics.Gauge("datadog.trace_agent.receiver.out_chan_fill", float64(len(r.Out))/float64(cap(r.Out)), nil, 1)
 
 			// We update accStats with the new stats we collected
 			accStats.Acc(r.Stats)
@@ -352,6 +434,54 @@ func (r *HTTPReceiver) logStats() {
 			}
 		}
 	}
+}
+
+// killProcess exits the process with the given msg; replaced in tests.
+var killProcess = func(format string, a ...interface{}) { osutil.Exitf(format, a...) }
+
+func (r *HTTPReceiver) watchdog(now time.Time) {
+	wi := watchdog.Info{
+		Mem: watchdog.Mem(),
+		CPU: watchdog.CPU(now),
+	}
+
+	if current, allowed := float64(wi.Mem.Alloc), r.conf.MaxMemory*1.5; current > allowed {
+		// This is a safety mechanism: if the agent is using more than 1.5x max. memory, there
+		// is likely a leak somewhere; we'll kill the process to avoid polluting host memory.
+		metrics.Count("datadog.trace_agent.receiver.suicide", 1, nil, 1)
+		metrics.Flush()
+		killProcess("Killing process. Memory threshold exceeded: %.2fM / %.2fM", current/1024/1024, allowed/1024/1024)
+	}
+
+	rateCPU, err := sampler.CalcPreSampleRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.PreSampler.RealRate())
+	if err != nil {
+		log.Warnf("Problem computing cpu pre-sample rate: %v", err)
+	}
+	rateMem, err := sampler.CalcPreSampleRate(r.conf.MaxMemory, float64(wi.Mem.Alloc), r.PreSampler.RealRate())
+	if err != nil {
+		log.Warnf("Problem computing mem pre-sample rate: %v", err)
+	}
+	r.PreSampler.SetError(err)
+	if rateCPU < 1 {
+		log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg)
+	}
+	if rateMem < 1 {
+		log.Warnf("Memory threshold exceeded (apm_config.max_memory: %.0f bytes): %d", r.conf.MaxMemory, wi.Mem.Alloc)
+	}
+	if rateCPU < rateMem {
+		r.PreSampler.SetRate(rateCPU)
+	} else {
+		r.PreSampler.SetRate(rateMem)
+	}
+
+	stats := r.PreSampler.Stats()
+
+	info.UpdatePreSampler(*stats)
+	info.UpdateWatchdogInfo(wi)
+
+	metrics.Gauge("datadog.trace_agent.heap_alloc", float64(wi.Mem.Alloc), nil, 1)
+	metrics.Gauge("datadog.trace_agent.cpu_percent", wi.CPU.UserAvg*100, nil, 1)
+	metrics.Gauge("datadog.trace_agent.presampler_rate", stats.Rate, nil, 1)
 }
 
 // Languages returns the list of the languages used in the traces the agent receives.
@@ -392,7 +522,7 @@ func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, 
 		// in v01 we actually get spans that we have to transform in traces
 		var spans []pb.Span
 		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
-			log.Errorf("cannot decode %s traces payload: %v", v, err)
+			log.Errorf("Cannot decode %s traces payload: %v", v, err)
 			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
 			return nil, false
 		}
@@ -403,7 +533,7 @@ func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, 
 		fallthrough
 	case v04:
 		if err := decodeReceiverPayload(req.Body, &traces, v, mediaType); err != nil {
-			log.Errorf("cannot decode %s traces payload: %v", v, err)
+			log.Errorf("Cannot decode %s traces payload: %v", v, err)
 			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
 			return nil, false
 		}
@@ -448,7 +578,7 @@ func tracesFromSpans(spans []pb.Span) pb.Traces {
 func getMediaType(req *http.Request) string {
 	mt, _, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
 	if err != nil {
-		log.Debugf(`error parsing media type: %v, assuming "application/json"`, err)
+		log.Debugf(`Error parsing media type: %v, assuming "application/json"`, err)
 		return "application/json"
 	}
 	return mt

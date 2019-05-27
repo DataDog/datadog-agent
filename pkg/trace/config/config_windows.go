@@ -17,7 +17,7 @@ var (
 	defaultDDAgentPyEnv = "PYTHONPATH=c:\\Program Files\\Datadog\\Datadog Agent\\agent"
 
 	// Agent 6
-	defaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\embedded\\agent.exe"
+	defaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
 )
 
 // agent5Config points to the default agent 5 configuration path. It is used
@@ -31,7 +31,7 @@ func init() {
 	}
 	_here, err := executable.Folder()
 	if err == nil {
-		defaultDDAgentBin = filepath.Join(_here, "..", "..", "embedded", "agent.exe")
+		defaultDDAgentBin = filepath.Join(_here, "..", "agent.exe")
 	}
 
 }

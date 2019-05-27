@@ -31,15 +31,6 @@ type MemInfo struct {
 	// Alloc is the number of bytes allocated and not yet freed
 	// as described in runtime.MemStats.Alloc
 	Alloc uint64
-	// AllocPerSec is the average number of bytes allocated, per second,
-	// since last time this function was called.
-	AllocPerSec float64
-}
-
-// NetInfo contains basic networking info
-type NetInfo struct {
-	// Connections is the number of connections opened by this process.
-	Connections int32
 }
 
 // Info contains all the watchdog infos, to be published by expvar
@@ -48,8 +39,6 @@ type Info struct {
 	CPU CPUInfo
 	// Mem contains basic Mem info
 	Mem MemInfo
-	// Net contains basic Net info
-	Net NetInfo
 }
 
 // CurrentInfo is used to query CPU and Mem info, it keeps data from
@@ -62,13 +51,6 @@ type CurrentInfo struct {
 	lastCPUTime time.Time
 	lastCPUUser float64
 	lastCPU     CPUInfo
-
-	lastMemTime       time.Time
-	lastMemTotalAlloc uint64
-	lastMem           MemInfo
-
-	lastNetTime time.Time
-	lastNet     NetInfo
 }
 
 // globalCurrentInfo is a global default object one can safely use
@@ -79,7 +61,7 @@ func init() {
 	var err error
 	globalCurrentInfo, err = NewCurrentInfo()
 	if err != nil {
-		log.Errorf("unable to create global Process: %v", err)
+		log.Errorf("Unable to create global Process: %v", err)
 	}
 }
 
@@ -92,11 +74,10 @@ func NewCurrentInfo() (*CurrentInfo, error) {
 }
 
 // CPU returns basic CPU info.
-func (pi *CurrentInfo) CPU() CPUInfo {
+func (pi *CurrentInfo) CPU(now time.Time) CPUInfo {
 	pi.mu.Lock()
 	defer pi.mu.Unlock()
 
-	now := time.Now()
 	dt := now.Sub(pi.lastCPUTime)
 	if dt <= pi.cacheDelay {
 		return pi.lastCPU // don't query too often, cache a little bit
@@ -105,7 +86,7 @@ func (pi *CurrentInfo) CPU() CPUInfo {
 
 	userTime, err := cpuTimeUser(pi.pid)
 	if err != nil {
-		log.Debugf("unable to get CPU times: %v", err)
+		log.Debugf("Unable to get CPU times: %v", err)
 		return pi.lastCPU
 	}
 
@@ -123,38 +104,17 @@ func (pi *CurrentInfo) CPU() CPUInfo {
 
 // Mem returns basic memory info.
 func (pi *CurrentInfo) Mem() MemInfo {
-	pi.mu.Lock()
-	defer pi.mu.Unlock()
-
-	now := time.Now()
-	dt := now.Sub(pi.lastMemTime)
-	if dt <= pi.cacheDelay {
-		return pi.lastMem // don't query too often, cache a little bit
-	}
-	pi.lastMemTime = now
-
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
-	ret := MemInfo{Alloc: ms.Alloc, AllocPerSec: pi.lastMem.AllocPerSec}
-
-	dta := int64(ms.TotalAlloc) - int64(pi.lastMemTotalAlloc)
-	pi.lastMemTotalAlloc = ms.TotalAlloc
-	if dta <= 0 {
-		pi.lastMem.AllocPerSec = 0 // shouldn't happen, but make sure result is always > 0
-	} else {
-		pi.lastMem.AllocPerSec = float64(time.Second) * float64(dta) / float64(dt)
-	}
-	ret.AllocPerSec = pi.lastMem.AllocPerSec
-
-	return ret
+	return MemInfo{Alloc: ms.Alloc}
 }
 
 // CPU returns basic CPU info.
-func CPU() CPUInfo {
+func CPU(now time.Time) CPUInfo {
 	if globalCurrentInfo == nil {
 		return CPUInfo{}
 	}
-	return globalCurrentInfo.CPU()
+	return globalCurrentInfo.CPU(now)
 }
 
 // Mem returns basic memory info.
@@ -163,12 +123,4 @@ func Mem() MemInfo {
 		return MemInfo{}
 	}
 	return globalCurrentInfo.Mem()
-}
-
-// Net returns basic network info.
-func Net() NetInfo {
-	if globalCurrentInfo == nil {
-		return NetInfo{}
-	}
-	return globalCurrentInfo.Net()
 }

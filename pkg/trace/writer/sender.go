@@ -3,6 +3,7 @@ package writer
 import (
 	"container/list"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
@@ -74,27 +75,21 @@ type payloadSender interface {
 // queuableSender is a specific implementation of a payloadSender that will queue new payloads on error and
 // retry sending them according to some configurable BackoffTimer.
 type queuableSender struct {
-	conf              writerconfig.QueuablePayloadSenderConf
+	conf writerconfig.QueuablePayloadSenderConf
+
+	mu                sync.RWMutex // guards below group
 	queuedPayloads    *list.List
-	queuing           bool
 	currentQueuedSize int64
+	backoffTimer      backoff.Timer
 
-	backoffTimer backoff.Timer
-
-	// Test helper
-	syncBarrier <-chan interface{}
+	syncBarrier <-chan interface{} // used only in tests
+	wg          sync.WaitGroup     // tracks active sends
 
 	in        chan *payload
 	monitorCh chan monitorEvent
 	endpoint  endpoint
 
 	exit chan struct{}
-}
-
-// newDefaultSender constructs a new queuableSender with default configuration to send payloads to the
-// provided endpoint.
-func newDefaultSender(e endpoint) *queuableSender {
-	return newSender(e, writerconfig.DefaultQueuablePayloadSenderConf())
 }
 
 // newSender constructs a new QueuablePayloadSender with custom configuration to send payloads to
@@ -104,7 +99,7 @@ func newSender(e endpoint, conf writerconfig.QueuablePayloadSenderConf) *queuabl
 		conf:           conf,
 		queuedPayloads: list.New(),
 		backoffTimer:   backoff.NewCustomExponentialTimer(conf.ExponentialBackoff),
-		in:             make(chan *payload),
+		in:             make(chan *payload, conf.InChannelSize),
 		monitorCh:      make(chan monitorEvent),
 		endpoint:       e,
 		exit:           make(chan struct{}),
@@ -118,9 +113,9 @@ func (s *queuableSender) Send(payload *payload) {
 
 // Stop asks this sender to stop and waits until it correctly stops.
 func (s *queuableSender) Stop() {
-	s.exit <- struct{}{}
-	<-s.exit
 	close(s.in)
+	<-s.exit
+	s.wg.Wait()
 	close(s.monitorCh)
 }
 
@@ -161,69 +156,76 @@ func (s *queuableSender) Start() {
 // Run executes the queuableSender main logic synchronously.
 func (s *queuableSender) Run() {
 	defer close(s.exit)
+	sema := make(chan struct{}, s.conf.MaxConnections)
 
 	for {
 		select {
-		case payload := <-s.in:
-			if stats, err := s.sendOrQueue(payload); err != nil {
-				log.Debugf("Error while sending or queueing payload. err=%v", err)
-				s.notifyError(payload, err, stats)
+		case payload, more := <-s.in:
+			if !more {
+				log.Info("Exiting payload sender, try flushing whatever is left")
+				s.flushQueue()
+				return
 			}
+			if payload == nil {
+				continue
+			}
+			s.mu.RLock()
+			queuing := s.queuedPayloads.Len() > 0
+			s.mu.RUnlock()
+			if queuing {
+				if err := s.enqueue(payload); err != nil {
+					log.Debugf("Error while queueing payload: %v", err)
+					s.notifyError(payload, err)
+				}
+				continue
+			}
+			sema <- struct{}{}
+			s.wg.Add(1)
+			go func() {
+				defer s.wg.Done()
+				if err := s.trySend(payload); err != nil {
+					log.Debugf("Error while sending or queueing payload. err=%v", err)
+					s.notifyError(payload, err)
+				}
+				<-sema
+			}()
 		case <-s.backoffTimer.ReceiveTick():
 			s.flushQueue()
 		case <-s.syncBarrier:
 			// TODO: Is there a way of avoiding this? I want Promises in Go :(((
 			// This serves as a barrier (assuming syncBarrier is an unbuffered channel). Used for testing
 			continue
-		case <-s.exit:
-			log.Info("exiting payload sender, try flushing whatever is left")
-			s.flushQueue()
-			return
 		}
 	}
 }
 
-// NumQueuedPayloads returns the number of payloads currently waiting in the queue for a retry
-func (s *queuableSender) NumQueuedPayloads() int {
-	return s.queuedPayloads.Len()
-}
-
-// sendOrQueue sends the provided payload or queues it if this sender is currently queueing payloads.
-func (s *queuableSender) sendOrQueue(payload *payload) (sendStats, error) {
-	var stats sendStats
-
-	if payload == nil {
-		return stats, nil
-	}
-
-	var err error
-
-	if !s.queuing {
-		if stats, err = s.doSend(payload); err != nil {
-			if _, ok := err.(*retriableError); ok {
-				// If error is retriable, start a queue and schedule a retry
-				retryNum, delay := s.backoffTimer.ScheduleRetry(err)
-				log.Debugf("Got retriable error. Starting a queue. delay=%s, err=%v", delay, err)
-				s.notifyRetry(payload, err, delay, retryNum)
-				return stats, s.enqueue(payload)
-			}
-		} else {
-			// If success, notify
-			log.Tracef("Successfully sent direct payload: %v", payload)
-			s.notifySuccess(payload, stats)
+// trySend sends the provided payload or queues it if this sender is currently queueing payloads.
+func (s *queuableSender) trySend(payload *payload) error {
+	stats, err := s.doSend(payload)
+	if err != nil {
+		if _, ok := err.(*retriableError); ok {
+			// start a retry queue
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			retryNum, delay := s.backoffTimer.ScheduleRetry(err)
+			log.Debugf("Got retriable error. Starting a queue. delay=%s, err=%v", delay, err)
+			s.notifyRetry(payload, err, delay, retryNum)
+			return s.enqueueLocked(payload)
 		}
-	} else {
-		return stats, s.enqueue(payload)
+		return err
 	}
-
-	return stats, err
+	log.Tracef("Successfully sent direct payload: %v", payload)
+	s.notifySuccess(payload, stats)
+	return nil
 }
 
-func (s *queuableSender) enqueue(payload *payload) error {
-	if !s.queuing {
-		s.queuing = true
-	}
+func (s *queuableSender) enqueue(p *payload) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.enqueueLocked(p)
+}
 
+func (s *queuableSender) enqueueLocked(payload *payload) error {
 	// Start by discarding payloads that are too old, freeing up memory
 	s.discardOldPayloads()
 
@@ -257,7 +259,9 @@ func (s *queuableSender) enqueue(payload *payload) error {
 }
 
 func (s *queuableSender) flushQueue() error {
-	log.Debugf("Attempting to flush queue with %d payloads", s.NumQueuedPayloads())
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	log.Debugf("Attempting to flush queue with %d payloads", s.queuedPayloads.Len())
 
 	// Start by discarding payloads that are too old
 	s.discardOldPayloads()
@@ -283,7 +287,7 @@ func (s *queuableSender) flushQueue() error {
 
 			// If send failed due to non-retriable error, notify error and drop it
 			log.Debugf("Dropping payload due to non-retriable error: err=%v, payload=%v", err, payload)
-			s.notifyError(payload, err, stats)
+			s.notifyError(payload, err)
 			next = s.removeQueuedPayload(e)
 			// Try sending next ones
 			continue
@@ -295,7 +299,6 @@ func (s *queuableSender) flushQueue() error {
 		next = s.removeQueuedPayload(e)
 	}
 
-	s.queuing = false
 	s.backoffTimer.Reset()
 
 	return nil
@@ -330,7 +333,7 @@ func (s *queuableSender) discardOldPayloads() {
 
 		err := fmt.Errorf("payload is older than max age: age=%v, max age=%v", age, s.conf.MaxAge)
 		log.Tracef("Discarding payload: err=%v, payload=%v", err, payload)
-		s.notifyError(payload, err, sendStats{})
+		s.notifyError(payload, err)
 		next = s.removeQueuedPayload(e)
 	}
 }
@@ -344,7 +347,7 @@ func (s *queuableSender) dropOldestPayload(reason string) (*payload, error) {
 	err := fmt.Errorf("payload dropped: %s", reason)
 	droppedPayload := s.queuedPayloads.Front().Value.(*payload)
 	s.removeQueuedPayload(s.queuedPayloads.Front())
-	s.notifyError(droppedPayload, err, sendStats{})
+	s.notifyError(droppedPayload, err)
 
 	return droppedPayload, nil
 }
@@ -357,7 +360,7 @@ func (s *queuableSender) notifySuccess(payload *payload, sendStats sendStats) {
 	})
 }
 
-func (s *queuableSender) notifyError(payload *payload, err error, sendStats sendStats) {
+func (s *queuableSender) notifyError(payload *payload, err error) {
 	s.sendEvent(&monitorEvent{
 		typ:     eventTypeFailure,
 		payload: payload,

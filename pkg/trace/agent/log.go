@@ -213,7 +213,7 @@ func setupLogger(cfg *config.AgentConfig) error {
 		minLogLvl = seelog.InfoLvl
 	}
 	var duration time.Duration
-	if cfg.LogThrottlingEnabled {
+	if cfg.LogThrottling {
 		duration = 10 * time.Second
 	}
 	format := "common"

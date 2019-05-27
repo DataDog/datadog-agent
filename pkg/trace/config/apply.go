@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"regexp"
 	"strings"
@@ -88,7 +89,6 @@ type ReplaceRule struct {
 }
 
 type traceWriter struct {
-	MaxSpansPerPayload     int                    `mapstructure:"max_spans_per_payload"`
 	FlushPeriod            float64                `mapstructure:"flush_period_seconds"`
 	UpdateInfoPeriod       int                    `mapstructure:"update_info_period_seconds"`
 	QueueablePayloadSender queueablePayloadSender `mapstructure:"queue"`
@@ -189,6 +189,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("apm_config.receiver_port") {
 		c.ReceiverPort = config.Datadog.GetInt("apm_config.receiver_port")
 	}
+	if config.Datadog.IsSet("apm_config.receiver_socket") {
+		c.ReceiverSocket = config.Datadog.GetString("apm_config.receiver_socket")
+	}
 	if config.Datadog.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = config.Datadog.GetInt("apm_config.connection_limit")
 	}
@@ -246,14 +249,18 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("apm_config.max_memory") {
 		c.MaxMemory = config.Datadog.GetFloat64("apm_config.max_memory")
 	}
-	if config.Datadog.IsSet("apm_config.max_connections") {
-		c.MaxConnections = config.Datadog.GetInt("apm_config.max_connections")
-	}
 
 	// undocumented
 	c.ServiceWriterConfig = readServiceWriterConfigYaml()
 	c.StatsWriterConfig = readStatsWriterConfigYaml()
 	c.TraceWriterConfig = readTraceWriterConfigYaml()
+
+	// allow 1% of maximum connnections for concurrent stats flushes
+	conns1percent := int(math.Max(1, float64(c.ConnectionLimit)/100))
+	c.StatsWriterConfig.SenderConfig.MaxConnections = conns1percent
+	// allow 10% of maximum connnections for concurrent trace flushes
+	conns10percent := int(math.Max(1, float64(c.ConnectionLimit)/10))
+	c.TraceWriterConfig.SenderConfig.MaxConnections = conns10percent
 
 	// undocumented deprecated
 	if config.Datadog.IsSet("apm_config.analyzed_rate_by_service") {
@@ -275,7 +282,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		for key, rate := range rateBySpan {
 			serviceName, operationName, err := parseServiceAndOp(key)
 			if err != nil {
-				log.Errorf("error parsing names: %v", err)
+				log.Errorf("Error parsing names: %v", err)
 				continue
 			}
 
@@ -291,7 +298,17 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.DDAgentBin = config.Datadog.GetString("apm_config.dd_agent_bin")
 	}
 
-	return c.loadDeprecatedValues()
+	if err := c.loadDeprecatedValues(); err != nil {
+		return err
+	}
+
+	if strings.ToLower(c.LogLevel) == "debug" && !config.Datadog.IsSet("apm_config.log_throttling") {
+		// if we are in "debug mode" and log throttling behavior was not
+		// set by the user, disable it
+		c.LogThrottling = false
+	}
+
+	return nil
 }
 
 // loadDeprecatedValues loads a set of deprecated values which are kept for
@@ -312,8 +329,8 @@ func (c *AgentConfig) loadDeprecatedValues() error {
 		}
 		c.ExtraAggregators = append(c.ExtraAggregators, aggs...)
 	}
-	if !cfg.GetBool("apm_config.log_throttling") {
-		c.LogThrottlingEnabled = false
+	if cfg.IsSet("apm_config.log_throttling") {
+		c.LogThrottling = cfg.GetBool("apm_config.log_throttling")
 	}
 	if cfg.IsSet("apm_config.bucket_size_seconds") {
 		d := time.Duration(cfg.GetInt("apm_config.bucket_size_seconds"))
@@ -381,9 +398,6 @@ func readTraceWriterConfigYaml() writerconfig.TraceWriterConfig {
 	c := writerconfig.DefaultTraceWriterConfig()
 
 	if err := config.Datadog.UnmarshalKey("apm_config.trace_writer", &w); err == nil {
-		if w.MaxSpansPerPayload > 0 {
-			c.MaxSpansPerPayload = w.MaxSpansPerPayload
-		}
 		if w.FlushPeriod > 0 {
 			c.FlushPeriod = time.Duration(w.FlushPeriod*1000) * time.Millisecond
 		}

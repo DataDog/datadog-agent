@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
 )
 
 // payloadConstructedHandlerArgs encodes the arguments passed to a PayloadConstructedHandler call.
@@ -87,9 +88,12 @@ type testPayloadSender struct {
 // newTestPayloadSender creates a new instance of a testPayloadSender.
 func newTestPayloadSender() *testPayloadSender {
 	testEndpoint := &testEndpoint{}
+	conf := writerconfig.DefaultQueuablePayloadSenderConf()
+	conf.InChannelSize = 0 // block in tests
+	queuableSender := newSender(testEndpoint, conf)
 	return &testPayloadSender{
 		testEndpoint:   testEndpoint,
-		queuableSender: newDefaultSender(testEndpoint),
+		queuableSender: queuableSender,
 	}
 }
 
@@ -108,7 +112,7 @@ func (c *testPayloadSender) Run() {
 			stats, err := c.doSend(payload)
 
 			if err != nil {
-				c.notifyError(payload, err, stats)
+				c.notifyError(payload, err)
 			} else {
 				c.notifySuccess(payload, stats)
 			}

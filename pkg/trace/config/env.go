@@ -38,6 +38,7 @@ func applyEnv() {
 		{"DD_MAX_TPS", "apm_config.max_traces_per_second"}, // deprecated
 		{"DD_APM_MAX_TPS", "apm_config.max_traces_per_second"},
 		{"DD_APM_MAX_MEMORY", "apm_config.max_memory"},
+		{"DD_APM_MAX_CPU_PERCENT", "apm_config.max_cpu_percent"},
 	} {
 		if v := os.Getenv(override.env); v != "" {
 			config.Datadog.Set(override.key, v)

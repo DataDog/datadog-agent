@@ -165,7 +165,7 @@ func TestFullIniConfig(t *testing.T) {
 	assert.Equal("host.ip", c.StatsdHost)
 	assert.Equal("/path/to/file", c.LogFilePath)
 	assert.Equal("debug", c.LogLevel)
-	assert.False(c.LogThrottlingEnabled)
+	assert.False(c.LogThrottling) // turns off when log_level is "debug"
 	assert.True(c.SkipSSLValidation)
 
 	assert.Equal(map[string]float64{
@@ -189,7 +189,6 @@ func TestFullIniConfig(t *testing.T) {
 	assert.Equal(4, c.ReceiverTimeout)
 	assert.Equal(1234.5, c.MaxMemory)
 	assert.Equal(.85, c.MaxCPU)
-	assert.Equal(40, c.MaxConnections)
 	assert.Equal(5*time.Second, c.WatchdogInterval)
 	assert.EqualValues([]string{"/health", "/500"}, c.Ignore["resource"])
 
@@ -200,6 +199,8 @@ func TestFullIniConfig(t *testing.T) {
 			MaxAge:            time.Second,
 			MaxQueuedBytes:    456,
 			MaxQueuedPayloads: 4,
+			MaxConnections:    1,
+			InChannelSize:     10,
 			ExponentialBackoff: backoff.ExponentialConfig{
 				MaxDuration: 4 * time.Second,
 				GrowthBase:  2,
@@ -215,6 +216,8 @@ func TestFullIniConfig(t *testing.T) {
 			MaxAge:            time.Second,
 			MaxQueuedBytes:    456,
 			MaxQueuedPayloads: 4,
+			MaxConnections:    20,
+			InChannelSize:     10,
 			ExponentialBackoff: backoff.ExponentialConfig{
 				MaxDuration: 4 * time.Second,
 				GrowthBase:  2,
@@ -224,13 +227,14 @@ func TestFullIniConfig(t *testing.T) {
 	}, c.StatsWriterConfig)
 
 	assert.Equal(writerconfig.TraceWriterConfig{
-		MaxSpansPerPayload: 100,
-		FlushPeriod:        3 * time.Second,
-		UpdateInfoPeriod:   2 * time.Second,
+		FlushPeriod:      3 * time.Second,
+		UpdateInfoPeriod: 2 * time.Second,
 		SenderConfig: writerconfig.QueuablePayloadSenderConf{
+			InChannelSize:     10,
 			MaxAge:            time.Second,
 			MaxQueuedBytes:    456,
 			MaxQueuedPayloads: 4,
+			MaxConnections:    200,
 			ExponentialBackoff: backoff.ExponentialConfig{
 				MaxDuration: 4 * time.Second,
 				GrowthBase:  2,
@@ -257,7 +261,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal("mymachine", c.Hostname)
 	assert.Equal("https://user:password@proxy_for_https:1234", c.ProxyURL.String())
 	assert.True(c.SkipSSLValidation)
-	assert.Equal("debug", c.LogLevel)
+	assert.Equal("info", c.LogLevel)
 	assert.Equal(18125, c.StatsdPort)
 	assert.False(c.Enabled)
 	assert.Equal("abc", c.LogFilePath)
@@ -269,8 +273,8 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal(50.0, c.MaxEPS)
 	assert.Equal(0.5, c.MaxCPU)
 	assert.EqualValues(123.4, c.MaxMemory)
-	assert.Equal(12, c.MaxConnections)
 	assert.Equal("0.0.0.0", c.ReceiverHost)
+	assert.True(c.LogThrottling)
 
 	noProxy := true
 	if _, ok := os.LookupEnv("NO_PROXY"); ok {
@@ -346,10 +350,8 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	// watchdog
 	assert.Equal(0.07, c.MaxCPU)
 	assert.Equal(30e6, c.MaxMemory)
-	assert.Equal(50, c.MaxConnections)
 
 	// Assert Trace Writer
-	assert.Equal(11, c.TraceWriterConfig.MaxSpansPerPayload)
 	assert.Equal(22*time.Second, c.TraceWriterConfig.FlushPeriod)
 	assert.Equal(33*time.Second, c.TraceWriterConfig.UpdateInfoPeriod)
 	assert.Equal(15*time.Second, c.TraceWriterConfig.SenderConfig.MaxAge)

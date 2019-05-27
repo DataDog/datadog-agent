@@ -1,9 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
@@ -426,6 +428,25 @@ func TestNormalizeTag(t *testing.T) {
 		{in: "tag:1/2.3", out: "tag:1/2.3"},
 		{in: "---fun:k####y_ta@#g/1_@@#", out: "fun:k_y_ta_g/1"},
 		{in: "AlsO:œ#@ö))œk", out: "also:œ_ö_œk"},
+		{in: "test\x99\x8faaa", out: "test_aaa"},
+		{in: "test\x99\x8f", out: "test"},
+		{in: strings.Repeat("a", 888), out: strings.Repeat("a", 200)},
+		{
+			in: func() string {
+				b := bytes.NewBufferString("a")
+				for i := 0; i < 799; i++ {
+					_, err := b.WriteRune('🐶')
+					assert.NoError(t, err)
+				}
+				_, err := b.WriteRune('b')
+				assert.NoError(t, err)
+				return b.String()
+			}(),
+			out: "a", // 'b' should have been truncated
+		},
+		{"a" + string(unicode.ReplacementChar), "a"},
+		{"a" + string(unicode.ReplacementChar) + string(unicode.ReplacementChar), "a"},
+		{"a" + string(unicode.ReplacementChar) + string(unicode.ReplacementChar) + "b", "a_b"},
 	} {
 		t.Run("", func(t *testing.T) {
 			assert.Equal(t, tt.out, normalizeTag(tt.in), tt.in)

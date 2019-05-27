@@ -19,10 +19,10 @@ func TestCPULow(t *testing.T) {
 	assert := assert.New(t)
 	runtime.GC()
 
-	c := CPU()
+	c := CPU(time.Now())
 	globalCurrentInfo.cacheDelay = testDuration
 	time.Sleep(testDuration)
-	c = CPU()
+	c = CPU(time.Now())
 	t.Logf("CPU (sleep): %v", c)
 
 	// checking that CPU is low enough, this is theorically flaky,
@@ -36,7 +36,7 @@ func doTestCPUHigh(t *testing.T, n int) {
 	runtime.GC()
 
 	done := make(chan struct{}, 1)
-	c := CPU()
+	c := CPU(time.Now())
 	globalCurrentInfo.cacheDelay = testDuration
 	for i := 0; i < n; i++ {
 		go func() {
@@ -52,7 +52,7 @@ func doTestCPUHigh(t *testing.T, n int) {
 		}()
 	}
 	time.Sleep(testDuration)
-	c = CPU()
+	c = CPU(time.Now())
 	for i := 0; i < n; i++ {
 		done <- struct{}{}
 	}
@@ -89,8 +89,6 @@ func TestMemLow(t *testing.T) {
 	// unless some other random GoRoutine is running, figures should remain low
 	assert.True(int64(m.Alloc)-int64(oldM.Alloc) <= 1e4, "over 10 Kb allocated since last call, way to high for almost no operation")
 	assert.True(m.Alloc <= 1e8, "over 100 Mb allocated, way to high for almost no operation")
-	assert.True(m.AllocPerSec >= 0.0, "allocs per sec should be positive")
-	assert.True(m.AllocPerSec <= 1e5, "over 100 Kb allocated per sec, way too high for a program doing nothing")
 }
 
 func doTestMemHigh(t *testing.T, n int) {
@@ -114,14 +112,11 @@ func doTestMemHigh(t *testing.T, n int) {
 	m := Mem()
 	done <- struct{}{}
 
-	t.Logf("Mem (%d bytes): %v", n, m)
+	t.Logf("Mem (%d bytes): %v %v", n, oldM, m)
 
 	// Checking that Mem is high enough
 	assert.True(m.Alloc >= uint64(n), "not enough bytes allocated")
 	assert.True(int64(m.Alloc)-int64(oldM.Alloc) >= int64(n), "not enough bytes allocated since last call")
-	expectedAllocPerSec := float64(n) * float64(time.Second) / (float64(testDuration))
-	assert.True(m.AllocPerSec >= 0.1*expectedAllocPerSec, fmt.Sprintf("not enough bytes allocated per second, expected %f", expectedAllocPerSec))
-	assert.True(m.AllocPerSec <= 1.5*expectedAllocPerSec, fmt.Sprintf("not enough bytes allocated per second, expected %f", expectedAllocPerSec))
 	<-data
 }
 
@@ -151,46 +146,13 @@ func newTestNetServer(t *testing.T) *httptest.Server {
 	return server
 }
 
-func doTestNetHigh(t *testing.T, n int) {
-	assert := assert.New(t)
-	runtime.GC()
-
-	servers := make([]*httptest.Server, n)
-	for i := range servers {
-		servers[i] = newTestNetServer(t)
-	}
-	time.Sleep(testDuration)
-	info := Net()
-	t.Logf("Net: %v", info)
-	for _, v := range servers {
-		v.Close()
-	}
-
-	// Checking that Net connections number is in a reasonable range
-	assert.True(info.Connections >= int32(n/2), fmt.Sprintf("not enough connections %d < %d / 2", info.Connections, n))
-	assert.True(info.Connections <= int32(n*3), fmt.Sprintf("not enough connections %d > %d * 3", info.Connections, n))
-}
-
-func TestNetLow(t *testing.T) {
-	assert := assert.New(t)
-	runtime.GC()
-
-	time.Sleep(testDuration)
-	info := Net()
-	t.Logf("Net: %v", info)
-
-	// Checking that Net connections number is low enough, this is theorically flaky,
-	// unless some other random GoRoutine is running, figures should remain low
-	assert.True(int32(info.Connections) <= 10, "over 10 connections open when we're doing nothing, way too high")
-}
-
 func BenchmarkCPU(b *testing.B) {
-	CPU()                            // make sure globalCurrentInfo exists
+	CPU(time.Now())                  // make sure globalCurrentInfo exists
 	globalCurrentInfo.cacheDelay = 0 // disable cache
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_ = CPU()
+		_ = CPU(time.Now())
 	}
 }
 
@@ -201,15 +163,5 @@ func BenchmarkMem(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		_ = Mem()
-	}
-}
-
-func BenchmarkNet(b *testing.B) {
-	Net()                            // make sure globalCurrentInfo exists
-	globalCurrentInfo.cacheDelay = 0 // disable cache
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_ = Net()
 	}
 }

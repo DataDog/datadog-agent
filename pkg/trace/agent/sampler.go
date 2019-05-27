@@ -114,7 +114,7 @@ func (s *Sampler) logStats() {
 
 			switch state := state.(type) {
 			case sampler.InternalState:
-				log.Debugf("%s: inTPS: %f, outTPS: %f, maxTPS: %f, offset: %f, slope: %f, cardinality: %d",
+				log.Tracef("%s: inTPS: %f, outTPS: %f, maxTPS: %f, offset: %f, slope: %f, cardinality: %d",
 					engineType, state.InTPS, state.OutTPS, state.MaxTPS, state.Offset, state.Slope, state.Cardinality)
 
 				// publish through expvar
