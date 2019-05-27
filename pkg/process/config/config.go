@@ -248,8 +248,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		return nil, err
 	}
 
-	fmt.Println("rawr", cfg.APIEndpoints)
-
 	// (Re)configure the logging from our configuration
 	if err := setupLogger(loggerName, cfg.LogFile, cfg); err != nil {
 		log.Errorf("failed to setup configured logger: %s", err)

@@ -1,0 +1,8 @@
+site: datacathq.eu
+
+process_agent_enabled: true
+process_config:
+  enabled: 'true'
+  process_dd_url: https://burrito.com
+secret_backend_command: "./testdata/secret"
+

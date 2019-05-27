@@ -86,27 +86,26 @@ func TestAgentConfigYamlEnc2(t *testing.T) {
 	assert.Equal("secret_burrito.com", ep.Endpoint.String())
 }
 
-func TestDontOverwriteEnvVarsWithEncryptedSecrets(t *testing.T) {
-	assert := assert.New(t)
+func TestAgentEncryptedVariablesSecrets(t *testing.T) {
+	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
+
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	defer restoreGlobalConfig()
 
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
+	config.Datadog.Set("secret_backend_timeout", 15)
+	config.Datadog.Set("secret_backend_output_max_size", 1024)
 
-	os.Setenv("DD_API_KEY", "ABC")
+	os.Setenv("DD_API_KEY", "ENC[my_api_key]")
+	defer os.Unsetenv("DD_API_KEY")
+
+	assert := assert.New(t)
 	agentConfig, err := NewAgentConfig(
-		"test",
-		"./testdata/TestDDAgentConfigYamlEnc2.yaml",
-		"",
-	)k
-	loadEnvVariables()
-	os.Unsetenv("DD_API_KEY")
+		"test", "./testdata/TestEnvSiteConfig-Enc.yaml", "",
+	)
+	assert.NoError(err)
 
-	assert.True(config.Datadog.IsSet("api_key"))
-
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	os.Setenv("DD_API_KEY", "ENC[ABC]")
-	loadEnvVariables()
-	os.Unsetenv("DD_API_KEY")
-
-	assert.False(config.Datadog.IsSet("api_key"))
+	assert.Equal("secret_my_api_key", config.Datadog.Get("api_key"))
+	ep := agentConfig.APIEndpoints[0]
+	assert.Equal("secret_my_api_key", ep.APIKey)
 }
