@@ -252,16 +252,9 @@ func Initialize(paths ...string) error {
 		C.add_python_path(six, C.CString(p))
 	}
 
-	// Setup crash handling specifics - *NIX-only
-	if runtime.GOOS != "windows" {
-		if config.Datadog.GetBool("c_stacktrace_collection") {
-			var cCoreDump int
-
-			if config.Datadog.GetBool("c_core_dump") {
-				cCoreDump = 1
-			}
-			C.handle_crashes(six, C.int(cCoreDump))
-		}
+	// Any platform-specific initialization
+	if initializePlatform() != nil {
+		log.Warnf("unable to complete platform-specific initialization - should be non-fatal")
 	}
 
 	// Setup custom builtin before Six initialization
