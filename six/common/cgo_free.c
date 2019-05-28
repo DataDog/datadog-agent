@@ -16,6 +16,10 @@ void _set_cgo_free_cb(cb_cgo_free_t cb) {
 // free method to release memory allocated in the agent once we're done with
 // them.
 void cgo_free(void *ptr) {
+    // Technically this is not thread-safe as `cb_cgo_free` assignment
+    // is not atomic. Since the setter is called very early on and is
+    // a one-time operation we can live with it. Should that change
+    // we'd need to set a memory barrier here, and in `_set_cgo_free_cb()`
     if (cb_cgo_free == NULL || ptr == NULL) {
         return;
     }
