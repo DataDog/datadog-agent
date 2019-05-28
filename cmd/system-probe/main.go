@@ -93,17 +93,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	sysprobe, err := CreateSystemProbe(cfg)
-	if err != nil && strings.HasPrefix(err.Error(), ErrTracerUnsupported.Error()) {
-		// If tracer is unsupported by this operating system, then exit gracefully
-		log.Infof("%s, exiting.", err)
-		gracefulExit()
-	} else if err != nil {
-		log.Criticalf("failed to create system probe: %s", err)
-		os.Exit(1)
-	}
-	defer sysprobe.Close()
-
 	platform, err := util.GetPlatform()
 	if err != nil {
 		log.Debugf("error retrieving platform: %s", err)
@@ -118,8 +107,20 @@ func main() {
 
 	mounted := util.IsDebugfsMounted(mountFile)
 	if !mounted {
-		log.Criticalf("debugfs is not mounted, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs")
+		log.Info("debugfs is not mounted, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs")
+		gracefulExit()
 	}
+
+	sysprobe, err := CreateSystemProbe(cfg)
+	if err != nil && strings.HasPrefix(err.Error(), ErrTracerUnsupported.Error()) {
+		// If tracer is unsupported by this operating system, then exit gracefully
+		log.Infof("%s, exiting.", err)
+		gracefulExit()
+	} else if err != nil {
+		log.Criticalf("failed to create system probe: %s", err)
+		os.Exit(1)
+	}
+	defer sysprobe.Close()
 
 	log.Infof("running system-probe with version: %s", versionString(", "))
 	go sysprobe.Run()
