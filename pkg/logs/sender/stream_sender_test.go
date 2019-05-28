@@ -7,10 +7,9 @@ package sender
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -30,13 +29,13 @@ func TestSender(t *testing.T) {
 	input := make(chan *message.Message, 1)
 	output := make(chan *message.Message, 1)
 
-	destinationsCtx := tcp.NewDestinationsContext()
+	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 
 	destination := tcp.AddrToDestination(l.Addr(), destinationsCtx)
-	destinations := client.NewDestinationsOld(destination, nil)
+	destinations := client.NewDestinations(destination, nil)
 
-	sender := NewSingleSender(input, output, destinations)
+	sender := NewStreamSender(input, output, destinations)
 	sender.Start()
 
 	expectedMessage := newMessage([]byte("fake line"), source, "")
@@ -61,15 +60,15 @@ func TestSenderNotBlockedByAdditional(t *testing.T) {
 	input := make(chan *message.Message, 1)
 	output := make(chan *message.Message, 1)
 
-	destinationsCtx := tcp.NewDestinationsContext()
+	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 
 	mainDestination := tcp.AddrToDestination(l.Addr(), destinationsCtx)
 	// This destination doesn't exists
 	additionalDestination := tcp.NewDestination(config.Endpoint{Host: "dont.exist.local", Port: 0}, true, destinationsCtx)
-	destinations := client.NewDestinationsOld(mainDestination, []client.Destination{additionalDestination})
+	destinations := client.NewDestinations(mainDestination, []client.Destination{additionalDestination})
 
-	sender := NewSingleSender(input, output, destinations)
+	sender := NewStreamSender(input, output, destinations)
 	sender.Start()
 
 	expectedMessage1 := newMessage([]byte("fake line"), source, "")

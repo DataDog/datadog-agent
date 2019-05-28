@@ -10,6 +10,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -21,30 +22,12 @@ const (
 	warningPeriod = 1000
 )
 
-// FramingError represents a kind of error that can occur when a log can not properly
-// be transformed into a frame.
-type FramingError struct {
-	err error
-}
-
-// NewFramingError returns a new framing error.
-func NewFramingError(err error) *FramingError {
-	return &FramingError{
-		err: err,
-	}
-}
-
-// Error returns the message of the error.
-func (e *FramingError) Error() string {
-	return e.err.Error()
-}
-
 // Destination is responsible for shipping logs to a remote server over TCP.
 type Destination struct {
 	prefixer            *prefixer
 	delimiter           Delimiter
 	connManager         *ConnectionManager
-	destinationsContext *DestinationsContext
+	destinationsContext *client.DestinationsContext
 	conn                net.Conn
 	inputChan           chan []byte
 	once                sync.Once
@@ -52,7 +35,7 @@ type Destination struct {
 }
 
 // NewDestination returns a new destination.
-func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext *DestinationsContext) *Destination {
+func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext *client.DestinationsContext) *Destination {
 	prefix := endpoint.APIKey + string(' ')
 	return &Destination{
 		prefixer:            newPrefixer(prefix),
@@ -78,7 +61,7 @@ func (d *Destination) Send(payload []byte) error {
 	content := d.prefixer.apply(payload)
 	frame, err := d.delimiter.delimit(content)
 	if err != nil {
-		return NewFramingError(err)
+		return client.NewFramingError(err)
 	}
 
 	_, err = d.conn.Write(frame)

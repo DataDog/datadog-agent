@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
@@ -36,7 +37,7 @@ func TestNewConnection(t *testing.T) {
 	l := mock.NewMockLogsIntake(t)
 	defer l.Close()
 	status.CreateSources([]*config.LogSource{})
-	destinationsCtx := NewDestinationsContext()
+	destinationsCtx := client.NewDestinationsContext()
 
 	connManager := newConnectionManagerForAddr(l.Addr())
 	destinationsCtx.Start()
@@ -48,7 +49,7 @@ func TestNewConnection(t *testing.T) {
 }
 
 func TestNewConnectionReturnsWhenContextCancelled(t *testing.T) {
-	destinationsCtx := NewDestinationsContext()
+	destinationsCtx := client.NewDestinationsContext()
 	connManager := newConnectionManagerForHostPort("foo", 0)
 
 	destinationsCtx.Start()

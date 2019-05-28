@@ -15,14 +15,14 @@ import (
 const httpPath = "/v1/input/"
 const contentType = "application/json"
 
-// Destination TODO
+// Destination sends a payload over HTTP.
 type Destination struct {
 	endpoint config.Endpoint
 	url      string
 	client   *http.Client
 }
 
-// NewDestination TODO
+// NewDestination returns a new Destination.
 func NewDestination(endpoint config.Endpoint) *Destination {
 	url := endpoint.Host + httpPath + endpoint.APIKey
 	netTransport := &http.Transport{
@@ -47,8 +47,7 @@ func NewDestination(endpoint config.Endpoint) *Destination {
 	}
 }
 
-// Send TODO(achntrl): Have a buffering mechanism where we aggregate a bunch of logs before sending them as a batch
-// to limit the number of requests
+// Send sends a payload over HTTP.
 func (d *Destination) Send(payload []byte) error {
 	// TODO(achntrl) Create a client or a transport
 	resp, err := d.client.Post(d.url, contentType, strings.NewReader(string(payload)))
@@ -74,7 +73,7 @@ func (d *Destination) Send(payload []byte) error {
 	return nil
 }
 
-// SendAsync TODO
+// SendAsync is not implemented for HTTP.
 func (d *Destination) SendAsync(payload []byte) {
 	return
 }

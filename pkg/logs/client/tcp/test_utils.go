@@ -6,6 +6,7 @@
 package tcp
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"net"
 )
@@ -28,6 +29,6 @@ func AddrToEndPoint(addr net.Addr) config.Endpoint {
 }
 
 // AddrToDestination creates a Destination from an Addr
-func AddrToDestination(addr net.Addr, ctx *DestinationsContext) *Destination {
+func AddrToDestination(addr net.Addr, ctx *client.DestinationsContext) *Destination {
 	return NewDestination(AddrToEndPoint(addr), true, ctx)
 }

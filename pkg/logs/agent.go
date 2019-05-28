@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/file"
@@ -34,7 +34,7 @@ import (
 // + ------------------------------------------------------ +
 type Agent struct {
 	auditor          *auditor.Auditor
-	destinationsCtx  *tcp.DestinationsContext
+	destinationsCtx  *client.DestinationsContext
 	pipelineProvider pipeline.Provider
 	inputs           []restart.Restartable
 	health           *health.Handle
@@ -48,7 +48,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	// We pass the health handle to the auditor because it's the end of the pipeline and the most
 	// critical part. Arguably it could also be plugged to the destination.
 	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), health)
-	destinationsCtx := tcp.NewDestinationsContext()
+	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
