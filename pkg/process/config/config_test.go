@@ -79,9 +79,17 @@ func TestOnlyEnvConfig(t *testing.T) {
 	// setting an API Key should be enough to generate valid config
 	os.Setenv("DD_API_KEY", "apikey_from_env")
 	defer os.Unsetenv("DD_API_KEY")
+	os.Setenv("DD_PROCESS_AGENT_ENABLED", "true")
+	defer os.Unsetenv("DD_PROCESS_AGENT_ENABLED")
 
 	agentConfig, _ := NewAgentConfig("test", "", "")
 	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
+	assert.True(t, agentConfig.Enabled)
+
+	os.Setenv("DD_PROCESS_AGENT_ENABLED", "false")
+	agentConfig, _ = NewAgentConfig("test", "", "")
+	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
+	assert.False(t, agentConfig.Enabled)
 }
 
 func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
