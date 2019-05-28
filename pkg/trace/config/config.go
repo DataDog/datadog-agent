@@ -213,6 +213,10 @@ func Load(path string) (*AgentConfig, error) {
 	} else {
 		log.Infof("Loaded configuration: %s", cfg.ConfigPath)
 	}
+	loadEnv() // TODO(gbbr): remove this along with all A5 configuration loading code and use BindEnv in pkg/config
+	if err := config.ResolveSecrets(config.Datadog, filepath.Base(path)); err != nil {
+		return cfg, err
+	}
 	cfg.applyDatadogConfig()
 	return cfg, cfg.validate()
 }
@@ -236,18 +240,14 @@ func prepareConfig(path string) (*AgentConfig, error) {
 			return cfg, err
 		}
 	case ".yaml":
+		cfg.DDAgentBin = defaultDDAgentBin
 		config.Datadog.SetConfigFile(cfgPath)
 		// we'll resolve secrets later, after loading environment variable values too
 		if err := config.LoadWithoutSecret(); err != nil {
 			return cfg, err
 		}
-		cfg.DDAgentBin = defaultDDAgentBin
 	default:
 		return cfg, errors.New("unrecognised file extension (need .yaml, .ini or .conf)")
-	}
-	loadEnv() // TODO(gbbr): remove this along with all A5 configuration loading code and use BindEnv in pkg/config
-	if err := config.ResolveSecrets(config.Datadog, filepath.Base(path)); err != nil {
-		return cfg, err
 	}
 	cfg.ConfigPath = cfgPath
 	return cfg, nil
