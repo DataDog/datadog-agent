@@ -28,6 +28,7 @@ when 'rhel'
       baseurl = #{node['dd-agent-step-by-step']['yumrepo']}
       enabled=1
       gpgcheck=1
+      repo_gpgcheck=0
       gpgkey=#{protocol}://yum.datadoghq.com/DATADOG_RPM_KEY.public
     EOF
   end
