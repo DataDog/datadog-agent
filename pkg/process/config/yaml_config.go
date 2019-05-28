@@ -135,6 +135,10 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 		a.APIEndpoints[0].APIKey = config.Datadog.GetString(key)
 	}
 
+	if config.Datadog.IsSet("hostname") {
+		a.HostName = config.Datadog.GetString("hostname")
+	}
+
 	if k := key(ns, "enabled"); config.Datadog.IsSet(k) {
 		// A string indicate the enabled state of the Agent.
 		// If "false" (the default) we will only collect containers.
