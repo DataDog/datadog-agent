@@ -23,18 +23,17 @@ func NewDestinations(endpoints *config.Endpoints, destinationsContext *tcp.Desti
 	var additionals []Destination
 
 	if endpoints.UseHTTP {
+		destinations.Main = http.NewDestination(endpoints.Main)
 		for _, endpoint := range endpoints.Additionals {
 			additionals = append(additionals, http.NewDestination(endpoint))
 		}
-		destinations.Main = http.NewDestination(endpoints.Main)
 		destinations.Additionals = additionals
-
-		return destinations
-	}
-
-	destinations.Main = tcp.NewDestination(endpoints.Main, destinationsContext)
-	for _, endpoint := range endpoints.Additionals {
-		additionals = append(additionals, tcp.NewDestination(endpoint, destinationsContext))
+	} else {
+		destinations.Main = tcp.NewDestination(endpoints.Main, endpoints.UseProto, destinationsContext)
+		for _, endpoint := range endpoints.Additionals {
+			additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
+		}
+		destinations.Additionals = additionals
 	}
 
 	return destinations

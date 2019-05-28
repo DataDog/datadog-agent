@@ -87,7 +87,7 @@ func (suite *AgentTestSuite) TestAgent() {
 	defer l.Close()
 
 	endpoint := tcp.AddrToEndPoint(l.Addr())
-	endpoints := config.NewEndpoints(endpoint, nil)
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
 
 	agent, sources, _ := createAgent(endpoints)
 
@@ -116,7 +116,7 @@ func (suite *AgentTestSuite) TestAgent() {
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
 	endpoint := config.Endpoint{Host: "fake:", Port: 0}
-	endpoints := config.NewEndpoints(endpoint, nil)
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
 
 	agent, sources, _ := createAgent(endpoints)
 
@@ -140,7 +140,7 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongAdditionalBackend() {
 	endpoint := tcp.AddrToEndPoint(l.Addr())
 	additionalEndpoint := config.Endpoint{Host: "still_fake", Port: 0}
 
-	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{additionalEndpoint})
+	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{additionalEndpoint}, true, false)
 
 	agent, sources, _ := createAgent(endpoints)
 

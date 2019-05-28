@@ -11,7 +11,6 @@ type Endpoint struct {
 	Host         string
 	Port         int
 	UseSSL       bool
-	UseProto     bool
 	ProxyAddress string
 }
 
@@ -19,14 +18,16 @@ type Endpoint struct {
 type Endpoints struct {
 	Main        Endpoint
 	Additionals []Endpoint
+	UseProto    bool
 	UseHTTP     bool
 }
 
 // NewEndpoints returns a new endpoints composite.
-func NewEndpoints(main Endpoint, additionals []Endpoint, useHTTP bool) *Endpoints {
+func NewEndpoints(main Endpoint, additionals []Endpoint, useProto bool, useHTTP bool) *Endpoints {
 	return &Endpoints{
 		Main:        main,
 		Additionals: additionals,
+		UseProto:    useProto,
 		UseHTTP:     useHTTP,
 	}
 }

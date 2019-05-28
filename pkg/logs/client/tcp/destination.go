@@ -52,11 +52,11 @@ type Destination struct {
 }
 
 // NewDestination returns a new destination.
-func NewDestination(endpoint config.Endpoint, destinationsContext *DestinationsContext) *Destination {
+func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext *DestinationsContext) *Destination {
 	prefix := endpoint.APIKey + string(' ')
 	return &Destination{
 		prefixer:            newPrefixer(prefix),
-		delimiter:           NewDelimiter(endpoint.UseProto),
+		delimiter:           NewDelimiter(useProto),
 		connManager:         NewConnectionManager(endpoint),
 		destinationsContext: destinationsContext,
 	}

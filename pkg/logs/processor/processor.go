@@ -57,7 +57,7 @@ func (p *Processor) run() {
 			metrics.LogsProcessed.Add(1)
 
 			// Encode the message to its final format
-			content, err := p.encoder.encode(msg, redactedMsg)
+			content, err := p.encoder.Encode(msg, redactedMsg)
 			if err != nil {
 				log.Error("unable to encode msg ", err)
 				continue

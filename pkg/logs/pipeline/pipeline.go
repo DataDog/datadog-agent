@@ -6,7 +6,6 @@
 package pipeline
 
 import (
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -28,7 +27,7 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	destinations := client.NewDestinations(endpoints, destinationsContext)
 	senderChan := make(chan *message.Message, config.ChanSize)
 	var newsender sender.Sender
-	if coreConfig.Datadog.GetBool("logs_config.use_http") {
+	if endpoints.UseHTTP {
 		newsender = sender.NewBatchSender(senderChan, outputChan, destinations)
 	} else {
 		newsender = sender.NewSingleSender(senderChan, outputChan, destinations)
@@ -39,11 +38,14 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 
 	// initialize the processor
 	var encoder processor.Encoder
-	if coreConfig.Datadog.GetBool("logs_config.use_http") {
-		encoder = processor.NewHTTPEncoder()
+	if endpoints.UseHTTP {
+		encoder = processor.JSONEncoder
+	} else if endpoints.UseProto {
+		encoder = processor.ProtoEncoder
 	} else {
-		encoder = processor.NewTCPEncoder(endpoints.Main.UseProto)
+		encoder = processor.RawEncoder
 	}
+
 	processor := processor.New(inputChan, senderChan, processingRules, encoder)
 
 	return &Pipeline{

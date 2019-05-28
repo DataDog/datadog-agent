@@ -45,7 +45,6 @@ func buildTCPEndpoints() (*logsConfig.Endpoints, error) {
 	proxyAddress := config.Datadog.GetString("logs_config.socks5_proxy_address")
 	main := logsConfig.Endpoint{
 		APIKey:       getLogsAPIKey(config.Datadog),
-		UseProto:     useProto,
 		ProxyAddress: proxyAddress,
 	}
 	switch {
@@ -88,17 +87,16 @@ func buildTCPEndpoints() (*logsConfig.Endpoints, error) {
 	}
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = useSSL
-		additionals[i].UseProto = useProto
 		additionals[i].ProxyAddress = proxyAddress
 	}
 
-	return logsConfig.NewEndpoints(main, additionals, false), nil
+	return logsConfig.NewEndpoints(main, additionals, useProto, false), nil
 }
 
 func buildHTTPEndpoints() (*logsConfig.Endpoints, error) {
 	// only works with DD_URL for now
 	main := logsConfig.Endpoint{
-		APIKey:       getLogsAPIKey(config.Datadog),
+		APIKey: getLogsAPIKey(config.Datadog),
 		// TODO(achntrl): Support proxy
 		//ProxyAddress: <proxyAddress>,
 	}
@@ -106,7 +104,7 @@ func buildHTTPEndpoints() (*logsConfig.Endpoints, error) {
 	main.Host = config.GetMainEndpoint(httpEndpointPrefix, "logs_config.dd_url")
 	var additionals []logsConfig.Endpoint
 
-	return logsConfig.NewEndpoints(main, additionals, true), nil
+	return logsConfig.NewEndpoints(main, additionals, false, true), nil
 }
 
 func isSetAndNotEmpty(config config.Config, key string) bool {

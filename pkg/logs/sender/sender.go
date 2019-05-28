@@ -116,8 +116,8 @@ func NewBatchSender(inputChan, outputChan chan *message.Message, destinations *c
 		outputChan:    outputChan,
 		destinations:  destinations,
 		done:          make(chan struct{}),
-		batchTimeout:  5 * time.Second,               // TODO Change this to paramter
-		messageBuffer: NewMessageBuffer(20, 2000000), // TODO change this to paramter
+		batchTimeout:  5 * time.Second,               // TODO Change this to parameter
+		messageBuffer: NewMessageBuffer(20, 2000000), // TODO change this to parameter
 	}
 }
 
