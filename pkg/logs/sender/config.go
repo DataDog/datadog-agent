@@ -15,8 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const tcpEndpointPrefix = "agent-intake.logs."
-const httpEndpointPrefix = "https://http-intake.logs."
+const endpointPrefix = "agent-intake.logs."
 
 var logsEndpoints = map[string]int{
 	"agent-intake.logs.datadoghq.com": 10516,
@@ -31,8 +30,7 @@ func BuildEndpoints() (*logsConfig.Endpoints, error) {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}
 
-	useHTTP := config.Datadog.GetBool("logs_config.use_http")
-	if useHTTP {
+	if config.Datadog.GetBool("logs_config.use_http") {
 		return buildHTTPEndpoints()
 	}
 
@@ -70,7 +68,7 @@ func buildTCPEndpoints() (*logsConfig.Endpoints, error) {
 	default:
 		// If no proxy is set, we default to 'logs_config.dd_url' if set, or to 'site'.
 		// if none of them is set, we default to the US agent endpoint.
-		main.Host = config.GetMainEndpoint(tcpEndpointPrefix, "logs_config.dd_url")
+		main.Host = config.GetMainEndpoint(endpointPrefix, "logs_config.dd_url")
 		if port, found := logsEndpoints[main.Host]; found {
 			main.Port = port
 		} else {
@@ -94,17 +92,16 @@ func buildTCPEndpoints() (*logsConfig.Endpoints, error) {
 }
 
 func buildHTTPEndpoints() (*logsConfig.Endpoints, error) {
-	// only works with DD_URL for now
-	main := logsConfig.Endpoint{
-		APIKey: getLogsAPIKey(config.Datadog),
-		// TODO(achntrl): Support proxy
-		//ProxyAddress: <proxyAddress>,
+	if config.Datadog.GetString("logs_config.http_dd_url") == "" {
+		return nil, fmt.Errorf("no url specified for http")
 	}
 
-	main.Host = config.GetMainEndpoint(httpEndpointPrefix, "logs_config.dd_url")
-	var additionals []logsConfig.Endpoint
+	main := logsConfig.Endpoint{
+		APIKey: getLogsAPIKey(config.Datadog),
+		Host:   config.GetMainEndpoint("", "logs_config.http_dd_url"),
+	}
 
-	return logsConfig.NewEndpoints(main, additionals, false, true), nil
+	return logsConfig.NewEndpoints(main, nil, false, true), nil
 }
 
 func isSetAndNotEmpty(config config.Config, key string) bool {
