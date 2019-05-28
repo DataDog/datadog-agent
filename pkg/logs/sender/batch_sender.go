@@ -16,8 +16,8 @@ import (
 
 const (
 	batchTimeout   = 5 * time.Second
-	maxBatchSize   = 20
-	maxContentSize = 2000000
+	maxBatchSize   = 1
+	maxContentSize = 1000000
 )
 
 // BatchSender is responsible for sending a batch of logs to different destinations.
