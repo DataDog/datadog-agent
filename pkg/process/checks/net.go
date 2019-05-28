@@ -34,6 +34,8 @@ type ConnectionsCheck struct {
 func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemInfo) {
 	var err error
 
+	// We use the current process PID as the local tracer client ID
+	c.tracerClientID = fmt.Sprintf("%d", os.Getpid())
 	if cfg.EnableLocalSystemProbe {
 		log.Info("starting system probe locally")
 		c.useLocalTracer = true
@@ -52,8 +54,6 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemIn
 		}
 
 		c.localTracer = t
-		// We use the current process PID as the local tracer client ID
-		c.tracerClientID = fmt.Sprintf("%d", os.Getpid())
 	} else {
 		// Calling the remote tracer will cause it to initialize and check connectivity
 		net.SetSystemProbeSocketPath(cfg.SystemProbeSocketPath)
