@@ -12,46 +12,36 @@ import (
 // MessageBuffer accumulates lines in buffer escaping all '\n'
 // and accumulates the total number of bytes of all lines in line representation (line + '\n') in rawDataLen
 type MessageBuffer struct {
-	maxBatchCount  int
-	maxRequestSize int
-	messageBuffer  []*message.Message
-	byteBuffer     []byte
+	messageBuffer []*message.Message
+	byteBuffer    []byte
 }
 
 // NewMessageBuffer returns a new MessageBuffer
 func NewMessageBuffer(maxBatchCount, maxRequestSize int) *MessageBuffer {
 	return &MessageBuffer{
-		maxBatchCount:  maxBatchCount,
-		maxRequestSize: maxRequestSize,
-		messageBuffer:  make([]*message.Message, 0, maxBatchCount),
-		byteBuffer:     make([]byte, 1, maxRequestSize),
+		messageBuffer: make([]*message.Message, 0, maxBatchCount),
+		byteBuffer:    make([]byte, 1, maxRequestSize),
 	}
 }
 
-func (mb *MessageBuffer) tryAppendToBuffer(m *message.Message) (bool, bool) {
-
-	sendNow, appendAgain := false, false
-
+func (mb *MessageBuffer) tryAppendToBuffer(m *message.Message) bool {
 	if (len(mb.messageBuffer) < cap(mb.messageBuffer)) && mb.hasSpaceInByteBuffer(m.Content) {
 		// fits. append the message
 		mb.messageBuffer = append(mb.messageBuffer, m)
 		mb.appendByteBuffer(m.Content)
-	} else {
-		// doesn't fit, which can only be caused by not enough space in byteBiffer
-		// signal to send immediately and append again
-		sendNow, appendAgain = true, true
+		return true
 	}
 
-	// if after append, we reach the batchsize, we should send now
-	if len(mb.messageBuffer) == cap(mb.messageBuffer) {
-		sendNow = true
-	}
-
-	return sendNow, appendAgain
+	// doesn't fit, which can only be caused by not enough space in byteBiffer
+	return false
 }
 
 func (mb *MessageBuffer) isEmpty() bool {
 	return len(mb.messageBuffer) == 0
+}
+
+func (mb *MessageBuffer) isFull() bool {
+	return len(mb.messageBuffer) == cap(mb.messageBuffer)
 }
 
 func (mb *MessageBuffer) clear() {

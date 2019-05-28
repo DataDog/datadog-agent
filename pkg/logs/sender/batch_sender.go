@@ -16,7 +16,7 @@ import (
 
 const (
 	batchTimeout   = 5 * time.Second
-	maxBatchSize   = 1
+	maxBatchSize   = 20
 	maxContentSize = 1000000
 )
 
@@ -70,8 +70,8 @@ func (b *BatchSender) run() {
 				// TODO remember to flush your buffer!!
 				return
 			}
-			sendNow, appendAgain := b.messageBuffer.tryAppendToBuffer(payload)
-			if sendNow {
+			success := b.messageBuffer.tryAppendToBuffer(payload)
+			if !success || b.messageBuffer.isFull() {
 				// message buffer is full, either reaching maxBatchCount of maxRequestSize
 				// send request now. reset the timer
 				if !flushTimer.Stop() {
@@ -80,7 +80,7 @@ func (b *BatchSender) run() {
 				b.sendBuffer()
 				flushTimer.Reset(b.batchTimeout)
 			}
-			if appendAgain {
+			if !success {
 				// it's possible we didn't append last try because maxRequestSize is reached
 				// append it again after the sendbuffer is flushed
 				b.messageBuffer.tryAppendToBuffer(payload)
