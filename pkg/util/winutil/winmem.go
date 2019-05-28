@@ -42,6 +42,24 @@ type VirtualMemoryStat struct {
 	UsedPercent float64
 }
 
+// PagefileStat contains basic metrics for the windows pagefile
+type PagefileStat struct {
+	// The current committed memory limit for the system or
+	// the current process, whichever is smaller, in bytes
+	Total uint64
+
+	// The maximum amount of memory the current process can commit, in bytes.
+	// This value is equal to or smaller than the system-wide available commit
+	// value.
+	Available uint64
+
+	// Used is Total - Available
+	Used uint64
+
+	// UsedPercent is used as a percentage of the total pagefile
+	UsedPercent float64
+}
+
 // SwapMemoryStat contains swap statistics
 type SwapMemoryStat struct {
 	Total       uint64
@@ -76,6 +94,25 @@ func VirtualMemory() (*VirtualMemoryStat, error) {
 		Available:   memInfo.ullAvailPhys,
 		Used:        memInfo.ullTotalPhys - memInfo.ullAvailPhys,
 		UsedPercent: float64(memInfo.dwMemoryLoad),
+	}
+
+	return ret, nil
+}
+
+// PagefileMemory returns paging (swap) file metrics
+func PagefileMemory() (*PagefileStat, error) {
+	var memInfo memoryStatusEx
+	memInfo.cbSize = uint32(unsafe.Sizeof(memInfo))
+	mem, _, _ := procGlobalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&memInfo)))
+	if mem == 0 {
+		return nil, windows.GetLastError()
+	}
+
+	ret := &PagefileStat{
+		Total:       memInfo.ullTotalPageFile,
+		Available:   memInfo.ullAvailPageFile,
+		Used:        memInfo.ullTotalPageFile - memInfo.ullAvailPageFile,
+		UsedPercent: float64(((memInfo.ullTotalPageFile - memInfo.ullAvailPageFile) / (memInfo.ullAvailPageFile)) * 100),
 	}
 
 	return ret, nil

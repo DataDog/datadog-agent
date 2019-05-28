@@ -33,6 +33,15 @@ func SwapMemory() (*winutil.SwapMemoryStat, error) {
 	}, nil
 }
 
+func PagefileMemory() (*winutil.PagefileStat, error) {
+	return &winutil.PagefileStat{
+		Total:       120000,
+		Available:   90000,
+		Used:        30000,
+		UsedPercent: 50,
+	}, nil
+}
+
 func TestMemoryCheckWindows(t *testing.T) {
 	virtualMemory = VirtualMemory
 	swapMemory = SwapMemory
@@ -50,12 +59,17 @@ func TestMemoryCheckWindows(t *testing.T) {
 	mock.On("Gauge", "system.swap.used", 40000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.pct_free", 0.6, "", []string(nil)).Return().Times(1)
 
+	mock.On("Gauge", "system.mem.pagefile.total", 120000.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.pagefile.free", 90000.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.pagefile.used", 30000.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.pagefile.pct_free", 0.25, "", []string(nil)).Return().Times(1)
+
 	mock.On("Commit").Return().Times(1)
 
 	err := memCheck.Run()
 	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 9)
+	mock.AssertNumberOfCalls(t, "Gauge", 13)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
