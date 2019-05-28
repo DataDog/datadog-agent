@@ -97,7 +97,9 @@ func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
 
 	os.Setenv("DD_API_KEY", "ENC[my_api_key]")
+	os.Setenv("DD_HOSTNAME", "ENC[my_host]")
 	defer os.Unsetenv("DD_API_KEY")
+	defer os.Unsetenv("DD_HOSTNAME")
 
 	assert := assert.New(t)
 	agentConfig, err := NewAgentConfig(
@@ -108,4 +110,5 @@ func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	assert.Equal("secret_my_api_key", config.Datadog.Get("api_key"))
 	ep := agentConfig.APIEndpoints[0]
 	assert.Equal("secret_my_api_key", ep.APIKey)
+	assert.Equal("secret_my_host", agentConfig.HostName)
 }
