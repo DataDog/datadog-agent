@@ -16,6 +16,7 @@ import (
 // - truncated
 func DidRotate(file *os.File, lastReadOffset int64) (bool, error) {
 	f, err := openFile(file.Name())
+	defer f.Close()
 	if err != nil {
 		return false, err
 	}

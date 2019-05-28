@@ -166,6 +166,8 @@ PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs)
     PyObject *headers_dict = from_yaml(data);
     cgo_free(data);
     if (headers_dict == NULL || !PyDict_Check(headers_dict)) {
+        // if headers_dict is not a dict we don't need to hold a ref to it
+        Py_XDECREF(headers_dict);
         Py_RETURN_NONE;
     }
 
@@ -269,6 +271,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
     int error = 0;
     char *hostname = NULL;
     char *source_type = NULL;
+    // We already PyList_Check input_list, so PyList_Size won't fail and return -1
     int input_len = PyList_Size(input_list);
     int i;
     for (i = 0; i < input_len; i++) {
@@ -315,6 +318,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
 
         // allocate an array of char* to store the tags we'll send to the Go function
         char **tags;
+        // We already PyList_Check value, so PyList_Size won't fail and return -1
         int tags_len = PyList_Size(value);
         if (!(tags = (char **)malloc(sizeof(*tags) * tags_len + 1))) {
             PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");

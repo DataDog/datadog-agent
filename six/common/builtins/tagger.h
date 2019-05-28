@@ -29,4 +29,4 @@ void _set_tags_cb(cb_tags_t);
 }
 #endif
 
-#endif
+#endif // DATADOG_AGENT_SIX_TAGGER_H

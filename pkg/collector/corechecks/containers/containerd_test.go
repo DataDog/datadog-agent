@@ -182,6 +182,11 @@ func TestComputeMem(t *testing.T) {
 		expected map[string]float64
 	}{
 		{
+			name:     "call with empty mem",
+			mem:      nil,
+			expected: map[string]float64{},
+		},
+		{
 			name:     "nothing",
 			mem:      &cgroups.MemoryStat{},
 			expected: map[string]float64{},
