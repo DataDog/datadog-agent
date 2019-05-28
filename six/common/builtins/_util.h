@@ -7,7 +7,13 @@
 #include <Python.h>
 #include <six_types.h>
 
+#define STR(x)  #x
+#define STRINGIFY(x)  STR(x)
+
+#define _DOT "."
 #define _UTIL_MODULE_NAME "_util"
+#define _SUBPROCESS_OUTPUT_ERROR_NAME "SubprocessOutputEmptyError"
+#define _SUBPROCESS_OUTPUT_ERROR_NS_NAME _UTIL_MODULE_NAME _DOT _SUBPROCESS_OUTPUT_ERROR_NAME
 
 #ifdef DATADOG_AGENT_THREE
 PyMODINIT_FUNC PyInit__util(void);

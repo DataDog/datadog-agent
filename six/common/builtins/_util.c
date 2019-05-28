@@ -14,12 +14,10 @@ static cb_get_subprocess_output_t cb_get_subprocess_output = NULL;
 static PyObject *subprocess_output(PyObject *self, PyObject *args);
 
 // Exceptions
-PyObject *SubprocessOutputEmptyError;
 void addSubprocessException(PyObject *m)
 {
-    SubprocessOutputEmptyError = PyErr_NewException("_util.SubprocessOutputEmptyError", NULL, NULL);
-    Py_INCREF(SubprocessOutputEmptyError);
-    PyModule_AddObject(m, "SubprocessOutputEmptyError", SubprocessOutputEmptyError);
+    PyObject *SubprocessOutputEmptyError = PyErr_NewException(_SUBPROCESS_OUTPUT_ERROR_NS_NAME, NULL, NULL);
+    PyModule_AddObject(m, _SUBPROCESS_OUTPUT_ERROR_NAME, SubprocessOutputEmptyError);
 }
 
 static PyMethodDef methods[] = {
@@ -39,9 +37,7 @@ PyMODINIT_FUNC PyInit__util(void)
     addSubprocessException(m);
     return m;
 }
-#endif
-
-#ifdef DATADOG_AGENT_TWO
+#elif defined(DATADOG_AGENT_TWO)
 // in Python2 keep the object alive for the program lifetime
 static PyObject *module;
 
@@ -59,16 +55,16 @@ void _set_get_subprocess_output_cb(cb_get_subprocess_output_t cb)
 
 static void raiseEmptyOutputError()
 {
-    PyObject *utilModule = PyImport_ImportModule("_util");
+    PyObject *utilModule = PyImport_ImportModule(_UTIL_MODULE_NAME);
     if (utilModule == NULL) {
-        PyErr_SetString(PyExc_TypeError, "error: no module '_util'");
+        PyErr_SetString(PyExc_TypeError, "error: no module '" _UTIL_MODULE_NAME "'");
         return;
     }
 
-    PyObject *excClass = PyObject_GetAttrString(utilModule, "SubprocessOutputEmptyError");
+    PyObject *excClass = PyObject_GetAttrString(utilModule, _SUBPROCESS_OUTPUT_ERROR_NAME);
     if (excClass == NULL) {
         Py_DecRef(utilModule);
-        PyErr_SetString(PyExc_TypeError, "no attribute '_util.SubprocessOutputEmptyError' found");
+        PyErr_SetString(PyExc_TypeError, "no attribute '" _SUBPROCESS_OUTPUT_ERROR_NS_NAME "' found");
         return;
     }
 
