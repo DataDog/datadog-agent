@@ -26,9 +26,7 @@ PyMODINIT_FUNC PyInit_util(void)
 {
     return PyModule_Create(&module_def);
 }
-#endif
-
-#ifdef DATADOG_AGENT_TWO
+#elif defined(DATADOG_AGENT_TWO)
 // in Python2 keep the object alive for the program lifetime
 static PyObject *module;
 
