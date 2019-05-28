@@ -25,8 +25,10 @@ int parseArgs(PyObject *args, char **id, int *cardinality)
 
 PyObject *buildTagsList(char **tags)
 {
-    if (tags == NULL)
+    if (tags == NULL) {
+        // Py_RETURN_NONE macro increases the refcount on Py_None
         Py_RETURN_NONE;
+    }
 
     PyObject *res = PyList_New(0);
     int i;
@@ -34,7 +36,7 @@ PyObject *buildTagsList(char **tags)
         PyObject *pyTag = PyStringFromCString(tags[i]);
         cgo_free(tags[i]);
 
-        // PyList_Append does not steal references so no DECREF necessary for pyTag
+        // PyList_Append does not steal references so DECREF necessary for pyTag
         PyList_Append(res, pyTag);
         // PyList_Append (unlike `PyList_SetItem`) increments the refcount on pyTag
         Py_XDECREF(pyTag);
@@ -56,8 +58,9 @@ PyObject *tag(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    if (cardinality != DATADOG_AGENT_SIX_TAGGER_LOW && cardinality != DATADOG_AGENT_SIX_TAGGER_ORCHESTRATOR
-        && cardinality != DATADOG_AGENT_SIX_TAGGER_HIGH) {
+    if (cardinality != DATADOG_AGENT_SIX_TAGGER_LOW &&
+            cardinality != DATADOG_AGENT_SIX_TAGGER_ORCHESTRATOR &&
+            cardinality != DATADOG_AGENT_SIX_TAGGER_HIGH) {
         PyGILState_STATE gstate = PyGILState_Ensure();
 
         // The refcount for the error type: PyExc_TypeError need not be incremented
@@ -83,10 +86,11 @@ PyObject *get_tags(PyObject *self, PyObject *args)
     }
 
     int cardinality;
-    if (highCard > 0)
+    if (highCard > 0) {
         cardinality = DATADOG_AGENT_SIX_TAGGER_HIGH;
-    else
+    } else {
         cardinality = DATADOG_AGENT_SIX_TAGGER_LOW;
+    }
 
     return buildTagsList(cb_tags(id, cardinality));
 }
