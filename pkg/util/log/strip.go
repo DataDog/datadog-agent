@@ -58,6 +58,7 @@ func init() {
 	}
 	certReplacer = Replacer{
 		Regex: matchCert(),
+		Hints: []string{"BEGIN"},
 		Repl:  []byte(`********`),
 	}
 	singleLineReplacers = []Replacer{apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
@@ -141,10 +142,19 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 
 	// Then we apply multiline replacers on the cleaned file
 	for _, repl := range multiLineReplacers {
-		if repl.ReplFunc != nil {
-			cleanedFile = repl.Regex.ReplaceAllFunc(cleanedFile, repl.ReplFunc)
-		} else {
-			cleanedFile = repl.Regex.ReplaceAll(cleanedFile, repl.Repl)
+		containsHint := false
+		for _, hint := range repl.Hints {
+			if strings.Contains(string(cleanedFile), hint) {
+				containsHint = true
+				break
+			}
+		}
+		if len(repl.Hints) == 0 || containsHint {
+			if repl.ReplFunc != nil {
+				cleanedFile = repl.Regex.ReplaceAllFunc(cleanedFile, repl.ReplFunc)
+			} else {
+				cleanedFile = repl.Regex.ReplaceAll(cleanedFile, repl.Repl)
+			}
 		}
 	}
 
