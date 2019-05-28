@@ -265,6 +265,7 @@ bool Two::getCheck(SixPyObject *py_class, const char *init_config_str, const cha
         goto done;
     } else if (!PyDict_Check(instance)) {
         setError("error instance is not a dict");
+        Py_XDECREF(instance); // we still own the reference to instance, so we need to decref it here
         goto done;
     }
 
