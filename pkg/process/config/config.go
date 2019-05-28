@@ -328,7 +328,6 @@ func NewSystemProbeConfig(loggerName config.LoggerName, yamlPath string) (*Agent
 
 func loadEnvVariables() {
 	for envKey, cfgKey := range map[string]string{
-		"DD_PROCESS_AGENT_ENABLED":          "process_config.enabled",
 		"DD_PROCESS_AGENT_CONTAINER_SOURCE": "process_config.container_source",
 		"DD_SCRUB_ARGS":                     "process_config.scrub_args",
 		"DD_STRIP_PROCESS_ARGS":             "process_config.strip_proc_arguments",
