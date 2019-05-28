@@ -210,9 +210,7 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			continue
 		}
 
-		if metrics.Memory != nil {
-			computeMem(sender, metrics.Memory, tags)
-		}
+		computeMem(sender, metrics.Memory, tags)
 
 		if metrics.CPU.Throttling != nil && metrics.CPU.Usage != nil {
 			computeCPU(sender, metrics.CPU, tags)
@@ -280,6 +278,9 @@ func computeHugetlb(sender aggregator.Sender, huge []*cgroups.HugetlbStat, tags 
 }
 
 func computeMem(sender aggregator.Sender, mem *cgroups.MemoryStat, tags []string) {
+	if mem == nil {
+		return
+	}
 
 	memList := map[string]*cgroups.MemoryEntry{
 		"containerd.mem.current":    mem.Usage,
