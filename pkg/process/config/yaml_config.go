@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -28,6 +29,11 @@ func key(pieces ...string) string {
 // SystemProbe specific configuration
 func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	loadEnvVariables()
+
+	// Resolve any secrets
+	if err := config.ResolveSecrets(config.Datadog, filepath.Base(path)); err != nil {
+		return err
+	}
 
 	a.EnableLocalSystemProbe = config.Datadog.GetBool(key(spNS, "use_local_system_probe"))
 
@@ -113,6 +119,11 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 // Process-specific configuration
 func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 	loadEnvVariables()
+
+	// Resolve any secrets
+	if err := config.ResolveSecrets(config.Datadog, filepath.Base(path)); err != nil {
+		return err
+	}
 
 	URL, err := url.Parse(config.GetMainEndpoint("https://process.", key(ns, "process_dd_url")))
 	if err != nil {

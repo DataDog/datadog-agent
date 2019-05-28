@@ -224,7 +224,7 @@ func loadConfigIfExists(path string) error {
 			config.Datadog.SetConfigFile(path)
 		}
 
-		if err := config.Load(); err != nil {
+		if err := config.LoadWithoutSecret(); err != nil {
 			return err
 		}
 	} else {
@@ -240,7 +240,10 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	cfg := NewDefaultAgentConfig()
 
 	// For Agent 6 we will have a YAML config file to use.
-	loadConfigIfExists(yamlPath)
+	if err := loadConfigIfExists(yamlPath); err != nil {
+		return nil, err
+	}
+
 	if err := cfg.loadProcessYamlConfig(yamlPath); err != nil {
 		return nil, err
 	}
@@ -363,12 +366,14 @@ func loadEnvVariables() {
 	}
 
 	// Support API_KEY and DD_API_KEY but prefer DD_API_KEY.
-	if key, ddkey := os.Getenv("API_KEY"), os.Getenv("DD_API_KEY"); ddkey != "" {
-		log.Info("overriding API key from env DD_API_KEY value")
-		config.Datadog.Set("api_key", strings.TrimSpace(strings.Split(ddkey, ",")[0]))
-	} else if key != "" {
-		log.Info("overriding API key from env API_KEY value")
-		config.Datadog.Set("api_key", strings.TrimSpace(strings.Split(key, ",")[0]))
+	apiKey, envKey := os.Getenv("DD_API_KEY"), "DD_API_KEY"
+	if apiKey == "" {
+		apiKey, envKey = os.Getenv("API_KEY"), "API_KEY"
+	}
+
+	if apiKey != "" { // We don't want to overwrite the API KEY provided as an environment variable
+		log.Infof("overriding API key from env %s value", envKey)
+		config.Datadog.Set("api_key", strings.TrimSpace(strings.Split(apiKey, ",")[0]))
 	}
 
 	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" {
