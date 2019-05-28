@@ -100,12 +100,7 @@ func main() {
 		log.Infof("running on platform: %s", platform)
 	}
 
-	mountFile, err := os.Open("/proc/mounts")
-	if err != nil {
-		log.Criticalf("failed to find mount info: %s", err)
-	}
-
-	mounted := util.IsDebugfsMounted(mountFile)
+	mounted := util.IsDebugfsMounted()
 	if !mounted {
 		log.Info("debugfs is not mounted, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs")
 		gracefulExit()

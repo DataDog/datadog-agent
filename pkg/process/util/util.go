@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -113,17 +112,12 @@ func GetPlatform() (string, error) {
 	return "", fmt.Errorf("error retrieving platform, with python: %s, with lsb_release: %s", pyErr, lsbErr)
 }
 
-func IsDebugfsMounted(file io.Reader) bool {
-	mounted := false
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		// the space here is to exclude "/sys/kernel/debug/tracing"
-		if strings.Contains(scanner.Text(), "/sys/kernel/debug ") {
-			mounted = true
-			break
-		}
+// IsDebugfsMounted would test the existence of file /sys/kernel/debug/tracing/kprobe_events to determine if debugfs is mounted or not
+func IsDebugfsMounted() bool {
+	if _, err := os.Stat("/sys/kernel/debug/tracing/kprobe_events"); err == nil {
+		return true
 	}
-	return mounted
+	return false
 }
 
 func execCmd(head string, args ...string) (string, error) {
