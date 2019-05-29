@@ -261,7 +261,8 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 				// XXX: For now we assume that the closed connection is the more recent one but this is not guaranteed
 				// To fix this we should have a way to uniquely identify a connection
 				// (using the startTimestamp or a monotonic counter)
-				ns.telemetry.unorderedConns++
+				ns.telemetry.simultaneousConns++
+				log.Debugf("Simulatenous connections: closed:%+v, active:%+v", closedConn, *activeConn)
 				ns.updateConnWithStats(client, key, &closedConn)
 			}
 		} else {
