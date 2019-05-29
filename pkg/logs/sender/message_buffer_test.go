@@ -45,19 +45,21 @@ func TestMessageBufferBatchCount(t *testing.T) {
 	assert.True(t, success)
 }
 
-func TestMessageBufferBuild(t *testing.T) {
+func TestMessageBufferPayload(t *testing.T) {
 	mb := NewMessageBuffer(2, 1000)
 	source := config.NewLogSource("", &config.LogsConfig{})
-	buffer := string(mb.Build())
+	buffer := string(mb.GetPayload())
 	assert.Equal(t, "[", buffer)
 	mb.Clear()
 	mb.TryAddMessage(newMessage([]byte("messagebuffer"), source, ""))
-	buffer = string(mb.Build())
+	buffer = string(mb.GetPayload())
 	assert.Equal(t, "[messagebuffer]", buffer)
 	mb.Clear()
 	mb.TryAddMessage(newMessage([]byte("messagebuffer"), source, ""))
 	mb.TryAddMessage(newMessage([]byte("messagebuffer"), source, ""))
-	buffer = string(mb.Build())
+	buffer = string(mb.GetPayload())
+	assert.Equal(t, "[messagebuffer,messagebuffer]", buffer)
+	buffer = string(mb.GetPayload())
 	assert.Equal(t, "[messagebuffer,messagebuffer]", buffer)
 }
 

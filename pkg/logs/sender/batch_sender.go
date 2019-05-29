@@ -100,8 +100,7 @@ func (b *BatchSender) sendBuffer() {
 		return
 	}
 
-	batchedContent := b.messageBuffer.Build()
-	//log.Info("MAOMAO " + string(batchedContent[12:20]))
+	batchedContent := b.messageBuffer.GetPayload()
 
 	for {
 		// this call is blocking until payload is sent (or the connection destination context cancelled)
@@ -129,7 +128,7 @@ func (b *BatchSender) sendBuffer() {
 		metrics.LogsSent.Add(1)
 		break
 	}
-	for _, m := range b.messageBuffer.messageBuffer {
+	for _, m := range b.messageBuffer.GetMessages() {
 		b.outputChan <- m
 	}
 	b.messageBuffer.Clear()
