@@ -7,9 +7,6 @@
 #include <Python.h>
 #include <six_types.h>
 
-#define STR(x)  #x
-#define STRINGIFY(x)  STR(x)
-
 #define _DOT "."
 #define _UTIL_MODULE_NAME "_util"
 #define _SUBPROCESS_OUTPUT_ERROR_NAME "SubprocessOutputEmptyError"
