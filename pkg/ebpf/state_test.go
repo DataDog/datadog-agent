@@ -541,9 +541,11 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Store the connection as closed
 		conn.MonotonicSentBytes++
+		conn.LastUpdateEpoch = latestEpochTime()
 		state.StoreClosedConnection(conn)
 
 		conn.MonotonicSentBytes = 1
+		conn.LastUpdateEpoch = latestEpochTime()
 		// Retrieve the connections
 		conns = state.Connections(client, latestEpochTime(), []ConnectionStats{conn})
 		require.Len(t, conns, 1)
@@ -551,6 +553,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.EqualValues(t, 3, conns[0].MonotonicSentBytes)
 
 		conn.MonotonicSentBytes++
+		conn.LastUpdateEpoch = latestEpochTime()
 		// Store the connection as closed
 		state.StoreClosedConnection(conn)
 
@@ -1044,6 +1047,54 @@ func TestDoubleCloseOnTwoClients(t *testing.T) {
 	conns = state.Connections(client2, latestEpochTime(), nil)
 	require.Len(t, conns, 1)
 	assert.Equal(t, expectedConn, conns[0])
+}
+
+func TestUnorderedCloseEvent(t *testing.T) {
+	conn := ConnectionStats{
+		Pid:                123,
+		Type:               TCP,
+		Family:             AFINET,
+		Source:             util.AddressFromString("127.0.0.1"),
+		Dest:               util.AddressFromString("127.0.0.1"),
+		MonotonicSentBytes: 3,
+	}
+
+	client := "client"
+	state := NewDefaultNetworkState()
+
+	// Register the client
+	assert.Len(t, state.Connections(client, latestEpochTime(), nil), 0)
+
+	// Simulate storing a closed connection while we were reading from the eBPF map
+	// in this case the closed conn will have an earlier epoch
+	conn.LastUpdateEpoch = latestEpochTime() + 1
+	conn.MonotonicSentBytes++
+	conn.MonotonicRecvBytes = 1
+	state.StoreClosedConnection(conn)
+
+	conn.LastUpdateEpoch--
+	conn.MonotonicSentBytes--
+	conn.MonotonicRecvBytes = 0
+	conns := state.Connections(client, latestEpochTime(), []ConnectionStats{conn})
+	require.Len(t, conns, 1)
+	assert.EqualValues(t, 4, conns[0].LastSentBytes)
+	assert.EqualValues(t, 1, conns[0].LastRecvBytes)
+
+	// Simulate some other gets
+	assert.Len(t, state.Connections(client, latestEpochTime(), nil), 0)
+	assert.Len(t, state.Connections(client, latestEpochTime(), nil), 0)
+	assert.Len(t, state.Connections(client, latestEpochTime(), nil), 0)
+
+	// Simulate having the connection getting active again
+	conn.LastUpdateEpoch = latestEpochTime()
+	conn.MonotonicSentBytes--
+	state.StoreClosedConnection(conn)
+
+	conns = state.Connections(client, latestEpochTime(), nil)
+
+	// Ensure we don't have underflows / unordered conns
+	assert.Zero(t, state.(*networkState).telemetry.statsResets)
+	assert.Zero(t, state.(*networkState).telemetry.unorderedConns)
 }
 
 func generateRandConnections(n int) []ConnectionStats {

@@ -231,7 +231,10 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 
 	// Closed connections
 	for key, closedConn := range client.closedConnections {
-		if activeConn, ok := active[key]; ok { // This closed connection has become active again
+		activeConn, ok := active[key]
+		// Consider that the connection has become active again only if it has a more recent epoch than the closed one
+		isActive := ok && closedConn.LastUpdateEpoch < activeConn.LastUpdateEpoch
+		if isActive {
 			closedConn.MonotonicSentBytes += activeConn.MonotonicSentBytes
 			closedConn.MonotonicRecvBytes += activeConn.MonotonicRecvBytes
 			closedConn.MonotonicRetransmits += activeConn.MonotonicRetransmits
