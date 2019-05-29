@@ -48,6 +48,7 @@ type telemetry struct {
 	closedConnDropped int64
 	connDropped       int64
 	statsResets       int64
+	simultaneousConns int64
 }
 
 type stats struct {
@@ -233,16 +234,36 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 
 	// Closed connections
 	for key, closedConn := range client.closedConnections {
-		activeConn, ok := active[key]
-		// Consider that the connection has become active again only if it has a more recent epoch than the closed one
-		isActive := ok && closedConn.LastUpdateEpoch < activeConn.LastUpdateEpoch
-		if isActive {
-			closedConn.MonotonicSentBytes += activeConn.MonotonicSentBytes
-			closedConn.MonotonicRecvBytes += activeConn.MonotonicRecvBytes
-			closedConn.MonotonicRetransmits += activeConn.MonotonicRetransmits
+		// If the connection is also active, check the epochs to understand what's going on
+		if activeConn, ok := active[key]; ok {
+			// If closed conn is newer it means that the active connection is outdated, let's ignore it
+			if closedConn.LastUpdateEpoch > activeConn.LastUpdateEpoch {
+				ns.updateConnWithStats(client, key, &closedConn)
+			} else if closedConn.LastUpdateEpoch < activeConn.LastUpdateEpoch {
+				// Else if the active conn is newer, it likely means that it became active again
+				// in this case we aggregate the two
+				closedConn.MonotonicSentBytes += activeConn.MonotonicSentBytes
+				closedConn.MonotonicRecvBytes += activeConn.MonotonicRecvBytes
+				closedConn.MonotonicRetransmits += activeConn.MonotonicRetransmits
 
-			ns.createStatsForKey(client, key)
-			ns.updateConnWithStatWithActiveConn(client, key, *activeConn, &closedConn)
+				ns.createStatsForKey(client, key)
+				ns.updateConnWithStatWithActiveConn(client, key, *activeConn, &closedConn)
+
+				// We also update the counters to reflect only the active connection
+				// The monotonic counters will be the sum of all connections that cross our interval start + finish.
+				if stats, ok := client.stats[key]; ok {
+					stats.totalRetransmits = activeConn.MonotonicRetransmits
+					stats.totalSent = activeConn.MonotonicSentBytes
+					stats.totalRecv = activeConn.MonotonicRecvBytes
+				}
+			} else {
+				// Else the closed connection and the active connection have the same epoch
+				// XXX: For now we assume that the closed connection is the more recent one but this is not guaranteed
+				// To fix this we should have a way to uniquely identify a connection
+				// (using the startTimestamp or a monotonic counter)
+				ns.telemetry.unorderedConns++
+				ns.updateConnWithStats(client, key, &closedConn)
+			}
 		} else {
 			ns.updateConnWithStats(client, key, &closedConn)
 		}
@@ -252,22 +273,9 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 
 	// Active connections
 	for key, c := range active {
-		if closed, ok := client.closedConnections[key]; ok {
-			// If this connection was closed while we were collecting active connections it means the active
-			// connection is no more up-to date and we already went through the closed connection so let's
-			// skip it and not update the stats counters
-			if closed.LastUpdateEpoch >= c.LastUpdateEpoch {
-				continue
-			}
-
-			// If this connection was both closed and reopened, update the counters to reflect only the active connection.
-			// The monotonic counters will be the sum of all connections that cross our interval start + finish.
-			if stats, ok := client.stats[key]; ok {
-				stats.totalRetransmits = c.MonotonicRetransmits
-				stats.totalSent = c.MonotonicSentBytes
-				stats.totalRecv = c.MonotonicRecvBytes
-			}
-			continue // We processed this connection during the closed connection pass, so lets not do it again.
+		// If the connection was closed, it has already been processed so skip it
+		if _, ok := client.closedConnections[key]; ok {
+			continue
 		}
 
 		ns.createStatsForKey(client, key)
@@ -372,12 +380,13 @@ func (ns *networkState) RemoveConnections(keys []string) {
 	}
 
 	// Flush log line if any metric is non zero
-	if ns.telemetry.unorderedConns > 0 || ns.telemetry.statsResets > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 {
-		log.Warnf("state telemetry: [%d unordered conns] [%d stats stats_resets] [%d connections dropped due to stats] [%d closed connections dropped]",
+	if ns.telemetry.unorderedConns > 0 || ns.telemetry.statsResets > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 || ns.telemetry.simultaneousConns > 0 {
+		log.Warnf("state telemetry: [%d unordered conns] [%d stats stats_resets] [%d connections dropped due to stats] [%d closed connections dropped] [%d simultaneous connections]",
 			ns.telemetry.unorderedConns,
 			ns.telemetry.statsResets,
 			ns.telemetry.closedConnDropped,
-			ns.telemetry.connDropped)
+			ns.telemetry.connDropped,
+			ns.telemetry.simultaneousConns)
 	}
 
 	ns.telemetry = telemetry{}
@@ -404,6 +413,7 @@ func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipp
 			"unordered_conns":              ns.telemetry.unorderedConns,
 			"closed_conn_dropped":          ns.telemetry.closedConnDropped,
 			"conn_dropped":                 ns.telemetry.connDropped,
+			"simultaneous_conns":           ns.telemetry.simultaneousConns,
 			"closed_conn_polling_lost":     closedPollLost,
 			"closed_conn_polling_received": closedPollReceived,
 			"ok_conns_skipped":             tracerSkipped, // Skipped connections (e.g. Local DNS requests)
