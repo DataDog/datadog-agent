@@ -420,7 +420,7 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 	if current, allowed := float64(wi.Mem.Alloc), r.conf.MaxMemory*1.5; current > allowed {
 		// This is a safety mechanism: if the agent is using more than 1.5x max. memory, there
 		// is likely a leak somewhere; we'll kill the process to avoid polluting host memory.
-		metrics.Count("datadog.trace_agent.receiver.suicide", 1, nil, 1)
+		metrics.Count("datadog.trace_agent.receiver.oom_kill", 1, nil, 1)
 		metrics.Flush()
 		log.Criticalf("Killing process. Memory threshold exceeded: %.2fM / %.2fM", current/1024/1024, allowed/1024/1024)
 		killProcess("OOM")
