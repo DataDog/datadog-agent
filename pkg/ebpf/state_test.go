@@ -1091,10 +1091,15 @@ func TestUnorderedCloseEvent(t *testing.T) {
 	state.StoreClosedConnection(conn)
 
 	conns = state.Connections(client, latestEpochTime(), nil)
+	require.Len(t, conns, 1)
+	assert.EqualValues(t, 2, conns[0].LastSentBytes)
+	assert.EqualValues(t, 0, conns[0].LastRecvBytes)
 
 	// Ensure we don't have underflows / unordered conns
 	assert.Zero(t, state.(*networkState).telemetry.statsResets)
 	assert.Zero(t, state.(*networkState).telemetry.unorderedConns)
+
+	assert.Len(t, state.Connections(client, latestEpochTime(), nil), 0)
 }
 
 func generateRandConnections(n int) []ConnectionStats {
