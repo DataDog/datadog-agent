@@ -111,13 +111,6 @@ func main() {
 	}
 	defer sysprobe.Close()
 
-	// make sure debugfs is mounted
-	mounted := util.IsDebugfsMounted()
-	if !mounted {
-		log.Info("debugfs is not mounted and is needed for eBPF-based checks, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs")
-		gracefulExit()
-	}
-
 	log.Infof("running system-probe with version: %s", versionString(", "))
 	go sysprobe.Run()
 	log.Infof("system probe started")
