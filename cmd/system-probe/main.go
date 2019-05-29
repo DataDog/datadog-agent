@@ -100,12 +100,6 @@ func main() {
 		log.Infof("running on platform: %s", platform)
 	}
 
-	mounted := util.IsDebugfsMounted()
-	if !mounted {
-		log.Info("debugfs is not mounted and is needed for eBPF-based checks, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs")
-		gracefulExit()
-	}
-
 	sysprobe, err := CreateSystemProbe(cfg)
 	if err != nil && strings.HasPrefix(err.Error(), ErrTracerUnsupported.Error()) {
 		// If tracer is unsupported by this operating system, then exit gracefully
@@ -116,6 +110,13 @@ func main() {
 		os.Exit(1)
 	}
 	defer sysprobe.Close()
+
+	// make sure debugfs is mounted
+	mounted := util.IsDebugfsMounted()
+	if !mounted {
+		log.Info("debugfs is not mounted and is needed for eBPF-based checks, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs")
+		gracefulExit()
+	}
 
 	log.Infof("running system-probe with version: %s", versionString(", "))
 	go sysprobe.Run()
