@@ -9,6 +9,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -101,35 +103,41 @@ func (b *BatchSender) sendBuffer() {
 	}
 
 	batchedContent := b.messageBuffer.GetPayload()
+	defer b.messageBuffer.Clear()
 
 	for {
 		// this call is blocking until payload is sent (or the connection destination context cancelled)
 		err := b.destinations.Main.Send(batchedContent)
 		if err != nil {
+			metrics.DestinationErrors.Add(1)
 			if err == context.Canceled {
-				metrics.DestinationErrors.Add(1)
 				// the context was cancelled, agent is stopping non-gracefully.
-				// drop the message, Do NOT send the outputChan, clear messageBuffer
-				b.messageBuffer.Clear()
+				// drop the message
 				return
 			}
+
 			switch err.(type) {
-			default:
-				metrics.DestinationErrors.Add(1)
-				// retry as the error can be related to network issues
+			case *client.RetryableError:
+				// could not send the payload because of a transport issue,
+				// let's retry.
 				continue
 			}
+
+			log.Warnf("Could not send payload, dropping it: %v", err)
+			break
 		}
+
 		for _, destination := range b.destinations.Additionals {
-			// TODO this does nothing right now
+			// send to a queue then send asynchronously for additional endpoints,
+			// it will drop messages if the queue is full
 			destination.SendAsync(batchedContent)
 		}
 
 		metrics.LogsSent.Add(1)
 		break
 	}
+
 	for _, m := range b.messageBuffer.GetMessages() {
 		b.outputChan <- m
 	}
-	b.messageBuffer.Clear()
 }

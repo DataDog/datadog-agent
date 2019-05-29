@@ -8,6 +8,8 @@ package sender
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -61,24 +63,24 @@ func (s *StreamSender) send(payload *message.Message) {
 		// this call is blocking until payload is sent (or the connection destination context cancelled)
 		err := s.destinations.Main.Send(payload.Content)
 		if err != nil {
+			metrics.DestinationErrors.Add(1)
 			if err == context.Canceled {
-				metrics.DestinationErrors.Add(1)
 				// the context was cancelled, agent is stopping non-gracefully.
 				// drop the message
-				break
+				return
 			}
+
 			switch err.(type) {
-			case *client.FramingError:
-				metrics.DestinationErrors.Add(1)
-				// the message can not be framed properly,
-				// drop the message
-				break
-			default:
-				metrics.DestinationErrors.Add(1)
-				// retry as the error can be related to network issues
+			case *client.RetryableError:
+				// could not send the payload because of a transport issue,
+				// let's retry.
 				continue
 			}
+
+			log.Warnf("Could not send payload, dropping it: %v", err)
+			break
 		}
+
 		for _, destination := range s.destinations.Additionals {
 			// send to a queue then send asynchronously for additional endpoints,
 			// it will drop messages if the queue is full

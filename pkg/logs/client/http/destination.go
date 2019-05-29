@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -11,10 +12,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const contentType = "application/json"
+
+// HTTP errors
+var (
+	errClient = errors.New("client error")
+	errServer = errors.New("server error")
+)
 
 // Destination sends a payload over HTTP.
 type Destination struct {
@@ -29,19 +35,22 @@ func NewDestination(endpoint config.Endpoint, destinationsContext *client.Destin
 	return &Destination{
 		url: builURL(endpoint),
 		client: &http.Client{
-			Timeout:   time.Second * 10,
+			Timeout: time.Second * 10,
+			// reusing core agent HTTP transport to benefit from proxy settings.
 			Transport: util.CreateHTTPTransport(),
 		},
 		destinationsContext: destinationsContext,
 	}
 }
 
-// Send sends a payload over HTTP.
+// Send sends a payload over HTTP,
+// the error returned can be retryable and it is the responsibility of the callee to retry.
 func (d *Destination) Send(payload []byte) error {
-
 	ctx := d.destinationsContext.Context()
 	req, err := http.NewRequest("POST", d.url, strings.NewReader(string(payload)))
 	if err != nil {
+		// the request could not be built,
+		// this can happen when the method or the url are valid.
 		return err
 	}
 	req.Header.Set("Content-Type", contentType)
@@ -52,21 +61,26 @@ func (d *Destination) Send(payload []byte) error {
 		if ctx.Err() == context.Canceled {
 			return ctx.Err()
 		}
-		return err
+		// most likely a network or a connect error, the callee should retry.
+		return client.NewRetryableError(err)
 	}
 
 	defer resp.Body.Close()
 	_, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
+		// the read failed because the server closed or terminated the connection
+		// *after* serving the request.
 		return err
 	}
 
 	if resp.StatusCode >= 500 {
-		log.Debug("Internal server error")
-		return fmt.Errorf("internal server error")
+		// the server could not serve the request,
+		// most likely because of an internal error
+		return client.NewRetryableError(errServer)
 	} else if resp.StatusCode >= 400 {
-		log.Debug("Bad request")
-		return fmt.Errorf("bad request")
+		// the logs-agent is likely to be misconfigured,
+		// the URL or the API key may be wrong.
+		return errClient
 	} else {
 		return nil
 	}

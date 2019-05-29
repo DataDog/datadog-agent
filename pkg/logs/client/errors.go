@@ -5,20 +5,19 @@
 
 package client
 
-// FramingError represents a kind of error that can occur when a log can not properly
-// be transformed into a frame.
-type FramingError struct {
+// RetryableError represents an error that can occur when sending a payload.
+type RetryableError struct {
 	err error
 }
 
-// NewFramingError returns a new framing error.
-func NewFramingError(err error) *FramingError {
-	return &FramingError{
+// NewRetryableError returns a new destination error.
+func NewRetryableError(err error) *RetryableError {
+	return &RetryableError{
 		err: err,
 	}
 }
 
-// Error returns the message of the error.
-func (e *FramingError) Error() string {
+// RetryableError returns the message of the error.
+func (e *RetryableError) Error() string {
 	return e.err.Error()
 }
