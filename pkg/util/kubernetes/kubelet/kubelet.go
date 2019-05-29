@@ -273,13 +273,23 @@ func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) 
 		return nil, fmt.Errorf("containerID is empty")
 	}
 	for _, pod := range podList {
-		for _, container := range pod.Status.Containers {
+		for _, container := range pod.Status.GetAllContainers() {
 			if container.ID == containerID {
 				return pod, nil
 			}
 		}
 	}
 	return nil, errors.NewNotFound(fmt.Sprintf("container %s in PodList", containerID))
+}
+
+// GetStatusForContainerID returns the container status from the pod given an ID
+func (ku *KubeUtil) GetStatusForContainerID(pod *Pod, containerID string) (ContainerStatus, error) {
+	for _, container := range pod.Status.GetAllContainers() {
+		if containerID == container.ID {
+			return container, nil
+		}
+	}
+	return ContainerStatus{}, fmt.Errorf("Container %v not found", containerID)
 }
 
 func (ku *KubeUtil) GetPodFromUID(podUID string) (*Pod, error) {

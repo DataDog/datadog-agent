@@ -68,6 +68,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 
 	// A new container ID in an existing pod should trigger
 	remainingPods[0].Status.Containers[0].ID = "testNewID"
+	// we're modifying the container list here, we need to reset the lazy all containers list
+	remainingPods[0].Status.AllContainers = []ContainerStatus{}
 	changes, err = watcher.computeChanges(remainingPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
@@ -92,9 +94,14 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 
 	changes, err := watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 5, fmt.Sprintf("%d", len(changes)))
+	require.Len(suite.T(), changes, 6, fmt.Sprintf("%d", len(changes)))
 	for _, po := range changes {
-		require.True(suite.T(), IsPodReady(po))
+		// nginx pod is not ready but still detected by the podwatcher
+		if po.Metadata.Name == "nginx-99d8b564-4r4vq" {
+			require.False(suite.T(), IsPodReady(po))
+		} else {
+			require.True(suite.T(), IsPodReady(po))
+		}
 	}
 
 	// Same list should detect no change
@@ -113,6 +120,62 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 	require.Len(suite.T(), changes, 2)
 	assert.Equal(suite.T(), "nginx", changes[0].Spec.Containers[0].Name)
 	require.True(suite.T(), IsPodReady(changes[0]))
+}
+
+func (suite *PodwatcherTestSuite) TestPodWatcherWithInitContainers() {
+	sourcePods, err := loadPodsFixture("./testdata/podlist_init_container_running.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 5)
+
+	watcher := &PodWatcher{
+		lastSeen:       make(map[string]time.Time),
+		tagsDigest:     make(map[string]string),
+		expiryDuration: 5 * time.Minute,
+	}
+
+	changes, err := watcher.computeChanges(sourcePods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 5, fmt.Sprintf("%d", len(changes)))
+
+	// Init container finishes
+	sourcePods, err = loadPodsFixture("./testdata/podlist_init_container_terminated.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 5)
+
+	// Should detect the change with the main container being started
+	changes, err = watcher.computeChanges(sourcePods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 1)
+	assert.Equal(suite.T(), "myapp-container", changes[0].Spec.Containers[0].Name)
+	require.True(suite.T(), IsPodReady(changes[0]))
+}
+
+func (suite *PodwatcherTestSuite) TestPodWatcherWithShortLivedContainers() {
+	sourcePods, err := loadPodsFixture("./testdata/podlist_short_lived_absent.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 4)
+
+	watcher := &PodWatcher{
+		lastSeen:       make(map[string]time.Time),
+		tagsDigest:     make(map[string]string),
+		expiryDuration: 5 * time.Minute,
+	}
+
+	changes, err := watcher.computeChanges(sourcePods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 4, fmt.Sprintf("%d", len(changes)))
+
+	// Short lived pod started and is already terminated
+	sourcePods, err = loadPodsFixture("./testdata/podlist_short_lived_terminated.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 5)
+
+	// Should detect the change of the terminated short lived pod
+	changes, err = watcher.computeChanges(sourcePods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 1)
+	assert.Equal(suite.T(), "short-lived-container", changes[0].Spec.Containers[0].Name)
+	require.False(suite.T(), IsPodReady(changes[0]))
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {

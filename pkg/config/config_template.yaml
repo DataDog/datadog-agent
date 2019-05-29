@@ -1186,6 +1186,12 @@ api_key:
 #
 # kubernetes_pod_expiration_duration: 900
 
+## @param kubelet_listener_polling_interval - integer - optional - default: 5
+## Polling frequency in seconds at which autodiscovery will query the pod watcher to detect new pods/containers.
+## Note that kubelet_cache_pods_duration needs to be lower than this setting, or autodiscovery will only poll more frequently the same cached data (kubelet_cache_pods_duration controls the cache refresh frequency).
+#
+# kubelet_listener_polling_interval: 5
+
 {{ end -}}
 {{- if .KubeApiServer }}
 

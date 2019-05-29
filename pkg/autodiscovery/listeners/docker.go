@@ -558,3 +558,8 @@ func findKubernetesInLabels(labels map[string]string) bool {
 	}
 	return false
 }
+
+// IsReady returns if the service is ready
+func (s *DockerService) IsReady() bool {
+	return true
+}

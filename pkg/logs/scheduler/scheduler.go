@@ -44,7 +44,7 @@ func (s *Scheduler) Stop() {}
 // An entity represents a unique identifier for a process that be reused to query logs.
 func (s *Scheduler) Schedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !s.isLogConfig(config) {
+		if !config.IsLogConfig() {
 			continue
 		}
 		switch {
@@ -76,7 +76,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 // Unschedule removes all the sources and services matching the integration configs.
 func (s *Scheduler) Unschedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !s.isLogConfig(config) {
+		if !config.IsLogConfig() {
 			continue
 		}
 		switch {
@@ -108,11 +108,6 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			continue
 		}
 	}
-}
-
-// isLogConfig returns true if config contains a logs config.
-func (s *Scheduler) isLogConfig(config integration.Config) bool {
-	return config.LogsConfig != nil
 }
 
 // newSources returns true if the config can be mapped to sources.

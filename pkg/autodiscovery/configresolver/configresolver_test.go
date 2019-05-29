@@ -70,6 +70,11 @@ func (s *dummyService) GetCreationTime() integration.CreationTime {
 	return s.CreationTime
 }
 
+// IsReady returns if the service is ready
+func (s *dummyService) IsReady() bool {
+	return true
+}
+
 func TestGetFallbackHost(t *testing.T) {
 	ip, err := getFallbackHost(map[string]string{"bridge": "172.17.0.1"})
 	assert.Equal(t, "172.17.0.1", ip)

@@ -63,11 +63,6 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 	w.Lock()
 	defer w.Unlock()
 	for _, pod := range podList {
-		// Only process ready pods
-		if IsPodReady(pod) == false {
-			continue
-		}
-
 		podEntity := PodUIDToEntityName(pod.Metadata.UID)
 		newStaticPod := false
 		_, foundPod := w.lastSeen[podEntity]
@@ -87,11 +82,15 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 
 		// Detect new containers
 		newContainer := false
-		for _, container := range pod.Status.Containers {
-			if _, foundContainer := w.lastSeen[container.ID]; foundContainer == false {
-				newContainer = true
+		for _, container := range pod.Status.GetAllContainers() {
+			// We don't check container readiness as init containers are never ready
+			// We check if the container has an ID instead (has run or is running)
+			if !container.IsPending() {
+				if _, found := w.lastSeen[container.ID]; found == false {
+					newContainer = true
+				}
+				w.lastSeen[container.ID] = now
 			}
-			w.lastSeen[container.ID] = now
 		}
 
 		// Detect changes in labels and annotations values

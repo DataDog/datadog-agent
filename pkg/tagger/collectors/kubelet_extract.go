@@ -117,7 +117,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		}
 
 		// container tags
-		for _, container := range pod.Status.Containers {
+		for _, container := range pod.Status.GetAllContainers() {
 			cTags := tags.Copy()
 			cTags.AddLow("kube_container_name", container.Name)
 			cTags.AddHigh("container_id", kubelet.TrimRuntimeFromCID(container.ID))

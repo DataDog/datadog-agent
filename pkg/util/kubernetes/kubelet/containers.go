@@ -32,7 +32,7 @@ func (ku *KubeUtil) ListContainers() ([]*containers.Container, error) {
 	var ctrList []*containers.Container
 
 	for _, pod := range pods {
-		for _, c := range pod.Status.Containers {
+		for _, c := range pod.Status.GetAllContainers() {
 			if ku.filter.IsExcluded(c.Name, c.Image) {
 				continue
 			}

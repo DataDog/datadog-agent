@@ -69,11 +69,23 @@ type ContainerProbe struct {
 
 // Status contains fields for unmarshalling a Pod.Status
 type Status struct {
-	Phase      string            `json:"phase,omitempty"`
-	HostIP     string            `json:"hostIP,omitempty"`
-	PodIP      string            `json:"podIP,omitempty"`
-	Containers []ContainerStatus `json:"containerStatuses,omitempty"`
-	Conditions []Conditions      `json:"conditions,omitempty"`
+	Phase          string            `json:"phase,omitempty"`
+	HostIP         string            `json:"hostIP,omitempty"`
+	PodIP          string            `json:"podIP,omitempty"`
+	Containers     []ContainerStatus `json:"containerStatuses,omitempty"`
+	InitContainers []ContainerStatus `json:"initContainerStatuses,omitempty"`
+	AllContainers  []ContainerStatus
+	Conditions     []Conditions `json:"conditions,omitempty"`
+}
+
+// GetAllContainers returns the list of init and regular containers
+// the list is created lazily assuming container statuses are not modified
+func (s *Status) GetAllContainers() []ContainerStatus {
+	if len(s.AllContainers) > 0 {
+		return s.AllContainers
+	}
+	s.AllContainers = append(s.InitContainers, s.Containers...)
+	return s.AllContainers
 }
 
 // Conditions contains fields for unmarshalling a Pod.Status.Conditions
@@ -89,6 +101,11 @@ type ContainerStatus struct {
 	ID    string         `json:"containerID"`
 	Ready bool           `json:"ready"`
 	State ContainerState `json:"state"`
+}
+
+// IsPending returns if the container doesn't have an ID
+func (c *ContainerStatus) IsPending() bool {
+	return c.ID == ""
 }
 
 // ContainerState holds a possible state of container.

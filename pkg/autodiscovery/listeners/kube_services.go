@@ -274,6 +274,11 @@ func (s *KubeServiceService) GetCreationTime() integration.CreationTime {
 	return s.creationTime
 }
 
+// IsReady returns if the service is ready
+func (s *KubeServiceService) IsReady() bool {
+	return true
+}
+
 func isServiceAnnotated(ksvc *v1.Service) bool {
 	_, found := ksvc.Annotations[kubeServiceAnnotationFormat]
 	return found

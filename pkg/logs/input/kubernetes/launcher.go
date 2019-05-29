@@ -120,7 +120,7 @@ func (l *Launcher) addSource(svc *service.Service) {
 		log.Warnf("Could not add source for container %v: %v", svc.Identifier, err)
 		return
 	}
-	container, err := searchContainer(svc, pod)
+	container, err := l.kubeutil.GetStatusForContainerID(pod, svc.GetEntityID())
 	if err != nil {
 		log.Warn(err)
 		return
@@ -144,15 +144,6 @@ func (l *Launcher) addSource(svc *service.Service) {
 
 	l.sourcesByContainer[svc.GetEntityID()] = source
 	l.sources.AddSource(source)
-}
-
-func searchContainer(service *service.Service, pod *kubelet.Pod) (kubelet.ContainerStatus, error) {
-	for _, container := range pod.Status.Containers {
-		if service.GetEntityID() == container.ID {
-			return container, nil
-		}
-	}
-	return kubelet.ContainerStatus{}, fmt.Errorf("Container %v not found", service.GetEntityID())
 }
 
 // removeSource removes a new log-source from a service

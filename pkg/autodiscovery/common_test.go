@@ -59,3 +59,8 @@ func (s *dummyService) GetHostname() (string, error) {
 func (s *dummyService) GetCreationTime() integration.CreationTime {
 	return s.CreationTime
 }
+
+// IsReady returns if the service is ready
+func (s *dummyService) IsReady() bool {
+	return true
+}
