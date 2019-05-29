@@ -18,23 +18,16 @@ const contentType = "application/json"
 
 // Destination sends a payload over HTTP.
 type Destination struct {
-	endpoint            config.Endpoint
 	url                 string
 	client              *http.Client
 	destinationsContext *client.DestinationsContext
 }
 
 // NewDestination returns a new Destination.
+// TODO: add support for SOCKS5
 func NewDestination(endpoint config.Endpoint, destinationsContext *client.DestinationsContext) *Destination {
-	var scheme string
-	if endpoint.UseSSL {
-		scheme = "https"
-	} else {
-		scheme = "http"
-	}
 	return &Destination{
-		endpoint: endpoint,
-		url:      fmt.Sprintf("%v://%v/v1/input/%v", scheme, endpoint.Host, endpoint.APIKey),
+		url: builURL(endpoint),
 		client: &http.Client{
 			Timeout:   time.Second * 10,
 			Transport: util.CreateHTTPTransport(),
@@ -83,4 +76,21 @@ func (d *Destination) Send(payload []byte) error {
 // SendAsync is not implemented for HTTP.
 func (d *Destination) SendAsync(payload []byte) {
 	return
+}
+
+// builURL buils a url from a config endpoint.
+func builURL(endpoint config.Endpoint) string {
+	var scheme string
+	if endpoint.UseSSL {
+		scheme = "https"
+	} else {
+		scheme = "http"
+	}
+	var address string
+	if endpoint.Port != 0 {
+		address = fmt.Sprintf("%v:%v", endpoint.Host, endpoint.Port)
+	} else {
+		address = endpoint.Host
+	}
+	return fmt.Sprintf("%v://%v/v1/input/%v", scheme, address, endpoint.APIKey)
 }
