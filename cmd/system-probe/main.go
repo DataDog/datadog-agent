@@ -102,7 +102,7 @@ func main() {
 
 	mounted := util.IsDebugfsMounted()
 	if !mounted {
-		log.Info("debugfs is not mounted, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs")
+		log.Info("debugfs is not mounted and is needed for eBPF-based checks, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs")
 		gracefulExit()
 	}
 
