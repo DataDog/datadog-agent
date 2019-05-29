@@ -93,13 +93,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	platform, err := util.GetPlatform()
-	if err != nil {
-		log.Debugf("error retrieving platform: %s", err)
-	} else {
-		log.Infof("running on platform: %s", platform)
-	}
-
 	sysprobe, err := CreateSystemProbe(cfg)
 	if err != nil && strings.HasPrefix(err.Error(), ErrTracerUnsupported.Error()) {
 		// If tracer is unsupported by this operating system, then exit gracefully
@@ -110,6 +103,13 @@ func main() {
 		os.Exit(1)
 	}
 	defer sysprobe.Close()
+
+	platform, err := util.GetPlatform()
+	if err != nil {
+		log.Debugf("error retrieving platform: %s", err)
+	} else {
+		log.Infof("running on platform: %s", platform)
+	}
 
 	log.Infof("running system-probe with version: %s", versionString(", "))
 	go sysprobe.Run()
