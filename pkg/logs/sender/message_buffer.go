@@ -9,8 +9,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// MessageBuffer accumulates lines in buffer escaping all '\n'
-// and accumulates the total number of bytes of all lines in line representation (line + '\n') in rawDataLen
+// BatchPayloadBuilder defines generic interface for message buffer
+type BatchPayloadBuilder interface {
+	TryAddMessage(msg message.Message) bool
+	Build() []byte
+	Clear()
+	GetMessages() []message.Message
+	IsEmpty() bool
+	IsFull() bool
+}
+
+// MessageBuffer accumulates messages and the bytes for batch sending
 type MessageBuffer struct {
 	messageBuffer []*message.Message
 	byteBuffer    []byte
@@ -24,7 +33,8 @@ func NewMessageBuffer(maxBatchCount, maxRequestSize int) *MessageBuffer {
 	}
 }
 
-func (mb *MessageBuffer) tryAppendToBuffer(m *message.Message) bool {
+// TryAddMessage adds a new message to the MessageBuffer
+func (mb *MessageBuffer) TryAddMessage(m *message.Message) bool {
 	if (len(mb.messageBuffer) < cap(mb.messageBuffer)) && mb.hasSpaceInByteBuffer(m.Content) {
 		// fits. append the message
 		mb.messageBuffer = append(mb.messageBuffer, m)
@@ -32,21 +42,39 @@ func (mb *MessageBuffer) tryAppendToBuffer(m *message.Message) bool {
 		return true
 	}
 
-	// doesn't fit, which can only be caused by not enough space in byteBiffer
+	// doesn't fit, which can only be caused by not enough space in byteBuffer
 	return false
 }
 
-func (mb *MessageBuffer) isEmpty() bool {
+// IsEmpty checks if MessageBuffer is empty
+func (mb *MessageBuffer) IsEmpty() bool {
 	return len(mb.messageBuffer) == 0
 }
 
-func (mb *MessageBuffer) isFull() bool {
+// IsFull checks if MessageBuffer is full
+func (mb *MessageBuffer) IsFull() bool {
 	return len(mb.messageBuffer) == cap(mb.messageBuffer)
 }
 
-func (mb *MessageBuffer) clear() {
+// Clear clears the MessageBuffer
+func (mb *MessageBuffer) Clear() {
 	mb.messageBuffer = mb.messageBuffer[:0]
 	mb.byteBuffer = mb.byteBuffer[:1] // keep the first byte, it's used for : '['
+}
+
+// Build returns the concatanated message in Json encoded format
+func (mb *MessageBuffer) Build() []byte {
+	// here we write the json '[' and ']'
+	mb.byteBuffer[0] = '['
+	if len(mb.messageBuffer) > 0 {
+		mb.byteBuffer[len(mb.byteBuffer)-1] = ']'
+	}
+	return mb.byteBuffer
+}
+
+// GetMessages returns the messages in the MessageBuffer
+func (mb *MessageBuffer) GetMessages() []*message.Message {
+	return mb.messageBuffer
 }
 
 func (mb *MessageBuffer) hasSpaceInByteBuffer(content []byte) bool {
@@ -57,11 +85,4 @@ func (mb *MessageBuffer) appendByteBuffer(content []byte) {
 	// increase the slice length, TODO can optimized this by not using append
 	mb.byteBuffer = append(mb.byteBuffer, content...)
 	mb.byteBuffer = append(mb.byteBuffer, ',')
-}
-
-func (mb *MessageBuffer) getByteBuffer() []byte {
-	// here we write the json '[' and ']'
-	mb.byteBuffer[0] = '['
-	mb.byteBuffer[len(mb.byteBuffer)-1] = ']'
-	return mb.byteBuffer
 }

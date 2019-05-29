@@ -67,11 +67,11 @@ func (b *BatchSender) run() {
 		case payload, isOpen := <-b.inputChan:
 			if !isOpen {
 				// inputChan has been closed, no more payload are expected
-				// TODO remember to flush your buffer!!
+				b.sendBuffer()
 				return
 			}
-			success := b.messageBuffer.tryAppendToBuffer(payload)
-			if !success || b.messageBuffer.isFull() {
+			success := b.messageBuffer.TryAddMessage(payload)
+			if !success || b.messageBuffer.IsFull() {
 				// message buffer is full, either reaching maxBatchCount of maxRequestSize
 				// send request now. reset the timer
 				if !flushTimer.Stop() {
@@ -83,7 +83,7 @@ func (b *BatchSender) run() {
 			if !success {
 				// it's possible we didn't append last try because maxRequestSize is reached
 				// append it again after the sendbuffer is flushed
-				b.messageBuffer.tryAppendToBuffer(payload)
+				b.messageBuffer.TryAddMessage(payload)
 			}
 		case <-flushTimer.C:
 			// the timout expired, the content is ready to be sent
@@ -96,11 +96,11 @@ func (b *BatchSender) run() {
 // send keeps trying to send the message to the main destination until it succeeds
 // and try to send the message to the additional destinations only once.
 func (b *BatchSender) sendBuffer() {
-	if b.messageBuffer.isEmpty() {
+	if b.messageBuffer.IsEmpty() {
 		return
 	}
 
-	batchedContent := b.messageBuffer.getByteBuffer()
+	batchedContent := b.messageBuffer.Build()
 	//log.Info("MAOMAO " + string(batchedContent[12:20]))
 
 	for {
@@ -110,10 +110,11 @@ func (b *BatchSender) sendBuffer() {
 			if err == context.Canceled {
 				metrics.DestinationErrors.Add(1)
 				// the context was cancelled, agent is stopping non-gracefully.
-				// drop the message
-				break
+				// drop the message, Do NOT send the outputChan, clear messageBuffer
+				b.messageBuffer.Clear()
+				return
 			}
-			switch err.(type) { //TODO think that's the possible error
+			switch err.(type) {
 			default:
 				metrics.DestinationErrors.Add(1)
 				// retry as the error can be related to network issues
@@ -131,5 +132,5 @@ func (b *BatchSender) sendBuffer() {
 	for _, m := range b.messageBuffer.messageBuffer {
 		b.outputChan <- m
 	}
-	b.messageBuffer.clear()
+	b.messageBuffer.Clear()
 }

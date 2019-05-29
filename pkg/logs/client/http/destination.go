@@ -52,7 +52,6 @@ func (d *Destination) Send(payload []byte) error {
 		if ctx.Err() == context.Canceled {
 			return ctx.Err()
 		}
-		log.Info(err)
 		return err
 	}
 
