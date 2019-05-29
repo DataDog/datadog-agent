@@ -341,7 +341,6 @@ func loadEnvVariables() {
 		"DD_DISABLE_IPV6_TRACING":   "system_probe_config.disable_ipv6",
 		"DD_COLLECT_LOCAL_DNS":      "system_probe_config.collect_local_dns",
 		"DD_USE_LOCAL_SYSTEM_PROBE": "system_probe_config.use_local_system_probe",
-		"DD_ENABLE_PROFILING":       "system_probe_config.debug_profiling_enabled",
 
 		"DD_HOSTNAME":       "hostname",
 		"DD_DOGSTATSD_PORT": "dogstatsd_port",

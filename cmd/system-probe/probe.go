@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mailru/easyjson"
 
@@ -41,6 +42,12 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 	// Checking whether the current OS + kernel version is supported by the tracer
 	if nt.supported, err = ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); err != nil {
 		return nil, fmt.Errorf("%s: %s", ErrTracerUnsupported, err)
+	}
+
+	// make sure debugfs is mounted
+	mounted := util.IsDebugfsMounted()
+	if !mounted {
+		return nil, fmt.Errorf("%s: debugfs is not mounted and is needed for eBPF-based checks, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs", ErrTracerUnsupported)
 	}
 
 	log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))

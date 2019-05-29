@@ -112,6 +112,12 @@ func GetPlatform() (string, error) {
 	return "", fmt.Errorf("error retrieving platform, with python: %s, with lsb_release: %s", pyErr, lsbErr)
 }
 
+// IsDebugfsMounted would test the existence of file /sys/kernel/debug/tracing/kprobe_events to determine if debugfs is mounted or not
+func IsDebugfsMounted() bool {
+	_, err := os.Stat("/sys/kernel/debug/tracing/kprobe_events")
+	return err == nil
+}
+
 func execCmd(head string, args ...string) (string, error) {
 	cmd := exec.Command(head, args...)
 

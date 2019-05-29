@@ -110,6 +110,7 @@ func main() {
 	} else {
 		log.Infof("running on platform: %s", platform)
 	}
+
 	log.Infof("running system-probe with version: %s", versionString(", "))
 	go sysprobe.Run()
 	log.Infof("system probe started")
