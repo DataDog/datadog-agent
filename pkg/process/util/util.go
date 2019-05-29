@@ -114,10 +114,8 @@ func GetPlatform() (string, error) {
 
 // IsDebugfsMounted would test the existence of file /sys/kernel/debug/tracing/kprobe_events to determine if debugfs is mounted or not
 func IsDebugfsMounted() bool {
-	if _, err := os.Stat("/sys/kernel/debug/tracing/kprobe_events"); err == nil {
-		return true
-	}
-	return false
+	_, err := os.Stat("/sys/kernel/debug/tracing/kprobe_events")
+	return err == nil
 }
 
 func execCmd(head string, args ...string) (string, error) {
