@@ -44,11 +44,11 @@ type NetworkState interface {
 }
 
 type telemetry struct {
-	unorderedConns    int64
-	closedConnDropped int64
-	connDropped       int64
-	statsResets       int64
-	simultaneousConns int64
+	unorderedConns     int64
+	closedConnDropped  int64
+	connDropped        int64
+	statsResets        int64
+	timeSyncCollisions int64
 }
 
 type stats struct {
@@ -143,10 +143,8 @@ func (ns *networkState) Connections(id string, latestTime uint64, latestConns []
 	// https://github.com/golang/go/issues/20135 is solved
 	newStats := make(map[string]*stats, len(ns.clients[id].stats))
 	for key, st := range ns.clients[id].stats {
-		// Don't keep closed connections' stats
-		_, isClosed := ns.clients[id].closedConnections[key]
-		_, isActive := connsByKey[key]
-		if !isClosed || isActive {
+		// Only keep active connections stats
+		if _, isActive := connsByKey[key]; isActive {
 			newStats[key] = st
 		}
 	}
@@ -261,8 +259,8 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 				// XXX: For now we assume that the closed connection is the more recent one but this is not guaranteed
 				// To fix this we should have a way to uniquely identify a connection
 				// (using the startTimestamp or a monotonic counter)
-				ns.telemetry.simultaneousConns++
-				log.Debugf("Simulatenous connections: closed:%+v, active:%+v", closedConn, *activeConn)
+				ns.telemetry.timeSyncCollisions++
+				log.Debugf("Time collision for connections: closed:%+v, active:%+v", closedConn, *activeConn)
 				ns.updateConnWithStats(client, key, &closedConn)
 			}
 		} else {
@@ -381,13 +379,13 @@ func (ns *networkState) RemoveConnections(keys []string) {
 	}
 
 	// Flush log line if any metric is non zero
-	if ns.telemetry.unorderedConns > 0 || ns.telemetry.statsResets > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 || ns.telemetry.simultaneousConns > 0 {
-		log.Warnf("state telemetry: [%d unordered conns] [%d stats stats_resets] [%d connections dropped due to stats] [%d closed connections dropped] [%d simultaneous connections]",
+	if ns.telemetry.unorderedConns > 0 || ns.telemetry.statsResets > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 || ns.telemetry.timeSyncCollisions > 0 {
+		log.Warnf("state telemetry: [%d unordered conns] [%d stats stats_resets] [%d connections dropped due to stats] [%d closed connections dropped] [%d time sync collisions]",
 			ns.telemetry.unorderedConns,
 			ns.telemetry.statsResets,
 			ns.telemetry.closedConnDropped,
 			ns.telemetry.connDropped,
-			ns.telemetry.simultaneousConns)
+			ns.telemetry.timeSyncCollisions)
 	}
 
 	ns.telemetry = telemetry{}
@@ -414,7 +412,7 @@ func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipp
 			"unordered_conns":              ns.telemetry.unorderedConns,
 			"closed_conn_dropped":          ns.telemetry.closedConnDropped,
 			"conn_dropped":                 ns.telemetry.connDropped,
-			"simultaneous_conns":           ns.telemetry.simultaneousConns,
+			"time_sync_collisions":         ns.telemetry.timeSyncCollisions,
 			"closed_conn_polling_lost":     closedPollLost,
 			"closed_conn_polling_received": closedPollReceived,
 			"ok_conns_skipped":             tracerSkipped, // Skipped connections (e.g. Local DNS requests)
