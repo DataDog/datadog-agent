@@ -9,6 +9,8 @@
 // Some preprocessor sanity for builds (2+3 common sources)
 #ifndef DATADOG_AGENT_THREE
 #    error Build requires defining DATADOG_AGENT_THREE
+#elif defined(DATADOG_AGENT_TWO) && defined(DATADOG_AGENT_THREE)
+#    error "DATADOG_AGENT_TWO and DATADOG_AGENT_THREE are mutually exclusive - define only one of the two."
 #endif
 
 #include <map>
