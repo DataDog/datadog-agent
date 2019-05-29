@@ -195,6 +195,8 @@ func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 			prev.MonotonicSentBytes += conn.MonotonicSentBytes
 			prev.MonotonicRecvBytes += conn.MonotonicRecvBytes
 			prev.MonotonicRetransmits += conn.MonotonicRetransmits
+			// Also update the timestamp
+			prev.LastUpdateEpoch = conn.LastUpdateEpoch
 			client.closedConnections[string(key)] = prev
 		} else if len(client.closedConnections) >= ns.maxClosedConns {
 			ns.telemetry.closedConnDropped++

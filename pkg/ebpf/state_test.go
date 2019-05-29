@@ -1038,6 +1038,7 @@ func TestDoubleCloseOnTwoClients(t *testing.T) {
 	conn.LastUpdateEpoch++
 	state.StoreClosedConnection(conn)
 
+	expectedConn.LastUpdateEpoch = conn.LastUpdateEpoch
 	// Get the connections for client1 we should have only one with stats = 2*conn
 	conns := state.Connections(client1, latestEpochTime(), nil)
 	require.Len(t, conns, 1)
@@ -1100,6 +1101,35 @@ func TestUnorderedCloseEvent(t *testing.T) {
 	assert.Zero(t, state.(*networkState).telemetry.unorderedConns)
 
 	assert.Len(t, state.Connections(client, latestEpochTime(), nil), 0)
+}
+
+func TestAggregateClosedConnectionsTimestamp(t *testing.T) {
+	conn := ConnectionStats{
+		Pid:                123,
+		Type:               TCP,
+		Family:             AFINET,
+		Source:             util.AddressFromString("127.0.0.1"),
+		Dest:               util.AddressFromString("127.0.0.1"),
+		MonotonicSentBytes: 3,
+	}
+
+	client := "client"
+	state := NewDefaultNetworkState()
+
+	// Register the client
+	assert.Len(t, state.Connections(client, latestEpochTime(), nil), 0)
+
+	conn.LastUpdateEpoch = latestEpochTime()
+	state.StoreClosedConnection(conn)
+
+	conn.LastUpdateEpoch = latestEpochTime()
+	state.StoreClosedConnection(conn)
+
+	conn.LastUpdateEpoch = latestEpochTime()
+	state.StoreClosedConnection(conn)
+
+	// Make sure the connections we get has the latest timestamp
+	assert.Equal(t, conn.LastUpdateEpoch, state.Connections(client, latestEpochTime(), nil)[0].LastUpdateEpoch)
 }
 
 func generateRandConnections(n int) []ConnectionStats {
