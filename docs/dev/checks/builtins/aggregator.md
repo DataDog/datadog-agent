@@ -85,7 +85,7 @@ def submit_event(check, check_id, event):
     """Submit an event to the aggregator.
 
     NOTE: If unicode is passed to any of the params accepting it, the
-    string will be encoded using the default encoding for the system where the
+    string is encoded using the default encoding for the system where the
     Agent is running. If encoding fails, function will raise `UnicodeError`.
 
     Args:
