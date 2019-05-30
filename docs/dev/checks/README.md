@@ -77,7 +77,7 @@ Any mapping contained in `instances` is passed to the `check` method through the
 named parameter `instance`. The `check` method is invoked at every run of the
 [collector][collector].
 
-The `AgentCheck` base class provides several useful attributes and methods, please
+The `AgentCheck` base class provides several useful attributes and methods,
 refer to the [Python docs][datadog_checks_base] and the developer
 [documentation pages][developer_docs] for more details.
 
