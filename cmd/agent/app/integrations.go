@@ -31,7 +31,7 @@ import (
 
 const (
 	reqAgentReleaseFile = "requirements-agent-release.txt"
-	constraintsFile     = "final_constraints.txt"
+	constraintsFile     = "final_constraints-py%s.txt"
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
 	downloaderModule    = "datadog_checks.downloader"
 	disclaimer          = "For your security, only use this to install wheels containing an Agent integration " +
@@ -268,7 +268,19 @@ func install(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	constraintsPath := filepath.Join(here, relConstraintsPath)
+
+	// Get the major version of Python
+	pythonPath, err := getCommandPython()
+	if err != nil {
+		return err
+	}
+	pythonCmd := exec.Command(pythonPath, "-c", pythonVersionScript)
+	pythonVersion, err := pythonCmd.Output()
+	if err != nil {
+		return err
+	}
+
+	constraintsPath := filepath.Join(here, fmt.Sprintf(relConstraintsPath, pythonVersion))
 
 	pipArgs := []string{
 		"install",
