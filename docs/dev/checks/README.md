@@ -86,7 +86,7 @@ refer to the [Python docs][datadog_checks_base] and the developer
 Due to the Python interpreter being embedded in an inherently multi-threaded environment (the go runtime)
 there are some limitations to the way Python Checks can run subprocesses.
 
-To run a subprocess from your Check, please use the `get_subprocess_output` function
+To run a subprocess from your check, use the `get_subprocess_output` function
 provided in `datadog_checks.utils.subprocess_output`:
 
 ```python
