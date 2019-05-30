@@ -79,6 +79,10 @@ func SendFlareWithHostname(archivePath string, caseID string, email string, host
 		return "", err
 	}
 
+	// As we use a PipeReader, we need to set the ContentLenght to -1 to have the correct Header in the POST.
+	// see https://github.com/golang/go/issues/18117.
+	request.ContentLength = -1
+
 	client := mkHTTPClient()
 	r, err := client.Do(request)
 
