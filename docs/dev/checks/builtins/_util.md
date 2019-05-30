@@ -21,7 +21,7 @@ def subprocess_output(args, raise_on_empty):
 
     NOTE: If unicode is passed to any of the params accepting it, the
     string is encoded using the default encoding for the system where the
-    Agent is running. If encoding fails, function will raise `UnicodeError`.
+    Agent is running. If encoding fails, the function raises `UnicodeError`.
 
     Args:
         args (list of string or unicode): the command arguments of the subprocess to run.
