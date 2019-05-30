@@ -45,7 +45,7 @@ def submit_metric(check, check_id, mtype, name, value, tags, hostname):
         name (string or unicode): name of the metric.
         value (float): value of the metric.
         tags (list): list of string or unicode containing tags. Items with unsupported
-            types will be silently ignored.
+            types are silently ignored.
         hostname (string or unicode): the hostname sending the metric.
 
     Returns:
