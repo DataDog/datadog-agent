@@ -28,6 +28,25 @@ var templateVariables = map[string]variableGetter{
 	"hostname": getHostname,
 }
 
+// SubstituteTemplateVariables replaces %%VARIABLES%% using the variableGetters passed in
+func SubstituteTemplateVariables(config *integration.Config, getters map[string]variableGetter, svc listeners.Service) error {
+	for i := 0; i < len(config.Instances); i++ {
+		vars := config.GetTemplateVariablesForInstance(i)
+		for _, v := range vars {
+			if f, found := getters[string(v.Name)]; found {
+				resolvedVar, err := f(v.Key, svc)
+				if err != nil {
+					return err
+				}
+				// init config vars are replaced by the first found
+				config.InitConfig = bytes.Replace(config.InitConfig, v.Raw, resolvedVar, -1)
+				config.Instances[i] = bytes.Replace(config.Instances[i], v.Raw, resolvedVar, -1)
+			}
+		}
+	}
+	return nil
+}
+
 // Resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
 func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
@@ -56,20 +75,13 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 	if err != nil {
 		return resolvedConfig, err
 	}
-	for i := 0; i < len(tpl.Instances); i++ {
-		// Copy original content from template
-		vars := tpl.GetTemplateVariablesForInstance(i)
-		for _, v := range vars {
-			if f, found := templateVariables[string(v.Name)]; found {
-				resolvedVar, err := f(v.Key, svc)
-				if err != nil {
-					return integration.Config{}, err
-				}
-				// init config vars are replaced by the first found
-				resolvedConfig.InitConfig = bytes.Replace(resolvedConfig.InitConfig, v.Raw, resolvedVar, -1)
-				resolvedConfig.Instances[i] = bytes.Replace(resolvedConfig.Instances[i], v.Raw, resolvedVar, -1)
-			}
-		}
+
+	err = SubstituteTemplateVariables(&resolvedConfig, templateVariables, svc)
+	if err != nil {
+		return resolvedConfig, err
+	}
+
+	for i := 0; i < len(resolvedConfig.Instances); i++ {
 		err = resolvedConfig.Instances[i].MergeAdditionalTags(tags)
 		if err != nil {
 			return resolvedConfig, err
