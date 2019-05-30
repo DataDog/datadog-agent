@@ -4,8 +4,8 @@ The `aggregator` package allows a Python check to send metrics, events and servi
 checks to the [aggregator](/pkg/aggregator) component of the Datadog Agent.
 
 **This module is intended for internal use and should never be imported directly.**
-Checks can use the methods exposed by the `AgentCheck` class instead, see
-[the specific docs](check_api.md) for more details.
+Checks should use the methods exposed by the `AgentCheck` class instead, see
+[the specific docs]([check_api.md](https://datadog-checks-base.readthedocs.io/en/latest/)) for more details.
 
 ## Implementation
 
