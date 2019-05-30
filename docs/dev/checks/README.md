@@ -78,7 +78,7 @@ named parameter `instance`. The `check` method will be invoked at every run of t
 [collector][collector].
 
 The `AgentCheck` base class provides several useful attributes and methods, please
-refer to the [Python docs][datadog_check_base] and the developer
+refer to the [Python docs][datadog_checks_base] and the developer
 [documentation pages][developer_docs] for more details.
 
 ### Running subprocesses
@@ -119,8 +119,8 @@ checks code.
 - [kubeutil](builtins/kubeutil.md)
 - [tagger](builtins/tagger.md)
 - [util](builtins/util.md)
-- [datadog_check_base](https://datadog-checks-base.readthedocs.io/en/latest/)
-- [developer_docs](https://docs.datadoghq.com/developers/)
 
 [custom-checks]: https://docs.datadoghq.com/developers/write_agent_check/?tab=agentv6
 [collector]: /pkg/collector
+[datadog_checks_base]: https://datadog-checks-base.readthedocs.io/en/latest/
+[developer_docs]: https://docs.datadoghq.com/developers/
