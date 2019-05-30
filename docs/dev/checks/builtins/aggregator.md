@@ -5,7 +5,7 @@
 > [dedicated docs](https://datadog-checks-base.readthedocs.io/en/latest/) for
 > more details.
 
-The `aggregator` module allows a Python check to send metrics, events and service
+The `aggregator` module allows a Python check to send metrics, events, and service
 checks to the [aggregator](/pkg/aggregator) component of the Datadog Agent.
 
 ## Implementation
