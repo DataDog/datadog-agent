@@ -9,9 +9,9 @@ The module exposes low level functions to run processes from Python integrations
 
 ## Implementation
 
-* [_util.c](/six/common/builtins/aggregator.c)
-* [_util.h](/six/common/builtins/aggregator.h)
-* [util.go](/pkg/collector/python/aggregator.go)
+* [_util.c](/six/common/builtins/_util.c)
+* [_util.h](/six/common/builtins/_util.h)
+* [util.go](/pkg/collector/python/util.go)
 
 ## Functions
 
@@ -29,6 +29,9 @@ def subprocess_output(args, raise_on_empty):
 
     Returns:
         A tuple (string, string, int) containing standard output, standard error and exit code.
+
+    Raises:
+        Appropriate exception if an error occurred while processing params.
     """
 
 
