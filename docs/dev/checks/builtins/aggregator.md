@@ -13,24 +13,27 @@ Checks can use the methods exposed by the `AgentCheck` class instead, see
 * [aggregator.h](/six/common/builtins/aggregator.h)
 * [aggregator.go](/pkg/collector/python/aggregator.go)
 
+## Constants
+
+```python
+
+GAUGE           = DATADOG_AGENT_SIX_GAUGE
+RATE            = DATADOG_AGENT_SIX_RATE
+COUNT           = DATADOG_AGENT_SIX_COUNT
+MONOTONIC_COUNT = DATADOG_AGENT_SIX_MONOTONIC_COUNT
+COUNTER         = DATADOG_AGENT_SIX_COUNTER
+HISTOGRAM       = DATADOG_AGENT_SIX_HISTOGRAM
+HISTORATE       = DATADOG_AGENT_SIX_HISTORATE
+```
+
 ## Functions
 
 ```python
 
-# constants
-GAUGE = DATADOG_AGENT_SIX_GAUGE
-RATE = DATADOG_AGENT_SIX_RATE
-COUNT = DATADOG_AGENT_SIX_COUNT
-MONOTONIC_COUNT = DATADOG_AGENT_SIX_MONOTONIC_COUNT
-COUNTER = DATADOG_AGENT_SIX_COUNTER
-HISTOGRAM = DATADOG_AGENT_SIX_HISTOGRAM
-HISTORATE = DATADOG_AGENT_SIX_HISTORATE
-
-
 def submit_metric(check, check_id, mtype, name, value, tags, hostname):
     """Submit a metric to the aggregator.
 
-    **Notice:** if unicode is passed to any of the params accepting it, the
+    NOTICE: if unicode is passed to any of the params accepting it, the
     string will be encoded using the default encoding for the system where the
     Agent is running. If encoding fails, function will raise `UnicodeError`.
 
@@ -55,7 +58,7 @@ def submit_metric(check, check_id, mtype, name, value, tags, hostname):
 def submit_service_check(check, check_id, name, status, tags, hostname, message):
     """Submit a service check to the aggregator.
 
-    **Notice:** if unicode is passed to any of the params accepting it, the
+    NOTICE: if unicode is passed to any of the params accepting it, the
     string will be encoded using the default encoding for the system where the
     Agent is running. If encoding fails, function will raise `UnicodeError`.
 
@@ -80,7 +83,7 @@ def submit_service_check(check, check_id, name, status, tags, hostname, message)
 def submit_event(check, check_id, event):
     """Submit an event to the aggregator.
 
-    **Notice:** if unicode is passed to any of the params accepting it, the
+    NOTICE: if unicode is passed to any of the params accepting it, the
     string will be encoded using the default encoding for the system where the
     Agent is running. If encoding fails, function will raise `UnicodeError`.
 
