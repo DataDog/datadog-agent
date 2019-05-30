@@ -1,0 +1,5 @@
+prelude:
+    |
+    Release on: 2019-05-30
+
+    - Please refer to the `6.11.3 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.11.3>`_ for the list of changes on the Process Agent.
