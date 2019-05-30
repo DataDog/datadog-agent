@@ -357,7 +357,7 @@ func guess(m *elf.Module, cfg *Config) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	processName := filepath.Base(os.Args[0])
+	processName := "valgrind"
 	if len(processName) > procNameMaxSize { // Truncate process name if needed
 		processName = processName[:procNameMaxSize]
 	}
