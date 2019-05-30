@@ -8,14 +8,12 @@ package sender
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
-// StreamSender sends one log at a time to different destinations.
+// StreamSender is responsible for sending logs to different destinations.
 type StreamSender struct {
 	inputChan    chan *message.Message
 	outputChan   chan *message.Message
@@ -23,7 +21,7 @@ type StreamSender struct {
 	done         chan struct{}
 }
 
-// NewStreamSender returns an new StreamSender.
+// NewStreamSender returns an new sender.
 func NewStreamSender(inputChan, outputChan chan *message.Message, destinations *client.Destinations) *StreamSender {
 	return &StreamSender{
 		inputChan:    inputChan,
@@ -45,12 +43,11 @@ func (s *StreamSender) Stop() {
 	<-s.done
 }
 
-// run lets the StreamSender send messages.
+// run lets the sender send messages.
 func (s *StreamSender) run() {
 	defer func() {
 		s.done <- struct{}{}
 	}()
-
 	for payload := range s.inputChan {
 		s.send(payload)
 	}
@@ -63,24 +60,24 @@ func (s *StreamSender) send(payload *message.Message) {
 		// this call is blocking until payload is sent (or the connection destination context cancelled)
 		err := s.destinations.Main.Send(payload.Content)
 		if err != nil {
-			metrics.DestinationErrors.Add(1)
 			if err == context.Canceled {
+				metrics.DestinationErrors.Add(1)
 				// the context was cancelled, agent is stopping non-gracefully.
 				// drop the message
-				return
+				break
 			}
-
 			switch err.(type) {
-			case *client.RetryableError:
-				// could not send the payload because of a transport issue,
-				// let's retry.
+			case *client.FramingError:
+				metrics.DestinationErrors.Add(1)
+				// the message can not be framed properly,
+				// drop the message
+				break
+			default:
+				metrics.DestinationErrors.Add(1)
+				// retry as the error can be related to network issues
 				continue
 			}
-
-			log.Warnf("Could not send payload, dropping it: %v", err)
-			break
 		}
-
 		for _, destination := range s.destinations.Additionals {
 			// send to a queue then send asynchronously for additional endpoints,
 			// it will drop messages if the queue is full
