@@ -107,7 +107,7 @@ state.
 A set of Python modules is provided capable to interact with a running Agent at
 a quite low level. These modules are built-in but only available in the embedded
 CPython interpreter within a running Agent and are mostly used in the `AgentCheck`
-base class, that exposes convenient wrappers to be used in Integrations and Custom
+base class which exposes convenient wrappers to be used in integrations and custom
 checks code.
 
 **These modules should never be used directly.**
