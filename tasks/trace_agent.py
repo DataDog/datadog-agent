@@ -11,7 +11,14 @@ from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS,
 from .go import deps
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
-DEFAULT_BUILD_TAGS = ["netcgo", "secrets"]
+DEFAULT_BUILD_TAGS = [
+    "netcgo",
+    "secrets",
+    "kubeapiserver",
+    "kubelet",
+    "ec2",
+    "docker",
+]
 
 @task
 def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=None,
@@ -35,6 +42,11 @@ def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=N
     ldflags, gcflags, env = get_build_flags(ctx)
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
+
+    if not sys.platform.startswith('linux'):
+        for ex in LINUX_ONLY_TAGS:
+            if ex not in build_exclude:
+                build_exclude.append(ex)
 
     if puppy:
         # Puppy mode overrides whatever passed through `--build-exclude` and `--build-include`
