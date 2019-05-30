@@ -3,13 +3,13 @@
 package net
 
 import (
-	"fmt"
-	"io/ioutil"
-	"net/http"
-	"time"
-
+	"bytes"
 	"context"
+	"fmt"
 	"net"
+	"net/http"
+	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,11 +33,15 @@ func init() {
 
 // RemoteSysProbeUtil wraps interactions with a remote system probe service
 type RemoteSysProbeUtil struct {
+	mu *sync.Mutex
+
 	// Retrier used to setup system probe
 	initRetry retry.Retrier
 
 	socketPath string
 	httpClient http.Client
+
+	buf bytes.Buffer
 }
 
 // SetSystemProbeSocketPath provides a unix socket path location to be used by the remote system probe.
@@ -81,13 +85,13 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]ebpf.ConnectionS
 		return nil, fmt.Errorf("conn request failed: socket %s, url: %s, status code: %d", r.socketPath, connectionsURL, resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.buf.Reset()
+	r.buf.ReadFrom(resp.Body)
 
 	conn := &ebpf.Connections{}
-	if err := conn.UnmarshalJSON(body); err != nil {
+	if err := conn.UnmarshalJSON(r.buf.Bytes()); err != nil {
 		return nil, err
 	}
 
@@ -109,6 +113,7 @@ func ShouldLogTracerUtilError() bool {
 func newSystemProbe() *RemoteSysProbeUtil {
 	return &RemoteSysProbeUtil{
 		socketPath: globalSocketPath,
+		mu:         &sync.Mutex{},
 		httpClient: http.Client{
 			Timeout: 10 * time.Second,
 			Transport: &http.Transport{
