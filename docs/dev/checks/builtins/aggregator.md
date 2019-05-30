@@ -69,7 +69,7 @@ def submit_service_check(check, check_id, name, status, tags, hostname, message)
         name (string or unicode): name of the metric.
         status (index): enumerated type representing the service status.
         tags (list): list of string or unicode containing tags. Items with unsupported
-            types will be silently ignored.
+            types are silently ignored.
         hostname (string or unicode): the hostname sending the metric.
         message (string or unicode): a message to add more info about the status.
 
