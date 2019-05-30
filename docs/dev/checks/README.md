@@ -112,13 +112,13 @@ checks code.
 
 **These modules should never be used directly.**
 
-- [_util](python/_util.md)
-- [aggregator](python/aggregator.md)
-- [containers](python/containers.md)
-- [datadog_agent](python/datadog_agent.md)
-- [kubeutil](python/kubeutil.md)
-- [tagger](python/tagger.md)
-- [util](python/util.md)
+- [_util](builtins/_util.md)
+- [aggregator](builtins/aggregator.md)
+- [containers](builtins/containers.md)
+- [datadog_agent](builtins/datadog_agent.md)
+- [kubeutil](builtins/kubeutil.md)
+- [tagger](builtins/tagger.md)
+- [util](builtins/util.md)
 - [datadog_check_base](https://datadog-checks-base.readthedocs.io/en/latest/)
 - [developer_docs](https://docs.datadoghq.com/developers/)
 
