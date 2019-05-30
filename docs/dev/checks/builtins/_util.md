@@ -1,9 +1,9 @@
 # _util
 
-**This module is intended for internal use and should never be imported directly.**
-Checks should use the methods exposed by the `AgentCheck` class instead, see
-[the specific docs]([check_api.md](https://datadog-checks-base.readthedocs.io/en/latest/)) for
-more details.
+> **This module is intended for internal use and should never be imported directly.**
+> Checks should use the methods exposed by the `AgentCheck` class instead, see
+> [dedicated docs](https://datadog-checks-base.readthedocs.io/en/latest/) for
+> more details.
 
 The module exposes low level functions to run processes from Python integrations.
 
