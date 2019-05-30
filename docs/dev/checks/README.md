@@ -74,7 +74,7 @@ instances:
 ```
 
 Any mapping contained in `instances` is passed to the `check` method through the
-named parameter `instance`. The `check` method will be invoked at every run of the
+named parameter `instance`. The `check` method is invoked at every run of the
 [collector][collector].
 
 The `AgentCheck` base class provides several useful attributes and methods, please
