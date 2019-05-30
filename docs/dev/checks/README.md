@@ -98,7 +98,7 @@ class MyCheck(AgentCheck):
     out, err, retcode = get_subprocess_output(cmd, self.log, raise_on_empty_output=True)
 ```
 
-Using the `subprocess` and `multiprocessing` modules provided by the python standard library is _not
+Using the `subprocess` and `multiprocessing` modules provided by the Python standard library is _not
 supported_, and may result in your Agent crashing and/or creating processes that remain in a stuck or zombie
 state.
 
