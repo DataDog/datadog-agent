@@ -84,7 +84,7 @@ def submit_service_check(check, check_id, name, status, tags, hostname, message)
 def submit_event(check, check_id, event):
     """Submit an event to the aggregator.
 
-    NOTICE: if unicode is passed to any of the params accepting it, the
+    NOTE: If unicode is passed to any of the params accepting it, the
     string will be encoded using the default encoding for the system where the
     Agent is running. If encoding fails, function will raise `UnicodeError`.
 
