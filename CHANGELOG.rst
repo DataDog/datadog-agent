@@ -2,6 +2,36 @@
 Release Notes
 =============
 
+.. _Release Notes_6.11.3:
+
+6.11.3
+======
+
+.. _Release Notes_6.11.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-06-04
+
+- Please refer to the `6.11.3 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.11.3>`_ for the list of changes on the Process Agent.
+
+
+.. _Release Notes_6.11.3_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Upgrade JMXFetch to 0.27.1
+
+
+.. _Release Notes_6.11.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: fixed a bug where secrets in environment variables were ignored.
+
 .. _Release Notes_6.11.2:
 
 6.11.2
