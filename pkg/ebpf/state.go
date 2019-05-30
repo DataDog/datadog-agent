@@ -260,7 +260,7 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 				// To fix this we should have a way to uniquely identify a connection
 				// (using the startTimestamp or a monotonic counter)
 				ns.telemetry.timeSyncCollisions++
-				log.Debugf("Time collision for connections: closed:%+v, active:%+v", closedConn, *activeConn)
+				log.Tracef("Time collision for connections: closed:%+v, active:%+v", closedConn, *activeConn)
 				ns.updateConnWithStats(client, key, &closedConn)
 			}
 		} else {
