@@ -20,7 +20,6 @@
 
 #include <algorithm>
 #include <sstream>
-#include <unistd.h>
 
 extern "C" DATADOG_AGENT_SIX_API Six *create(const char *pythonHome)
 {

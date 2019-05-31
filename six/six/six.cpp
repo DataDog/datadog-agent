@@ -26,7 +26,7 @@ static inline void core(int sig)
     kill(getpid(), sig);
 }
 
-#    define STACKTRACE_SIZE 100
+#define STACKTRACE_SIZE 500
 void signalHandler(int sig, siginfo_t *, void *)
 {
     void *buffer[STACKTRACE_SIZE];
