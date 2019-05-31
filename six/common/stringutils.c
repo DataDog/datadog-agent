@@ -35,6 +35,9 @@ char *as_string(PyObject *object)
 
     PyObject *temp_bytes = PyUnicode_AsEncodedString(object, "UTF-8", "strict");
     if (temp_bytes == NULL) {
+        // PyUnicode_AsEncodedString might raise an error if the codec raised an
+        // exception
+        PyErr_Clear();
         return NULL;
     }
 
@@ -93,6 +96,9 @@ char *as_yaml(PyObject *object) {
     }
 
     dumped = PyObject_CallFunctionObjArgs(safe_dump, object, NULL);
+    if (dumped == NULL) {
+        goto done;
+    }
     retval = as_string(dumped);
 
 done:
