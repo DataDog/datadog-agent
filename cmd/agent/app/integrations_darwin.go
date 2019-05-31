@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	pythonBin = "python"
+	pythonBin = "python2"
 )
 
 var (
