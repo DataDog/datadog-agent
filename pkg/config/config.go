@@ -420,8 +420,10 @@ func initConfig(config Config) {
 	config.SetKnown("process.additional_endpoints")
 	config.SetKnown("process.container_source")
 	config.SetKnown("process.intervals.connections")
-	config.SetKnown("network_tracer_config.enabled")
-	config.SetKnown("network_tracer_config.log_file")
+	config.SetKnown("system_probe_config.enabled")
+	config.SetKnown("system_probe_config.log_file")
+	config.SetKnown("system_probe_config.debug_port")
+	config.SetKnown("system_probe_config.bpf_debug")
 
 	// APM
 	config.SetKnown("apm_config.enabled")
