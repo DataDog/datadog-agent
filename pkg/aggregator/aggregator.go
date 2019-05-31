@@ -420,7 +420,7 @@ func (agg *BufferedAggregator) flushSeries(start time.Time) {
 
 	// Serialize and forward in a separate goroutine
 	go func() {
-		log.Debug("Flushing ", len(series), " series to the forwarder")
+		log.Debugf("Flushing %d series to the forwarder", len(series))
 		err := agg.serializer.SendSeries(series)
 		if err != nil {
 			log.Warnf("Error flushing series: %v", err)
@@ -462,7 +462,7 @@ func (agg *BufferedAggregator) flushServiceChecks(start time.Time) {
 
 	// Serialize and forward in a separate goroutine
 	go func() {
-		log.Debug("Flushing ", len(serviceChecks), " service checks to the forwarder")
+		log.Debugf("Flushing %d service checks to the forwarder", len(serviceChecks))
 		err := agg.serializer.SendServiceChecks(serviceChecks)
 		if err != nil {
 			log.Warnf("Error flushing service checks: %v", err)
@@ -490,7 +490,7 @@ func (agg *BufferedAggregator) flushSketches(start time.Time) {
 	}
 
 	go func() {
-		log.Debug("Flushing ", len(sketchSeries), " sketches to the forwarder")
+		log.Debugf("Flushing %d sketches to the forwarder", len(sketchSeries))
 		err := agg.serializer.SendSketch(sketchSeries)
 		if err != nil {
 			log.Warnf("Error flushing sketch: %v", err)
@@ -528,7 +528,7 @@ func (agg *BufferedAggregator) flushEvents(start time.Time) {
 	}
 
 	go func() {
-		log.Debug("Flushing ", len(events), " events to the forwarder")
+		log.Debugf("Flushing %d events to the forwarder", len(events))
 		err := agg.serializer.SendEvents(events)
 		if err != nil {
 			log.Warnf("Error flushing events: %v", err)
