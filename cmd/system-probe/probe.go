@@ -168,13 +168,13 @@ func writeConnections(w http.ResponseWriter, cs *ebpf.Connections) {
 		w.WriteHeader(500)
 		return
 	}
-	bytes, err := jw.DumpTo(w)
+	bytesWritten, err := jw.DumpTo(w)
 	if err != nil {
-		log.Errorf("unable to dump JSON to response")
+		log.Errorf("unable to dump JSON to response: %s", err)
 		w.WriteHeader(500)
 		return
 	}
-	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), bytes)
+	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), bytesWritten)
 }
 
 func writeAsJSON(w http.ResponseWriter, data interface{}) {
