@@ -286,10 +286,10 @@ void clear_error(six_t *six)
  * C-land crash handling
  */
 
-DATADOG_AGENT_SIX_API int handle_crashes(const six_t *six, const int enable)
+DATADOG_AGENT_SIX_API void handle_crashes(const six_t *six, const int enable)
 {
     // enable implicit cast to bool
-    return AS_CTYPE(Six, six)->handleCrashes(enable) ? 1 : 0;
+    AS_CTYPE(Six, six)->handleCrashes(enable);
 }
 #endif
 

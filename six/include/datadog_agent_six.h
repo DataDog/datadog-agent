@@ -51,7 +51,7 @@ DATADOG_AGENT_SIX_API int run_simple_string(const six_t *, const char *code);
 DATADOG_AGENT_SIX_API int has_error(const six_t *);
 DATADOG_AGENT_SIX_API const char *get_error(const six_t *);
 #ifndef _WIN32
-DATADOG_AGENT_SIX_API int handle_crashes(const six_t *, const int);
+DATADOG_AGENT_SIX_API void handle_crashes(const six_t *, const int);
 #endif
 
 // PYTHON HELPERS

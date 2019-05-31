@@ -56,7 +56,7 @@ public:
     void setError(const std::string &msg) const; // let const methods set errors
     void setError(const char *msg) const;
 #ifndef _WIN32
-    bool handleCrashes(const bool coredump) const;
+    void handleCrashes(const bool coredump) const;
 #endif
 
     // Python Helpers

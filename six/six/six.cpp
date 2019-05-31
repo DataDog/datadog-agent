@@ -55,7 +55,7 @@ void signalHandler(int sig, siginfo_t *, void *)
     }
 }
 
-bool Six::handleCrashes(const bool coredump) const
+void Six::handleCrashes(const bool coredump) const
 {
     // register signal handlers
     struct sigaction sa;
