@@ -36,7 +36,8 @@ const (
 	downloaderModule    = "datadog_checks.downloader"
 	disclaimer          = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
-	versionScript = `
+	pythonVersionScript = "import sys;print(sys.version_info[0])"
+	integrationVersionScript = `
 try:
 	from datadog_checks.%s import __version__
 	print(__version__)
@@ -635,7 +636,7 @@ func installedVersion(integration string) (*semver.Version, error) {
 	if !validName {
 		return nil, fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
 	}
-	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(versionScript, integrationName))
+	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(integrationVersionScript, integrationName))
 	output, err := pythonCmd.Output()
 
 	if err != nil {
