@@ -890,7 +890,7 @@ testkitchen_cleanup_azure:
 build_agent6:
   <<: *docker_build_job_definition
   variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     BUILD_ARG: --target release
     TESTING_ARG:  --target testing
