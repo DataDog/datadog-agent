@@ -1,4 +1,5 @@
 stages:
+  - gh_status_update_before
   - source_test
   - binary_build
   - integration_test
@@ -13,6 +14,7 @@ stages:
   - deploy
   - deploy_invalidate
   - e2e
+  - gh_status_update_after
 
 variables:
   # The SRC_PATH is in the GOPATH of the builders which
@@ -142,6 +144,29 @@ before_script:
       - tags
     variables:
       - $CI_COMMIT_TAG =~ /^dca-([\d.-]|rc)+$/
+
+
+
+#
+# set initial CI status on github
+#
+
+gh_status_pending:
+  stage: gh_status_update_before
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  before_script:
+    - echo "Calling GitHub API"
+  script:
+    - OAUTH_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.github-oauth-token  --with-decryption --query "Parameter.Value" --out text)
+    - API_URL="https://api.github.com/repos/DataDog/datadog-agent/statuses/$CI_COMMIT_SHA"
+    - >
+      curl -H "Authorization: token $OAUTH_TOKEN" -X POST $API_URL --data '{
+        "state": "pending",
+        "description": "Waiting for GitLab CI",
+        "context": "ci/gitlab"
+      }'
+
 
 #
 # source_test
@@ -1321,3 +1346,43 @@ pupernetes-tags:
   script:
   # note: it's not the agent-dev
   - inv -e e2e-tests --image=datadog/agent:$CI_COMMIT_TAG
+
+
+#
+# update final CI status on GitHub
+#
+
+gh_status_success:
+  stage: gh_status_update_after
+  when: on_success
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  before_script:
+    - echo "Calling GitHub API"
+  script:
+    - OAUTH_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.github-oauth-token --with-decryption --query "Parameter.Value" --out text)
+    - API_URL="https://api.github.com/repos/DataDog/datadog-agent/statuses/$CI_COMMIT_SHA"
+    - >
+      curl -H "Authorization: token $OAUTH_TOKEN" -X POST $API_URL --data '{
+        "state": "success",
+        "description": "Tests on GitLab succeeded :)",
+        "context": "ci/gitlab"
+      }'
+
+
+gh_status_failure:
+  stage: gh_status_update_after
+  when: on_failure
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  before_script:
+    - echo "Calling GitHub API"
+  script:
+    - OAUTH_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.github-oauth-token --with-decryption --query "Parameter.Value" --out text)
+    - API_URL="https://api.github.com/repos/DataDog/datadog-agent/statuses/$CI_COMMIT_SHA"
+    - >
+      curl -H "Authorization: token $OAUTH_TOKEN" -X POST $API_URL --data '{
+        "state": "failure",
+        "description": "Tests on GitLab failed :(",
+        "context": "ci/gitlab"
+      }'
