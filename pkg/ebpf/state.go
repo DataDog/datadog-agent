@@ -186,8 +186,14 @@ func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 		if prev, ok := client.closedConnections[string(key)]; ok {
 			// We received either the connections either out of order, or it's the same one we've already seen.
 			// Lets skip it for now.
-			if prev.LastUpdateEpoch >= conn.LastUpdateEpoch {
+			if prev.LastUpdateEpoch > conn.LastUpdateEpoch {
 				ns.telemetry.unorderedConns++
+				log.Tracef("Close event causing unordered connections: prev: %+v, current: %+v", prev, conn)
+				continue
+			} else if prev.LastUpdateEpoch == conn.LastUpdateEpoch {
+				// Else if they have the same last update epoch, let's consider it a time collision
+				ns.telemetry.timeSyncCollisions++
+				log.Tracef("Close event causing a time collision: prev: %+v, current: %+v", prev, conn)
 				continue
 			}
 
