@@ -252,6 +252,11 @@ func Initialize(paths ...string) error {
 		C.add_python_path(six, C.CString(p))
 	}
 
+	// Any platform-specific initialization
+	if initializePlatform() != nil {
+		log.Warnf("unable to complete platform-specific initialization - should be non-fatal")
+	}
+
 	// Setup custom builtin before Six initialization
 	C.initCgoFree(six)
 	C.initDatadogAgentModule(six)

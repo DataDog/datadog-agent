@@ -55,6 +55,9 @@ public:
     bool hasError() const;
     void setError(const std::string &msg) const; // let const methods set errors
     void setError(const char *msg) const;
+#ifndef _WIN32
+    bool handleCrashes(const bool coredump) const;
+#endif
 
     // Python Helpers
     virtual char *getIntegrationList() = 0;
@@ -95,5 +98,6 @@ private:
 
 typedef Six *create_t(const char *python_home);
 typedef void destroy_t(Six *);
+typedef void (*core_trigger_t)(int);
 
 #endif

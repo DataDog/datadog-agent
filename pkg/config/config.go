@@ -124,6 +124,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", "2")
+	// C-land crash feature flags
+	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
+	config.BindEnvAndSetDefault("c_core_dump", false)
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
