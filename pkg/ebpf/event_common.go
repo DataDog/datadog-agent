@@ -97,7 +97,7 @@ type ConnectionStats struct {
 	Type          ConnectionType         `json:"type"`
 	Family        ConnectionFamily       `json:"family"`
 	Direction     ConnectionDirection    `json:"direction"`
-	IPTranslation *netlink.IPTranslation `json:"cntrk"`
+	IPTranslation *netlink.IPTranslation `json:"iptr"`
 }
 
 // SourceAddr returns the source address in the Address abstraction

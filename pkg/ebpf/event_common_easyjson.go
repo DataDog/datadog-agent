@@ -186,7 +186,7 @@ func easyjson5f1d7f40DecodeGithubComDataDogDatadogAgentPkgEbpf1(in *jlexer.Lexer
 			out.Family = ConnectionFamily(in.Uint8())
 		case "direction":
 			out.Direction = ConnectionDirection(in.Uint8())
-		case "cntrk":
+		case "iptr":
 			if in.IsNull() {
 				in.Skip()
 				out.IPTranslation = nil
@@ -383,7 +383,7 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogAgentPkgEbpf1(out *jwriter.Wri
 		out.Uint8(uint8(in.Direction))
 	}
 	{
-		const prefix string = ",\"cntrk\":"
+		const prefix string = ",\"iptr\":"
 		if first {
 			first = false
 			_ = first
