@@ -33,15 +33,16 @@ func init() {
 
 // RemoteSysProbeUtil wraps interactions with a remote system probe service
 type RemoteSysProbeUtil struct {
-	mu *sync.Mutex
-
 	// Retrier used to setup system probe
 	initRetry retry.Retrier
 
 	socketPath string
 	httpClient http.Client
 
+	// buf is a shared buffer used when reading JSON off the unix-socket. mu is used to synchronize
+	// access to buf
 	buf bytes.Buffer
+	mu  sync.Mutex
 }
 
 // SetSystemProbeSocketPath provides a unix socket path location to be used by the remote system probe.
@@ -113,7 +114,7 @@ func ShouldLogTracerUtilError() bool {
 func newSystemProbe() *RemoteSysProbeUtil {
 	return &RemoteSysProbeUtil{
 		socketPath: globalSocketPath,
-		mu:         &sync.Mutex{},
+		mu:         sync.Mutex{},
 		httpClient: http.Client{
 			Timeout: 10 * time.Second,
 			Transport: &http.Transport{
