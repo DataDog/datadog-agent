@@ -344,3 +344,9 @@ func TestRemoveTemplate(t *testing.T) {
 	ac.removeConfigTemplates([]integration.Config{tpl})
 	assert.Len(t, ac.GetLoadedConfigs(), 1)
 }
+
+func TestGetLoadedConfigNotInitialized(t *testing.T) {
+	ac := AutoConfig{}
+	cfgs := ac.GetLoadedConfigs()
+	require.Len(t, cfgs, 0)
+}
