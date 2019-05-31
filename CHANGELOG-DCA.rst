@@ -27,6 +27,10 @@ Bug Fixes
 ---------
 - Fix race condition: immutable MetaBundle stored in DCA cache.
 
+1.3.0-rc.2
+==========
+2019-04-30
+
 Bug Fixes
 ---------
 - Fix race condition in Cluster Agent's API handler.
@@ -40,13 +44,13 @@ New Features
 - The Cluster Agent can now auto-discover config templates for kubernetes endpoints checks and expose them to node Agents via its API
 - Add the ``config`` and ``configcheck`` command to the cluster agent CLI
 - Add the ``diagnose`` command to the cluster agent CLI and flare
-- Add cluster_checks.extra_tags option
+- Add cluster_checks.extra_tags option to allow users to add tags globally to the cluster level checks.
 
 Enhancement Notes
 -----------------
 - Improving Lifecycle of the External Metrics Provider
 - Support milliquantities for the External Metrics Provider
-- Move logs info to debug
+- Move some logs from info to debug, in order to generates fewer noisy logs when running correctly.
 
 .. _Release Notes_1.2.0:
 
