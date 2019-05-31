@@ -39,14 +39,17 @@ func TestBasicLogging(t *testing.T) {
 	// Trace will not be logged
 	assert.Equal(t, strings.Count(b.String(), "foo"), 5)
 
-	Err := Error // Alias to avoid go-vet false positive
+	// Alias to avoid go-vet false positives
+	Wn := Warn
+	Err := Error
+	Crt := Critical
 
 	Trace("%s", "bar")
 	Debug("%s", "bar")
 	Info("%s", "bar")
-	Warn("%s", "bar")
+	Wn("%s", "bar")
 	Err("%s", "bar")
-	Critical("%s", "bar")
+	Crt("%s", "bar")
 	w.Flush()
 
 	// Trace will not be logged

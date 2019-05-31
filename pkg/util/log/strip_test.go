@@ -139,8 +139,8 @@ func TestTextStripApiKey(t *testing.T) {
 
 func TestTextStripURLPassword(t *testing.T) {
 	assertClean(t,
-		`Connection droped : ftp://user:password@host:port`,
-		`Connection droped : ftp://user:********@host:port`)
+		`Connection dropped : ftp://user:password@host:port`,
+		`Connection dropped : ftp://user:********@host:port`)
 }
 
 func TestDockerSelfInspectApiKey(t *testing.T) {
@@ -194,6 +194,18 @@ func TestConfigPassword(t *testing.T) {
 	assertClean(t,
 		`   mysql_password:   'password'   `,
 		`   mysql_password: ********`)
+	assertClean(t,
+		`pwd: 'password'`,
+		`pwd: ********`)
+	assertClean(t,
+		`pwd: p@ssw0r`,
+		`pwd: ********`)
+	assertClean(t,
+		`cert_key_password: p@ssw0r`,
+		`cert_key_password: ********`)
+	assertClean(t,
+		`cert_key_password: 🔑 🔒 🔐 🔓`,
+		`cert_key_password: ********`)
 }
 
 func TestSNMPConfig(t *testing.T) {
@@ -227,6 +239,49 @@ func TestSNMPConfig(t *testing.T) {
 	assertClean(t,
 		`   community_string:   'password'   `,
 		`   community_string: ********`)
+}
+
+func TestCertConfig(t *testing.T) {
+	assertClean(t,
+		`cert_key: >
+		   -----BEGIN PRIVATE KEY-----
+		   MIICdQIBADANBgkqhkiG9w0BAQEFAASCAl8wggJbAgEAAoGBAOLJKRals8tGoy7K
+		   ljG6/hMcoe16W6MPn47Q601ttoFkMoSJZ1Jos6nxn32KXfG6hCiB0bmf1iyZtaMa
+		   idae/ceT7ZNGvqcVffpDianq9r08hClhnU8mTojl38fsvHf//yqZNzn1ZUcLsY9e
+		   wG6wl7CsbWCafxaw+PfaCB1uWlnhAgMBAAECgYAI+tQgrHEBFIvzl1v5HiFfWlvj
+		   DlxAiabUvdsDVtvKJdCGRPaNYc3zZbjd/LOZlbwT6ogGZJjTbUau7acVk3gS8uKl
+		   ydWWODSuxVYxY8Poxt9SIksOAk5WmtMgIg2bTltTb8z3AWAT3qZrHth03la5Zbix
+		   ynEngzyj1+ND7YwQAQJBAP00t8/1aqub+rfza+Ddd8OYSMARFH22oxgy2W1O+Gwc
+		   Y8Gn3z6TkadfhPxFaUPnBPx8wm3mN+XeSB1nf0KCAWECQQDlSc7jQ/Ps5rxcoekB
+		   ldB+VmuR8TfcWdrWSOdHUiLyoJoj+Z7yfrf70gONPP9tUnwX6MYdT8YwzHK34aWv
+		   8KiBAkBHddlql5jDVgIsaEbJ77cdPJ1Ll4Zw9FqTOcajUuZJnLmKrhYTUxKIaize
+		   BbjvsQN3Pr6gxZiBB3rS0aLY4lgBAkApsH3ZfKWBUYK2JQpEq4S5M+VjJ8TMX9oW
+		   VDMZGKoaC3F7UQvBc6DoPItAxvJ6YiEGB+Ddu3+Bp+rD3FdP4iYBAkBh17O56A/f
+		   QX49RjRCRIT0w4nvZ3ph9gHEe50E4+Ky5CLQNOPLD/RbBXSEzez8cGysVvzDO3DZ
+		   /iN4a8gloY3d
+		   -----END PRIVATE KEY-----`,
+		`cert_key: >
+		   ********`)
+	assertClean(t,
+		`cert_key: |
+			-----BEGIN CERTIFICATE-----
+			MIICdQIBADANBgkqhkiG9w0BAQEFAASCAl8wggJbAgEAAoGBAOLJKRals8tGoy7K
+			ljG6/hMcoe16W6MPn47Q601ttoFkMoSJZ1Jos6nxn32KXfG6hCiB0bmf1iyZtaMa
+			idae/ceT7ZNGvqcVffpDianq9r08hClhnU8mTojl38fsvHf//yqZNzn1ZUcLsY9e
+			wG6wl7CsbWCafxaw+PfaCB1uWlnhAgMBAAECgYAI+tQgrHEBFIvzl1v5HiFfWlvj
+			DlxAiabUvdsDVtvKJdCGRPaNYc3zZbjd/LOZlbwT6ogGZJjTbUau7acVk3gS8uKl
+			ydWWODSuxVYxY8Poxt9SIksOAk5WmtMgIg2bTltTb8z3AWAT3qZrHth03la5Zbix
+			ynEngzyj1+ND7YwQAQJBAP00t8/1aqub+rfza+Ddd8OYSMARFH22oxgy2W1O+Gwc
+			Y8Gn3z6TkadfhPxFaUPnBPx8wm3mN+XeSB1nf0KCAWECQQDlSc7jQ/Ps5rxcoekB
+			ldB+VmuR8TfcWdrWSOdHUiLyoJoj+Z7yfrf70gONPP9tUnwX6MYdT8YwzHK34aWv
+			8KiBAkBHddlql5jDVgIsaEbJ77cdPJ1Ll4Zw9FqTOcajUuZJnLmKrhYTUxKIaize
+			BbjvsQN3Pr6gxZiBB3rS0aLY4lgBAkApsH3ZfKWBUYK2JQpEq4S5M+VjJ8TMX9oW
+			VDMZGKoaC3F7UQvBc6DoPItAxvJ6YiEGB+Ddu3+Bp+rD3FdP4iYBAkBh17O56A/f
+			QX49RjRCRIT0w4nvZ3ph9gHEe50E4+Ky5CLQNOPLD/RbBXSEzez8cGysVvzDO3DZ
+			/iN4a8gloY3d
+			-----END CERTIFICATE-----`,
+		`cert_key: |
+			********`)
 }
 
 func assertClean(t *testing.T, contents, cleanContents string) {
