@@ -107,12 +107,15 @@ func PagefileMemory() (*PagefileStat, error) {
 	if mem == 0 {
 		return nil, windows.GetLastError()
 	}
-
+	total := memInfo.ullTotalPageFile
+	free := memInfo.ullAvailPageFile
+	used := total - free
+	percent := (float64(used) / float64(total)) * 100
 	ret := &PagefileStat{
-		Total:       memInfo.ullTotalPageFile,
-		Available:   memInfo.ullAvailPageFile,
-		Used:        memInfo.ullTotalPageFile - memInfo.ullAvailPageFile,
-		UsedPercent: float64(((memInfo.ullTotalPageFile - memInfo.ullAvailPageFile) / (memInfo.ullAvailPageFile)) * 100),
+		Total:       total,
+		Available:   free,
+		Used:        used,
+		UsedPercent: percent,
 	}
 
 	return ret, nil

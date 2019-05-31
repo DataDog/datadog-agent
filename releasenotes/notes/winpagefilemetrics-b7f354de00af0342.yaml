@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    On Windows, restore the system.mem.pagefile.* metrics
+    On Windows, restore the ``system.mem.pagefile.pct_free`` metric
