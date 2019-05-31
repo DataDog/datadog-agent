@@ -18,14 +18,29 @@ func TestDecode(t *testing.T) {
 	in := &ebpf.Connections{
 		Conns: []ebpf.ConnectionStats{
 			{
-				Source: util.AddressFromString("10.1.1.1"),
-				Dest:   util.AddressFromString("10.1.1.1"),
-				SPort:  1000,
-				DPort:  9000,
+				Source:               util.AddressFromString("10.1.1.1"),
+				Dest:                 util.AddressFromString("10.2.2.2"),
+				MonotonicSentBytes:   1,
+				LastSentBytes:        2,
+				MonotonicRecvBytes:   100,
+				LastRecvBytes:        101,
+				LastUpdateEpoch:      50,
+				MonotonicRetransmits: 201,
+				LastRetransmits:      201,
+				Pid:                  6000,
+				NetNS:                7,
+				SPort:                1000,
+				DPort:                9000,
 				IPTranslation: &netlink.IPTranslation{
-					ReplSrcIP: "20.1.1.1",
-					ReplDstIP: "20.1.1.1",
+					ReplSrcIP:   "20.1.1.1",
+					ReplDstIP:   "20.1.1.1",
+					ReplSrcPort: 40,
+					ReplDstPort: 70,
 				},
+
+				Type:      ebpf.UDP,
+				Family:    ebpf.AFINET6,
+				Direction: ebpf.LOCAL,
 			},
 		},
 	}
