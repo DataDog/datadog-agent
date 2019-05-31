@@ -74,30 +74,30 @@ type Connections struct {
 type ConnectionStats struct {
 	// Source & Dest represented as a string to handle both IPv4 & IPv6
 	// Note: As ebpf.Address is an interface, we need to use interface{} for easyjson
-	Source interface{} `json:"source,string"`
-	Dest   interface{} `json:"dest,string"`
+	Source interface{} `json:"src,string"`
+	Dest   interface{} `json:"dst,string"`
 
-	MonotonicSentBytes uint64 `json:"monotonic_sent_bytes"`
-	LastSentBytes      uint64 `json:"last_sent_bytes"`
+	MonotonicSentBytes uint64 `json:"m_sent_b"`
+	LastSentBytes      uint64 `json:"sent_b"`
 
-	MonotonicRecvBytes uint64 `json:"monotonic_recv_bytes"`
-	LastRecvBytes      uint64 `json:"last_recv_bytes"`
+	MonotonicRecvBytes uint64 `json:"m_recv_b"`
+	LastRecvBytes      uint64 `json:"recv_b"`
 
 	// Last time the stats for this connection were updated
-	LastUpdateEpoch uint64 `json:"last_update_epoch"`
+	LastUpdateEpoch uint64 `json:"epoch"`
 
-	MonotonicRetransmits uint32 `json:"monotonic_retransmits"`
-	LastRetransmits      uint32 `json:"last_retransmits"`
+	MonotonicRetransmits uint32 `json:"m_retr"`
+	LastRetransmits      uint32 `json:"retr"`
 
 	Pid   uint32 `json:"pid"`
-	NetNS uint32 `json:"net_ns"`
+	NetNS uint32 `json:"ns"`
 
 	SPort         uint16                 `json:"sport"`
 	DPort         uint16                 `json:"dport"`
 	Type          ConnectionType         `json:"type"`
 	Family        ConnectionFamily       `json:"family"`
 	Direction     ConnectionDirection    `json:"direction"`
-	IPTranslation *netlink.IPTranslation `json:"conntrack"`
+	IPTranslation *netlink.IPTranslation `json:"iptr"`
 }
 
 // SourceAddr returns the source address in the Address abstraction
