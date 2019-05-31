@@ -13,11 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/mailru/easyjson"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
+	"github.com/mailru/easyjson/jwriter"
 )
 
 // ErrTracerUnsupported is the unsupported error prefix, for error-class matching from callers
@@ -161,14 +161,20 @@ func getClientID(req *http.Request) string {
 }
 
 func writeConnections(w http.ResponseWriter, cs *ebpf.Connections) {
-	buf, err := easyjson.Marshal(cs)
-	if err != nil {
+	jw := &jwriter.Writer{}
+	cs.MarshalEasyJSON(jw)
+	if err := jw.Error; err != nil {
 		log.Errorf("unable to marshall connections into JSON: %s", err)
 		w.WriteHeader(500)
 		return
 	}
-	w.Write(buf)
-	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
+	bytesWritten, err := jw.DumpTo(w)
+	if err != nil {
+		log.Errorf("unable to dump JSON to response: %s", err)
+		w.WriteHeader(500)
+		return
+	}
+	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), bytesWritten)
 }
 
 func writeAsJSON(w http.ResponseWriter, data interface{}) {
