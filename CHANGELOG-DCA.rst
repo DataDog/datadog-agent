@@ -50,7 +50,7 @@ Enhancement Notes
 -----------------
 - Improving Lifecycle of the External Metrics Provider
 - Support milliquantities for the External Metrics Provider
-- Move some logs info to debug, in order to not generates useless logs in normal case.
+- Move some logs from info to debug, in order to generates fewer noisy logs when running correctly.
 
 .. _Release Notes_1.2.0:
 
