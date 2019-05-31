@@ -142,7 +142,7 @@ func easyjson5f1d7f40DecodeGithubComDataDogDatadogAgentPkgEbpf1(in *jlexer.Lexer
 			continue
 		}
 		switch key {
-		case "source":
+		case "src":
 			if m, ok := out.Source.(easyjson.Unmarshaler); ok {
 				m.UnmarshalEasyJSON(in)
 			} else if m, ok := out.Source.(json.Unmarshaler); ok {
@@ -150,7 +150,7 @@ func easyjson5f1d7f40DecodeGithubComDataDogDatadogAgentPkgEbpf1(in *jlexer.Lexer
 			} else {
 				out.Source = in.Interface()
 			}
-		case "dest":
+		case "dst":
 			if m, ok := out.Dest.(easyjson.Unmarshaler); ok {
 				m.UnmarshalEasyJSON(in)
 			} else if m, ok := out.Dest.(json.Unmarshaler); ok {
@@ -158,23 +158,23 @@ func easyjson5f1d7f40DecodeGithubComDataDogDatadogAgentPkgEbpf1(in *jlexer.Lexer
 			} else {
 				out.Dest = in.Interface()
 			}
-		case "monotonic_sent_bytes":
+		case "m_sent_b":
 			out.MonotonicSentBytes = uint64(in.Uint64())
-		case "last_sent_bytes":
+		case "sent_b":
 			out.LastSentBytes = uint64(in.Uint64())
-		case "monotonic_recv_bytes":
+		case "m_recv_b":
 			out.MonotonicRecvBytes = uint64(in.Uint64())
-		case "last_recv_bytes":
+		case "recv_b":
 			out.LastRecvBytes = uint64(in.Uint64())
-		case "last_update_epoch":
+		case "epoch":
 			out.LastUpdateEpoch = uint64(in.Uint64())
-		case "monotonic_retransmits":
+		case "m_retr":
 			out.MonotonicRetransmits = uint32(in.Uint32())
-		case "last_retransmits":
+		case "retr":
 			out.LastRetransmits = uint32(in.Uint32())
 		case "pid":
 			out.Pid = uint32(in.Uint32())
-		case "net_ns":
+		case "ns":
 			out.NetNS = uint32(in.Uint32())
 		case "sport":
 			out.SPort = uint16(in.Uint16())
@@ -186,7 +186,7 @@ func easyjson5f1d7f40DecodeGithubComDataDogDatadogAgentPkgEbpf1(in *jlexer.Lexer
 			out.Family = ConnectionFamily(in.Uint8())
 		case "direction":
 			out.Direction = ConnectionDirection(in.Uint8())
-		case "conntrack":
+		case "cntrk":
 			if in.IsNull() {
 				in.Skip()
 				out.IPTranslation = nil
@@ -211,7 +211,7 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogAgentPkgEbpf1(out *jwriter.Wri
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"source\":"
+		const prefix string = ",\"src\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -227,7 +227,7 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogAgentPkgEbpf1(out *jwriter.Wri
 		}
 	}
 	{
-		const prefix string = ",\"dest\":"
+		const prefix string = ",\"dst\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -243,7 +243,7 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogAgentPkgEbpf1(out *jwriter.Wri
 		}
 	}
 	{
-		const prefix string = ",\"monotonic_sent_bytes\":"
+		const prefix string = ",\"m_sent_b\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -253,7 +253,7 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogAgentPkgEbpf1(out *jwriter.Wri
 		out.Uint64(uint64(in.MonotonicSentBytes))
 	}
 	{
-		const prefix string = ",\"last_sent_bytes\":"
+		const prefix string = ",\"sent_b\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -263,7 +263,7 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogAgentPkgEbpf1(out *jwriter.Wri
 		out.Uint64(uint64(in.LastSentBytes))
 	}
 	{
-		const prefix string = ",\"monotonic_recv_bytes\":"
+		const prefix string = ",\"m_recv_b\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -273,7 +273,7 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogAgentPkgEbpf1(out *jwriter.Wri
 		out.Uint64(uint64(in.MonotonicRecvBytes))
 	}
 	{
-		const prefix string = ",\"last_recv_bytes\":"
+		const prefix string = ",\"recv_b\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -283,7 +283,7 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogAgentPkgEbpf1(out *jwriter.Wri
 		out.Uint64(uint64(in.LastRecvBytes))
 	}
 	{
-		const prefix string = ",\"last_update_epoch\":"
+		const prefix string = ",\"epoch\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -293,7 +293,7 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogAgentPkgEbpf1(out *jwriter.Wri
 		out.Uint64(uint64(in.LastUpdateEpoch))
 	}
 	{
-		const prefix string = ",\"monotonic_retransmits\":"
+		const prefix string = ",\"m_retr\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -303,7 +303,7 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogAgentPkgEbpf1(out *jwriter.Wri
 		out.Uint32(uint32(in.MonotonicRetransmits))
 	}
 	{
-		const prefix string = ",\"last_retransmits\":"
+		const prefix string = ",\"retr\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -323,7 +323,7 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogAgentPkgEbpf1(out *jwriter.Wri
 		out.Uint32(uint32(in.Pid))
 	}
 	{
-		const prefix string = ",\"net_ns\":"
+		const prefix string = ",\"ns\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -383,7 +383,7 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogAgentPkgEbpf1(out *jwriter.Wri
 		out.Uint8(uint8(in.Direction))
 	}
 	{
-		const prefix string = ",\"conntrack\":"
+		const prefix string = ",\"cntrk\":"
 		if first {
 			first = false
 			_ = first

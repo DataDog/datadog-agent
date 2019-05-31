@@ -37,13 +37,13 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgEbpfNetlink(in *jlexer
 			continue
 		}
 		switch key {
-		case "repl_src_ip":
+		case "r_src":
 			out.ReplSrcIP = string(in.String())
-		case "repl_dst_ip":
+		case "r_dst":
 			out.ReplDstIP = string(in.String())
-		case "repl_src_port":
+		case "r_sport":
 			out.ReplSrcPort = uint16(in.Uint16())
-		case "repl_dst_port":
+		case "r_dport":
 			out.ReplDstPort = uint16(in.Uint16())
 		default:
 			in.SkipRecursive()
@@ -60,7 +60,7 @@ func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgEbpfNetlink(out *jwrit
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"repl_src_ip\":"
+		const prefix string = ",\"r_src\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -70,7 +70,7 @@ func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgEbpfNetlink(out *jwrit
 		out.String(string(in.ReplSrcIP))
 	}
 	{
-		const prefix string = ",\"repl_dst_ip\":"
+		const prefix string = ",\"r_dst\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -80,7 +80,7 @@ func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgEbpfNetlink(out *jwrit
 		out.String(string(in.ReplDstIP))
 	}
 	{
-		const prefix string = ",\"repl_src_port\":"
+		const prefix string = ",\"r_sport\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -90,7 +90,7 @@ func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgEbpfNetlink(out *jwrit
 		out.Uint16(uint16(in.ReplSrcPort))
 	}
 	{
-		const prefix string = ",\"repl_dst_port\":"
+		const prefix string = ",\"r_dport\":"
 		if first {
 			first = false
 			_ = first
