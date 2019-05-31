@@ -41,7 +41,7 @@ type RemoteSysProbeUtil struct {
 
 	// buf is a shared buffer used when reading JSON off the unix-socket. mu is used to synchronize
 	// access to buf
-	buf bytes.Buffer
+	buf *bytes.Buffer
 	mu  sync.Mutex
 }
 
@@ -96,6 +96,12 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]ebpf.ConnectionS
 		return nil, err
 	}
 
+	// shrink buffer if necessary. Otherwise, a buf sized for the largest possible
+	// entry will stick around
+	if r.buf.Len() < r.buf.Cap()/2 {
+		r.buf = bytes.NewBuffer(make([]byte, 0, r.buf.Cap()/2))
+	}
+
 	return conn.Conns, nil
 }
 
@@ -114,7 +120,7 @@ func ShouldLogTracerUtilError() bool {
 func newSystemProbe() *RemoteSysProbeUtil {
 	return &RemoteSysProbeUtil{
 		socketPath: globalSocketPath,
-		mu:         sync.Mutex{},
+		buf:        &bytes.Buffer{},
 		httpClient: http.Client{
 			Timeout: 10 * time.Second,
 			Transport: &http.Transport{
