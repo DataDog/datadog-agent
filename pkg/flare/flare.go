@@ -38,8 +38,8 @@ func SendFlareWithHostname(archivePath string, caseID string, email string, host
 	//Write stuff to the pipe will block until it is read from the other end, so we don't load everything in memory
 	go func() {
 
-		defer writer.Close()
 		defer bodyWriter.Close()
+		defer writer.Close()
 
 		if caseID != "" {
 			writer.WriteField("case_id", caseID)
