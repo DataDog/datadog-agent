@@ -368,7 +368,7 @@ LExit:
     return WcaFinalize(er);
 }
 
-BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext);
+
 extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall) {
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     HRESULT hr = WcaInitialize(hInstall, "CA: DoRollback");
