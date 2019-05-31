@@ -414,6 +414,8 @@ func initConfig(config Config) {
 	config.SetKnown("process_config.intervals.container")
 	config.SetKnown("process_config.intervals.container_realtime")
 	config.SetKnown("process_config.dd_agent_bin")
+	config.SetKnown("process_config.custom_sensitive_words")
+	config.SetKnown("process_config.scrub_args")
 	config.SetKnown("process.strip_proc_arguments")
 	config.SetKnown("process_config.windows.args_refresh_interval")
 	config.SetKnown("process_config.windows.add_new_args")
