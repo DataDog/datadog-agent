@@ -16,6 +16,8 @@
 
 // logging to cerr
 #include <iostream>
+#include <sstream>
+#include <errno.h>
 // clang-format on
 
 core_trigger_t core_dump = NULL;
@@ -63,12 +65,20 @@ bool Six::handleCrashes(const bool coredump) const
     sa.sa_sigaction = signalHandler;
 
     // on segfault - what else?
-    sigaction(SIGSEGV, &sa, NULL);
+    int err = sigaction(SIGSEGV, &sa, NULL);
 
-    if (coredump) {
+    if (coredump && err == 0) {
         __sync_synchronize();
         core_dump = core;
     }
+    if (err) {
+        std::stringstream ss;
+        ss << "unable to set crash handler: " << strerror(errno);
+
+        setError(ss.str());
+    }
+
+    return bool(err);
 }
 
 #endif
