@@ -9,6 +9,7 @@
 package app
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -18,12 +19,13 @@ const (
 	pythonBin = "python.exe"
 )
 
-var (
-	relPyPath              = filepath.Join("..", "embedded2", pythonBin)
-	relChecksPath          = filepath.Join("..", "embedded2", "Lib", "site-packages", "datadog_checks")
-	relReqAgentReleasePath = filepath.Join("..", reqAgentReleaseFile)
-	relConstraintsPath     = filepath.Join("..", constraintsFile)
-)
+func getRelPyPath() string {
+	return filepath.Join(fmt.Sprintf("embedded%s", pythonMajorVersion), pythonBin)
+}
+
+func getRelChecksPath() (string, error) {
+	return filepath.Join(fmt.Sprintf("embedded%s", pythonMajorVersion), "Lib", "site-packages", "datadog_checks"), nil
+}
 
 func authorizedUser() bool {
 	// TODO: implement something useful
