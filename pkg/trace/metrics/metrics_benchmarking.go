@@ -3,7 +3,6 @@
 package metrics
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"sync"
@@ -11,18 +10,17 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var filename = fmt.Sprintf("metrics-%s.txt", time.Now().Format("02-01-2006-15:04:05"))
-
 // Configure creates a statsd client for the given agent's configuration, using the specified global tags.
 func Configure(cfg *config.AgentConfig, tags []string) error {
-	f, err := os.Create(filename)
+	f, err := os.Create(flags.StatsOut)
 	if err != nil {
 		return err
 	}
-	log.Infof("Outputting metrics to %q", filename)
+	log.Infof("Outputting metrics to %q", flags.StatsOut)
 	Client = &captureClient{
 		f:    f,
 		cfg:  cfg,
