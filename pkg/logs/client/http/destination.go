@@ -33,7 +33,7 @@ type Destination struct {
 // TODO: add support for SOCKS5
 func NewDestination(endpoint config.Endpoint, destinationsContext *client.DestinationsContext) *Destination {
 	return &Destination{
-		url: builURL(endpoint),
+		url: buildURL(endpoint),
 		client: &http.Client{
 			Timeout: time.Second * 10,
 			// reusing core agent HTTP transport to benefit from proxy settings.
@@ -92,7 +92,7 @@ func (d *Destination) SendAsync(payload []byte) {
 }
 
 // builURL buils a url from a config endpoint.
-func builURL(endpoint config.Endpoint) string {
+func buildURL(endpoint config.Endpoint) string {
 	var scheme string
 	if endpoint.UseSSL {
 		scheme = "https"
