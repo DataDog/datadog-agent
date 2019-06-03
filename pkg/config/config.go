@@ -340,8 +340,6 @@ func initConfig(config Config) {
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key")
 	config.BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
-	// send the logs using HTTP
-	config.BindEnvAndSetDefault("logs_config.use_http", false)
 	// send the logs to the port 443 of the logs-backend via TCP:
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
 	// increase the read buffer size of the UDP sockets:
@@ -355,6 +353,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	config.BindEnv("logs_config.dd_url")
 	config.BindEnv("logs_config.http_dd_url")
+	config.BindEnvAndSetDefault("logs_config.use_http", false)
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
