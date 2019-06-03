@@ -43,7 +43,19 @@ Two::~Two()
 {
     PyEval_RestoreThread(_threadState);
     Py_XDECREF(_baseClass);
-    Py_Finalize();
+
+    // We do not call Py_Finalize() since we won't be calling it from the same
+    // thread where we called Py_Initialize(), as the go runtime switch thread
+    // all the time. It's not really an issue here as we destroy this class
+    // just before exiting the agent.
+    // Calling Py_Finalize from a different thread cause the "threading"
+    // package to raise an exception: "Exception KeyError: KeyError(<current
+    // thread id>,) in <module 'threading'".
+    // Even if Python ignore it, the exception end up in the log files for
+    // upstart/syslog/...
+    //
+    // More info here:
+    // https://stackoverflow.com/questions/8774958/keyerror-in-module-threading-after-a-successful-py-test-run/12639040#12639040
 }
 
 void Two::initPythonHome(const char *pythonHome)
