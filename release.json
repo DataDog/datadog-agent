@@ -1,8 +1,6 @@
 {
 	"nightly": {
 		"INTEGRATIONS_CORE_VERSION": "master",
-		"TRACE_AGENT_VERSION": "master",
-		"PROCESS_AGENT_VERSION": "master",
 		"OMNIBUS_SOFTWARE_VERSION": "master",
 		"OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
 		"JMXFETCH_VERSION": "0.29.1",
@@ -11,8 +9,6 @@
 	},
 	"6.12.0-rc.1": {
 		"INTEGRATIONS_CORE_VERSION": "6.12.0-rc.1",
-		"TRACE_AGENT_VERSION": "6.12.0-rc.1",
-		"PROCESS_AGENT_VERSION": "6.12.0-rc.1",
 		"OMNIBUS_SOFTWARE_VERSION": "6.12.0-rc.1",
 		"OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
 		"JMXFETCH_VERSION": "0.29.1",
