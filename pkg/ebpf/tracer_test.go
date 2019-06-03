@@ -5,6 +5,7 @@ package ebpf
 import (
 	"bufio"
 	"bytes"
+	json "encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
@@ -38,7 +39,23 @@ func TestTracerExpvar(t *testing.T) {
 
 	<-time.After(time.Second)
 
-	assert.Equal(t, "{\"ClosedConnDropped\": 0, \"ClosedConnPollingLost\": 0, \"ClosedConnPollingReceived\": 0, \"ConnDropped\": 0, \"ConntrackNoopConntracker\": 0, \"ExpiredTcpConns\": 0, \"OkConnsSkipped\": 0, \"StatsResets\": 0, \"UnorderedConns\": 0}", probeExpvar.String())
+	expected := map[string]float64{
+		"ClosedConnDropped":         0,
+		"ClosedConnPollingLost":     0,
+		"ClosedConnPollingReceived": 0,
+		"ConnDropped":               0,
+		"ConntrackNoopConntracker":  0,
+		"ExpiredTcpConns":           0,
+		"OkConnsSkipped":            0,
+		"StatsResets":               0,
+		"UnorderedConns":            0,
+		"TimeSyncCollisions":        0,
+	}
+
+	res := map[string]float64{}
+	require.NoError(t, json.Unmarshal([]byte(probeExpvar.String()), &res))
+
+	assert.Equal(t, expected, res)
 }
 
 func TestSnakeToCamel(t *testing.T) {
@@ -574,6 +591,7 @@ func TestLocalDNSCollectionEnabled(t *testing.T) {
 	// Enable BPF-based system probe with DNS enabled
 	config := NewDefaultConfig()
 	config.CollectLocalDNS = true
+	config.CollectUDPConns = true
 
 	tr, err := NewTracer(config)
 	if err != nil {
@@ -593,19 +611,17 @@ func TestLocalDNSCollectionEnabled(t *testing.T) {
 	_, err = cn.Write([]byte("test"))
 	assert.NoError(t, err)
 
+	found := false
 	// Iterate through active connections making sure theres at least one connection
 	for _, c := range getConnections(t, tr).Conns {
-		if isLocalDNS(c) {
-			return
-		}
+		found = found || isLocalDNS(c)
 	}
 
-	// We shouldn't get here if the test passes successfully
-	assert.Error(t, nil)
+	assert.True(t, found)
 }
 
 func isLocalDNS(c ConnectionStats) bool {
-	return c.Source == "127.0.0.1" && c.Dest == "127.0.0.1" && c.DPort == 53
+	return c.SourceAddr().String() == "127.0.0.1" && c.DestAddr().String() == "127.0.0.1" && c.DPort == 53
 }
 
 func TestTooSmallBPFMap(t *testing.T) {
