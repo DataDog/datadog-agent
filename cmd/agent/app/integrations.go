@@ -31,7 +31,7 @@ import (
 
 const (
 	reqAgentReleaseFile = "requirements-agent-release.txt"
-	constraintsFile     = "final_constraints.txt"
+	constraintsFile     = "final_constraints-py2.txt"
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
 	downloaderModule    = "datadog_checks.downloader"
 	disclaimer          = "For your security, only use this to install wheels containing an Agent integration " +

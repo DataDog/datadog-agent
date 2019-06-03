@@ -19,8 +19,8 @@ const (
 )
 
 var (
-	relPyPath              = pythonBin
-	relChecksPath          = filepath.Join("Lib", "site-packages", "datadog_checks")
+	relPyPath              = filepath.Join("..", "embedded2", pythonBin)
+	relChecksPath          = filepath.Join("..", "embedded2", "Lib", "site-packages", "datadog_checks")
 	relReqAgentReleasePath = filepath.Join("..", reqAgentReleaseFile)
 	relConstraintsPath     = filepath.Join("..", constraintsFile)
 )
