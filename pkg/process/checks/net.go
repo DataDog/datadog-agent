@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -28,6 +29,11 @@ type ConnectionsCheck struct {
 	useLocalTracer bool
 	localTracer    *ebpf.Tracer
 	tracerClientID string
+
+	// tmpConnections is shared buffer ebpf.Connection. It's purpose is to let us avoid
+	// allocations everytime we parse a new set of connections.
+	tmpConnections []ebpf.ConnectionStats
+	mu             sync.Mutex
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -86,7 +92,10 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 
 	start := time.Now()
 
-	conns, err := c.getConnections()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	conns, err := c.getConnections(c.tmpConnections)
 	if err != nil {
 		// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
 		if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
@@ -96,10 +105,19 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	}
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.formatConnections(conns)), nil
+	batched := batchConnections(cfg, groupID, c.formatConnections(conns))
+
+	// shrink tmpConnections if the slice is over-allocated
+	if len(c.tmpConnections) < cap(c.tmpConnections)/2 {
+		c.tmpConnections = make([]ebpf.ConnectionStats, 0, cap(c.tmpConnections)/2)
+	}
+
+	return batched, nil
 }
 
-func (c *ConnectionsCheck) getConnections() ([]ebpf.ConnectionStats, error) {
+func (c *ConnectionsCheck) getConnections(in []ebpf.ConnectionStats) ([]ebpf.ConnectionStats, error) {
+	in = in[:0]
+
 	if c.useLocalTracer { // If local tracer is set up, use that
 		if c.localTracer == nil {
 			return nil, fmt.Errorf("using local system probe, but no tracer was initialized")
@@ -116,7 +134,7 @@ func (c *ConnectionsCheck) getConnections() ([]ebpf.ConnectionStats, error) {
 		return nil, ErrTracerStillNotInitialized
 	}
 
-	return tu.GetConnections(c.tracerClientID)
+	return tu.GetConnections(c.tracerClientID, in)
 }
 
 // Connections are split up into a chunks of at most 100 connections per message to

@@ -72,8 +72,9 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 	return globalUtil, nil
 }
 
-// GetConnections returns a set of active network connections, retrieved from the system probe service
-func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]ebpf.ConnectionStats, error) {
+// GetConnections returns a set of active network connections, retrieved from the system probe service.
+// The connections will be read into the input slices of ebpf.ConnectionStats.
+func (r *RemoteSysProbeUtil) GetConnections(clientID string, in []ebpf.ConnectionStats) ([]ebpf.ConnectionStats, error) {
 	resp, err := r.httpClient.Get(fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID))
 	if err != nil {
 		return nil, err
@@ -86,7 +87,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]ebpf.ConnectionS
 		return nil, err
 	}
 
-	conn := &ebpf.Connections{}
+	conn := ebpf.Connections{Conns: in}
 	if err := conn.UnmarshalJSON(body); err != nil {
 		return nil, err
 	}
