@@ -222,25 +222,26 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     PyObject *py_tags = NULL; // borrowed
     char *check_id = NULL;
     event_t *ev = NULL;
+    PyObject * retval = NULL;
 
     // aggregator.submit_event(self, check_id, event)
     if (!PyArg_ParseTuple(args, "OsO", &check, &check_id, &event_dict)) {
-        PyGILState_Release(gstate);
         // error is set by PyArg_ParseTuple but we return NULL to raise
-        return NULL;
+        retval = NULL;
+        goto gstate_cleanup;
     }
 
     if (!PyDict_Check(event_dict)) {
         PyErr_SetString(PyExc_TypeError, "event must be a dict");
-        PyGILState_Release(gstate);
         // returning NULL to raise error
-        return NULL;
+        retval = NULL;
+        goto gstate_cleanup;
     }
 
     if (!(ev = (event_t *)malloc(sizeof(event_t)))) {
         PyErr_SetString(PyExc_RuntimeError, "could not allocate memory for event");
-        PyGILState_Release(gstate);
-        return NULL;
+        retval = NULL;
+        goto gstate_cleanup;
     }
 
     // notice: PyDict_GetItemString returns a borrowed ref or NULL if key was not found
@@ -263,10 +264,9 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     if (py_tags != NULL) {
         ev->tags = py_tag_to_c(py_tags);
         if (ev->tags == NULL) {
-            free(ev);
-            PyGILState_Release(gstate);
             // we need to return NULL to raise the exception set by PyErr_SetString in py_tag_to_c
-            return NULL;
+            retval = NULL;
+            goto ev_cleanup;
         }
     } else {
         ev->tags = NULL;
@@ -275,11 +275,26 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     // send the event
     cb_submit_event(check_id, ev);
 
-    // cleanup and return
-    if (py_tags != NULL) {
+    //Success
+    Py_INCREF(Py_None); //Increment, sice we are not using the macro Py_RETURN_NONE that does it for us
+    retval = Py_None;
+
+ev_cleanup:
+    if (ev->tags != NULL) {
         free_tags(ev->tags);
     }
+    free(ev->title);
+    free(ev->text);
+    free(ev->priority);
+    free(ev->host);
+    free(ev->alert_type);
+    free(ev->aggregation_key);
+    free(ev->source_type_name);
+    free(ev->event_type);
     free(ev);
+
+gstate_cleanup:
     PyGILState_Release(gstate);
-    Py_RETURN_NONE;
+
+    return retval;
 }
