@@ -86,10 +86,12 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 			// We don't check container readiness as init containers are never ready
 			// We check if the container has an ID instead (has run or is running)
 			if !container.IsPending() {
-				if _, found := w.lastSeen[container.ID]; found == false {
+				// We store readiness in the cache key to resubmit the container on pod phase change
+				containerCacheKey := container.ID + "-" + strconv.FormatBool(IsPodReady(pod))
+				if _, found := w.lastSeen[containerCacheKey]; found == false {
 					newContainer = true
 				}
-				w.lastSeen[container.ID] = now
+				w.lastSeen[containerCacheKey] = now
 			}
 		}
 

@@ -865,10 +865,7 @@
 [[projects]]
   digest = "1:961dc3b1d11f969370533390fdf203813162980c858e1dabe827b60940c909a5"
   name = "github.com/magiconair/properties"
-  packages = [
-    ".",
-    "assert",
-  ]
+  packages = ["."]
   pruneopts = ""
   revision = "c2353362d570a7bfa228149c62842019201cfb71"
   version = "v1.8.0"
@@ -2029,8 +2026,8 @@
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider",
     "github.com/lxn/walk",
     "github.com/lxn/win",
-    "github.com/magiconair/properties/assert",
     "github.com/mailru/easyjson",
+    "github.com/mailru/easyjson/buffer",
     "github.com/mailru/easyjson/jlexer",
     "github.com/mailru/easyjson/jwriter",
     "github.com/mholt/archiver",
