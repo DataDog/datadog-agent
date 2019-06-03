@@ -6,24 +6,25 @@
 package http
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
-type HttpServerTest struct {
+type HTTPServerTest struct {
 	httpServer  *httptest.Server
 	destCtx     *client.DestinationsContext
 	destination *Destination
 }
 
-func NewHttpServerTest(statusCode int) *HttpServerTest {
+func NewHTTPServerTest(statusCode int) *HTTPServerTest {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(statusCode)
 	}))
@@ -33,18 +34,18 @@ func NewHttpServerTest(statusCode int) *HttpServerTest {
 	destCtx.Start()
 	dest := NewDestination(config.Endpoint{
 		APIKey: "test",
-		Host:   strings.ReplaceAll(url[1], "/", ""),
+		Host:   strings.Replace(url[1], "/", "", -1),
 		Port:   port,
 		UseSSL: false,
 	}, destCtx)
-	return &HttpServerTest{
+	return &HTTPServerTest{
 		httpServer:  ts,
 		destCtx:     destCtx,
 		destination: dest,
 	}
 }
 
-func (s *HttpServerTest) stop() {
+func (s *HTTPServerTest) stop() {
 	s.destCtx.Start()
 	s.httpServer.Close()
 }
@@ -78,14 +79,14 @@ func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
 }
 
 func TestDestinationSend200(t *testing.T) {
-	server := NewHttpServerTest(200)
+	server := NewHTTPServerTest(200)
 	err := server.destination.Send([]byte("yo"))
 	assert.Nil(t, err)
 	server.stop()
 }
 
 func TestDestinationSend500(t *testing.T) {
-	server := NewHttpServerTest(500)
+	server := NewHTTPServerTest(500)
 	err := server.destination.Send([]byte("yo"))
 	assert.NotNil(t, err)
 	assert.Equal(t, "server error", err.Error())
@@ -93,7 +94,7 @@ func TestDestinationSend500(t *testing.T) {
 }
 
 func TestDestinationSend400(t *testing.T) {
-	server := NewHttpServerTest(400)
+	server := NewHTTPServerTest(400)
 	err := server.destination.Send([]byte("yo"))
 	assert.NotNil(t, err)
 	assert.Equal(t, "client error", err.Error())
