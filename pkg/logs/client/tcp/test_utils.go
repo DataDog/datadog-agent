@@ -3,9 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-package client
+package tcp
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"net"
 )
 
@@ -21,12 +23,12 @@ func AddrToHostPort(remoteAddr net.Addr) (string, int) {
 }
 
 // AddrToEndPoint creates an EndPoint from an Addr.
-func AddrToEndPoint(addr net.Addr) Endpoint {
+func AddrToEndPoint(addr net.Addr) config.Endpoint {
 	host, port := AddrToHostPort(addr)
-	return Endpoint{Host: host, Port: port}
+	return config.Endpoint{Host: host, Port: port}
 }
 
 // AddrToDestination creates a Destination from an Addr
-func AddrToDestination(addr net.Addr, ctx *DestinationsContext) *Destination {
-	return NewDestination(AddrToEndPoint(addr), ctx)
+func AddrToDestination(addr net.Addr, ctx *client.DestinationsContext) *Destination {
+	return NewDestination(AddrToEndPoint(addr), true, ctx)
 }

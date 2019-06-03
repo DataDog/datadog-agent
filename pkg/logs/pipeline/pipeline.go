@@ -7,6 +7,8 @@ package pipeline
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
@@ -17,36 +19,53 @@ import (
 type Pipeline struct {
 	InputChan chan *message.Message
 	processor *processor.Processor
-	sender    *sender.Sender
+	sender    sender.Sender
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
-	// initialize the main destination
-	main := client.NewDestination(endpoints.Main, destinationsContext)
-
-	// initialize the additional destinations
-	var additionals []*client.Destination
-	for _, endpoint := range endpoints.Additionals {
-		additionals = append(additionals, client.NewDestination(endpoint, destinationsContext))
+func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
+	var destinations *client.Destinations
+	if endpoints.UseHTTP {
+		main := http.NewDestination(endpoints.Main, destinationsContext)
+		additionals := []client.Destination{}
+		for _, endpoint := range endpoints.Additionals {
+			additionals = append(additionals, http.NewDestination(endpoint, destinationsContext))
+		}
+		destinations = client.NewDestinations(main, additionals)
+	} else {
+		main := tcp.NewDestination(endpoints.Main, endpoints.UseProto, destinationsContext)
+		additionals := []client.Destination{}
+		for _, endpoint := range endpoints.Additionals {
+			additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
+		}
+		destinations = client.NewDestinations(main, additionals)
 	}
 
-	// initialize the sender
-	destinations := client.NewDestinations(main, additionals)
 	senderChan := make(chan *message.Message, config.ChanSize)
-	sender := sender.NewSender(senderChan, outputChan, destinations)
 
-	// initialize the input chan
+	var newSender sender.Sender
+	if endpoints.UseHTTP {
+		newSender = sender.NewBatchSender(senderChan, outputChan, destinations)
+	} else {
+		newSender = sender.NewStreamSender(senderChan, outputChan, destinations)
+	}
+
+	var encoder processor.Encoder
+	if endpoints.UseHTTP {
+		encoder = processor.JSONEncoder
+	} else if endpoints.UseProto {
+		encoder = processor.ProtoEncoder
+	} else {
+		encoder = processor.RawEncoder
+	}
+
 	inputChan := make(chan *message.Message, config.ChanSize)
-
-	// initialize the processor
-	encoder := processor.NewEncoder(endpoints.Main.UseProto)
 	processor := processor.New(inputChan, senderChan, processingRules, encoder)
 
 	return &Pipeline{
 		InputChan: inputChan,
 		processor: processor,
-		sender:    sender,
+		sender:    newSender,
 	}
 }
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-package client
+package tcp
 
 import (
 	"net"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
@@ -23,7 +24,7 @@ func newConnectionManagerForAddr(addr net.Addr) *ConnectionManager {
 }
 
 func newConnectionManagerForHostPort(host string, port int) *ConnectionManager {
-	endpoint := Endpoint{Host: host, Port: port}
+	endpoint := config.Endpoint{Host: host, Port: port}
 	return NewConnectionManager(endpoint)
 }
 
@@ -36,7 +37,7 @@ func TestNewConnection(t *testing.T) {
 	l := mock.NewMockLogsIntake(t)
 	defer l.Close()
 	status.CreateSources([]*config.LogSource{})
-	destinationsCtx := NewDestinationsContext()
+	destinationsCtx := client.NewDestinationsContext()
 
 	connManager := newConnectionManagerForAddr(l.Addr())
 	destinationsCtx.Start()
@@ -48,7 +49,7 @@ func TestNewConnection(t *testing.T) {
 }
 
 func TestNewConnectionReturnsWhenContextCancelled(t *testing.T) {
-	destinationsCtx := NewDestinationsContext()
+	destinationsCtx := client.NewDestinationsContext()
 	connManager := newConnectionManagerForHostPort("foo", 0)
 
 	destinationsCtx.Start()

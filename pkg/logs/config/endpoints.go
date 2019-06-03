@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-package client
+package config
 
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
@@ -11,7 +11,6 @@ type Endpoint struct {
 	Host         string
 	Port         int
 	UseSSL       bool
-	UseProto     bool
 	ProxyAddress string
 }
 
@@ -19,12 +18,16 @@ type Endpoint struct {
 type Endpoints struct {
 	Main        Endpoint
 	Additionals []Endpoint
+	UseProto    bool
+	UseHTTP     bool
 }
 
 // NewEndpoints returns a new endpoints composite.
-func NewEndpoints(main Endpoint, additionals []Endpoint) *Endpoints {
+func NewEndpoints(main Endpoint, additionals []Endpoint, useProto bool, useHTTP bool) *Endpoints {
 	return &Endpoints{
 		Main:        main,
 		Additionals: additionals,
+		UseProto:    useProto,
+		UseHTTP:     useHTTP,
 	}
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-package sender
+package config
 
 import (
 	"testing"
@@ -11,20 +11,18 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
 )
 
-type ConfigTestSuite struct {
+type EndpointsTestSuite struct {
 	suite.Suite
 	config *coreConfig.MockConfig
 }
 
-func (suite *ConfigTestSuite) SetupTest() {
+func (suite *EndpointsTestSuite) SetupTest() {
 	suite.config = coreConfig.Mock()
 }
 
-func (suite *ConfigTestSuite) TestLogsEndpointConfig() {
+func (suite *EndpointsTestSuite) TestLogsEndpointConfig() {
 	suite.Equal("agent-intake.logs.datadoghq.com", coreConfig.GetMainEndpoint(endpointPrefix, "logs_config.dd_url"))
 	endpoints, err := BuildEndpoints()
 	suite.Nil(err)
@@ -60,11 +58,11 @@ func (suite *ConfigTestSuite) TestLogsEndpointConfig() {
 	suite.Equal(1234, endpoints.Main.Port)
 }
 
-func (suite *ConfigTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndValidOverride() {
-	var endpoints *client.Endpoints
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndValidOverride() {
+	var endpoints *Endpoints
 
 	var err error
-	var endpoint client.Endpoint
+	var endpoint Endpoint
 
 	suite.config.Set("api_key", "azerty")
 	suite.config.Set("logs_config.socks5_proxy_address", "boz:1234")
@@ -115,7 +113,61 @@ func (suite *ConfigTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndValid
 	suite.Equal(0, len(endpoints.Additionals))
 }
 
-func (suite *ConfigTestSuite) TestBuildEndpointsShouldFailWithInvalidOverride() {
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfig() {
+	var endpoints *Endpoints
+	var endpoint Endpoint
+	var err error
+
+	suite.config.Set("logs_config.use_http", true)
+	suite.config.Set("logs_config.http_dd_url", "foo")
+
+	endpoints, err = BuildEndpoints()
+	suite.Nil(err)
+	suite.True(endpoints.UseHTTP)
+
+	endpoint = endpoints.Main
+	suite.True(endpoint.UseSSL)
+	suite.Equal("foo", endpoint.Host)
+}
+
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithInvalidHTTPConfig() {
+	var err error
+
+	suite.config.Set("logs_config.use_http", true)
+
+	_, err = BuildEndpoints()
+	suite.NotNil(err)
+}
+
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidProxyConfig() {
+	var endpoints *Endpoints
+	var endpoint Endpoint
+	var err error
+
+	suite.config.Set("logs_config.use_http", true)
+	suite.config.Set("logs_config.logs_dd_url", "foo:1234")
+
+	endpoints, err = BuildEndpoints()
+	suite.Nil(err)
+	suite.True(endpoints.UseHTTP)
+
+	endpoint = endpoints.Main
+	suite.True(endpoint.UseSSL)
+	suite.Equal("foo", endpoint.Host)
+	suite.Equal(1234, endpoint.Port)
+}
+
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFailWithInvalidProxyConfig() {
+	var err error
+
+	suite.config.Set("logs_config.use_http", true)
+	suite.config.Set("logs_config.logs_dd_url", "foo")
+
+	_, err = BuildEndpoints()
+	suite.NotNil(err)
+}
+
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFailWithInvalidOverride() {
 	invalidURLs := []string{
 		"host:foo",
 		"host",
@@ -129,7 +181,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsShouldFailWithInvalidOverride() 
 }
 
 //When migrating the agent v5 to v6, logs_dd_url is set to empty. Default to the dd_url/site already set instead.
-func (suite *ConfigTestSuite) TestBuildEndpointsShouldSucceedWhenMigratingToAgentV6() {
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWhenMigratingToAgentV6() {
 	suite.config.Set("logs_config.logs_dd_url", "")
 	endpoints, err := BuildEndpoints()
 	suite.Nil(err)
@@ -137,7 +189,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsShouldSucceedWhenMigratingToAgen
 	suite.Equal(10516, endpoints.Main.Port)
 }
 
-func (suite *ConfigTestSuite) TestIsSetAndNotEmpty() {
+func (suite *EndpointsTestSuite) TestIsSetAndNotEmpty() {
 	suite.config.Set("bob", "vanilla")
 	suite.config.Set("empty", "")
 	suite.True(isSetAndNotEmpty(suite.config, "bob"))
@@ -145,7 +197,7 @@ func (suite *ConfigTestSuite) TestIsSetAndNotEmpty() {
 	suite.False(isSetAndNotEmpty(suite.config, "wassup"))
 }
 
-func (suite *ConfigTestSuite) TestDefaultApiKey() {
+func (suite *EndpointsTestSuite) TestDefaultApiKey() {
 	suite.config.Set("api_key", "wassupkey")
 	suite.Equal("wassupkey", getLogsAPIKey(suite.config))
 	endpoints, err := BuildEndpoints()
@@ -153,7 +205,7 @@ func (suite *ConfigTestSuite) TestDefaultApiKey() {
 	suite.Equal("wassupkey", endpoints.Main.APIKey)
 }
 
-func (suite *ConfigTestSuite) TestOverrideApiKey() {
+func (suite *EndpointsTestSuite) TestOverrideApiKey() {
 	suite.config.Set("api_key", "wassupkey")
 	suite.config.Set("logs_config.api_key", "wassuplogskey")
 	suite.Equal("wassuplogskey", getLogsAPIKey(suite.config))
@@ -162,6 +214,6 @@ func (suite *ConfigTestSuite) TestOverrideApiKey() {
 	suite.Equal("wassuplogskey", endpoints.Main.APIKey)
 }
 
-func TestConfigTestSuite(t *testing.T) {
-	suite.Run(t, new(ConfigTestSuite))
+func TestEndpointsTestSuite(t *testing.T) {
+	suite.Run(t, new(EndpointsTestSuite))
 }
