@@ -178,6 +178,34 @@ func (suite *PodwatcherTestSuite) TestPodWatcherWithShortLivedContainers() {
 	require.False(suite.T(), IsPodReady(changes[0]))
 }
 
+func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
+	sourcePods, err := loadPodsFixture("./testdata/podlist_container_not_ready.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 5)
+
+	watcher := &PodWatcher{
+		lastSeen:       make(map[string]time.Time),
+		tagsDigest:     make(map[string]string),
+		expiryDuration: 5 * time.Minute,
+	}
+
+	changes, err := watcher.computeChanges(sourcePods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 5, fmt.Sprintf("%d", len(changes)))
+
+	// The container goes into ready state
+	sourcePods, err = loadPodsFixture("./testdata/podlist_container_ready.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 5)
+
+	// Should detect the change of state of the redis container
+	changes, err = watcher.computeChanges(sourcePods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 1)
+	assert.Equal(suite.T(), "redis-unready", changes[0].Spec.Containers[0].Name)
+	require.True(suite.T(), IsPodReady(changes[0]))
+}
+
 func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 	sourcePods, err := loadPodsFixture("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
@@ -200,7 +228,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 	require.Len(suite.T(), expire, 0)
 
 	// Try
-	testContainerID := "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6"
+	testContainerID := "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6-ready:true"
 
 	// 4 minutes should NOT be enough to expire
 	watcher.lastSeen[testContainerID] = watcher.lastSeen[testContainerID].Add(-4 * time.Minute)
@@ -258,7 +286,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 	require.Nil(suite.T(), err)
 	expectedExpire := []string{
 		"kubernetes_pod://d91aa43c-0769-11e8-afcc-000c29dea4f6",
-		"docker://3e13513f94b41d23429804243820438fb9a214238bf2d4f384741a48b575670a",
+		"docker://3e13513f94b41d23429804243820438fb9a214238bf2d4f384741a48b575670a-ready:true",
 		"kubernetes_pod://260c2b1d43b094af6d6b4ccba082c2db",
 	}
 
