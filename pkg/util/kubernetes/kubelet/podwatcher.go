@@ -73,7 +73,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 
 		// static pods are included specifically because they won't have any container
 		// as they're not updated in the pod list after creation
-		if isPodStatic(pod) == true && foundPod == false {
+		if isPodStatic(pod) && !foundPod {
 			newStaticPod = true
 		}
 
@@ -87,8 +87,8 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 			// We check if the container has an ID instead (has run or is running)
 			if !container.IsPending() {
 				// We store readiness in the cache key to resubmit the container on pod phase change
-				containerCacheKey := container.ID + "-" + strconv.FormatBool(IsPodReady(pod))
-				if _, found := w.lastSeen[containerCacheKey]; found == false {
+				containerCacheKey := container.ID + "-ready:" + strconv.FormatBool(IsPodReady(pod))
+				if _, found := w.lastSeen[containerCacheKey]; !found {
 					newContainer = true
 				}
 				w.lastSeen[containerCacheKey] = now

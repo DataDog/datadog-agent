@@ -228,7 +228,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 	require.Len(suite.T(), expire, 0)
 
 	// Try
-	testContainerID := "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6-true"
+	testContainerID := "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6-ready:true"
 
 	// 4 minutes should NOT be enough to expire
 	watcher.lastSeen[testContainerID] = watcher.lastSeen[testContainerID].Add(-4 * time.Minute)
@@ -286,7 +286,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 	require.Nil(suite.T(), err)
 	expectedExpire := []string{
 		"kubernetes_pod://d91aa43c-0769-11e8-afcc-000c29dea4f6",
-		"docker://3e13513f94b41d23429804243820438fb9a214238bf2d4f384741a48b575670a-true",
+		"docker://3e13513f94b41d23429804243820438fb9a214238bf2d4f384741a48b575670a-ready:true",
 		"kubernetes_pod://260c2b1d43b094af6d6b4ccba082c2db",
 	}
 
