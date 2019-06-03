@@ -35,6 +35,10 @@ int doesServiceExist(MSIHANDLE hInstall, std::wstring& svcName);
 int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *password);
 int uninstallServices(MSIHANDLE hInstall, CustomActionData& data);
 int verifyServices(MSIHANDLE hInstall, CustomActionData& data);
+
+//delfiles.cpp
+BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext);
+
 extern HMODULE hDllModule;
 // rights we might be interested in
 /*
