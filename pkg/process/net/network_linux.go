@@ -11,7 +11,7 @@ import (
 	"context"
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -95,7 +95,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]*model.Connectio
 	}
 
 	contentType := resp.Header.Get("Content-type")
-	conns, err := ebpf.GetUnmarshaler(contentType).Unmarshal(body)
+	conns, err := encoding.GetUnmarshaler(contentType).Unmarshal(body)
 	if err != nil {
 		return nil, err
 	}

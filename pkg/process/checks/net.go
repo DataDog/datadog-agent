@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -106,7 +107,7 @@ func (c *ConnectionsCheck) getConnections() ([]*model.Connection, error) {
 		cs, err := c.localTracer.GetActiveConnections(c.tracerClientID)
 		conns := make([]*model.Connection, len(cs.Conns))
 		for i, ebpfConn := range cs.Conns {
-			conns[i] = ebpf.FormatConnection(ebpfConn)
+			conns[i] = encoding.FormatConnection(ebpfConn)
 		}
 		return conns, err
 	}

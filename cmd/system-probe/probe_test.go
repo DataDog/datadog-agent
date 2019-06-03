@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
@@ -45,7 +46,7 @@ func TestDecode(t *testing.T) {
 		},
 	}
 
-	marshaller := ebpf.GetMarshaler(ebpf.ContentTypeJSON)
+	marshaller := encoding.GetMarshaler(encoding.ContentTypeJSON)
 	expected, err := marshaller.Marshal(in)
 	require.NoError(t, err)
 

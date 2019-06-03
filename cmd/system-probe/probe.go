@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
@@ -91,8 +92,8 @@ func (nt *SystemProbe) Run() {
 			w.WriteHeader(500)
 			return
 		}
-		encoding := req.Header.Get("Accept")
-		marshaler := ebpf.GetMarshaler(encoding)
+		contentType := req.Header.Get("Accept")
+		marshaler := encoding.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 
 		count := atomic.AddUint64(&runCounter, 1)
@@ -107,8 +108,8 @@ func (nt *SystemProbe) Run() {
 			return
 		}
 
-		encoding := req.Header.Get("Accept")
-		marshaler := ebpf.GetMarshaler(encoding)
+		contentType := req.Header.Get("Accept")
+		marshaler := encoding.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 	})
 
@@ -163,7 +164,7 @@ func getClientID(req *http.Request) string {
 	return clientID
 }
 
-func writeConnections(w http.ResponseWriter, marshaler ebpf.Marshaler, cs *ebpf.Connections) {
+func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *ebpf.Connections) {
 	buf, err := marshaler.Marshal(cs)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
