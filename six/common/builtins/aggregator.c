@@ -83,7 +83,10 @@ static char **py_tag_to_c(PyObject *py_tags)
     }
 
     int len = PySequence_Length(py_tags);
-    if (len == 0) {
+    if (len == -1) {
+        PyErr_SetString(PyExc_RuntimeError, "could not compute tags length");
+        return NULL;
+    } else if (len == 0) {
         if (!(tags = malloc(sizeof(*tags)))) {
             PyErr_SetString(PyExc_RuntimeError, "could not allocate memory for tags");
             return NULL;
@@ -262,7 +265,7 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
         if (ev->tags == NULL) {
             free(ev);
             PyGILState_Release(gstate);
-            // we need to return NULL to raise the exception set by PyErr_SetString
+            // we need to return NULL to raise the exception set by PyErr_SetString in py_tag_to_c
             return NULL;
         }
     } else {
