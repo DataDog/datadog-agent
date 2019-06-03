@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
-	"github.com/mailru/easyjson/buffer"
 )
 
 var (
@@ -26,16 +25,6 @@ var (
 
 func init() {
 	probeExpvar = expvar.NewMap("systemprobe")
-
-	// Configure the easyjson buffer pool to allow for bigger buffers
-	// A connection is ~ 200 B JSON encoded
-	// so setting the max size to 524 KB should allow for buffers that could hold
-	// up to ~ 2600 JSON encoded connections
-	buffer.Init(buffer.PoolConfig{
-		StartSize:  128,
-		PooledSize: 512,
-		MaxSize:    524288,
-	})
 }
 
 type Tracer struct {
