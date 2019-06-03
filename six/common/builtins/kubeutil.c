@@ -56,6 +56,8 @@ PyObject *get_connection_info(PyObject *self, PyObject *args)
     cgo_free(data);
 
     if (conn_info_dict == NULL || !PyDict_Check(conn_info_dict)) {
+        // clear error set by `from_yaml`
+        PyErr_Clear();
         // create a new ref and drop the other one
         Py_XDECREF(conn_info_dict);
         return PyDict_New();
