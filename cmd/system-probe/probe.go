@@ -166,7 +166,7 @@ func getClientID(req *http.Request) string {
 func writeConnections(w http.ResponseWriter, marshaler ebpf.Marshaler, cs *ebpf.Connections) {
 	buf, err := marshaler.Marshal(cs)
 	if err != nil {
-		log.Errorf("unable to marshall connections: %s", err)
+		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
 		w.WriteHeader(500)
 		return
 	}
