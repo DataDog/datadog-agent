@@ -101,12 +101,16 @@ build do
     # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
     command "invoke -e process-agent.build --go-version=1.10.1", :env => env
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
-    # We don't use the system-probe in macOS builds
-    if !osx?
-      copy 'bin/system-probe/system-probe', "#{install_dir}/embedded/bin"
-      block { File.chmod(0755, "#{install_dir}/embedded/bin/system-probe") }
-    end
   end
+
+
+  # Build the system-probe
+  if linux?
+    command "invoke -e system-probe.build", :env => env
+    copy 'bin/system-probe/system-probe', "#{install_dir}/embedded/bin"
+    block { File.chmod(0755, "#{install_dir}/embedded/bin/system-probe") }
+  end
+
 
   if linux?
     if debian?
