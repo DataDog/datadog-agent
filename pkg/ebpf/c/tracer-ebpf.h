@@ -53,8 +53,13 @@ typedef struct {
     __u32 metadata; // This is that big because it seems that we atleast need a 32-bit aligned struct
 } conn_tuple_t;
 
+// Used as the max value for the max ID for a given cpu
+// Real ID will be ((cpu * Max) + count)
+static const __u32 MAX_PER_CPU_TCP_ID = 1 << 16;
+
 typedef struct {
     __u32 retransmits;
+    __u32 id;
 } tcp_stats_t;
 
 // Full data for a tcp connection

@@ -60,6 +60,7 @@ type ConnStatsWithTimestamp C.conn_stats_ts_t
 
 /* tcp_stats_t
 __u32 retransmits;
+__u32 id;
 */
 type TCPStats C.tcp_stats_t
 
@@ -81,6 +82,7 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) Conn
 	}
 
 	return ConnectionStats{
+		id:                   uint32(tcpStats.id),
 		Pid:                  uint32(t.pid),
 		Type:                 connType(metadata),
 		Family:               family,

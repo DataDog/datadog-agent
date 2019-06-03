@@ -139,6 +139,18 @@ struct bpf_map_def SEC("maps/port_bindings") port_bindings = {
     .namespace = "",
 };
 
+/* Will hold a monotonic count per CPU to identify TCP connections
+ * The keys are the cpu number and the values are the counts
+ */
+struct bpf_map_def SEC("maps/tcp_mono_count") tcp_mono_count = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(__u32),
+    .max_entries = 0, // This will get overridden at runtime
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* http://stackoverflow.com/questions/1001307/detecting-endianness-programmatically-in-a-c-program */
 __attribute__((always_inline))
 static bool is_big_endian(void) {
@@ -392,6 +404,26 @@ static bool is_ipv6_enabled(tracer_status_t* status) {
     return status->ipv6_enabled == TRACER_IPV6_ENABLED;
 }
 
+// new_tcp_id generates a new unique CPU ID per CPU and increments the monotonic counter we keep for this CPU
+__attribute__((always_inline))
+static __u32 new_tcp_id() {
+    // Get the current CPU
+    u32 cpu = bpf_get_smp_processor_id();
+    __u32* val;
+    __u32 zero = 0;
+
+    // TODO this is safe to do since the count will only be accessed by one CPU
+    bpf_map_update_elem(&tcp_mono_count, &cpu, &zero, BPF_NOEXIST);
+    val = bpf_map_lookup_elem(&tcp_mono_count, &cpu);
+    if (val) {
+        *val = (*val + 1) % MAX_PER_CPU_TCP_ID;
+        return (cpu * MAX_PER_CPU_TCP_ID) + *val;
+    }
+
+    log_debug("ERR(new_tcp_id): could not find CPU monotonic count for cpu:%d \n", cpu);
+    return 0;
+}
+
 __attribute__((always_inline))
 static int read_conn_tuple(conn_tuple_t* tuple, tracer_status_t* status, struct sock* skp, metadata_mask_t type, metadata_mask_t family) {
     u32 net_ns_inum;
@@ -503,6 +535,26 @@ static void update_conn_stats(
 
     // If already in our map, increment size in-place
     if (val != NULL) {
+        // If the type is TCP and it's the first time we see this conn (sent = 0, recv = 0)
+        // assign it an ID
+        if (type == CONN_TYPE_TCP && val->sent_bytes == 0 && val->recv_bytes == 0) {
+            // Have to unset the PID to access the tcp_stats map
+            t.pid = 0;
+
+            tcp_stats_t* tcp_val;
+            // initialize-if-no-exist
+            tcp_stats_t empty = {};
+            bpf_map_update_elem(&tcp_stats, &t, &empty, BPF_NOEXIST);
+            tcp_val = bpf_map_lookup_elem(&tcp_stats, &t);
+            if (tcp_val != NULL && tcp_val->id == 0) {
+                // Use fetch and add for safety, since this gets executed only when id == 0 it gives us what we want
+                __u32 id;
+                id = new_tcp_id();
+                __sync_fetch_and_add(&tcp_val->id, id);
+            }
+        }
+
+        // Finally update the stats
         __sync_fetch_and_add(&val->sent_bytes, sent_bytes);
         __sync_fetch_and_add(&val->recv_bytes, recv_bytes);
         val->timestamp = ts;
@@ -610,6 +662,28 @@ static int handle_retransmit(struct sock* sk, tracer_status_t* status) {
     // Update latest timestamp that we've seen - for connection expiration tracking
     u64 zero = 0;
     bpf_map_update_elem(&latest_ts, &zero, &ts, BPF_ANY);
+    return 0;
+}
+
+__attribute__((always_inline))
+static int handle_tcp_close(struct pt_regs* ctx,
+    struct sock* sk,
+    tracer_status_t* status) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    u32 net_ns_inum;
+
+    // Get network namespace id
+    possible_net_t* skc_net;
+
+    skc_net = NULL;
+    net_ns_inum = 0;
+    bpf_probe_read(&skc_net, sizeof(possible_net_t*), ((char*)sk) + status->offset_netns);
+    bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char*)skc_net) + status->offset_ino);
+
+    log_debug("kprobe/tcp_close: pid_tgid: %d, ns: %d\n", pid_tgid, net_ns_inum);
+
+    handle_family(sk, status, cleanup_tcp_conn(ctx, sk, status, pid_tgid, family));
     return 0;
 }
 
@@ -742,28 +816,13 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     struct sock* sk;
     tracer_status_t* status;
     u64 zero = 0;
-    u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock*)PT_REGS_PARM1(ctx);
-
     status = bpf_map_lookup_elem(&tracer_status, &zero);
     if (status == NULL || status->state != TRACER_STATE_READY) {
         return 0;
     }
 
-    u32 net_ns_inum;
-
-    // Get network namespace id
-    possible_net_t* skc_net;
-
-    skc_net = NULL;
-    net_ns_inum = 0;
-    bpf_probe_read(&skc_net, sizeof(possible_net_t*), ((char*)sk) + status->offset_netns);
-    bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char*)skc_net) + status->offset_ino);
-
-    log_debug("kprobe/tcp_close: pid_tgid: %d, ns: %d\n", pid_tgid, net_ns_inum);
-
-    handle_family(sk, status, cleanup_tcp_conn(ctx, sk, status, pid_tgid, family));
-    return 0;
+    return handle_tcp_close(ctx, sk, status);
 }
 
 SEC("kprobe/udp_sendmsg")

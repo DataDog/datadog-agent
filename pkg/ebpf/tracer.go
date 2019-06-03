@@ -251,12 +251,14 @@ func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 	return !t.config.CollectLocalDNS && isDNSConnection && conn.Direction == LOCAL
 }
 
+// Stop stops the tracer
 func (t *Tracer) Stop() {
 	_ = t.m.Close()
 	t.perfMap.PollStop()
 	t.conntracker.Close()
 }
 
+// GetActiveConnections retrieves the connections for the given client
 func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 	t.bufferLock.Lock()
 	defer t.bufferLock.Unlock()
@@ -381,9 +383,12 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 		}
 
 		// We have to remove the PID to remove the element from the TCP Map since we don't use the pid there
-		entries[i].pid = 0
-		// We can ignore the error for this map since it will not always contain the entry
-		_ = t.m.DeleteElement(tcpMp, unsafe.Pointer(entries[i]))
+		if entries[i].isTCP() {
+			entries[i].pid = 0
+			if err = t.m.DeleteElement(tcpMp, unsafe.Pointer(entries[i])); err != nil {
+				_ = log.Warnf("failed to remove entry from the tcp map: %s", err)
+			}
+		}
 	}
 
 	t.state.RemoveConnections(keys)
@@ -591,6 +596,9 @@ func SectionsFromConfig(c *Config) map[string]bpflib.SectionParams {
 			MapMaxEntries: int(c.MaxTrackedConnections),
 		},
 		tcpCloseEventMap.sectionName(): {
+			MapMaxEntries: 1024,
+		},
+		tcpMonoCountMap.sectionName(): {
 			MapMaxEntries: 1024,
 		},
 	}

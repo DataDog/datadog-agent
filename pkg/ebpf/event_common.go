@@ -72,6 +72,9 @@ type Connections struct {
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 //easyjson:json
 type ConnectionStats struct {
+	// id is used only in ebpf/ to identify connections
+	id uint32
+
 	// Source & Dest represented as a string to handle both IPv4 & IPv6
 	// Note: As ebpf.Address is an interface, we need to use interface{} for easyjson
 	Source interface{} `json:"src,string"`
@@ -196,4 +199,12 @@ func BeautifyKey(key string) string {
 	dest := bytesToAddress(raw[9+addrSize : 9+2*addrSize])
 
 	return fmt.Sprintf(keyFmt, pid, source, sport, dest, dport, family, typ)
+}
+
+// connWithHigherStats returns the conn with the higher stats between the two given connections
+func connWithHigherStats(c1, c2 ConnectionStats) ConnectionStats {
+	if c1.MonotonicSentBytes > c2.MonotonicSentBytes || c1.MonotonicRecvBytes > c2.MonotonicRecvBytes || c1.MonotonicRetransmits > c2.MonotonicRetransmits {
+		return c1
+	}
+	return c2
 }

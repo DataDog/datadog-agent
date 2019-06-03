@@ -49,6 +49,7 @@ const (
 	latestTimestampMap bpfMapName = "latest_ts"
 	tracerStatusMap    bpfMapName = "tracer_status"
 	portBindingsMap    bpfMapName = "port_bindings"
+	tcpMonoCountMap    bpfMapName = "tcp_mono_count"
 )
 
 // sectionName returns the sectionName for the given BPF map

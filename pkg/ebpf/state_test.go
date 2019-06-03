@@ -261,12 +261,12 @@ func TestLastStats(t *testing.T) {
 		MonotonicRetransmits: 2,
 	}
 
-	conn2 := conn
+	conn2 := cloneTestConn(conn)
 	conn2.MonotonicSentBytes += dSent
 	conn2.MonotonicRecvBytes += dRecv
 	conn2.MonotonicRetransmits += dRetransmits
 
-	conn3 := conn2
+	conn3 := cloneTestConn(conn2)
 	conn3.MonotonicSentBytes += dSent
 	conn3.MonotonicRecvBytes += dRecv
 	conn3.MonotonicRetransmits += dRetransmits
@@ -430,6 +430,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 	client := "c"
 	conn := ConnectionStats{
+		id:                 testID(),
 		Pid:                123,
 		Type:               TCP,
 		Family:             AFINET,
@@ -488,9 +489,8 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		// Store the connection as closed
 		state.StoreClosedConnection(conn)
 
-		conn2 := conn
+		conn2 := cloneTestConn(conn)
 		conn2.MonotonicSentBytes = 5
-		conn2.LastUpdateEpoch++
 		// Store the connection another time
 		state.StoreClosedConnection(conn2)
 
@@ -544,8 +544,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		conn.LastUpdateEpoch = latestEpochTime()
 		state.StoreClosedConnection(conn)
 
+		// Simulate a new connection
+		conn = cloneTestConn(conn)
 		conn.MonotonicSentBytes = 1
-		conn.LastUpdateEpoch = latestEpochTime()
 		// Retrieve the connections
 		conns = state.Connections(client, latestEpochTime(), []ConnectionStats{conn})
 		require.Len(t, conns, 1)
@@ -587,9 +588,8 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		// Store the connection as closed
 		state.StoreClosedConnection(conn)
 
-		conn2 := conn
+		conn2 := cloneTestConn(conn)
 		conn2.MonotonicSentBytes = 2
-		conn2.LastUpdateEpoch++
 		// Store the connection as an opened connection
 		cs := []ConnectionStats{conn2}
 
@@ -605,9 +605,8 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		state.StoreClosedConnection(conn2)
 
 		// Store the connection again
-		conn3 := conn2
+		conn3 := cloneTestConn(conn2)
 		conn3.MonotonicSentBytes = 1
-		conn3.LastUpdateEpoch++
 		cs = []ConnectionStats{conn3}
 
 		// Third get, we should have monotonic = 6 and last stats = 4
@@ -656,9 +655,8 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 3, int(conns[0].LastSentBytes))
 
 		// Store the connection as closed
-		conn2 := conn
-		conn2.MonotonicSentBytes = 8
-		state.StoreClosedConnection(conn2)
+		cs[0].MonotonicSentBytes = 8
+		state.StoreClosedConnection(cs[0])
 
 		// Second get, we should have monotonic = 8 and last stats = 5
 		conns = state.Connections(client, latestEpochTime(), nil)
@@ -718,9 +716,8 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 3, int(conns[0].LastSentBytes))
 
 		// Store the connection as an opened connection
-		conn2 := conn
+		conn2 := cloneTestConn(conn)
 		conn2.MonotonicSentBytes = 2
-		conn2.LastUpdateEpoch++
 		cs := []ConnectionStats{conn2}
 
 		// Second get, for client c we should have monotonic and last stats = 5
@@ -746,9 +743,8 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		state.StoreClosedConnection(conn2)
 
 		// Store the connection again
-		conn3 := conn2
+		conn3 := cloneTestConn(conn2)
 		conn3.MonotonicSentBytes = 1
-		conn3.LastUpdateEpoch++
 		cs = []ConnectionStats{conn3}
 
 		// Third get, for client c, we should have monotonic = 6 and last stats = 4
@@ -868,9 +864,8 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, int(conns[0].LastSentBytes))
 
 		// Store the connection as an opened connection
-		conn2 := conn
+		conn2 := cloneTestConn(conn)
 		conn2.MonotonicSentBytes = 2
-		conn2.LastUpdateEpoch++
 		cs = []ConnectionStats{conn2}
 
 		// Second get, for client c we should have monotonic and last stats = 5
@@ -941,9 +936,8 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 3, int(conns[0].MonotonicSentBytes))
 		assert.Equal(t, 3, int(conns[0].LastSentBytes))
 
-		conn2 := conn
+		conn2 := cloneTestConn(conn)
 		conn2.MonotonicSentBytes++
-		conn2.LastUpdateEpoch++
 
 		// First get for client d we should have monotonic = 4 and last bytes = 4
 		conns = state.Connections(clientD, latestEpochTime(), []ConnectionStats{conn2})
@@ -951,9 +945,8 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 4, int(conns[0].MonotonicSentBytes))
 		assert.Equal(t, 0, int(conns[0].LastSentBytes))
 
-		conn3 := conn2
+		conn3 := cloneTestConn(conn2)
 		conn3.MonotonicSentBytes += 3
-		conn3.LastUpdateEpoch++
 
 		// Third get for client c we should have monotonic = 7 and last bytes = 4
 		conns = state.Connections(client, latestEpochTime(), []ConnectionStats{conn3})
@@ -961,9 +954,8 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 7, int(conns[0].MonotonicSentBytes))
 		assert.Equal(t, 4, int(conns[0].LastSentBytes))
 
-		conn4 := conn3
+		conn4 := cloneTestConn(conn3)
 		conn4.MonotonicSentBytes += 2
-		conn4.LastUpdateEpoch++
 
 		// Second get for client d we should have monotonic = 9 and last bytes = 5
 		conns = state.Connections(clientD, latestEpochTime(), []ConnectionStats{conn4})
@@ -1035,7 +1027,8 @@ func TestDoubleCloseOnTwoClients(t *testing.T) {
 
 	// Store the closed connection twice
 	state.StoreClosedConnection(conn)
-	conn.LastUpdateEpoch++
+
+	conn = cloneTestConn(conn)
 	state.StoreClosedConnection(conn)
 
 	expectedConn.LastUpdateEpoch = conn.LastUpdateEpoch
@@ -1119,13 +1112,13 @@ func TestAggregateClosedConnectionsTimestamp(t *testing.T) {
 	// Register the client
 	assert.Len(t, state.Connections(client, latestEpochTime(), nil), 0)
 
-	conn.LastUpdateEpoch = latestEpochTime()
+	conn = cloneTestConn(conn)
 	state.StoreClosedConnection(conn)
 
-	conn.LastUpdateEpoch = latestEpochTime()
+	conn = cloneTestConn(conn)
 	state.StoreClosedConnection(conn)
 
-	conn.LastUpdateEpoch = latestEpochTime()
+	conn = cloneTestConn(conn)
 	state.StoreClosedConnection(conn)
 
 	// Make sure the connections we get has the latest timestamp
@@ -1152,6 +1145,18 @@ func generateRandConnections(n int) []ConnectionStats {
 }
 
 var latestTime uint64
+var tcpID uint32
+
+func cloneTestConn(c ConnectionStats) ConnectionStats {
+	c2 := c
+	c2.id = testID()
+	c2.LastUpdateEpoch = latestEpochTime()
+	return c2
+}
+
+func testID() uint32 {
+	return atomic.AddUint32(&tcpID, 1)
+}
 
 func latestEpochTime() uint64 {
 	return atomic.AddUint64(&latestTime, 1)

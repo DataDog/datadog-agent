@@ -50,6 +50,8 @@ func TestTracerExpvar(t *testing.T) {
 		"StatsResets":               0,
 		"UnorderedConns":            0,
 		"TimeSyncCollisions":        0,
+		"DuplicateCloseEvents":      0,
+		"ActiveConnsCollisions":     0,
 	}
 
 	res := map[string]float64{}
@@ -207,53 +209,38 @@ func TestTCPRemoveEntries(t *testing.T) {
 	}
 	defer c.Close()
 
-	// Write a bunch of messages with blocking iptable rule to create retransmits
-	iptablesWrapper(t, func() {
-		for i := 0; i < 99; i++ {
-			// Send a bunch of messages
-			c.Write(genPayload(clientMessageSize))
-		}
-		time.Sleep(time.Second)
-	})
+	// Sleep so we consider the connection as expired
+	time.Sleep(config.TCPConnTimeout)
 
-	// Wait a bit for the first connection to be considered as timeouting
-	time.Sleep(1 * time.Second)
+	// ⚠️ Hacky ⚠️
+	// Triger a latestTimestamp update by sending data anywhere
+	// ---
+	addr, err := net.ResolveUDPAddr("udp", "localhost:53")
+	assert.NoError(t, err)
+	cn, err := net.DialUDP("udp", nil, addr)
+	assert.NoError(t, err)
+	defer cn.Close()
+	_, err = cn.Write([]byte("test"))
+	assert.NoError(t, err)
+	// ---
 
-	// Create a new client
-	c2, err := net.DialTimeout("tcp", server.address, 1*time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Send a messages
-	if _, err = c2.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
-	defer c2.Close()
-
-	// Retrieve the list of connections
-	connections := getConnections(t, tr)
-
-	// Make sure the first connection got cleaned up
-	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	// Make sure the connection got cleaned up
+	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
 	assert.False(t, ok)
 
-	// Assert the TCP map is empty because of the clean up
+	// Assert the TCP map does not contain the previous connection
 	key, nextKey, stats := &ConnTuple{}, &ConnTuple{}, &ConnStatsWithTimestamp{}
 	tcpMp, err := tr.getMap(tcpStatsMap)
 	assert.Nil(t, err)
-	// This should return false and an error
-	hasNext, err := tr.m.LookupNextElement(tcpMp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
-	assert.False(t, hasNext)
-	assert.NotNil(t, err)
-
-	conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), connections)
-	require.True(t, ok)
-	assert.Equal(t, clientMessageSize, int(conn.MonotonicSentBytes))
-	assert.Equal(t, 0, int(conn.MonotonicRecvBytes))
-	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
-	assert.Equal(t, addrPort(server.address), int(conn.DPort))
+	hasNext := true
+	for {
+		if !hasNext {
+			break
+		}
+		hasNext, _ = tr.m.LookupNextElement(tcpMp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
+		assert.NotEqual(t, int(server.port), int(nextKey.dport))
+		key = nextKey
+	}
 
 	doneChan <- struct{}{}
 }
@@ -869,6 +856,7 @@ func benchSendTCP(size int) func(b *testing.B) {
 
 type TCPServer struct {
 	address   string
+	port      uint16
 	onMessage func(c net.Conn)
 }
 
@@ -886,6 +874,7 @@ func (s *TCPServer) Run(done chan struct{}) {
 		return
 	}
 	s.address = ln.Addr().String()
+	s.port = uint16(ln.Addr().(*net.TCPAddr).Port)
 
 	go func() {
 		<-done
