@@ -45,10 +45,11 @@ func TestDecode(t *testing.T) {
 		},
 	}
 
-	expected, err := in.MarshalJSON()
+	marshaller := ebpf.GetMarshaler(ebpf.ContentTypeJSON)
+	expected, err := marshaller.Marshal(in)
 	require.NoError(t, err)
 
-	writeConnections(rec, in)
+	writeConnections(rec, marshaller, in)
 
 	rec.Flush()
 	out := rec.Body.Bytes()
