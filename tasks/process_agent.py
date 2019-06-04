@@ -1,5 +1,6 @@
 import datetime
 import os
+import re
 import shutil
 import sys
 
@@ -46,10 +47,8 @@ def build(ctx, race=False, go110=False, incremental_build=False, puppy=False):
     # Force using go1.10
     if go110:
         version = '1.10.1'
-        lines = ctx.run("gimme {version}".format(version=version)).stdout.split("\n")
-        # Parse the goroot
-        line = next(line for line in lines if "GOROOT" in line)
-        root = line.split("=")[-1].split("'")[-2]
+        lines = ctx.run("gimme {version}".format(version=version)).stdout
+        root = re.search("export GOROOT='(.+)'", lines).group(1)
 
         gobin = os.path.join(root, "bin", "go")
         ld_vars["GoVersion"] = version
