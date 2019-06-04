@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-Release on: 2019-05-30
+Release on: 2019-06-04
 
 - Please refer to the `6.11.3 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.11.3>`_ for the list of changes on the Process Agent.
 
@@ -30,7 +30,7 @@ Upgrade Notes
 Bug Fixes
 ---------
 
-- APM: fixed a bug where secrets in environment variables where ignored.
+- APM: fixed a bug where secrets in environment variables were ignored.
 
 .. _Release Notes_6.11.2:
 
