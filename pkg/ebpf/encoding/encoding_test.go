@@ -8,6 +8,7 @@ import (
 	agent "github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSerialization(t *testing.T) {
@@ -74,11 +75,11 @@ func TestSerialization(t *testing.T) {
 		assert.Equal("application/json", marshaler.ContentType())
 
 		blob, err := marshaler.Marshal(in)
-		assert.Nil(err)
+		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blob)
-		assert.Nil(err)
+		require.NoError(t, err)
 		assert.Equal(out, result)
 	})
 
@@ -88,11 +89,11 @@ func TestSerialization(t *testing.T) {
 		assert.Equal("application/protobuf", marshaler.ContentType())
 
 		blob, err := marshaler.Marshal(in)
-		assert.Nil(err)
+		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blob)
-		assert.Nil(err)
+		require.NoError(t, err)
 		assert.Equal(out, result)
 	})
 
@@ -104,11 +105,11 @@ func TestSerialization(t *testing.T) {
 		assert.Equal("application/json", marshaler.ContentType())
 
 		blob, err := marshaler.Marshal(in)
-		assert.Nil(err)
+		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blob)
-		assert.Nil(err)
+		require.NoError(t, err)
 		assert.Equal(out, result)
 	})
 }
