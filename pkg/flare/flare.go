@@ -31,6 +31,11 @@ type flareResponse struct {
 
 // SendFlareWithHostname sends a flare with a set hostname
 func SendFlareWithHostname(archivePath string, caseID string, email string, hostname string) (string, error) {
+
+	var redirectHops = 0
+	var url = mkURL(caseID)
+
+redirect:
 	bodyReader, bodyWriter := io.Pipe()
 	defer bodyReader.Close()
 	writer := multipart.NewWriter(bodyWriter)
@@ -72,7 +77,6 @@ func SendFlareWithHostname(archivePath string, caseID string, email string, host
 
 	}()
 
-	var url = mkURL(caseID)
 	request, err := http.NewRequest("POST", url, bodyReader)
 	if err != nil {
 		return "", err
@@ -85,6 +89,15 @@ func SendFlareWithHostname(archivePath string, caseID string, email string, host
 
 	client := mkHTTPClient()
 	r, err := client.Do(request)
+
+	// Handle redirects manually. Go's http.Client doesn't know how to do it when it can't seek
+	// back to the beginning of the body. Since we are using a pipe, seeking isn't possible.
+	// Re-sending a POST is only legal for status 307, so we only need to check for that code.
+	if r != nil && r.StatusCode == 307 && redirectHops < 5 {
+		url = r.Header.Get("Location")
+		redirectHops++
+		goto redirect
+	}
 
 	return analyzeResponse(r, err)
 }
