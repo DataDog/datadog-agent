@@ -66,7 +66,7 @@ func (d ConnectionDirection) String() string {
 // Connections wraps a collection of ConnectionStats
 //easyjson:json
 type Connections struct {
-	Conns []ConnectionStats `json:"connections"`
+	Conns []*ConnectionStats `json:"connections"`
 }
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned

@@ -4,7 +4,6 @@ package ebpf
 
 import (
 	json "encoding/json"
-
 	netlink "github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
@@ -46,16 +45,24 @@ func easyjson5f1d7f40DecodeGithubComDataDogDatadogAgentPkgEbpf(in *jlexer.Lexer,
 				in.Delim('[')
 				if out.Conns == nil {
 					if !in.IsDelim(']') {
-						out.Conns = make([]ConnectionStats, 0, 1)
+						out.Conns = make([]*ConnectionStats, 0, 8)
 					} else {
-						out.Conns = []ConnectionStats{}
+						out.Conns = []*ConnectionStats{}
 					}
 				} else {
 					out.Conns = (out.Conns)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v1 ConnectionStats
-					(v1).UnmarshalEasyJSON(in)
+					var v1 *ConnectionStats
+					if in.IsNull() {
+						in.Skip()
+						v1 = nil
+					} else {
+						if v1 == nil {
+							v1 = new(ConnectionStats)
+						}
+						(*v1).UnmarshalEasyJSON(in)
+					}
 					out.Conns = append(out.Conns, v1)
 					in.WantComma()
 				}
@@ -79,7 +86,6 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogAgentPkgEbpf(out *jwriter.Writ
 		const prefix string = ",\"connections\":"
 		if first {
 			first = false
-			_ = first
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
@@ -92,7 +98,11 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogAgentPkgEbpf(out *jwriter.Writ
 				if v2 > 0 {
 					out.RawByte(',')
 				}
-				(v3).MarshalEasyJSON(out)
+				if v3 == nil {
+					out.RawString("null")
+				} else {
+					(*v3).MarshalEasyJSON(out)
+				}
 			}
 			out.RawByte(']')
 		}
@@ -386,7 +396,6 @@ func easyjson5f1d7f40EncodeGithubComDataDogDatadogAgentPkgEbpf1(out *jwriter.Wri
 		const prefix string = ",\"iptr\":"
 		if first {
 			first = false
-			_ = first
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)

@@ -57,7 +57,7 @@ type Tracer struct {
 	skippedConns    int64
 	expiredTCPConns int64
 
-	buffer     []ConnectionStats
+	buffer     []*ConnectionStats
 	bufferLock sync.Mutex
 
 	// Internal buffer used to compute bytekeys
@@ -124,7 +124,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		state:          state,
 		portMapping:    portMapping,
 		localAddresses: readLocalAddresses(),
-		buffer:         make([]ConnectionStats, 0, 512),
+		buffer:         make([]*ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
 		conntracker:    conntracker,
 	}
@@ -268,9 +268,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 
 	// Grow or shrink buffer depending on the usage
 	if len(latestConns) >= cap(t.buffer)*2 {
-		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)*2)
+		t.buffer = make([]*ConnectionStats, 0, cap(t.buffer)*2)
 	} else if len(latestConns) <= cap(t.buffer)/2 {
-		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)/2)
+		t.buffer = make([]*ConnectionStats, 0, cap(t.buffer)/2)
 	}
 
 	return &Connections{Conns: t.state.Connections(clientID, latestTime, latestConns)}, nil
@@ -278,7 +278,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
-func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, uint64, error) {
+func (t *Tracer) getConnections(active []*ConnectionStats) ([]*ConnectionStats, uint64, error) {
 	mp, err := t.getMap(connMap)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error retrieving the bpf %s map: %s", connMap, err)
@@ -329,7 +329,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 			} else {
 				// lookup conntrack in for active
 				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.SourceAddr(), conn.SPort)
-				active = append(active, conn)
+				active = append(active, &conn)
 			}
 		}
 		key = nextKey
@@ -492,7 +492,7 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 
 // DebugNetworkMaps returns all connections stored in the BPF maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*Connections, error) {
-	latestConns, _, err := t.getConnections(make([]ConnectionStats, 0))
+	latestConns, _, err := t.getConnections(make([]*ConnectionStats, 0))
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}

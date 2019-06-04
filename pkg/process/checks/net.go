@@ -99,7 +99,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	return batchConnections(cfg, groupID, c.formatConnections(conns)), nil
 }
 
-func (c *ConnectionsCheck) getConnections() ([]ebpf.ConnectionStats, error) {
+func (c *ConnectionsCheck) getConnections() ([]*ebpf.ConnectionStats, error) {
 	if c.useLocalTracer { // If local tracer is set up, use that
 		if c.localTracer == nil {
 			return nil, fmt.Errorf("using local system probe, but no tracer was initialized")
@@ -121,7 +121,7 @@ func (c *ConnectionsCheck) getConnections() ([]ebpf.ConnectionStats, error) {
 
 // Connections are split up into a chunks of at most 100 connections per message to
 // limit the message size on intake.
-func (c *ConnectionsCheck) formatConnections(conns []ebpf.ConnectionStats) []*model.Connection {
+func (c *ConnectionsCheck) formatConnections(conns []*ebpf.ConnectionStats) []*model.Connection {
 	// Process create-times required to construct unique process hash keys on the backend
 	createTimeForPID := Process.createTimesforPIDs(connectionStatsPIDs(conns))
 
@@ -262,7 +262,7 @@ func groupSize(total, maxBatchSize int) int32 {
 	return int32(groupSize)
 }
 
-func connectionStatsPIDs(conns []ebpf.ConnectionStats) []uint32 {
+func connectionStatsPIDs(conns []*ebpf.ConnectionStats) []uint32 {
 	ps := make(map[uint32]struct{}) // Map used to represent a set
 	for _, c := range conns {
 		ps[c.Pid] = struct{}{}

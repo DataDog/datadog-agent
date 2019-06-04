@@ -22,7 +22,7 @@ const (
 // - sent and received bytes per connection
 type NetworkState interface {
 	// Connections returns the list of connections for the given client when provided the latest set of active connections
-	Connections(clientID string, latestTime uint64, latestConns []ConnectionStats) []ConnectionStats
+	Connections(clientID string, latestTime uint64, latestConns []*ConnectionStats) []*ConnectionStats
 
 	// StoreClosedConnection stores a new closed connection
 	StoreClosedConnection(conn ConnectionStats)
@@ -112,7 +112,7 @@ func (ns *networkState) getClients() []string {
 // Connections returns the connections for the given client
 // If the client is not registered yet, we register it and return the connections we have in the global state
 // Otherwise we return both the connections with last stats and the closed connections for this client
-func (ns *networkState) Connections(id string, latestTime uint64, latestConns []ConnectionStats) []ConnectionStats {
+func (ns *networkState) Connections(id string, latestTime uint64, latestConns []*ConnectionStats) []*ConnectionStats {
 	ns.Lock()
 	defer ns.Unlock()
 
@@ -157,7 +157,7 @@ func (ns *networkState) Connections(id string, latestTime uint64, latestConns []
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
-func getConnsByKey(conns []ConnectionStats, buf *bytes.Buffer) map[string]*ConnectionStats {
+func getConnsByKey(conns []*ConnectionStats, buf *bytes.Buffer) map[string]*ConnectionStats {
 	connsByKey := make(map[string]*ConnectionStats, len(conns))
 	for i, c := range conns {
 		key, err := c.ByteKey(buf)
@@ -165,7 +165,7 @@ func getConnsByKey(conns []ConnectionStats, buf *bytes.Buffer) map[string]*Conne
 			log.Warnf("failed to create byte key: %s", err)
 			continue
 		}
-		connsByKey[string(key)] = &conns[i]
+		connsByKey[string(key)] = conns[i]
 	}
 	return connsByKey
 }
@@ -222,13 +222,13 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 }
 
 // mergeConnections return the connections and takes care of updating their last stat counters
-func (ns *networkState) mergeConnections(id string, active map[string]*ConnectionStats) []ConnectionStats {
+func (ns *networkState) mergeConnections(id string, active map[string]*ConnectionStats) []*ConnectionStats {
 	now := time.Now()
 
 	client := ns.clients[id]
 	client.lastFetch = now
 
-	conns := make([]ConnectionStats, 0, len(active)+len(client.closedConnections))
+	conns := make([]*ConnectionStats, 0, len(active)+len(client.closedConnections))
 
 	// Closed connections
 	for key, closedConn := range client.closedConnections {
@@ -267,7 +267,7 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 			ns.updateConnWithStats(client, key, &closedConn)
 		}
 
-		conns = append(conns, closedConn)
+		conns = append(conns, &closedConn)
 	}
 
 	// Active connections
@@ -280,7 +280,7 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 		ns.createStatsForKey(client, key)
 		ns.updateConnWithStats(client, key, c)
 
-		conns = append(conns, *c)
+		conns = append(conns, c)
 	}
 
 	return conns

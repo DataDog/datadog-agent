@@ -4,7 +4,6 @@ package netlink
 
 import (
 	json "encoding/json"
-
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
@@ -93,7 +92,6 @@ func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgEbpfNetlink(out *jwrit
 		const prefix string = ",\"r_dport\":"
 		if first {
 			first = false
-			_ = first
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)

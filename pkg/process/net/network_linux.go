@@ -73,7 +73,7 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 }
 
 // GetConnections returns a set of active network connections, retrieved from the system probe service
-func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]ebpf.ConnectionStats, error) {
+func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]*ebpf.ConnectionStats, error) {
 	resp, err := r.httpClient.Get(fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID))
 	if err != nil {
 		return nil, err
