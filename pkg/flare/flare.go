@@ -31,11 +31,29 @@ type flareResponse struct {
 
 // SendFlareWithHostname sends a flare with a set hostname
 func SendFlareWithHostname(archivePath string, caseID string, email string, hostname string) (string, error) {
+	r, err := readAndPostFlareFileWithRedirects(archivePath, caseID, email, hostname)
+	return analyzeResponse(r, err)
+}
 
-	var redirectHops = 0
+func readAndPostFlareFileWithRedirects(archivePath string, caseID string, email string, hostname string) (*http.Response, error) {
 	var url = mkURL(caseID)
+	var redirectHops = 0
 
-redirect:
+	// Handle redirects manually. Go's http.Client doesn't know how to do it when it can't seek
+	// back to the beginning of the body. Since we are using a pipe, seeking isn't possible.
+	// Re-sending a POST is only legal for status 307, so we only need to check for that code.
+	for {
+		r, err := readAndPostFlareFile(url, archivePath, caseID, email, hostname)
+		if r != nil && r.StatusCode == 307 && redirectHops < 5 {
+			url = r.Header.Get("Location")
+			redirectHops++
+		} else {
+			return r, err
+		}
+	}
+}
+
+func readAndPostFlareFile(url string, archivePath string, caseID string, email string, hostname string) (*http.Response, error) {
 	bodyReader, bodyWriter := io.Pipe()
 	defer bodyReader.Close()
 	writer := multipart.NewWriter(bodyWriter)
@@ -79,7 +97,7 @@ redirect:
 
 	request, err := http.NewRequest("POST", url, bodyReader)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -88,18 +106,7 @@ redirect:
 	request.ContentLength = -1
 
 	client := mkHTTPClient()
-	r, err := client.Do(request)
-
-	// Handle redirects manually. Go's http.Client doesn't know how to do it when it can't seek
-	// back to the beginning of the body. Since we are using a pipe, seeking isn't possible.
-	// Re-sending a POST is only legal for status 307, so we only need to check for that code.
-	if r != nil && r.StatusCode == 307 && redirectHops < 5 {
-		url = r.Header.Get("Location")
-		redirectHops++
-		goto redirect
-	}
-
-	return analyzeResponse(r, err)
+	return client.Do(request)
 }
 
 // SendFlare will send a flare and grab the local hostname
