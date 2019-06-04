@@ -271,6 +271,9 @@ system_probe-build:
   tags: [ "runner:main", "size:large" ]
   script:
     # TODO(sami): removeme go1.10.1
+    - curl -sL -o /bin/gimme https://raw.githubusercontent.com/travis-ci/gimme/master/gimme
+    - chmod +x /bin/gimme
+    - gimme 1.10.1
     - inv -e system-probe.build --go110
     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTEFACTS_URI/system-probe
 
