@@ -1272,7 +1272,7 @@ func (m *CollectorConnections) MarshalTo(data []byte) (int, error) {
 		i = encodeVarintAgent(data, i, uint64(m.GroupSize))
 	}
 	if len(m.ResolvedHosts) > 0 {
-		for k, _ := range m.ResolvedHosts {
+		for k := range m.ResolvedHosts {
 			data[i] = 0x3a
 			i++
 			v := m.ResolvedHosts[k]
@@ -1299,7 +1299,7 @@ func (m *CollectorConnections) MarshalTo(data []byte) (int, error) {
 		}
 	}
 	if len(m.ResolvedContainers) > 0 {
-		for k, _ := range m.ResolvedContainers {
+		for k := range m.ResolvedContainers {
 			data[i] = 0x42
 			i++
 			v := m.ResolvedContainers[k]
@@ -1332,7 +1332,7 @@ func (m *CollectorConnections) MarshalTo(data []byte) (int, error) {
 		i = encodeVarintAgent(data, i, uint64(m.HostId))
 	}
 	if len(m.ContainerForPid) > 0 {
-		for k, _ := range m.ContainerForPid {
+		for k := range m.ContainerForPid {
 			data[i] = 0x52
 			i++
 			v := m.ContainerForPid[k]
