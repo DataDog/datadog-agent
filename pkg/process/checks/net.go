@@ -96,7 +96,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	}
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.formatConnections(conns)), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns)), nil
 }
 
 func (c *ConnectionsCheck) getConnections() ([]*model.Connection, error) {
@@ -123,7 +123,7 @@ func (c *ConnectionsCheck) getConnections() ([]*model.Connection, error) {
 	return tu.GetConnections(c.tracerClientID)
 }
 
-func (c *ConnectionsCheck) formatConnections(conns []*model.Connection) []*model.Connection {
+func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model.Connection {
 	// Process create-times required to construct unique process hash keys on the backend
 	createTimeForPID := Process.createTimesforPIDs(connectionPIDs(conns))
 	for _, conn := range conns {
