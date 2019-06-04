@@ -138,6 +138,8 @@ PyObject *get_config(PyObject *self, PyObject *args)
     PyObject *value = from_yaml(data);
     cgo_free(data);
     if (value == NULL) {
+        // clear error set by `from_yaml`
+        PyErr_Clear();
         Py_RETURN_NONE;
     }
     return value;
@@ -166,6 +168,8 @@ PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs)
     PyObject *headers_dict = from_yaml(data);
     cgo_free(data);
     if (headers_dict == NULL || !PyDict_Check(headers_dict)) {
+        // clear error set by `from_yaml`
+        PyErr_Clear();
         // if headers_dict is not a dict we don't need to hold a ref to it
         Py_XDECREF(headers_dict);
         Py_RETURN_NONE;
