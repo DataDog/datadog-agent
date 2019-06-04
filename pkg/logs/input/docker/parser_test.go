@@ -16,7 +16,7 @@ import (
 )
 
 var dockerHeader = string([]byte{1, 0, 0, 0, 0, 0, 0, 0}) + "2018-06-14T18:27:03.246999277Z"
-var container1Parser = NewDockerParser("container_1")
+var container1Parser = NewParser("container_1")
 
 func TestGetDockerSeverity(t *testing.T) {
 	assert.Equal(t, message.StatusInfo, getDockerSeverity([]byte{1}))
@@ -26,7 +26,7 @@ func TestGetDockerSeverity(t *testing.T) {
 
 func TestDockerStandaloneParserShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := dockerHeader + " " + "anything"
-	parser := NewDockerParser("container_1")
+	parser := NewParser("container_1")
 	content, status, timestamp, err := parser.Parse([]byte(validMessage))
 	assert.Nil(t, err)
 	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", timestamp)

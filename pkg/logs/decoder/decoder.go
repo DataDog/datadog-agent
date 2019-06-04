@@ -7,7 +7,6 @@ package decoder
 
 import (
 	"bytes"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
@@ -48,7 +47,7 @@ func NewOutput(content []byte, status string, rawDataLen int, timestamp string) 
 type Decoder struct {
 	InputChan  chan *Input
 	OutputChan chan *Output
-
+	EndLineMatcher
 	lineBuffer      *bytes.Buffer
 	lineHandler     LineHandler
 	contentLenLimit int
@@ -56,6 +55,11 @@ type Decoder struct {
 
 // InitializeDecoder returns a properly initialized Decoder
 func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder {
+	return NewDecoderWithEndLineMatcher(source, parser, &newLineMatcher{})
+}
+
+// NewDecoderWithEndLineMatcher initialize a decoder with given endline strategy.
+func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser, strategy EndLineMatcher) *Decoder {
 	inputChan := make(chan *Input)
 	outputChan := make(chan *Output)
 	lineLimit := defaultContentLenLimit
@@ -69,11 +73,11 @@ func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder 
 		lineHandler = NewSingleLineHandler(outputChan, parser, lineLimit)
 	}
 
-	return New(inputChan, outputChan, lineHandler, lineLimit)
+	return New(inputChan, outputChan, lineHandler, lineLimit, strategy)
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *Input, OutputChan chan *Output, lineHandler LineHandler, contentLenLimit int) *Decoder {
+func New(InputChan chan *Input, OutputChan chan *Output, lineHandler LineHandler, contentLenLimit int, matcher EndLineMatcher) *Decoder {
 	var lineBuffer bytes.Buffer
 	return &Decoder{
 		InputChan:       InputChan,
@@ -81,6 +85,7 @@ func New(InputChan chan *Input, OutputChan chan *Output, lineHandler LineHandler
 		lineBuffer:      &lineBuffer,
 		lineHandler:     lineHandler,
 		contentLenLimit: contentLenLimit,
+		EndLineMatcher:  matcher,
 	}
 }
 
@@ -117,10 +122,10 @@ func (d *Decoder) decodeIncomingData(inBuf []byte) {
 			d.sendLine()
 			i = j
 			maxj = i + d.contentLenLimit
-		} else if inBuf[j] == '\n' {
+		} else if d.Match(d.lineBuffer, inBuf, i, j) {
 			d.lineBuffer.Write(inBuf[i:j])
 			d.sendLine()
-			i = j + 1 // +1 as we skip the `\n`
+			i = j + 1 // skip the matching byte.
 			maxj = i + d.contentLenLimit
 		}
 	}
