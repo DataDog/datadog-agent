@@ -106,8 +106,9 @@ func (c *ConnectionsCheck) getConnections() ([]*model.Connection, error) {
 		}
 		cs, err := c.localTracer.GetActiveConnections(c.tracerClientID)
 		conns := make([]*model.Connection, len(cs.Conns))
+		cache := make(ebpf.AddrCache)
 		for i, ebpfConn := range cs.Conns {
-			conns[i] = encoding.FormatConnection(ebpfConn)
+			conns[i] = encoding.FormatConnection(ebpfConn, cache)
 		}
 		return conns, err
 	}

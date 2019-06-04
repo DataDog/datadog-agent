@@ -7,12 +7,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+// AddrCache is responsible for interning util.Address strings
+type AddrCache map[util.Address]string
+
+// String returns the interned string represention of the util.Address
+func (a AddrCache) String(addr util.Address) string {
+	if s, ok := a[addr]; ok {
+		return s
+	}
+
+	s := addr.String()
+	a[addr] = s
+	return s
+}
+
 // FormatConnection converts a ConnectionStats into an agent.Connection
-func FormatConnection(conn ebpf.ConnectionStats) *agent.Connection {
+func FormatConnection(conn ebpf.ConnectionStats, addrCache AddrCache) *agent.Connection {
 	return &agent.Connection{
 		Pid:                int32(conn.Pid),
-		Laddr:              formatAddr(conn.Source, conn.SPort),
-		Raddr:              formatAddr(conn.Dest, conn.DPort),
+		Laddr:              formatAddr(conn.Source, conn.SPort, addrCache),
+		Raddr:              formatAddr(conn.Dest, conn.DPort, addrCache),
 		Family:             formatFamily(conn.Family),
 		Type:               formatType(conn.Type),
 		TotalBytesSent:     conn.MonotonicSentBytes,
@@ -27,12 +41,12 @@ func FormatConnection(conn ebpf.ConnectionStats) *agent.Connection {
 	}
 }
 
-func formatAddr(addr util.Address, port uint16) *agent.Addr {
+func formatAddr(addr util.Address, port uint16, addrCache AddrCache) *agent.Addr {
 	if addr == nil {
 		return nil
 	}
 
-	return &agent.Addr{Ip: addr.String(), Port: int32(port)}
+	return &agent.Addr{Ip: addrCache.String(addr), Port: int32(port)}
 }
 
 func formatFamily(f ebpf.ConnectionFamily) agent.ConnectionFamily {

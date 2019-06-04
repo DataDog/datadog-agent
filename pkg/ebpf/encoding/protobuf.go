@@ -12,9 +12,12 @@ const ContentTypeProtobuf = "application/protobuf"
 type protoSerializer struct{}
 
 func (protoSerializer) Marshal(conns *ebpf.Connections) ([]byte, error) {
-	agentConns := make([]*agent.Connection, len(conns.Conns))
+	var (
+		agentConns = make([]*agent.Connection, len(conns.Conns))
+		addrCache  = make(AddrCache)
+	)
 	for i, conn := range conns.Conns {
-		agentConns[i] = FormatConnection(conn)
+		agentConns[i] = FormatConnection(conn, addrCache)
 	}
 	payload := &agent.Connections{Conns: agentConns}
 	return proto.Marshal(payload)
