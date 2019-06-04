@@ -92,12 +92,14 @@ build do
   end
 
 
-  # Build the process-agent
-  command "invoke -e process-agent.build", :env => env
-
   if windows?
+    # Build the process-agent with the correct go version for windows
+    command "invoke -e process-agent.build", :env => env
+
     copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
   else
+    # TODO(sami): removeme, build the process-agent with go 1.10.1
+    command "invoke -e process-agent.build --go110", :env => env
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
     # We don't use the system-probe in macOS builds
     if !osx?

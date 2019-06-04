@@ -12,9 +12,8 @@ from .build_tags import get_default_build_tags
 BIN_DIR = os.path.join(".", "bin", "process-agent")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent", android=False))
 
-
 @task
-def build(ctx, race=False, incremental_build=False, puppy=False):
+def build(ctx, race=False, go110=False, incremental_build=False, puppy=False):
     """
     Build the process agent
     """
@@ -43,16 +42,29 @@ def build(ctx, race=False, incremental_build=False, puppy=False):
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
+    gobin = 'go'
+    # Force using go1.10
+    if go110:
+        version = '1.10.1'
+        lines = ctx.run("gimme {version}".format(version=version)).stdout.split("\n")
+        # Parse the goroot
+        line = next(line for line in lines if "GOROOT" in line)
+        root = line.split("=")[-1].split("'")[-2]
+
+        gobin = os.path.join(root, "bin", "go")
+        ld_vars["GoVersion"] = version
+
     ldflags, gcflags, env = get_build_flags(ctx)
 
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
     build_tags = get_default_build_tags(puppy=puppy)
 
     # TODO static option
-    cmd = 'go build {race_opt} {build_type} -tags "{go_build_tags}" '
+    cmd = '{gobin} build {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/process-agent'
 
     args = {
+        "gobin": gobin,
         "race_opt": "-race" if race else "",
         "build_type": "-i" if incremental_build else "-a",
         "go_build_tags": " ".join(build_tags),
