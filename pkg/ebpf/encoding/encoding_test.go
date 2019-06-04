@@ -5,7 +5,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
-	agent "github.com/DataDog/datadog-agent/pkg/process/model"
+	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,11 +42,11 @@ func TestSerialization(t *testing.T) {
 		},
 	}
 
-	out := &agent.Connections{
-		Conns: []*agent.Connection{
+	out := &model.Connections{
+		Conns: []*model.Connection{
 			{
-				Laddr:              &agent.Addr{Ip: "10.1.1.1", Port: int32(1000)},
-				Raddr:              &agent.Addr{Ip: "10.2.2.2", Port: int32(9000)},
+				Laddr:              &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
+				Raddr:              &model.Addr{Ip: "10.2.2.2", Port: int32(9000)},
 				TotalBytesSent:     1,
 				LastBytesSent:      2,
 				TotalBytesReceived: 100,
@@ -55,16 +55,16 @@ func TestSerialization(t *testing.T) {
 				LastRetransmits:    201,
 				Pid:                int32(6000),
 				NetNS:              7,
-				IpTranslation: &agent.IPTranslation{
+				IpTranslation: &model.IPTranslation{
 					ReplSrcIP:   "20.1.1.1",
 					ReplDstIP:   "20.1.1.1",
 					ReplSrcPort: int32(40),
 					ReplDstPort: int32(70),
 				},
 
-				Type:      agent.ConnectionType_udp,
-				Family:    agent.ConnectionFamily_v6,
-				Direction: agent.ConnectionDirection_local,
+				Type:      model.ConnectionType_udp,
+				Family:    model.ConnectionFamily_v6,
+				Direction: model.ConnectionDirection_local,
 			},
 		},
 	}

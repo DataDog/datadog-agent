@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	agent "github.com/DataDog/datadog-agent/pkg/process/model"
+	"github.com/DataDog/datadog-agent/pkg/process/model"
 )
 
 var (
@@ -20,7 +20,7 @@ type Marshaler interface {
 
 // Unmarshaler is an interface implemented by all Connections deserializers
 type Unmarshaler interface {
-	Unmarshal([]byte) (*agent.Connections, error)
+	Unmarshal([]byte) (*model.Connections, error)
 }
 
 // GetMarshaler returns the appropriate Marshaler based on the given accept header

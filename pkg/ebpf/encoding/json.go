@@ -4,7 +4,7 @@ import (
 	"bytes"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	agent "github.com/DataDog/datadog-agent/pkg/process/model"
+	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/gogo/protobuf/jsonpb"
 )
 
@@ -16,18 +16,18 @@ type jsonSerializer struct {
 }
 
 func (j jsonSerializer) Marshal(conns *ebpf.Connections) ([]byte, error) {
-	agentConns := make([]*agent.Connection, len(conns.Conns))
+	agentConns := make([]*model.Connection, len(conns.Conns))
 	for i, conn := range conns.Conns {
 		agentConns[i] = FormatConnection(conn)
 	}
-	payload := &agent.Connections{Conns: agentConns}
+	payload := &model.Connections{Conns: agentConns}
 	writer := new(bytes.Buffer)
 	err := j.marshaller.Marshal(writer, payload)
 	return writer.Bytes(), err
 }
 
-func (jsonSerializer) Unmarshal(blob []byte) (*agent.Connections, error) {
-	conns := new(agent.Connections)
+func (jsonSerializer) Unmarshal(blob []byte) (*model.Connections, error) {
+	conns := new(model.Connections)
 	reader := bytes.NewReader(blob)
 	if err := jsonpb.Unmarshal(reader, conns); err != nil {
 		return nil, err

@@ -3,13 +3,13 @@ package encoding
 import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
-	agent "github.com/DataDog/datadog-agent/pkg/process/model"
+	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-// FormatConnection converts a ConnectionStats into an agent.Connection
-func FormatConnection(conn ebpf.ConnectionStats) *agent.Connection {
-	return &agent.Connection{
+// FormatConnection converts a ConnectionStats into an model.Connection
+func FormatConnection(conn ebpf.ConnectionStats) *model.Connection {
+	return &model.Connection{
 		Pid:                int32(conn.Pid),
 		Laddr:              formatAddr(conn.Source, conn.SPort),
 		Raddr:              formatAddr(conn.Dest, conn.DPort),
@@ -21,61 +21,61 @@ func FormatConnection(conn ebpf.ConnectionStats) *agent.Connection {
 		LastBytesSent:      conn.LastSentBytes,
 		LastBytesReceived:  conn.LastRecvBytes,
 		LastRetransmits:    conn.LastRetransmits,
-		Direction:          agent.ConnectionDirection(conn.Direction),
+		Direction:          model.ConnectionDirection(conn.Direction),
 		NetNS:              conn.NetNS,
 		IpTranslation:      formatIPTranslation(conn.IPTranslation),
 	}
 }
 
-func formatAddr(addr util.Address, port uint16) *agent.Addr {
+func formatAddr(addr util.Address, port uint16) *model.Addr {
 	if addr == nil {
 		return nil
 	}
 
-	return &agent.Addr{Ip: addr.String(), Port: int32(port)}
+	return &model.Addr{Ip: addr.String(), Port: int32(port)}
 }
 
-func formatFamily(f ebpf.ConnectionFamily) agent.ConnectionFamily {
+func formatFamily(f ebpf.ConnectionFamily) model.ConnectionFamily {
 	switch f {
 	case ebpf.AFINET:
-		return agent.ConnectionFamily_v4
+		return model.ConnectionFamily_v4
 	case ebpf.AFINET6:
-		return agent.ConnectionFamily_v6
+		return model.ConnectionFamily_v6
 	default:
 		return -1
 	}
 }
 
-func formatType(f ebpf.ConnectionType) agent.ConnectionType {
+func formatType(f ebpf.ConnectionType) model.ConnectionType {
 	switch f {
 	case ebpf.TCP:
-		return agent.ConnectionType_tcp
+		return model.ConnectionType_tcp
 	case ebpf.UDP:
-		return agent.ConnectionType_udp
+		return model.ConnectionType_udp
 	default:
 		return -1
 	}
 }
 
-func formatDirection(d ebpf.ConnectionDirection) agent.ConnectionDirection {
+func formatDirection(d ebpf.ConnectionDirection) model.ConnectionDirection {
 	switch d {
 	case ebpf.INCOMING:
-		return agent.ConnectionDirection_incoming
+		return model.ConnectionDirection_incoming
 	case ebpf.OUTGOING:
-		return agent.ConnectionDirection_outgoing
+		return model.ConnectionDirection_outgoing
 	case ebpf.LOCAL:
-		return agent.ConnectionDirection_local
+		return model.ConnectionDirection_local
 	default:
-		return agent.ConnectionDirection_unspecified
+		return model.ConnectionDirection_unspecified
 	}
 }
 
-func formatIPTranslation(ct *netlink.IPTranslation) *agent.IPTranslation {
+func formatIPTranslation(ct *netlink.IPTranslation) *model.IPTranslation {
 	if ct == nil {
 		return nil
 	}
 
-	return &agent.IPTranslation{
+	return &model.IPTranslation{
 		ReplSrcIP:   ct.ReplSrcIP,
 		ReplDstIP:   ct.ReplDstIP,
 		ReplSrcPort: int32(ct.ReplSrcPort),
