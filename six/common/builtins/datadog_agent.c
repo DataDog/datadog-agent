@@ -334,6 +334,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         for (j = 0; j < tags_len; j++) {
             PyObject *s = PyList_GetItem(value, j);
             if (s == NULL) {
+                PyErr_Clear();
                 continue;
             }
 
