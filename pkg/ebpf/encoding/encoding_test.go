@@ -29,8 +29,8 @@ func TestSerialization(t *testing.T) {
 				SPort:                1000,
 				DPort:                9000,
 				IPTranslation: &netlink.IPTranslation{
-					ReplSrcIP:   "20.1.1.1",
-					ReplDstIP:   "20.1.1.1",
+					ReplSrcIP:   util.AddressFromString("20.1.1.1"),
+					ReplDstIP:   util.AddressFromString("20.1.1.1"),
 					ReplSrcPort: 40,
 					ReplDstPort: 70,
 				},

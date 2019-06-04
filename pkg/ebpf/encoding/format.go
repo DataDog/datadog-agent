@@ -76,8 +76,8 @@ func formatIPTranslation(ct *netlink.IPTranslation) *model.IPTranslation {
 	}
 
 	return &model.IPTranslation{
-		ReplSrcIP:   ct.ReplSrcIP,
-		ReplDstIP:   ct.ReplDstIP,
+		ReplSrcIP:   ct.ReplSrcIP.String(),
+		ReplDstIP:   ct.ReplDstIP.String(),
 		ReplSrcPort: int32(ct.ReplSrcPort),
 		ReplDstPort: int32(ct.ReplDstPort),
 	}
