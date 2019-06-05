@@ -36,11 +36,11 @@ func TestGrainWithHostPidTags(t *testing.T) {
 	srb := NewRawBucket(0, 1e9)
 	assert := assert.New(t)
 
-	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{"meta2": "two", "meta1": "ONE", "hostname": "app", "pid": "32"}}
+	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{"meta2": "two", "meta1": "ONE", "hostname": "app", "pid": "32", "starttime": "1559735286"}}
 	aggr, tgs := assembleGrain(&srb.keyBuf, "default", s.Resource, s.Service, s.Meta)
 
-	assert.Equal("env:default,resource:yo,service:thing,hostname:app,meta1:ONE,meta2:two,pid:32", aggr)
-	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}, Tag{"hostname", "app"}, Tag{"meta1", "ONE"}, Tag{"meta2", "two"}, Tag{"pid", "32"}}, tgs)
+	assert.Equal("env:default,resource:yo,service:thing,hostname:app,meta1:ONE,meta2:two,pid:32,starttime:1559735286", aggr)
+	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}, Tag{"hostname", "app"}, Tag{"meta1", "ONE"}, Tag{"meta2", "two"}, Tag{"pid", "32"}, Tag{"starttime", "1559735286"}}, tgs)
 }
 
 func BenchmarkHandleSpanRandom(b *testing.B) {
