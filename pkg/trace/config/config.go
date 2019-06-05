@@ -2,7 +2,10 @@ package config
 
 import (
 	"bytes"
+	"crypto/tls"
 	"errors"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -11,10 +14,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/legacy"
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -197,6 +202,32 @@ func (c *AgentConfig) acquireHostname() error {
 		err = ErrMissingHostname
 	}
 	return err
+}
+
+// HTTPClient returns a new http.Client to be used for outgoing connections to the
+// Datadog API.
+func (c *AgentConfig) HTTPClient() *http.Client {
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.SkipSSLValidation},
+		// below field values are from http.DefaultTransport (go1.12)
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	if p := coreconfig.GetProxies(); p != nil {
+		transport.Proxy = util.GetProxyTransportFunc(p)
+	}
+	return &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: transport,
+	}
 }
 
 // Load returns a new configuration based on the given path. The path must not necessarily exist

@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"bytes"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -122,11 +123,13 @@ func (w *StatsWriter) handleStats(s []stats.Bucket) {
 
 	for _, p := range payloads {
 		// synchronously send the payloads one after the other
-		data, err := stats.EncodePayload(p)
+		var buf bytes.Buffer
+		err := stats.EncodePayload(&buf, p)
 		if err != nil {
 			log.Errorf("Encoding issue: %v", err)
 			return
 		}
+		data := buf.Bytes()
 
 		payload := newPayload(data, headers)
 		w.sender.Send(payload)
