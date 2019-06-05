@@ -98,7 +98,7 @@ build do
 
     copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
   else
-    # TODO(sami): removeme, build the process-agent with go 1.10.1
+    # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
     command "invoke -e process-agent.build --go110", :env => env
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
     # We don't use the system-probe in macOS builds
