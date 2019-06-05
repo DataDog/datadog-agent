@@ -6,7 +6,6 @@
 package sender
 
 import (
-	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -91,7 +90,7 @@ func (s *batchStrategy) sendBuffer(outputChan chan *message.Message, send func([
 
 	err := send(s.serializer.Serialize(messages))
 	if err != nil {
-		if err == context.Canceled {
+		if shouldStopSending(err) {
 			return
 		}
 		log.Warnf("Could not send payload: %v", err)

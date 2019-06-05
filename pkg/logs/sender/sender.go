@@ -6,6 +6,8 @@
 package sender
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -87,4 +89,9 @@ func (s *Sender) send(payload []byte) error {
 	}
 
 	return nil
+}
+
+// shouldStopSending returns true if a component should stop sending logs.
+func shouldStopSending(err error) bool {
+	return err == context.Canceled
 }

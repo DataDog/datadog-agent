@@ -6,8 +6,6 @@
 package sender
 
 import (
-	"context"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -24,7 +22,7 @@ func (s *streamStrategy) Send(inputChan chan *message.Message, outputChan chan *
 	for message := range inputChan {
 		err := send(message.Content)
 		if err != nil {
-			if err == context.Canceled {
+			if shouldStopSending(err) {
 				return
 			}
 			log.Warnf("Could not send payload: %v", err)
