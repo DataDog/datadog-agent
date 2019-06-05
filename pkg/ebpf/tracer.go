@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
-	"github.com/mailru/easyjson/buffer"
 )
 
 var (
@@ -26,16 +25,6 @@ var (
 
 func init() {
 	probeExpvar = expvar.NewMap("systemprobe")
-
-	// Configure the easyjson buffer pool to allow for bigger buffers
-	// A connection is ~ 200 B JSON encoded
-	// so setting the max size to 524 KB should allow for buffers that could hold
-	// up to ~ 2600 JSON encoded connections
-	buffer.Init(buffer.PoolConfig{
-		StartSize:  128,
-		PooledSize: 512,
-		MaxSize:    524288,
-	})
 }
 
 type Tracer struct {
@@ -221,7 +210,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				if t.shouldSkipConnection(&cs) {
 					atomic.AddInt64(&t.skippedConns, 1)
 				} else {
-					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.SourceAddr(), cs.SPort)
+					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort)
 					t.state.StoreClosedConnection(cs)
 				}
 			case lostCount, ok := <-lostChannel:
@@ -328,7 +317,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
 				// lookup conntrack in for active
-				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.SourceAddr(), conn.SPort)
+				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.Source, conn.SPort)
 				active = append(active, conn)
 			}
 		}
@@ -528,8 +517,8 @@ func (t *Tracer) populatePortMapping(mp *bpflib.Map) ([]uint16, error) {
 }
 
 func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionDirection {
-	sourceLocal := t.isLocalAddress(conn.SourceAddr())
-	destLocal := t.isLocalAddress(conn.DestAddr())
+	sourceLocal := t.isLocalAddress(conn.Source)
+	destLocal := t.isLocalAddress(conn.Dest)
 
 	if sourceLocal && destLocal {
 		return LOCAL
