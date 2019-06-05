@@ -22,7 +22,7 @@ BPF_TAG = "linux_bpf"
 
 
 @task
-def build(ctx, race=False, go110=False, incremental_build=False):
+def build(ctx, race=False, incremental_build=False):
     """
     Build the system_probe
     """
@@ -39,16 +39,6 @@ def build(ctx, race=False, go110=False, incremental_build=False):
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
-    gobin = 'go'
-    # Force using go1.10
-    if go110:
-        version = '1.10.1'
-        lines = ctx.run("gimme {version}".format(version=version)).stdout
-        root = re.search("export GOROOT='(.+)'", lines).group(1)
-
-        gobin = os.path.join(root, "bin", "go")
-        ld_vars["GoVersion"] = version
-
     ldflags, gcflags, env = get_build_flags(ctx)
 
     # Add custom ld flags
@@ -56,11 +46,10 @@ def build(ctx, race=False, go110=False, incremental_build=False):
     build_tags = get_default_build_tags() + [BPF_TAG]
 
     # TODO static option
-    cmd = '{gobin} build {race_opt} {build_type} -tags "{go_build_tags}" '
+    cmd = 'go build {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
 
     args = {
-        "gobin": gobin,
         "race_opt": "-race" if race else "",
         "build_type": "-i" if incremental_build else "-a",
         "go_build_tags": " ".join(build_tags),
