@@ -326,6 +326,8 @@ are ported, excepted the following deprecations:
     Kubernetes and Openshift (default to true). This will avoid removing
     them from the exclude list by error
 
+The format of the `DD_TAGS`  global option has changed. In v5 it is comma-separated; in v6 it is space-separated, i.e. `simple-tag-0 tag-key-1:tag-value-1`.
+
 The [`import`](#configuration-files) will help you converting the old
 `docker_daemon.yaml` to the new `docker.yaml`. The command will also move
 needed settings from `docker_daemon.yaml` to `datadog.yaml`.
