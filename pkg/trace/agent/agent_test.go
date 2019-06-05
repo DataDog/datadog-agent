@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/writer"
+	newwriter "github.com/DataDog/datadog-agent/pkg/trace/writer/newwriter"
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/cihub/seelog"
@@ -545,7 +545,7 @@ func benchThroughput(file string) func(*testing.B) {
 		// start the agent without the trace and stats writers; we will be draining
 		// these channels ourselves in the benchmarks, plus we don't want the writers
 		// resource usage to show up in the results.
-		agnt.tracePkgChan = make(chan *writer.TracePackage)
+		agnt.spansOut = make(chan *newwriter.SampledSpans)
 		go agnt.Run()
 
 		// wait for receiver to start:
@@ -599,7 +599,7 @@ func benchThroughput(file string) func(*testing.B) {
 		loop:
 			for {
 				select {
-				case <-agnt.tracePkgChan:
+				case <-agnt.spansOut:
 					got++
 					if got == count {
 						// processed everything!
