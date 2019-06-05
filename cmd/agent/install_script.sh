@@ -144,19 +144,38 @@ if [ $OS = "RedHat" ]; then
     $sudo_cmd yum -y clean metadata
     $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install datadog-agent || $sudo_cmd yum -y install datadog-agent
 elif [ $OS = "Debian" ]; then
-
     printf "\033[34m\n* Installing apt-transport-https\n\033[0m\n"
     $sudo_cmd apt-get update || printf "\033[31m'apt-get update' failed, the script will not install the latest version of apt-transport-https.\033[0m\n"
     $sudo_cmd apt-get install -y apt-transport-https
-    # Only install dirmngr if it's available in the cache
-    # it may not be available on Ubuntu <= 14.04 but it's not required there
-    cache_output=`apt-cache search dirmngr`
-    if [ ! -z "$cache_output" ]; then
-      $sudo_cmd apt-get install -y dirmngr
+    
+      if [ "$DISTRIBUTION" == "Debian" ] && [ "$(cat /etc/debian_version | tr "." " " | awk '{ print $1 }')" -ge "9" ]; then
+        printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
+        $sudo_cmd wget -O /usr/share/keyrings/datadog-archive-keyring.gpg https://apt.datadoghq.com/DATADOG_APT_KEY.public
+
+        printf "\033[34m\n* Importing the Datadog APT GPG public key\n\033[0m\n"
+        ERROR_MESSAGE="ERROR
+Failed to import the Datadog APT GPG public key (wrong fingerprint).
+Please contact Datadog support.
+*****
+"
+        gpg --dry-run --import --import-options import-show /usr/share/keyrings/datadog-archive-keyring.gpg | grep 'A2923DFF56EDA6E76E55E492D3A80E30382E94DE'
+
+        echo "deb [signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] https://apt.${repo_url}/ stable 6" | $sudo_cmd dd status=none of=/etc/apt/sources.list.d/datadog.list
+        echo "Package: *
+Pin: origin https://apt.datadoghq.com/
+Pin-Priority: 100" | $sudo_cmd dd status=none of=/etc/apt/preferences.d/datadog.pref
+    else
+      # Only install dirmngr if it's available in the cache
+      # it may not be available on Ubuntu <= 14.04 but it's not required there
+      cache_output=`apt-cache search dirmngr`
+      if [ ! -z "$cache_output" ]; then
+        $sudo_cmd apt-get install -y dirmngr
+      fi
+
+      printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
+      $sudo_cmd sh -c "echo 'deb https://apt.${repo_url}/ stable 6' > /etc/apt/sources.list.d/datadog.list"
+      $sudo_cmd apt-key adv --recv-keys --keyserver ${keyserver} A2923DFF56EDA6E76E55E492D3A80E30382E94DE
     fi
-    printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
-    $sudo_cmd sh -c "echo 'deb https://apt.${repo_url}/ stable 6' > /etc/apt/sources.list.d/datadog.list"
-    $sudo_cmd apt-key adv --recv-keys --keyserver ${keyserver} A2923DFF56EDA6E76E55E492D3A80E30382E94DE
 
     printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
     ERROR_MESSAGE="ERROR
