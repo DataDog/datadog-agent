@@ -43,14 +43,14 @@ def build(ctx, race=False, go110=False, incremental_build=False, puppy=False):
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
-    gobin = 'go'
+    prefix = ""
     # Force using go1.10
     if go110:
         version = '1.10.1'
-        lines = ctx.run("gimme {version}".format(version=version)).stdout
-        root = re.search("export GOROOT='(.+)'", lines).group(1)
-
-        gobin = os.path.join(root, "bin", "go")
+        lines = ctx.run("gimme {version}".format(version=version)).stdout.split("\n")
+        for line in lines:
+            if "export GOROOT" in line or "export PATH" in line:
+                prefix += line[len("export "):-1] + " " # add to the prefix, without the "export" part, and without the trailing semicolon
         ld_vars["GoVersion"] = version
 
     ldflags, gcflags, env = get_build_flags(ctx)
@@ -59,11 +59,10 @@ def build(ctx, race=False, go110=False, incremental_build=False, puppy=False):
     build_tags = get_default_build_tags(puppy=puppy)
 
     # TODO static option
-    cmd = '{gobin} build {race_opt} {build_type} -tags "{go_build_tags}" '
+    cmd = '{prefix} go build {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/process-agent'
 
     args = {
-        "gobin": gobin,
         "race_opt": "-race" if race else "",
         "build_type": "-i" if incremental_build else "-a",
         "go_build_tags": " ".join(build_tags),
@@ -71,6 +70,7 @@ def build(ctx, race=False, go110=False, incremental_build=False, puppy=False):
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
+	"prefix": prefix,
     }
 
     ctx.run(cmd.format(**args), env=env)
