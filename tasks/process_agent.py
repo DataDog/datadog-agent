@@ -14,7 +14,7 @@ BIN_DIR = os.path.join(".", "bin", "process-agent")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent", android=False))
 
 @task
-def build(ctx, race=False, go110=False, incremental_build=False, puppy=False):
+def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False):
     """
     Build the process agent
     """
@@ -46,9 +46,8 @@ def build(ctx, race=False, go110=False, incremental_build=False, puppy=False):
     prefix = ""
     # TODO: this is a temporary workaround to avoid the garbage collection issues that the process-agent+go1.11 have had.
     # Once we have upgraded the go version to 1.12, this can be removed
-    if go110:
-        version = '1.10.1'
-        lines = ctx.run("gimme {version}".format(version=version)).stdout.split("\n")
+    if go_version:
+        lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
         for line in lines:
             if "export GOROOT" in line or "export PATH" in line:
                 prefix += line[len("export "):-1] + " " # add to the prefix, without the "export" part, and without the trailing semicolon
