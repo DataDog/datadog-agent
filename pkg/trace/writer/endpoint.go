@@ -110,7 +110,8 @@ func (e *datadogEndpoint) write(payload *payload) error {
 		return err
 	}
 
-	req.Header.Set("DD-Api-Key", e.apiKey)
+	req.Header.Add("sts-api-key", e.apiKey)
+	req.Header.Add("sts-hostname", e.host)
 	req.Header.Set("User-Agent", userAgent)
 	for key, value := range payload.headers {
 		req.Header.Set(key, value)
