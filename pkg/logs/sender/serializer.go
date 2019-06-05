@@ -16,47 +16,61 @@ type Serializer interface {
 	Serialize(messages []*message.Message) []byte
 }
 
-var (
-	// LineSerializer is a shared line formatter.
-	LineSerializer Serializer = &lineSerializer{}
-	// ArraySerializer is a shared array formatter.
-	ArraySerializer Serializer = &arraySerializer{}
-)
+// serializer represents a generic serializer that holds a buffer.
+type serializer struct {
+	buffer bytes.Buffer
+}
 
 // lineSerializer transforms a message array into a payload
 // separating content by new line character.
-type lineSerializer struct{}
+type lineSerializer struct {
+	serializer
+}
+
+// NewLineSerializer returns a new line serializer.
+func NewLineSerializer() Serializer {
+	return &lineSerializer{}
+}
 
 // Serialize concatenates all messages using
 // a new line characater as a separator,
 // for example:
 // "{"message":"content1"}", "{"message":"content2"}"
 // returns, "{"message":"content1"}\n{"message":"content2"}"
-func (f *lineSerializer) Serialize(messages []*message.Message) []byte {
-	buffer := bytes.NewBuffer(nil)
-	for _, message := range messages {
-		buffer.Write(message.Content)
-		buffer.WriteByte('\n')
+func (s *lineSerializer) Serialize(messages []*message.Message) []byte {
+	s.buffer.Reset()
+	for i, message := range messages {
+		if i > 0 {
+			s.buffer.WriteByte('\n')
+		}
+		s.buffer.Write(message.Content)
 	}
-	return buffer.Bytes()
+	return s.buffer.Bytes()
 }
 
 // arraySerializer transforms a message array into a array string payload.
-type arraySerializer struct{}
+type arraySerializer struct {
+	serializer
+}
+
+// NewArraySerializer returns a new line serializer.
+func NewArraySerializer() Serializer {
+	return &arraySerializer{}
+}
 
 // Serialize transforms all messages into a array string
 // for example:
 // "{"message":"content1"}", "{"message":"content2"}"
 // returns, "[{"message":"content1"},{"message":"content2"}]"
-func (f *arraySerializer) Serialize(messages []*message.Message) []byte {
-	buffer := bytes.NewBuffer(nil)
-	buffer.WriteByte('[')
+func (s *arraySerializer) Serialize(messages []*message.Message) []byte {
+	s.buffer.Reset()
+	s.buffer.WriteByte('[')
 	for i, message := range messages {
 		if i > 0 {
-			buffer.WriteByte(',')
+			s.buffer.WriteByte(',')
 		}
-		buffer.Write(message.Content)
+		s.buffer.Write(message.Content)
 	}
-	buffer.WriteByte(']')
-	return buffer.Bytes()
+	s.buffer.WriteByte(']')
+	return s.buffer.Bytes()
 }
