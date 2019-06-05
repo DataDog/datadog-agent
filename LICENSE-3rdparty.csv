@@ -82,6 +82,7 @@ core,k8s.io/kubernetes,Apache-2.0
 core,github.com/lxn/walk,BSD-3-Clause
 core,github.com/lxn/win,BSD-3-Clause
 core,github.com/magiconair/properties,BSD-2-Clause
+core,github.com/mailru/easyjson,MIT
 core,github.com/mattn/go-colorable,MIT
 core,github.com/mattn/go-isatty,MIT
 core,github.com/matttproud/golang_protobuf_extensions,Apache-2.0
