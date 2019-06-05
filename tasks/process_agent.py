@@ -12,6 +12,7 @@ from .build_tags import get_default_build_tags
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent", android=False))
+GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 @task
 def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False):
@@ -43,23 +44,25 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
-    prefix = ""
+    goenv = {}
     # TODO: this is a temporary workaround to avoid the garbage collection issues that the process-agent+go1.11 have had.
     # Once we have upgraded the go version to 1.12, this can be removed
     if go_version:
         lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
         for line in lines:
-            if "export GOROOT" in line or "export PATH" in line:
-                prefix += line[len("export "):-1] + " " # add to the prefix, without the "export" part, and without the trailing semicolon
+            for env_var in GIMME_ENV_VARS:
+                if env_var in line:
+                    goenv[env_var] = line[line.find(env_var)+len(env_var)+1:-1].strip('\'\"')
         ld_vars["GoVersion"] = version
 
     ldflags, gcflags, env = get_build_flags(ctx)
+    env.update(goenv)
 
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
     build_tags = get_default_build_tags(puppy=puppy)
 
     # TODO static option
-    cmd = '{prefix} go build {race_opt} {build_type} -tags "{go_build_tags}" '
+    cmd = 'go build {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/process-agent'
 
     args = {
@@ -70,7 +73,6 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
-        "prefix": prefix,
     }
 
     ctx.run(cmd.format(**args), env=env)
