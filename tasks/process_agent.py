@@ -56,6 +56,10 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
         ld_vars["GoVersion"] = go_version
 
     ldflags, gcflags, env = get_build_flags(ctx)
+
+    # extend PATH from gimme with the one from get_build_flags
+    if "PATH" in os.environ and "PATH" in goenv:
+        goenv["PATH"] += ":" + os.environ["PATH"]
     env.update(goenv)
 
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
