@@ -53,7 +53,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
             for env_var in GIMME_ENV_VARS:
                 if env_var in line:
                     goenv[env_var] = line[line.find(env_var)+len(env_var)+1:-1].strip('\'\"')
-        ld_vars["GoVersion"] = version
+        ld_vars["GoVersion"] = go_version
 
     ldflags, gcflags, env = get_build_flags(ctx)
     env.update(goenv)
