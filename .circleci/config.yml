@@ -76,7 +76,8 @@ jobs:
           name: lint six
           command: |
             inv six.format
-            [[ $(git ls-files -m | wc -l) -eq 0 ]]
+            # only check for diff in six folder since "inv deps" step might update Gopkg.lock
+            [[ $(git ls-files -m six | wc -l) -eq 0 ]]
       - run:
           name: test six
           command: |
