@@ -36,17 +36,14 @@ func SendFlareWithHostname(archivePath string, caseID string, email string, host
 }
 
 func readAndPostFlareFileWithRedirects(archivePath string, caseID string, email string, hostname string) (*http.Response, error) {
-	var url = mkURL(caseID)
-	var redirectHops = 0
-
 	// Handle redirects manually. Go's http.Client doesn't know how to do it when it can't seek
 	// back to the beginning of the body. Since we are using a pipe, seeking isn't possible.
 	// Re-sending a POST is only legal for status 307, so we only need to check for that code.
-	for {
+	var url = mkURL(caseID)
+	for redirectHops := 0; ; redirectHops++ {
 		r, err := readAndPostFlareFile(url, archivePath, caseID, email, hostname)
 		if r != nil && r.StatusCode == 307 && redirectHops < 5 {
 			url = r.Header.Get("Location")
-			redirectHops++
 		} else {
 			return r, err
 		}
