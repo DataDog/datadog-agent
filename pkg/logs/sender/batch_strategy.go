@@ -23,15 +23,15 @@ const (
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
 	buffer       *MessageBuffer
-	formatter    Formatter
+	serializer   Serializer
 	batchTimeout time.Duration
 }
 
 // NewBatchStrategy returns a new batchStrategy.
-func NewBatchStrategy(formatter Formatter) Strategy {
+func NewBatchStrategy(serializer Serializer) Strategy {
 	return &batchStrategy{
 		buffer:       NewMessageBuffer(maxBatchSize, maxContentSize),
-		formatter:    formatter,
+		serializer:   serializer,
 		batchTimeout: batchTimeout,
 	}
 }
@@ -89,7 +89,7 @@ func (s *batchStrategy) sendBuffer(outputChan chan *message.Message, send func([
 	messages := s.buffer.GetMessages()
 	defer s.buffer.Clear()
 
-	err := send(s.formatter.Format(messages))
+	err := send(s.serializer.Serialize(messages))
 	if err != nil {
 		if err == context.Canceled {
 			return

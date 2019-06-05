@@ -11,28 +11,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// Formatter transforms a batch of messages into a payload.
-type Formatter interface {
-	Format(messages []*message.Message) []byte
+// Serializer transforms a batch of messages into a payload.
+type Serializer interface {
+	Serialize(messages []*message.Message) []byte
 }
 
 var (
-	// LineFormatter is a shared line formatter.
-	LineFormatter Formatter = &lineFormatter{}
-	// ArrayFormatter is a shared array formatter.
-	ArrayFormatter Formatter = &arrayFormatter{}
+	// LineSerializer is a shared line formatter.
+	LineSerializer Serializer = &lineSerializer{}
+	// ArraySerializer is a shared array formatter.
+	ArraySerializer Serializer = &arraySerializer{}
 )
 
-// lineFormatter transforms a message array into a payload
+// lineSerializer transforms a message array into a payload
 // separating content by new line character.
-type lineFormatter struct{}
+type lineSerializer struct{}
 
-// Format concatenates all messages using
+// Serialize concatenates all messages using
 // a new line characater as a separator,
 // for example:
 // "{"message":"content1"}", "{"message":"content2"}"
 // returns, "{"message":"content1"}\n{"message":"content2"}"
-func (f *lineFormatter) Format(messages []*message.Message) []byte {
+func (f *lineSerializer) Serialize(messages []*message.Message) []byte {
 	buffer := bytes.NewBuffer(nil)
 	for _, message := range messages {
 		buffer.Write(message.Content)
@@ -41,14 +41,14 @@ func (f *lineFormatter) Format(messages []*message.Message) []byte {
 	return buffer.Bytes()
 }
 
-// arrayFormatter transforms a message array into a array string payload.
-type arrayFormatter struct{}
+// arraySerializer transforms a message array into a array string payload.
+type arraySerializer struct{}
 
-// Format transforms all messages into a array string
+// Serialize transforms all messages into a array string
 // for example:
 // "{"message":"content1"}", "{"message":"content2"}"
 // returns, "[{"message":"content1"},{"message":"content2"}]"
-func (f *arrayFormatter) Format(messages []*message.Message) []byte {
+func (f *arraySerializer) Serialize(messages []*message.Message) []byte {
 	buffer := bytes.NewBuffer(nil)
 	buffer.WriteByte('[')
 	for i, message := range messages {
