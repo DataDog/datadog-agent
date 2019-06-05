@@ -71,7 +71,7 @@ def build(ctx, race=False, go110=False, incremental_build=False, puppy=False):
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
-	"prefix": prefix,
+        "prefix": prefix,
     }
 
     ctx.run(cmd.format(**args), env=env)
