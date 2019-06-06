@@ -733,7 +733,7 @@ char *Three::getIntegrationList()
     }
 
     pkgLister = PyObject_GetAttrString(pyPackages, "get_datadog_wheels");
-    if (pyPackages == NULL) {
+    if (pkgLister == NULL) {
         setError("could not fetch get_datadog_wheels attr: " + _fetchPythonError());
         goto done;
     }
