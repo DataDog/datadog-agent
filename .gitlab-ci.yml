@@ -942,6 +942,7 @@ twistlock_scan:
   tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
   before_script:
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - if [[ -z "$DOCKER_REGISTRY_LOGIN" ]]; then echo "Need DOCKER_REGISTRY_LOGIN"; exit 1; fi
     - if [[ -z "$PASS" ]]; then echo "Need PASS"; exit 1; fi
