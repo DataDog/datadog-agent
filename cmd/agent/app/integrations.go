@@ -660,7 +660,7 @@ func getVersionFromReqLine(integration string, lines string) (*semver.Version, e
 
 	groups := exp.FindAllStringSubmatch(lines, 2)
 	if groups == nil {
-		return nil, nil
+		return nil, fmt.Errorf("unknown integration '%s'", integration)
 	}
 
 	if len(groups) > 1 {
