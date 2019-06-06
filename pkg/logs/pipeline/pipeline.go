@@ -45,7 +45,7 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 
 	var strategy sender.Strategy
 	if endpoints.UseHTTP {
-		strategy = sender.NewBatchStrategy(sender.NewLineSerializer())
+		strategy = sender.NewBatchStrategy(sender.NewArraySerializer())
 	} else {
 		strategy = sender.StreamStrategy
 	}
