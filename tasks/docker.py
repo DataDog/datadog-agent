@@ -146,7 +146,7 @@ def publish(ctx, src, dst, signed_pull=False, signed_push=False):
 
 @task
 def delete(ctx, org, image, tag, token):
-    print("Deleting {org}/{image}:{tag}".format(org=src, image=image, tag=tag))
+    print("Deleting {org}/{image}:{tag}".format(org=org, image=image, tag=tag))
 
     # FIXME: remove these asserts and debugging lines after testing
     assert image == "agent-dev" # assert we don't do break things when testing
