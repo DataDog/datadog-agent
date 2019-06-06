@@ -417,31 +417,48 @@ done:
 
 char **Three::getCheckWarnings(SixPyObject *check)
 {
-    if (check == NULL)
+    if (check == NULL) {
         return NULL;
+    }
+
     PyObject *py_check = reinterpret_cast<PyObject *>(check);
+    char **warnings = NULL;
 
     char func_name[] = "get_warnings";
+    Py_ssize_t numWarnings;
+
     PyObject *warns_list = PyObject_CallMethod(py_check, func_name, NULL);
     if (warns_list == NULL) {
         setError("error invoking 'get_warnings' method: " + _fetchPythonError());
-        return NULL;
+        goto done;
     }
 
-    Py_ssize_t numWarnings = PyList_Size(warns_list);
-    char **warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
+    numWarnings = PyList_Size(warns_list);
+    // docs are not clear but `PyList_Size` can actually fail and in case it would
+    // return -1, see https://github.com/python/cpython/blob/3.8/Objects/listobject.c#L223
+    if (numWarnings == -1) {
+        setError("error computing 'len(warnings)': " + _fetchPythonError());
+        goto done;
+    }
+
+    warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
     if (!warnings) {
-        Py_XDECREF(warns_list);
-        setError("could not allocate memory to get warnings: ");
-        return NULL;
+        setError("could not allocate memory to store warnings");
+        goto done;
     }
-
     warnings[numWarnings] = NULL;
 
     for (Py_ssize_t idx = 0; idx < numWarnings; idx++) {
         PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
+        if (warn == NULL) {
+            setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
+            warnings = NULL;
+            goto done;
+        }
         warnings[idx] = as_string(warn);
     }
+
+done:
     Py_XDECREF(warns_list);
     return warnings;
 }
@@ -574,6 +591,9 @@ std::string Three::_fetchPythonError() const
     PyObject *ptype = NULL;
     PyObject *pvalue = NULL;
     PyObject *ptraceback = NULL;
+    PyObject *format_exception = NULL;
+    PyObject *traceback = NULL;
+    PyObject *fmt_exc = NULL;
 
     // Fetch error and make sure exception values are normalized, as per python C
     // API docs.
@@ -584,24 +604,39 @@ std::string Three::_fetchPythonError() const
 
     // There's a traceback, try to format it nicely
     if (ptraceback != NULL) {
-        PyObject *traceback = PyImport_ImportModule("traceback");
+        traceback = PyImport_ImportModule("traceback");
         if (traceback != NULL) {
             char fname[] = "format_exception";
-            PyObject *format_exception = PyObject_GetAttrString(traceback, fname);
+            format_exception = PyObject_GetAttrString(traceback, fname);
             if (format_exception != NULL) {
-                PyObject *fmt_exc = PyObject_CallFunctionObjArgs(format_exception, ptype, pvalue, ptraceback, NULL);
+                fmt_exc = PyObject_CallFunctionObjArgs(format_exception, ptype, pvalue, ptraceback, NULL);
                 if (fmt_exc != NULL) {
+                    Py_ssize_t len = PyList_Size(fmt_exc);
+                    // docs are not clear but `PyList_Size` can actually fail and in case it would
+                    // return -1, see https://github.com/python/cpython/blob/2.7/Objects/listobject.c#L170
+                    if (len == -1) {
+                        // don't fetch the actual error or the caller might think it was the root cause,
+                        // while it's not. Setting `ret_val` empty will make the function return "unknown error".
+                        // PyErr_Clear() will be called before returning.
+                        ret_val = "";
+                        goto done;
+                    }
+
                     // "format_exception" returns a list of strings (one per line)
-                    for (int i = 0; i < PyList_Size(fmt_exc); i++) {
-                        char *item = as_string(PyList_GetItem(fmt_exc, i));
+                    for (int i = 0; i < len; i++) {
+                        PyObject *s = PyList_GetItem(fmt_exc, i); // borrowed ref
+                        if (s == NULL || !PyString_Check(s)) {
+                            // unlikely to happen but same as above, do not propagate this error upstream
+                            // to avoid confusing the caller. PyErr_Clear() will be called before returning.
+                            ret_val = "";
+                            goto done;
+                        }
+                        char *item = as_string(s);
                         ret_val += item;
                         ::free(item);
                     }
                 }
-                Py_XDECREF(fmt_exc);
-                Py_XDECREF(format_exception);
             }
-            Py_XDECREF(traceback);
         } else {
             // If we reach this point, there was an error while formatting the
             // exception
@@ -612,6 +647,7 @@ std::string Three::_fetchPythonError() const
     else if (pvalue != NULL) {
         PyObject *pvalue_obj = PyObject_Str(pvalue);
         if (pvalue_obj != NULL) {
+            // we know pvalue_obj is a string (we just casted it), no need to PyString_Check()
             char *ret = as_string(pvalue_obj);
             ret_val += ret;
             ::free(ret);
@@ -620,6 +656,7 @@ std::string Three::_fetchPythonError() const
     } else if (ptype != NULL) {
         PyObject *ptype_obj = PyObject_Str(ptype);
         if (ptype_obj != NULL) {
+            // we know ptype_obj is a string (we just casted it), no need to PyString_Check()
             char *ret = as_string(ptype_obj);
             ret_val += ret;
             ::free(ret);
@@ -627,12 +664,18 @@ std::string Three::_fetchPythonError() const
         }
     }
 
+done:
     if (ret_val == "") {
         ret_val = "unknown error";
     }
 
-    // clean up and return the string
+    // something might've gone wrong while fetching the error, ensure
+    // the error state is clean before returning
     PyErr_Clear();
+
+    Py_XDECREF(traceback);
+    Py_XDECREF(format_exception);
+    Py_XDECREF(fmt_exc);
     Py_XDECREF(ptype);
     Py_XDECREF(pvalue);
     Py_XDECREF(ptraceback);
