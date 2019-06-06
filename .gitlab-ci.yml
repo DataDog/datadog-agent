@@ -943,8 +943,13 @@ twistlock_scan:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
   before_script:
     - PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - if [[ -z "$DOCKER_REGISTRY_LOGIN" ]]; then echo "Need DOCKER_REGISTRY_LOGIN"; exit 1; fi
+    - if [[ -z "$PASS" ]]; then echo "Need PASS"; exit 1; fi
     - |
-      export DOCKER_TOKEN=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/ | python -c 'import sys, json; print json.load(sys.stdin)["token"]'`
+      JSON=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/
+    - if [[ -z "$JSON" ]]; then echo "Need JSON"; exit 1; fi
+    - |
+      export DOCKER_TOKEN=`echo $JSON | python -c 'import sys, json; print json.load(sys.stdin)["token"]'`
   dependencies: [] # Don't download Gitlab artefacts
 
 .docker_hub_variables: &docker_hub_variables
