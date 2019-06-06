@@ -57,7 +57,7 @@ const (
 // userAgent is the computed user agent we'll use when
 // communicating with Datadog
 var userAgent = fmt.Sprintf(
-	"%s/%s/%s (+%s)",
+	"%s-%s-%s (+%s)",
 	userAgentPrefix, info.Version, info.GitCommit, userAgentSupportURL,
 )
 
