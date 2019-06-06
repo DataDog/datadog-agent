@@ -21,7 +21,7 @@ import (
 const (
 	initializationTimeout = time.Second * 10
 
-	compactInterval = time.Minute * 10
+	compactInterval = time.Minute * 5
 )
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
