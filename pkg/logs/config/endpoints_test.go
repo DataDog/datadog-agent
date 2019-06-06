@@ -119,7 +119,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	var err error
 
 	suite.config.Set("logs_config.use_http", true)
-	suite.config.Set("logs_config.http_dd_url", "foo")
+	suite.config.Set("logs_config.dd_url", "foo")
 
 	endpoints, err = BuildEndpoints()
 	suite.Nil(err)
