@@ -92,18 +92,34 @@ bool Three::init()
     if (_pythonPaths.size()) {
         char pathchr[] = "path";
         PyObject *path = PySys_GetObject(pathchr); // borrowed
+        if (path == NULL) {
+            // sys.path doesn't exist, which should never happen.
+            // No exception is set on the interpreter, so no need to handle any.
+            setError("could not access sys.path");
+            goto done;
+        }
         for (PyPaths::iterator pit = _pythonPaths.begin(); pit != _pythonPaths.end(); ++pit) {
             PyObject *p = PyUnicode_FromString((*pit).c_str());
-            PyList_Append(path, p);
+            if (p == NULL) {
+                setError("could not set pythonPath: " + _fetchPythonError());
+                goto done;
+            }
+            int retval = PyList_Append(path, p);
             Py_XDECREF(p);
+            if (retval == -1) {
+                setError("could not append path to pythonPath: " + _fetchPythonError());
+                goto done;
+            }
         }
     }
 
-    // load the base class
+    // import the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
 
-    // save tread state and release the GIL
+done:
+    // save thread state and release the GIL
     _threadState = PyEval_SaveThread();
+
     return _baseClass != NULL;
 }
 
@@ -201,8 +217,9 @@ bool Three::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&p
 
     obj_class = _findSubclassOf(_baseClass, obj_module);
     if (obj_class == NULL) {
+        // `_findSubclassOf` does not set the interpreter's error flag, but leaves an error on six
         std::ostringstream err;
-        err << "unable to find a subclass of the base check in module '" << module << "': " << _fetchPythonError();
+        err << "unable to find a subclass of the base check in module '" << module << "': " << getError();
         setError(err.str());
         Py_XDECREF(obj_module);
         return false;
