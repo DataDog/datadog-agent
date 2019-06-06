@@ -732,7 +732,7 @@ void Two::decref(SixPyObject *obj)
 
 void Two::incref(SixPyObject *obj)
 {
-    Py_XINCREF(reinterpret_cast<SixPyObject *>(obj));
+    Py_XINCREF(reinterpret_cast<PyObject *>(obj));
 }
 
 void Two::set_module_attr_string(char *module, char *attr, char *value)
