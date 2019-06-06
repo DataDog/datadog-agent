@@ -713,7 +713,7 @@ bool Two::getAttrString(SixPyObject *obj, const char *attributeName, char *&valu
         value = as_string(py_attr);
         res = true;
     } else if (py_attr != NULL && !PyString_Check(py_attr)) {
-        setError("error attribute " + std::string(attributeName) + " is has a different type than string");
+        setError("error attribute " + std::string(attributeName) + " has a different type than string");
         PyErr_Clear();
     } else {
         PyErr_Clear();
