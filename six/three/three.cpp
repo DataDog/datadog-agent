@@ -88,6 +88,10 @@ bool Three::init()
 
     Py_Initialize();
 
+    if (!Py_IsInitialized()) {
+        return false;
+    }
+
     // Set PYTHONPATH
     if (_pythonPaths.size()) {
         char pathchr[] = "path";
@@ -105,11 +109,6 @@ bool Three::init()
     // save tread state and release the GIL
     _threadState = PyEval_SaveThread();
     return _baseClass != NULL;
-}
-
-bool Three::isInitialized() const
-{
-    return Py_IsInitialized();
 }
 
 py_info_t *Three::getPyInfo()

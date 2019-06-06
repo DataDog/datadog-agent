@@ -72,6 +72,10 @@ bool Two::init()
 
     Py_Initialize();
 
+    if (!Py_IsInitialized()) {
+        return false;
+    }
+
     // In recent versions of Python3 this is called from Py_Initialize already,
     // for Python2 it has to be explicit.
     PyEval_InitThreads();
@@ -118,11 +122,6 @@ done:
     _threadState = PyEval_SaveThread();
 
     return _baseClass != NULL;
-}
-
-bool Two::isInitialized() const
-{
-    return Py_IsInitialized();
 }
 
 py_info_t *Two::getPyInfo()
