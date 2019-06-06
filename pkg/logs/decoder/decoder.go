@@ -59,7 +59,7 @@ func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder 
 }
 
 // NewDecoderWithEndLineMatcher initialize a decoder with given endline strategy.
-func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser, strategy EndLineMatcher) *Decoder {
+func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser, matcher EndLineMatcher) *Decoder {
 	inputChan := make(chan *Input)
 	outputChan := make(chan *Output)
 	lineLimit := defaultContentLenLimit
@@ -73,7 +73,7 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 		lineHandler = NewSingleLineHandler(outputChan, parser, lineLimit)
 	}
 
-	return New(inputChan, outputChan, lineHandler, lineLimit, strategy)
+	return New(inputChan, outputChan, lineHandler, lineLimit, matcher)
 }
 
 // New returns an initialized Decoder
@@ -122,7 +122,7 @@ func (d *Decoder) decodeIncomingData(inBuf []byte) {
 			d.sendLine()
 			i = j
 			maxj = i + d.contentLenLimit
-		} else if d.Match(d.lineBuffer, inBuf, i, j) {
+		} else if d.Match(d.lineBuffer.Bytes(), inBuf, i, j) {
 			d.lineBuffer.Write(inBuf[i:j])
 			d.sendLine()
 			i = j + 1 // skip the matching byte.

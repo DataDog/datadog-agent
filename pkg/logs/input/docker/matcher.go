@@ -33,8 +33,8 @@ type headerMatcher struct {
 
 // Match does an extra checking on matching docker header. The header should be
 // ignored for determine weather it's a end of line or not.
-func (s *headerMatcher) Match(buffer *bytes.Buffer, bs []byte, start int, end int) bool {
-	return bs[end] == '\n' && !s.matchHeader(buffer, bs[start:end])
+func (s *headerMatcher) Match(exists []byte, appender []byte, start int, end int) bool {
+	return appender[end] == '\n' && !s.matchHeader(exists, appender[start:end])
 }
 
 // When a newline (in byte is 10) is matching, an additional check need to
@@ -45,12 +45,12 @@ func (s *headerMatcher) Match(buffer *bytes.Buffer, bs []byte, start int, end in
 // case [1|2 0 0 0 size1 10 size3 size4]
 // case [1|2 0 0 0 size1 size2 10 size4]
 // case [1|2 0 0 0 size1 size2 size3 10]
-func (s *headerMatcher) matchHeader(buffer *bytes.Buffer, bs []byte) bool {
-	l := buffer.Len() + len(bs)
+func (s *headerMatcher) matchHeader(exists []byte, bs []byte) bool {
+	l := len(exists) + len(bs)
 	if l >= headerLength || l < headerPrefixLength {
 		return false
 	}
-	h := append(buffer.Bytes(), bs...)
+	h := append(exists, bs...)
 	return bytes.HasPrefix(h, headerStdoutPrefix) ||
 		bytes.HasPrefix(h, headerStderrPrefix)
 }
