@@ -589,7 +589,6 @@ bool Three::getAttrString(SixPyObject *obj, const char *attributeName, char *&va
 
     bool res = false;
     PyObject *py_attr = NULL;
-    PyObject *py_attr_bytes = NULL;
     PyObject *py_obj = reinterpret_cast<PyObject *>(obj);
 
     py_attr = PyObject_GetAttrString(py_obj, attributeName);
@@ -608,7 +607,6 @@ bool Three::getAttrString(SixPyObject *obj, const char *attributeName, char *&va
         PyErr_Clear();
     }
 
-    Py_XDECREF(py_attr_bytes);
     Py_XDECREF(py_attr);
     return res;
 }
