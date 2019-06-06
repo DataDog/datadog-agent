@@ -93,7 +93,7 @@ bool Three::init()
     }
 
     // Set PYTHONPATH
-    if (_pythonPaths.size()) {
+    if (!_pythonPaths.empty()) {
         char pathchr[] = "path";
         PyObject *path = PySys_GetObject(pathchr); // borrowed
         for (PyPaths::iterator pit = _pythonPaths.begin(); pit != _pythonPaths.end(); ++pit) {
