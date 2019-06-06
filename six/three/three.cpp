@@ -247,7 +247,7 @@ bool Three::getCheck(SixPyObject *py_class, const char *init_config_str, const c
     PyObject *name = NULL;
 
     char load_config[] = "load_config";
-    char format[] = "(s)";
+    char format[] = "(s)"; // use parentheses to force Tuple creation
 
     // call `AgentCheck.load_config(init_config)`
     init_config = PyObject_CallMethod(klass, load_config, format, init_config_str);
