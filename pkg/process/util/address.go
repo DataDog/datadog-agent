@@ -3,12 +3,15 @@ package util
 import (
 	"encoding/binary"
 	"net"
+
+	"github.com/mailru/easyjson/jwriter"
 )
 
 // Address is an IP abstraction that is family (v4/v6) agnostic
 type Address interface {
 	Bytes() []byte
 	String() string
+	MarshalEasyJSON(w *jwriter.Writer)
 }
 
 // AddressFromNetIP returns an Address from a provided net.IP
@@ -58,6 +61,11 @@ func (a v4Address) String() string {
 	return net.IPv4(a[0], a[1], a[2], a[3]).String()
 }
 
+// MarshalEasyJSON is a marshaller used by easyjson to convert an v4Address into a string
+func (a v4Address) MarshalEasyJSON(w *jwriter.Writer) {
+	w.String(a.String())
+}
+
 type v6Address [16]byte
 
 // V6Address creates an Address using the uint128 representation of an v6 IP
@@ -83,4 +91,9 @@ func (a v6Address) Bytes() []byte {
 // String returns the human readable string representation of an IP
 func (a v6Address) String() string {
 	return net.IP(a[:]).String()
+}
+
+// MarshalEasyJSON is a marshaller used by easyjson to convert an v4Address into a string
+func (a v6Address) MarshalEasyJSON(w *jwriter.Writer) {
+	w.String(a.String())
 }
