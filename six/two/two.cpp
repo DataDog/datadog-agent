@@ -828,7 +828,6 @@ void Two::setIsExcludedCb(cb_is_excluded_t cb)
 // Python Helpers
 
 // get_integration_list return a list of every datadog's wheels installed. The
-// returned list must be free by calling free_integration_list.
 char *Two::getIntegrationList()
 {
     PyObject *pyPackages = NULL;
