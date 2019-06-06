@@ -66,14 +66,11 @@ func (s *Sender) send(payload []byte) error {
 		err := s.destinations.Main.Send(payload)
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
-
-			switch err.(type) {
-			case *client.RetryableError:
+			if _, ok := err.(*client.RetryableError); ok {
 				// could not send the payload because of a client issue,
 				// let's retry
 				continue
 			}
-
 			return err
 		}
 
