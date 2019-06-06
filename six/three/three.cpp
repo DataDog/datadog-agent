@@ -601,7 +601,7 @@ bool Three::getAttrString(SixPyObject *obj, const char *attributeName, char *&va
             res = true;
         }
     } else if (py_attr != NULL && !PyUnicode_Check(py_attr)) {
-        setError("error attribute " + std::string(attributeName) + " is has a different type than unicode");
+        setError("error attribute " + std::string(attributeName) + " has a different type than unicode");
         PyErr_Clear();
     } else {
         PyErr_Clear();
