@@ -611,6 +611,9 @@ std::string Two::_fetchPythonError()
     PyObject *ptype = NULL;
     PyObject *pvalue = NULL;
     PyObject *ptraceback = NULL;
+    PyObject *format_exception = NULL;
+    PyObject *traceback = NULL;
+    PyObject *fmt_exc = NULL;
 
     // Fetch error and make sure exception values are normalized, as per python C
     // API docs.
@@ -621,12 +624,12 @@ std::string Two::_fetchPythonError()
 
     // There's a traceback, try to format it nicely
     if (ptraceback != NULL) {
-        PyObject *traceback = PyImport_ImportModule("traceback");
+        traceback = PyImport_ImportModule("traceback");
         if (traceback != NULL) {
             char fname[] = "format_exception";
-            PyObject *format_exception = PyObject_GetAttrString(traceback, fname);
+            format_exception = PyObject_GetAttrString(traceback, fname);
             if (format_exception != NULL) {
-                PyObject *fmt_exc = PyObject_CallFunctionObjArgs(format_exception, ptype, pvalue, ptraceback, NULL);
+                fmt_exc = PyObject_CallFunctionObjArgs(format_exception, ptype, pvalue, ptraceback, NULL);
                 if (fmt_exc != NULL) {
                     Py_ssize_t len = PyList_Size(fmt_exc);
                     // docs are not clear but `PyList_Size` can actually fail and in case it would
@@ -636,9 +639,6 @@ std::string Two::_fetchPythonError()
                         // while it's not. Setting `ret_val` empty will make the function return "unknown error".
                         // PyErr_Clear() will be called before returning.
                         ret_val = "";
-                        Py_XDECREF(traceback);
-                        Py_XDECREF(format_exception);
-                        Py_XDECREF(fmt_exc);
                         goto done;
                     }
 
@@ -649,9 +649,6 @@ std::string Two::_fetchPythonError()
                             // unlikely to happen but same as above, do not propagate this error upstream
                             // to avoid confusing the caller. PyErr_Clear() will be called before returning.
                             ret_val = "";
-                            Py_XDECREF(traceback);
-                            Py_XDECREF(format_exception);
-                            Py_XDECREF(fmt_exc);
                             goto done;
                         }
                         // PyString_AsString returns a char* to a temporary object, no need to strdup it because
@@ -659,10 +656,7 @@ std::string Two::_fetchPythonError()
                         ret_val += PyString_AsString(s);
                     }
                 }
-                Py_XDECREF(fmt_exc);
-                Py_XDECREF(format_exception);
             }
-            Py_XDECREF(traceback);
         } else {
             // If we reach this point, there was an error while formatting the
             // exception
@@ -699,6 +693,9 @@ done:
     // the error state is clean before returning
     PyErr_Clear();
 
+    Py_XDECREF(traceback);
+    Py_XDECREF(format_exception);
+    Py_XDECREF(fmt_exc);
     Py_XDECREF(ptype);
     Py_XDECREF(pvalue);
     Py_XDECREF(ptraceback);
