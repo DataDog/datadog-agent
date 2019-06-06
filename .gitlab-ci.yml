@@ -947,10 +947,8 @@ twistlock_scan:
     - if [[ -z "$DOCKER_REGISTRY_LOGIN" ]]; then echo "Need DOCKER_REGISTRY_LOGIN"; exit 1; fi
     - if [[ -z "$PASS" ]]; then echo "Need PASS"; exit 1; fi
     - |
-      JSON=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/
-    - if [[ -z "$JSON" ]]; then echo "Need JSON"; exit 1; fi
-    - |
-      export DOCKER_TOKEN=`echo $JSON | python -c 'import sys, json; print json.load(sys.stdin)["token"]'`
+      export DOCKER_TOKEN=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/ | python -c 'import sys, json; print json.load(sys.stdin)["token"]'`
+    - if [[ -z "$DOCKER_TOKEN" ]]; then echo "Need DOCKER_TOKEN"; exit 1; fi
   dependencies: [] # Don't download Gitlab artefacts
 
 .docker_hub_variables: &docker_hub_variables
