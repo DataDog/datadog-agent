@@ -139,8 +139,8 @@ func buildHTTPEndpoints() (*Endpoints, error) {
 	}
 
 	switch {
-	case isSetAndNotEmpty(coreConfig.Datadog, "logs_config.http_dd_url"):
-		main.Host = coreConfig.GetMainEndpoint("", "logs_config.http_dd_url")
+	case isSetAndNotEmpty(coreConfig.Datadog, "logs_config.dd_url"):
+		main.Host = coreConfig.GetMainEndpoint("", "logs_config.dd_url")
 		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
 	case isSetAndNotEmpty(coreConfig.Datadog, "logs_config.logs_dd_url"):
 		host, port, err := parseAddress(coreConfig.Datadog.GetString("logs_config.logs_dd_url"))
