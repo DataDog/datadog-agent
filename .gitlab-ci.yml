@@ -937,6 +937,15 @@ twistlock_scan:
     - notary -d ~/.docker/trust key import /tmp/docker.key; rm /tmp/docker.key
   dependencies: [] # Don't download Gitlab artefacts
 
+.docker_delete_tag_job_definition: &docker_delete_tag_job_definition
+  stage: image_deploy
+  tags: [ "runner:docker", "size:large" ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
+  before_script:
+    - PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - export DOCKER_TOKEN=$(curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/ | jq -r .token)
+  dependencies: [] # Don't download Gitlab artefacts
+
 .docker_hub_variables: &docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
@@ -1255,6 +1264,19 @@ latest_release:
     - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
 
+  delete_docker_tag:
+  <<: *docker_delete_tag_job_definition
+  stage: source_test
+  when: manual
+  variables:
+    <<: *docker_hub_variables
+    IMAGE: "agent-dev"  # image name, for example "agent"
+    TAG: "ahmed-mez-resolve-dns-name-in-kubelet"  # tag name, for example "6.9.0"
+  script:
+    - if [[ -z "$IMAGE" ]]; then echo "Need an image"; exit 1; fi
+    - if [[ -z "$TAG" ]]; then echo "Need a tag to delete"; exit 1; fi
+    - if [[ -z "$DOCKER_TOKEN" ]]; then echo "Need a docker token delete the tag"; exit 1; fi
+    - inv -e docker.delete datadog ${IMAGE} ${TAG} ${DOCKER_TOKEN} 
 
 dca_tag_release:
   <<: *docker_tag_job_definition

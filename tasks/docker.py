@@ -145,6 +145,20 @@ def publish(ctx, src, dst, signed_pull=False, signed_push=False):
     )
 
 @task
+def delete(ctx, org, image, tag, token):
+    print("Deleting {org}/{image}:{tag}".format(org=src, image=image, tag=tag))
+
+    # FIXME: remove these asserts and debugging lines after testing
+    assert image == "agent-dev" # assert we don't do break things when testing
+    assert tag != "latest" # assert we don't do break things when testing
+
+    # debugging
+    print("Using the following command")
+    print("curl 'https://hub.docker.com/v2/repositories/{org}/{image}/tags/{tag}/' -X DELETE -H 'Authorization: JWT ${token}'".format(org=src, image=image, tag=tag, token=token))
+
+    ctx.run("curl 'https://hub.docker.com/v2/repositories/{org}/{image}/tags/{tag}/' -X DELETE -H 'Authorization: JWT ${token}'".format(org=src, image=image, tag=tag, token=token))
+
+@task
 def pull_base_images(ctx, dockerfile, signed_pull=True):
     """
     Pulls the base images for a given Dockerfile, with
