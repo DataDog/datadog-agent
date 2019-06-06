@@ -44,7 +44,6 @@ public:
     void set_module_attr_string(char *module, char *attr, char *value);
 
     // const API
-    bool isInitialized() const;
     py_info_t *getPyInfo();
     bool runSimpleString(const char *path) const;
     SixPyObject *getNone() const
