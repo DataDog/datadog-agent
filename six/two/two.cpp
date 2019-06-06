@@ -654,7 +654,8 @@ std::string Two::_fetchPythonError()
                             Py_XDECREF(fmt_exc);
                             goto done;
                         }
-                        // we know s is a string, so no need to check return value of PyString_AsString
+                        // PyString_AsString returns a char* to a temporary object, no need to strdup it because
+                        // of the implicit conversion to std::string, which already makes a copy.
                         ret_val += PyString_AsString(s);
                     }
                 }
@@ -672,14 +673,18 @@ std::string Two::_fetchPythonError()
     else if (pvalue != NULL) {
         PyObject *pvalue_obj = PyObject_Str(pvalue);
         if (pvalue_obj != NULL) {
-            // we know pvalue_obj is a string, no need to check return value of PyString_AsString
+            // we know pvalue_obj is a string (we just casted it), no need to PyString_Check()
+            // PyString_AsString returns a char* to a temporary object, no need to strdup it because
+            // of the implicit conversion to std::string, which already makes a copy.
             ret_val = PyString_AsString(pvalue_obj);
             Py_XDECREF(pvalue_obj);
         }
     } else if (ptype != NULL) {
         PyObject *ptype_obj = PyObject_Str(ptype);
         if (ptype_obj != NULL) {
-            // we know ptype_obj is a string, no need to check return value of PyString_AsString
+            // we know ptype_obj is a string (we just casted it), no need to PyString_Check()
+            // PyString_AsString returns a char* to a temporary object, no need to strdup it because
+            // of the implicit conversion to std::string, which already makes a copy.
             ret_val = PyString_AsString(ptype_obj);
             Py_XDECREF(ptype_obj);
         }
