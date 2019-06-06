@@ -154,9 +154,9 @@ def delete(ctx, org, image, tag, token):
 
     # debugging
     print("Using the following command")
-    print("curl 'https://hub.docker.com/v2/repositories/{org}/{image}/tags/{tag}/' -X DELETE -H 'Authorization: JWT ${token}'".format(org=src, image=image, tag=tag, token=token))
+    print("curl 'https://hub.docker.com/v2/repositories/{org}/{image}/tags/{tag}/' -X DELETE -H 'Authorization: JWT ${token}'".format(org=org, image=image, tag=tag, token=token))
 
-    ctx.run("curl 'https://hub.docker.com/v2/repositories/{org}/{image}/tags/{tag}/' -X DELETE -H 'Authorization: JWT ${token}'".format(org=src, image=image, tag=tag, token=token))
+    ctx.run("curl 'https://hub.docker.com/v2/repositories/{org}/{image}/tags/{tag}/' -X DELETE -H 'Authorization: JWT ${token}'".format(org=org, image=image, tag=tag, token=token))
 
 @task
 def pull_base_images(ctx, dockerfile, signed_pull=True):
