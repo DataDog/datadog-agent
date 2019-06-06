@@ -259,6 +259,10 @@ bool Three::getCheck(SixPyObject *py_class, const char *init_config_str, const c
     if (init_config == Py_None) {
         Py_XDECREF(init_config);
         init_config = PyDict_New();
+        if (init_config == NULL) {
+            setError("error 'init_config' can't be initialized to an empty dict: " + _fetchPythonError());
+            goto done;
+        }
     } else if (!PyDict_Check(init_config)) {
         setError("error 'init_config' is not a dict");
         goto done;
@@ -291,11 +295,32 @@ bool Three::getCheck(SixPyObject *py_class, const char *init_config_str, const c
 
     // create `args` and `kwargs` to invoke `AgentCheck` constructor
     args = PyTuple_New(0);
+    if (args == NULL) {
+        setError("error 'args' can't be initialized to an empty tuple: " + _fetchPythonError());
+        goto done;
+    }
     kwargs = PyDict_New();
+    if (kwargs == NULL) {
+        setError("error 'kwargs' can't be initialized to an empty dict: " + _fetchPythonError());
+        goto done;
+    }
     name = PyUnicode_FromString(check_name);
-    PyDict_SetItemString(kwargs, "name", name);
-    PyDict_SetItemString(kwargs, "init_config", init_config);
-    PyDict_SetItemString(kwargs, "instances", instances);
+    if (name == NULL) {
+        setError("error 'name' can't be initialized: " + _fetchPythonError());
+        goto done;
+    }
+    if (PyDict_SetItemString(kwargs, "name", name) == -1) {
+        setError("error 'name' key can't be set: " + _fetchPythonError());
+        goto done;
+    }
+    if (PyDict_SetItemString(kwargs, "init_config", init_config) == -1) {
+        setError("error 'init_config' key can't be set: " + _fetchPythonError());
+        goto done;
+    }
+    if (PyDict_SetItemString(kwargs, "instances", instances) == -1) {
+        setError("error 'instances' key can't be set: " + _fetchPythonError());
+        goto done;
+    }
 
     if (agent_config_str != NULL) {
         agent_config = PyObject_CallMethod(klass, load_config, format, agent_config_str);
@@ -307,7 +332,10 @@ bool Three::getCheck(SixPyObject *py_class, const char *init_config_str, const c
             goto done;
         }
 
-        PyDict_SetItemString(kwargs, "agentConfig", agent_config);
+        if (PyDict_SetItemString(kwargs, "agentConfig", agent_config) == -1) {
+            setError("error 'agentConfig' key can't be set: " + _fetchPythonError());
+            goto done;
+        }
     }
 
     // call `AgentCheck` constructor
@@ -549,7 +577,9 @@ std::string Three::_fetchPythonError() const
 
     // Fetch error and make sure exception values are normalized, as per python C
     // API docs.
+    // PyErr_Fetch returns void, no need to check its return value
     PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+    // PyErr_NormalizeException returns void, no need to check its return value
     PyErr_NormalizeException(&ptype, &pvalue, &ptraceback);
 
     // There's a traceback, try to format it nicely
@@ -659,9 +689,10 @@ void Three::set_module_attr_string(char *module, char *attr, char *value)
     }
 
     PyObject *py_value = PyStringFromCString(value);
-    if (PyObject_SetAttrString(py_module, attr, py_value) != 0)
+    if (PyObject_SetAttrString(py_module, attr, py_value) != 0) {
         setError("error setting the '" + std::string(module) + "." + std::string(attr)
                  + "' attribute: " + _fetchPythonError());
+    }
 
     Py_XDECREF(py_module);
     Py_XDECREF(py_value);
@@ -768,6 +799,11 @@ char *Three::getIntegrationList()
     }
 
     args = PyTuple_New(0);
+    if (args == NULL) {
+        setError("could not initialize args to empty tuple: " + _fetchPythonError());
+        goto done;
+    }
+
     packages = PyObject_Call(pkgLister, args, NULL);
     if (packages == NULL) {
         setError("error fetching wheels list: " + _fetchPythonError());
@@ -780,6 +816,10 @@ char *Three::getIntegrationList()
     }
 
     wheels = as_yaml(packages);
+    if (wheels == NULL) {
+        setError("'packages' could not be serialized to yaml: " + _fetchPythonError());
+        goto done;
+    }
 
 done:
     Py_XDECREF(pyPackages);
