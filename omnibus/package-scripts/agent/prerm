@@ -21,18 +21,18 @@ stop_agent()
     # Only supports systemd and upstart
     if command -v systemctl >/dev/null 2>&1; then
         systemctl stop $SERVICE_NAME-process || true
-        systemctl stop $SERVICE_NAME-network || true
+        systemctl stop $SERVICE_NAME-sysprobe || true
         systemctl stop $SERVICE_NAME-trace || true
         systemctl stop $SERVICE_NAME || true
     elif command -v initctl >/dev/null 2>&1; then
         initctl stop $SERVICE_NAME-process || true
-        initctl stop $SERVICE_NAME-network || true
+        initctl stop $SERVICE_NAME-sysprobe || true
         initctl stop $SERVICE_NAME-trace || true
         initctl stop $SERVICE_NAME || true
     elif [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
         if command -v service >/dev/null 2>&1; then
             service $SERVICE_NAME-process stop || true
-            service $SERVICE_NAME-network stop || true
+            service $SERVICE_NAME-sysprobe stop || true
             service $SERVICE_NAME-trace stop || true
             service $SERVICE_NAME stop || true
         else
@@ -50,7 +50,7 @@ deregister_agent()
     if command -v systemctl >/dev/null 2>&1; then
         # Force systemd to ignore the sysvinit scripts. Only cosmetic, remove some irrelevant warnings during upgrade
         SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME-process || true
-        SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME-network || true
+        SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME-sysprobe || true
         SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME-trace || true
         SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME || true
     elif command -v initctl >/dev/null 2>&1; then
@@ -59,7 +59,7 @@ deregister_agent()
     elif [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
         if command -v update-rc.d >/dev/null 2>&1; then
             update-rc.d -f $SERVICE_NAME-process remove || true
-            update-rc.d -f $SERVICE_NAME-network remove || true
+            update-rc.d -f $SERVICE_NAME-sysprobe remove || true
             update-rc.d -f $SERVICE_NAME-trace remove || true
             update-rc.d -f $SERVICE_NAME remove || true
         else
