@@ -348,7 +348,8 @@ const char *Three::runCheck(SixPyObject *check)
 
     ret = as_string(result);
     if (ret == NULL) {
-        setError("error converting 'run' result to string: " + _fetchPythonError());
+        //as_string clears the error, so we can't fetch it here
+        setError("error converting 'run' result to string");
         goto done;
     }
 
@@ -594,7 +595,8 @@ bool Three::getAttrString(SixPyObject *obj, const char *attributeName, char *&va
     if (py_attr != NULL && PyUnicode_Check(py_attr)) {
         value = as_string(py_attr);
         if (value == NULL) {
-            setError("error converting attribute " + std::string(attributeName) + " to string: " + _fetchPythonError());
+            //as_string clears the error, so we can't fetch it here
+            setError("error converting attribute " + std::string(attributeName) + " to string");
         } else {
             res = true;
         }
