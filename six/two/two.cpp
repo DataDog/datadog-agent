@@ -86,7 +86,7 @@ bool Two::init()
     Py2_init_containers();
 
     // Set PYTHONPATH
-    if (_pythonPaths.size()) {
+    if (!_pythonPaths.empty()) {
         char pathchr[] = "path";
         PyObject *path = PySys_GetObject(pathchr); // borrowed
         if (path == NULL) {
