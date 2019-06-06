@@ -199,33 +199,6 @@ void Two::GILRelease(six_gilstate_t state)
     }
 }
 
-// return new reference
-PyObject *Two::_importFrom(const char *module, const char *name)
-{
-    PyObject *obj_module = NULL;
-    PyObject *obj_symbol = NULL;
-
-    obj_module = PyImport_ImportModule(module);
-    if (obj_module == NULL) {
-        setError(_fetchPythonError());
-        goto error;
-    }
-
-    obj_symbol = PyObject_GetAttrString(obj_module, name);
-    if (obj_symbol == NULL) {
-        setError(_fetchPythonError());
-        goto error;
-    }
-
-    Py_XDECREF(obj_module);
-    return obj_symbol;
-
-error:
-    Py_XDECREF(obj_module);
-    Py_XDECREF(obj_symbol);
-    return NULL;
-}
-
 bool Two::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyClass)
 {
     PyObject *obj_module = NULL;
@@ -406,6 +379,118 @@ done:
     return true;
 }
 
+const char *Two::runCheck(SixPyObject *check)
+{
+    if (check == NULL) {
+        return NULL;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+    // result will be eventually returned as a copy and the corresponding Python
+    // string decref'ed, caller will be responsible for memory deallocation.
+    char *ret = NULL;
+    char *ret_copy = NULL;
+    char run[] = "run";
+    PyObject *result = NULL;
+
+    result = PyObject_CallMethod(py_check, run, NULL);
+    if (result == NULL) {
+        setError("error invoking 'run' method: " + _fetchPythonError());
+        goto done;
+    }
+
+    // `ret` points to the Python string internal storage and will be eventually
+    // deallocated along with the corresponding Python object.
+    ret = PyString_AsString(result);
+    if (ret == NULL) {
+        setError("error converting result to string: " + _fetchPythonError());
+        goto done;
+    }
+
+    ret_copy = _strdup(ret);
+
+done:
+    Py_XDECREF(result);
+    return ret_copy;
+}
+
+char **Two::getCheckWarnings(SixPyObject *check)
+{
+    if (check == NULL) {
+        return NULL;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+    char **warnings = NULL;
+
+    char func_name[] = "get_warnings";
+    Py_ssize_t numWarnings;
+
+    PyObject *warns_list = PyObject_CallMethod(py_check, func_name, NULL);
+    if (warns_list == NULL) {
+        setError("error invoking 'get_warnings' method: " + _fetchPythonError());
+        goto done;
+    }
+
+    numWarnings = PyList_Size(warns_list);
+    // docs are not clear but `PyList_Size` can actually fail and in case it would
+    // return -1, see https://github.com/python/cpython/blob/2.7/Objects/listobject.c#L170
+    if (numWarnings == -1) {
+        setError("error computing 'len(warnings)': " + _fetchPythonError());
+        goto done;
+    }
+
+    warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
+    if (!warnings) {
+        setError("could not allocate memory to store warnings");
+        goto done;
+    }
+    warnings[numWarnings] = NULL;
+
+    for (Py_ssize_t idx = 0; idx < numWarnings; idx++) {
+        PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
+        if (warn == NULL) {
+            setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
+            free(warnings);
+            warnings = NULL;
+            goto done;
+        }
+        warnings[idx] = as_string(warn);
+    }
+
+done:
+    Py_XDECREF(warns_list);
+    return warnings;
+}
+
+// return new reference
+PyObject *Two::_importFrom(const char *module, const char *name)
+{
+    PyObject *obj_module = NULL;
+    PyObject *obj_symbol = NULL;
+
+    obj_module = PyImport_ImportModule(module);
+    if (obj_module == NULL) {
+        setError(_fetchPythonError());
+        goto error;
+    }
+
+    obj_symbol = PyObject_GetAttrString(obj_module, name);
+    if (obj_symbol == NULL) {
+        setError(_fetchPythonError());
+        goto error;
+    }
+
+    Py_XDECREF(obj_module);
+    return obj_symbol;
+
+error:
+    Py_XDECREF(obj_module);
+    Py_XDECREF(obj_symbol);
+    return NULL;
+}
+
 PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
 {
     // baseClass is not a Class type
@@ -512,91 +597,6 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
 done:
     Py_XDECREF(dir);
     return klass;
-}
-
-const char *Two::runCheck(SixPyObject *check)
-{
-    if (check == NULL) {
-        return NULL;
-    }
-
-    PyObject *py_check = reinterpret_cast<PyObject *>(check);
-
-    // result will be eventually returned as a copy and the corresponding Python
-    // string decref'ed, caller will be responsible for memory deallocation.
-    char *ret = NULL;
-    char *ret_copy = NULL;
-    char run[] = "run";
-    PyObject *result = NULL;
-
-    result = PyObject_CallMethod(py_check, run, NULL);
-    if (result == NULL) {
-        setError("error invoking 'run' method: " + _fetchPythonError());
-        goto done;
-    }
-
-    // `ret` points to the Python string internal storage and will be eventually
-    // deallocated along with the corresponding Python object.
-    ret = PyString_AsString(result);
-    if (ret == NULL) {
-        setError("error converting result to string: " + _fetchPythonError());
-        goto done;
-    }
-
-    ret_copy = _strdup(ret);
-
-done:
-    Py_XDECREF(result);
-    return ret_copy;
-}
-
-char **Two::getCheckWarnings(SixPyObject *check)
-{
-    if (check == NULL) {
-        return NULL;
-    }
-
-    PyObject *py_check = reinterpret_cast<PyObject *>(check);
-    char **warnings = NULL;
-
-    char func_name[] = "get_warnings";
-    Py_ssize_t numWarnings;
-
-    PyObject *warns_list = PyObject_CallMethod(py_check, func_name, NULL);
-    if (warns_list == NULL) {
-        setError("error invoking 'get_warnings' method: " + _fetchPythonError());
-        goto done;
-    }
-
-    numWarnings = PyList_Size(warns_list);
-    // docs are not clear but `PyList_Size` can actually fail and in case it would
-    // return -1, see https://github.com/python/cpython/blob/2.7/Objects/listobject.c#L170
-    if (numWarnings == -1) {
-        setError("error computing 'len(warnings)': " + _fetchPythonError());
-        goto done;
-    }
-
-    warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
-    if (!warnings) {
-        setError("could not allocate memory to store warnings");
-        goto done;
-    }
-    warnings[numWarnings] = NULL;
-
-    for (Py_ssize_t idx = 0; idx < numWarnings; idx++) {
-        PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
-        if (warn == NULL) {
-            setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
-            free(warnings);
-            warnings = NULL;
-            goto done;
-        }
-        warnings[idx] = as_string(warn);
-    }
-
-done:
-    Py_XDECREF(warns_list);
-    return warnings;
 }
 
 std::string Two::_fetchPythonError()
