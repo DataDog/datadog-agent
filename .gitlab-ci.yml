@@ -1265,7 +1265,7 @@ latest_release:
     - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
 
-  delete_docker_tag:
+delete_docker_tag:
   <<: *docker_delete_tag_job_definition
   stage: source_test
   when: manual
