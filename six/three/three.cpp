@@ -452,6 +452,7 @@ char **Three::getCheckWarnings(SixPyObject *check)
         PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
         if (warn == NULL) {
             setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
+            free(warnings);
             warnings = NULL;
             goto done;
         }
