@@ -26,10 +26,10 @@ type Pipeline struct {
 func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
 	var destinations *client.Destinations
 	if endpoints.UseHTTP {
-		main := http.NewDestination(endpoints.Main, destinationsContext)
+		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext)
 		additionals := []client.Destination{}
 		for _, endpoint := range endpoints.Additionals {
-			additionals = append(additionals, http.NewDestination(endpoint, destinationsContext))
+			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext))
 		}
 		destinations = client.NewDestinations(main, additionals)
 	} else {
