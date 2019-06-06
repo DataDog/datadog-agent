@@ -186,7 +186,9 @@ func (j *JMXFetch) Start(manage bool) error {
 	subprocessArgs = append(subprocessArgs, j.Command)
 
 	if j.JmxExitFile != "" {
-		j.exitFilePath = filepath.Join(here, "dist", "jmx", j.JmxExitFile) // FIXME : At some point we should have a `run` folder
+		exitFileDir := filepath.Join(here, "agent", "dist", "jmx", "run")
+		os.MkdirAll(exitFileDir, os.ModeDir|0755)
+		j.exitFilePath = filepath.Join(exitFileDir, j.JmxExitFile)
 		// Signal handlers are not supported on Windows:
 		// use a file to trigger JMXFetch exit instead
 		subprocessArgs = append(subprocessArgs, "--exit_file_location", j.exitFilePath)
