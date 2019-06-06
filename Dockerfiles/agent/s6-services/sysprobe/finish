@@ -6,7 +6,7 @@ ifthenelse
     { s6-test ${1} -eq 0 }
     {
         foreground { /initlog.sh "system-probe exited with code ${1}, disabling" }
-        foreground { /bin/s6-svc -d /var/run/s6/services/network/ }
+        foreground { /bin/s6-svc -d /var/run/s6/services/sysprobe/ }
     }
     {
         foreground { /initlog.sh "system-probe exited with code ${1}, signal ${2}, restarting in 2 seconds" }
