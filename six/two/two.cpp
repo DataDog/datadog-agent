@@ -230,6 +230,7 @@ bool Two::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyC
 bool Two::getCheck(SixPyObject *py_class, const char *init_config_str, const char *instance_str,
                    const char *check_id_str, const char *check_name, const char *agent_config_str, SixPyObject *&check)
 {
+
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
     PyObject *agent_config = NULL;
     PyObject *init_config = NULL;
@@ -404,7 +405,7 @@ const char *Two::runCheck(SixPyObject *check)
     // deallocated along with the corresponding Python object.
     ret = PyString_AsString(result);
     if (ret == NULL) {
-        setError("error converting result to string: " + _fetchPythonError());
+        setError("error converting 'run' result to string: " + _fetchPythonError());
         goto done;
     }
 
