@@ -48,7 +48,6 @@ except ImportError:
 var (
 	datadogPkgNameRe    = regexp.MustCompile("datadog-.*")
 	yamlFileNameRe      = regexp.MustCompile("[\\w_]+\\.yaml.*")
-	wheelPackageNameRe  = regexp.MustCompile("Name: (\\S+)")           // e.g. Name: datadog-postgres
 	versionSpecifiersRe = regexp.MustCompile("([><=!]{1,2})([0-9.]*)") // Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
 
 	allowRoot    bool
@@ -491,7 +490,7 @@ func downloadWheel(integration, version string) (string, error) {
 	return wheelPath, nil
 }
 
-func parseWheelPackageName(wheelPath string) (string, error) {
+func fetchWheelMetaField(wheelPath string, metaField string) (string, error) {
 	reader, err := zip.OpenReader(wheelPath)
 	if err != nil {
 		return "", fmt.Errorf("error operning archive file: %v", err)
@@ -510,6 +509,7 @@ func parseWheelPackageName(wheelPath string) (string, error) {
 			for scanner.Scan() {
 				line := scanner.Text()
 
+				wheelPackageNameRe = regexp.MustCompile(metaField + ": (\\S+)")
 				matches := wheelPackageNameRe.FindStringSubmatch(line)
 				if matches == nil {
 					continue

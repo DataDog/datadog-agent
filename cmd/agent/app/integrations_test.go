@@ -143,7 +143,7 @@ func TestNormalizePackageName(t *testing.T) {
 	assert.Equal(t, normalizePackageName("datadog_checks_downloader"), "datadog-checks-downloader")
 }
 
-func TestParseWheelPackageNameValidCases(t *testing.T) {
+func TestFetchWheelMetaFieldValidCases(t *testing.T) {
 	tests := map[string]struct {
 		wheelFileName string
 		expectedName  string
@@ -153,13 +153,13 @@ func TestParseWheelPackageNameValidCases(t *testing.T) {
 	}
 	for name, test := range tests {
 		t.Logf("Running test %s", name)
-		name, err := parseWheelPackageName(filepath.Join("testdata", "integrations", test.wheelFileName))
+		name, err := fetchWheelMetaField(filepath.Join("testdata", "integrations", test.wheelFileName))
 		assert.Equal(t, test.expectedName, name)
 		assert.Equal(t, nil, err)
 	}
 }
 
-func TestParseWheelPackageNameErrorCases(t *testing.T) {
+func TestFetchWheelMetaFieldErrorCases(t *testing.T) {
 	tests := map[string]struct {
 		wheelFileName string
 		expectedErr   string
@@ -169,7 +169,7 @@ func TestParseWheelPackageNameErrorCases(t *testing.T) {
 	}
 	for name, test := range tests {
 		t.Logf("Running test %s", name)
-		name, err := parseWheelPackageName(filepath.Join("testdata", "integrations", test.wheelFileName))
+		name, err := fetchWheelMetaField(filepath.Join("testdata", "integrations", test.wheelFileName))
 		assert.Equal(t, "", name)
 		assert.Contains(t, err.Error(), test.expectedErr)
 	}
