@@ -281,6 +281,9 @@ func install(cmd *cobra.Command, args []string) error {
 		"--no-deps",
 	}
 
+	integration := ""
+	integrationVersion := ""
+
 	if localWheel {
 		// Specific case when installing from locally available wheel
 		// No compatibility verifications are performed, just install the wheel (with --no-deps still)
@@ -288,26 +291,28 @@ func install(cmd *cobra.Command, args []string) error {
 		localWheelPath := args[0]
 		fmt.Println(disclaimer)
 		// Parse the package name from metadata contained within the zip file
-		integration, err := parseWheelPackageName(localWheelPath)
+		integration, err = fetchWheelMetaField(localWheelPath, "Name")
 		if err != nil {
 			return err
 		}
 		integration = normalizePackageName(strings.TrimSpace(integration))
-		intVer := parseWheelPackageVersion(...) // not implemented yet
+		integrationVersion = "1.2.3"
+		// integrationVersion := parseWheelPackageVersion(...) // not implemented yet
 	} else {
 		// Additional verification for installation
 		if len(strings.Split(args[0], "==")) != 2 {
 			return fmt.Errorf("you must specify a version to install with <package>==<version>")
 		}
 
-		intVer := strings.Split(args[0], "==")
-		integration := normalizePackageName(strings.TrimSpace(intVer[0]))
+		intVerSplits := strings.Split(args[0], "==")
+		integration = normalizePackageName(strings.TrimSpace(intVerSplits[0]))
+		integrationVersion = intVerSplits[1]
 	}
 
 	if integration == "datadog-checks-base" {
 		return fmt.Errorf("this command does not allow installing datadog-checks-base")
 	}
-	versionToInstall, err := semver.NewVersion(strings.TrimSpace(intVer[1]))
+	versionToInstall, err := semver.NewVersion(strings.TrimSpace(integrationVersion))
 	if err != nil || versionToInstall == nil {
 		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
 	}
@@ -332,11 +337,12 @@ func install(cmd *cobra.Command, args []string) error {
 		)
 	}
 
+	wheelPath := ""
 	if localWheel {
-		wheelPath := args[0]
+		wheelPath = args[0]
 	} else {
 		// Download the wheel
-		wheelPath, err := downloadWheel(integration, semverToPEP440(versionToInstall))
+		wheelPath, err = downloadWheel(integration, semverToPEP440(versionToInstall))
 		if err != nil {
 			return fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err)
 		}
@@ -491,7 +497,7 @@ func fetchWheelMetaField(wheelPath string, metaField string) (string, error) {
 			for scanner.Scan() {
 				line := scanner.Text()
 
-				wheelPackageNameRe = regexp.MustCompile(metaField + ": (\\S+)")
+				wheelPackageNameRe := regexp.MustCompile(metaField + ": (\\S+)")
 				matches := wheelPackageNameRe.FindStringSubmatch(line)
 				if matches == nil {
 					continue

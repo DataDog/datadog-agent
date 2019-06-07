@@ -153,7 +153,7 @@ func TestFetchWheelMetaFieldValidCases(t *testing.T) {
 	}
 	for name, test := range tests {
 		t.Logf("Running test %s", name)
-		name, err := fetchWheelMetaField(filepath.Join("testdata", "integrations", test.wheelFileName))
+		name, err := fetchWheelMetaField(filepath.Join("testdata", "integrations", test.wheelFileName), "Name")
 		assert.Equal(t, test.expectedName, name)
 		assert.Equal(t, nil, err)
 	}
@@ -169,7 +169,7 @@ func TestFetchWheelMetaFieldErrorCases(t *testing.T) {
 	}
 	for name, test := range tests {
 		t.Logf("Running test %s", name)
-		name, err := fetchWheelMetaField(filepath.Join("testdata", "integrations", test.wheelFileName))
+		name, err := fetchWheelMetaField(filepath.Join("testdata", "integrations", test.wheelFileName), "Name")
 		assert.Equal(t, "", name)
 		assert.Contains(t, err.Error(), test.expectedErr)
 	}
