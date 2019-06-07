@@ -31,29 +31,16 @@ type flareResponse struct {
 
 // SendFlareWithHostname sends a flare with a set hostname
 func SendFlareWithHostname(archivePath string, caseID string, email string, hostname string) (string, error) {
-	r, err := readAndPostFlareFileWithRedirects(archivePath, caseID, email, hostname)
+	r, err := readAndPostFlareFile(archivePath, caseID, email, hostname)
 	return analyzeResponse(r, err)
 }
 
-func readAndPostFlareFileWithRedirects(archivePath string, caseID string, email string, hostname string) (*http.Response, error) {
-	// Handle redirects manually. Go's http.Client doesn't know how to do it when it can't seek
-	// back to the beginning of the body. Since we are using a pipe, seeking isn't possible.
-	// Re-sending a POST is only legal for status 307, so we only need to check for that code.
-	var url = mkURL(caseID)
-	for redirectHops := 0; ; redirectHops++ {
-		r, err := readAndPostFlareFile(url, archivePath, caseID, email, hostname)
-		if r != nil && r.StatusCode == 307 && redirectHops < 5 {
-			url = r.Header.Get("Location")
-		} else {
-			return r, err
-		}
-	}
-}
-
-func readAndPostFlareFile(url string, archivePath string, caseID string, email string, hostname string) (*http.Response, error) {
+func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname string) io.ReadCloser {
+	//No need to close the reader, http.Client does it for us
 	bodyReader, bodyWriter := io.Pipe()
-	defer bodyReader.Close()
+
 	writer := multipart.NewWriter(bodyWriter)
+	writer.SetBoundary(multipartBoundary)
 
 	//Write stuff to the pipe will block until it is read from the other end, so we don't load everything in memory
 	go func() {
@@ -68,7 +55,6 @@ func readAndPostFlareFile(url string, archivePath string, caseID string, email s
 			writer.WriteField("email", email)
 		}
 
-		//Flare file
 		p, err := writer.CreateFormFile("flare_file", filepath.Base(archivePath))
 		if err != nil {
 			bodyWriter.CloseWithError(err)
@@ -92,15 +78,35 @@ func readAndPostFlareFile(url string, archivePath string, caseID string, email s
 
 	}()
 
-	request, err := http.NewRequest("POST", url, bodyReader)
+	return bodyReader
+}
+
+func readAndPostFlareFile(archivePath, caseID, email, hostname string) (*http.Response, error) {
+
+	var url = mkURL(caseID)
+
+	request, err := http.NewRequest("POST", url, nil) //nil body, we set it manually later
 	if err != nil {
 		return nil, err
 	}
-	request.Header.Set("Content-Type", writer.FormDataContentType())
 
-	// As we use a PipeReader, we need to set the ContentLenght to -1 to have the correct Header in the POST.
-	// see https://github.com/golang/go/issues/18117.
+	// We need to set the Content-Type header here, but we still haven't created the writer
+	// to obtain it from. Here we create one which only purpose is to give us a proper
+	// Content-Type. Note that this Content-Type header will contain a random multipart
+	// boundary, so we need to make sure that the actual writter uses the same boundary.
+	boundaryWriter := multipart.NewWriter(nil)
+	request.Header.Set("Content-Type", boundaryWriter.FormDataContentType())
+
+	// Manually set the Body and ContentLenght. http.NewRequest doesn't do all of this
+	// for us, since a PipeReader is not one of the Reader types it knows how to handle.
+	request.Body = getFlareReader(boundaryWriter.Boundary(), archivePath, caseID, email, hostname)
+	// -1 here means 'unknown' and makes this a 'chunked' request. See https://github.com/golang/go/issues/18117
 	request.ContentLength = -1
+	// Setting a GetBody function makes the request replayable in case there is a redirect.
+	// Otherwise, since the body is a pipe, what has been already read can't be read again.
+	request.GetBody = func() (io.ReadCloser, error) {
+		return getFlareReader(boundaryWriter.Boundary(), archivePath, caseID, email, hostname), nil
+	}
 
 	client := mkHTTPClient()
 	return client.Do(request)
