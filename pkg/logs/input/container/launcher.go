@@ -21,7 +21,7 @@ import (
 // By default returns a docker launcher if the docker socket is mounted and fallback to
 // a kubernetes launcher if '/var/log/pods' is mounted ; this behaviour is reversed when
 // collectFromFiles is enabled.
-// Returns a noop launcher is none of those volumes are mounted.
+// Returns a noop launcher if none of those volumes are mounted.
 func NewLauncher(collectAll bool, collectFromFiles bool, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
 	var (
 		launcher restart.Restartable
