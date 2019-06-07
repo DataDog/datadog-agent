@@ -300,32 +300,17 @@ func install(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		integration = normalizePackageName(strings.TrimSpace(integration))
-
-		// Install the wheel
-		if err := pip(append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
-			return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
+		intVer := parseWheelVersion(...) // not implemented yet
+	} else {
+		// Additional verification for installation
+		if len(strings.Split(args[0], "==")) != 2 {
+			return fmt.Errorf("you must specify a version to install with <package>==<version>")
 		}
 
-		// Move configuration files
-		if err := moveConfigurationFilesOf(integration); err != nil {
-			fmt.Printf("Installed %s from %s", integration, wheelPath)
-			return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
-		}
-
-		fmt.Println(color.GreenString(fmt.Sprintf(
-			"Successfully installed %s", integration,
-		)))
-
-		return nil
+		intVer := strings.Split(args[0], "==")
+		integration := normalizePackageName(strings.TrimSpace(intVer[0]))
 	}
 
-	// Additional verification for installation
-	if len(strings.Split(args[0], "==")) != 2 {
-		return fmt.Errorf("you must specify a version to install with <package>==<version>")
-	}
-
-	intVer := strings.Split(args[0], "==")
-	integration := normalizePackageName(strings.TrimSpace(intVer[0]))
 	if integration == "datadog-checks-base" {
 		return fmt.Errorf("this command does not allow installing datadog-checks-base")
 	}
@@ -354,10 +339,14 @@ func install(cmd *cobra.Command, args []string) error {
 		)
 	}
 
-	// Download the wheel
-	wheelPath, err := downloadWheel(integration, semverToPEP440(versionToInstall))
-	if err != nil {
-		return fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err)
+	if localWheel {
+		wheelPath := args[0]
+	} else {
+		// Download the wheel
+		wheelPath, err := downloadWheel(integration, semverToPEP440(versionToInstall))
+		if err != nil {
+			return fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err)
+		}
 	}
 
 	// Verify datadog_checks_base is compatible with the requirements
