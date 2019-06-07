@@ -1,4 +1,4 @@
-ansible==2.8.1
+ansible==2.7.10
 ansible-lint==4.1.0
 anyconfig==0.9.7
 arrow==0.13.1
@@ -78,3 +78,4 @@ urllib3==1.24.2
 whichcraft==0.5.2
 xmltodict==0.12.0
 yamllint==1.15.0
+
