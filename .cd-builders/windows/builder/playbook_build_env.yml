@@ -59,9 +59,9 @@
         name: msys2
         state: present
         timeout: 90
-        register: msys_try1
-        ignore_errors: true
-        until: msys_try1.finished
+      register: msys_try1
+      ignore_errors: true
+      until: msys_try1.finished
 
     - name: Install msys2 (2/2)
       win_chocolatey:
