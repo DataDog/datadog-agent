@@ -21,7 +21,10 @@ import (
 const (
 	initializationTimeout = time.Second * 10
 
-	compactInterval = time.Minute * 5
+	compactInterval = time.Minute * 4
+
+	// generationLength must be greater than compactInterval to ensure we have  multiple compactions per generation
+	generationLength = compactInterval + time.Minute
 )
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
@@ -166,7 +169,7 @@ func (ctr *realConntracker) GetTranslationForConn(ip util.Address, port uint16) 
 	if !ok {
 		result = ctr.shortLivedBuffer[k]
 	} else {
-		value.expGeneration = getNthGeneration(compactInterval, then, 3)
+		value.expGeneration = getNthGeneration(generationLength, then, 3)
 		result = value.IPTranslation
 	}
 
@@ -218,7 +221,7 @@ func (ctr *realConntracker) Close() {
 }
 
 func (ctr *realConntracker) loadInitialState(sessions []ct.Conn) {
-	gen := getNthGeneration(compactInterval, time.Now().UnixNano(), 3)
+	gen := getNthGeneration(generationLength, time.Now().UnixNano(), 3)
 	for _, c := range sessions {
 		if isNAT(c) {
 			ctr.state[formatKey(c)] = formatIPTranslation(c, gen)
@@ -243,7 +246,7 @@ func (ctr *realConntracker) register(c ct.Conn) int {
 		return 0
 	}
 
-	generation := getNthGeneration(compactInterval, now, 3)
+	generation := getNthGeneration(generationLength, now, 3)
 	ctr.state[formatKey(c)] = formatIPTranslation(c, generation)
 
 	then := time.Now().UnixNano()
@@ -293,7 +296,7 @@ func (ctr *realConntracker) compact() {
 	ctr.Lock()
 	defer ctr.Unlock()
 
-	gen := getCurrentGeneration(compactInterval, time.Now().UnixNano())
+	gen := getCurrentGeneration(generationLength, time.Now().UnixNano())
 
 	// https://github.com/golang/go/issues/20135
 	copied := make(map[connKey]*connValue, len(ctr.state))
