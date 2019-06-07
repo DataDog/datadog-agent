@@ -333,6 +333,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("system_probe_config.enabled", false)
 	config.BindEnvAndSetDefault("system_probe_config.debug_port", 0)
 	config.BindEnvAndSetDefault("system_probe_config.enable_conntrack", false)
+	config.BindEnvAndSetDefault("system_probe_config.max_tracked_connections", 0)
 
 	// Logs Agent
 
