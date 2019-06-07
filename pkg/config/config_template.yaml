@@ -729,7 +729,7 @@ process_config:
 #   If "disabled" it will be disabled altogether and won't start.
   enabled: "true"
 # Enable/disable network tracing
-  process_sts_url: http://localhost:7077/stsAgent
+  process_sts_url:
 #   The full path to the file where process-agent logs will be written.
 #   log_file:
 #   The interval, in seconds, at which we will run each check. If you want consistent
@@ -831,17 +831,19 @@ network_tracer_config:
 {{- if .TraceAgent }}
 # Trace Agent Specific Settings
 #
-# apm_config:
+apm_config:
 #   Whether or not the APM Agent should run
-#   enabled: true
+  enabled: true
+  apm_sts_url:
+  apm_dd_url:
 #   The environment tag that Traces should be tagged with
 #   Will inherit from "env" tag if "none" is applied here
 #   env: none
 #   The port that the Receiver should listen on
-#   receiver_port: 8126
+  receiver_port: 8126
 #   Whether the Trace Agent should listen for non local traffic
 #   Only enable if Traces are being sent to this Agent from another host/container
-#   apm_non_local_traffic: false
+  apm_non_local_traffic: true
 #   Extra global sample rate to apply on all the traces
 #   This sample rate is combined to the sample rate from the sampler logic, still promoting interesting traces
 #   From 1 (no extra rate) to 0 (don't sample at all)
