@@ -2,10 +2,7 @@
 
 package net
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
-)
+import "github.com/DataDog/datadog-agent/pkg/ebpf"
 
 // RemoteSysProbeUtil is only implemented on linux
 type RemoteSysProbeUtil struct{}
@@ -21,7 +18,7 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 }
 
 // GetConnections is only implemented on linux
-func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]*model.Connection, error) {
+func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]ebpf.ConnectionStats, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
