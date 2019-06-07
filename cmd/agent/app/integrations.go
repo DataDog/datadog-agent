@@ -639,7 +639,7 @@ func installedVersion(integration string) (*semver.Version, error) {
 
 	outputStr := strings.TrimSpace(string(output))
 	if outputStr == "" {
-		return nil, nil // Either python couldn't import the check or the check didn't have a __version__
+		return nil, errors.New("no __version__ found")
 	}
 
 	version, err := semver.NewVersion(outputStr)
