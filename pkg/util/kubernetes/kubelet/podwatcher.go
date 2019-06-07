@@ -11,6 +11,7 @@ import (
 	"hash/fnv"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +27,8 @@ type PodWatcher struct {
 	lastSeen       map[string]time.Time
 	tagsDigest     map[string]string
 }
+
+const readinessCacheSeparator = "-ready:"
 
 // NewPodWatcher creates a new watcher. User call must then trigger PullChanges
 // and ExpireContainers when needed.
@@ -80,16 +83,16 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 		// Refresh last pod seen time
 		w.lastSeen[podEntity] = now
 
-		// Detect new containers
-		newContainer := false
+		// Detect updated containers
+		updatedContainer := false
 		for _, container := range pod.Status.GetAllContainers() {
 			// We don't check container readiness as init containers are never ready
 			// We check if the container has an ID instead (has run or is running)
 			if !container.IsPending() {
 				// We store readiness in the cache key to resubmit the container on pod phase change
-				containerCacheKey := container.ID + "-ready:" + strconv.FormatBool(IsPodReady(pod))
+				containerCacheKey := container.ID + readinessCacheSeparator + strconv.FormatBool(IsPodReady(pod))
 				if _, found := w.lastSeen[containerCacheKey]; !found {
-					newContainer = true
+					updatedContainer = true
 				}
 				w.lastSeen[containerCacheKey] = now
 			}
@@ -104,7 +107,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 			newLabelsOrAnnotations = true
 		}
 
-		if newStaticPod || newContainer || newLabelsOrAnnotations {
+		if newStaticPod || updatedContainer || newLabelsOrAnnotations {
 			updatedPods = append(updatedPods, pod)
 		}
 	}
@@ -125,15 +128,13 @@ func (w *PodWatcher) Expire() ([]string, error) {
 
 	for id, lastSeen := range w.lastSeen {
 		if now.Sub(lastSeen) > w.expiryDuration {
-			expiredContainers = append(expiredContainers, id)
-		}
-	}
-	if len(expiredContainers) > 0 {
-		for _, id := range expiredContainers {
 			delete(w.lastSeen, id)
 			delete(w.tagsDigest, id)
+			// sanitize cache key before sending it
+			expiredContainers = append(expiredContainers, strings.Split(id, readinessCacheSeparator)[0])
 		}
 	}
+
 	return expiredContainers, nil
 }
 

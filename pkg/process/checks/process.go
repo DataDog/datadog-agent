@@ -330,13 +330,13 @@ func (p *ProcessCheck) filterCtrIDsByPIDs(pids []int32) map[int32]string {
 	return ctrByPid
 }
 
-func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
+func (p *ProcessCheck) createTimesforPIDs(pids []uint32) map[uint32]int64 {
 	p.Lock()
 	defer p.Unlock()
 
-	createTimeForPID := make(map[int32]int64)
+	createTimeForPID := make(map[uint32]int64)
 	for _, pid := range pids {
-		if p, ok := p.lastProcs[pid]; ok {
+		if p, ok := p.lastProcs[int32(pid)]; ok {
 			createTimeForPID[pid] = p.CreateTime
 		}
 	}

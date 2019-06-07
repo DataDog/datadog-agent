@@ -376,8 +376,8 @@ func formatIPTranslation(c ct.Conn, generation uint8) *connValue {
 
 	return &connValue{
 		IPTranslation: &IPTranslation{
-			ReplSrcIP:   util.AddressFromNetIP(replSrcIP),
-			ReplDstIP:   util.AddressFromNetIP(replDstIP),
+			ReplSrcIP:   replSrcIP.String(),
+			ReplDstIP:   replDstIP.String(),
 			ReplSrcPort: NtohsU16(replSrcPort),
 			ReplDstPort: NtohsU16(replDstPort),
 		},

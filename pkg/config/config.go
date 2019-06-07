@@ -352,6 +352,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.open_files_limit", 100)
 	// add global processing rules that are applied on all logs
 	config.BindEnv("logs_config.processing_rules")
+	// enforce the agent to use files to collect container logs on kubernetes environment
+	config.BindEnvAndSetDefault("logs_config.k8s_container_use_file", false)
 
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)

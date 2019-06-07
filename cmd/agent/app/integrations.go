@@ -314,7 +314,7 @@ func install(cmd *cobra.Command, args []string) error {
 		}
 
 		fmt.Println(color.GreenString(fmt.Sprintf(
-			"Successfully installed %s", integration,
+			"Successfully completed the installation of %s", integration,
 		)))
 
 		return nil
@@ -639,7 +639,7 @@ func installedVersion(integration string) (*semver.Version, error) {
 
 	outputStr := strings.TrimSpace(string(output))
 	if outputStr == "" {
-		return nil, nil // Either python couldn't import the check or the check didn't have a __version__
+		return nil, errors.New("no __version__ found")
 	}
 
 	version, err := semver.NewVersion(outputStr)
@@ -660,7 +660,7 @@ func getVersionFromReqLine(integration string, lines string) (*semver.Version, e
 
 	groups := exp.FindAllStringSubmatch(lines, 2)
 	if groups == nil {
-		return nil, nil
+		return nil, fmt.Errorf("unknown integration '%s'", integration)
 	}
 
 	if len(groups) > 1 {

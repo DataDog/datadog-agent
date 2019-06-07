@@ -45,8 +45,8 @@ func TestRegisterNat(t *testing.T) {
 	translation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345)
 	assert.NotNil(t, translation)
 	assert.Equal(t, &IPTranslation{
-		ReplSrcIP:   util.AddressFromString("20.0.0.0"),
-		ReplDstIP:   util.AddressFromString("10.0.0.0"),
+		ReplSrcIP:   "20.0.0.0",
+		ReplDstIP:   "10.0.0.0",
 		ReplSrcPort: 80,
 		ReplDstPort: 12345,
 	}, translation)
