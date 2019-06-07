@@ -349,7 +349,8 @@ const char *Three::runCheck(SixPyObject *check)
 
     ret = as_string(result);
     if (ret == NULL) {
-        setError("error converting 'run' result to string: " + _fetchPythonError());
+        // as_string clears the error, so we can't fetch it here
+        setError("error converting 'run' result to string");
         goto done;
     }
 
@@ -595,12 +596,13 @@ bool Three::getAttrString(SixPyObject *obj, const char *attributeName, char *&va
     if (py_attr != NULL && PyUnicode_Check(py_attr)) {
         value = as_string(py_attr);
         if (value == NULL) {
-            setError("error converting attribute " + std::string(attributeName) + " to string: " + _fetchPythonError());
+            // as_string clears the error, so we can't fetch it here
+            setError("error converting attribute " + std::string(attributeName) + " to string");
         } else {
             res = true;
         }
     } else if (py_attr != NULL && !PyUnicode_Check(py_attr)) {
-        setError("error attribute " + std::string(attributeName) + " is has a different type than unicode");
+        setError("error attribute " + std::string(attributeName) + " has a different type than unicode");
         PyErr_Clear();
     } else {
         PyErr_Clear();
@@ -733,7 +735,7 @@ char *Three::getIntegrationList()
     }
 
     pkgLister = PyObject_GetAttrString(pyPackages, "get_datadog_wheels");
-    if (pyPackages == NULL) {
+    if (pkgLister == NULL) {
         setError("could not fetch get_datadog_wheels attr: " + _fetchPythonError());
         goto done;
     }

@@ -587,6 +587,7 @@ char **Two::getCheckWarnings(SixPyObject *check)
         PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
         if (warn == NULL) {
             setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
+            free(warnings);
             warnings = NULL;
             goto done;
         }
@@ -713,7 +714,7 @@ bool Two::getAttrString(SixPyObject *obj, const char *attributeName, char *&valu
         value = as_string(py_attr);
         res = true;
     } else if (py_attr != NULL && !PyString_Check(py_attr)) {
-        setError("error attribute " + std::string(attributeName) + " is has a different type than string");
+        setError("error attribute " + std::string(attributeName) + " has a different type than string");
         PyErr_Clear();
     } else {
         PyErr_Clear();
@@ -730,7 +731,7 @@ void Two::decref(SixPyObject *obj)
 
 void Two::incref(SixPyObject *obj)
 {
-    Py_XINCREF(reinterpret_cast<SixPyObject *>(obj));
+    Py_XINCREF(reinterpret_cast<PyObject *>(obj));
 }
 
 void Two::set_module_attr_string(char *module, char *attr, char *value)
@@ -847,7 +848,7 @@ char *Two::getIntegrationList()
     }
 
     pkgLister = PyObject_GetAttrString(pyPackages, "get_datadog_wheels");
-    if (pyPackages == NULL) {
+    if (pkgLister == NULL) {
         setError("could not fetch get_datadog_wheels attr: " + _fetchPythonError());
         goto done;
     }
