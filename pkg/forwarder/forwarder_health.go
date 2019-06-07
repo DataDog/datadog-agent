@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
@@ -128,7 +129,15 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 		Timeout:   fh.timeout,
 	}
 
-	resp, err := client.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fh.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
+		return false, err
+	}
+
+	req.Header.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+
+	resp, err := client.Do(req)
 	if err != nil {
 		fh.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
 		return false, err
