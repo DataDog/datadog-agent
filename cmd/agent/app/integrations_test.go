@@ -146,15 +146,17 @@ func TestNormalizePackageName(t *testing.T) {
 func TestFetchWheelMetaFieldValidCases(t *testing.T) {
 	tests := map[string]struct {
 		wheelFileName string
-		expectedName  string
+		fieldName     string
+		expectedValue string
 	}{
-		"name as first line":  {"datadog_my_integration_name_first_line_valid.whl", "datadog-my-integration"},
-		"name as second line": {"datadog_my_integration_name_second_line_valid.whl", "datadog-my-integration"},
+		"name as first line":  {"datadog_my_integration_name_first_line_valid.whl", "Name", "datadog-my-integration"},
+		"name as second line": {"datadog_my_integration_name_second_line_valid.whl", "Name", "datadog-my-integration"},
+		"version value":       {"datadog_my_integration_name_first_line_valid.whl", "Version", "0.0.1"},
 	}
 	for name, test := range tests {
 		t.Logf("Running test %s", name)
-		name, err := fetchWheelMetaField(filepath.Join("testdata", "integrations", test.wheelFileName), "Name")
-		assert.Equal(t, test.expectedName, name)
+		name, err := fetchWheelMetaField(filepath.Join("testdata", "integrations", test.wheelFileName), test.fieldName)
+		assert.Equal(t, test.expectedValue, name)
 		assert.Equal(t, nil, err)
 	}
 }

@@ -281,8 +281,8 @@ func install(cmd *cobra.Command, args []string) error {
 		"--no-deps",
 	}
 
-	integration := ""
-	integrationVersion := ""
+	integName := ""
+	integVersion := ""
 
 	if localWheel {
 		// Specific case when installing from locally available wheel
@@ -290,50 +290,55 @@ func install(cmd *cobra.Command, args []string) error {
 		// Verify that the wheel depends on `datadog_checks_base` to decide if it's an agent check or not
 		localWheelPath := args[0]
 		fmt.Println(disclaimer)
+
 		// Parse the package name from metadata contained within the zip file
-		integration, err = fetchWheelMetaField(localWheelPath, "Name")
+		integName, err = fetchWheelMetaField(localWheelPath, "Name")
 		if err != nil {
 			return err
 		}
-		integration = normalizePackageName(strings.TrimSpace(integration))
-		integrationVersion = "1.2.3"
-		// integrationVersion := parseWheelPackageVersion(...) // not implemented yet
+		integVersion, err = fetchWheelMetaField(localWheelPath, "Version")
+		if err != nil {
+			return err
+		}
 	} else {
 		// Additional verification for installation
 		if len(strings.Split(args[0], "==")) != 2 {
 			return fmt.Errorf("you must specify a version to install with <package>==<version>")
 		}
-
 		intVerSplits := strings.Split(args[0], "==")
-		integration = normalizePackageName(strings.TrimSpace(intVerSplits[0]))
-		integrationVersion = intVerSplits[1]
+
+		integName = intVerSplits[0]
+		integVersion = intVerSplits[1]
 	}
 
-	if integration == "datadog-checks-base" {
+	integName = normalizePackageName(strings.TrimSpace(integName))
+	integVersion = normalizePackageName(strings.TrimSpace(integVersion))
+
+	if integName == "datadog-checks-base" {
 		return fmt.Errorf("this command does not allow installing datadog-checks-base")
 	}
-	versionToInstall, err := semver.NewVersion(strings.TrimSpace(integrationVersion))
+	versionToInstall, err := semver.NewVersion(strings.TrimSpace(integVersion))
 	if err != nil || versionToInstall == nil {
-		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
+		return fmt.Errorf("unable to get version of %s to install: %v", integName, err)
 	}
-	currentVersion, err := installedVersion(integration)
+	currentVersion, err := installedVersion(integName)
 	if err != nil {
-		return fmt.Errorf("could not get current version of %s: %v", integration, err)
+		return fmt.Errorf("could not get current version of %s: %v", integName, err)
 	}
 
 	if currentVersion != nil && versionToInstall.Equal(*currentVersion) {
-		fmt.Printf("%s %s is already installed. Nothing to do.\n", integration, versionToInstall)
+		fmt.Printf("%s %s is already installed. Nothing to do.\n", integName, versionToInstall)
 		return nil
 	}
 
-	minVersion, err := minAllowedVersion(integration)
+	minVersion, err := minAllowedVersion(integName)
 	if err != nil {
-		return fmt.Errorf("unable to get minimal version of %s: %v", integration, err)
+		return fmt.Errorf("unable to get minimal version of %s: %v", integName, err)
 	}
 	if versionToInstall.LessThan(*minVersion) {
 		return fmt.Errorf(
 			"this command does not allow installing version %s of %s older than version %s shipped with the agent",
-			versionToInstall, integration, minVersion,
+			versionToInstall, integName, minVersion,
 		)
 	}
 
@@ -342,9 +347,9 @@ func install(cmd *cobra.Command, args []string) error {
 		wheelPath = args[0]
 	} else {
 		// Download the wheel
-		wheelPath, err = downloadWheel(integration, semverToPEP440(versionToInstall))
+		wheelPath, err = downloadWheel(integName, semverToPEP440(versionToInstall))
 		if err != nil {
-			return fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err)
+			return fmt.Errorf("error when downloading the wheel for %s %s: %v", integName, versionToInstall, err)
 		}
 	}
 
@@ -358,7 +363,7 @@ func install(cmd *cobra.Command, args []string) error {
 	} else if !ok {
 		return fmt.Errorf(
 			"%s %s is not compatible with datadog_checks_base %s shipped in the agent",
-			integration, versionToInstall, shippedBaseVersion,
+			integName, versionToInstall, shippedBaseVersion,
 		)
 	}
 
@@ -368,13 +373,13 @@ func install(cmd *cobra.Command, args []string) error {
 	}
 
 	// Move configuration files
-	if err := moveConfigurationFilesOf(integration); err != nil {
-		fmt.Printf("Installed %s %s", integration, versionToInstall)
-		return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
+	if err := moveConfigurationFilesOf(integName); err != nil {
+		fmt.Printf("Installed %s %s", integName, versionToInstall)
+		return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integName, err)
 	}
 
 	fmt.Println(color.GreenString(fmt.Sprintf(
-		"Successfully installed %s %s", integration, versionToInstall,
+		"Successfully installed %s %s", integName, versionToInstall,
 	)))
 	return nil
 }
@@ -497,7 +502,7 @@ func fetchWheelMetaField(wheelPath string, metaField string) (string, error) {
 			for scanner.Scan() {
 				line := scanner.Text()
 
-				wheelPackageNameRe := regexp.MustCompile(metaField + ": (\\S+)")
+				wheelPackageNameRe := regexp.MustCompile(fmt.Sprintf("^%s: (\\S+)$", metaField))
 				matches := wheelPackageNameRe.FindStringSubmatch(line)
 				if matches == nil {
 					continue
