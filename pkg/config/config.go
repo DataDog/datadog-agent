@@ -329,6 +329,11 @@ func initConfig(config Config) {
 	// Process agent
 	config.BindEnv("process_config.process_dd_url", "")
 
+	// system-probe agent
+	config.BindEnvAndSetDefault("system_probe_config.enabled", false)
+	config.BindEnvAndSetDefault("system_probe_config.debug_port", 0)
+	config.BindEnvAndSetDefault("system_probe_config.enable_conntrack", false)
+
 	// Logs Agent
 
 	// External Use: modify those parameters to configure the logs-agent.
@@ -428,9 +433,7 @@ func initConfig(config Config) {
 	config.SetKnown("process.additional_endpoints.*")
 	config.SetKnown("process.container_source")
 	config.SetKnown("process.intervals.connections")
-	config.SetKnown("system_probe_config.enabled")
 	config.SetKnown("system_probe_config.log_file")
-	config.SetKnown("system_probe_config.debug_port")
 	config.SetKnown("system_probe_config.bpf_debug")
 
 	// APM
