@@ -314,7 +314,7 @@ func install(cmd *cobra.Command, args []string) error {
 		}
 
 		fmt.Println(color.GreenString(fmt.Sprintf(
-			"Successfully installed %s", integration,
+			"Successfully completed the installation of %s", integration,
 		)))
 
 		return nil
