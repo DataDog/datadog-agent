@@ -1,0 +1,11 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Switched back to enabling by default the docker integration to collect logs on kubernetes and fallback to using files when the docker socket is not mounted. This behaviour can now be reversed using the configuration parameter 'logs_config.k8s_container_use_file'.

@@ -18,27 +18,47 @@ import (
 )
 
 // NewLauncher returns a new container launcher depending on the environment.
-// As a user can run on Kubernetes and mount both '/var/log/pods'
-// and the docker socket to collect metrics,
-// we first attempt to initialize the kubernetes launcher
-// and fallback to the docker launcher if the initialization failed.
-func NewLauncher(collectAll bool, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
-	// attempt to initialize a kubernetes launcher
-	kubernetesLauncher, err := kubernetes.NewLauncher(sources, services, collectAll)
-	if err == nil {
-		log.Info("Kubernetes launcher initialized")
-		return kubernetesLauncher
-	}
-	log.Infof("Could not setup the kubernetes launcher: %v", err)
+// By default returns a docker launcher if the docker socket is mounted and fallback to
+// a kubernetes launcher if '/var/log/pods' is mounted ; this behaviour is reversed when
+// collectFromFiles is enabled.
+// Returns a noop launcher is none of those volumes are mounted.
+func NewLauncher(collectAll bool, collectFromFiles bool, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
+	var (
+		launcher restart.Restartable
+		err      error
+	)
 
-	// attempt to initialize a docker launcher
-	launcher, err := docker.NewLauncher(sources, services, pipelineProvider, registry)
-	if err == nil {
-		log.Info("Docker launcher initialized")
-		return launcher
+	if collectFromFiles {
+		launcher, err = kubernetes.NewLauncher(sources, services, collectAll)
+		if err == nil {
+			log.Info("Kubernetes launcher initialized")
+			return launcher
+		}
+		log.Infof("Could not setup the kubernetes launcher: %v", err)
+
+		launcher, err = docker.NewLauncher(sources, services, pipelineProvider, registry)
+		if err == nil {
+			log.Info("Docker launcher initialized")
+			return launcher
+		}
+		log.Infof("Could not setup the docker launcher: %v", err)
+	} else {
+		launcher, err = docker.NewLauncher(sources, services, pipelineProvider, registry)
+		if err == nil {
+			log.Info("Docker launcher initialized")
+			return launcher
+		}
+		log.Infof("Could not setup the docker launcher: %v", err)
+
+		launcher, err = kubernetes.NewLauncher(sources, services, collectAll)
+		if err == nil {
+			log.Info("Kubernetes launcher initialized")
+			return launcher
+		}
+		log.Infof("Could not setup the kubernetes launcher: %v", err)
 	}
-	log.Infof("Could not setup the docker launcher: %v", err)
 
 	log.Infof("Container logs won't be collected")
+
 	return NewNoopLauncher()
 }

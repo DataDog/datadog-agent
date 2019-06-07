@@ -39,6 +39,8 @@ func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
 	suite.Equal(30, suite.config.GetInt("logs_config.stop_grace_period"))
 	suite.Equal(nil, suite.config.Get("logs_config.processing_rules"))
 	suite.Equal("", suite.config.GetString("logs_config.processing_rules"))
+	suite.Equal(false, suite.config.GetBool("logs_config.use_http"))
+	suite.Equal(false, suite.config.GetBool("logs_config.k8s_container_use_file"))
 }
 
 func (suite *ConfigTestSuite) TestDefaultSources() {
