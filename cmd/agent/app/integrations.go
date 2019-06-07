@@ -285,22 +285,15 @@ func install(cmd *cobra.Command, args []string) error {
 		// Specific case when installing from locally available wheel
 		// No compatibility verifications are performed, just install the wheel (with --no-deps still)
 		// Verify that the wheel depends on `datadog_checks_base` to decide if it's an agent check or not
-		wheelPath := args[0]
-
+		localWheelPath := args[0]
 		fmt.Println(disclaimer)
-		if ok, err := validateBaseDependency(wheelPath, nil); err != nil {
-			return fmt.Errorf("error while reading the wheel %s: %v", wheelPath, err)
-		} else if !ok {
-			return fmt.Errorf("the wheel %s is not an agent check, it will not be installed", wheelPath)
-		}
-
 		// Parse the package name from metadata contained within the zip file
-		integration, err := parseWheelPackageName(wheelPath)
+		integration, err := parseWheelPackageName(localWheelPath)
 		if err != nil {
 			return err
 		}
 		integration = normalizePackageName(strings.TrimSpace(integration))
-		intVer := parseWheelVersion(...) // not implemented yet
+		intVer := parseWheelPackageVersion(...) // not implemented yet
 	} else {
 		// Additional verification for installation
 		if len(strings.Split(args[0], "==")) != 2 {
