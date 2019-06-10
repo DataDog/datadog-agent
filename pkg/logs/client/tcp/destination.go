@@ -28,7 +28,7 @@ type Destination struct {
 	delimiter           Delimiter
 	connManager         *ConnectionManager
 	destinationsContext *client.DestinationsContext
-	conn                net.Conn
+	connPool            sync.Pool
 	inputChan           chan []byte
 	once                sync.Once
 	warningCounter      int
@@ -48,12 +48,13 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 // Send transforms a message into a frame and sends it to a remote server,
 // returns an error if the operation failed.
 func (d *Destination) Send(payload []byte) error {
-	if d.conn == nil {
-		var err error
+	var err error
 
-		// We work only if we have a started destination context
+	conn, ok := d.connPool.Get().(net.Conn)
+	if !ok {
 		ctx := d.destinationsContext.Context()
-		if d.conn, err = d.connManager.NewConnection(ctx); err != nil {
+		conn, err = d.connManager.NewConnection(ctx)
+		if err != nil {
 			return err
 		}
 	}
@@ -64,12 +65,13 @@ func (d *Destination) Send(payload []byte) error {
 		return client.NewFramingError(err)
 	}
 
-	_, err = d.conn.Write(frame)
+	_, err = conn.Write(frame)
 	if err != nil {
-		d.connManager.CloseConnection(d.conn)
-		d.conn = nil
+		d.connManager.CloseConnection(conn)
 		return err
 	}
+
+	d.connPool.Put(conn)
 
 	return nil
 }

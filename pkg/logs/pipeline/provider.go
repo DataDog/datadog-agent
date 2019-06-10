@@ -10,8 +10,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
@@ -52,8 +55,32 @@ func (p *provider) Start() {
 	// This requires the auditor to be started before.
 	p.outputChan = p.auditor.Channel()
 
+	var main client.Destination
+	var additionals []client.Destination
+	if p.endpoints.UseHTTP {
+		main = http.NewDestination(p.endpoints.Main, p.destinationsContext)
+		for _, endpoint := range p.endpoints.Additionals {
+			additionals = append(additionals, http.NewDestination(endpoint, p.destinationsContext))
+		}
+	} else {
+		main = tcp.NewDestination(p.endpoints.Main, p.endpoints.UseProto, p.destinationsContext)
+		for _, endpoint := range p.endpoints.Additionals {
+			additionals = append(additionals, tcp.NewDestination(endpoint, p.endpoints.UseProto, p.destinationsContext))
+		}
+	}
+	destinations := client.NewDestinations(main, additionals)
+
+	var encoder processor.Encoder
+	if p.endpoints.UseHTTP {
+		encoder = processor.JSONEncoder
+	} else if p.endpoints.UseProto {
+		encoder = processor.ProtoEncoder
+	} else {
+		encoder = processor.RawEncoder
+	}
+
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext)
+		pipeline := NewPipeline(p.outputChan, p.processingRules, encoder, destinations)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}

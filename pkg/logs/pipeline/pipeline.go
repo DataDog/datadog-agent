@@ -7,8 +7,6 @@ package pipeline
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
@@ -23,49 +21,14 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
-	var destinations *client.Destinations
-	if endpoints.UseHTTP {
-		main := http.NewDestination(endpoints.Main, destinationsContext)
-		additionals := []client.Destination{}
-		for _, endpoint := range endpoints.Additionals {
-			additionals = append(additionals, http.NewDestination(endpoint, destinationsContext))
-		}
-		destinations = client.NewDestinations(main, additionals)
-	} else {
-		main := tcp.NewDestination(endpoints.Main, endpoints.UseProto, destinationsContext)
-		additionals := []client.Destination{}
-		for _, endpoint := range endpoints.Additionals {
-			additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
-		}
-		destinations = client.NewDestinations(main, additionals)
-	}
-
-	senderChan := make(chan *message.Message, config.ChanSize)
-
-	var newSender sender.Sender
-	if endpoints.UseHTTP {
-		newSender = sender.NewBatchSender(senderChan, outputChan, destinations)
-	} else {
-		newSender = sender.NewStreamSender(senderChan, outputChan, destinations)
-	}
-
-	var encoder processor.Encoder
-	if endpoints.UseHTTP {
-		encoder = processor.JSONEncoder
-	} else if endpoints.UseProto {
-		encoder = processor.ProtoEncoder
-	} else {
-		encoder = processor.RawEncoder
-	}
-
+func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder processor.Encoder, destinations *client.Destinations) *Pipeline {
 	inputChan := make(chan *message.Message, config.ChanSize)
-	processor := processor.New(inputChan, senderChan, processingRules, encoder)
+	senderChan := make(chan *message.Message, config.ChanSize)
 
 	return &Pipeline{
 		InputChan: inputChan,
-		processor: processor,
-		sender:    newSender,
+		processor: processor.New(inputChan, senderChan, processingRules, encoder),
+		sender:    sender.NewStreamSender(senderChan, outputChan, destinations),
 	}
 }
 
