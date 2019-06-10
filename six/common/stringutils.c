@@ -6,6 +6,15 @@
 
 #include <six_types.h>
 
+/**
+ * returns a C (NULL terminated UTF-8) string from a python string.
+ * 
+ * @param object  A Python string to be converted to C-string.
+ * 
+ * @return A standard C string (NULL terminated character pointer)
+ *  The returned pointer is allocated from the heap and must be
+ * deallocated (free()ed) by the caller
+ */
 char *as_string(PyObject *object)
 {
     if (object == NULL) {
@@ -104,6 +113,7 @@ char *as_yaml(PyObject *object) {
 
 done:
     // shouldn't make much of a difference, but let's DECREF in reverse order
+    //Py_XDECREF can accept (and ignore) NULL references
     Py_XDECREF(dumped);
     Py_XDECREF(safe_dump);
     Py_XDECREF(yaml);
