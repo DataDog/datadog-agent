@@ -82,6 +82,7 @@ def test_stackstate_process_agent_no_log_errors(host, hostname):
         print("Considering: %s" % line)
         assert not re.search("error", line, re.IGNORECASE)
 
+
 def test_stackstate_trace_agent_no_log_errors(host, hostname):
     trace_agent_log_path = "/var/log/stackstate-agent/trace-agent.log"
 
@@ -103,6 +104,7 @@ def test_stackstate_trace_agent_no_log_errors(host, hostname):
     for line in trace_agent_log.splitlines():
         print("Considering: %s" % line)
         assert not re.search("error", line, re.IGNORECASE)
+
 
 def test_agent_namespaces_docker(host):
     hostname = host.ansible.get_variables()["inventory_hostname"]
