@@ -338,36 +338,36 @@ func TestConverter(t *testing.T) {
 func TestExtractURLAPIKeys(t *testing.T) {
 	configConverter := config.NewConfigConverter()
 	defer func(*config.LegacyConfigConverter) {
-		configConverter.Set("sts_url", "")
+		configConverter.Set("dd_url", "")
 		configConverter.Set("api_key", "")
 		configConverter.Set("additional_endpoints", nil)
 	}(configConverter)
 	agentConfig := make(Config)
 
 	// empty
-	agentConfig["sts_url"] = ""
+	agentConfig["dd_url"] = ""
 	agentConfig["api_key"] = ""
 	err := extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
-	assert.Equal(t, "", config.Datadog.Get("sts_url"))
+	assert.Equal(t, "", config.Datadog.Get("dd_url"))
 	assert.Equal(t, "", config.Datadog.Get("api_key"))
 	assert.Nil(t, config.Datadog.Get("additional_endpoints"))
 
 	// one url and one key
-	agentConfig["sts_url"] = "https://datadoghq.com"
+	agentConfig["dd_url"] = "https://datadoghq.com"
 	agentConfig["api_key"] = "123456789"
 	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
-	assert.Equal(t, "https://datadoghq.com", config.Datadog.Get("sts_url"))
+	assert.Equal(t, "https://datadoghq.com", config.Datadog.Get("dd_url"))
 	assert.Equal(t, "123456789", config.Datadog.Get("api_key"))
 	assert.Nil(t, config.Datadog.Get("additional_endpoints"))
 
 	// multiple dd_url and api_key
-	agentConfig["sts_url"] = "https://datadoghq.com,https://datadoghq.com,https://datadoghq.com,https://staging.com"
+	agentConfig["dd_url"] = "https://datadoghq.com,https://datadoghq.com,https://datadoghq.com,https://staging.com"
 	agentConfig["api_key"] = "123456789,abcdef,secret_key,secret_key2"
 	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
-	assert.Equal(t, "https://datadoghq.com", config.Datadog.Get("sts_url"))
+	assert.Equal(t, "https://datadoghq.com", config.Datadog.Get("dd_url"))
 	assert.Equal(t, "123456789", config.Datadog.Get("api_key"))
 
 	endpoints := config.Datadog.Get("additional_endpoints").(map[string][]string)
@@ -376,7 +376,7 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	assert.Equal(t, []string{"secret_key2"}, endpoints["https://staging.com"])
 
 	// config error
-	agentConfig["sts_url"] = "https://datadoghq.com,https://datadoghq.com,hhttps://datadoghq.com,ttps://staging.com"
+	agentConfig["dd_url"] = "https://datadoghq.com,https://datadoghq.com,hhttps://datadoghq.com,ttps://staging.com"
 	agentConfig["api_key"] = "123456789,abcdef,secret_key"
 	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.NotNil(t, err)

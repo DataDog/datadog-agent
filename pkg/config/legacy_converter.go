@@ -21,7 +21,7 @@ func (c *LegacyConfigConverter) Set(key string, value interface{}) {
 // NewConfigConverter is creating and returning a config converter
 func NewConfigConverter() *LegacyConfigConverter {
 	// Configure Datadog global configuration
-	Datadog = NewConfig("stackstate", "STS", strings.NewReplacer(".", "_"))
+	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
 	initConfig(Datadog)
 	return &LegacyConfigConverter{Datadog}

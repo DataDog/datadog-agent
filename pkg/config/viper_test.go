@@ -74,7 +74,7 @@ func TestGetConfigEnvVars(t *testing.T) {
 	config := safeConfig{
 		Viper: viper.New(),
 	}
-	config.SetEnvPrefix("STS")
+	config.SetEnvPrefix("DD")
 
 	config.BindEnv("app_key")
 	assert.Contains(t, config.GetEnvVars(), "DD_APP_KEY")

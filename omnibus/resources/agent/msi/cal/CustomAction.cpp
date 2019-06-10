@@ -1,12 +1,12 @@
 #include "stdafx.h"
 
-static std::wstring secretUserUsername(L"stackstate_secretuser");
-static std::wstring secretUserDescription(L"StackState user used to fetch secrets from KMS");
-static std::wstring stackstate_path = L"StackState\\StackState Agent";
-static std::wstring stackstate_key_root = L"SOFTWARE\\" + stackstate_path;
-static std::wstring stackstate_key_secret_key = L"secrets";
-static std::wstring stackstate_key_secrets = L"SOFTWARE\\" + stackstate_path + L"\\" + stackstate_key_secret_key;
-static std::wstring stackstate_acl_key_secrets = L"MACHINE\\" + stackstate_key_secrets;
+static std::wstring secretUserUsername(L"datadog_secretuser");
+static std::wstring secretUserDescription(L"DataDog user used to fetch secrets from KMS");
+static std::wstring datadog_path = L"Datadog\\Datadog Agent";
+static std::wstring datadog_key_root = L"SOFTWARE\\" + datadog_path;
+static std::wstring datadog_key_secret_key = L"secrets";
+static std::wstring datadog_key_secrets = L"SOFTWARE\\" + datadog_path + L"\\" + datadog_key_secret_key;
+static std::wstring datadog_acl_key_secrets = L"MACHINE\\" + datadog_key_secrets;
 
 
 int CreateUser(std::wstring& name, std::wstring& comment, bool writePassToReg = false);
@@ -24,7 +24,7 @@ void WcaLog(int type, const char * fmt...)
 	printf("\n");
 }
 #else
-extern "C" UINT __stdcall AddStackStateSecretUser(
+extern "C" UINT __stdcall AddDatadogSecretUser(
 	MSIHANDLE hInstall
 	)
 {
@@ -32,7 +32,7 @@ extern "C" UINT __stdcall AddStackStateSecretUser(
 	UINT er = ERROR_SUCCESS;
 
 	// that's helpful.  WcaInitialize Log header silently limited to 32 chars 
-	hr = WcaInitialize(hInstall, "CA: AddStackStateSecretUser");
+	hr = WcaInitialize(hInstall, "CA: AddDatadogSecretUser");
 	// ExitOnFailure macro includes a goto LExit if hr has a failure.
 	ExitOnFailure(hr, "Failed to initialize");
 
@@ -48,12 +48,12 @@ LExit:
 	return WcaFinalize(er);
 }
 
-extern "C" UINT __stdcall RemoveStackStateSecretUser(MSIHANDLE hInstall) {
+extern "C" UINT __stdcall RemoveDatadogSecretUser(MSIHANDLE hInstall) {
 	HRESULT hr = S_OK;
 	UINT er = ERROR_SUCCESS;
 
 	// that's helpful.  WcaInitialize Log header silently limited to 32 chars
-	hr = WcaInitialize(hInstall, "CA: RemoveStackStateSecretUser");
+	hr = WcaInitialize(hInstall, "CA: RemoveDatadogSecretUser");
 	ExitOnFailure(hr, "Failed to initialize");
 
 	WcaLog(LOGMSG_STANDARD, "Initialized.");
@@ -164,7 +164,7 @@ bool createRegistryKey() {
 	LSTATUS status = 0;
 	HKEY hKey;
 	status = RegCreateKeyExW(HKEY_LOCAL_MACHINE,
-		stackstate_key_secrets.c_str(),
+		datadog_key_secrets.c_str(),
 		0, // reserved is zero
 		NULL, // class is null
 		0, // no options
@@ -173,7 +173,7 @@ bool createRegistryKey() {
 		&hKey,
 		NULL); // don't care about disposition... 
 	if (ERROR_SUCCESS != status) {
-		WcaLog(LOGMSG_STANDARD, "Couldn't create/open stackstate reg key %d", GetLastError());
+		WcaLog(LOGMSG_STANDARD, "Couldn't create/open datadog reg key %d", GetLastError());
 		return false;
 	}
 	RegCloseKey(hKey);
@@ -184,7 +184,7 @@ bool writePasswordToRegistry(const wchar_t * name, const wchar_t* pass) {
 	LSTATUS status = 0;
 	HKEY hKey;
 	status = RegCreateKeyExW(HKEY_LOCAL_MACHINE,
-		stackstate_key_secrets.c_str(),
+		datadog_key_secrets.c_str(),
 		0, // reserved is zero
 		NULL, // class is null
 		0, // no options
@@ -193,7 +193,7 @@ bool writePasswordToRegistry(const wchar_t * name, const wchar_t* pass) {
 		&hKey,
 		NULL); // don't care about disposition... 
 	if (ERROR_SUCCESS != status) {
-		WcaLog(LOGMSG_STANDARD, "Couldn't create/open stackstate reg key %d", GetLastError());
+		WcaLog(LOGMSG_STANDARD, "Couldn't create/open datadog reg key %d", GetLastError());
 		return false;
 	}
 	status = RegSetValueExW(hKey,
@@ -269,7 +269,7 @@ int CreateUser(std::wstring& name, std::wstring& comment, bool writePassToReg) {
     WcaLog(LOGMSG_STANDARD, "Successfully created user");
     if (writePassToReg) {
 
-        // create the top level key HKLM\Software\StackState Agent\secrets.  Key must be
+        // create the top level key HKLM\Software\Datadog Agent\secrets.  Key must be
         // created to change the ACLS.
         if (!createRegistryKey()) {
             WcaLog(LOGMSG_STANDARD, "Failed to create secret storage key");
@@ -282,7 +282,7 @@ int CreateUser(std::wstring& name, std::wstring& comment, bool writePassToReg) {
 
         // of course, the security APIs use a different format than
         // the registry APIs
-        ret = changeRegistryAcls(stackstate_acl_key_secrets.c_str());
+        ret = changeRegistryAcls(datadog_acl_key_secrets.c_str());
         if (0 == ret) {
             WcaLog(LOGMSG_STANDARD, "Changed registry perms");
         }
@@ -310,12 +310,12 @@ DWORD DeleteUser(std::wstring& name) {
 
 DWORD DeleteSecretsRegKey() {
 	HKEY hKey = NULL;
-	DWORD ret = RegOpenKeyEx(HKEY_LOCAL_MACHINE, stackstate_key_root.c_str(), 0, KEY_ALL_ACCESS, &hKey);
+	DWORD ret = RegOpenKeyEx(HKEY_LOCAL_MACHINE, datadog_key_root.c_str(), 0, KEY_ALL_ACCESS, &hKey);
 	if (ERROR_SUCCESS != ret) {
 		WcaLog(LOGMSG_STANDARD, "Failed to open registry key for deletion %d", ret);
 		return ret;
 	}
-	ret = RegDeleteKeyEx(hKey, stackstate_key_secret_key.c_str(), KEY_WOW64_64KEY, 0);
+	ret = RegDeleteKeyEx(hKey, datadog_key_secret_key.c_str(), KEY_WOW64_64KEY, 0);
 	if (ERROR_SUCCESS != ret) {
 		WcaLog(LOGMSG_STANDARD, "Failed to delete secret key %d", ret);
 	}

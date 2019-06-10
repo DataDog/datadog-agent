@@ -1,6 +1,6 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.stackstatehq.com/).
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 // +build windows
 
@@ -20,14 +20,14 @@ func onRestart() {
 }
 func onStart() {
 	if err := app.StartService(nil, nil); err != nil {
-		log.Warnf("Failed to start stackstate service %v", err)
+		log.Warnf("Failed to start datadog service %v", err)
 	}
 
 }
 
 func onStop() {
 	if err := app.StopService(config.ServiceName, true); err != nil {
-		log.Warnf("Failed to stop stackstate service %v", err)
+		log.Warnf("Failed to stop datadog service %v", err)
 	}
 
 }

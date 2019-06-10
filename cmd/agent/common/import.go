@@ -26,8 +26,8 @@ import (
 
 // ImportConfig imports the agent5 configuration into the agent6 yaml config
 func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
-	datadogConfPath := filepath.Join(oldConfigDir, "stackstate.conf")
-	datadogYamlPath := filepath.Join(newConfigDir, "stackstate.yaml")
+	datadogConfPath := filepath.Join(oldConfigDir, "datadog.conf")
+	datadogYamlPath := filepath.Join(newConfigDir, "datadog.yaml")
 	traceAgentConfPath := filepath.Join(newConfigDir, "trace-agent.conf")
 	const cfgExt = ".yaml"
 	const dirExt = ".d"
@@ -53,7 +53,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	config.Datadog.AddConfigPath(newConfigDir)
 	err = config.Load()
 	if err != nil {
-		return fmt.Errorf("unable to load StackState config file: %s", err)
+		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
 
 	// we won't overwrite the conf file if it contains a valid api_key

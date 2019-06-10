@@ -30,7 +30,7 @@ func SetupConfig(confFilePath string) error {
 	err := config.Load()
 	if err != nil {
 		log.Printf("config.load %v", err)
-		return fmt.Errorf("unable to load StackState config file: %s", err)
+		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
 	return nil
 }

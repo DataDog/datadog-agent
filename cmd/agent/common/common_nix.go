@@ -14,11 +14,11 @@ import (
 
 const (
 	// DefaultConfPath points to the folder containing datadog.yaml
-	DefaultConfPath = "/etc/stackstate-agent"
+	DefaultConfPath = "/etc/datadog-agent"
 	// DefaultLogFile points to the log file that will be used if not configured
-	DefaultLogFile = "/var/log/stackstate-agent/agent.log"
+	DefaultLogFile = "/var/log/datadog/agent.log"
 	// DefaultDCALogFile points to the log file that will be used if not configured
-	DefaultDCALogFile = "/var/log/stackstate-agent/cluster-agent.log"
+	DefaultDCALogFile = "/var/log/datadog/cluster-agent.log"
 )
 
 var (

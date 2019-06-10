@@ -251,16 +251,16 @@ func isAffirmative(value string) (bool, error) {
 }
 
 func extractURLAPIKeys(agentConfig Config, configConverter *config.LegacyConfigConverter) error {
-	urls := strings.Split(agentConfig["sts_url"], ",")
+	urls := strings.Split(agentConfig["dd_url"], ",")
 	keys := strings.Split(agentConfig["api_key"], ",")
 
 	if len(urls) != len(keys) {
 		return fmt.Errorf("Invalid number of 'dd_url'/'api_key': please provide one api_key for each url")
 	}
 
-	if urls[0] != "http://localhost:7077" {
+	if urls[0] != "https://app.datadoghq.com" {
 		// 'dd_url' is optional in v6, so only set it if it's set to a non-default value in datadog.conf
-		configConverter.Set("sts_url", urls[0])
+		configConverter.Set("dd_url", urls[0])
 	}
 
 	configConverter.Set("api_key", keys[0])

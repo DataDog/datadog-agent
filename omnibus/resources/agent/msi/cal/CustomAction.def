@@ -2,5 +2,5 @@ LIBRARY customaction
 
 EXPORTS
 	DllMain
-	AddStackStateSecretUser
-	RemoveStackStateSecretUser
+	AddDatadogSecretUser
+	RemoveDatadogSecretUser

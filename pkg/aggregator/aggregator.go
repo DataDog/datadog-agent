@@ -1,6 +1,6 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.stackstatehq.com/).
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
 package aggregator
@@ -379,9 +379,9 @@ func (agg *BufferedAggregator) flushSeries(start time.Time) {
 	recurrentSeriesLock.Unlock()
 
 	// Send along a metric that showcases that this Agent is running (internally, in backend,
-	// a `stackstate.`-prefixed metric allows identifying this host as an Agent host, used for dogbone icon)
+	// a `datadog.`-prefixed metric allows identifying this host as an Agent host, used for dogbone icon)
 	series = append(series, &metrics.Serie{
-		Name:           fmt.Sprintf("stackstate.%s.running", agg.agentName),
+		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
 		Host:           agg.hostname,
@@ -391,7 +391,7 @@ func (agg *BufferedAggregator) flushSeries(start time.Time) {
 
 	// Send along a metric that counts the number of times we dropped some payloads because we couldn't split them.
 	series = append(series, &metrics.Serie{
-		Name:           fmt.Sprintf("n_o_i_n_d_e_x.stackstate.%s.payload.dropped", agg.agentName),
+		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(split.GetPayloadDrops()), Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
@@ -434,7 +434,7 @@ func (agg *BufferedAggregator) GetServiceChecks() metrics.ServiceChecks {
 func (agg *BufferedAggregator) flushServiceChecks(start time.Time) {
 	// Add a simple service check for the Agent status
 	agg.addServiceCheck(metrics.ServiceCheck{
-		CheckName: "stackstate.agent.up",
+		CheckName: "datadog.agent.up",
 		Status:    metrics.ServiceCheckOK,
 		Host:      agg.hostname,
 	})

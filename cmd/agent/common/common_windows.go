@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at StackState (https://www.stackstatehq.com/).
-// Copyright 2016-2019 StackState, Inc.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
 
 package common
 
@@ -38,20 +38,20 @@ var (
 )
 
 var (
-	// DefaultConfPath points to the folder containing stackstate.yaml
-	DefaultConfPath = "c:\\programdata\\stackstate"
+	// DefaultConfPath points to the folder containing datadog.yaml
+	DefaultConfPath = "c:\\programdata\\datadog"
 	// DefaultLogFile points to the log file that will be used if not configured
-	DefaultLogFile = "c:\\programdata\\stackstate\\logs\\agent.log"
+	DefaultLogFile = "c:\\programdata\\datadog\\logs\\agent.log"
 	// DefaultDCALogFile points to the log file that will be used if not configured
-	DefaultDCALogFile = "c:\\programdata\\stackstate\\logs\\cluster-agent.log"
+	DefaultDCALogFile = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
 )
 
 func init() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
-		DefaultConfPath = filepath.Join(pd, "StackState")
-		DefaultLogFile = filepath.Join(pd, "StackState", "logs", "agent.log")
-		DefaultDCALogFile = filepath.Join(pd, "StackState", "logs", "cluster-agent.log")
+		DefaultConfPath = filepath.Join(pd, "Datadog")
+		DefaultLogFile = filepath.Join(pd, "Datadog", "logs", "agent.log")
+		DefaultDCALogFile = filepath.Join(pd, "Datadog", "logs", "cluster-agent.log")
 	} else {
 		winutil.LogEventViewer(config.ServiceName, 0x8000000F, DefaultConfPath)
 	}
@@ -62,7 +62,7 @@ func EnableLoggingToFile() {
 	seeConfig := `
 <seelog>
 	<outputs>
-		<rollingfile type="size" filename="c:\\ProgramData\\StackState\\Logs\\agent.log" maxsize="1000000" maxrolls="2" />
+		<rollingfile type="size" filename="c:\\ProgramData\\DataDog\\Logs\\agent.log" maxsize="1000000" maxrolls="2" />
 	</outputs>
 </seelog>`
 	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(seeConfig))
@@ -73,7 +73,7 @@ func getInstallPath() string {
 	// fetch the installation path from the registry
 	installpath := filepath.Join(_here, "..")
 	var s string
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\StackState\StackState Agent`, registry.QUERY_VALUE)
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\DataDog\Datadog Agent`, registry.QUERY_VALUE)
 	if err != nil {
 		log.Warnf("Failed to open registry key: %s", err)
 	} else {
@@ -116,11 +116,11 @@ func GetViewsPath() string {
 	return viewsPath
 }
 
-// CheckAndUpgradeConfig checks to see if there's an old stackstate.conf, and if
-// stackstate.yaml is either missing or incomplete (no API key).  If so, upgrade it
+// CheckAndUpgradeConfig checks to see if there's an old datadog.conf, and if
+// datadog.yaml is either missing or incomplete (no API key).  If so, upgrade it
 func CheckAndUpgradeConfig() error {
-	stackstateConfPath := filepath.Join(DefaultConfPath, "stackstate.conf")
-	if _, err := os.Stat(stackstateConfPath); os.IsNotExist(err) {
+	datadogConfPath := filepath.Join(DefaultConfPath, "datadog.conf")
+	if _, err := os.Stat(datadogConfPath); os.IsNotExist(err) {
 		log.Debug("Previous config file not found, not upgrading")
 		return nil
 	}
@@ -136,11 +136,11 @@ func CheckAndUpgradeConfig() error {
 	return ImportConfig(DefaultConfPath, DefaultConfPath, false)
 }
 
-// ImportRegistryConfig imports settings from Windows registry into stackstate.yaml
+// ImportRegistryConfig imports settings from Windows registry into datadog.yaml
 func ImportRegistryConfig() error {
 
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		"SOFTWARE\\StackState\\StackState Agent",
+		"SOFTWARE\\Datadog\\Datadog Agent",
 		registry.ALL_ACCESS)
 	if err != nil {
 		if err == registry.ErrNotExist {
@@ -158,12 +158,12 @@ func ImportRegistryConfig() error {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
-	// store the current stackstate.yaml path
-	stackstateYamlPath := config.Datadog.ConfigFileUsed()
+	// store the current datadog.yaml path
+	datadogYamlPath := config.Datadog.ConfigFileUsed()
 
 	if config.Datadog.GetString("api_key") != "" {
 		return fmt.Errorf("%s seems to contain a valid configuration, not overwriting config",
-			stackstateYamlPath)
+			datadogYamlPath)
 	}
 
 	overrides := make(map[string]interface{})
@@ -264,21 +264,21 @@ func ImportRegistryConfig() error {
 		overrides["site"] = val
 		log.Debugf("Setting site to %s", val)
 	}
-	if val, _, err = k.GetStringValue("sts_url"); err == nil && val != "" {
-		overrides["sts_url"] = val
-		log.Debugf("Setting sts_url to %s", val)
+	if val, _, err = k.GetStringValue("dd_url"); err == nil && val != "" {
+		overrides["dd_url"] = val
+		log.Debugf("Setting dd_url to %s", val)
 	}
-	if val, _, err = k.GetStringValue("logs_sts_url"); err == nil && val != "" {
-		overrides["logs_sts_url"] = val
-		log.Debugf("Setting logs_config.sts_url to %s", val)
+	if val, _, err = k.GetStringValue("logs_dd_url"); err == nil && val != "" {
+		overrides["logs_dd_url"] = val
+		log.Debugf("Setting logs_config.dd_url to %s", val)
 	}
-	if val, _, err = k.GetStringValue("process_sts_url"); err == nil && val != "" {
-		overrides["process_config.process_sts_url"] = val
-		log.Debugf("Setting process_config.process_sts_url to %s", val)
+	if val, _, err = k.GetStringValue("process_dd_url"); err == nil && val != "" {
+		overrides["process_config.process_dd_url"] = val
+		log.Debugf("Setting process_config.process_dd_url to %s", val)
 	}
-	if val, _, err = k.GetStringValue("trace_sts_url"); err == nil && val != "" {
-		overrides["apm_config.apm_sts_url"] = val
-		log.Debugf("Setting apm_config.apm_sts_url to %s", val)
+	if val, _, err = k.GetStringValue("trace_dd_url"); err == nil && val != "" {
+		overrides["apm_config.apm_dd_url"] = val
+		log.Debugf("Setting apm_config.apm_dd_url to %s", val)
 	}
 	if val, _, err = k.GetStringValue("skip_ssl_validation"); err == nil && val != "" {
 		config.Datadog.Set("skip_ssl_validation", val)
@@ -294,7 +294,7 @@ func ImportRegistryConfig() error {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
-	// dump the current configuration to stackstate.yaml
+	// dump the current configuration to datadog.yaml
 	b, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
 		log.Errorf("unable to unmarshal config to YAML: %v", err)
@@ -302,9 +302,9 @@ func ImportRegistryConfig() error {
 	}
 	// file permissions will be used only to create the file if doesn't exist,
 	// please note on Windows such permissions have no effect.
-	if err = ioutil.WriteFile(stackstateYamlPath, b, 0640); err != nil {
-		log.Errorf("unable to unmarshal config to %s: %v", stackstateYamlPath, err)
-		return fmt.Errorf("unable to unmarshal config to %s: %v", stackstateYamlPath, err)
+	if err = ioutil.WriteFile(datadogYamlPath, b, 0640); err != nil {
+		log.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
+		return fmt.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
 	}
 
 	valuenames := []string{"api_key", "tags", "hostname",
@@ -315,7 +315,7 @@ func ImportRegistryConfig() error {
 	for valuename := range subServices {
 		k.DeleteValue(valuename)
 	}
-	log.Debugf("Successfully wrote the config into %s\n", stackstateYamlPath)
+	log.Debugf("Successfully wrote the config into %s\n", datadogYamlPath)
 
 	return nil
 }

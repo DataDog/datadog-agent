@@ -20,10 +20,10 @@ import (
 
 var (
 	// ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
-	ErrMissingAPIKey = errors.New("you must specify an API Key, either via a configuration file or the STS_API_KEY env var")
+	ErrMissingAPIKey = errors.New("you must specify an API Key, either via a configuration file or the DD_API_KEY env var")
 
 	// ErrMissingHostname is returned when the config could not be validated due to missing hostname.
-	ErrMissingHostname = errors.New("failed to automatically set the hostname, you must specify it via configuration for or the STS_HOSTNAME env var")
+	ErrMissingHostname = errors.New("failed to automatically set the hostname, you must specify it via configuration for or the DD_HOSTNAME env var")
 )
 
 // Endpoint specifies an endpoint that the trace agent will write data (traces, stats & services) to.
@@ -146,7 +146,7 @@ func New() *AgentConfig {
 		MaxConnections:   200, // in practice, rarely goes over 20
 		WatchdogInterval: time.Minute,
 
-		Ignore: make(map[string][]string),
+		Ignore:                      make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 	}

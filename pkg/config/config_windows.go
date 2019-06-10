@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at StackState (https://www.datadoghq.com/).
-// Copyright 2016-2019 StackState, Inc.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
 
 package config
 
@@ -20,14 +20,14 @@ var (
 )
 
 // ServiceName is the name that'll be used to register the Agent
-const ServiceName = "StackStateAgent"
+const ServiceName = "DatadogAgent"
 
 func osinit() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
-		defaultConfdPath = filepath.Join(pd, "StackState", "conf.d")
-		defaultAdditionalChecksPath = filepath.Join(pd, "StackState", "checks.d")
-		defaultRunPath = filepath.Join(pd, "StackState", "run")
+		defaultConfdPath = filepath.Join(pd, "Datadog", "conf.d")
+		defaultAdditionalChecksPath = filepath.Join(pd, "Datadog", "checks.d")
+		defaultRunPath = filepath.Join(pd, "Datadog", "run")
 	} else {
 		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultConfdPath)
 	}

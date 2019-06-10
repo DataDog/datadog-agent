@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at StackState (https://www.datadoghq.com/).
-// Copyright 2016-2019 StackState, Inc.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
 // +build windows
 
 package main
@@ -31,7 +31,7 @@ var (
 	menuitems []menuItem
 	ni        *walk.NotifyIcon
 	launchgui bool
-	eventname = windows.StringToUTF16Ptr("ststray-event")
+	eventname = windows.StringToUTF16Ptr("ddtray-event")
 )
 
 func init() {
@@ -116,7 +116,7 @@ func main() {
 		}
 
 		if err := ni.ShowCustom(
-			"StackState Agent Manager",
+			"Datadog Agent Manager",
 			"Please right click to display available options."); err != nil {
 
 			log.Warnf("Failed to show custom message %v", err)
@@ -158,7 +158,7 @@ func enableLoggingToFile() {
 	seeConfig := `
 	<seelog minlevel="debug">
 	<outputs>
-		<rollingfile type="size" filename="c:\\ProgramData\\StackState\\Logs\\ststray.log" maxsize="1000000" maxrolls="2" />
+		<rollingfile type="size" filename="c:\\ProgramData\\DataDog\\Logs\\ddtray.log" maxsize="1000000" maxrolls="2" />
 	</outputs>
 	</seelog>`
 	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(seeConfig))

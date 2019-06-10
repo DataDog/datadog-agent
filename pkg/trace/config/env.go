@@ -15,37 +15,37 @@ func applyEnv() {
 	// when using the legacy config loader.
 	for _, override := range []struct{ env, key string }{
 		// Core agent:
-		{"STS_SITE", "site"},
-		{"STS_API_KEY", "api_key"},
-		{"STS_HOSTNAME", "hostname"},
-		{"STS_BIND_HOST", "bind_host"},
-		{"STS_DOGSTATSD_PORT", "dogstatsd_port"},
-		{"STS_LOG_LEVEL", "log_level"},
+		{"DD_SITE", "site"},
+		{"DD_API_KEY", "api_key"},
+		{"DD_HOSTNAME", "hostname"},
+		{"DD_BIND_HOST", "bind_host"},
+		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
+		{"DD_LOG_LEVEL", "log_level"},
 		{"HTTPS_PROXY", "proxy.https"}, // deprecated
-		{"STS_PROXY_HTTPS", "proxy.https"},
+		{"DD_PROXY_HTTPS", "proxy.https"},
 
 		// APM specific:
-		{"STS_CONNECTION_LIMIT", "apm_config.connection_limit"}, // deprecated
-		{"STS_APM_CONNECTION_LIMIT", "apm_config.connection_limit"},
-		{"STS_APM_ENABLED", "apm_config.enabled"},
-		{"STS_APM_ENV", "apm_config.env"},
-		{"STS_APM_NON_LOCAL_TRAFFIC", "apm_config.apm_non_local_traffic"},
-		{"STS_APM_STS_URL", "apm_config.apm_sts_url"},
-		{"STS_RECEIVER_PORT", "apm_config.receiver_port"}, // deprecated
-		{"STS_APM_RECEIVER_PORT", "apm_config.receiver_port"},
-		{"STS_MAX_EPS", "apm_config.max_events_per_second"}, // deprecated
-		{"STS_APM_MAX_EPS", "apm_config.max_events_per_second"},
-		{"STS_MAX_TPS", "apm_config.max_traces_per_second"}, // deprecated
-		{"STS_APM_MAX_TPS", "apm_config.max_traces_per_second"},
-		{"STS_APM_MAX_MEMORY", "apm_config.max_memory"},
+		{"DD_CONNECTION_LIMIT", "apm_config.connection_limit"}, // deprecated
+		{"DD_APM_CONNECTION_LIMIT", "apm_config.connection_limit"},
+		{"DD_APM_ENABLED", "apm_config.enabled"},
+		{"DD_APM_ENV", "apm_config.env"},
+		{"DD_APM_NON_LOCAL_TRAFFIC", "apm_config.apm_non_local_traffic"},
+		{"DD_APM_DD_URL", "apm_config.apm_dd_url"},
+		{"DD_RECEIVER_PORT", "apm_config.receiver_port"}, // deprecated
+		{"DD_APM_RECEIVER_PORT", "apm_config.receiver_port"},
+		{"DD_MAX_EPS", "apm_config.max_events_per_second"}, // deprecated
+		{"DD_APM_MAX_EPS", "apm_config.max_events_per_second"},
+		{"DD_MAX_TPS", "apm_config.max_traces_per_second"}, // deprecated
+		{"DD_APM_MAX_TPS", "apm_config.max_traces_per_second"},
+		{"DD_APM_MAX_MEMORY", "apm_config.max_memory"},
 	} {
 		if v := os.Getenv(override.env); v != "" {
 			config.Datadog.Set(override.key, v)
 		}
 	}
 	for _, envKey := range []string{
-		"STS_IGNORE_RESOURCE",
-		"STS_APM_IGNORE_RESOURCES",
+		"DD_IGNORE_RESOURCE", // deprecated
+		"DD_APM_IGNORE_RESOURCES",
 	} {
 		if v := os.Getenv(envKey); v != "" {
 			if r, err := splitString(v, ','); err != nil {
@@ -55,12 +55,12 @@ func applyEnv() {
 			}
 		}
 	}
-	if v := os.Getenv("STS_APM_ANALYZED_SPANS"); v != "" {
+	if v := os.Getenv("DD_APM_ANALYZED_SPANS"); v != "" {
 		analyzedSpans, err := parseAnalyzedSpans(v)
 		if err == nil {
 			config.Datadog.Set("apm_config.analyzed_spans", analyzedSpans)
 		} else {
-			log.Errorf("Bad format for %s it should be of the form \"service_name|operation_name=rate,other_service|other_operation=rate\", error: %v", "STS_APM_ANALYZED_SPANS", err)
+			log.Errorf("Bad format for %s it should be of the form \"service_name|operation_name=rate,other_service|other_operation=rate\", error: %v", "DD_APM_ANALYZED_SPANS", err)
 		}
 	}
 }

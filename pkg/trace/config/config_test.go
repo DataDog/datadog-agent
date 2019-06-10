@@ -58,8 +58,8 @@ func TestConfigHostname(t *testing.T) {
 		defer cleanConfig()()
 		// hostname from env
 		assert := assert.New(t)
-		err := os.Setenv("STS_HOSTNAME", "onlyenv")
-		defer os.Unsetenv("STS_HOSTNAME")
+		err := os.Setenv("DD_HOSTNAME", "onlyenv")
+		defer os.Unsetenv("DD_HOSTNAME")
 		assert.NoError(err)
 		cfg, err := Load("./testdata/multi_api_keys.ini")
 		assert.NoError(err)
@@ -70,8 +70,8 @@ func TestConfigHostname(t *testing.T) {
 		defer cleanConfig()()
 		// hostname from file, overwritten from env
 		assert := assert.New(t)
-		err := os.Setenv("STS_HOSTNAME", "envoverride")
-		defer os.Unsetenv("STS_HOSTNAME")
+		err := os.Setenv("DD_HOSTNAME", "envoverride")
+		defer os.Unsetenv("DD_HOSTNAME")
 		assert.NoError(err)
 		cfg, err := Load("./testdata/full.yaml")
 		assert.NoError(err)

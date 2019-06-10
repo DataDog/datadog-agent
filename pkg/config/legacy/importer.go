@@ -18,7 +18,7 @@ type Config map[string]string
 var (
 	// Note: we'll only import a subset of these values.
 	supportedValues = []string{
-		"sts_url",
+		"dd_url",
 		"proxy_host",
 		"proxy_port",
 		"proxy_user",
