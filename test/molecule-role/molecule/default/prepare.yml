@@ -315,7 +315,16 @@
     - name: Connect to Ubuntu agent
       win_command: nc {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_after_start_windows }}
       async: "{{ max_test_time }}"
+      ignore_errors: True
+      register: ubuntu_connect_result
       poll: 0
+
+    - name: Connect to Ubuntu agent
+      win_command: nc {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_after_start_windows }}
+      async: "{{ max_test_time }}"
+      poll: 0
+      when: ubuntu_connect_result is failed
+
 
 - name: Prepare Ubuntu Agent for blacklist inclusion test
   hosts: agent-ubuntu
