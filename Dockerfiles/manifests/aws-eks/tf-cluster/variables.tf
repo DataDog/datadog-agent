@@ -4,10 +4,6 @@ variable "AWS_REGION" {
   default = "us-east-1"
 }
 variable "CLUSTER_NAME" {}
-variable "SSH_KEY_PAIR" {
-  description = "This will be used to ssh into the EC2 instances (k8s runners)"
-  default = "EKS"
-}
 
 locals {
   availabilityzone = "${var.AWS_REGION}a"

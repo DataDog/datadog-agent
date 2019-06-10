@@ -14,40 +14,40 @@ spec:
     spec:
       serviceAccountName: stackstate-agent
       containers:
-      - image: stackstate/stackstate-agent:latest
+      - image: stackstate/stackstate-agent-2:latest
         imagePullPolicy: Always
         name: stackstate-agent
         ports:
           - containerPort: 8125
-            # hostPort: 8125
             name: dogstatsdport
             protocol: UDP
           - containerPort: 8126
-            # hostPort: 8126
             name: traceport
             protocol: TCP
+        securityContext:
+          privileged: true
         env:
-          - name: DD_DD_URL
-            value: "http://<STACKSTATE_BACKEND_IP>:7077/stsAgent"
-          - name: DD_APM_ENABLED
-            value: "true"
-          - name: DD_API_KEY
-            value: "DUMMY_API_KEY"
-          - name: DD_COLLECT_KUBERNETES_EVENTS
-            value: "true"
-          - name: DD_LEADER_ELECTION
-            value: "true"
+          - name: STS_API_KEY
+            value: "API_KEY"
+          - name: STS_STS_URL
+            value: "<STACKSTATE_BACKEND_URL>/stsAgent"
           - name: KUBERNETES
-            value: "yes"
-          - name: DD_COLLECT_DOCKER_NETWORK
             value: "true"
-          - name: DD_CONNECTIONS_CHECK
+          - name: STS_PROCESS_AGENT_ENABLED
             value: "true"
-          - name: DD_PROCESS_AGENT_ENABLED
+          - name: STS_PROCESS_AGENT_URL
+            value: "<STACKSTATE_BACKEND_URL>/stsAgent"
+          - name: STS_NETWORK_TRACING_ENABLED
             value: "true"
-          - name: DD_PROCESS_AGENT_URL
-            value: "http://<STACKSTATE_BACKEND_IP>:7077/stsAgent"
-          - name: DD_KUBERNETES_KUBELET_HOST
+          - name: STS_SKIP_SSL_VALIDATION
+            value: "false"
+          - name: HOST_PROC
+            value: "/host/proc"
+          - name: HOST_SYS
+            value: "/host/sys"
+          - name: STS_HEALTH_PORT
+            value: "5555"
+          - name: STS_KUBERNETES_KUBELET_HOST
             valueFrom:
               fieldRef:
                 fieldPath: status.hostIP
@@ -72,12 +72,13 @@ spec:
           - name: cgroups
             mountPath: /host/sys/fs/cgroup
             readOnly: true
-        livenessProbe:
-          exec:
-            command:
-            - ./probe.sh
-          initialDelaySeconds: 15
-          periodSeconds: 5
+#        livenessProbe:
+#          httpGet:
+#            path: /health
+#            port: 5555
+#          initialDelaySeconds: 15
+#          periodSeconds: 15
+#          timeoutSeconds: 5
       hostNetwork: true
       hostPID: true
       volumes:
