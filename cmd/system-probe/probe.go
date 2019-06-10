@@ -15,9 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
-	"github.com/mailru/easyjson/jwriter"
 )
 
 // ErrTracerUnsupported is the unsupported error prefix, for error-class matching from callers
@@ -92,7 +92,9 @@ func (nt *SystemProbe) Run() {
 			w.WriteHeader(500)
 			return
 		}
-		writeConnections(w, cs)
+		contentType := req.Header.Get("Accept")
+		marshaler := encoding.GetMarshaler(contentType)
+		writeConnections(w, marshaler, cs)
 
 		count := atomic.AddUint64(&runCounter, 1)
 		logRequests(id, count, len(cs.Conns), start)
@@ -106,7 +108,9 @@ func (nt *SystemProbe) Run() {
 			return
 		}
 
-		writeConnections(w, cs)
+		contentType := req.Header.Get("Accept")
+		marshaler := encoding.GetMarshaler(contentType)
+		writeConnections(w, marshaler, cs)
 	})
 
 	httpMux.HandleFunc("/debug/net_state", func(w http.ResponseWriter, req *http.Request) {
@@ -160,21 +164,17 @@ func getClientID(req *http.Request) string {
 	return clientID
 }
 
-func writeConnections(w http.ResponseWriter, cs *ebpf.Connections) {
-	jw := &jwriter.Writer{}
-	cs.MarshalEasyJSON(jw)
-	if err := jw.Error; err != nil {
-		log.Errorf("unable to marshall connections into JSON: %s", err)
-		w.WriteHeader(500)
-		return
-	}
-	bytesWritten, err := jw.DumpTo(w)
+func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *ebpf.Connections) {
+	buf, err := marshaler.Marshal(cs)
 	if err != nil {
-		log.Errorf("unable to dump JSON to response: %s", err)
+		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
 		w.WriteHeader(500)
 		return
 	}
-	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), bytesWritten)
+
+	w.Header().Set("Content-type", marshaler.ContentType())
+	w.Write(buf)
+	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
 }
 
 func writeAsJSON(w http.ResponseWriter, data interface{}) {
