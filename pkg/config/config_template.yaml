@@ -835,7 +835,6 @@ apm_config:
 #   Whether or not the APM Agent should run
   enabled: true
   apm_sts_url:
-  apm_dd_url:
 #   The environment tag that Traces should be tagged with
 #   Will inherit from "env" tag if "none" is applied here
 #   env: none

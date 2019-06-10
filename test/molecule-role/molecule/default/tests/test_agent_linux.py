@@ -24,6 +24,8 @@ def test_stackstate_process_agent_running_and_enabled(host):
     # We don't check enabled because on systemd redhat is not needed check omnibus/package-scripts/agent/posttrans
     assert not host.ansible("service", "name=stackstate-agent-process state=started", become=True)['changed']
 
+def test_stackstate_trace_agent_running_and_enabled(host):
+    assert not host.ansible("service", "name=stackstate-agent-trace state=started", become=True)['changed']
 
 def test_stackstate_agent_log(host, hostname):
     agent_log_path = "/var/log/stackstate-agent/agent.log"

@@ -203,8 +203,8 @@ if [ $sts_url ]; then
     sts_url_esc=$(sed 's/[/.&]/\\&/g' <<<"$sts_url")
     print_blu "* Adding StackState url to the Agent configuration: $CONF\n"
     $sudo_cmd sh -c "sed -i 's/sts_url:.*/sts_url: $sts_url_esc/' $CONF"
-    $sudo_cmd sh -c "sed -i 's/process_sts_url:.*/process_sts_url: $sts_url_esc/' $CONF"
-    $sudo_cmd sh -c "sed -i 's/apm_sts_url:.*/apm_sts_url: $sts_url_esc/' $CONF"
+#    $sudo_cmd sh -c "sed -i 's/process_sts_url:.*/process_sts_url: $sts_url_esc/' $CONF"
+#    $sudo_cmd sh -c "sed -i 's/apm_sts_url:.*/apm_sts_url: $sts_url_esc/' $CONF"
 fi
 if [ $hostname ]; then
     print_blu "* Adding your HOSTNAME to the Agent configuration: $CONF\n"
