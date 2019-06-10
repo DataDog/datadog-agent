@@ -52,7 +52,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     args = {
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
-        "agent_bin": os.path.join(BIN_PATH, bin_name("ddtray")),
+        "agent_bin": os.path.join(BIN_PATH, bin_name("ststray")),
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
@@ -71,7 +71,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
     if not skip_build:
         build(ctx, rebuild, race, build_include, build_exclude, puppy)
 
-    ctx.run(os.path.join(BIN_PATH, bin_name("ddtray.exe")))
+    ctx.run(os.path.join(BIN_PATH, bin_name("ststray.exe")))
 
 
 @task
@@ -85,4 +85,4 @@ def clean(ctx):
 
     # remove the bin/agent folder
     print("Remove systray executable")
-    ctx.run("rm -rf ./bin/agent/ddtray.exe")
+    ctx.run("rm -rf ./bin/agent/ststray.exe")

@@ -136,10 +136,10 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if site != "" {
 		c.Endpoints[0].Host = apiEndpointPrefix + site
 	}
-	if host := config.Datadog.GetString("apm_config.apm_dd_url"); host != "" {
+	if host := config.Datadog.GetString("apm_config.apm_sts_url"); host != "" {
 		c.Endpoints[0].Host = host
 		if site != "" {
-			log.Infof("'site' and 'apm_dd_url' are both set, using endpoint: %q", host)
+			log.Infof("'site' and 'apm_sts_url' are both set, using endpoint: %q", host)
 		}
 	}
 	for url, keys := range config.Datadog.GetStringMapStringSlice("apm_config.additional_endpoints") {
@@ -283,8 +283,8 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 
 	// undocumented
-	if config.Datadog.IsSet("apm_config.dd_agent_bin") {
-		c.DDAgentBin = config.Datadog.GetString("apm_config.dd_agent_bin")
+	if config.Datadog.IsSet("apm_config.sts_agent_bin") {
+		c.DDAgentBin = config.Datadog.GetString("apm_config.sts_agent_bin")
 	}
 
 	return c.loadDeprecatedValues()

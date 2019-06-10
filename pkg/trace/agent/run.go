@@ -22,7 +22,7 @@ import (
 )
 
 const agentDisabledMessage = `trace-agent not enabled.
-Set env var DD_APM_ENABLED=true or add
+Set env var STS_APM_ENABLED=true or add
 apm_enabled: true
 to your datadog.conf file.
 Exiting.`

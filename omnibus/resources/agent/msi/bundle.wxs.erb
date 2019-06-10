@@ -2,9 +2,9 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
       xmlns:bal="http://schemas.microsoft.com/wix/BalExtension">
   <?include "parameters.wxi" ?>
-	<Bundle Name="Datadog Agent Installer" 
+	<Bundle Name="StackState Agent Installer" 
             Version="$(var.VersionNumber)" 
-            Manufacturer="Datadog Inc." 
+            Manufacturer="StackState Inc." 
             UpgradeCode="$(var.UpgradeCode)" >
 		
          <BootstrapperApplicationRef Id="WixStandardBootstrapperApplication.RtfLicense" >
@@ -12,8 +12,8 @@
           <bal:WixStandardBootstrapperApplication
           LicenseFile="Resources\assets\license.rtf" 
           ThemeFile="bundle_theme.xml"
-          LogoSideFile="Resources\assets\dd_logo_side.png"
-          LogoFile="Resources\assets\dd_logo_side.png"
+          LogoSideFile="Resources\assets\sts_logo_side.png"
+          LogoFile="Resources\assets\sts_logo_side.png"
           LocalizationFile="localization-en-us.wxl" 
           />
         </BootstrapperApplicationRef>

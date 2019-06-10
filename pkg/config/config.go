@@ -77,7 +77,7 @@ type Proxy struct {
 func init() {
 	osinit()
 	// Configure Datadog global configuration
-	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	Datadog = NewConfig("stackstate", "STS", strings.NewReplacer(".", "_"))
 	// Configuration defaults
 	initConfig(Datadog)
 }
@@ -87,7 +87,7 @@ func initConfig(config Config) {
 	// Agent
 	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
 	config.BindEnv("site")
-	config.BindEnv("dd_url")
+	config.BindEnv("sts_url")
 	config.BindEnvAndSetDefault("app_key", "")
 	config.SetDefault("proxy", nil)
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
@@ -428,7 +428,7 @@ func loadProxyFromEnv(config Config) {
 		}
 	}
 
-	if HTTP, found := lookupEnv("DD_PROXY_HTTP"); found {
+	if HTTP, found := lookupEnv("STS_PROXY_HTTP"); found {
 		isSet = true
 		p.HTTP = HTTP
 	} else if HTTP, found := lookupEnvCaseInsensitive("HTTP_PROXY"); found {
@@ -436,7 +436,7 @@ func loadProxyFromEnv(config Config) {
 		p.HTTP = HTTP
 	}
 
-	if HTTPS, found := lookupEnv("DD_PROXY_HTTPS"); found {
+	if HTTPS, found := lookupEnv("STS_PROXY_HTTPS"); found {
 		isSet = true
 		p.HTTPS = HTTPS
 	} else if HTTPS, found := lookupEnvCaseInsensitive("HTTPS_PROXY"); found {
@@ -444,7 +444,7 @@ func loadProxyFromEnv(config Config) {
 		p.HTTPS = HTTPS
 	}
 
-	if noProxy, found := lookupEnv("DD_PROXY_NO_PROXY"); found {
+	if noProxy, found := lookupEnv("STS_PROXY_NO_PROXY"); found {
 		isSet = true
 		p.NoProxy = strings.Split(noProxy, " ") // space-separated list, consistent with viper
 	} else if noProxy, found := lookupEnvCaseInsensitive("NO_PROXY"); found {
@@ -556,7 +556,7 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 }
 
 func getMainInfraEndpointWithConfig(config Config) string {
-	return GetMainEndpointWithConfig(config, infraURLPrefix, "dd_url")
+	return GetMainEndpointWithConfig(config, infraURLPrefix, "sts_url")
 }
 
 // GetMainEndpointWithConfig implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
@@ -639,7 +639,7 @@ func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) 
 
 // IsContainerized returns whether the Agent is running on a Docker container
 func IsContainerized() bool {
-	return os.Getenv("DOCKER_DD_AGENT") != ""
+	return os.Getenv("DOCKER_STS_AGENT") != ""
 }
 
 // FileUsedDir returns the absolute path to the folder containing the config

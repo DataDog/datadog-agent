@@ -30,7 +30,7 @@ func AndroidMain(apikey string, hostname string, tags string) {
 		overrides["tags"] = strings.Split(tags, ",")
 	}
 	//readAsset("android.yaml")
-	if _, err := androidasset.ReadFile("datadog.yaml"); err != nil {
+	if _, err := androidasset.ReadFile("stackstate.yaml"); err != nil {
 		log.Printf("Failed to read datadog yaml asset %v", err)
 	} else {
 		log.Printf("Read datadog.yaml asset")
@@ -38,7 +38,7 @@ func AndroidMain(apikey string, hostname string, tags string) {
 
 	// read the android-specific config in `assets`, which allows us
 	// to override config rather than using environment variables
-	config.Datadog.SetConfigFile("datadog.yaml")
+	config.Datadog.SetConfigFile("stackstate.yaml")
 	config.SetOverrides(overrides)
 
 	ddapp.StartAgent()

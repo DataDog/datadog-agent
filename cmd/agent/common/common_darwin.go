@@ -13,9 +13,9 @@ const (
 	// DefaultConfPath points to the folder containing datadog.yaml
 	DefaultConfPath = "/opt/datadog-agent/etc"
 	// DefaultLogFile points to the log file that will be used if not configured
-	DefaultLogFile = "/var/log/datadog/agent.log"
+	DefaultLogFile = "/var/log/stackstate-agent/agent.log"
 	// DefaultDCALogFile points to the log file that will be used if not configured
-	DefaultDCALogFile = "/var/log/datadog/cluster-agent.log"
+	DefaultDCALogFile = "/var/log/stackstate-agent/cluster-agent.log"
 )
 
 var (

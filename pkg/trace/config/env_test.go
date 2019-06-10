@@ -20,12 +20,12 @@ func TestLoadEnv(t *testing.T) {
 		for _, tt := range []struct {
 			envOld, envNew, key string
 		}{
-			{"HTTPS_PROXY", "DD_PROXY_HTTPS", "proxy.https"},
-			{"DD_CONNECTION_LIMIT", "DD_APM_CONNECTION_LIMIT", "apm_config.connection_limit"},
-			{"DD_RECEIVER_PORT", "DD_APM_RECEIVER_PORT", "apm_config.receiver_port"},
-			{"DD_MAX_EPS", "DD_MAX_EPS", "apm_config.max_events_per_second"},
-			{"DD_MAX_TPS", "DD_APM_MAX_TPS", "apm_config.max_traces_per_second"},
-			{"DD_IGNORE_RESOURCE", "DD_APM_IGNORE_RESOURCES", "apm_config.ignore_resources"},
+			{"HTTPS_PROXY", "STS_PROXY_HTTPS", "proxy.https"},
+			{"STS_CONNECTION_LIMIT", "STS_APM_CONNECTION_LIMIT", "apm_config.connection_limit"},
+			{"STS_RECEIVER_PORT", "STS_APM_RECEIVER_PORT", "apm_config.receiver_port"},
+			{"STS_MAX_EPS", "STS_MAX_EPS", "apm_config.max_events_per_second"},
+			{"STS_MAX_TPS", "STS_APM_MAX_TPS", "apm_config.max_traces_per_second"},
+			{"STS_IGNORE_RESOURCE", "STS_APM_IGNORE_RESOURCES", "apm_config.ignore_resources"},
 		} {
 			assert := assert.New(t)
 			err := os.Setenv(tt.envOld, "1,2,3")
@@ -36,7 +36,7 @@ func TestLoadEnv(t *testing.T) {
 			defer os.Unsetenv(tt.envNew)
 			_, err = Load("./testdata/full.yaml")
 			assert.NoError(err)
-			if tt.envNew == "DD_APM_IGNORE_RESOURCES" {
+			if tt.envNew == "STS_APM_IGNORE_RESOURCES" {
 				assert.Equal([]string{"4", "5", "6"}, config.Datadog.GetStringSlice(tt.key))
 			} else {
 				assert.Equal("4,5,6", config.Datadog.Get(tt.key))
@@ -46,7 +46,7 @@ func TestLoadEnv(t *testing.T) {
 
 	for _, ext := range []string{"yaml", "ini"} {
 		t.Run(ext, func(t *testing.T) {
-			env := "DD_API_KEY"
+			env := "STS_API_KEY"
 			t.Run(env, func(t *testing.T) {
 				assert := assert.New(t)
 				err := os.Setenv(env, "123")
@@ -57,7 +57,7 @@ func TestLoadEnv(t *testing.T) {
 				assert.Equal("123", cfg.Endpoints[0].APIKey)
 			})
 
-			env = "DD_SITE"
+			env = "STS_SITE"
 			t.Run(env, func(t *testing.T) {
 				assert := assert.New(t)
 				err := os.Setenv(env, "my-site.com")
@@ -68,7 +68,7 @@ func TestLoadEnv(t *testing.T) {
 				assert.Equal(apiEndpointPrefix+"my-site.com", cfg.Endpoints[0].Host)
 			})
 
-			env = "DD_APM_ENABLED"
+			env = "STS_APM_ENABLED"
 			t.Run(env, func(t *testing.T) {
 				assert := assert.New(t)
 				err := os.Setenv(env, "true")
@@ -79,7 +79,7 @@ func TestLoadEnv(t *testing.T) {
 				assert.True(cfg.Enabled)
 			})
 
-			env = "DD_APM_DD_URL"
+			env = "STS_APM_STS_URL"
 			t.Run(env, func(t *testing.T) {
 				assert := assert.New(t)
 				err := os.Setenv(env, "my-site.com")
@@ -101,7 +101,7 @@ func TestLoadEnv(t *testing.T) {
 				assert.Equal("my-proxy.url", cfg.ProxyURL.String())
 			})
 
-			env = "DD_PROXY_HTTPS"
+			env = "STS_PROXY_HTTPS"
 			t.Run(env, func(t *testing.T) {
 				assert := assert.New(t)
 				err := os.Setenv(env, "my-proxy.url")
@@ -112,7 +112,7 @@ func TestLoadEnv(t *testing.T) {
 				assert.Equal("my-proxy.url", cfg.ProxyURL.String())
 			})
 
-			env = "DD_HOSTNAME"
+			env = "STS_HOSTNAME"
 			t.Run(env, func(t *testing.T) {
 				assert := assert.New(t)
 				err := os.Setenv(env, "local.host")
@@ -123,7 +123,7 @@ func TestLoadEnv(t *testing.T) {
 				assert.Equal("local.host", cfg.Hostname)
 			})
 
-			env = "DD_BIND_HOST"
+			env = "STS_BIND_HOST"
 			t.Run(env, func(t *testing.T) {
 				assert := assert.New(t)
 				err := os.Setenv(env, "bindhost.com")
@@ -135,8 +135,8 @@ func TestLoadEnv(t *testing.T) {
 			})
 
 			for _, envKey := range []string{
-				"DD_RECEIVER_PORT", // deprecated
-				"DD_APM_RECEIVER_PORT",
+				"STS_RECEIVER_PORT",
+				"STS_APM_RECEIVER_PORT",
 			} {
 				t.Run(envKey, func(t *testing.T) {
 					assert := assert.New(t)
@@ -149,7 +149,7 @@ func TestLoadEnv(t *testing.T) {
 				})
 			}
 
-			env = "DD_DOGSTATSD_PORT"
+			env = "STS_DOGSTATSD_PORT"
 			t.Run(env, func(t *testing.T) {
 				assert := assert.New(t)
 				err := os.Setenv(env, "4321")
@@ -160,7 +160,7 @@ func TestLoadEnv(t *testing.T) {
 				assert.Equal(4321, cfg.StatsdPort)
 			})
 
-			env = "DD_APM_NON_LOCAL_TRAFFIC"
+			env = "STS_APM_NON_LOCAL_TRAFFIC"
 			t.Run(env, func(t *testing.T) {
 				assert := assert.New(t)
 				err := os.Setenv(env, "true")
@@ -172,8 +172,8 @@ func TestLoadEnv(t *testing.T) {
 			})
 
 			for _, envKey := range []string{
-				"DD_IGNORE_RESOURCE", // deprecated
-				"DD_APM_IGNORE_RESOURCES",
+				"STS_IGNORE_RESOURCE",
+				"STS_APM_IGNORE_RESOURCES",
 			} {
 				t.Run(envKey, func(t *testing.T) {
 					assert := assert.New(t)
@@ -186,7 +186,7 @@ func TestLoadEnv(t *testing.T) {
 				})
 			}
 
-			env = "DD_LOG_LEVEL"
+			env = "STS_LOG_LEVEL"
 			t.Run(env, func(t *testing.T) {
 				assert := assert.New(t)
 				err := os.Setenv(env, "warn")
@@ -197,7 +197,7 @@ func TestLoadEnv(t *testing.T) {
 				assert.Equal("warn", cfg.LogLevel)
 			})
 
-			env = "DD_APM_ANALYZED_SPANS"
+			env = "STS_APM_ANALYZED_SPANS"
 			t.Run(env, func(t *testing.T) {
 				assert := assert.New(t)
 				err := os.Setenv(env, "web|http.request=1,db|sql.query=0.5")
@@ -212,8 +212,8 @@ func TestLoadEnv(t *testing.T) {
 			})
 
 			for _, envKey := range []string{
-				"DD_CONNECTION_LIMIT", // deprecated
-				"DD_APM_CONNECTION_LIMIT",
+				"STS_CONNECTION_LIMIT",
+				"STS_APM_CONNECTION_LIMIT",
 			} {
 				t.Run(envKey, func(t *testing.T) {
 					assert := assert.New(t)
@@ -227,8 +227,8 @@ func TestLoadEnv(t *testing.T) {
 			}
 
 			for _, envKey := range []string{
-				"DD_MAX_TPS", // deprecated
-				"DD_APM_MAX_TPS",
+				"STS_MAX_TPS",
+				"STS_APM_MAX_TPS",
 			} {
 				t.Run(envKey, func(t *testing.T) {
 					assert := assert.New(t)
@@ -242,8 +242,8 @@ func TestLoadEnv(t *testing.T) {
 			}
 
 			for _, envKey := range []string{
-				"DD_MAX_EPS", // deprecated
-				"DD_APM_MAX_EPS",
+				"STS_MAX_EPS",
+				"STS_APM_MAX_EPS",
 			} {
 				t.Run(envKey, func(t *testing.T) {
 					assert := assert.New(t)

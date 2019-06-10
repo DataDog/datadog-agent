@@ -687,7 +687,7 @@ function seeRunningChecks() {
 function loadFlare() {
   $(".page").css("display", "none");
   $("#flare, .flare_input").css("display", "block");
-  $("#flare_description").html("Your logs and configuration files will be collected and sent to DataDog Support.");
+  $("#flare_description").html("Your logs and configuration files will be collected and sent to StackState Support.");
 }
 
 // Handler for the 'submit flare' button, validates the email address & then

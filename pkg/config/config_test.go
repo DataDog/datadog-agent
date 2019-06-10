@@ -16,13 +16,13 @@ import (
 )
 
 func setupConf() Config {
-	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	conf := NewConfig("stackstate", "STS", strings.NewReplacer(".", "_"))
 	initConfig(conf)
 	return conf
 }
 
 func setupConfFromYAML(yamlConfig string) Config {
-	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	conf := NewConfig("stackstate", "STS", strings.NewReplacer(".", "_"))
 	conf.SetConfigType("yaml")
 	conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
 	initConfig(conf)
@@ -34,9 +34,9 @@ func TestDefaults(t *testing.T) {
 
 	// Testing viper's handling of defaults
 	assert.False(t, config.IsSet("site"))
-	assert.False(t, config.IsSet("dd_url"))
+	assert.False(t, config.IsSet("sts_url"))
 	assert.Equal(t, "", config.GetString("site"))
-	assert.Equal(t, "", config.GetString("dd_url"))
+	assert.Equal(t, "", config.GetString("sts_url"))
 }
 
 func TestDefaultSite(t *testing.T) {
@@ -49,7 +49,7 @@ api_key: fakeapikey
 	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.com": {
+		"http://localhost:7077": {
 			"fakeapikey",
 		},
 	}
@@ -140,7 +140,7 @@ external_config:
 	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.com": {
+		"http://localhost:7077": {
 			"fakeapikey",
 		},
 	}
@@ -194,7 +194,7 @@ additional_endpoints:
 		"https://foo.datadoghq.com": {
 			"someapikey",
 		},
-		"https://app.datadoghq.com": {
+		"http://localhost:7077": {
 			"fakeapikey",
 			"fakeapikey2",
 			"fakeapikey3",
@@ -229,7 +229,7 @@ additional_endpoints:
 		"https://foo.datadoghq.com": {
 			"someapikey",
 		},
-		"https://app.datadoghq.com": {
+		"http://localhost:7077": {
 			"fakeapikey2",
 			"fakeapikey3",
 		},
@@ -260,7 +260,7 @@ additional_endpoints:
 		"https://foo.datadoghq.com": {
 			"someapikey",
 		},
-		"https://app.datadoghq.com": {
+		"http://localhost:7077": {
 			"fakeapikey",
 			"fakeapikey2",
 			"fakeapikey3",
@@ -282,7 +282,7 @@ api_key: fakeapikey
 	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.com": {
+		"http://localhost:7077": {
 			"fakeapikey",
 		},
 	}
@@ -310,7 +310,7 @@ additional_endpoints:
 	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.com": {
+		"http://localhost:7077": {
 			"fakeapikey",
 			"fakeapikey2",
 		},
@@ -343,7 +343,7 @@ additional_endpoints:
 	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.com": {
+		"http://localhost:7077": {
 			"fakeapikey",
 			"fakeapikey2",
 		},
@@ -358,11 +358,11 @@ additional_endpoints:
 }
 
 func TestAddAgentVersionToDomain(t *testing.T) {
-	newURL, err := AddAgentVersionToDomain("https://app.datadoghq.com", "app")
+	newURL, err := AddAgentVersionToDomain("http://localhost:7077", "app")
 	require.Nil(t, err)
 	assert.Equal(t, "https://"+getDomainPrefix("app")+".datadoghq.com", newURL)
 
-	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.com", "flare")
+	newURL, err = AddAgentVersionToDomain("http://localhost:7077", "flare")
 	require.Nil(t, err)
 	assert.Equal(t, "https://"+getDomainPrefix("flare")+".datadoghq.com", newURL)
 
@@ -465,9 +465,9 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 	config := setupConf()
 
-	os.Setenv("DD_PROXY_HTTP", "http_url")
-	os.Setenv("DD_PROXY_HTTPS", "https_url")
-	os.Setenv("DD_PROXY_NO_PROXY", "a b c") // space-separated list
+	os.Setenv("STS_PROXY_HTTP", "http_url")
+	os.Setenv("STS_PROXY_HTTPS", "https_url")
+	os.Setenv("STS_PROXY_NO_PROXY", "a b c") // space-separated list
 
 	loadProxyFromEnv(config)
 
@@ -479,17 +479,17 @@ func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 			NoProxy: []string{"a", "b", "c"}},
 		proxies)
 
-	os.Unsetenv("DD_PROXY_HTTP")
-	os.Unsetenv("DD_PROXY_HTTPS")
-	os.Unsetenv("DD_PROXY_NO_PROXY")
+	os.Unsetenv("STS_PROXY_HTTP")
+	os.Unsetenv("STS_PROXY_HTTPS")
+	os.Unsetenv("STS_PROXY_NO_PROXY")
 }
 
 func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
 	config := setupConf()
 
-	os.Setenv("DD_PROXY_HTTP", "dd_http_url")
-	os.Setenv("DD_PROXY_HTTPS", "dd_https_url")
-	os.Setenv("DD_PROXY_NO_PROXY", "a b c")
+	os.Setenv("STS_PROXY_HTTP", "dd_http_url")
+	os.Setenv("STS_PROXY_HTTPS", "dd_https_url")
+	os.Setenv("STS_PROXY_NO_PROXY", "a b c")
 	os.Setenv("HTTP_PROXY", "env_http_url")
 	os.Setenv("HTTPS_PROXY", "env_https_url")
 	os.Setenv("NO_PROXY", "d,e,f")
@@ -507,9 +507,9 @@ func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
 	os.Unsetenv("NO_PROXY")
 	os.Unsetenv("HTTPS_PROXY")
 	os.Unsetenv("HTTP_PROXY")
-	os.Unsetenv("DD_PROXY_HTTP")
-	os.Unsetenv("DD_PROXY_HTTPS")
-	os.Unsetenv("DD_PROXY_NO_PROXY")
+	os.Unsetenv("STS_PROXY_HTTP")
+	os.Unsetenv("STS_PROXY_HTTPS")
+	os.Unsetenv("STS_PROXY_NO_PROXY")
 }
 
 func TestLoadProxyStdEnvAndConf(t *testing.T) {
@@ -533,10 +533,10 @@ func TestLoadProxyStdEnvAndConf(t *testing.T) {
 func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 	config := setupConf()
 
-	os.Setenv("DD_PROXY_HTTP", "http_env")
+	os.Setenv("STS_PROXY_HTTP", "http_env")
 	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
 	config.Set("proxy.http", "http_conf")
-	defer os.Unsetenv("DD_PROXY_HTTP")
+	defer os.Unsetenv("STS_PROXY_HTTP")
 
 	loadProxyFromEnv(config)
 	proxies := GetProxies()
@@ -551,8 +551,8 @@ func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	config := setupConf()
 
-	os.Setenv("DD_PROXY_HTTP", "")
-	os.Setenv("DD_PROXY_NO_PROXY", "a b c")
+	os.Setenv("STS_PROXY_HTTP", "")
+	os.Setenv("STS_PROXY_NO_PROXY", "a b c")
 	os.Setenv("HTTP_PROXY", "env_http_url")
 	os.Setenv("HTTPS_PROXY", "")
 	os.Setenv("NO_PROXY", "")
@@ -571,9 +571,9 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	os.Unsetenv("NO_PROXY")
 	os.Unsetenv("HTTPS_PROXY")
 	os.Unsetenv("HTTP_PROXY")
-	os.Unsetenv("DD_PROXY_HTTP")
-	os.Unsetenv("DD_PROXY_HTTPS")
-	os.Unsetenv("DD_PROXY_NO_PROXY")
+	os.Unsetenv("STS_PROXY_HTTP")
+	os.Unsetenv("STS_PROXY_HTTPS")
+	os.Unsetenv("STS_PROXY_NO_PROXY")
 }
 
 func TestSanitizeAPIKey(t *testing.T) {
@@ -608,7 +608,7 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	assert.NoError(t, err)
 
 	expectedKeysPerDomain := map[string][]string{
-		"https://app.datadoghq.com": {"someapikey", "someotherapikey"},
+		"http://localhost:7077": {"someapikey", "someotherapikey"},
 	}
 	keysPerDomain, err := getMultipleEndpointsWithConfig(conf)
 	assert.NoError(t, err)

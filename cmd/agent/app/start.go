@@ -118,7 +118,7 @@ func StartAgent() error {
 		return fmt.Errorf("Error while setting up logging, exiting: %v", err)
 	}
 
-	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
+	log.Infof("Starting StackState Agent v%v", version.AgentVersion)
 
 	// Setup expvar server
 	var port = config.Datadog.GetString("expvar_port")

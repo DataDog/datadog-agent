@@ -50,8 +50,8 @@ func (re *retriableError) Error() string {
 }
 
 const (
-	userAgentPrefix     = "Datadog Trace Agent"
-	userAgentSupportURL = "https://github.com/DataDog/datadog-trace-agent"
+	userAgentPrefix     = "Stackstate Trace Agent"
+	userAgentSupportURL = "https://github.com/Stackvista/stackstate-trace-agent"
 )
 
 // userAgent is the computed user agent we'll use when

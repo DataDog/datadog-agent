@@ -20,7 +20,7 @@ func (c *MockConfig) Set(key string, value interface{}) {
 // Mock is creating and returning a mock config
 func Mock() *MockConfig {
 	// Configure Datadog global configuration
-	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	Datadog = NewConfig("stackstate", "STS", strings.NewReplacer(".", "_"))
 	// Configuration defaults
 	initConfig(Datadog)
 	return &MockConfig{Datadog}

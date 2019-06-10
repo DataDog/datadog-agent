@@ -9,9 +9,9 @@
 package config
 
 const (
-	defaultConfdPath            = "/etc/datadog-agent/conf.d"
-	defaultAdditionalChecksPath = "/etc/datadog-agent/checks.d"
-	defaultRunPath              = "/opt/datadog-agent/run"
+	defaultConfdPath            = "/etc/stackstate-agent/conf.d"
+	defaultAdditionalChecksPath = "/etc/stackstate-agent/checks.d"
+	defaultRunPath              = "/op/stackstate-agent/run"
 	defaultSyslogURI            = "unixgram:///dev/log"
 	defaultGuiPort              = -1
 )

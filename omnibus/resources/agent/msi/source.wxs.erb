@@ -50,7 +50,7 @@
     <util:CloseApplication Id="CloseTrayApp"
                           CloseMessage="yes"
                           EndSessionMessage="yes"
-                          Target="ddtray.exe"
+                          Target="ststray.exe"
                           ElevatedCloseMessage="yes"
                           TerminateProcess="1"
                           Timeout="1"
@@ -70,12 +70,12 @@
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
-        <Directory Id="APPLICATIONROOTDIRECTORY" Name="Datadog">
-          <Directory Id="PROJECTLOCATION" Name="Datadog Agent"/>
+        <Directory Id="APPLICATIONROOTDIRECTORY" Name="StackState">
+          <Directory Id="PROJECTLOCATION" Name="StackState Agent"/>
         </Directory>
       </Directory>
       <Directory Id="CommonAppDataFolder" SourceName="CommonAppData">
-        <Directory Id="APPLICATIONDATADIRECTORY" Name="Datadog">
+        <Directory Id="APPLICATIONDATADIRECTORY" Name="StackState">
           <Component Id="conffolder" Guid="e540d2db-f443-4a98-bd72-7ab2654f4ffb">
             <CreateFolder>
               <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
@@ -86,7 +86,7 @@
         </Directory>
       </Directory>
       <Directory Id="ProgramMenuFolder">
-        <Directory Id="ApplicationProgramsFolder" Name="Datadog"/>
+        <Directory Id="ApplicationProgramsFolder" Name="StackState"/>
       </Directory>
     </Directory>
 
@@ -95,7 +95,7 @@
         Directory="AGENT"
         Execute="immediate"
         Return="asyncNoWait"
-        ExeCommand="&quot;[AGENT]ddtray.exe&quot; &quot;-launch-gui&quot;" />
+        ExeCommand="&quot;[AGENT]ststray.exe&quot; &quot;-launch-gui&quot;" />
 
 
     <!-- Delete application when uninstalling -->
@@ -104,7 +104,7 @@
       Read the path value and set the PROJECTLOCATION property with the value.
     -->
     <Property Id="PROJECTLOCATION">
-      <RegistrySearch Key="SOFTWARE\Datadog\Datadog Agent"
+      <RegistrySearch Key="SOFTWARE\StackState\StackState Agent"
                       Root="HKLM"
                       Type="raw"
                       Id="APPLICATIONROOTDIRECTORY_REGSEARCH"
@@ -116,7 +116,7 @@
         <!-- We need to use APPLICATIONROOTDIRECTORY variable here or RemoveFolderEx
              will not remove on "uninstall". -->
         <RegistryValue Root="HKLM"
-                       Key="SOFTWARE\Datadog\Datadog Agent"
+                       Key="SOFTWARE\StackState\StackState Agent"
                        Name="InstallPath"
                        Type="string"
                        Value="[PROJECTLOCATION]"/>
@@ -125,7 +125,7 @@
       <!-- Register variables that will be used by the agent at startup -->
       <Component Id="RegisterConfVariables" Guid="e2423815-704d-4f29-af3b-9baf23ef03d6">
         <RegistryKey Root="HKLM"
-                     Key="SOFTWARE\Datadog\Datadog Agent">
+                     Key="SOFTWARE\StackState\StackState Agent">
           <RegistryValue Name="api_key"
                          Type="string"
                          Value="[APIKEY]"/>
@@ -162,18 +162,18 @@
           <RegistryValue Name="site"
                          Type="string"
                          Value="[SITE]" />
-          <RegistryValue Name="dd_url"
+          <RegistryValue Name="sts_url"
                          Type="string"
-                         Value="[DD_URL]" />
-          <RegistryValue Name="logs_dd_url"
+                         Value="[STS_URL]" />
+          <RegistryValue Name="logs_sts_url"
                          Type="string"
-                         Value="[LOGS_DD_URL]" />
-          <RegistryValue Name="process_dd_url"
+                         Value="[STS_URL]" />
+          <RegistryValue Name="process_sts_url"
                          Type="string"
-                         Value="[PROCESS_DD_URL]" />
-          <RegistryValue Name="trace_dd_url"
+                         Value="[STS_URL]" />
+          <RegistryValue Name="trace_sts_url"
                          Type="string"
-                         Value="[TRACE_DD_URL]" />
+                         Value="[STS_URL]" />
           <RegistryValue Name="skip_ssl_validation"
                          Type="string"
                          Value="[SKIP_SSL_VALIDATION]" />
@@ -186,18 +186,18 @@
     <DirectoryRef Id="PROJECTLOCATION">
       <!-- put the agent in the embedded folder so that it can find the python DLLS -->
       <Directory Id="DIST" Name="embedded">
-        <!-- Windows service declaration for Datadog Agent -->
-        <Component Id="DATADOGAGENTSERVICE" Guid="BCFAD885-5C69-49D3-99CB-494D14E87AAE">
+        <!-- Windows service declaration for StackState Agent -->
+        <Component Id="STACKSTATEAGENTSERVICE" Guid="BCFAD885-5C69-49D3-99CB-494D14E87AAE">
           <File Id="agent.exe"
                 Name="agent.exe"
                 Vital="yes"
                 KeyPath="yes"
                 DiskId="1"
                 Source="$(var.BinFiles)/agent.exe"/>
-          <ServiceInstall Id="DatadogServiceInstaller"
+          <ServiceInstall Id="StackStateServiceInstaller"
                           DisplayName="!(loc.ServiceDisplayName)"
                           Description="!(loc.ServiceDescription)"
-                          Name="DatadogAgent"
+                          Name="StackStateAgent"
                           ErrorControl="ignore"
                           Start="auto"
                           Type="ownProcess"
@@ -213,15 +213,15 @@
               ResetPeriodInDays='1'/>
             <ServiceDependency Id="winmgmt" />
           </ServiceInstall>
-          <ServiceControl Id="DatadogStartService"
-                          Name="DatadogAgent"
+          <ServiceControl Id="StackStateStartService"
+                          Name="StackStateAgent"
                           Start="install"
                           Stop="both"
                           Remove="uninstall"
                           Wait="yes" />
           <RemoveFolder Id="APPLICATIONROOTDIRECTORY" On="uninstall" />
           <!-- The "Name" field must match the argument to eventlog.Open() -->
-          <util:EventSource Log="Application" Name="DatadogAgent"
+          <util:EventSource Log="Application" Name="StackStateAgent"
                 EventMessageFile="[DIST]agent.exe"
                 SupportsErrors="yes"
                 SupportsInformationals="yes"
@@ -231,24 +231,24 @@
       <Directory Id="BIN" Name="bin">
         <Directory Id="AGENT" Name="agent">
           <!-- Windows service declaration for APM agent -->
-          <Component Id="DATADOGAPMSERVICE" Guid="a8e611fa-aedb-4c16-969c-bb827af0bd53">
+          <Component Id="STACKSTATEAPMSERVICE" Guid="a8e611fa-aedb-4c16-969c-bb827af0bd53">
             <File Id="trace_agent.exe"
                 Name="trace-agent.exe"
                 Vital="yes"
                 KeyPath="yes"
                 DiskId="1"
                 Source="$(var.BinFiles)/trace-agent.exe"/>
-            <ServiceInstall Id="DatadogAPMServiceInstaller"
+            <ServiceInstall Id="StackStateAPMServiceInstaller"
                             DisplayName="!(loc.ServiceApmDisplayName)"
                             Description="!(loc.ServiceApmDescription)"
-                            Name="datadog-trace-agent"
+                            Name="stackstate-trace-agent"
                             ErrorControl="ignore"
                             Start="demand"
                             Type="ownProcess"
                             Vital="yes"
                             Interactive="no"
                             Account="LocalSystem"
-                            Arguments="--config=[APPLICATIONDATADIRECTORY]datadog.yaml" >
+                            Arguments="--config=[APPLICATIONDATADIRECTORY]stackstate.yaml" >
               <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
               <util:ServiceConfig
                 FirstFailureActionType='restart'
@@ -256,40 +256,40 @@
                 ThirdFailureActionType='restart'
                 RestartServiceDelayInSeconds='30'
                 ResetPeriodInDays='1'/>
-              <ServiceDependency Id="datadogagent" />
+              <ServiceDependency Id="stackstateagent" />
             </ServiceInstall>
-            <ServiceControl Id="DatadogAPMStartService"
-                            Name="datadog-trace-agent"
+            <ServiceControl Id="StackStateAPMStartService"
+                            Name="stackstate-trace-agent"
                             Start="install"
                             Stop="both"
                             Remove="uninstall"
                             Wait="yes" />
             <!-- The "Name" field must match the argument to eventlog.Open() -->
-            <util:EventSource Log="Application" Name="datadog-trace-agent"
+            <util:EventSource Log="Application" Name="stackstate-trace-agent"
                     EventMessageFile="[AGENT]trace-agent.exe"
                     SupportsErrors="yes"
                     SupportsInformationals="yes"
                     SupportsWarnings="yes"/>
           </Component>
           <!-- Windows service declaration for Process agent -->
-          <Component Id="DATADOGPROCESSSERVICE" Guid="3b119795-ddf8-44eb-9d53-301f7186e2f3">
+          <Component Id="STACKSTATEPROCESSSERVICE" Guid="3b119795-ddf8-44eb-9d53-301f7186e2f3">
             <File Id="process_agent.exe"
                 Name="process-agent.exe"
                 Vital="yes"
                 KeyPath="yes"
                 DiskId="1"
                 Source="$(var.InstallDir)/bin/agent/process-agent.exe"/>
-            <ServiceInstall Id="DatadogProcessServiceInstaller"
+            <ServiceInstall Id="StackStateProcessServiceInstaller"
                             DisplayName="!(loc.ServiceProcessDisplayName)"
                             Description="!(loc.ServiceProcessDescription)"
-                            Name="datadog-process-agent"
+                            Name="stackstate-process-agent"
                             ErrorControl="ignore"
                             Start="demand"
                             Type="ownProcess"
                             Vital="yes"
                             Interactive="no"
                             Account="LocalSystem"
-                            Arguments="--config=[APPLICATIONDATADIRECTORY]datadog.yaml" >
+                            Arguments="--config=[APPLICATIONDATADIRECTORY]stackstate.yaml" >
               <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
               <util:ServiceConfig
                 FirstFailureActionType='restart'
@@ -297,16 +297,16 @@
                 ThirdFailureActionType='restart'
                 RestartServiceDelayInSeconds='30'
                 ResetPeriodInDays='1'/>
-                <ServiceDependency Id="datadogagent" />
+                <ServiceDependency Id="stackstateagent" />
             </ServiceInstall>
-            <ServiceControl Id="DatadogProcessStartService"
-                            Name="datadog-process-agent"
+            <ServiceControl Id="StackStateProcessStartService"
+                            Name="stackstate-process-agent"
                             Start="install"
                             Stop="both"
                             Remove="uninstall"
                             Wait="yes" />
             <!-- The "Name" field must match the argument to eventlog.Open() -->
-            <util:EventSource Log="Application" Name="datadog-process-agent"
+            <util:EventSource Log="Application" Name="stackstate-process-agent"
                     EventMessageFile="[AGENT]process-agent.exe"
                     SupportsErrors="yes"
                     SupportsInformationals="yes"
@@ -317,19 +317,19 @@
       </Directory>
     </DirectoryRef>
 
-    <!-- Datadog Agent specific directory definitions -->
+    <!-- StackState Agent specific directory definitions -->
     <DirectoryRef Id="ApplicationProgramsFolder">
       <Component Id="ApplicationShortcut" Guid="05206095-f4a0-4bb7-9ebd-80c7488dd7f9">
         <Shortcut Id="ApplicationStartMenuShortcut"
-                  Name="Datadog Agent Manager"
-                  Description="Manage your Datadog Agent"
-                  Target="[AGENT]ddtray.exe"
+                  Name="StackState Agent Manager"
+                  Description="Manage your StackState Agent"
+                  Target="[AGENT]ststray.exe"
                   Arguments= "&quot;-launch-gui&quot;"
                   WorkingDirectory="AGENT"/>
 
         <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
         <RegistryValue Root="HKCU"
-                       Key="Software\Microsoft\Datadog"
+                       Key="Software\Microsoft\StackState"
                        Name="installed"
                        Type="integer"
                        Value="1"
@@ -339,14 +339,14 @@
 
     <Property Id="TUFMETALOCATION">
       <RegistrySearch Root="HKLM"
-                      Key="SOFTWARE\Datadog\Datadog Agent"
+                      Key="SOFTWARE\StackState\StackState Agent"
                       Type="raw"
                       Id="TUFMETADIRECTORY_REGSEARCH"
                       Name="TufMetaPath" />
     </Property>
 
     <DirectoryRef Id="APPLICATIONDATADIRECTORY">
-      <Component Id="datadog.yaml.example"
+      <Component Id="stackstate.yaml.example"
                  Guid="83461594-01AC-11E2-BE35-37EC6088709B"
                  NeverOverwrite="yes"
                  Permanent="yes">
@@ -400,7 +400,7 @@
     </DirectoryRef>
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
-    <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
+    <Feature Id="MainApplication" Title="StackState Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
       <ComponentRef Id="conffolder" />
       <ComponentGroupRef Id="ProjectDir" />
       <ComponentRef Id="stackstate.yaml.example" />
@@ -409,9 +409,9 @@
       <ComponentRef Id="checks.d" />
       <ComponentRef Id="REGISTRYDIRECTORY" />
       <ComponentRef Id="ApplicationShortcut" />
-      <ComponentRef Id="DATADOGAGENTSERVICE" />
-      <ComponentRef Id="DATADOGAPMSERVICE" />
-      <ComponentRef Id="DATADOGPROCESSSERVICE" />
+      <ComponentRef Id="STACKSTATEAGENTSERVICE" />
+      <ComponentRef Id="STACKSTATEAPMSERVICE" />
+      <ComponentRef Id="STACKSTATEPROCESSSERVICE" />
       <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />
       <ComponentRef Id="CleanupMainApplicationFolder" />
       <ComponentRef Id="RegisterConfVariables" />
@@ -420,7 +420,7 @@
     <!-- UI Stuff: 100% Omnibus Generated -->
     <Icon Id="project.ico" SourceFile="Resources\assets\project_16x16.ico"/>
     <Property Id="ARPPRODUCTICON" Value="project.ico" />
-    <Property Id="ARPHELPLINK" Value="https://datadoghq.com/" />
+    <Property Id="ARPHELPLINK" Value="https://www.stackstate.com/" />
     <!--
     <Property Id="WIXUI_INSTALLDIR" Value="<%= wix_install_dir %>" /> -->
 

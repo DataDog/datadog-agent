@@ -89,7 +89,7 @@ func init() {
 	ClusterAgentCmd.AddCommand(startCmd)
 	ClusterAgentCmd.AddCommand(versionCmd)
 
-	ClusterAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	ClusterAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing stackstate.yaml")
 	ClusterAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 }
 
