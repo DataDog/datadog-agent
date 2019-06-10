@@ -9,7 +9,11 @@ require 'json'
 name 'datadog-agent-integrations-py2'
 
 dependency 'datadog-agent'
-dependency 'pip2'
+if windows?
+  dependency "python2" ## for pip
+else
+  dependency "pip2"
+end  
 
 if arm?
   # psycopg2 doesn't come with pre-built wheel on the arm architecture.
@@ -97,8 +101,13 @@ build do
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{pip} install wheel==0.30.0"
-    command "#{pip} install pip-tools==2.0.2"
+    if windows?
+        command "#{python} -m pip install wheel==0.30.0"
+        command "#{python} -m pip install pip-tools==2.0.2"
+    else
+        command "#{pip} install wheel==0.30.0"
+        command "#{pip} install pip-tools==2.0.2"
+    end
     uninstall_buildtime_deps = ['six', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
@@ -180,7 +189,11 @@ build do
 
     # Create a constraint file after installing all the core dependencies and before any integration
     # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
-    command "#{pip} freeze > #{install_dir}/#{final_constraints_file}"
+    if windows?
+        command "#{python} -m pip freeze > #{install_dir}/#{final_constraints_file}"
+    else
+        command "#{pip} freeze > #{install_dir}/#{final_constraints_file}"
+    end
 
     # Go through every integration package in `integrations-core`, build and install
     Dir.glob("#{project_dir}/*").each do |check_dir|

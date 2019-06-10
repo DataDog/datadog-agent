@@ -1,7 +1,11 @@
 name "datadog-a7-py2"
 default_version "0.0.6"
 
-dependency "pip2"
+if windows?
+  dependency "python2" ## for pip
+else
+  dependency "pip2"
+end
 
 build do
   ship_license "https://raw.githubusercontent.com/DataDog/datadog-checks-shared/master/LICENSE"
