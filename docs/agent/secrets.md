@@ -1,7 +1,4 @@
-# [BETA] Secrets Management
-
-**This feature is in beta and its options or behavior might break between
-minor or bugfix releases of the Agent.**
+# Secrets Management
 
 Starting with version `6.3.0` on Linux and `6.11` on Windows, the Agent is able
 to leverage the `secrets` package in order to call a user-provided executable
@@ -15,9 +12,11 @@ Starting with version `6.11`, the Secrets Management feature is also supported
 in the `datadog.yaml` file by APM (on Linux and Windows) and Process Monitoring
 (on Linux only).
 
+Starting with version `6.12` the Secrets Management feature is no longer in beta.
+
 This section covers how to set up this feature.
 
-- [[BETA] Secrets Management](#beta-secrets-management)
+- [Secrets Management](#secrets-management)
   - [Defining secrets in configurations](#defining-secrets-in-configurations)
   - [Retrieving secrets from the secret backend](#retrieving-secrets-from-the-secret-backend)
     - [Configuration](#configuration)
