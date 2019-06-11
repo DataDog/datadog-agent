@@ -221,6 +221,8 @@ func (w *TraceWriter) flush() {
 		Transactions: w.events,
 	}
 
+	log.Debugf("Trace payload: %s", proto.MarshalTextString(&tracePayload))
+
 	serialized, err := proto.Marshal(&tracePayload)
 	if err != nil {
 		log.Errorf("failed to serialize trace payload, data got dropped, err: %s", err)

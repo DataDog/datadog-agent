@@ -199,6 +199,18 @@ func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []strin
 		}
 	}
 
+	hostValue, hostOk := s.Meta["span.hostname"]
+	pidValue, pidOk := s.Meta["span.pid"]
+	if hostOk && pidOk {
+		m["hostname"] = hostValue
+		m["pid"] = pidValue
+	}
+
+	startTime, startTimeOk := s.Meta["span.starttime"]
+	if startTimeOk {
+		m["starttime"] = startTime
+	}
+
 	grain, tags := assembleGrain(&sb.keyBuf, env, s.Resource, s.Service, m)
 	sb.add(s, grain, tags)
 
