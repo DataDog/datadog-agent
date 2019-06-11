@@ -72,8 +72,9 @@ PyObject *from_yaml(const char *data) {
     retval = PyObject_CallFunction(safe_load, "s", data);
 
 done:
-    Py_XDECREF(yaml);
+    // shouldn't make much of a difference, but let's DECREF in reverse order
     Py_XDECREF(safe_load);
+    Py_XDECREF(yaml);
     return retval;
 }
 
@@ -102,8 +103,9 @@ char *as_yaml(PyObject *object) {
     retval = as_string(dumped);
 
 done:
-    Py_XDECREF(yaml);
-    Py_XDECREF(safe_dump);
+    // shouldn't make much of a difference, but let's DECREF in reverse order
     Py_XDECREF(dumped);
+    Py_XDECREF(safe_dump);
+    Py_XDECREF(yaml);
     return retval;
 }
