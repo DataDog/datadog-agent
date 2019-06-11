@@ -11,6 +11,20 @@
 // these must be set by the Agent
 static cb_tags_t cb_tags = NULL;
 
+/*! \fn int parseArgs(PyObject *args, char **id, int *cardinality)
+    \brief This function parses the python arguments to it's C homonyms for
+    entity id and cardinality.
+    \param args A PyObject* pointer to the corresponding python args.
+    \param id A char** C-string pointer, it will be set to the entity id string.
+    \param cardinality An int* pointer, it will be set to the corresponding tag
+    cardinality for the entity id.
+    \return an int value - non-zero for success; zero for failure.
+
+    This function assumes the provided C-string array has been allocated with cgo
+    and frees it with the cgo_free callback for safety. The parameter passed should
+    not be used after calling this function. The list and string python references
+    are created by this function, no futher considerations are necessary.
+*/
 int parseArgs(PyObject *args, char **id, int *cardinality)
 {
     PyGILState_STATE gstate = PyGILState_Ensure();
@@ -57,7 +71,7 @@ PyObject *buildTagsList(char **tags)
 }
 
 /*! \fn PyObject *tag(PyObject *self, PyObject *args)
-    \brief builds a tag list as per the id and cardinality passed as method
+    \brief builds a tag list as per the entity id and cardinality passed as method
     arguments.
     \param self A PyObject* pointer to the tagger module.
     \param args A PyObject* pointer to the tag method, typically expected to
@@ -67,6 +81,7 @@ PyObject *buildTagsList(char **tags)
     The method will return a tag list as long as the cardinality provided is
     one of LOW, ORCHESTRATOR, OR HIGH. This function calls the cgo-bound cb_tags
     callback, please read more about the internals of the registered callback.
+    There are important memory considerations so please keep that in mind.
 */
 PyObject *tag(PyObject *self, PyObject *args)
 {
@@ -96,13 +111,19 @@ PyObject *tag(PyObject *self, PyObject *args)
 }
 
 /*! \fn PyObject *get_tag(PyObject *self, PyObject *args)
-    \brief builds a tag list as per the id and cardinality passed as method.
+    \brief builds a tag list as per the entity id and cardinality passed as
+    arguments.
     \param self A PyObject* pointer to the tagger module.
-    \param args A PyObject* pointer to the tag method, typically expected to
+    \param args A PyObject* pointer to the python args, typically expected to
     contain the id and the cardinality.
     \return a PyObject * pointer to the python tag list.
 
-    DESCRIPTION TODO
+    This method is deprecated in favor of tag(), it will similarly receive an
+    entity id, and a high cardinality integer which in the case of a non-zero
+    value will be considered a HIGH cardinality, otherwise LOW. The function will
+    then invoke the cgo cb_tags callback. Please read more about the internals of
+    the registered callback. There are important memory considerations so please
+    keep that in mind.
 */
 PyObject *get_tags(PyObject *self, PyObject *args)
 {
