@@ -6,10 +6,12 @@ import (
 	"math"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -51,6 +53,9 @@ type TraceWriter struct {
 	hostname string
 	env      string
 	senders  []*sender
+	stop     chan struct{}
+
+	stats *info.TraceWriterInfo
 
 	traces       []*pb.APITrace // traces buffered
 	events       []*pb.Span     // events buffered
@@ -60,18 +65,22 @@ type TraceWriter struct {
 func NewTraceWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceWriter {
 	// allow 10% of the connection limit to outgoing sends.
 	climit := int(math.Max(1, float64(cfg.ConnectionLimit)/10))
-	return &TraceWriter{
+	tw := &TraceWriter{
 		in:       in,
 		hostname: cfg.Hostname,
 		env:      cfg.DefaultEnv,
-		senders:  newSenders(cfg, "datadog.trace_agent.trace_writer", pathTraces, climit),
+		stats:    &info.TraceWriterInfo{},
+		stop:     make(chan struct{}),
 	}
+	tw.senders = newSenders(cfg, tw, pathTraces, climit)
+	return tw
 }
 
 // Stop stops the TraceWriter and attempts to flush whatever is left in the senders buffers.
 func (w *TraceWriter) Stop() {
 	log.Debug("Exiting trace writer. Trying to flush whatever is left...")
-	w.flush()
+	w.stop <- struct{}{}
+	<-w.stop
 	var wg sync.WaitGroup
 	for _, s := range w.senders {
 		wg.Add(1)
@@ -88,23 +97,40 @@ func (w *TraceWriter) Run() {
 	log.Debug("Starting trace writer")
 	t := time.NewTicker(5 * time.Second)
 	defer t.Stop()
+	defer close(w.stop)
 	for {
 		select {
-		case pkg, ok := <-w.in:
-			if !ok {
-				return
-			}
-			if pkg.Empty() {
-				return
-			}
+		case pkg := <-w.in:
 			w.addSpans(pkg)
+		case <-w.stop:
+			// drain the input channel before stopping
+		outer:
+			for {
+				select {
+				case pkg := <-w.in:
+					w.addSpans(pkg)
+				default:
+					break outer
+				}
+			}
+			w.flush()
+			return
 		case <-t.C:
+			w.report()
 			w.flush()
 		}
 	}
 }
 
 func (w *TraceWriter) addSpans(pkg *SampledSpans) {
+	if pkg.Empty() {
+		return
+	}
+
+	atomic.AddInt64(&w.stats.Spans, int64(len(pkg.Trace)+len(pkg.Events)))
+	atomic.AddInt64(&w.stats.Traces, 1)
+	atomic.AddInt64(&w.stats.Events, int64(len(pkg.Events)))
+
 	size := pkg.size()
 	if size+w.bufferedSize > payloadFlushThreshold {
 		// reached maximum allowed buffered size
@@ -157,6 +183,10 @@ func (w *TraceWriter) flush() {
 	gzipw.Write(b)
 	gzipw.Close()
 
+	atomic.AddInt64(&w.stats.BytesUncompressed, int64(len(b)))
+	atomic.AddInt64(&w.stats.Bytes, int64(buf.Len()))
+	atomic.AddInt64(&w.stats.BytesEstimated, int64(w.bufferedSize))
+
 	req := newPayload(buf.Bytes(), map[string]string{
 		"Content-Type":     "application/x-protobuf",
 		"Content-Encoding": "gzip",
@@ -164,5 +194,70 @@ func (w *TraceWriter) flush() {
 	})
 	for _, sender := range w.senders {
 		sender.Push(req)
+	}
+}
+
+func (w *TraceWriter) report() {
+	metrics.Count(
+		"datadog.trace_agent.trace_writer.bytes_uncompressed",
+		atomic.SwapInt64(&w.stats.BytesUncompressed, 0),
+		nil, 1,
+	)
+	metrics.Count(
+		"datadog.trace_agent.trace_writer.bytes_estimated",
+		atomic.SwapInt64(&w.stats.BytesEstimated, 0),
+		nil, 1,
+	)
+	metrics.Count(
+		"datadog.trace_agent.trace_writer.bytes",
+		atomic.SwapInt64(&w.stats.Bytes, 0),
+		nil, 1,
+	)
+	metrics.Count(
+		"datadog.trace_agent.trace_writer.traces",
+		atomic.SwapInt64(&w.stats.Traces, 0),
+		nil, 1,
+	)
+	metrics.Count(
+		"datadog.trace_agent.trace_writer.events",
+		atomic.SwapInt64(&w.stats.Events, 0),
+		nil, 1,
+	)
+	metrics.Count(
+		"datadog.trace_agent.trace_writer.spans",
+		atomic.SwapInt64(&w.stats.Spans, 0),
+		nil, 1,
+	)
+}
+
+var _ eventRecorder = (*TraceWriter)(nil)
+
+// recordEvent implements eventRecorder.
+func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
+	switch t {
+	case eventTypeRetry:
+		log.Errorf("Retrying to flush trace payload; error: %s", data.err)
+		metrics.Count("datadog.trace_agent.trace_writer.retries", 1, nil, 1)
+		atomic.AddInt64(&w.stats.Retries, 1)
+
+	case eventTypeFlushed:
+		log.Debugf("Flushed queue of %d payload(s) to the API in %s.", data.count, data.duration)
+		timing.Since("datadog.trace_agent.trace_writer.flush_queue", time.Now().Add(-data.duration))
+
+	case eventTypeSent:
+		log.Tracef("Flushed one payload to the API; time: %s, bytes: %d", data.duration, data.bytes)
+		timing.Since("datadog.trace_agent.trace_writer.flush_duration", time.Now().Add(-data.duration))
+		metrics.Count("datadog.trace_agent.trace_writer.payloads", 1, nil, 1)
+		metrics.Count("datadog.trace_agent.trace_writer.bytes", int64(data.bytes), nil, 1)
+		atomic.AddInt64(&w.stats.Payloads, 1)
+
+	case eventTypeFailed:
+		log.Errorf("Failed to flush a payload, host:%s, size:%d bytes, error: %s", data.host, data.bytes, data.err)
+		metrics.Count("datadog.trace_agent.trace_writer.errors", 1, nil, 1)
+		atomic.AddInt64(&w.stats.Errors, 1)
+
+	case eventTypeDropped:
+		metrics.Count("datadog.trace_agent.trace_writer.dropped", 1, nil, 1)
+		metrics.Count("datadog.trace_agent.trace_writer.dropped_bytes", int64(data.bytes), nil, 1)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strconv"
 	"sync/atomic"
@@ -23,9 +24,13 @@ func TestMain(m *testing.M) {
 func TestSender(t *testing.T) {
 	const climit = 100
 	testSenderConfig := func(serverURL string) *senderConfig {
+		url, err := url.Parse(serverURL + "/")
+		if err != nil {
+			t.Fatal(err)
+		}
 		return &senderConfig{
 			client:   &http.Client{},
-			url:      serverURL + "/",
+			url:      url,
 			maxConns: climit,
 			apiKey:   "123",
 		}
@@ -200,7 +205,11 @@ func TestPayload(t *testing.T) {
 	t.Run("httpRequest", func(t *testing.T) {
 		assert := assert.New(t)
 		p := newPayload(expectBody, map[string]string{"DD-Api-Key": "123"})
-		req, err := p.httpRequest("/my/path")
+		url, err := url.Parse("http://localhost/my/path")
+		if err != nil {
+			t.Fatal(err)
+		}
+		req, err := p.httpRequest(url)
 		assert.NoError(err)
 		assert.Equal(http.MethodPost, req.Method)
 		assert.Equal("/my/path", req.URL.Path)

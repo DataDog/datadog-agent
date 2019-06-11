@@ -20,7 +20,7 @@ const timeout = 10 * time.Second
 // newSenders returns a list of senders based on the given agent configuration, using climit
 // as the maximum number of concurrent outgoing connections, writing to path. The given
 // namespace is used as a prefix for reported metrics.
-func newSenders(cfg *config.AgentConfig, namespace, path string, climit int) []*sender {
+func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit int) []*sender {
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
 	}
@@ -45,17 +45,16 @@ func newSenders(cfg *config.AgentConfig, namespace, path string, climit int) []*
 	}
 	senders := make([]*sender, len(cfg.Endpoints))
 	for i, endpoint := range cfg.Endpoints {
-		hostpath := endpoint.Host + path
-		_, err := url.Parse(hostpath)
+		url, err := url.Parse(endpoint.Host + path)
 		if err != nil {
 			osutil.Exitf("Invalid host endpoint: %q", endpoint.Host)
 		}
 		senders[i] = newSender(&senderConfig{
-			client:          client,
-			maxConns:        climit,
-			url:             hostpath,
-			apiKey:          endpoint.APIKey,
-			metricNamespace: namespace,
+			client:   client,
+			maxConns: climit,
+			url:      url,
+			apiKey:   endpoint.APIKey,
+			recorder: r,
 		})
 	}
 	return senders

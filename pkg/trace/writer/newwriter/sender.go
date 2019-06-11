@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -17,6 +18,61 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// eventType specifies an event which occurred in the sender.
+type eventType int
+
+const (
+	// eventTypeRetry specifies that a send failed with a retriable error (5xx).
+	eventTypeRetry eventType = iota
+	// eventTypeFlushed specifies that a list of one or more payloads was flushed.
+	eventTypeFlushed
+	// eventTypeSent specifies that a single payload was successfully sent.
+	eventTypeSent
+	// eventTypeFailed specifies that a payload failed to send and data was lost.
+	eventTypeFailed
+	// eventTypeDropped specifies that a payload had to be dropped to make room
+	// in the queue.
+	eventTypeDropped
+)
+
+var eventTypeStrings = map[eventType]string{
+	eventTypeRetry:   "eventTypeRetry",
+	eventTypeFlushed: "eventTypeFlushed",
+	eventTypeSent:    "eventTypeSent",
+	eventTypeFailed:  "eventTypeFailed",
+	eventTypeDropped: "eventTypeDropped",
+}
+
+// String implements fmt.Stringer.
+func (t eventType) String() string { return eventTypeStrings[t] }
+
+// eventData represents information about a sender event. Not all fields apply
+// to all events.
+type eventData struct {
+	// host specifies the host which the sender is sending to.
+	host string
+	// bytes represents the number of bytes affected by this event. It is
+	// not known for eventTypeFlushed.
+	bytes int
+	// count specfies the number of payloads that this events refers to.
+	count int
+	// duration specifies the time it took to complete this event. It
+	// is set for eventTypeFlushed, eventTypeSent, eventTypeRetry and
+	// eventTypeFailed.
+	duration time.Duration
+	// err specifies the error that may have occurred on events like
+	// eventTypeRetry and eventTypeFailed.
+	err error
+}
+
+// eventRecorder implementations are able to take note of events happening in
+// the sender.
+type eventRecorder interface {
+	// recordEvent notifies that event t has happened, passing details about
+	// the event in data.
+	recordEvent(t eventType, data *eventData)
+}
+
 // maxQueueSize specifies the maximum allowed queue size. If it is surpassed, older
 // items are dropped to make room for new ones.
 var maxQueueSize = 64 * 1024 * 1024 // 64MB; replaced in tests
@@ -24,11 +80,11 @@ var maxQueueSize = 64 * 1024 * 1024 // 64MB; replaced in tests
 // sender books payloads for being sent to a given URL by a given client. It uses a
 // size-limited retry queue with a backoff mechanism in case of retriable errors.
 type sender struct {
-	cfg *senderConfig
+	cfg  *senderConfig
+	host string
 
 	wg     sync.WaitGroup // waits for all uploads
 	climit chan struct{}  // acts as a semaphore for limiting concurrent connections
-	stats  *senderStats   // statistics about the state of the writer
 
 	mu        sync.Mutex  // guards below fields
 	list      *list.List  // send queue
@@ -43,15 +99,15 @@ type senderConfig struct {
 	// client specifies the HTTP client to use when sending requests.
 	client *http.Client
 	// url specifies the URL to send requests too.
-	url string
+	url *url.URL
 	// apiKey specifies the Datadog API key to use.
 	apiKey string
 	// maxConns specifies the maximum number of allowed concurrent ougoing
 	// connections.
 	maxConns int
-	// metricNamespace specifies the namespace to be used when reporting
-	// sender metrics.
-	metricNamespace string
+	// recorder specifies the eventRecorder to use when reporting events occurring
+	// in the sender.
+	recorder eventRecorder
 }
 
 // newSender creates a new sender, which uses the given HTTP client, URL and API key
@@ -62,7 +118,6 @@ func newSender(cfg *senderConfig) *sender {
 		cfg:    cfg,
 		climit: make(chan struct{}, cfg.maxConns),
 		list:   list.New(),
-		stats:  &senderStats{},
 	}
 }
 
@@ -82,7 +137,12 @@ func (q *sender) Push(p *payload) {
 	}
 }
 
+// flush drains and sends the entire queue. If anything comes in while flushing
+// or if some of the payloads fail to send as retriable, further follow up flushes
+// are scheduled.
 func (q *sender) flush() {
+	startTime := time.Now()
+
 	// we drain the queue, which is a blocking operation, meaning that
 	// new payloads are stopped from coming in while this happens; but
 	// it is a fast.
@@ -90,7 +150,14 @@ func (q *sender) flush() {
 
 	// we send the payloads we've retrieved; while we do this, more payloads
 	// can join the list.
-	retry := q.sendPayloads(payloads)
+	done, retries := q.sendPayloads(payloads)
+
+	if done > 0 {
+		q.recordEvent(eventTypeFlushed, &eventData{
+			count:    int(done),
+			duration: time.Since(startTime),
+		})
+	}
 
 	// we reassess the state of the list and check if further flushes need
 	// to be scheduled
@@ -106,7 +173,7 @@ func (q *sender) flush() {
 	}
 	// the list is not empty
 	q.scheduled = true
-	if retry > 0 {
+	if retries > 0 {
 		// some sends failed as retriable; we need to back off a bit
 		q.attempt++
 		q.wg.Add(1)
@@ -118,8 +185,7 @@ func (q *sender) flush() {
 	go q.flush()
 }
 
-// drainQueue empties the entire queue and returns all the payloads that
-// were stored in it.
+// drainQueue drains the entire queue and returns all the payloads that were in it.
 func (q *sender) drainQueue() []*payload {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -134,8 +200,8 @@ func (q *sender) drainQueue() []*payload {
 
 // sendPayloads concurrently sends the given list of payloads. It returns
 // the number of payloads that were added back onto the queue to be retried
-// again.
-func (q *sender) sendPayloads(payloads []*payload) (retry uint64) {
+// again later due to an error.
+func (q *sender) sendPayloads(payloads []*payload) (done, retries uint64) {
 	var wg sync.WaitGroup
 	for _, p := range payloads {
 		q.climit <- struct{}{}
@@ -148,23 +214,40 @@ func (q *sender) sendPayloads(payloads []*payload) (retry uint64) {
 				log.Errorf("http.Request: %s", err)
 				return
 			}
-			switch err := q.do(req).(type) {
+			start := time.Now()
+			err = q.do(req)
+			stats := &eventData{
+				bytes:    len(p.body),
+				count:    1,
+				duration: time.Since(start),
+				err:      err,
+			}
+			switch err.(type) {
 			case *retriableError:
 				// request failed again, but can be retried
 				q.enqueue(p)
-				atomic.AddUint64(&retry, 1)
-				log.Debugf("Payload failed to send. Retrying later (%v).", err)
+				atomic.AddUint64(&retries, 1)
+				q.recordEvent(eventTypeRetry, stats)
 			case nil:
 				// request was successful
-				log.Debugf("Successfully flushed %.2fkb.", float64(len(p.body))/1024)
+				atomic.AddUint64(&done, 1)
+				q.recordEvent(eventTypeSent, stats)
 			default:
 				// this is a fatal error, we have to drop this payload
-				log.Errorf("Error sending payload: %v (dropped %.2fkb)", err, float64(len(p.body))/1024)
+				q.recordEvent(eventTypeFailed, stats)
 			}
 		}(p)
 	}
 	wg.Wait()
-	return retry
+	return
+}
+
+// recordEvent records that event t has happened and attaches it the given data.
+func (q *sender) recordEvent(t eventType, data *eventData) {
+	if recorder := q.cfg.recorder; recorder != nil {
+		data.host = q.cfg.url.Hostname()
+		recorder.recordEvent(t, data)
+	}
 }
 
 // Flush waits up to 5 seconds for the queue to reach an empty state and for all scheduling
@@ -201,8 +284,9 @@ func (q *sender) enqueueLocked(p *payload) {
 	for q.size+size > maxQueueSize {
 		// make room
 		v := q.list.Remove(q.list.Front())
-		q.size -= len(v.(*payload).body)
-		// TODO: log and metric
+		size := len(v.(*payload).body)
+		q.size -= size
+		q.recordEvent(eventTypeDropped, &eventData{bytes: size, count: 1})
 	}
 	q.list.PushBack(p)
 	q.size += size
@@ -244,26 +328,6 @@ func (q *sender) do(req *http.Request) error {
 	return nil
 }
 
-// senderStats keeps track of sender statistic.
-type senderStats struct {
-	retry  uint64 // sends resulting in 5xx or proxy errors
-	ok     uint64 // sends resulting in 2xx
-	failed uint64 // sends failed with non-2xx
-	bytes  uint64 // bytes written
-	lost   uint64 // payloads lost due to queue being full
-}
-
-// resetStats resets the sender's internal stats and returns them as they were before the reset.
-func (q *sender) resetStats() *senderStats {
-	return &senderStats{
-		retry:  atomic.SwapUint64(&q.stats.retry, 0),
-		ok:     atomic.SwapUint64(&q.stats.ok, 0),
-		failed: atomic.SwapUint64(&q.stats.failed, 0),
-		bytes:  atomic.SwapUint64(&q.stats.bytes, 0),
-		lost:   atomic.SwapUint64(&q.stats.lost, 0),
-	}
-}
-
 // payloads specifies a payload to be sent by the sender.
 type payload struct {
 	body    []byte            // request body
@@ -271,8 +335,8 @@ type payload struct {
 }
 
 // httpRequest returns an HTTP request based on the payload, targeting the given URL.
-func (p *payload) httpRequest(url string) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(p.body))
+func (p *payload) httpRequest(url *url.URL) (*http.Request, error) {
+	req, err := http.NewRequest(http.MethodPost, url.String(), bytes.NewReader(p.body))
 	if err != nil {
 		// this should never happen with sanitized data (invalid method or invalid url)
 		return nil, err
