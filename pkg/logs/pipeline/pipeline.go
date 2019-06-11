@@ -21,14 +21,31 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder processor.Encoder, destinations *client.Destinations) *Pipeline {
+func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinations *client.Destinations) *Pipeline {
 	inputChan := make(chan *message.Message, config.ChanSize)
 	senderChan := make(chan *message.Message, config.ChanSize)
 
+	var encoder processor.Encoder
+	if endpoints.UseHTTP {
+		encoder = processor.JSONEncoder
+	} else if endpoints.UseProto {
+		encoder = processor.ProtoEncoder
+	} else {
+		encoder = processor.RawEncoder
+	}
+	processor := processor.New(inputChan, senderChan, processingRules, encoder)
+
+	var newSender sender.Sender
+	if endpoints.UseHTTP {
+		newSender = sender.NewBatchSender(senderChan, outputChan, destinations)
+	} else {
+		newSender = sender.NewStreamSender(senderChan, outputChan, destinations)
+	}
+
 	return &Pipeline{
 		InputChan: inputChan,
-		processor: processor.New(inputChan, senderChan, processingRules, encoder),
-		sender:    sender.NewStreamSender(senderChan, outputChan, destinations),
+		processor: processor,
+		sender:    newSender,
 	}
 }
 

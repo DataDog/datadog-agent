@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
@@ -70,17 +69,8 @@ func (p *provider) Start() {
 	}
 	destinations := client.NewDestinations(main, additionals)
 
-	var encoder processor.Encoder
-	if p.endpoints.UseHTTP {
-		encoder = processor.JSONEncoder
-	} else if p.endpoints.UseProto {
-		encoder = processor.ProtoEncoder
-	} else {
-		encoder = processor.RawEncoder
-	}
-
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.processingRules, encoder, destinations)
+		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, destinations)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}
