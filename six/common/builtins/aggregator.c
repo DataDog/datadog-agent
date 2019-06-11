@@ -220,6 +220,7 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     PyObject *check = NULL; // borrowed
     PyObject *event_dict = NULL; // borrowed
     PyObject *py_tags = NULL; // borrowed
+    PyObject *timestamp = NULL; // borrowed
     char *check_id = NULL;
     event_t *ev = NULL;
     PyObject * retval = NULL;
@@ -250,6 +251,10 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     // PyLong_AsLong will fail if called passing a NULL argument, be safe
     if (PyDict_GetItemString(event_dict, "timestamp") != NULL) {
         ev->ts = PyLong_AsLong(PyDict_GetItemString(event_dict, "timestamp"));
+        if (ev->ts == -1) {
+            PyErr_Clear();
+            ev->ts = 0
+        }
     } else {
         ev->ts = 0;
     }
