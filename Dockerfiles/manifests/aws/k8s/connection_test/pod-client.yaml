@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: Pod
-metadata:
-  name: pod-client
-spec:
-  containers:
-    - image: jgkamat/netcat
-      name: client
-      command: ["/bin/bash", "-c", "yes | nc 172.20.116.33 123"]

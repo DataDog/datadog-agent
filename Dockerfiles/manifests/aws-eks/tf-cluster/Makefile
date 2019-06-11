@@ -1,3 +1,12 @@
+plan:
+	terraform init && terraform plan -refresh=true -out eks.deploy
+
+apply:
+	terraform apply eks.deploy
+
+destroy:
+	terraform destroy
+
 kubeconfig:
 	terraform output kubeconfig > kubeconfig
 	export KUBECONFIG=$(PWD)/kubeconfig

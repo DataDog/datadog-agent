@@ -47,6 +47,11 @@ systemctl restart kubelet
 USERDATA
 }
 
+resource "aws_key_pair" "eks-key-pair" {
+  key_name   = "eks-deployer-${local.cluster_name}"
+  public_key = "${file("./eks_rsa.pub")}"
+}
+
 resource "aws_launch_configuration" "eks-launch-configuration" {
   associate_public_ip_address = true
   iam_instance_profile        = "${aws_iam_instance_profile.eks-node-instance-profile.name}"
@@ -55,7 +60,7 @@ resource "aws_launch_configuration" "eks-launch-configuration" {
   name_prefix                 = "eks-${local.cluster_name}"
   security_groups             = ["${aws_security_group.eks-nodes-sg.id}"]
   user_data_base64            = "${base64encode(local.eks-node-userdata)}"
-  key_name                    = "${var.SSH_KEY_PAIR}"
+  key_name                    = "${aws_key_pair.eks-key-pair.key_name}"
 
   lifecycle {
     create_before_destroy = true

@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-server-2
+  labels:
+    type: server-2
+spec:
+  containers:
+    - image: itsthenetwork/alpine-ncat
+      name: server-2
+      command: ["/bin/bash", "-c", "ncat -vv --broker --listen -p 123 > /dev/null"]
+      ports:
+        - containerPort: 123
+  nodeSelector:
+    failure-domain.beta.kubernetes.io/zone: us-east-1a
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pod-service-2
+  labels:
+    type: service-2
+spec:
+  type: ClusterIP
+  ports:
+    - port: 654
+      protocol: TCP
+      targetPort: 123
+  selector:
+    type: server-2
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-client-2
+spec:
+  containers:
+    - image: jgkamat/netcat
+      name: client-2
+      command: ["/bin/bash", "-c", "yes | nc -vv pod-service-2 654"]
+  nodeSelector:
+    failure-domain.beta.kubernetes.io/zone: us-east-1b
