@@ -335,11 +335,7 @@ func install(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
 	}
 	currentVersion, err := installedVersion(integration)
-	if err != nil {
-		return fmt.Errorf("could not get current version of %s: %v", integration, err)
-	}
-
-	if currentVersion != nil && versionToInstall.Equal(*currentVersion) {
+	if err == nil && versionToInstall.Equal(*currentVersion) {
 		fmt.Printf("%s %s is already installed. Nothing to do.\n", integration, versionToInstall)
 		return nil
 	}
