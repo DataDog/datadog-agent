@@ -15,6 +15,10 @@
         name: [python-pip, virtualenv, libyajl2]  # venv and yajl2 if you wanna run the simulator
         state: present
         update_cache: yes
+      retries: 5
+      delay: 5
+      register: pip_result
+      until: pip_result is not failed
     - name: Installing multiple python packages in Ansible
       pip:
         name: boto,boto3
