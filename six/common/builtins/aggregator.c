@@ -253,7 +253,7 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
         ev->ts = PyLong_AsLong(PyDict_GetItemString(event_dict, "timestamp"));
         if (ev->ts == -1) {
             PyErr_Clear();
-            ev->ts = 0
+            ev->ts = 0;
         }
     } else {
         ev->ts = 0;
