@@ -407,48 +407,43 @@ func initConfig(config Config) {
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
 
-	// Process
-	for _, field := range []string{
-		// Process agent
-		"process_config.dd_agent_env",
-		"process_config.enabled",
-		"process_config.intervals.process_realtime",
-		"process_config.queue_size",
-		"process_config.max_per_message",
-		"process_config.intervals.process",
-		"process_config.blacklist_patterns",
-		"process_config.intervals.container",
-		"process_config.intervals.container_realtime",
-		"process_config.dd_agent_bin",
-		"process_config.custom_sensitive_words",
-		"process_config.scrub_args",
-		"process_config.strip_proc_arguments",
-		"process_config.windows.args_refresh_interval",
-		"process_config.windows.add_new_args",
-		"process_config.additional_endpoints.*",
-		"process_config.container_source",
-		"process_config.intervals.connections",
-		// System probe
-		"system_probe_config.enabled",
-		"system_probe_config.log_file",
-		"system_probe_config.debug_port",
-		"system_probe_config.bpf_debug",
-		"system_probe_config.disable_tcp",
-		"system_probe_config.disable_udp",
-		"system_probe_config.disable_ipv6",
-		"system_probe_config.collect_local_dns",
-		"system_probe_config.use_local_system_probe",
-		"system_probe_config.enable_conntrack",
-		"system_probe_config.sysprobe_socket",
-		"system_probe_config.conntrack_short_term_buffer_size",
-		"system_probe_config.max_conns_per_message",
-		"system_probe_config.max_tracked_connections",
-		"system_probe_config.max_closed_connections_buffered",
-		"system_probe_config.max_connection_state_buffered",
-		"system_probe_config.excluded_linux_versions",
-	} {
-		config.SetKnown(field)
-	}
+	// Process agent
+	config.SetKnown("process_config.dd_agent_env")
+	config.SetKnown("process_config.enabled")
+	config.SetKnown("process_config.intervals.process_realtime")
+	config.SetKnown("process_config.queue_size")
+	config.SetKnown("process_config.max_per_message")
+	config.SetKnown("process_config.intervals.process")
+	config.SetKnown("process_config.blacklist_patterns")
+	config.SetKnown("process_config.intervals.container")
+	config.SetKnown("process_config.intervals.container_realtime")
+	config.SetKnown("process_config.dd_agent_bin")
+	config.SetKnown("process_config.custom_sensitive_words")
+	config.SetKnown("process_config.scrub_args")
+	config.SetKnown("process_config.strip_proc_arguments")
+	config.SetKnown("process_config.windows.args_refresh_interval")
+	config.SetKnown("process_config.windows.add_new_args")
+	config.SetKnown("process_config.additional_endpoints.*")
+	config.SetKnown("process_config.container_source")
+	config.SetKnown("process_config.intervals.connections")
+	// System probe
+	config.SetKnown("system_probe_config.enabled")
+	config.SetKnown("system_probe_config.log_file")
+	config.SetKnown("system_probe_config.debug_port")
+	config.SetKnown("system_probe_config.bpf_debug")
+	config.SetKnown("system_probe_config.disable_tcp")
+	config.SetKnown("system_probe_config.disable_udp")
+	config.SetKnown("system_probe_config.disable_ipv6")
+	config.SetKnown("system_probe_config.collect_local_dns")
+	config.SetKnown("system_probe_config.use_local_system_probe")
+	config.SetKnown("system_probe_config.enable_conntrack")
+	config.SetKnown("system_probe_config.sysprobe_socket")
+	config.SetKnown("system_probe_config.conntrack_short_term_buffer_size")
+	config.SetKnown("system_probe_config.max_conns_per_message")
+	config.SetKnown("system_probe_config.max_tracked_connections")
+	config.SetKnown("system_probe_config.max_closed_connections_buffered")
+	config.SetKnown("system_probe_config.max_connection_state_buffered")
+	config.SetKnown("system_probe_config.excluded_linux_versions")
 
 	// APM
 	config.SetKnown("apm_config.enabled")
