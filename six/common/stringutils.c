@@ -151,8 +151,8 @@ char *as_yaml(PyObject *object) {
     retval = as_string(dumped);
 
 done:
+    Py_XDECREF(dumped);
     Py_XDECREF(kwargs);
     Py_XDECREF(args);
-    Py_XDECREF(dumped);
     return retval;
 }
