@@ -40,6 +40,19 @@ void _set_is_excluded_cb(cb_is_excluded_t cb)
     cb_is_excluded = cb;
 }
 
+/*! \fn PyObject *is_excluded(PyObject *self, PyObject *args)
+    \brief Method to determine whether a container is excluded from metric
+    collection or not.
+    \param self A PyObject* pointer to the tagger module.
+    \param args A PyObject* pointer to the python args, typically expected to
+    contain the container and images names as strings.
+    \return a PyObject * pointer, typically a boolean reflecting if the container
+    should be excluded and None, if the callback has not been defined.
+
+    This method will let us know if a container is excluded and calls the cgo-bound
+    cb_is_excluded callback. The cgo callback is not expected to have any memory side
+    effects and so no additional cleanup is necessary after invoking it.
+*/
 PyObject *is_excluded(PyObject *self, PyObject *args)
 {
     // callback must be set
