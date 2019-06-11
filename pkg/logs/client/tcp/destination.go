@@ -50,8 +50,15 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 func (d *Destination) Send(payload []byte) error {
 	var err error
 
-	conn, ok := d.connPool.Get().(net.Conn)
-	if !ok {
+	// reuse an existing connection from the pool or
+	// create a new one if none is available, this can
+	// happen when this method is called concurrently
+	// from different places ; in such a case,
+	// the size of the pool will be the maximum size
+	// of concurrent calls and objects that are not used
+	// will be automatically deallocated
+	conn, available := d.connPool.Get().(net.Conn)
+	if !available {
 		ctx := d.destinationsContext.Context()
 		conn, err = d.connManager.NewConnection(ctx)
 		if err != nil {
@@ -71,6 +78,8 @@ func (d *Destination) Send(payload []byte) error {
 		return err
 	}
 
+	// make sure the connection is put back to the pool
+	// for later reuse
 	d.connPool.Put(conn)
 
 	return nil
