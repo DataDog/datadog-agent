@@ -23,6 +23,16 @@ int parseArgs(PyObject *args, char **id, int *cardinality)
     return 1;
 }
 
+/*! \fn PyObject *buildTagList(char **tags)
+    \brief builds a python string (tag) list from a C-string array.
+    \param tags A char** C-string array.
+    \return a PyObject * string (tag) list.
+
+    This function assumes the provided C-string array has been allocated with cgo
+    and frees it with the cgo_free callback for safety. The parameter passed should
+    not be used after calling this function. The list and string python references
+    are created by this function, no futher considerations are necessary.
+*/
 PyObject *buildTagsList(char **tags)
 {
     if (tags == NULL) {
@@ -39,12 +49,25 @@ PyObject *buildTagsList(char **tags)
         // PyList_Append does not steal references so DECREF necessary for pyTag
         PyList_Append(res, pyTag);
         // PyList_Append (unlike `PyList_SetItem`) increments the refcount on pyTag
+        // so we decrease it once appended
         Py_XDECREF(pyTag);
     }
     cgo_free(tags);
     return res;
 }
 
+/*! \fn PyObject *tag(PyObject *self, PyObject *args)
+    \brief builds a tag list as per the id and cardinality passed as method
+    arguments.
+    \param self A PyObject* pointer to the tagger module.
+    \param args A PyObject* pointer to the tag method, typically expected to
+    contain the id and the cardinality..
+    \return a PyObject * pointer to the python tag list.
+
+    The method will return a tag list as long as the cardinality provided is
+    one of LOW, ORCHESTRATOR, OR HIGH. This function calls the cgo-bound cb_tags
+    callback, please read more about the internals of the registered callback.
+*/
 PyObject *tag(PyObject *self, PyObject *args)
 {
     if (cb_tags == NULL) {
@@ -72,6 +95,15 @@ PyObject *tag(PyObject *self, PyObject *args)
     return buildTagsList(cb_tags(id, cardinality));
 }
 
+/*! \fn PyObject *get_tag(PyObject *self, PyObject *args)
+    \brief builds a tag list as per the id and cardinality passed as method.
+    \param self A PyObject* pointer to the tagger module.
+    \param args A PyObject* pointer to the tag method, typically expected to
+    contain the id and the cardinality.
+    \return a PyObject * pointer to the python tag list.
+
+    DESCRIPTION TODO
+*/
 PyObject *get_tags(PyObject *self, PyObject *args)
 {
     if (cb_tags == NULL) {
@@ -106,6 +138,14 @@ static PyMethodDef methods[] = {
     { NULL, NULL } // guards
 };
 
+/*! \fn void add_constants(PyObject *m)
+    \brief Registers constants with the module passed in as parameter.
+    \param m A PyObject *m pointer to the relevant module we wish to register the
+    constants in.
+
+    LOW, ORCHESTRATOR and HIGH constants are registered with the module passed in.
+    No reference considerations are necessary.
+*/
 static void add_constants(PyObject *m)
 {
     PyModule_AddIntConstant(m, "LOW", DATADOG_AGENT_SIX_TAGGER_LOW);
