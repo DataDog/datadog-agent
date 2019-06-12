@@ -220,7 +220,6 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     PyObject *check = NULL; // borrowed
     PyObject *event_dict = NULL; // borrowed
     PyObject *py_tags = NULL; // borrowed
-    PyObject *timestamp = NULL; // borrowed
     char *check_id = NULL;
     event_t *ev = NULL;
     PyObject * retval = NULL;
