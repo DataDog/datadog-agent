@@ -334,8 +334,11 @@ func install(cmd *cobra.Command, args []string) error {
 	if err != nil || versionToInstall == nil {
 		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
 	}
-	currentVersion, err := installedVersion(integration)
-	if err == nil && versionToInstall.Equal(*currentVersion) {
+	currentVersion, found, err := installedVersion(integration)
+	if err != nil {
+		return fmt.Errorf("could not get current version of %s: %v", integration, err)
+	}
+	if found && versionToInstall.Equal(*currentVersion) {
 		fmt.Printf("%s %s is already installed. Nothing to do.\n", integration, versionToInstall)
 		return nil
 	}
@@ -358,11 +361,11 @@ func install(cmd *cobra.Command, args []string) error {
 	}
 
 	// Verify datadog_checks_base is compatible with the requirements
-	shippedBaseVersion, err := installedVersion("datadog-checks-base")
+	shippedBaseVersion, found, err := installedVersion("datadog-checks-base")
 	if err != nil {
 		return fmt.Errorf("unable to get the version of datadog_checks_base: %v", err)
 	}
-	if ok, err := validateBaseDependency(wheelPath, shippedBaseVersion); err != nil {
+	if ok, err := validateBaseDependency(wheelPath, shippedBaseVersion); found && err != nil {
 		return fmt.Errorf("unable to validate compatibility of %s with the agent: %v", wheelPath, err)
 	} else if !ok {
 		return fmt.Errorf(
@@ -605,19 +608,19 @@ func minAllowedVersion(integration string) (*semver.Version, bool, error) {
 	return version, found, nil
 }
 
-// Return the version of an installed integration, or nil if the integration isn't installed
-func installedVersion(integration string) (*semver.Version, error) {
+// Return the version of an installed integration and whether or not it was found
+func installedVersion(integration string) (*semver.Version, bool, error) {
 	pythonPath, err := getCommandPython()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	integrationName := getIntegrationName(integration)
 	validName, err := regexp.MatchString("^[0-9a-z_-]+$", integration)
 	if err != nil {
-		return nil, fmt.Errorf("Error validating integration name: %s", err)
+		return nil, false, fmt.Errorf("Error validating integration name: %s", err)
 	}
 	if !validName {
-		return nil, fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
+		return nil, false, fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
 	}
 	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(versionScript, integrationName))
 	output, err := pythonCmd.Output()
@@ -630,24 +633,24 @@ func installedVersion(integration string) (*semver.Version, error) {
 			errMsg = err.Error()
 		}
 
-		return nil, fmt.Errorf("error executing python: %s", errMsg)
+		return nil, false, fmt.Errorf("error executing python: %s", errMsg)
 	}
 
 	outputStr := strings.TrimSpace(string(output))
 	if outputStr == "" {
-		return nil, errors.New("no __version__ found")
+		return nil, false, nil
 	}
 
 	version, err := semver.NewVersion(outputStr)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing version %s: %s", outputStr, err)
+		return nil, true, fmt.Errorf("error parsing version %s: %s", outputStr, err)
 	}
 
-	return version, nil
+	return version, true, nil
 }
 
 // Parse requirements lines to get a package version.
-// Returns the version if found, or nil if package not present
+// Returns the version and whether or not it was found
 func getVersionFromReqLine(integration string, lines string) (*semver.Version, bool, error) {
 	exp, err := regexp.Compile(fmt.Sprintf(reqLinePattern, integration))
 	if err != nil {
@@ -766,9 +769,11 @@ func show(cmd *cobra.Command, args []string) error {
 	}
 	packageName := normalizePackageName(args[0])
 
-	version, err := installedVersion(packageName)
+	version, found, err := installedVersion(packageName)
 	if err != nil {
 		return fmt.Errorf("could not get current version of %s: %v", packageName, err)
+	} else if !found {
+		return fmt.Errorf("could not get current version of %s: not installed", packageName)
 	}
 
 	if version == nil {
