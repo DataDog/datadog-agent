@@ -103,11 +103,16 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 
 	// Platform-specific preparation
 	var err error
-	err = platformLoaderPrep()
-	if err != nil {
-		return nil, err
+	if !agentConfig.Datadog.GetBool("win_skip_com_init") {
+		log.Debugf("Performing platform loading prep")
+		err = platformLoaderPrep()
+		if err != nil {
+			return nil, err
+		}
+		defer platformLoaderDone()
+	} else {
+		log.Infof("Skipping platform loading prep")
 	}
-	defer platformLoaderDone()
 
 	// Looking for wheels first
 	modules := []string{fmt.Sprintf("%s.%s", wheelNamespace, moduleName), moduleName}
