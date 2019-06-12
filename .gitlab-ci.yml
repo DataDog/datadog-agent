@@ -937,18 +937,6 @@ twistlock_scan:
     - notary -d ~/.docker/trust key import /tmp/docker.key; rm /tmp/docker.key
   dependencies: [] # Don't download Gitlab artefacts
 
-.docker_delete_tag_job_definition: &docker_delete_tag_job_definition
-  stage: image_deploy
-  tags: [ "runner:docker", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
-  before_script:
-    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - pip install -r requirements.txt
-    - |
-      export DOCKER_TOKEN=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/ | python -c 'import sys, json; print(json.load(sys.stdin)["token"].strip())'`
-  dependencies: [] # Don't download Gitlab artefacts
-
 .docker_hub_variables: &docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
@@ -1269,12 +1257,21 @@ latest_release:
 
 #
 # Use this step to delete a tag of a given image
+# We call the Docker Hub API because docker cli doesn't support deleting tags
 # - remove the leading dot from the name
 # - set the IMAGE and TAG envvars
 # - in the gitlab pipeline view, trigger the step (in the first column)
 #
 .delete_docker_tag:
-  <<: *docker_delete_tag_job_definition
+  tags: [ "runner:docker", "size:large" ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
+  before_script:
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - pip install -r requirements.txt
+    - |
+      export DOCKER_TOKEN=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/ | python -c 'import sys, json; print(json.load(sys.stdin)["token"].strip())'`
+  dependencies: [] # Don't download Gitlab artefacts
   stage: source_test
   when: manual
   variables:
