@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -78,18 +77,6 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 		hname = ""
 	}
 	j, _ := json.Marshal(hname)
-	w.Write(j)
-}
-
-func getPythonStatus(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	pyStats, err := python.GetPythonInterpreterMemoryUsage()
-	if err != nil {
-		log.Warnf("Error getting python stats: %s\n", err) // or something like this
-		http.Error(w, err.Error(), 500)
-	}
-
-	j, _ := json.Marshal(pyStats)
 	w.Write(j)
 }
 

@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -175,7 +176,7 @@ func GetPythonIntegrationList() ([]string, error) {
 }
 
 // GetIntepreterMemoryUsage collects a python interpreter memory usage snapshot
-func GetPythonInterpreterMemoryUsage() ([]PythonStats, error) {
+func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 	if six == nil {
 		return nil, fmt.Errorf("six is not initialized")
 	}
@@ -190,12 +191,47 @@ func GetPythonInterpreterMemoryUsage() ([]PythonStats, error) {
 	defer C.six_free(six, unsafe.Pointer(usage))
 	payload := C.GoString(usage)
 
-	stats := []PythonStats{}
+	log.Infof("Interpreter stats received: %v", payload)
+
+	stats := map[interface{}]interface{}{}
 	if err := yaml.Unmarshal([]byte(payload), &stats); err != nil {
 		return nil, fmt.Errorf("Could not Unmarshal python interpreter memory usage payload: %s", err)
 	}
 
-	return stats, nil
+	myPythonStats := []*PythonStats{}
+	// Let's iterate map
+	for entryName, value := range stats {
+		entrySummary := value.(map[interface{}]interface{})
+		num := entrySummary["num"].(int)
+		size := entrySummary["sz"].(int)
+		entries := entrySummary["entries"].([]interface{})
+
+		pyStat := &PythonStats{
+			Type:     entryName.(string),
+			NObjects: num,
+			Size:     size,
+			Entries:  []*PythonStatsEntry{},
+		}
+
+		for _, entry := range entries {
+			contents := entry.([]interface{})
+			ref := contents[0].(string)
+			refNum := contents[1].(int)
+			refSz := contents[2].(int)
+
+			// add to list
+			pyEntry := &PythonStatsEntry{
+				Reference: ref,
+				NObjects:  refNum,
+				Size:      refSz,
+			}
+			pyStat.Entries = append(pyStat.Entries, pyEntry)
+		}
+
+		myPythonStats = append(myPythonStats, pyStat)
+	}
+
+	return myPythonStats, nil
 }
 
 // SetPythonPsutilProcPath sets python psutil.PROCFS_PATH
