@@ -340,11 +340,11 @@ func install(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	minVersion, err := minAllowedVersion(integration)
+	minVersion, found, err := minAllowedVersion(integration)
 	if err != nil {
 		return fmt.Errorf("unable to get minimal version of %s: %v", integration, err)
 	}
-	if versionToInstall.LessThan(*minVersion) {
+	if found && versionToInstall.LessThan(*minVersion) {
 		return fmt.Errorf(
 			"this command does not allow installing version %s of %s older than version %s shipped with the agent",
 			versionToInstall, integration, minVersion,
@@ -591,18 +591,18 @@ func validateRequirement(version *semver.Version, comp string, versionReq *semve
 	}
 }
 
-func minAllowedVersion(integration string) (*semver.Version, error) {
+func minAllowedVersion(integration string) (*semver.Version, bool, error) {
 	here, _ := executable.Folder()
 	lines, err := ioutil.ReadFile(filepath.Join(here, relReqAgentReleasePath))
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	version, err := getVersionFromReqLine(integration, string(lines))
+	version, found, err := getVersionFromReqLine(integration, string(lines))
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	return version, nil
+	return version, found, nil
 }
 
 // Return the version of an installed integration, or nil if the integration isn't installed
@@ -648,26 +648,26 @@ func installedVersion(integration string) (*semver.Version, error) {
 
 // Parse requirements lines to get a package version.
 // Returns the version if found, or nil if package not present
-func getVersionFromReqLine(integration string, lines string) (*semver.Version, error) {
+func getVersionFromReqLine(integration string, lines string) (*semver.Version, bool, error) {
 	exp, err := regexp.Compile(fmt.Sprintf(reqLinePattern, integration))
 	if err != nil {
-		return nil, fmt.Errorf("internal error: %v", err)
+		return nil, false, fmt.Errorf("internal error: %v", err)
 	}
 
 	groups := exp.FindAllStringSubmatch(lines, 2)
 	if groups == nil {
-		return nil, fmt.Errorf("unknown integration '%s'", integration)
+		return nil, false, nil
 	}
 
 	if len(groups) > 1 {
-		return nil, fmt.Errorf("Found several matches for %s version in %s\nAborting", integration, lines)
+		return nil, true, fmt.Errorf("Found several matches for %s version in %s\nAborting", integration, lines)
 	}
 
 	version, err := semver.NewVersion(groups[0][1])
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
-	return version, nil
+	return version, true, nil
 }
 
 func moveConfigurationFilesOf(integration string) error {

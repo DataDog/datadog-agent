@@ -48,20 +48,20 @@ func TestMoveConfigurationsFiles(t *testing.T) {
 func TestGetVersionFromReqLine(t *testing.T) {
 	reqLines := "package1==3.2.1\npackage2==2.3.1"
 
-	version, _ := getVersionFromReqLine("package1", reqLines)
+	version, _, _ := getVersionFromReqLine("package1", reqLines)
 	expectedVersion, _ := semver.NewVersion("3.2.1")
 	assert.Equal(t, expectedVersion, version)
 
-	version, _ = getVersionFromReqLine("package2", reqLines)
+	version, _, _ = getVersionFromReqLine("package2", reqLines)
 	expectedVersion, _ = semver.NewVersion("2.3.1")
 	assert.Equal(t, expectedVersion, version)
 
-	version, _ = getVersionFromReqLine("package3", reqLines)
+	version, _, _ = getVersionFromReqLine("package3", reqLines)
 	assert.Nil(t, version)
 
 	// Add package2 a second time, should error out
 	reqLines += "\npackage2==2.2.0"
-	version, err := getVersionFromReqLine("package2", reqLines)
+	version, _, err := getVersionFromReqLine("package2", reqLines)
 	assert.Nil(t, version)
 	assert.NotNil(t, err)
 }
