@@ -118,7 +118,7 @@ func Initialize(paths ...string) *python.PyThreadState {
 	initKubeutil()     // `kubeutil` module if compiled in
 	initTagger()       // `tagger` module
 	initContainers()   // `containers` module
-
+	initStackState()   // The 'stackstate' module
 	// return the state so the caller can resume
 	return state
 }

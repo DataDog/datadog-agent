@@ -195,9 +195,8 @@ func TestInitNoTracebackException(t *testing.T) {
 	assert.EqualError(t, err, "could not invoke python check constructor: __init__() takes exactly 8 arguments (5 given)")
 }
 
-// [VS] TODO: check
 // TestAggregatorLink checks to see if a simple check that sends metrics to the aggregator has no errors
-func VS_TestAggregatorLink(t *testing.T) {
+func TestAggregatorLink(t *testing.T) {
 	check, _ := getCheckInstance("testaggregator", "TestAggregatorCheck")
 
 	mockSender := mocksender.NewMockSender(check.ID())
@@ -224,7 +223,7 @@ func VS_TestAggregatorLink(t *testing.T) {
 
 // TestAggregatorLinkTwoRuns checks to ensure that it is consistently grabbing the correct aggregator
 // Essentially it ensures that checkID is being set correctly
-func VS_TestAggregatorLinkTwoRuns(t *testing.T) {
+func TestAggregatorLinkTwoRuns(t *testing.T) {
 	check, _ := getCheckInstance("testaggregator", "TestAggregatorCheck")
 
 	mockSender := mocksender.NewMockSender(check.ID())
@@ -250,8 +249,6 @@ func VS_TestAggregatorLinkTwoRuns(t *testing.T) {
 	err = check.Run()
 	assert.Nil(t, err)
 }
-
-// [VS] / TODO: check
 
 // BenchmarkRun executes a single check: benchmark results
 // give an idea of the overhead of a CPython function call from go,
