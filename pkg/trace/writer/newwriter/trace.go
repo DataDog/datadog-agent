@@ -130,7 +130,7 @@ func (w *TraceWriter) addSpans(pkg *SampledSpans) {
 		return
 	}
 
-	atomic.AddInt64(&w.stats.Spans, int64(len(pkg.Trace)+len(pkg.Events)))
+	atomic.AddInt64(&w.stats.Spans, int64(len(pkg.Trace)))
 	atomic.AddInt64(&w.stats.Traces, 1)
 	atomic.AddInt64(&w.stats.Events, int64(len(pkg.Events)))
 
