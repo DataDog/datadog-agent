@@ -55,6 +55,8 @@ def build(ctx, rebuild=False, race=False, precompile_only=False, use_embedded_li
         "REPO_PATH": REPO_PATH,
     }
 
+    print(env)
+    print(cmd.format(**args))
     ctx.run("go generate {REPO_PATH}/pkg/trace/info".format(**args), env=env)
     ctx.run(cmd.format(**args), env=env)
 
@@ -82,4 +84,5 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     ]
 
     for prefix in prefixes:
+        print("{} {}".format(go_cmd, prefix))
         ctx.run("{} {}".format(go_cmd, prefix))

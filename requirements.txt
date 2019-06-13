@@ -1,5 +1,5 @@
 # python development requirements for Agent 6
-invoke==1.0.0
+invoke==1.2.0
 reno==2.9.2
 docker==3.0.1
 requests==2.21.0

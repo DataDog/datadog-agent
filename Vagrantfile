@@ -71,6 +71,7 @@ Vagrant.configure("2") do |config|
       # box.vm.box_version = ""
 
       box.vm.network :private_network, ip: properties[:ip]
+      box.vm.network "forwarded_port", guest: 8126, host: 8126
 
       # Does not share . by default unless :share_cwd => true
       box.vm.synced_folder '.', '/vagrant', disabled: !properties[:share_cwd]
@@ -120,7 +121,7 @@ Vagrant.configure("2") do |config|
       end
 
       box.vm.provider :virtualbox do |v|
-        v.memory = 8192
+        v.memory = 2048
         v.cpus = 4
         # v.memory = 16384
         # v.cpus = 4

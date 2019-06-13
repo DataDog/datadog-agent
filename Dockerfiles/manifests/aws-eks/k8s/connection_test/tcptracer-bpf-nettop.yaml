@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: tcptracer-bpf-nettop
+spec:
+  selector:
+    matchLabels:
+      app: tcptracer-bpf-nettop
+  template:
+    metadata:
+      labels:
+        app: tcptracer-bpf-nettop
+      name: tcptracer-bpf-nettop
+    spec:
+      serviceAccountName: stackstate-agent
+      containers:
+      - image: stackstate/tcptracer-bpf-nettop:latest
+        imagePullPolicy: Always
+        name: stackstate-agent
+        securityContext:
+          privileged: true
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        volumeMounts:
+          - name: sys-kernel-debug
+            mountPath: /sys/kernel/debug
+          - name: dockersocket
+            mountPath: /var/run/docker.sock
+          - name: procdir
+            mountPath: /host/proc
+            readOnly: true
+          - name: passwd
+            mountPath: /etc/passwd
+            readOnly: true
+          - name: cgroups
+            mountPath: /host/sys/fs/cgroup
+            readOnly: true
+      hostNetwork: true
+      hostPID: true
+      volumes:
+        - hostPath:
+            path: /sys/kernel/debug
+          name: sys-kernel-debug
+        - hostPath:
+            path: /var/run/docker.sock
+          name: dockersocket
+        - hostPath:
+            path: /proc
+          name: procdir
+        - hostPath:
+            path: /etc/passwd
+          name: passwd
+        - hostPath:
+            path: /sys/fs/cgroup
+          name: cgroups

@@ -15,6 +15,10 @@
         name: [python-pip, virtualenv, libyajl2]  # venv and yajl2 if you wanna run the simulator
         state: present
         update_cache: yes
+      retries: 5
+      delay: 5
+      register: pip_result
+      until: pip_result is not failed
     - name: Installing multiple python packages in Ansible
       pip:
         name: boto,boto3
@@ -176,14 +180,32 @@
   vars_files:
     - common_vars.yml
   tasks:
+    # Temporary - override netcat installation issues
+    - name: install chocolatey 0.10.13
+      win_chocolatey:
+        name: chocolatey
+        state: present
+        version: 0.10.13
+        force: yes
+
     - name: disable enhanced exit codes
       win_chocolatey_feature:
         name: useEnhancedExitCodes
         state: disabled
-    - name: Install netcat
+    - name: Install netcat (1/2)
       win_chocolatey:
         name: netcat
         state: present
+        timeout: 90
+      register: net_try1
+      ignore_errors: true
+      until: net_try1.finished
+
+    - name: Install netcat (2/2)
+      win_chocolatey:
+        name: netcat
+        state: present
+      when: net_try1 is failed
 
 - name: Prepare Ubuntu Agent listening before start
   hosts: agent-ubuntu
@@ -297,7 +319,16 @@
     - name: Connect to Ubuntu agent
       win_command: nc {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_after_start_windows }}
       async: "{{ max_test_time }}"
+      ignore_errors: True
+      register: ubuntu_connect_result
       poll: 0
+
+    - name: Connect to Ubuntu agent
+      win_command: nc {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_after_start_windows }}
+      async: "{{ max_test_time }}"
+      poll: 0
+      when: ubuntu_connect_result is failed
+
 
 - name: Prepare Ubuntu Agent for blacklist inclusion test
   hosts: agent-ubuntu
