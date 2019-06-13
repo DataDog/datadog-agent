@@ -22,6 +22,7 @@ import (
 	"github.com/StackVista/stackstate-agent/cmd/cluster-agent/custommetrics"
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/api/healthprobe"
+	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/clusteragent"
 	"github.com/StackVista/stackstate-agent/pkg/clusteragent/clusterchecks"
 	"github.com/StackVista/stackstate-agent/pkg/config"
