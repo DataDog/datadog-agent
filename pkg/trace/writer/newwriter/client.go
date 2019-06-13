@@ -47,7 +47,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit in
 		Transport: transport,
 	}
 	// spread out the the maximum connection limit (climit) between senders
-	maxConns := math.Min(1, float64(climit/len(cfg.Endpoints)))
+	maxConns := math.Max(1, float64(climit/len(cfg.Endpoints)))
 	senders := make([]*sender, len(cfg.Endpoints))
 	for i, endpoint := range cfg.Endpoints {
 		url, err := url.Parse(endpoint.Host + path)
