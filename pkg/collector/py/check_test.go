@@ -9,6 +9,7 @@
 package py
 
 import (
+	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"sync"
 	"testing"
 	"time"
@@ -53,6 +54,8 @@ func getCheckInstance(moduleName, className string) (*PythonCheck, error) {
 	mockConfig := config.Mock()
 	mockConfig.Set("foo_agent", "bar_agent")
 	defer mockConfig.Set("foo_agent", nil)
+
+	batcher.NewMockBatcher()
 
 	checkClass := getClass(moduleName, className)
 	check := NewPythonCheck(moduleName, checkClass)

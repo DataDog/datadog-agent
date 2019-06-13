@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
+	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"unsafe"
 
@@ -29,7 +30,7 @@ import "C"
 
 // SubmitComponent is the method exposed to Python scripts to submit components
 //export SubmitComponent
-func SubmitComponent(check *C.PyObject, checkID *C.char, instanceKey *C.PyObject, externalId *C.char, componentType *C.char, data *C.PyObject) *C.PyObject {
+func SubmitComponent(chk *C.PyObject, checkID *C.char, instanceKey *C.PyObject, externalId *C.char, componentType *C.char, data *C.PyObject) *C.PyObject {
 
 	goCheckID := C.GoString(checkID)
 
@@ -47,7 +48,7 @@ func SubmitComponent(check *C.PyObject, checkID *C.char, instanceKey *C.PyObject
 		return nil
 	}
 
-	batcher.GetBatcher().SubmitComponent(goCheckID,
+	batcher.GetBatcher().SubmitComponent(check.ID(goCheckID),
 		*_instance,
 		topology.Component{
 			ExternalId: _externalId,
@@ -60,7 +61,7 @@ func SubmitComponent(check *C.PyObject, checkID *C.char, instanceKey *C.PyObject
 
 // SubmitRelation is the method exposed to Python scripts to submit relations
 //export SubmitRelation
-func SubmitRelation(check *C.PyObject, checkID *C.char, instanceKey *C.PyObject, sourceId *C.char, targetId *C.char, relationType *C.char, data *C.PyObject) *C.PyObject {
+func SubmitRelation(chk *C.PyObject, checkID *C.char, instanceKey *C.PyObject, sourceId *C.char, targetId *C.char, relationType *C.char, data *C.PyObject) *C.PyObject {
 
 	goCheckID := C.GoString(checkID)
 
@@ -82,7 +83,7 @@ func SubmitRelation(check *C.PyObject, checkID *C.char, instanceKey *C.PyObject,
 		return nil
 	}
 
-	batcher.GetBatcher().SubmitRelation(goCheckID,
+	batcher.GetBatcher().SubmitRelation(check.ID(goCheckID),
 		*_instance,
 		topology.Relation{
 			ExternalId: _externalId,
@@ -97,7 +98,7 @@ func SubmitRelation(check *C.PyObject, checkID *C.char, instanceKey *C.PyObject,
 
 // SubmitStartSnapshot starts a snapshot
 //export SubmitStartSnapshot
-func SubmitStartSnapshot(check *C.PyObject, checkID *C.char, instanceKey *C.PyObject) *C.PyObject {
+func SubmitStartSnapshot(chk *C.PyObject, checkID *C.char, instanceKey *C.PyObject) *C.PyObject {
 
 	goCheckID := C.GoString(checkID)
 
@@ -107,14 +108,14 @@ func SubmitStartSnapshot(check *C.PyObject, checkID *C.char, instanceKey *C.PyOb
 		return nil
 	}
 
-	batcher.GetBatcher().SubmitStartSnapshot(goCheckID, *_instance)
+	batcher.GetBatcher().SubmitStartSnapshot(check.ID(goCheckID), *_instance)
 
 	return C._none()
 }
 
 // SubmitStopSnapshot starts a snapshot
 //export SubmitStopSnapshot
-func SubmitStopSnapshot(check *C.PyObject, checkID *C.char, instanceKey *C.PyObject) *C.PyObject {
+func SubmitStopSnapshot(chk *C.PyObject, checkID *C.char, instanceKey *C.PyObject) *C.PyObject {
 
 	goCheckID := C.GoString(checkID)
 
@@ -124,7 +125,7 @@ func SubmitStopSnapshot(check *C.PyObject, checkID *C.char, instanceKey *C.PyObj
 		return nil
 	}
 
-	batcher.GetBatcher().SubmitStopSnapshot(goCheckID, *_instance)
+	batcher.GetBatcher().SubmitStopSnapshot(check.ID(goCheckID), *_instance)
 
 	return C._none()
 }

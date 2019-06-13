@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
@@ -528,6 +528,14 @@ func GetMainEndpoint(prefix string, ddURLKey string) string {
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
 func GetMultipleEndpoints() (map[string][]string, error) {
 	return getMultipleEndpointsWithConfig(Datadog)
+}
+
+func GetBatcherLimit() int {
+	if Datadog.IsSet("batcher_limit") {
+		return Datadog.GetInt("batcher_limit")
+	}
+
+	return 10000
 }
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z

@@ -8,6 +8,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"time"
 
 	"github.com/fatih/color"
@@ -103,6 +104,7 @@ var checkCmd = &cobra.Command{
 
 		s := serializer.NewSerializer(common.Forwarder)
 		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, "agent", checkCmdFlushInterval)
+		batcher.InitBatcher(&printingAgentV1Serializer{}, hostname, "agent", config.GetBatcherLimit())
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 		cs := collector.GetChecksByNameForConfigs(checkName, common.AC.GetAllConfigs())
 		if len(cs) == 0 {
@@ -208,6 +210,15 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	}
 
 	return s
+}
+
+type printingAgentV1Serializer struct{}
+
+func (printingAgentV1Serializer) SendJSONToV1Intake(data interface{}) error {
+	fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Topology")))
+	j, _ := json.MarshalIndent(data, "", "  ")
+	fmt.Println(string(j))
+	return nil
 }
 
 func printMetrics(agg *aggregator.BufferedAggregator) {

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/forwarder"
@@ -78,6 +79,35 @@ type MetricSerializer interface {
 	SendSketch(sketches marshaler.Marshaler) error
 	SendMetadata(m marshaler.Marshaler) error
 	SendJSONToV1Intake(data interface{}) error
+}
+
+type AgentV1Serializer interface {
+	SendJSONToV1Intake(data interface{}) error
+}
+
+type AgentV1MockSerializer struct {
+	sendJSONToV1IntakeMessages chan interface{}
+}
+
+func NewAgentV1MockSerializer() AgentV1MockSerializer {
+	return AgentV1MockSerializer{
+		sendJSONToV1IntakeMessages: make(chan interface{}),
+	}
+}
+
+func (serializer AgentV1MockSerializer) SendJSONToV1Intake(data interface{}) error {
+	serializer.sendJSONToV1IntakeMessages <- data
+	return nil
+}
+
+func (serializer AgentV1MockSerializer) GetJSONToV1IntakeMessage() interface{} {
+	select {
+	case res := <- serializer.sendJSONToV1IntakeMessages:
+		return res
+	case <-time.After(3*time.Second):
+		log.Error("Timeout retrieving element")
+		return nil
+	}
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder

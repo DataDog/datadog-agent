@@ -2,20 +2,21 @@ package py
 
 import (
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
+	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestComponentTopology(t *testing.T) {
-	check, _ := getCheckInstance("testtopology", "TestComponentCheck")
+	chk, _ := getCheckInstance("testtopology", "TestComponentCheck")
 
 	mockBatcher := batcher.NewMockBatcher()
 
-	err := check.Run()
+	err := chk.Run()
 	assert.Nil(t, err)
 
-	assert.Equal(t, map[string]topology.Topology{
+	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
 			StartSnapshot: false,
 			StopSnapshot:  false,
@@ -39,18 +40,18 @@ func TestComponentTopology(t *testing.T) {
 			},
 			Relations: []topology.Relation{},
 		},
-	}, mockBatcher.CollectedTopology.Flush())
+	}), mockBatcher.CollectedTopology.Flush())
 }
 
 func TestRelationTopology(t *testing.T) {
-	check, _ := getCheckInstance("testtopology", "TestRelationCheck")
+	chk, _ := getCheckInstance("testtopology", "TestRelationCheck")
 
 	mockBatcher := batcher.NewMockBatcher()
 
-	err := check.Run()
+	err := chk.Run()
 	assert.Nil(t, err)
 
-	assert.Equal(t, map[string]topology.Topology{
+	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
 			StartSnapshot: false,
 			StopSnapshot:  false,
@@ -76,18 +77,18 @@ func TestRelationTopology(t *testing.T) {
 				},
 			},
 		},
-	}, mockBatcher.CollectedTopology.Flush())
+	}), mockBatcher.CollectedTopology.Flush())
 }
 
 func TestStartSnapshotCheck(t *testing.T) {
-	check, _ := getCheckInstance("testtopology", "TestStartSnapshotCheck")
+	chk, _ := getCheckInstance("testtopology", "TestStartSnapshotCheck")
 
 	mockBatcher := batcher.NewMockBatcher()
 
-	err := check.Run()
+	err := chk.Run()
 	assert.Nil(t, err)
 
-	assert.Equal(t, map[string]topology.Topology{
+	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
 			StartSnapshot: true,
 			StopSnapshot:  false,
@@ -98,18 +99,18 @@ func TestStartSnapshotCheck(t *testing.T) {
 			Components: []topology.Component{},
 			Relations:  []topology.Relation{},
 		},
-	}, mockBatcher.CollectedTopology.Flush())
+	}), mockBatcher.CollectedTopology.Flush())
 }
 
 func TestStopSnapshotCheck(t *testing.T) {
-	check, _ := getCheckInstance("testtopology", "TestStopSnapshotCheck")
+	chk, _ := getCheckInstance("testtopology", "TestStopSnapshotCheck")
 
 	mockBatcher := batcher.NewMockBatcher()
 
-	err := check.Run()
+	err := chk.Run()
 	assert.Nil(t, err)
 
-	assert.Equal(t, map[string]topology.Topology{
+	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
 			StartSnapshot: false,
 			StopSnapshot:  true,
@@ -120,5 +121,5 @@ func TestStopSnapshotCheck(t *testing.T) {
 			Components: []topology.Component{},
 			Relations:  []topology.Relation{},
 		},
-	}, mockBatcher.CollectedTopology.Flush())
+	}), mockBatcher.CollectedTopology.Flush())
 }
