@@ -187,7 +187,6 @@ func (w *TraceWriter) flush() {
 	gzipw.Close()
 
 	atomic.AddInt64(&w.stats.BytesUncompressed, int64(len(b)))
-	atomic.AddInt64(&w.stats.Bytes, int64(buf.Len()))
 	atomic.AddInt64(&w.stats.BytesEstimated, int64(w.bufferedSize))
 
 	req := newPayload(buf.Bytes(), map[string]string{
@@ -201,36 +200,15 @@ func (w *TraceWriter) flush() {
 }
 
 func (w *TraceWriter) report() {
-	metrics.Count(
-		"datadog.trace_agent.trace_writer.bytes_uncompressed",
-		atomic.SwapInt64(&w.stats.BytesUncompressed, 0),
-		nil, 1,
-	)
-	metrics.Count(
-		"datadog.trace_agent.trace_writer.bytes_estimated",
-		atomic.SwapInt64(&w.stats.BytesEstimated, 0),
-		nil, 1,
-	)
-	metrics.Count(
-		"datadog.trace_agent.trace_writer.bytes",
-		atomic.SwapInt64(&w.stats.Bytes, 0),
-		nil, 1,
-	)
-	metrics.Count(
-		"datadog.trace_agent.trace_writer.traces",
-		atomic.SwapInt64(&w.stats.Traces, 0),
-		nil, 1,
-	)
-	metrics.Count(
-		"datadog.trace_agent.trace_writer.events",
-		atomic.SwapInt64(&w.stats.Events, 0),
-		nil, 1,
-	)
-	metrics.Count(
-		"datadog.trace_agent.trace_writer.spans",
-		atomic.SwapInt64(&w.stats.Spans, 0),
-		nil, 1,
-	)
+	metrics.Count("datadog.trace_agent.trace_writer.payloads", atomic.SwapInt64(&w.stats.Payloads, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.bytes_uncompressed", atomic.SwapInt64(&w.stats.BytesUncompressed, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.retries", atomic.SwapInt64(&w.stats.Retries, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.bytes_estimated", atomic.SwapInt64(&w.stats.BytesEstimated, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.bytes", atomic.SwapInt64(&w.stats.Bytes, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.errors", atomic.SwapInt64(&w.stats.Errors, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.traces", atomic.SwapInt64(&w.stats.Traces, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.events", atomic.SwapInt64(&w.stats.Events, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.trace_writer.spans", atomic.SwapInt64(&w.stats.Spans, 0), nil, 1)
 }
 
 var _ eventRecorder = (*TraceWriter)(nil)
@@ -240,7 +218,6 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 	switch t {
 	case eventTypeRetry:
 		log.Errorf("Retrying to flush trace payload; error: %s", data.err)
-		metrics.Count("datadog.trace_agent.trace_writer.retries", 1, nil, 1)
 		atomic.AddInt64(&w.stats.Retries, 1)
 
 	case eventTypeFlushed:
@@ -250,13 +227,11 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 	case eventTypeSent:
 		log.Tracef("Flushed one payload to the API; time: %s, bytes: %d", data.duration, data.bytes)
 		timing.Since("datadog.trace_agent.trace_writer.flush_duration", time.Now().Add(-data.duration))
-		metrics.Count("datadog.trace_agent.trace_writer.payloads", 1, nil, 1)
-		metrics.Count("datadog.trace_agent.trace_writer.bytes", int64(data.bytes), nil, 1)
+		atomic.AddInt64(&w.stats.Bytes, int64(data.bytes))
 		atomic.AddInt64(&w.stats.Payloads, 1)
 
 	case eventTypeFailed:
 		log.Errorf("Failed to flush a payload, host:%s, size:%d bytes, error: %s", data.host, data.bytes, data.err)
-		metrics.Count("datadog.trace_agent.trace_writer.errors", 1, nil, 1)
 		atomic.AddInt64(&w.stats.Errors, 1)
 
 	case eventTypeDropped:
