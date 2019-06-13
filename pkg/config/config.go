@@ -530,6 +530,7 @@ func GetMultipleEndpoints() (map[string][]string, error) {
 	return getMultipleEndpointsWithConfig(Datadog)
 }
 
+// GetBatcherLimit returns the mximum amount of elements per batcher for the batcher
 func GetBatcherLimit() int {
 	if Datadog.IsSet("batcher_limit") {
 		return Datadog.GetInt("batcher_limit")

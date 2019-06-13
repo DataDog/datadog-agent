@@ -1,7 +1,8 @@
 package topology
 
+// Component is a representation of a topology component
 type Component struct {
-	ExternalId string `json:"externalId"`
-	Type Type `json:"type"`
-	Data map[string]interface{} `json:"data"`
+	ExternalID string                 `json:"externalId"`
+	Type       Type                   `json:"type"`
+	Data       map[string]interface{} `json:"data"`
 }

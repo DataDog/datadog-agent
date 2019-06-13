@@ -51,7 +51,7 @@ func SubmitComponent(chk *C.PyObject, checkID *C.char, instanceKey *C.PyObject, 
 	batcher.GetBatcher().SubmitComponent(check.ID(goCheckID),
 		*_instance,
 		topology.Component{
-			ExternalId: _externalId,
+			ExternalID: _externalId,
 			Type:       topology.Type{Name: _componentType},
 			Data:       _data,
 		})
@@ -86,9 +86,9 @@ func SubmitRelation(chk *C.PyObject, checkID *C.char, instanceKey *C.PyObject, s
 	batcher.GetBatcher().SubmitRelation(check.ID(goCheckID),
 		*_instance,
 		topology.Relation{
-			ExternalId: _externalId,
-			SourceId:   _sourceId,
-			TargetId:   _targetId,
+			ExternalID: _externalId,
+			SourceID:   _sourceId,
+			TargetID:   _targetId,
 			Type:       topology.Type{Name: _relationType},
 			Data:       _data,
 		})
@@ -146,7 +146,7 @@ func extractInstance(instanceKey *C.PyObject, checkId string) (*topology.Instanc
 
 	return &topology.Instance{
 		Type: _instanceKey["type"].(string),
-		Url:  _instanceKey["url"].(string),
+		URL:  _instanceKey["url"].(string),
 	}, nil
 }
 

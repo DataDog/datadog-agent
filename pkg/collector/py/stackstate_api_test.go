@@ -22,11 +22,11 @@ func TestComponentTopology(t *testing.T) {
 			StopSnapshot:  false,
 			Instance: topology.Instance{
 				Type: "type",
-				Url:  "url",
+				URL:  "url",
 			},
 			Components: []topology.Component{
 				{
-					ExternalId: "myid",
+					ExternalID: "myid",
 					Type:       topology.Type{Name: "mytype"},
 					Data: map[string]interface{}{
 						"emptykey": map[string]interface{}{},
@@ -57,14 +57,14 @@ func TestRelationTopology(t *testing.T) {
 			StopSnapshot:  false,
 			Instance: topology.Instance{
 				Type: "type",
-				Url:  "url",
+				URL:  "url",
 			},
 			Components: []topology.Component{},
 			Relations: []topology.Relation{
 				{
-					ExternalId: "source-mytype-target",
-					SourceId:   "source",
-					TargetId:   "target",
+					ExternalID: "source-mytype-target",
+					SourceID:   "source",
+					TargetID:   "target",
 					Type:       topology.Type{Name: "mytype"},
 					Data: map[string]interface{}{
 						"emptykey": map[string]interface{}{},
@@ -94,7 +94,7 @@ func TestStartSnapshotCheck(t *testing.T) {
 			StopSnapshot:  false,
 			Instance: topology.Instance{
 				Type: "type",
-				Url:  "url",
+				URL:  "url",
 			},
 			Components: []topology.Component{},
 			Relations:  []topology.Relation{},
@@ -116,7 +116,7 @@ func TestStopSnapshotCheck(t *testing.T) {
 			StopSnapshot:  true,
 			Instance: topology.Instance{
 				Type: "type",
-				Url:  "url",
+				URL:  "url",
 			},
 			Components: []topology.Component{},
 			Relations:  []topology.Relation{},

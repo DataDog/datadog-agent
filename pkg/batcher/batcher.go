@@ -13,6 +13,9 @@ var (
 	batcherInit     sync.Once
 )
 
+// Batcher interface can receive data for sending to the intake and will accumulate the data in batches. This does
+// not work on a fixed schedule like the aggregator but flushes either when data exceeds a threshold, when
+// data is complete.
 type Batcher interface {
 	SubmitComponent(checkID check.ID, instance topology.Instance, component topology.Component)
 	SubmitRelation(checkID check.ID, instance topology.Instance, relation topology.Relation)
@@ -22,6 +25,7 @@ type Batcher interface {
 	Shutdown()
 }
 
+// InitBatcher initializes the global batcher instance
 func InitBatcher(serializer serializer.AgentV1Serializer, hostname, agentName string, batchLimit int) {
 	batcherInit.Do(func() {
 		batcherInstance = newAsynchronousBatcher(serializer, hostname, agentName, batchLimit)
@@ -40,16 +44,19 @@ func newAsynchronousBatcher(serializer serializer.AgentV1Serializer, hostname, a
 	return batcher
 }
 
+// GetBatcher returns a handle on the global batcher instance
 func GetBatcher() Batcher {
 	return batcherInstance
 }
 
+// NewMockBatcher initializes the global batcher with a mock version, intended for testing
 func NewMockBatcher() MockBatcher {
 	batcher := createMockBatcher()
 	batcherInstance = batcher
 	return batcher
 }
 
+// AsynchronousBatcher is the implementation of the batcher. Works asynchronous. Publishes data to the serializer
 type AsynchronousBatcher struct {
 	builder             TopologyBuilder
 	hostname, agentName string
@@ -126,6 +133,7 @@ func (batcher *AsynchronousBatcher) run() {
 	}
 }
 
+// SubmitComponent submits a component to the batch
 func (batcher AsynchronousBatcher) SubmitComponent(checkID check.ID, instance topology.Instance, component topology.Component) {
 	batcher.input <- submitComponent{
 		checkID:   checkID,
@@ -134,6 +142,7 @@ func (batcher AsynchronousBatcher) SubmitComponent(checkID check.ID, instance to
 	}
 }
 
+// SubmitRelation submits a relation to the batch
 func (batcher AsynchronousBatcher) SubmitRelation(checkID check.ID, instance topology.Instance, relation topology.Relation) {
 	batcher.input <- submitRelation{
 		checkID:  checkID,
@@ -142,6 +151,7 @@ func (batcher AsynchronousBatcher) SubmitRelation(checkID check.ID, instance top
 	}
 }
 
+// SubmitStartSnapshot submits start of a snapshot
 func (batcher AsynchronousBatcher) SubmitStartSnapshot(checkID check.ID, instance topology.Instance) {
 	batcher.input <- submitStartSnapshot{
 		checkID:  checkID,
@@ -149,6 +159,7 @@ func (batcher AsynchronousBatcher) SubmitStartSnapshot(checkID check.ID, instanc
 	}
 }
 
+// SubmitStopSnapshot submits a stop of a snapshot. This always causes a flush of the data downstream
 func (batcher AsynchronousBatcher) SubmitStopSnapshot(checkID check.ID, instance topology.Instance) {
 	batcher.input <- submitStopSnapshot{
 		checkID:  checkID,
@@ -156,12 +167,14 @@ func (batcher AsynchronousBatcher) SubmitStopSnapshot(checkID check.ID, instance
 	}
 }
 
+// SubmitComplete signals completion of a check. May trigger a flush only if the check produced data
 func (batcher AsynchronousBatcher) SubmitComplete(checkID check.ID) {
 	batcher.input <- submitComplete{
 		checkID: checkID,
 	}
 }
 
+// Shutdown shuts down the batcher
 func (batcher AsynchronousBatcher) Shutdown() {
 	batcher.input <- submitShutdown{}
 }

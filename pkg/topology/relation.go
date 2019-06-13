@@ -1,9 +1,10 @@
 package topology
 
+// Relation is a representation of a topology relation
 type Relation struct {
-	ExternalId string `json:"externalId"`
-	SourceId string `json:"sourceId"`
-	TargetId string `json:"targetId"`
-	Type Type `json:"type"`
-	Data map[string]interface{} `json:"data"`
+	ExternalID string                 `json:"externalId"`
+	SourceID   string                 `json:"sourceId"`
+	TargetID   string                 `json:"targetId"`
+	Type       Type                   `json:"type"`
+	Data       map[string]interface{} `json:"data"`
 }
