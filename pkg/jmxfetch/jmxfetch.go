@@ -211,9 +211,13 @@ func (j *JMXFetch) Start(manage bool) error {
 		return err
 	}
 	go func() {
+	scan:
 		in := bufio.NewScanner(stdout)
 		for in.Scan() {
 			log.Info(in.Text())
+		}
+		if in.Err() == bufio.ErrTooLong {
+			goto scan
 		}
 	}()
 
@@ -223,9 +227,13 @@ func (j *JMXFetch) Start(manage bool) error {
 		return err
 	}
 	go func() {
+	scan:
 		in := bufio.NewScanner(stderr)
 		for in.Scan() {
 			log.Error(in.Text())
+		}
+		if in.Err() == bufio.ErrTooLong {
+			goto scan
 		}
 	}()
 
