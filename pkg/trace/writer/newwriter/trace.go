@@ -48,6 +48,7 @@ func (ss *SampledSpans) size() int {
 	return ss.Trace.Msgsize() + pb.Trace(ss.Events).Msgsize()
 }
 
+// TraceWriter buffers traces and APM events, flushing them to the Datadog API.
 type TraceWriter struct {
 	in       <-chan *SampledSpans
 	hostname string
@@ -62,6 +63,8 @@ type TraceWriter struct {
 	bufferedSize int            // estimated buffer size
 }
 
+// NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
+// will accept incoming spans via the in channel.
 func NewTraceWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceWriter {
 	// allow 10% of the connection limit to outgoing sends.
 	climit := int(math.Max(1, float64(cfg.ConnectionLimit)/10))
