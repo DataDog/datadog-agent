@@ -53,7 +53,7 @@ func TestSender(t *testing.T) {
 		assert.Equal(0, server.Failed(), "failed")
 	})
 
-	t.Run("accept-many", func(t *testing.T) {
+	t.Run("peak", func(t *testing.T) {
 		assert := assert.New(t)
 		server := newTestServer()
 		defer server.Close()
@@ -64,6 +64,7 @@ func TestSender(t *testing.T) {
 		}
 		s.waitEmpty()
 
+		assert.True(server.Peak() < climit)
 		assert.Equal(climit*4, server.Total(), "total")
 		assert.Equal(climit*4, server.Accepted(), "accepted")
 		assert.Equal(0, server.Retried(), "retry")

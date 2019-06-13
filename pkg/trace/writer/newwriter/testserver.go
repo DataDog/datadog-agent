@@ -60,7 +60,9 @@ type testServer struct {
 	mu   sync.Mutex
 	seen map[string]*requestStatus
 
-	total, retried, failed, accepted uint64
+	total, accepted uint64
+	retried, failed uint64
+	peak, active    int64
 }
 
 // requestStatus keeps track of how many times a custom payload was seen and what
@@ -77,14 +79,32 @@ func (rs *requestStatus) nextResponse() int {
 	return statusCode
 }
 
-func (ts *testServer) Failed() int   { return int(atomic.LoadUint64(&ts.failed)) }
-func (ts *testServer) Retried() int  { return int(atomic.LoadUint64(&ts.retried)) }
-func (ts *testServer) Total() int    { return int(atomic.LoadUint64(&ts.total)) }
+// Peak returns the maximum number of simultaneous connections that were active
+// while the server was running.
+func (ts *testServer) Peak() int { return int(atomic.LoadInt64(&ts.peak)) }
+
+// Failed returns the number of connections to which the server responded with an
+// HTTP status code that is non-2xx and non-5xx.
+func (ts *testServer) Failed() int { return int(atomic.LoadUint64(&ts.failed)) }
+
+// Failed returns the number of connections to which the server responded with a
+// 5xx HTTP status code.
+func (ts *testServer) Retried() int { return int(atomic.LoadUint64(&ts.retried)) }
+
+// Total returns the total number of connections which reached the server.
+func (ts *testServer) Total() int { return int(atomic.LoadUint64(&ts.total)) }
+
+// Failed returns the number of connections to which the server responded with a
+// 2xx HTTP status code.
 func (ts *testServer) Accepted() int { return int(atomic.LoadUint64(&ts.accepted)) }
 
 // ServeHTTP responds based on the request body.
 func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	atomic.AddUint64(&ts.total, 1)
+	if v := atomic.AddInt64(&ts.active, 1); v > atomic.LoadInt64(&ts.peak) {
+		atomic.SwapInt64(&ts.peak, v)
+	}
+	defer atomic.AddInt64(&ts.active, -1)
 	slurp, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		panic(fmt.Sprintf("error reading request body: %v", err))
@@ -102,6 +122,9 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// getNextCode returns the next HTTP status code that should be responded with
+// to the given request body. If the request body does not originate from a
+// payload created with expectResponse, it returns http.StatusOK.
 func (ts *testServer) getNextCode(reqBody []byte) int {
 	parts := strings.Split(string(reqBody), "|")
 	if len(parts) != 2 {
