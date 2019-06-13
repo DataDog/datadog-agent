@@ -3,6 +3,7 @@ package writer
 import (
 	"crypto/tls"
 	"errors"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -25,6 +26,9 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit in
 		panic(errors.New("config was not properly validated"))
 	}
 	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.SkipSSLValidation},
+		// below field values are from http.DefaultTransport (go1.12)
+		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
@@ -34,7 +38,6 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit in
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig:       &tls.Config{InsecureSkipVerify: cfg.SkipSSLValidation},
 	}
 	if p := coreconfig.GetProxies(); p != nil {
 		transport.Proxy = util.GetProxyTransportFunc(p)
@@ -43,6 +46,8 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit in
 		Timeout:   10 * time.Second,
 		Transport: transport,
 	}
+	// spread out the the maximum connection limit (climit) between senders
+	maxConns := math.Min(1, float64(climit/len(cfg.Endpoints)))
 	senders := make([]*sender, len(cfg.Endpoints))
 	for i, endpoint := range cfg.Endpoints {
 		url, err := url.Parse(endpoint.Host + path)
@@ -51,7 +56,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit in
 		}
 		senders[i] = newSender(&senderConfig{
 			client:   client,
-			maxConns: climit,
+			maxConns: int(maxConns),
 			url:      url,
 			apiKey:   endpoint.APIKey,
 			recorder: r,

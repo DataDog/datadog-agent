@@ -45,7 +45,7 @@ func TestSender(t *testing.T) {
 		for i := 0; i < 20; i++ {
 			s.Push(expectResponses(200))
 		}
-		s.Flush()
+		s.waitEmpty()
 
 		assert.Equal(20, server.Total(), "total")
 		assert.Equal(20, server.Accepted(), "accepted")
@@ -62,7 +62,7 @@ func TestSender(t *testing.T) {
 		for i := 0; i < climit*4; i++ {
 			s.Push(expectResponses(200))
 		}
-		s.Flush()
+		s.waitEmpty()
 
 		assert.Equal(climit*4, server.Total(), "total")
 		assert.Equal(climit*4, server.Accepted(), "accepted")
@@ -79,7 +79,7 @@ func TestSender(t *testing.T) {
 		for i := 0; i < 20; i++ {
 			s.Push(expectResponses(404))
 		}
-		s.Flush()
+		s.waitEmpty()
 
 		assert.Equal(20, server.Total(), "total")
 		assert.Equal(0, server.Accepted(), "accepted")
@@ -104,7 +104,7 @@ func TestSender(t *testing.T) {
 			503,
 			200,
 		))
-		s.Flush()
+		s.waitEmpty()
 
 		assert.Equal(uint64(2), retries)
 		assert.Equal(3, server.Total(), "total")
@@ -128,7 +128,7 @@ func TestSender(t *testing.T) {
 			s.Push(expectResponses(403))
 		}
 
-		s.Flush()
+		s.waitEmpty()
 
 		assert.Equal(23, server.Total(), "total")
 		assert.Equal(2, server.Retried(), "retry")
@@ -171,7 +171,7 @@ func TestSender(t *testing.T) {
 		defer server.Close()
 		s := newSender(testSenderConfig(server.URL))
 		s.Push(expectResponses(http.StatusOK))
-		s.Flush()
+		s.waitEmpty()
 	})
 }
 

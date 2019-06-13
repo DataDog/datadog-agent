@@ -86,7 +86,7 @@ func (w *TraceWriter) Stop() {
 		wg.Add(1)
 		go func(s *sender) {
 			defer wg.Done()
-			s.Flush()
+			s.waitEmpty()
 		}(s)
 	}
 	wg.Wait()

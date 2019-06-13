@@ -77,14 +77,13 @@ type eventRecorder interface {
 // items are dropped to make room for new ones.
 var maxQueueSize = 64 * 1024 * 1024 // 64MB; replaced in tests
 
-// sender books payloads for being sent to a given URL by a given client. It uses a
-// size-limited retry queue with a backoff mechanism in case of retriable errors.
+// sender is responsible for sending payloads to a given URL. It uses a size-limited
+// retry queue with a backoff mechanism in case of retriable errors.
 type sender struct {
 	cfg  *senderConfig
 	host string
 
-	wg     sync.WaitGroup // waits for all uploads
-	climit chan struct{}  // acts as a semaphore for limiting concurrent connections
+	climit chan struct{} // acts as a semaphore for limiting concurrent connections
 
 	mu        sync.Mutex  // guards below fields
 	list      *list.List  // send queue
@@ -131,10 +130,23 @@ func (q *sender) Push(p *payload) {
 
 	if !q.scheduled {
 		// no flush is scheduled; start one
-		q.scheduled = true
-		q.wg.Add(1)
-		go q.flush()
+		q.scheduleFlushLocked(0)
 	}
+}
+
+// scheduleFlushLocked schedules the next flush using the given delay.
+func (q *sender) scheduleFlushLocked(delay time.Duration) {
+	q.scheduled = true
+	if delay == 0 {
+		go q.flush()
+		return
+	}
+	if q.timer == nil {
+		q.timer = time.AfterFunc(delay, q.flush)
+		return
+	}
+	q.timer.Stop()
+	q.timer.Reset(delay)
 }
 
 // flush drains and sends the entire queue. If anything comes in while flushing
@@ -151,7 +163,6 @@ func (q *sender) flush() {
 	// we send the payloads we've retrieved; while we do this, more payloads
 	// can join the list.
 	done, retries := q.sendPayloads(payloads)
-
 	if done > 0 {
 		q.recordEvent(eventTypeFlushed, &eventData{
 			count:    int(done),
@@ -163,26 +174,21 @@ func (q *sender) flush() {
 	// to be scheduled
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	defer q.wg.Done()
 
-	if q.list.Len() == 0 {
-		// the list is empty; no further flushing needs to be triggered
-		q.attempt = 0
-		q.scheduled = false
-		return
-	}
-	// the list is not empty
-	q.scheduled = true
 	if retries > 0 {
 		// some sends failed as retriable; we need to back off a bit
 		q.attempt++
-		q.wg.Add(1)
-		q.timer = time.AfterFunc(backoffDuration(q.attempt), q.flush)
+		delay := backoffDuration(q.attempt)
+		q.scheduleFlushLocked(delay)
 		return
 	}
-	// all items in the list are new; flush immediately
-	q.wg.Add(1)
-	go q.flush()
+	if q.list.Len() > 0 {
+		// new items came in while we were flushing; schedule the next flush immediately.
+		q.scheduleFlushLocked(0)
+		return
+	}
+	q.attempt = 0
+	q.scheduled = false
 }
 
 // drainQueue drains the entire queue and returns all the payloads that were in it.
@@ -225,7 +231,7 @@ func (q *sender) sendPayloads(payloads []*payload) (done, retries uint64) {
 			switch err.(type) {
 			case *retriableError:
 				// request failed again, but can be retried
-				q.enqueue(p)
+				q.enqueueAgain(p)
 				atomic.AddUint64(&retries, 1)
 				q.recordEvent(eventTypeRetry, stats)
 			case nil:
@@ -250,9 +256,9 @@ func (q *sender) recordEvent(t eventType, data *eventData) {
 	}
 }
 
-// Flush waits up to 5 seconds for the queue to reach an empty state and for all scheduling
+// waitEmpty waits up to 5 seconds for the queue to reach an empty state and for all scheduling
 // to complete before returning.
-func (q *sender) Flush() {
+func (q *sender) waitEmpty() {
 	timeout := time.After(5 * time.Second)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -271,7 +277,8 @@ func (q *sender) Flush() {
 	}
 }
 
-// enqueue enqueues the given payloads.
+// enqueue enqueues the given payload. If there is no room in the queue, it drops oldest
+// payloads until there is.
 func (q *sender) enqueue(p *payload) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -290,6 +297,18 @@ func (q *sender) enqueueLocked(p *payload) {
 	}
 	q.list.PushBack(p)
 	q.size += size
+}
+
+// enqueueAgain attempts to enqueue the payload p into the retry queue. p is considered to
+// have been part of the queue before and as such, is older than any other item in the queue.
+// If there is no room in the queue, it will be dropped.
+func (q *sender) enqueueAgain(p *payload) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.size+len(p.body) > maxQueueSize {
+		return
+	}
+	q.enqueueLocked(p)
 }
 
 // userAgent is the computed user agent we'll use when communicating with Datadog var
