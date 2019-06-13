@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // uid is an atomically incremented ID, used by the expectResponses function to
@@ -37,6 +38,14 @@ func expectResponses(codes ...int) *payload {
 	return newPayload(str.Bytes(), nil)
 }
 
+// newTestServerWithLatency returns a test server that takes duration d
+// to respond to each request.
+func newTestServerWithLatency(d time.Duration) *testServer {
+	ts := newTestServer()
+	ts.latency = d
+	return ts
+}
+
 // newTestServer returns a new, started HTTP test server. Its URL is available
 // as a field. To control its responses, send it payloads created by expectResponses.
 // By default, the testServer always returns http.StatusOK.
@@ -53,11 +62,12 @@ func newTestServer() *testServer {
 // failed, retriable and accepted requests. It also allows manipulating it's HTTTP
 // status code response by means of the request's body (see expectResponses).
 type testServer struct {
-	t      *testing.T
-	URL    string
-	server *httptest.Server
+	t       *testing.T
+	URL     string
+	server  *httptest.Server
+	latency time.Duration
 
-	mu   sync.Mutex
+	mu   sync.Mutex // guards seen
 	seen map[string]*requestStatus
 
 	total, accepted uint64
@@ -101,10 +111,15 @@ func (ts *testServer) Accepted() int { return int(atomic.LoadUint64(&ts.accepted
 // ServeHTTP responds based on the request body.
 func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	atomic.AddUint64(&ts.total, 1)
+
 	if v := atomic.AddInt64(&ts.active, 1); v > atomic.LoadInt64(&ts.peak) {
 		atomic.SwapInt64(&ts.peak, v)
 	}
 	defer atomic.AddInt64(&ts.active, -1)
+	if ts.latency > 0 {
+		time.Sleep(ts.latency)
+	}
+
 	slurp, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		panic(fmt.Sprintf("error reading request body: %v", err))

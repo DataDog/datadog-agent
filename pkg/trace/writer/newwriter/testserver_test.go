@@ -1,9 +1,12 @@
 package writer
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptrace"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -65,6 +68,28 @@ func TestTestServer(t *testing.T) {
 		assert.Equal(4, ts.Accepted())
 		assert.Equal(0, ts.Failed())
 		assert.Equal(0, ts.Retried())
+	})
+
+	t.Run("latency", func(t *testing.T) {
+		var (
+			start time.Time
+			d     time.Duration
+		)
+		ts := newTestServerWithLatency(50 * time.Millisecond)
+		defer ts.Close()
+
+		assert := assert.New(t)
+		req, err := http.NewRequest("POST", ts.URL, nil)
+		assert.NoError(err)
+		clienttrace := httptrace.ClientTrace{
+			ConnectStart:         func(_, _ string) { start = time.Now() },
+			GotFirstResponseByte: func() { d = time.Since(start) },
+		}
+		ctx := httptrace.WithClientTrace(context.Background(), &clienttrace)
+		resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+		assert.NoError(err)
+		assert.Equal(200, resp.StatusCode)
+		assert.True(d > 50*time.Millisecond)
 	})
 
 	t.Run("custom-body", func(t *testing.T) {
