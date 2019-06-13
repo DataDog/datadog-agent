@@ -175,20 +175,20 @@ func (q *sender) flush() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	if retries > 0 {
+	switch {
+	case retries > 0:
 		// some sends failed as retriable; we need to back off a bit
 		q.attempt++
 		delay := backoffDuration(q.attempt)
 		q.scheduleFlushLocked(delay)
-		return
-	}
-	if q.list.Len() > 0 {
+	case q.list.Len() > 0:
 		// new items came in while we were flushing; schedule the next flush immediately.
 		q.scheduleFlushLocked(0)
-		return
+	default:
+		// everything is flushed
+		q.attempt = 0
+		q.scheduled = false
 	}
-	q.attempt = 0
-	q.scheduled = false
 }
 
 // drainQueue drains the entire queue and returns all the payloads that were in it.

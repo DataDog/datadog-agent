@@ -15,9 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
-// timeout is the HTTP timeout for POST requests to the Datadog backend
-const timeout = 10 * time.Second
-
 // newSenders returns a list of senders based on the given agent configuration, using climit
 // as the maximum number of concurrent outgoing connections, writing to path. The given
 // namespace is used as a prefix for reported metrics.
