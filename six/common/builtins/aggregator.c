@@ -251,6 +251,9 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     if (PyDict_GetItemString(event_dict, "timestamp") != NULL) {
         ev->ts = PyLong_AsLong(PyDict_GetItemString(event_dict, "timestamp"));
         if (ev->ts == -1) {
+            // we ignore the error and set the timestamp to 0 (magic value that
+            // will result in the current time) to ensure backward compatibility
+            // with the pre-six API
             PyErr_Clear();
             ev->ts = 0;
         }
