@@ -56,9 +56,6 @@ func (m NamespacesPodsStringsSet) DeepCopy(old *NamespacesPodsStringsSet) Namesp
 			m[nsKey] = MapStringSet{}
 		}
 		for pod, svcs := range val1 {
-			if _, ok := m[nsKey][pod]; !ok {
-				m[nsKey][pod] = sets.NewString()
-			}
 			m[nsKey][pod] = sets.NewString(svcs.List()...)
 		}
 	}
