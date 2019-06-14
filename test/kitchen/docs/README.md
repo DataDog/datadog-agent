@@ -14,8 +14,8 @@ Each individual test environment is controlled from _.gitlab\_ci.yml_.  The test
 This configuration is fed to the script _tasks/run-test-kitchen.sh_. That script in turn sets up additional variables for Azure (authentication/environment variables), and then executes the actual kitchen command.  Using the ruby _erb_ syntax, a full matrix of platforms and tests is generated and executed.
 
 There are currently two input files.
-1. _.kitchen-azure.yml_ contains a set of installation and upgrade tests that are executed on all of the available platforms
-2. _.kitchen-azure-winstall.yml_ contains a set of  Windows specific tests for command-line installation options. These tests are currently (as configured in _.gitlab-ci.yml_) only run on one Windows OS for brevity.
+1. _kitchen-azure.yml_ contains a set of installation and upgrade tests that are executed on all of the available platforms
+2. _kitchen-azure-winstall.yml_ contains a set of  Windows specific tests for command-line installation options. These tests are currently (as configured in _.gitlab-ci.yml_) only run on one Windows OS for brevity.
 
 ### Test Implementation
 
