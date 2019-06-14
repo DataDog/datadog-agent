@@ -14,9 +14,46 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// newSenders returns a list of senders based on the given agent configuration, using climit
+// as the maximum number of concurrent outgoing connections, writing to path. The given
+// namespace is used as a prefix for reported metrics.
+func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit int) []*sender {
+	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
+		panic(errors.New("config was not properly validated"))
+	}
+	client := cfg.HTTPClient()
+	// spread out the the maximum connection limit (climit) between senders
+	maxConns := math.Max(1, float64(climit/len(cfg.Endpoints)))
+	senders := make([]*sender, len(cfg.Endpoints))
+	for i, endpoint := range cfg.Endpoints {
+		url, err := url.Parse(endpoint.Host + path)
+		if err != nil {
+			osutil.Exitf("Invalid host endpoint: %q", endpoint.Host)
+		}
+		senders[i] = newSender(&senderConfig{
+			client:   client,
+			maxConns: int(maxConns),
+			url:      url,
+			apiKey:   endpoint.APIKey,
+			recorder: r,
+		})
+	}
+	return senders
+}
+
+// eventRecorder implementations are able to take note of events happening in
+// the sender.
+type eventRecorder interface {
+	// recordEvent notifies that event t has happened, passing details about
+	// the event in data.
+	recordEvent(t eventType, data *eventData)
+}
 
 // eventType specifies an event which occurred in the sender.
 type eventType int
@@ -63,14 +100,6 @@ type eventData struct {
 	// err specifies the error that may have occurred on events like
 	// eventTypeRetry and eventTypeFailed.
 	err error
-}
-
-// eventRecorder implementations are able to take note of events happening in
-// the sender.
-type eventRecorder interface {
-	// recordEvent notifies that event t has happened, passing details about
-	// the event in data.
-	recordEvent(t eventType, data *eventData)
 }
 
 // maxQueueSize specifies the maximum allowed queue size. If it is surpassed, older
@@ -353,6 +382,19 @@ type payload struct {
 	headers map[string]string // request headers
 }
 
+// newPayload creates a new payload, having the given body and header map.
+func newPayload(body []byte, headers map[string]string) *payload {
+	p := payload{
+		body:    body,
+		headers: headers,
+	}
+	if p.headers == nil {
+		p.headers = make(map[string]string, 1)
+	}
+	p.headers["Content-Length"] = strconv.Itoa(len(body))
+	return &p
+}
+
 // httpRequest returns an HTTP request based on the payload, targeting the given URL.
 func (p *payload) httpRequest(url *url.URL) (*http.Request, error) {
 	req, err := http.NewRequest(http.MethodPost, url.String(), bytes.NewReader(p.body))
@@ -366,17 +408,17 @@ func (p *payload) httpRequest(url *url.URL) (*http.Request, error) {
 	return req, nil
 }
 
-// newPayload creates a new payload, having the given body and header map.
-func newPayload(body []byte, headers map[string]string) *payload {
-	p := payload{
-		body:    body,
-		headers: headers,
+// stopSenders attempts to simultaneously stop a group of senders.
+func stopSenders(senders []*sender) {
+	var wg sync.WaitGroup
+	for _, s := range senders {
+		wg.Add(1)
+		go func(s *sender) {
+			defer wg.Done()
+			s.waitEmpty()
+		}(s)
 	}
-	if p.headers == nil {
-		p.headers = make(map[string]string, 1)
-	}
-	p.headers["Content-Length"] = strconv.Itoa(len(body))
-	return &p
+	wg.Wait()
 }
 
 const (

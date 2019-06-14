@@ -37,7 +37,7 @@ type Agent struct {
 	EventProcessor     *event.Processor
 	TraceWriter        *newwriter.TraceWriter
 	ServiceWriter      *writer.ServiceWriter
-	StatsWriter        *writer.StatsWriter
+	StatsWriter        *newwriter.StatsWriter
 	ServiceExtractor   *TraceServiceExtractor
 	ServiceMapper      *ServiceMapper
 
@@ -83,7 +83,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	se := NewTraceServiceExtractor(serviceChan)
 	sm := NewServiceMapper(serviceChan, filteredServiceChan)
 	tw := newwriter.NewTraceWriter(conf, spansOut)
-	sw := writer.NewStatsWriter(conf, statsChan)
+	sw := newwriter.NewStatsWriter(conf, statsChan)
 	svcW := writer.NewServiceWriter(conf, filteredServiceChan)
 
 	return &Agent{
@@ -114,8 +114,6 @@ func (a *Agent) Run() {
 
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
-		//a.TraceWriter,
-		a.StatsWriter,
 		a.ServiceMapper,
 		a.ServiceWriter,
 		a.Concentrator,
@@ -128,6 +126,7 @@ func (a *Agent) Run() {
 	}
 
 	go a.TraceWriter.Run()
+	go a.StatsWriter.Run()
 
 	n := 1
 	if config.HasFeature("parallel_process") {

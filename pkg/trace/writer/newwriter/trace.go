@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"math"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -55,8 +54,7 @@ type TraceWriter struct {
 	env      string
 	senders  []*sender
 	stop     chan struct{}
-
-	stats *info.TraceWriterInfo
+	stats    *info.TraceWriterInfo
 
 	traces       []*pb.APITrace // traces buffered
 	events       []*pb.Span     // events buffered
@@ -66,8 +64,6 @@ type TraceWriter struct {
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
 // will accept incoming spans via the in channel.
 func NewTraceWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceWriter {
-	// allow 10% of the connection limit to outgoing sends.
-	climit := int(math.Max(1, float64(cfg.ConnectionLimit)/10))
 	tw := &TraceWriter{
 		in:       in,
 		hostname: cfg.Hostname,
@@ -75,6 +71,8 @@ func NewTraceWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceWrit
 		stats:    &info.TraceWriterInfo{},
 		stop:     make(chan struct{}),
 	}
+	// allow 10% of the connection limit to outgoing sends.
+	climit := int(math.Max(1, float64(cfg.ConnectionLimit)/10))
 	tw.senders = newSenders(cfg, tw, pathTraces, climit)
 	return tw
 }
@@ -84,15 +82,7 @@ func (w *TraceWriter) Stop() {
 	log.Debug("Exiting trace writer. Trying to flush whatever is left...")
 	w.stop <- struct{}{}
 	<-w.stop
-	var wg sync.WaitGroup
-	for _, s := range w.senders {
-		wg.Add(1)
-		go func(s *sender) {
-			defer wg.Done()
-			s.waitEmpty()
-		}(s)
-	}
-	wg.Wait()
+	stopSenders(w.senders)
 }
 
 // Run starts the TraceWriter.
@@ -221,17 +211,17 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 		atomic.AddInt64(&w.stats.Retries, 1)
 
 	case eventTypeFlushed:
-		log.Debugf("Flushed queue of %d payload(s) to the API in %s.", data.count, data.duration)
+		log.Debugf("Flushed queue of %d trace payload(s) to the API in %s.", data.count, data.duration)
 		timing.Since("datadog.trace_agent.trace_writer.flush_queue", time.Now().Add(-data.duration))
 
 	case eventTypeSent:
-		log.Tracef("Flushed one payload to the API; time: %s, bytes: %d", data.duration, data.bytes)
+		log.Tracef("Flushed traces to the API; time: %s, bytes: %d", data.duration, data.bytes)
 		timing.Since("datadog.trace_agent.trace_writer.flush_duration", time.Now().Add(-data.duration))
 		atomic.AddInt64(&w.stats.Bytes, int64(data.bytes))
 		atomic.AddInt64(&w.stats.Payloads, 1)
 
 	case eventTypeFailed:
-		log.Errorf("Failed to flush a payload, host:%s, size:%d bytes, error: %s", data.host, data.bytes, data.err)
+		log.Errorf("Failed to flush traces (url:%s, size:%d bytes, error: %q)", data.host, data.bytes, data.err)
 		atomic.AddInt64(&w.stats.Errors, 1)
 
 	case eventTypeDropped:
