@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	v1 "k8s.io/client-go/listers/core/v1"
 )
 
 // dispatcher holds the management logic for cluster-checks
@@ -25,7 +24,6 @@ type dispatcher struct {
 	store                 *clusterStore
 	nodeExpirationSeconds int64
 	extraTags             []string
-	endpointsLister       v1.EndpointsLister
 }
 
 func newDispatcher() *dispatcher {
@@ -39,11 +37,6 @@ func newDispatcher() *dispatcher {
 	clusterTagName := config.Datadog.GetString("cluster_checks.cluster_tag_name")
 	if clusterTagName != "" && clusterTagValue != "" {
 		d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
-	}
-	var err error
-	d.endpointsLister, err = newEndpointsLister()
-	if err != nil {
-		log.Errorf("Cannot create endpoints lister: %s", err)
 	}
 
 	return d
