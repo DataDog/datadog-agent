@@ -64,7 +64,7 @@ func TestNamespacesPodsStringsSet_Copy(t *testing.T) {
 			},
 		},
 		{
-			name: "overwrite case",
+			name: "union case",
 			m: NamespacesPodsStringsSet{
 				"foo": map[string]sets.String{"bur": sets.NewString("boz")},
 			},
@@ -72,7 +72,7 @@ func TestNamespacesPodsStringsSet_Copy(t *testing.T) {
 				"foo": map[string]sets.String{"bur": sets.NewString("buz")},
 			},
 			want: NamespacesPodsStringsSet{
-				"foo": map[string]sets.String{"bur": sets.NewString("buz")},
+				"foo": map[string]sets.String{"bur": sets.NewString("buz", "boz")},
 			},
 		},
 	}
