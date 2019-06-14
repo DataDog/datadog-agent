@@ -7,6 +7,19 @@ package decoder
 
 import "github.com/DataDog/datadog-agent/pkg/logs/parser"
 
+// LineGenerator encapsulates the details of log reading and parsing. In general,
+// line generator decide whether to cut the cached bytes as a line when:
+// * a EndLine matched according to the specific matcher configured.
+// * caching bytes reaches capacity, which is defined by 'maxLen'
+//
+// To encapsulate the information of the content sent to downstream, struct Line
+// is introduced. To form a Line, generator takes the cached bytes, pass to a
+// Convertor to get the final Line instance.
+//
+// The operation is completed so far for the first case above. For the 2nd case,
+// extra information is required in order to help truncation logic. For this,
+// RichLine struct is introduced, it contains 2 more fields to know if a line is
+// cut by generator (whether it is a part of a long log with length exceeds maxLen).
 type LineGenerator struct {
 	maxLen           int // max decode length
 	inputChan        chan *Input
@@ -15,6 +28,7 @@ type LineGenerator struct {
 	handlerScheduler LineHandlerScheduler
 }
 
+// Start prepares the process for reading logs.
 func (l *LineGenerator) Start() {
 	l.handlerScheduler.Start()
 	go func() {
@@ -32,10 +46,14 @@ func (l *LineGenerator) read(chunk *Input) {
 	//TODO
 }
 
+// RichLine takes extra fields to give necessary information to generate a Output message.
 type RichLine struct {
 	parser.Line
-	// flag to know if it's necessary to add leading '...TRUNCATED...'
+	// needLeading indicates if leading truncation information is required, typically
+	// it sets to true for the non-first part of a log (cut by line generator).
 	needLeading bool
-	// flag to know if it's necessary to add tailing '...TRUNCATED...'
+	// needTailing indicates if tailing truncation information is required. When
+	// the line is not the last part of a log (cut by line generator), this flag needs
+	// to be true.
 	needTailing bool
 }

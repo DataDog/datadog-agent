@@ -8,26 +8,32 @@ package decoder
 import "github.com/DataDog/datadog-agent/pkg/logs/parser"
 
 // Handler should replace LineHandler.
+// Handler defines the methods for handling Lines and form a Output ready Line.
 type Handler interface {
 	Handle(line *RichLine)
 	SendResult()
 	Cleanup()
 }
 
+// SingleHandler treats the incoming Line independently and prepare the results
+// for send.
 type SingleHandler struct {
 	truncator LineTruncator
 }
 
+// NewSingleHandler creates a new instance of SingleHandler.
 func NewSingleHandler(truncator LineTruncator) *SingleHandler {
 	return &SingleHandler{
 		truncator: truncator,
 	}
 }
 
+// Handle takes a line, truncates accordingly.
 func (s *SingleHandler) Handle(line *RichLine) {
 	s.truncator.truncate(line)
 }
 
+// Cleanup closes the downstream operations.
 func (s *SingleHandler) Cleanup() {
 	s.truncator.Close()
 }
@@ -51,6 +57,8 @@ func NewLineTruncator(outputChan chan *Output, maxLen int) *LineTruncator {
 	}
 }
 
+// Close closes the output channel. This method should be called by the sender of
+// outputChan, normally the Cleanup method of upstream.
 func (l *LineTruncator) Close() {
 	close(l.outputChan)
 }
@@ -78,7 +86,7 @@ func (l *LineTruncator) split(line *RichLine) []*parser.Line {
 	leftOver := line.Size % l.maxLen // the end part which is less than maxLen.
 	totalNumOfLines := numOfCompleteLines
 	if leftOver > 0 {
-		totalNumOfLines += 1 // include the leftovers.
+		totalNumOfLines++ // include the leftovers.
 	}
 	lines := make([]*parser.Line, totalNumOfLines)
 	if totalNumOfLines <= 0 {
@@ -144,9 +152,8 @@ func copyContent(line *RichLine, start int, end int) []byte {
 func min(a int, b int) int {
 	if a > b {
 		return b
-	} else {
-		return a
 	}
+	return a
 }
 
 var truncatedString = []byte("...TRUNCATED...")

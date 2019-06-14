@@ -20,7 +20,7 @@ func TestSingleHandler(t *testing.T) {
 	outputChan := make(chan *Output, 3)
 	truncator := NewLineTruncator(outputChan, 20)
 	handler := NewSingleHandler(*truncator)
-	handler.Handle(largeLine("Message longer than max length of truncator", true, true))
+	handler.Handle(richLine("Message longer than max length of truncator", true, true))
 	output := <-outputChan
 	assert.Equal(t, "...TRUNCATED...Message longer than ...TRUNCATED...", string(output.Content))
 	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.Timestamp)
@@ -56,7 +56,7 @@ func TestLineTruncatorWithDefaultLimits(t *testing.T) {
 	expected[1] = string(truncatedString) + expected[1] + string(truncatedString)
 	expected[2] = string(truncatedString) + expected[2] + string(truncatedString)
 	expected[3] = string(truncatedString) + expected[3]
-	input := largeLine(inputBuf.String(), false, false)
+	input := richLine(inputBuf.String(), false, false)
 	assert.Equal(t, defaultMaxDecodeLength, input.Size)
 	truncator.truncate(input)
 	for i := 0; i < 4; i++ {
@@ -72,7 +72,7 @@ func TestLineTruncatorWithDefaultLimits(t *testing.T) {
 func TestLineTruncatorLargeLine(t *testing.T) {
 	outputChan := make(chan *Output, 3)
 	truncator := NewLineTruncator(outputChan, 20)
-	truncator.truncate(largeLine("Message longer than max length of truncator", false, false))
+	truncator.truncate(richLine("Message longer than max length of truncator", false, false))
 
 	output := <-outputChan
 	assert.Equal(t, "Message longer than ...TRUNCATED...", string(output.Content))
@@ -92,7 +92,7 @@ func TestLineTruncatorLargeLine(t *testing.T) {
 func TestLineTruncatorNoMiddleLine(t *testing.T) {
 	outputChan := make(chan *Output, 2)
 	truncator := NewLineTruncator(outputChan, 40)
-	truncator.truncate(largeLine("Message longer than max length of truncator", false, false))
+	truncator.truncate(richLine("Message longer than max length of truncator", false, false))
 
 	output := <-outputChan
 	assert.Equal(t, "Message longer than max length of trunca...TRUNCATED...", string(output.Content))
@@ -105,8 +105,8 @@ func TestLineTruncatorNoMiddleLine(t *testing.T) {
 func TestTruncateLargeLineThenSmallLine(t *testing.T) {
 	outputChan := make(chan *Output, 3)
 	truncator := NewLineTruncator(outputChan, 40)
-	truncator.truncate(largeLine("Message longer than max length of truncator that's for sure", false, true))
-	truncator.truncate(largeLine("Short message", false, false))
+	truncator.truncate(richLine("Message longer than max length of truncator that's for sure", false, true))
+	truncator.truncate(richLine("Short message", false, false))
 	output := <-outputChan
 	assert.Equal(t, "Message longer than max length of trunca...TRUNCATED...", string(output.Content))
 
@@ -121,8 +121,8 @@ func TestTruncateLargeLineThenSmallLine(t *testing.T) {
 func TestTruncateSmallLineThenLargeLine(t *testing.T) {
 	outputChan := make(chan *Output, 3)
 	truncator := NewLineTruncator(outputChan, 40)
-	truncator.truncate(largeLine("Short message", false, false))
-	truncator.truncate(largeLine("Message longer than max length of truncator that's for sure", false, true))
+	truncator.truncate(richLine("Short message", false, false))
+	truncator.truncate(richLine("Message longer than max length of truncator that's for sure", false, true))
 	output := <-outputChan
 	assert.Equal(t, "Short message", string(output.Content))
 
@@ -139,15 +139,15 @@ func TestLineTruncatorSmallLine(t *testing.T) {
 	outputChan := make(chan *Output, 3)
 	truncator := NewLineTruncator(outputChan, 200)
 
-	truncator.truncate(largeLine("small message with leading and tailing", true, true))
+	truncator.truncate(richLine("small message with leading and tailing", true, true))
 	output := <-outputChan
 	assert.Equal(t, "...TRUNCATED...small message with leading and tailing...TRUNCATED...", string(output.Content))
 
-	truncator.truncate(largeLine("small message with leading", true, false))
+	truncator.truncate(richLine("small message with leading", true, false))
 	output = <-outputChan
 	assert.Equal(t, "...TRUNCATED...small message with leading", string(output.Content))
 
-	truncator.truncate(largeLine("small message with tailing", false, true))
+	truncator.truncate(richLine("small message with tailing", false, true))
 	output = <-outputChan
 	assert.Equal(t, "small message with tailing...TRUNCATED...", string(output.Content))
 
@@ -170,7 +170,7 @@ func assertNoMoreOutput(t *testing.T, outputChan chan *Output, waitTimeout time.
 	}
 }
 
-func largeLine(content string, needLeading bool, needTailing bool) *RichLine {
+func richLine(content string, needLeading bool, needTailing bool) *RichLine {
 	return &RichLine{
 		Line: parser.Line{
 			Prefix: parser.Prefix{

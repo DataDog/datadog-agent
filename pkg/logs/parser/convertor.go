@@ -35,13 +35,21 @@ type Convertor interface {
 	Convert(content []byte, defaultPrefix Prefix) *Line
 }
 
+// Line struct defines the fields from a typical log. Prefix can be found from some
+// log sources like kubernetes or docker... Content holds the actual log message.
+// Size is the actual length of this Line. Size might be different than len(Content)
+// due to the extra truncation information added by LineTruncator.
 type Line struct {
 	Prefix
 	Content []byte
 	Size    int
 }
 
+// Prefix defines the information comes with the actual log message. It is normally
+// been added by some containers who run the application, like kubernetes or docker.
+// Some field in Prefix maybe absent depending on the source.
 type Prefix struct {
 	Timestamp string
 	Status    string
+	Flag      string
 }

@@ -12,10 +12,16 @@ import (
 	"regexp"
 )
 
+// Convertor for converting kubernetes log line to struct Line.
 type Convertor struct {
 	iParser.Convertor
 }
 
+// Convert validates and converts kubernetes log from byte array to struct Line.
+// Kubernetes log lines follow this pattern '<timestamp> <stream> <flag> <content>',
+// see https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/kuberuntime/logs/logs.go
+// Example:
+// 2018-09-20T11:54:11.753589172Z stdout F This is my message
 func (c *Convertor) Convert(msg []byte, defaultPrefix iParser.Prefix) *iParser.Line {
 	components := bytes.SplitN(msg, delimiter, numberOfComponents)
 
@@ -44,6 +50,7 @@ func (c *Convertor) Convert(msg []byte, defaultPrefix iParser.Prefix) *iParser.L
 			Prefix: iParser.Prefix{
 				Status:    standardStatus(status),
 				Timestamp: timestamp,
+				Flag:      flag,
 			},
 			Content: components[3],
 			Size:    len(components[3]),
@@ -53,9 +60,9 @@ func (c *Convertor) Convert(msg []byte, defaultPrefix iParser.Prefix) *iParser.L
 }
 
 // 2019-05-29T13:27:27.482052544Z
-var timestampMatcher, _ = regexp.Compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{9}Z")
-var statusMatcher, _ = regexp.Compile("std(out|err)")
-var flagMatcher, _ = regexp.Compile("F|P")
+var timestampMatcher = regexp.MustCompile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{9}Z")
+var statusMatcher = regexp.MustCompile("std(out|err)")
+var flagMatcher = regexp.MustCompile("F|P")
 
 func (c *Convertor) validate(timestamp string, status string, flag string) bool {
 	return timestampMatcher.MatchString(timestamp) &&
@@ -63,8 +70,8 @@ func (c *Convertor) validate(timestamp string, status string, flag string) bool 
 		flagMatcher.MatchString(flag)
 }
 
-// getStatus returns the status of the message based on
-// the value of the STREAM_TYPE field in the header,
+// standardStatus returns the standard status of the message based on
+// the value of the STREAM_TYPE field in the prefix,
 // returns the status INFO by default
 func standardStatus(streamType string) string {
 	switch streamType {

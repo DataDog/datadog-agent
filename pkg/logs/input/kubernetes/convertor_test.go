@@ -17,12 +17,14 @@ func TestConvertorConvert(t *testing.T) {
 	prefix := iParser.Prefix{
 		Timestamp: "2018-09-20T11:54:11.753589172Z",
 		Status:    message.StatusAlert,
+		Flag:      "P",
 	}
 	// normal case
 	line := convertor.Convert([]byte("2018-09-20T11:54:11.753589143Z stdout F msg"), prefix)
 	assert.Equal(t, "msg", string(line.Content))
 	assert.Equal(t, 3, line.Size)
 	assert.Equal(t, "info", line.Status)
+	assert.Equal(t, "F", line.Flag)
 	assert.Equal(t, "2018-09-20T11:54:11.753589143Z", line.Timestamp)
 
 	// length mismatch
@@ -30,6 +32,7 @@ func TestConvertorConvert(t *testing.T) {
 	assert.Equal(t, "partial msg", string(line.Content))
 	assert.Equal(t, 11, line.Size)
 	assert.Equal(t, message.StatusAlert, line.Status)
+	assert.Equal(t, "P", line.Flag)
 	assert.Equal(t, "2018-09-20T11:54:11.753589172Z", line.Timestamp)
 
 	// invalid timestamp, treat as partial log
