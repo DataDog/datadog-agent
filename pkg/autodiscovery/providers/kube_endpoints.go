@@ -36,6 +36,13 @@ type KubeEndpointsConfigProvider struct {
 	upToDate        bool
 }
 
+// configInfo contains an endpoint check config template with its name and namespace
+type configInfo struct {
+	tpl       integration.Config
+	namespace string
+	name      string
+}
+
 // NewKubeEndpointsConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
@@ -58,11 +65,26 @@ func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (Confi
 		DeleteFunc: p.invalidate,
 	})
 
-	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{"namespace": cache.MetaNamespaceIndexFunc})
-	endpointsLister := listersv1.NewEndpointsLister(indexer)
-	p.endpointsLister = endpointsLister
+	p.endpointsLister, err = newEndpointsLister()
+	if err != nil {
+		log.Errorf("Cannot create endpoints lister: %s", err)
+		return nil, err
+	}
 
 	return p, nil
+}
+
+// newEndpointsLister return a kube endpoints lister
+func newEndpointsLister() (listersv1.EndpointsLister, error) {
+	ac, err := apiserver.GetAPIClient()
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
+	}
+	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
+	if endpointsInformer == nil {
+		return nil, fmt.Errorf("cannot get endpoint informer: %s", err)
+	}
+	return endpointsInformer.Lister(), nil
 }
 
 // String returns a string representation of the KubeEndpointsConfigProvider
@@ -78,7 +100,17 @@ func (k *KubeEndpointsConfigProvider) Collect() ([]integration.Config, error) {
 	}
 	k.upToDate = true
 
-	return parseServiceAnnotationsForEndpoints(services)
+	var generatedConfigs []integration.Config
+	parsedConfigsInfo := parseServiceAnnotationsForEndpoints(services)
+	for _, config := range parsedConfigsInfo {
+		kep, err := k.endpointsLister.Endpoints(config.namespace).Get(config.name)
+		if err != nil {
+			log.Errorf("Cannot get Kubernetes endpoints: %s", err)
+			continue
+		}
+		generatedConfigs = append(generatedConfigs, generateConfigs(config.tpl, kep)...)
+	}
+	return generatedConfigs, nil
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
@@ -112,12 +144,6 @@ func (k *KubeEndpointsConfigProvider) invalidateIfChanged(old, obj interface{}) 
 	if castedObj.ResourceVersion == castedOld.ResourceVersion {
 		return
 	}
-	// Compare annotations
-	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeServiceAnnotationPrefix) {
-		log.Trace("Invalidating configs on service change")
-		k.upToDate = false
-		return
-	}
 	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeEndpointAnnotationPrefix) {
 		log.Trace("Invalidating configs on service end annotations change")
 		k.upToDate = false
@@ -125,68 +151,51 @@ func (k *KubeEndpointsConfigProvider) invalidateIfChanged(old, obj interface{}) 
 	}
 }
 
-func parseServiceAnnotationsForEndpoints(services []*v1.Service) ([]integration.Config, error) {
-	var configs []integration.Config
-	// for _, svc := range services {
-	// 	if svc == nil || svc.ObjectMeta.UID == "" {
-	// 		log.Debug("Ignoring a nil service")
-	// 		continue
-	// 	}
-	// 	service_id := apiserver.EntityForService(svc)
-	// 	svcConf, errors := extractTemplatesFromMap(service_id, svc.Annotations, kubeServiceAnnotationPrefix)
-	// 	for _, err := range errors {
-	// 		log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
-	// 	}
-	// 	endptConf, errors := extractTemplatesFromMap(apiserver.EntityForEndpoints(svc.Namespace, svc.Name, ""), svc.Annotations, kubeEndpointAnnotationPrefix)
-	// 	for _, err := range errors {
-	// 		log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
-	// 	}
-	// 	// All configurations are cluster checks
-	// 	for i := range svcConf {
-	// 		svcConf[i].ClusterCheck = true
-	// 	}
-	// 	configs = append(configs, svcConf...)
-	// Process endpoint check config templates if found
-	// if len(endptConf) > 0 {
-	// 	// Get the Endpoints object by name and namespace
-	// 	kep, err := endpointsLister.Endpoints(svc.Namespace).Get(svc.Name)
-	// 	if err != nil {
-	// 		log.Errorf("Cannot get Kubernetes endpoints: %s", err)
-	// 		continue
-	// 	}
-	// 	// Update the endpoint checks configurations
-	// 	var updatedEndptConfs []integration.Config
-	// 	for _, conf := range endptConf {
-	// 		generatedConfs := generateEndpointConfigs(conf, kep, svc.Namespace, svc.Name)
-	// 		updatedEndptConfs = append(updatedEndptConfs, generatedConfs...)
-	// 	}
-	// 	// Append the updated configs to the result
-	// 	configs = append(configs, updatedEndptConfs...)
-	// }
-	// }
-
-	return configs, nil
+func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
+	var configsInfo []configInfo
+	for _, svc := range services {
+		if svc == nil || svc.ObjectMeta.UID == "" {
+			log.Debug("Ignoring a nil service")
+			continue
+		}
+		endptConf, errors := extractTemplatesFromMap(apiserver.EntityForEndpoints(svc.Namespace, svc.Name, ""), svc.Annotations, kubeEndpointAnnotationPrefix)
+		for _, err := range errors {
+			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
+		}
+		for i := range endptConf {
+			configsInfo = append(configsInfo, configInfo{
+				tpl:       endptConf[i],
+				namespace: svc.Namespace,
+				name:      svc.Name,
+			})
+		}
+	}
+	return configsInfo
 }
 
-// generateEndpointConfigs TODO
-func generateEndpointConfigs(config integration.Config, kep *v1.Endpoints, namespace, name string) []integration.Config {
-	var generatedConfigs []integration.Config
+// generateConfigs creates a config template for each Endpoints IP
+func generateConfigs(tpl integration.Config, kep *v1.Endpoints) []integration.Config {
 	if kep == nil {
 		log.Warn("Nil Kubernetes Endpoints object, cannot generate config templates")
-		return []integration.Config{config}
+		return []integration.Config{tpl}
 	}
+	generatedConfigs := []integration.Config{}
+	namespace := kep.Namespace
+	name := kep.Name
 	for i := range kep.Subsets {
 		for j := range kep.Subsets[i].Addresses {
+			// Set a new entity containing the endpoint's IP
+			entity := apiserver.EntityForEndpoints(namespace, name, kep.Subsets[i].Addresses[j].IP)
 			newConfig := integration.Config{
-				Entity:        apiserver.EntityForEndpoints(namespace, name, kep.Subsets[i].Addresses[j].IP),
-				Name:          config.Name,
-				Instances:     config.Instances,
-				InitConfig:    config.InitConfig,
-				MetricConfig:  config.MetricConfig,
-				LogsConfig:    config.LogsConfig,
-				ADIdentifiers: []string{},
+				Entity:        entity,
+				Name:          tpl.Name,
+				Instances:     tpl.Instances,
+				InitConfig:    tpl.InitConfig,
+				MetricConfig:  tpl.MetricConfig,
+				LogsConfig:    tpl.LogsConfig,
+				ADIdentifiers: []string{entity},
 				ClusterCheck:  true,
-				Provider:      config.Provider,
+				Provider:      tpl.Provider,
 			}
 			if targetRef := kep.Subsets[i].Addresses[j].TargetRef; targetRef != nil {
 				if targetRef.Kind == kubePodKind {
@@ -196,7 +205,7 @@ func generateEndpointConfigs(config integration.Config, kep *v1.Endpoints, names
 					newConfig.ADIdentifiers = append(newConfig.ADIdentifiers, getPodEntity(podUID))
 					if nodeName := kep.Subsets[i].Addresses[j].NodeName; nodeName != nil {
 						// Set the node name to schedule the endpoint check on the correct node.
-						// We set this field only when the endpoint is backed by a pod.
+						// This field needs to be set only when the endpoint is backed by a pod.
 						newConfig.NodeName = *nodeName
 					}
 				}
@@ -213,5 +222,5 @@ func getPodEntity(podUID string) string {
 }
 
 func init() {
-	RegisterProvider("kube_services", NewKubeServiceConfigProvider)
+	RegisterProvider("kube_endpoints", NewKubeEndpointsConfigProvider)
 }

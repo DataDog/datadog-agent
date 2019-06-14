@@ -60,13 +60,29 @@ func NewKubeEndpointsListener() (ServiceListener, error) {
 	if endpointsInformer == nil {
 		return nil, fmt.Errorf("cannot get endpoints informer: %s", err)
 	}
-	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{"namespace": cache.MetaNamespaceIndexFunc})
-	serviceLister := listv1.NewServiceLister(indexer)
+	serviceLister, err := newServiceLister()
+	if err != nil {
+		log.Errorf("Cannot create service lister: %s", err)
+		return nil, err
+	}
 	return &KubeEndpointsListener{
 		endpoints:         make(map[types.UID][]*KubeEndpointService),
 		endpointsInformer: endpointsInformer,
 		serviceLister:     serviceLister,
 	}, nil
+}
+
+// newServiceLister return a kube service lister
+func newServiceLister() (listv1.ServiceLister, error) {
+	ac, err := apiserver.GetAPIClient()
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
+	}
+	serviceInformer := ac.InformerFactory.Core().V1().Services()
+	if serviceInformer == nil {
+		return nil, fmt.Errorf("cannot get service informer: %s", err)
+	}
+	return serviceInformer.Lister(), nil
 }
 
 func (l *KubeEndpointsListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
@@ -149,7 +165,8 @@ func (l *KubeEndpointsListener) endpointsDiffer(first, second *v1.Endpoints) boo
 	return subsetsDiffer(first, second)
 }
 
-// subsetsDiffer is separated from endpointsDiffer for facilitate testing
+// subsetsDiffer detects if two Endpoints have different subsets.
+// The function is separated from endpointsDiffer to facilitate testing.
 func subsetsDiffer(first, second *v1.Endpoints) bool {
 	// Subsets length
 	if len(first.Subsets) != len(second.Subsets) {
@@ -191,10 +208,9 @@ func subsetsDiffer(first, second *v1.Endpoints) bool {
 func (l *KubeEndpointsListener) isEndpointsAnnotated(kep *v1.Endpoints) bool {
 	ksvc, err := l.serviceLister.Services(kep.Namespace).Get(kep.Name)
 	if err != nil {
-		log.Errorf("Cannot get Kubernetes service: %s", err)
+		log.Debugf("Cannot get Kubernetes service: %s", err)
 	}
 	if ksvc != nil {
-		log.Debugf("Got service: %v", ksvc) // TODO: clean-up this debugging line
 		if _, found := ksvc.Annotations[kubeEndpointsAnnotationFormat]; found {
 			return true
 		}
@@ -274,7 +290,7 @@ func (l *KubeEndpointsListener) removeService(kep *v1.Endpoints) {
 	}
 }
 
-// GetEntity returns the unique entity name linked to that endpoint
+// GetEntity returns the unique entity name linked to that service
 func (s *KubeEndpointService) GetEntity() string {
 	return s.entity
 }
