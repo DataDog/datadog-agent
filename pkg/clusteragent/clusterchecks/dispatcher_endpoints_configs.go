@@ -14,13 +14,13 @@ import (
 // getEndpointsConfigs provides configs templates of endpoints checks queried by node name.
 // Exposed to node agents by the cluster agent api.
 func (d *dispatcher) getEndpointsConfigs(nodeName string) ([]integration.Config, error) {
-	result := []integration.Config{}
+	nodeConfigs := []integration.Config{}
 	d.store.RLock()
 	for _, v := range d.store.endpointsConfigs[nodeName] {
-		result = append(result, v)
+		nodeConfigs = append(nodeConfigs, v)
 	}
 	d.store.RUnlock()
-	return result, nil
+	return nodeConfigs, nil
 }
 
 // addEndpointConfig stores a given endpoint configuration by node name
