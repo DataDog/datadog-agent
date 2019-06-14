@@ -22,14 +22,17 @@ import (
 
 func TestParseKubeServiceAnnotations(t *testing.T) {
 	for _, tc := range []struct {
+		name        string
 		service     *v1.Service
 		expectedOut []integration.Config
 	}{
 		{
+			name:        "nil input",
 			service:     nil,
 			expectedOut: nil,
 		},
 		{
+			name: "valid service annotations only",
 			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					UID: types.UID("test"),
@@ -51,7 +54,7 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			cfgs, _ := parseServiceAnnotations([]*v1.Service{tc.service})
 			assert.EqualValues(t, tc.expectedOut, cfgs)
 		})
