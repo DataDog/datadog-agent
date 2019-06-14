@@ -22,11 +22,11 @@ import (
 
 // Flag values
 var opts struct {
-	configPath string
-
+	configPath  string
 	pidFilePath string
 	debug       bool
 	version     bool
+	udsEndpoint string
 }
 
 // Version info sourced from build flags
@@ -44,6 +44,7 @@ func main() {
 	// Parse flags
 	flag.StringVar(&opts.configPath, "config", "/etc/datadog-agent/system-probe.yaml", "Path to system-probe config formatted as YAML")
 	flag.StringVar(&opts.pidFilePath, "pid", "", "Path to set pidfile for process")
+	flag.StringVar(&opts.udsEndpoint, "sysprobe_endpoint", "", "Specify an URL endpoint for system-probe unix socket, curl the endpoint for results and quit")
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 	flag.Parse()
 
@@ -85,6 +86,16 @@ func main() {
 	if !cfg.EnableSystemProbe {
 		log.Info("system probe not enabled. exiting.")
 		gracefulExit()
+	}
+
+	if opts.udsEndpoint != "" {
+		err := querySocketEndpoint(cfg, opts.udsEndpoint)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		os.Exit(0)
 	}
 
 	// configure statsd
