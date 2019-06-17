@@ -5,7 +5,11 @@
 
 package decoder
 
-import "time"
+import (
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
+	"time"
+)
 
 // GDecoder should replace current Decoder object.
 // Decoder encapsulates the logic for processing logs. The communication is done by
@@ -29,6 +33,26 @@ type GDecoder struct {
 	InputChan     chan *Input
 	OutputChan    chan *Output
 	lineGenerator LineGenerator
+}
+
+// NewDecoder creates a new instance of GDecoder.
+func NewDecoder(inputChan chan *Input, outputChan chan *Output, lineGenerator LineGenerator) *GDecoder {
+	return &GDecoder{
+		InputChan: inputChan,
+		OutputChan: outputChan,
+		lineGenerator: lineGenerator,
+	}
+}
+
+// NewDecoderWithSource creates a new instance of GDecoder.
+func NewDecoderWithSource(source *config.LogSource, endLineMatcher EndLineMatcher, parser parser.Convertor) *GDecoder {
+	outputChan := make(chan *Output)
+	inputChan := make(chan *Input)
+	truncator := NewLineTruncator(outputChan, defaultMaxSendLength)
+	lineHandler := NewLineHandler(source, *truncator)
+	handlerScheduler := NewLineHandlerScheduler(make(chan *RichLine), defaultFlushTimeout, lineHandler)
+	lineGenerator := NewLineGenerator(defaultMaxDecodeLength, inputChan, endLineMatcher, parser, *handlerScheduler)
+	return NewDecoder(inputChan, outputChan, *lineGenerator)
 }
 
 // Start prepares routine for consuming inputs.

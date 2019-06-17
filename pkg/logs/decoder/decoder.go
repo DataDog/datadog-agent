@@ -55,7 +55,7 @@ type Decoder struct {
 
 // InitializeDecoder returns a properly initialized Decoder
 func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder {
-	return NewDecoderWithEndLineMatcher(source, parser, &newLineMatcher{})
+	return NewDecoderWithEndLineMatcher(source, parser, &NewLineMatcher{})
 }
 
 // NewDecoderWithEndLineMatcher initialize a decoder with given endline strategy.

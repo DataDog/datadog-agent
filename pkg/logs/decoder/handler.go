@@ -6,6 +6,7 @@
 package decoder
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"regexp"
 )
@@ -16,6 +17,17 @@ type Handler interface {
 	Handle(line *RichLine)
 	SendResult()
 	Cleanup()
+}
+
+// NewLineHandler creates a new instance of general line handler based on the configuration.
+func NewLineHandler(source *config.LogSource, truncator LineTruncator) Handler {
+
+	for _, rule := range source.Config.ProcessingRules {
+		if rule.Type == config.MultiLine {
+			return NewMultiHandler(rule.Regex, truncator)
+		}
+	}
+	return NewSingleHandler(truncator)
 }
 
 // SingleHandler treats the incoming Line independently and prepare the results
