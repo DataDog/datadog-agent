@@ -107,7 +107,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("log_level", "info")
 	config.BindEnvAndSetDefault("log_to_syslog", false)
 	config.BindEnvAndSetDefault("log_to_console", true)
-	config.BindEnvAndSetDefault("logging_frequency", int64(20))
+	config.BindEnvAndSetDefault("logging_frequency", int64(500))
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")
 	config.BindEnvAndSetDefault("syslog_rfc", false)
