@@ -435,6 +435,14 @@ shared_examples_for 'an Agent that is removed' do
     expect(agent_processes_running?).to be_falsey
   end
 
+  it 'should remove the installation directory' do
+    if os == :windows
+      expect(File).not_to exist("C:\\Program Files\\Datadog\\Datadog Agent\\")
+    else
+      expect(File).not_to exist("/opt/datadog-agent/")
+    end
+  end
+
   if os != :windows
     it 'should remove the agent link from bin' do
       expect(File).not_to exist('/usr/bin/datadog-agent')
