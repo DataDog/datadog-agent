@@ -72,7 +72,7 @@ func init() {
 	integrationCmd.PersistentFlags().CountVarP(&verbose, "verbose", "v", "enable verbose logging")
 	integrationCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	integrationCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
-	integrationCmd.PersistentFlags().StringVarP(&pythonMajorVersion, "python", "", "", "the version of Python to act upon (2 or 3)")
+	integrationCmd.PersistentFlags().StringVarP(&pythonMajorVersion, "python", "", "", "the version of Python to act upon (2 or 3). defaults to the python_version setting in datadog.yaml")
 
 	// Power user flags - mark as hidden
 	integrationCmd.PersistentFlags().MarkHidden("use-sys-python")
@@ -132,7 +132,7 @@ func detectEnvironment() error {
 
 		parentDir := filepath.Dir(rootDir)
 		if parentDir == rootDir {
-			break
+			return fmt.Errorf("unable to locate %s", reqAgentReleaseFile)
 		}
 
 		rootDir = parentDir
