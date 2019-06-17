@@ -16,15 +16,14 @@ func TestSchedulerFlushTimeout(t *testing.T) {
 	outputChan := make(chan *Output)
 	truncator := NewLineTruncator(outputChan, 60)
 	flushTimeout := 10 * time.Millisecond
-	handler := NewMultiHandler(regexp.MustCompile("[0-9]+\\."), *truncator)
 
 	scheduler := &LineHandlerScheduler{
 		inputChan:    make(chan *RichLine),
 		flushTimeout: flushTimeout,
-		lineHandler:  handler,
+		lineHandler:  NewMultiHandler(regexp.MustCompile("[0-9]+\\."), *truncator),
 	}
 	scheduler.Start()
-	handler.Handle(richLine("last message", false, false))
+	scheduler.Handle(richLine("last message", false, false))
 
 	output := <-outputChan
 	assert.Equal(t, "last message", string(output.Content))
@@ -35,14 +34,13 @@ func TestSchedulerFlushTimeout(t *testing.T) {
 func TestSchedulerHandleResultBeforeInputChanClose(t *testing.T) {
 	outputChan := make(chan *Output)
 	truncator := NewLineTruncator(outputChan, 60)
-	handler := NewMultiHandler(regexp.MustCompile("[0-9]+\\."), *truncator)
 	scheduler := &LineHandlerScheduler{
 		inputChan:    make(chan *RichLine),
 		flushTimeout: 30 * time.Minute,
-		lineHandler:  handler,
+		lineHandler:  NewMultiHandler(regexp.MustCompile("[0-9]+\\."), *truncator),
 	}
 	scheduler.Start()
-	handler.Handle(richLine("last message", false, false))
+	scheduler.Handle(richLine("last message", false, false))
 	scheduler.Stop()
 	output := <-outputChan
 	assert.Equal(t, "last message", string(output.Content))
