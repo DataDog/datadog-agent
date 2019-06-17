@@ -8,14 +8,22 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
-func querySocketEndpoint(cfg *config.AgentConfig, endpoint string) error {
+var (
+	checkEndpoints = map[string]string{
+		"net_maps":    "http://unix/debug/net_maps",
+		"stats":       "http://unix/debug/stats",
+		"net_state":   "http://unix/debug/net_state",
+		"connections": "http://unix/connections",
+	}
+)
+
+func querySocketEndpoint(cfg *config.AgentConfig, check string) error {
 	if cfg.SystemProbeSocketPath == "" {
 		return errors.New("No sysprobe_socket has been specified in system-probe.yaml")
 	}
@@ -34,15 +42,16 @@ func querySocketEndpoint(cfg *config.AgentConfig, endpoint string) error {
 		},
 	}
 
-	url := endpoint
-	if !strings.HasPrefix(url, "http://") {
-		url = fmt.Sprintf("http://%s", url)
+	endpoint, ok := checkEndpoints[check]
+	if !ok {
+		return fmt.Errorf("unknown check requested: %s", check)
 	}
-	resp, err := httpClient.Get(url)
+
+	resp, err := httpClient.Get(endpoint)
 	if err != nil {
 		return err
 	} else if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("conn request failed: url: %s, status code: %d", url, resp.StatusCode)
+		return fmt.Errorf("check request failed: check: %s", check)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -50,27 +59,27 @@ func querySocketEndpoint(cfg *config.AgentConfig, endpoint string) error {
 		return err
 	}
 
-	if err = printResult(body, url); err != nil {
+	if err = printResult(body, check); err != nil {
 		return err
 	}
 	return nil
 }
 
-func printResult(r []byte, endpoint string) error {
+func printResult(r []byte, check string) error {
 	var content interface{}
 
-	switch endpoint {
-	case "http://unix/debug/net_maps":
+	switch check {
+	case "net_maps":
 		fallthrough
-	case "http://unix/connections":
+	case "connections":
 		conn := &ebpf.Connections{}
 		if err := conn.UnmarshalJSON(r); err != nil {
 			return err
 		}
 		content = conn
-	case "http://unix/debug/stats":
+	case "stats":
 		fallthrough
-	case "http://unix/debug/net_state":
+	case "net_state":
 		var output map[string]interface{}
 		if err := json.Unmarshal(r, &output); err != nil {
 			return err
