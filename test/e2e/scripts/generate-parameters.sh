@@ -11,9 +11,9 @@ set -e
 
 usage()
 {
-    echo 'Usage: ./generate_parameters.sh [[-w workflow -g workflow_group] | [-h]]'
-    echo 'Example: ./generate_parameters.sh -g workflow_group -w workflow'
-    echo 'Flags:
+    echo '    Usage: ./generate_parameters.sh [[-w workflow -g workflow_group] | [-h]]
+    Example: ./generate_parameters.sh -g workflow_group -w workflow
+    Flags:
     -w, --workflow         workflow name
     -g, --workflow-group   workflow group name
     -o, --output-file      generated yaml file name (default parameters.yaml)
@@ -47,12 +47,12 @@ generate_namespace()
 {
     # Generate unique namespace
     # namespace format: <workflow_group>-<workflow>-<firs_5_chars_of_prefix_check_sum>-<random_5_digits>
-    eval echo 'Info: Generating namespace...'
+    echo 'Info: Generating namespace...'
     PREFIX=$WORKFLOW_GROUP-$WORKFLOW
     CHECK_SUM=$(echo -n $PREFIX | md5sum | cut -c1-5)
     SUFFIX=$RANDOM
     NAMESPACE=$PREFIX-$CHECK_SUM-$SUFFIX
-    eval echo 'Info: Generated namespace: $NAMESPACE'
+    echo 'Info: Generated namespace: $NAMESPACE'
 }
 
 generate_parameters()
@@ -124,4 +124,4 @@ validate_input
 generate_namespace
 
 # Generate the parameters file
-generate_parameters 
+generate_parameters
