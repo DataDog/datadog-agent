@@ -10,7 +10,25 @@
 extern "C" {
 #endif
 
+/*! \fn void _set_cgo_free_cb(cb_cgo_free_t cb)
+    \brief Sets a callback to be used by six to free memory allocated by the
+    six's caller and passed into six.
+    \param object A function pointer to the callback function.
+
+    On Windows we cannot free a memory block from another DLL. This is why we
+    need to call an external free method to release memory allocated externally.
+
+    The callback is expected to be provided by the six caller - in go-context: CGO.
+*/
 void _set_cgo_free_cb(cb_cgo_free_t);
+
+/*! \fn void cgo_free(void *ptr)
+    \brief Frees memory that was originally allocated by the six's caller.
+    \param object A pointer to the memory block to free.
+
+    On Windows we cannot free a memory block from another DLL. This is why we
+    need to call an external free method to release memory allocated externally.
+*/
 void DATADOG_AGENT_SIX_API cgo_free(void *ptr);
 
 #ifdef __cplusplus
