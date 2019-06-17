@@ -12,6 +12,7 @@ type EndLineMatcher interface {
 	Match(exists []byte, appender []byte, start int, end int) bool
 }
 
+// NewLineMatcher implements the EndLineMatcher with checking if the byte is newline.
 type NewLineMatcher struct {
 	EndLineMatcher
 }

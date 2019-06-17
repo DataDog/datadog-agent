@@ -38,8 +38,8 @@ type GDecoder struct {
 // NewDecoder creates a new instance of GDecoder.
 func NewDecoder(inputChan chan *Input, outputChan chan *Output, lineGenerator LineGenerator) *GDecoder {
 	return &GDecoder{
-		InputChan: inputChan,
-		OutputChan: outputChan,
+		InputChan:     inputChan,
+		OutputChan:    outputChan,
 		lineGenerator: lineGenerator,
 	}
 }

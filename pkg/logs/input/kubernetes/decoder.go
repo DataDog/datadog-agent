@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 )
 
+// NewDecoder creates a new instance of GDecoder specific to kubernetes file source.
 func NewDecoder(source *config.LogSource) *decoder.GDecoder {
 	return decoder.NewDecoderWithSource(source, &decoder.NewLineMatcher{}, &Convertor{})
 }
