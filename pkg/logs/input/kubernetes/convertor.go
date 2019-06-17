@@ -56,6 +56,7 @@ func (c *Convertor) Convert(msg []byte, defaultPrefix iParser.Prefix) *iParser.L
 			Size:    len(components[3]),
 		}
 	}
+	// only header exists.
 	return nil
 }
 
