@@ -60,7 +60,7 @@ func printResult(r []byte, endpoint string) error {
 	var content interface{}
 
 	switch endpoint {
-	case "http://debug/net_maps":
+	case "http://unix/debug/net_maps":
 		fallthrough
 	case "http://unix/connections":
 		conn := &ebpf.Connections{}
