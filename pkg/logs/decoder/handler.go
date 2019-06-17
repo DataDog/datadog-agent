@@ -5,7 +5,11 @@
 
 package decoder
 
-import "github.com/DataDog/datadog-agent/pkg/logs/parser"
+import (
+	"bytes"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
+	"regexp"
+)
 
 // Handler should replace LineHandler.
 // Handler defines the methods for handling Lines and form a Output ready Line.
@@ -40,6 +44,119 @@ func (s *SingleHandler) Cleanup() {
 
 // SendResult does nothing since single line handler doesn't cache the lines.
 func (s *SingleHandler) SendResult() {}
+
+// MultiHandler handles multiline logs. It accumulates the multiline logs and
+// send it to downstream.
+type MultiHandler struct {
+	truncator   LineTruncator
+	newLogRegex *regexp.Regexp
+	buffer      *multiLineBuffer
+}
+
+// NewMultiHandler creates a new instance of MultiHandler.
+func NewMultiHandler(newLogRegex *regexp.Regexp, truncator LineTruncator) *MultiHandler {
+	return &MultiHandler{
+		newLogRegex: newLogRegex,
+		truncator:   truncator,
+		buffer:      newMultiLineBuffer(),
+	}
+}
+
+// Handle checks line content prefix against a regex to see if it's a start of new log.
+// It accumulates lines and merge as one log and then send to next handler.
+// If the specified line requires leading or tailing truncation information, treat
+// this line "specially" meaning sending them directly to down stream without buffering.
+func (m *MultiHandler) Handle(line *RichLine) {
+	if m.newLogRegex.Match(line.Content) {
+		// it's the start of a new log, handle buffered content.
+		m.SendResult()
+	}
+	m.buffer.write(line)
+	// When leading or tailing truncation info is required, the line should be
+	// part of large line splitted by upstream.
+	// in case of:
+	// msg...TRUNCATED... needTailing = true or
+	// ...TRUNCATED...msg...TRUNCATED... needLeading = true && needTailing = true
+	// both cases above suggest msg is at it's cap length, that no buffering is
+	// required.
+	if line.needTailing || (line.needLeading && line.needTailing) {
+		m.SendResult()
+	}
+}
+
+// Cleanup closes downstreams.
+func (m *MultiHandler) Cleanup() {
+	m.truncator.Close()
+}
+
+// SendResult sends the cached result to downstream.
+func (m *MultiHandler) SendResult() {
+	line := m.buffer.toLine()
+	if line != nil {
+		m.truncator.truncate(line)
+	}
+}
+
+// multiLineBuffer
+type multiLineBuffer struct {
+	lineBuffer
+}
+
+func newMultiLineBuffer() *multiLineBuffer {
+	var contentB bytes.Buffer
+	return &multiLineBuffer{
+		lineBuffer{
+			contentBuf: &contentB,
+		},
+	}
+}
+
+// write appends the content of specified line to the end of buffer, if buffer is not empty,
+// a `\n` will be append prior to the content of this line.
+func (m *multiLineBuffer) write(line *RichLine) {
+	if m.contentBuf.Len() > 0 {
+		m.contentBuf.Write([]byte(`\n`))
+	}
+	m.contentBuf.Write(line.Content)
+	// update extra information
+	m.lastPrefix = line.Prefix
+
+	// m.lastLeading true means the cached content is the last piece of the multiline log, this
+	// incoming line is a non-first line of multiline log.
+	if !m.lastLeading {
+		m.lastLeading = line.needLeading
+	}
+	// m.lastTailing is replaced directly by the incoming line's flag.
+	m.lastTailing = line.needTailing
+}
+
+func (m *multiLineBuffer) reset() {
+	m.lastLeading = false
+	m.lastTailing = false
+	m.contentBuf.Reset()
+}
+
+func (m *multiLineBuffer) toLine() *RichLine {
+	defer m.reset()
+	// leading and tailing space should be handled up stream.
+	c := m.contentBuf.Bytes()
+	content := make([]byte, len(c))
+	copy(content, c)
+	if len(content) <= 0 {
+		return nil
+	}
+	// Not handling the case when after merge multiple lines, content length too large. Let
+	// truncator do the job.
+	return &RichLine{
+		Line: parser.Line{
+			Prefix:  m.lastPrefix,
+			Content: content,
+			Size:    len(content),
+		},
+		needTailing: m.lastTailing,
+		needLeading: m.lastLeading,
+	}
+}
 
 // LineTruncator truncates a large line into multiple small lines with
 // shared Prefix. The results are then sent to outputChan for further

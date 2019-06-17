@@ -5,7 +5,10 @@
 
 package decoder
 
-import "github.com/DataDog/datadog-agent/pkg/logs/parser"
+import (
+	"bytes"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
+)
 
 // LineGenerator encapsulates the details of log reading and parsing. In general,
 // line generator decide whether to cut the cached bytes as a line when:
@@ -26,6 +29,19 @@ type LineGenerator struct {
 	endLineMatcher   EndLineMatcher
 	convertor        parser.Convertor
 	handlerScheduler LineHandlerScheduler
+	lineBuf          *generatorBuffer
+}
+
+// NewLineGenerator creates a new instance of LineGenerator.
+func NewLineGenerator(maxDecodingLen int, inputChan chan *Input, endLineMatcher EndLineMatcher, convertor parser.Convertor, handlerScheduler LineHandlerScheduler) *LineGenerator {
+	return &LineGenerator{
+		maxLen:           maxDecodingLen,
+		inputChan:        inputChan,
+		endLineMatcher:   endLineMatcher,
+		convertor:        convertor,
+		handlerScheduler: handlerScheduler,
+		lineBuf:          newGeneratorBuffer(),
+	}
 }
 
 // Start prepares the process for reading logs.
@@ -39,11 +55,88 @@ func (l *LineGenerator) Start() {
 	}()
 }
 
-// read reads the input chunks check if match the endline criteria,
+// read reads the input chunks and checks if match the endline criteria,
 // form a line if matches, it also forms a line if the length reaches
 // maxLen limit.
 func (l *LineGenerator) read(chunk *Input) {
-	//TODO
+	i, j := 0, 0
+	n := len(chunk.content)
+	maxj := l.maxLen - l.lineBuf.contentLen()
+
+	for ; j < n; j++ {
+		matchEndLine := l.endLineMatcher.Match(l.lineBuf.contentBytes(), chunk.content, i, j)
+
+		if j == maxj || matchEndLine {
+			l.lineBuf.contentAppend(chunk.content[i:j])
+			// when previous line has tailing truncation info, it means
+			// the current line needs leading truncation info.
+			l.lineBuf.lastLeading = l.lineBuf.lastTailing
+			// set the current line tailing truncation info according
+			// to whether this line matches the endline criteria.
+			l.lineBuf.lastTailing = !matchEndLine
+			newStart := j
+			if matchEndLine {
+				newStart = j + 1 // skip the matching byte.
+			}
+			l.handleLine()
+			i = newStart
+			maxj = i + l.maxLen
+		}
+	}
+	l.lineBuf.contentAppend(chunk.content[i:j])
+}
+
+func (l *LineGenerator) handleLine() {
+	content := l.lineBuf.popContent()
+	line := l.convertor.Convert(content, l.lineBuf.lastPrefix)
+
+	if line != nil {
+		l.lineBuf.lastPrefix = line.Prefix
+		l.handlerScheduler.Handle(
+			&RichLine{
+				Line:        *line,
+				needTailing: l.lineBuf.lastTailing,
+				needLeading: l.lineBuf.lastLeading,
+			})
+	}
+}
+
+// generatorBuf wraps lineBuffer for the LineGenerator specific operations.
+type generatorBuffer struct {
+	lineBuffer
+}
+
+func newGeneratorBuffer() *generatorBuffer {
+	var contentB bytes.Buffer
+	return &generatorBuffer{
+		lineBuffer{
+			contentBuf: &contentB,
+		},
+	}
+}
+
+func (l *generatorBuffer) contentBytes() []byte {
+	return l.contentBuf.Bytes()
+}
+
+func (l *generatorBuffer) contentFlush() {
+	l.contentBuf.Reset()
+}
+
+func (l *generatorBuffer) contentLen() int {
+	return l.contentBuf.Len()
+}
+
+func (l *generatorBuffer) contentAppend(chunk []byte) {
+	l.contentBuf.Write(chunk)
+}
+
+func (l *generatorBuffer) popContent() []byte {
+	defer l.contentFlush()
+
+	finalC := make([]byte, l.contentLen())
+	copy(finalC, l.contentBytes())
+	return finalC
 }
 
 // RichLine takes extra fields to give necessary information to generate a Output message.

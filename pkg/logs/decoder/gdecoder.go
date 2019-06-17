@@ -53,6 +53,15 @@ type LineHandlerScheduler struct {
 	lineHandler  Handler
 }
 
+// NewLineHandlerScheduler create a new instance of handler scheduler.
+func NewLineHandlerScheduler(inputChan chan *RichLine, flushTimeout time.Duration, handler Handler) *LineHandlerScheduler {
+	return &LineHandlerScheduler{
+		inputChan:    inputChan,
+		flushTimeout: flushTimeout,
+		lineHandler:  handler,
+	}
+}
+
 // Stop closes the input channel to stop receiving inputs.
 func (l *LineHandlerScheduler) Stop() {
 	close(l.inputChan)
