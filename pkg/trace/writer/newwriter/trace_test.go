@@ -1,7 +1,6 @@
 package writer
 
 import (
-	"bytes"
 	"compress/gzip"
 	"io/ioutil"
 	"reflect"
@@ -75,7 +74,7 @@ func randomSampledSpans(spans, events int) *SampledSpans {
 // payloadContains checks that the given payload contains the given set of sampled spans.
 func payloadContains(t *testing.T, p *payload, sampledSpans []*SampledSpans) {
 	assert := assert.New(t)
-	gzipr, err := gzip.NewReader(bytes.NewReader(p.body))
+	gzipr, err := gzip.NewReader(p.body)
 	assert.NoError(err)
 	slurp, err := ioutil.ReadAll(gzipr)
 	assert.NoError(err)

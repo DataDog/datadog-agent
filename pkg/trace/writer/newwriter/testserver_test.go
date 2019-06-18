@@ -22,7 +22,7 @@ func TestExpectResponses(t *testing.T) {
 		{[]int{200, 300}, "|200,300"},
 		{[]int{403, 403, 200, 100}, "|403,403,200,100"},
 	} {
-		body := string(expectResponses(tt.codes...).body)
+		body := expectResponses(tt.codes...).body.String()
 		parts := strings.Split(body, "|")
 		if len(parts) != 2 {
 			t.Fatalf("malformed body: %s", body)
@@ -106,7 +106,7 @@ func TestTestServer(t *testing.T) {
 		assert.Equal(200, resp.StatusCode)
 
 		assert.Len(ts.Payloads(), 1)
-		assert.Equal("ABC", string(ts.Payloads()[0].body))
+		assert.Equal("ABC", ts.Payloads()[0].body.String())
 		assert.Equal("123", ts.Payloads()[0].headers["Secret-Number"])
 		assert.Equal("Q", ts.Payloads()[0].headers["Secret-Letter"])
 	})

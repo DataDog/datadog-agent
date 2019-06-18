@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -143,24 +144,24 @@ func TestSender(t *testing.T) {
 		s := newSender(cfg)
 		defer useQueueSize(10)()
 
-		s.enqueue(&payload{body: []byte("first")})
-		s.enqueue(&payload{body: []byte("secnd")})
+		s.enqueue(&payload{body: bytes.NewBufferString("first")})
+		s.enqueue(&payload{body: bytes.NewBufferString("secnd")})
 
 		assert.Equal(2, s.list.Len())
 
 		// go overboard, should evict "first"
-		s.enqueue(&payload{body: []byte("third")})
+		s.enqueue(&payload{body: bytes.NewBufferString("third")})
 
 		assert.Equal(2, s.list.Len())
-		assert.Equal([]byte("secnd"), s.list.Front().Value.(*payload).body)
-		assert.Equal([]byte("third"), s.list.Front().Next().Value.(*payload).body)
+		assert.Equal("secnd", s.list.Front().Value.(*payload).body.String())
+		assert.Equal("third", s.list.Front().Next().Value.(*payload).body.String())
 
 		// go overboard again, should evict "secnd"
-		s.enqueue(&payload{body: []byte("fourt")})
+		s.enqueue(&payload{body: bytes.NewBufferString("fourt")})
 
 		assert.Equal(2, s.list.Len())
-		assert.Equal([]byte("third"), s.list.Front().Value.(*payload).body)
-		assert.Equal([]byte("fourt"), s.list.Front().Next().Value.(*payload).body)
+		assert.Equal("third", s.list.Front().Value.(*payload).body.String())
+		assert.Equal("fourt", s.list.Front().Next().Value.(*payload).body.String())
 
 		dropped := recorder.data(eventTypeDropped)
 		assert.Equal(2, len(dropped))
@@ -218,7 +219,7 @@ func TestSender(t *testing.T) {
 		retried := recorder.data(eventTypeRetry)
 		assert.Equal(2, len(retried))
 		for i := 0; i < 2; i++ {
-			assert.Equal(len(payloadThirdOk.body), retried[i].bytes)
+			assert.Equal(payloadThirdOk.body.Len(), retried[i].bytes)
 			assert.Equal(`server responded with "503 Service Unavailable"`, retried[i].err.(*retriableError).err.Error())
 			assert.Equal(1, retried[i].count)
 			assert.True(retried[i].connectionFill > 0 && retried[i].connectionFill < 1, fmt.Sprintf("%f", retried[i].connectionFill))
@@ -229,7 +230,7 @@ func TestSender(t *testing.T) {
 		assert.Equal(3, len(sent))
 		for i := 0; i < 3; i++ {
 			switch size := sent[i].bytes; size {
-			case len(payloadOk.body), len(payloadThirdOk.body):
+			case payloadOk.body.Len(), payloadThirdOk.body.Len():
 				// OK
 			default:
 				t.Fatalf("unexpected body size: %d", size)
@@ -243,7 +244,7 @@ func TestSender(t *testing.T) {
 		failed := recorder.data(eventTypeFailed)
 		assert.Equal(4, len(failed))
 		for i := 0; i < 4; i++ {
-			assert.Equal(len(payloadFail.body), failed[i].bytes)
+			assert.Equal(payloadFail.body.Len(), failed[i].bytes)
 			assert.Equal("403 Forbidden", failed[i].err.Error())
 			assert.Equal(1, failed[i].count)
 			assert.True(failed[i].connectionFill > 0 && failed[i].connectionFill < 1, fmt.Sprintf("%f", failed[i].connectionFill))
@@ -253,35 +254,30 @@ func TestSender(t *testing.T) {
 }
 
 func TestPayload(t *testing.T) {
-	expectBody := []byte("body")
-	bodyLength := strconv.Itoa(len(expectBody))
+	expectBody := bytes.NewBufferString("body")
+	bodyLength := strconv.Itoa(expectBody.Len())
 
-	t.Run("new", func(t *testing.T) {
-		t.Run("nil", func(t *testing.T) {
-			assert := assert.New(t)
-			p := newPayload(expectBody, nil)
-			assert.Equal(expectBody, p.body)
-			assert.Len(p.headers, 1)
-			assert.Equal(p.headers["Content-Length"], bodyLength)
+	t.Run("headers", func(t *testing.T) {
+		assert := assert.New(t)
+		p := newPayload(map[string]string{
+			"k1": "v1",
+			"k2": "v2",
 		})
-
-		t.Run("headers", func(t *testing.T) {
-			assert := assert.New(t)
-			p := newPayload(expectBody, map[string]string{
-				"k1": "v1",
-				"k2": "v2",
-			})
-			assert.Equal(expectBody, p.body)
-			assert.Len(p.headers, 3)
-			assert.Equal(p.headers["Content-Length"], bodyLength)
-			assert.Equal("v1", p.headers["k1"])
-			assert.Equal("v2", p.headers["k2"])
-		})
+		p.body = expectBody
+		u, err := url.Parse("http://whatever")
+		assert.NoError(err)
+		req, err := p.httpRequest(u)
+		assert.NoError(err)
+		assert.Len(req.Header, 3)
+		assert.Equal(req.Header.Get("Content-Length"), bodyLength)
+		assert.Equal("v1", req.Header.Get("k1"))
+		assert.Equal("v2", req.Header.Get("k2"))
 	})
 
 	t.Run("httpRequest", func(t *testing.T) {
 		assert := assert.New(t)
-		p := newPayload(expectBody, map[string]string{"DD-Api-Key": testAPIKey})
+		p := newPayload(map[string]string{"DD-Api-Key": testAPIKey})
+		p.body = expectBody
 		url, err := url.Parse("http://localhost/my/path")
 		if err != nil {
 			t.Fatal(err)
@@ -295,7 +291,7 @@ func TestPayload(t *testing.T) {
 		slurp, err := ioutil.ReadAll(req.Body)
 		assert.NoError(err)
 		req.Body.Close()
-		assert.Equal(expectBody, slurp)
+		assert.Equal(expectBody.Bytes(), slurp)
 	})
 }
 

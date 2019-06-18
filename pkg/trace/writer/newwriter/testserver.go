@@ -26,16 +26,16 @@ func expectResponses(codes ...int) *payload {
 	if len(codes) == 0 {
 		codes = []int{http.StatusOK}
 	}
-	var str bytes.Buffer
-	str.WriteString(strconv.FormatUint(atomic.AddUint64(&uid, 1), 10))
-	str.WriteString("|")
+	p := newPayload(nil)
+	p.body.WriteString(strconv.FormatUint(atomic.AddUint64(&uid, 1), 10))
+	p.body.WriteString("|")
 	for i, code := range codes {
 		if i > 0 {
-			str.WriteString(",")
+			p.body.WriteString(",")
 		}
-		str.WriteString(strconv.Itoa(code))
+		p.body.WriteString(strconv.Itoa(code))
 	}
-	return newPayload(str.Bytes(), nil)
+	return p
 }
 
 // newTestServerWithLatency returns a test server that takes duration d
@@ -151,7 +151,7 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		ts.mu.Lock()
 		defer ts.mu.Unlock()
 		ts.payloads = append(ts.payloads, &payload{
-			body:    slurp,
+			body:    bytes.NewBuffer(slurp),
 			headers: headers,
 		})
 	default:

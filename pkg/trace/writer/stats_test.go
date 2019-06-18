@@ -366,8 +366,9 @@ func calculateStatPayloadSize(buckets []stats.Bucket) int64 {
 		Stats:    buckets,
 	}
 
-	data, _ := stats.EncodePayload(statsPayload)
-	return int64(len(data))
+	var buf bytes.Buffer
+	stats.EncodePayload(&buf, statsPayload)
+	return int64(buf.Len())
 }
 
 func assertPayload(assert *assert.Assertions, headers map[string]string, buckets []stats.Bucket, p *payload) {

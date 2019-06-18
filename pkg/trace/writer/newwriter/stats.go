@@ -87,20 +87,19 @@ func (w *StatsWriter) addStats(s []stats.Bucket) {
 	log.Debugf("Flushing %d entries (buckets=%d payloads=%v)", entryCount, bucketCount, len(payloads))
 
 	for _, p := range payloads {
-		b, err := stats.EncodePayload(p)
-		if err != nil {
-			log.Errorf("Encoding issue: %v", err)
-			return
-		}
-		req := newPayload(b, map[string]string{
+		req := newPayload(map[string]string{
 			headerLanguages:    strings.Join(info.Languages(), "|"),
 			"Content-Type":     "application/json",
 			"Content-Encoding": "gzip",
 		})
+		if err := stats.EncodePayload(req.body, p); err != nil {
+			log.Errorf("Stats encoding error: %v", err)
+			return
+		}
+		atomic.AddInt64(&w.stats.Bytes, int64(req.body.Len()))
 		for _, sender := range w.senders {
 			sender.Push(req)
 		}
-		atomic.AddInt64(&w.stats.Bytes, int64(len(b)))
 	}
 }
 

@@ -253,7 +253,7 @@ func (q *sender) sendPayloads(payloads []*payload) (done, retries uint64) {
 			start := time.Now()
 			err = q.do(req)
 			stats := &eventData{
-				bytes:          len(p.body),
+				bytes:          p.body.Len(),
 				count:          1,
 				duration:       time.Since(start),
 				err:            err,
@@ -265,6 +265,7 @@ func (q *sender) sendPayloads(payloads []*payload) (done, retries uint64) {
 				q.enqueueAgain(p)
 				atomic.AddUint64(&retries, 1)
 				q.recordEvent(eventTypeRetry, stats)
+				return
 			case nil:
 				// request was successful
 				atomic.AddUint64(&done, 1)
@@ -273,6 +274,7 @@ func (q *sender) sendPayloads(payloads []*payload) (done, retries uint64) {
 				// this is a fatal error, we have to drop this payload
 				q.recordEvent(eventTypeFailed, stats)
 			}
+			ppool.Put(p)
 		}(p)
 	}
 	wg.Wait()
@@ -318,11 +320,11 @@ func (q *sender) enqueue(p *payload) {
 
 // enqueueLocked adds p onto the queue, making room if needed.
 func (q *sender) enqueueLocked(p *payload) {
-	size := len(p.body)
+	size := p.body.Len()
 	for q.size+size > maxQueueSize {
 		// make room
 		v := q.list.Remove(q.list.Front())
-		size := len(v.(*payload).body)
+		size := v.(*payload).body.Len()
 		q.size -= size
 		q.recordEvent(eventTypeDropped, &eventData{bytes: size, count: 1})
 	}
@@ -336,7 +338,7 @@ func (q *sender) enqueueLocked(p *payload) {
 func (q *sender) enqueueAgain(p *payload) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	if q.size+len(p.body) > maxQueueSize {
+	if q.size+p.body.Len() > maxQueueSize {
 		return
 	}
 	q.enqueueLocked(p)
@@ -380,26 +382,36 @@ func (q *sender) do(req *http.Request) error {
 
 // payloads specifies a payload to be sent by the sender.
 type payload struct {
-	body    []byte            // request body
+	body    *bytes.Buffer     // request body
 	headers map[string]string // request headers
 }
 
-// newPayload creates a new payload, having the given body and header map.
-func newPayload(body []byte, headers map[string]string) *payload {
-	p := payload{
-		body:    body,
-		headers: headers,
+// ppool is a pool of payloads.
+var ppool = sync.Pool{
+	New: func() interface{} {
+		return &payload{
+			body:    &bytes.Buffer{},
+			headers: make(map[string]string),
+		}
+	},
+}
+
+// newPayload creates a new payload with the given headers.
+func newPayload(headers map[string]string) *payload {
+	p := ppool.Get().(*payload)
+	p.body.Reset()
+	for k := range p.headers {
+		delete(p.headers, k)
 	}
-	if p.headers == nil {
-		p.headers = make(map[string]string, 1)
+	for k, v := range headers {
+		p.headers[k] = v
 	}
-	p.headers["Content-Length"] = strconv.Itoa(len(body))
-	return &p
+	return p
 }
 
 // httpRequest returns an HTTP request based on the payload, targeting the given URL.
 func (p *payload) httpRequest(url *url.URL) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodPost, url.String(), bytes.NewReader(p.body))
+	req, err := http.NewRequest(http.MethodPost, url.String(), bytes.NewReader(p.body.Bytes()))
 	if err != nil {
 		// this should never happen with sanitized data (invalid method or invalid url)
 		return nil, err
@@ -407,6 +419,7 @@ func (p *payload) httpRequest(url *url.URL) (*http.Request, error) {
 	for k, v := range p.headers {
 		req.Header.Add(k, v)
 	}
+	req.Header.Add("Content-Length", strconv.Itoa(p.body.Len()))
 	return req, nil
 }
 

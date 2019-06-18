@@ -1,7 +1,6 @@
 package writer
 
 import (
-	"bytes"
 	"compress/gzip"
 	"math"
 	"strings"
@@ -165,8 +164,12 @@ func (w *TraceWriter) flush() {
 		log.Errorf("Failed to serialize payload, data dropped: %s", err)
 		return
 	}
-	var buf bytes.Buffer
-	gzipw, err := gzip.NewWriterLevel(&buf, gzip.BestSpeed)
+	p := newPayload(map[string]string{
+		"Content-Type":     "application/x-protobuf",
+		"Content-Encoding": "gzip",
+		headerLanguages:    strings.Join(info.Languages(), "|"),
+	})
+	gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
 	if err != nil {
 		// it will never happen, unless an invalid compression is chosen;
 		// we know gzip.BestSpeed is valid.
@@ -179,13 +182,8 @@ func (w *TraceWriter) flush() {
 	atomic.AddInt64(&w.stats.BytesUncompressed, int64(len(b)))
 	atomic.AddInt64(&w.stats.BytesEstimated, int64(w.bufferedSize))
 
-	req := newPayload(buf.Bytes(), map[string]string{
-		"Content-Type":     "application/x-protobuf",
-		"Content-Encoding": "gzip",
-		headerLanguages:    strings.Join(info.Languages(), "|"),
-	})
 	for _, sender := range w.senders {
-		sender.Push(req)
+		sender.Push(p)
 	}
 }
 
