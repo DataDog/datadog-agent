@@ -38,6 +38,7 @@ func (s *SingleHandler) Handle(line *RichLine) {
 
 // Cleanup closes the downstream operations.
 func (s *SingleHandler) Cleanup() {
+	s.SendResult()
 	s.truncator.Close()
 }
 
@@ -92,8 +93,9 @@ func (m *MultiHandler) cacheLine(line *RichLine) {
 	m.buffer.Write(line)
 }
 
-// Cleanup closes downstreams.
+// Cleanup makes sure to clean handler buffer and closes downstreams.
 func (m *MultiHandler) Cleanup() {
+	m.SendResult()
 	m.truncator.Close()
 }
 

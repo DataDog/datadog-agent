@@ -83,7 +83,6 @@ func (l *LineHandlerScheduler) run(handle func(line *RichLine), sendResult func(
 	timer := time.NewTimer(l.flushTimeout)
 	// cleanup
 	defer func() {
-		l.lineHandler.SendResult()
 		l.lineHandler.Cleanup()
 		timer.Stop()
 	}()
