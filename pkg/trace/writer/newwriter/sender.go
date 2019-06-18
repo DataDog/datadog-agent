@@ -168,17 +168,16 @@ func (q *sender) Push(p *payload) {
 
 // scheduleFlushLocked schedules the next flush using the given delay.
 func (q *sender) scheduleFlushLocked(delay time.Duration) {
-	q.scheduled = true
-	if delay == 0 {
+	switch {
+	case delay == 0:
 		go q.flush()
-		return
-	}
-	if q.timer == nil {
+	case q.timer == nil:
 		q.timer = time.AfterFunc(delay, q.flush)
-		return
+	default:
+		q.timer.Stop()
+		q.timer.Reset(delay)
 	}
-	q.timer.Stop()
-	q.timer.Reset(delay)
+	q.scheduled = true
 }
 
 // flush drains and sends the entire queue. If anything comes in while flushing
@@ -206,7 +205,6 @@ func (q *sender) flush() {
 	// to be scheduled
 	q.mu.Lock()
 	defer q.mu.Unlock()
-
 	switch {
 	case retries > 0:
 		// some sends failed as retriable; we need to back off a bit
@@ -259,7 +257,7 @@ func (q *sender) sendPayloads(payloads []*payload) (done, retries uint64) {
 				count:          1,
 				duration:       time.Since(start),
 				err:            err,
-				connectionFill: float64(len(q.climit)) / float64(len(q.climit)),
+				connectionFill: float64(len(q.climit)) / float64(cap(q.climit)),
 			}
 			switch err.(type) {
 			case *retriableError:
