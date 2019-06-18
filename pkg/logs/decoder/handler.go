@@ -6,7 +6,6 @@
 package decoder
 
 import (
-	"bytes"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"regexp"
 )
@@ -50,7 +49,7 @@ func (s *SingleHandler) SendResult() {}
 type MultiHandler struct {
 	truncator   LineTruncator
 	newLogRegex *regexp.Regexp
-	buffer      *multiLineBuffer
+	buffer      *MultiLineBuffer
 }
 
 // NewMultiHandler creates a new instance of MultiHandler.
@@ -58,7 +57,7 @@ func NewMultiHandler(newLogRegex *regexp.Regexp, truncator LineTruncator) *Multi
 	return &MultiHandler{
 		newLogRegex: newLogRegex,
 		truncator:   truncator,
-		buffer:      newMultiLineBuffer(),
+		buffer:      NewMultiLineBuffer(),
 	}
 }
 
@@ -71,7 +70,7 @@ func (m *MultiHandler) Handle(line *RichLine) {
 		// it's the start of a new log, handle buffered content.
 		m.SendResult()
 	}
-	m.buffer.write(line)
+	m.cacheLine(line)
 	// When leading or tailing truncation info is required, the line should be
 	// part of large line splitted by upstream.
 	// in case of:
@@ -79,9 +78,18 @@ func (m *MultiHandler) Handle(line *RichLine) {
 	// ...TRUNCATED...msg...TRUNCATED... needLeading = true && needTailing = true
 	// both cases above suggest msg is at it's cap length, that no buffering is
 	// required.
-	if line.needTailing {
+	if m.buffer.IsFull() {
 		m.SendResult()
 	}
+}
+
+// cacheLine appends the content of specified line to the end of buffer, if buffer was not empty,
+// a `\n` will be append prior to the content of this line.
+func (m *MultiHandler) cacheLine(line *RichLine) {
+	if m.buffer.len() > 0 {
+		m.buffer.Append(`\n`)
+	}
+	m.buffer.Write(line)
 }
 
 // Cleanup closes downstreams.
@@ -91,70 +99,10 @@ func (m *MultiHandler) Cleanup() {
 
 // SendResult sends the cached result to downstream.
 func (m *MultiHandler) SendResult() {
-	line := m.buffer.toLine()
+	defer m.buffer.Reset()
+	line := m.buffer.ToLine()
 	if line != nil {
 		m.truncator.truncate(line)
-	}
-}
-
-// multiLineBuffer
-type multiLineBuffer struct {
-	lineBuffer
-}
-
-func newMultiLineBuffer() *multiLineBuffer {
-	var contentB bytes.Buffer
-	return &multiLineBuffer{
-		lineBuffer{
-			contentBuf: &contentB,
-		},
-	}
-}
-
-// write appends the content of specified line to the end of buffer, if buffer is not empty,
-// a `\n` will be append prior to the content of this line.
-func (m *multiLineBuffer) write(line *RichLine) {
-	if m.contentBuf.Len() > 0 {
-		m.contentBuf.Write([]byte(`\n`))
-	}
-	m.contentBuf.Write(line.Content)
-	// update extra information
-	m.lastPrefix = line.Prefix
-
-	// m.lastLeading true means the cached content is the last piece of the multiline log, this
-	// incoming line is a non-first line of multiline log.
-	if !m.lastLeading {
-		m.lastLeading = line.needLeading
-	}
-	// m.lastTailing is replaced directly by the incoming line's flag.
-	m.lastTailing = line.needTailing
-}
-
-func (m *multiLineBuffer) reset() {
-	m.lastLeading = false
-	m.lastTailing = false
-	m.contentBuf.Reset()
-}
-
-func (m *multiLineBuffer) toLine() *RichLine {
-	defer m.reset()
-	// leading and tailing space should be handled up stream.
-	c := m.contentBuf.Bytes()
-	content := make([]byte, len(c))
-	copy(content, c)
-	if len(content) <= 0 {
-		return nil
-	}
-	// Not handling the case when after merge multiple lines, content length too large. Let
-	// truncator do the job.
-	return &RichLine{
-		Line: parser.Line{
-			Prefix:  m.lastPrefix,
-			Content: content,
-			Size:    len(content),
-		},
-		needTailing: m.lastTailing,
-		needLeading: m.lastLeading,
 	}
 }
 

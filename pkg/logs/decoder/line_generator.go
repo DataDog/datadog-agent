@@ -6,7 +6,6 @@
 package decoder
 
 import (
-	"bytes"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
@@ -29,7 +28,7 @@ type LineGenerator struct {
 	endLineMatcher   EndLineMatcher
 	convertor        parser.Convertor
 	handlerScheduler LineHandlerScheduler
-	lineBuf          *generatorBuffer
+	lineBuf          *lineBuffer
 }
 
 // NewLineGenerator creates a new instance of LineGenerator.
@@ -40,7 +39,7 @@ func NewLineGenerator(maxDecodingLen int, inputChan chan *Input, endLineMatcher 
 		endLineMatcher:   endLineMatcher,
 		convertor:        convertor,
 		handlerScheduler: handlerScheduler,
-		lineBuf:          newGeneratorBuffer(),
+		lineBuf:          newLineBuffer(),
 	}
 }
 
@@ -61,13 +60,13 @@ func (l *LineGenerator) Start() {
 func (l *LineGenerator) read(chunk *Input) {
 	i, j := 0, 0
 	n := len(chunk.content)
-	maxj := l.maxLen - l.lineBuf.contentLen()
+	maxj := l.maxLen - l.lineBuf.len()
 
 	for ; j < n; j++ {
 		matchEndLine := l.endLineMatcher.Match(l.lineBuf.contentBytes(), chunk.content, i, j)
 
 		if j == maxj || matchEndLine {
-			l.lineBuf.contentAppend(chunk.content[i:j])
+			l.lineBuf.appendContent(chunk.content[i:j])
 			// when previous line has tailing truncation info, it means
 			// the current line needs leading truncation info.
 			l.lineBuf.lastLeading = l.lineBuf.lastTailing
@@ -83,11 +82,12 @@ func (l *LineGenerator) read(chunk *Input) {
 			maxj = i + l.maxLen
 		}
 	}
-	l.lineBuf.contentAppend(chunk.content[i:j])
+	l.lineBuf.appendContent(chunk.content[i:j])
 }
 
 func (l *LineGenerator) handleLine() {
-	content := l.lineBuf.popContent()
+	defer l.lineBuf.reset()
+	content := l.lineBuf.copyContent()
 	line := l.convertor.Convert(content, l.lineBuf.lastPrefix)
 
 	if line != nil {
@@ -99,44 +99,6 @@ func (l *LineGenerator) handleLine() {
 				needLeading: l.lineBuf.lastLeading,
 			})
 	}
-}
-
-// generatorBuf wraps lineBuffer for the LineGenerator specific operations.
-type generatorBuffer struct {
-	lineBuffer
-}
-
-func newGeneratorBuffer() *generatorBuffer {
-	var contentB bytes.Buffer
-	return &generatorBuffer{
-		lineBuffer{
-			contentBuf: &contentB,
-		},
-	}
-}
-
-func (l *generatorBuffer) contentBytes() []byte {
-	return l.contentBuf.Bytes()
-}
-
-func (l *generatorBuffer) contentFlush() {
-	l.contentBuf.Reset()
-}
-
-func (l *generatorBuffer) contentLen() int {
-	return l.contentBuf.Len()
-}
-
-func (l *generatorBuffer) contentAppend(chunk []byte) {
-	l.contentBuf.Write(chunk)
-}
-
-func (l *generatorBuffer) popContent() []byte {
-	defer l.contentFlush()
-
-	finalC := make([]byte, l.contentLen())
-	copy(finalC, l.contentBytes())
-	return finalC
 }
 
 // RichLine takes extra fields to give necessary information to generate a Output message.
