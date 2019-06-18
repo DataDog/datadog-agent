@@ -15,7 +15,7 @@ import (
 )
 
 func TestHandlePartialMessage(t *testing.T) {
-	outputChan := make(chan *decoder.Output,10)
+	outputChan := make(chan *decoder.Output, 10)
 	truncator := decoder.NewLineTruncator(outputChan, 60)
 	multiHandler := decoder.NewMultiHandler(regexp.MustCompile("[0-9]+\\."), *truncator)
 	handler := NewPartialLineHandler(multiHandler)
@@ -64,7 +64,7 @@ func TestHandlePartialMessage(t *testing.T) {
 	assert.Equal(t, "info", output.Status)
 	assert.Equal(t, 43, output.RawDataLen)
 
-	time.Sleep(1*time.Second)
+	time.Sleep(1 * time.Second)
 	output = <-outputChan
 	assert.Equal(t, "2.message", string(output.Content))
 	assert.Equal(t, "2019-06-06T16:35:55.930852914Z", output.Timestamp)
