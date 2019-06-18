@@ -106,6 +106,10 @@ func (c *Convertor) parseHeader(header []byte) (string, string, int) {
 	var contentLen int
 	// rely on the first byte of header to know whether this header contains leading
 	// 8 Bytes docker header or not.
+	// If header contains leading 8 bytes metadata, the first byte should be the status
+	// with value 1(stdout) or 2(stderr)
+	// otherwise, treat this header as tty log, in which case, the header is just
+	// a timestamp.
 	switch header[indexOfStatus] {
 	case 1:
 		status = message.StatusInfo
@@ -115,7 +119,7 @@ func (c *Convertor) parseHeader(header []byte) (string, string, int) {
 		status = message.StatusError
 		timestamp = string(header[indexOfTimestamp:])
 		contentLen = bytesToUint32(header[indexOfContentSize:indexOfTimestamp])
-	default: // 1 or other
+	default:
 		timestamp = string(header)
 	}
 
