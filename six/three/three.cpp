@@ -99,7 +99,7 @@ bool Three::init()
             goto done;
         }
         for (PyPaths::iterator pit = _pythonPaths.begin(); pit != _pythonPaths.end(); ++pit) {
-            PyObject *p = PyUnicode_FromString((*pit).c_str());
+            PyObject *p = PyUnicode_FromString(pit->c_str());
             if (p == NULL) {
                 setError("could not set pythonPath: " + _fetchPythonError());
                 goto done;
