@@ -96,7 +96,7 @@ bool Two::init()
             goto done;
         }
         for (PyPaths::iterator pit = _pythonPaths.begin(); pit != _pythonPaths.end(); ++pit) {
-            PyObject *p = PyString_FromString((*pit).c_str());
+            PyObject *p = PyString_FromString(pit->c_str());
             if (p == NULL) {
                 setError("could not set pythonPath: " + _fetchPythonError());
                 goto done;
