@@ -129,7 +129,7 @@ func (cm *ConnectionManager) address() string {
 // CloseConnection closes a connection on the client side
 func (cm *ConnectionManager) CloseConnection(conn net.Conn) {
 	conn.Close()
-	log.Info("Connection closed")
+	log.Debug("Connection closed")
 }
 
 // handleServerClose lets the connection manager detect when a connection
