@@ -51,7 +51,7 @@ func (c *Convertor) Convert(msg []byte, defaultPrefix iParser.Prefix) *iParser.L
 		}
 	}
 
-	if len(components) < numOfComponents || c.isEmptyMsg(components[indexOfContent]) {
+	if c.emptyContent(components) {
 		return nil
 	}
 
@@ -75,6 +75,13 @@ func (c *Convertor) Convert(msg []byte, defaultPrefix iParser.Prefix) *iParser.L
 		Content: content,
 		Size:    len(content),
 	}
+}
+
+func (c *Convertor) emptyContent(components [][]byte) bool {
+	// consider as empty content when:
+	// there is no content byte array at all, or
+	// content is considered to be empty.
+	return len(components) < numOfComponents || c.isEmptyMsg(components[indexOfContent])
 }
 
 // parseContent removes the 8 byte header, timestamp, and space that occurs between 16KB section of a log.
