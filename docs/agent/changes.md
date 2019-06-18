@@ -32,6 +32,9 @@ Starting with the 6.0 release configuration files will now be stored in
 
 ### Agent configuration file
 
+Please refer to [this section][config] of the documentation for a detailed list
+of the configuration options that were either changed or deprecated in the new Agent.
+
 In addition to the location change, the primary agent configuration file has been
 transitioned from **INI** format to **YAML** to better support complex configurations and
 for a more consistent experience across the Agent and the Checks; as such `datadog.conf`
@@ -42,9 +45,6 @@ may use the agent command: `sudo -u dd-agent -- datadog-agent import`.
 The command will parse an existing `datadog.conf` and convert all the bits that
 the new Agent still supports to the new format, in the new file. It also copies
 configuration files for checks that are currently enabled.
-
-Please refer to [this section][config] of the documentation for a detailed list
-of the configuration options that were either changed or deprecated in the new Agent.
 
 ### Checks configuration files
 

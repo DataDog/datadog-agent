@@ -73,7 +73,7 @@ to disable the OS-level service units, but that will require your manual interve
 you ever wish to re-enable any of the agents.
 
 
-## New options in version 6
+## Changed options in version 6
 
 This is the list of configuration options that are either new, renamed or changed
 in any way.
@@ -86,6 +86,7 @@ in any way.
 | `syslog_host`  | `syslog_uri`  | The Syslog configuration is now expressed as an URI |
 || `syslog_pem`  | Syslog configuration client certificate for TLS client validation |
 || `syslog_key`  | Syslog configuration client private key for TLS client validation |
+| `DD_TAGS` | `DD_TAGS` | The format is space-separated, i.e. `simple-tag-0 tag-key-1:tag-value-1` |
 
 
 ## Integrations instance configuration
