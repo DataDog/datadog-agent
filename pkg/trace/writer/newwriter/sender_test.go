@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const testAPIKey = "123"
+
 func TestMain(m *testing.M) {
 	log.SetupDatadogLogger(seelog.Disabled, "error")
 	os.Exit(m.Run())
@@ -34,7 +36,7 @@ func TestSender(t *testing.T) {
 			client:   &http.Client{},
 			url:      url,
 			maxConns: climit,
-			apiKey:   "123",
+			apiKey:   testAPIKey,
 		}
 	}
 
@@ -170,14 +172,18 @@ func TestSender(t *testing.T) {
 
 	t.Run("headers", func(t *testing.T) {
 		assert := assert.New(t)
+		var wg sync.WaitGroup
+		wg.Add(1)
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			assert.Equal("123", req.Header.Get(headerAPIKey))
+			assert.Equal(testAPIKey, req.Header.Get(headerAPIKey))
 			assert.Equal(userAgent, req.Header.Get(headerUserAgent))
+			wg.Done()
 		}))
 		defer server.Close()
 		s := newSender(testSenderConfig(server.URL))
 		s.Push(expectResponses(http.StatusOK))
 		s.waitEmpty()
+		wg.Wait()
 	})
 
 	t.Run("events", func(t *testing.T) {
@@ -275,7 +281,7 @@ func TestPayload(t *testing.T) {
 
 	t.Run("httpRequest", func(t *testing.T) {
 		assert := assert.New(t)
-		p := newPayload(expectBody, map[string]string{"DD-Api-Key": "123"})
+		p := newPayload(expectBody, map[string]string{"DD-Api-Key": testAPIKey})
 		url, err := url.Parse("http://localhost/my/path")
 		if err != nil {
 			t.Fatal(err)
@@ -285,7 +291,7 @@ func TestPayload(t *testing.T) {
 		assert.Equal(http.MethodPost, req.Method)
 		assert.Equal("/my/path", req.URL.Path)
 		assert.Equal("4", req.Header.Get("Content-Length"))
-		assert.Equal("123", req.Header.Get("DD-Api-Key"))
+		assert.Equal(testAPIKey, req.Header.Get("DD-Api-Key"))
 		slurp, err := ioutil.ReadAll(req.Body)
 		assert.NoError(err)
 		req.Body.Close()

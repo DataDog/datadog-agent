@@ -192,7 +192,7 @@ func randomTracePackage(numSpans, numEvents int) *TracePackage {
 		panic("can't have more events than spans in a RandomSampledTrace")
 	}
 
-	trace := testutil.GetTestTrace(1, numSpans, true)[0]
+	trace := testutil.GetTestTraces(1, numSpans, true)[0]
 
 	events := make([]*pb.Span, 0, numEvents)
 

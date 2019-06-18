@@ -170,7 +170,7 @@ func (w *TraceWriter) flush() {
 	if err != nil {
 		// it will never happen, unless an invalid compression is chosen;
 		// we know gzip.BestSpeed is valid.
-		log.Errorf("gzip.NewWriterLevel: %d", gzip.BestSpeed)
+		log.Errorf("gzip.NewWriterLevel: %d", err)
 		return
 	}
 	gzipw.Write(b)

@@ -178,6 +178,8 @@ func (ts *testServer) getNextCode(reqBody []byte) int {
 		for i, part := range parts {
 			code, err := strconv.Atoi(part)
 			if err != nil {
+				// this is likely a real proto request or something else; never the less, let's
+				// ensure the user knows, just in case it wasn't meant to be.
 				log.Println("testServer: warning: possibly malformed request body")
 				return http.StatusOK
 			}

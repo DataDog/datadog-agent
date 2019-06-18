@@ -34,6 +34,7 @@ type StatsWriter struct {
 	stats    *info.StatsWriterInfo
 }
 
+// NewStatsWriter returns a new StatsWriter. It must be started using Run.
 func NewStatsWriter(cfg *config.AgentConfig, in <-chan []stats.Bucket) *StatsWriter {
 	sw := &StatsWriter{
 		in:       in,
@@ -48,6 +49,7 @@ func NewStatsWriter(cfg *config.AgentConfig, in <-chan []stats.Bucket) *StatsWri
 	return sw
 }
 
+// Run starts the StatsWriter, making it ready to receive stats and report metrics.
 func (w *StatsWriter) Run() {
 	t := time.NewTicker(5 * time.Second)
 	defer t.Stop()
@@ -64,6 +66,7 @@ func (w *StatsWriter) Run() {
 	}
 }
 
+// Stop stops a running StatsWriter.
 func (w *StatsWriter) Stop() {
 	w.stop <- struct{}{}
 	<-w.stop

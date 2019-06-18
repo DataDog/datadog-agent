@@ -152,8 +152,8 @@ func TestStatsWriter(t *testing.T) {
 func testStatsWriter() *StatsWriter {
 	in := make(chan []stats.Bucket)
 	cfg := &config.AgentConfig{
-		Hostname:   "testhost",
-		DefaultEnv: "testing",
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
 		Endpoints:  []*config.Endpoint{{Host: "http://test", APIKey: "123"}},
 	}
 	return NewStatsWriter(cfg, in)
