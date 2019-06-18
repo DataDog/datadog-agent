@@ -79,7 +79,7 @@ func (m *MultiHandler) Handle(line *RichLine) {
 	// ...TRUNCATED...msg...TRUNCATED... needLeading = true && needTailing = true
 	// both cases above suggest msg is at it's cap length, that no buffering is
 	// required.
-	if line.needTailing || (line.needLeading && line.needTailing) {
+	if line.needTailing {
 		m.SendResult()
 	}
 }
