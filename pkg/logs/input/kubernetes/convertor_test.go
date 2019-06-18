@@ -59,4 +59,8 @@ func TestConvertorConvert(t *testing.T) {
 	// no content
 	line = convertor.Convert([]byte("2018-09-20T11:54:11.753589143Z stdout F"), prefix)
 	assert.Nil(t, line)
+
+	// empty content
+	line = convertor.Convert([]byte("2018-09-20T11:54:11.753589143Z stdout F "), prefix)
+	assert.Nil(t, line)
 }
