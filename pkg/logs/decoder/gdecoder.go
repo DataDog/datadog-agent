@@ -5,7 +5,9 @@
 
 package decoder
 
-import "time"
+import (
+	"time"
+)
 
 // GDecoder should replace current Decoder object.
 // Decoder encapsulates the logic for processing logs. The communication is done by

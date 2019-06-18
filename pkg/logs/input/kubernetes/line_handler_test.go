@@ -15,11 +15,14 @@ import (
 )
 
 func TestHandlePartialMessage(t *testing.T) {
-	outputChan := make(chan *decoder.Output, 1)
+	outputChan := make(chan *decoder.Output,10)
 	truncator := decoder.NewLineTruncator(outputChan, 60)
 	multiHandler := decoder.NewMultiHandler(regexp.MustCompile("[0-9]+\\."), *truncator)
 	handler := NewPartialLineHandler(multiHandler)
-	handler.Handle(decoder.NewRichLineBuilder().
+	flushTimeout := 1 * time.Second
+	scheduler := decoder.NewLineHandlerScheduler(make(chan *decoder.RichLine), flushTimeout, handler)
+	scheduler.Start()
+	scheduler.Handle(decoder.NewRichLineBuilder().
 		Timestamp("2019-06-06T16:35:55.930852911Z").
 		Status(message.StatusInfo).
 		IsLeading(false).
@@ -28,7 +31,7 @@ func TestHandlePartialMessage(t *testing.T) {
 		ContentString("1.first message ").
 		Build())
 
-	handler.Handle(decoder.NewRichLineBuilder().
+	scheduler.Handle(decoder.NewRichLineBuilder().
 		Timestamp("2019-06-06T16:35:55.930852912Z").
 		Status(message.StatusInfo).
 		IsLeading(false).
@@ -37,7 +40,7 @@ func TestHandlePartialMessage(t *testing.T) {
 		ContentString("second message ").
 		Build())
 
-	handler.Handle(decoder.NewRichLineBuilder().
+	scheduler.Handle(decoder.NewRichLineBuilder().
 		Timestamp("2019-06-06T16:35:55.930852913Z").
 		Status(message.StatusInfo).
 		IsLeading(false).
@@ -45,12 +48,13 @@ func TestHandlePartialMessage(t *testing.T) {
 		Flag("F").
 		ContentString("last message").
 		Build())
-	handler.Handle(decoder.NewRichLineBuilder().
+
+	scheduler.Handle(decoder.NewRichLineBuilder().
 		Timestamp("2019-06-06T16:35:55.930852914Z").
 		Status(message.StatusCritical).
 		IsLeading(false).
 		IsTailing(false).
-		Flag("F").
+		Flag("P").
 		ContentString("2.message").
 		Build())
 
@@ -59,19 +63,19 @@ func TestHandlePartialMessage(t *testing.T) {
 	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.Timestamp)
 	assert.Equal(t, "info", output.Status)
 	assert.Equal(t, 43, output.RawDataLen)
-	assertNoMoreOutput(t, outputChan, 10*time.Millisecond)
 
-	handler.Cleanup()
+	time.Sleep(1*time.Second)
 	output = <-outputChan
 	assert.Equal(t, "2.message", string(output.Content))
 	assert.Equal(t, "2019-06-06T16:35:55.930852914Z", output.Timestamp)
 	assert.Equal(t, "critical", output.Status)
 	assert.Equal(t, 9, output.RawDataLen)
-	assertOutputChanClosed(t, outputChan)
+	assertNoMoreOutput(t, outputChan, 10*time.Millisecond)
+	scheduler.Stop()
 }
 
 func TestBufferFullSendMessage(t *testing.T) {
-	outputChan := make(chan *decoder.Output, 10)
+	outputChan := make(chan *decoder.Output, 3)
 	truncator := decoder.NewLineTruncator(outputChan, 60)
 	multiHandler := decoder.NewMultiHandler(regexp.MustCompile("[0-9]+\\."), *truncator)
 	handler := NewPartialLineHandler(multiHandler)

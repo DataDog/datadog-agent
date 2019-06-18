@@ -7,7 +7,9 @@
 
 package kubernetes
 
-import "github.com/DataDog/datadog-agent/pkg/logs/decoder"
+import (
+	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+)
 
 const (
 	flagFull = "F"
@@ -43,21 +45,27 @@ func (p *PartialLineHandler) Handle(line *decoder.RichLine) {
 	// a Full message (meaning it's the last part of a log) or the
 	// current buffer is full.
 	if line.Flag == flagFull || p.lineBuf.IsFull() {
-		p.SendResult()
+		p.send()
 	}
 }
 
 // Cleanup send the result and clean up the next handlers.
 func (p *PartialLineHandler) Cleanup() {
-	p.nextHandler.SendResult()
+	p.send()
 	p.nextHandler.Cleanup()
 }
 
-// SendResult sends result to the next handler.
-func (p *PartialLineHandler) SendResult() {
+func (p *PartialLineHandler) send() {
 	defer p.lineBuf.Reset()
 	line := p.lineBuf.ToLine()
 	if line != nil {
 		p.nextHandler.Handle(line)
 	}
+}
+
+// SendResult makes sure the result gets sent immediately to the next handler
+// next handler also immediately send it's cached result to downstream.
+func (p *PartialLineHandler) SendResult() {
+	p.send()
+	p.nextHandler.SendResult()
 }
