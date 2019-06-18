@@ -20,7 +20,7 @@ func TestLineGeneratorWithNoPrefix(t *testing.T) {
 	flushTimeout := 10 * time.Millisecond
 	handler := NewMultiHandler(regexp.MustCompile("[0-9]+\\."), *truncator)
 	scheduler := NewLineHandlerScheduler(make(chan *RichLine), flushTimeout, handler)
-	generator := NewLineGenerator(600, inputChan, &newLineMatcher{}, &parser.NoopConvertor{}, *scheduler)
+	generator := NewLineGenerator(600, inputChan, &NewLineMatcher{}, &parser.NoopConvertor{}, *scheduler)
 
 	generator.Start()
 	inputChan <- NewInput([]byte("1.first ch"))
@@ -58,7 +58,7 @@ func TestLineGeneratorMatchEndlineAlsoMaxLen(t *testing.T) {
 	flushTimeout := 10 * time.Millisecond
 	handler := NewMultiHandler(regexp.MustCompile("[0-9]+\\."), *truncator)
 	scheduler := NewLineHandlerScheduler(make(chan *RichLine), flushTimeout, handler)
-	generator := NewLineGenerator(51, inputChan, &newLineMatcher{}, &parser.NoopConvertor{}, *scheduler)
+	generator := NewLineGenerator(51, inputChan, &NewLineMatcher{}, &parser.NoopConvertor{}, *scheduler)
 
 	generator.Start()
 	inputChan <- NewInput([]byte("1.a very ver"))
@@ -97,7 +97,7 @@ func TestLongLineIsAlsoMultiLine(t *testing.T) {
 	flushTimeout := 10 * time.Millisecond
 	handler := NewMultiHandler(regexp.MustCompile("[0-9]+\\."), *truncator)
 	scheduler := NewLineHandlerScheduler(make(chan *RichLine), flushTimeout, handler)
-	generator := NewLineGenerator(50, inputChan, &newLineMatcher{}, &parser.NoopConvertor{}, *scheduler)
+	generator := NewLineGenerator(50, inputChan, &NewLineMatcher{}, &parser.NoopConvertor{}, *scheduler)
 	generator.Start()
 	inputChan <- NewInput([]byte("1.a very ver"))
 	inputChan <- NewInput([]byte("y long log w"))
@@ -141,7 +141,7 @@ func TestLongLineThenMultiLine(t *testing.T) {
 	flushTimeout := 10 * time.Millisecond
 	handler := NewMultiHandler(regexp.MustCompile("[0-9]+\\."), *truncator)
 	scheduler := NewLineHandlerScheduler(make(chan *RichLine), flushTimeout, handler)
-	generator := NewLineGenerator(50, inputChan, &newLineMatcher{}, &parser.NoopConvertor{}, *scheduler)
+	generator := NewLineGenerator(50, inputChan, &NewLineMatcher{}, &parser.NoopConvertor{}, *scheduler)
 	generator.Start()
 	inputChan <- NewInput([]byte("1.a very ver"))
 	inputChan <- NewInput([]byte("y long log w"))
@@ -188,7 +188,7 @@ func TestMulitLineThenLongLine(t *testing.T) {
 	flushTimeout := 10 * time.Millisecond
 	handler := NewMultiHandler(regexp.MustCompile("[0-9]+\\."), *truncator)
 	scheduler := NewLineHandlerScheduler(make(chan *RichLine), flushTimeout, handler)
-	generator := NewLineGenerator(50, inputChan, &newLineMatcher{}, &parser.NoopConvertor{}, *scheduler)
+	generator := NewLineGenerator(50, inputChan, &NewLineMatcher{}, &parser.NoopConvertor{}, *scheduler)
 	generator.Start()
 	inputChan <- NewInput([]byte("1.a very ver"))
 	inputChan <- NewInput([]byte("y long\n log"))
@@ -245,7 +245,7 @@ func TestLineLongerThanHardLimit(t *testing.T) {
 	flushTimeout := 10 * time.Millisecond
 	handler := NewMultiHandler(regexp.MustCompile("[0-9]+\\."), *truncator)
 	scheduler := NewLineHandlerScheduler(make(chan *RichLine), flushTimeout, handler)
-	generator := NewLineGenerator(100, inputChan, &newLineMatcher{}, &parser.NoopConvertor{}, *scheduler)
+	generator := NewLineGenerator(100, inputChan, &NewLineMatcher{}, &parser.NoopConvertor{}, *scheduler)
 	generator.Start()
 	inputChan <- NewInput([]byte("1.a very ver"))
 	inputChan <- NewInput([]byte("y long log w"))
@@ -292,7 +292,7 @@ func TestEmptyLine(t *testing.T) {
 	flushTimeout := 10 * time.Millisecond
 	handler := NewMultiHandler(regexp.MustCompile("[0-9]+\\."), *truncator)
 	scheduler := NewLineHandlerScheduler(make(chan *RichLine), flushTimeout, handler)
-	generator := NewLineGenerator(100, inputChan, &newLineMatcher{}, &parser.NoopConvertor{}, *scheduler)
+	generator := NewLineGenerator(100, inputChan, &NewLineMatcher{}, &parser.NoopConvertor{}, *scheduler)
 	generator.Start()
 
 	// empty new line will be ignored.
