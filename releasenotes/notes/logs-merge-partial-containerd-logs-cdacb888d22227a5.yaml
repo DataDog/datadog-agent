@@ -1,0 +1,5 @@
+enhancements:
+  - |
+    Make sure container logs collected in Kubernetes environment when
+     `/var/log/pods` is mounted, get merged when exceeding Kubernetes
+    log length limitation(16KB).
