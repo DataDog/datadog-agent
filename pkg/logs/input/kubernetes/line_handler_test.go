@@ -74,6 +74,66 @@ func TestHandlePartialMessage(t *testing.T) {
 	scheduler.Stop()
 }
 
+func TestWrapSingleLineHandler(t *testing.T) {
+	outputChan := make(chan *decoder.Output, 10)
+	truncator := decoder.NewLineTruncator(outputChan, 60)
+	singleLineHandler := decoder.NewSingleHandler(*truncator)
+	handler := NewPartialLineHandler(singleLineHandler)
+	flushTimeout := 1 * time.Second
+	scheduler := decoder.NewLineHandlerScheduler(make(chan *decoder.RichLine), flushTimeout, handler)
+	scheduler.Start()
+	scheduler.Handle(decoder.NewRichLineBuilder().
+		Timestamp("2019-06-06T16:35:55.930852911Z").
+		Status(message.StatusInfo).
+		IsLeading(false).
+		IsTailing(false).
+		Flag("P").
+		ContentString("1.first message ").
+		Build())
+
+	scheduler.Handle(decoder.NewRichLineBuilder().
+		Timestamp("2019-06-06T16:35:55.930852912Z").
+		Status(message.StatusInfo).
+		IsLeading(false).
+		IsTailing(false).
+		Flag("P").
+		ContentString("2.second message ").
+		Build())
+
+	scheduler.Handle(decoder.NewRichLineBuilder().
+		Timestamp("2019-06-06T16:35:55.930852913Z").
+		Status(message.StatusInfo).
+		IsLeading(false).
+		IsTailing(false).
+		Flag("F").
+		ContentString("3.last message").
+		Build())
+
+	scheduler.Handle(decoder.NewRichLineBuilder().
+		Timestamp("2019-06-06T16:35:55.930852914Z").
+		Status(message.StatusCritical).
+		IsLeading(false).
+		IsTailing(false).
+		Flag("P").
+		ContentString("2.message").
+		Build())
+
+	output := <-outputChan
+	assert.Equal(t, "1.first message 2.second message 3.last message", string(output.Content))
+	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.Timestamp)
+	assert.Equal(t, "info", output.Status)
+	assert.Equal(t, 47, output.RawDataLen)
+
+	time.Sleep(1 * time.Second)
+	output = <-outputChan
+	assert.Equal(t, "2.message", string(output.Content))
+	assert.Equal(t, "2019-06-06T16:35:55.930852914Z", output.Timestamp)
+	assert.Equal(t, "critical", output.Status)
+	assert.Equal(t, 9, output.RawDataLen)
+	assertNoMoreOutput(t, outputChan, 10*time.Millisecond)
+	scheduler.Stop()
+}
+
 func TestBufferFullSendMessage(t *testing.T) {
 	outputChan := make(chan *decoder.Output, 3)
 	truncator := decoder.NewLineTruncator(outputChan, 60)
