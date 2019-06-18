@@ -21,8 +21,8 @@ type Handler interface {
 
 // NewLineHandler creates a new instance of general line handler based on the configuration.
 func NewLineHandler(source *config.LogSource, truncator LineTruncator) Handler {
-
 	for _, rule := range source.Config.ProcessingRules {
+		// find and match the first multiLine configuration.
 		if rule.Type == config.MultiLine {
 			return NewMultiHandler(rule.Regex, truncator)
 		}
