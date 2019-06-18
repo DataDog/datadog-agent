@@ -42,7 +42,7 @@ type Convertor struct {
 // used as prefix.
 func (c *Convertor) Convert(msg []byte, defaultPrefix iParser.Prefix) *iParser.Line {
 	components := bytes.SplitN(msg, delimiter, numOfComponents)
-	if !c.validate(components[indexOfHeader]) {
+	if !c.validateHeader(components[indexOfHeader]) {
 		// take this msg as partial log splitted by upstream.
 		return &iParser.Line{
 			Prefix:  defaultPrefix,
@@ -130,7 +130,9 @@ func (c *Convertor) parseHeader(header []byte) (string, string, int) {
 // This is the size of OUTPUT.
 // the last part is timstamp in this format: 2019-05-29T09:26:32.155255473Z
 // the full header is: �2019-05-29T09:26:32.155255473Z
-func (c *Convertor) validate(header []byte) bool {
+// In case of docker exec with tty, 8 bytes header is absent. In this case the full
+// header becomes: 2019-05-29T09:26:32.155255473Z, which should also be valid.
+func (c *Convertor) validateHeader(header []byte) bool {
 	hasStdOutPrefix := bytes.HasPrefix(header, headerStdoutPrefix)
 	hasStdErrPrefix := bytes.HasPrefix(header, headerStderrPrefix)
 	return (!hasStdOutPrefix && !hasStdErrPrefix && timestampMatcher.MatchString(string(header))) || // tty
