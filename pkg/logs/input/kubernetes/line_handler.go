@@ -1,7 +1,9 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+/*
+ * Unless explicitly stated otherwise all files in this repository are licensed
+ * under the Apache License Version 2.0.
+ * This product includes software developed at Datadog (https://www.datadoghq.com/).
+ * Copyright 2016-2019 Datadog, Inc.
+ */
 
 package kubernetes
 
@@ -9,7 +11,6 @@ import "github.com/DataDog/datadog-agent/pkg/logs/decoder"
 
 const (
 	flagFull = "F"
-	flagPartial = "P"
 )
 
 // PartialLineHandler is a Handler to manage the kubernetes prefixed logs.
@@ -23,28 +24,39 @@ const (
 // LineGenerator decode length (defaultMaxDecodeLength = 1MB).
 type PartialLineHandler struct {
 	nextHandler decoder.Handler
-	lineBuf *partialLineBuffer
+	lineBuf     *decoder.MultiLineBuffer
 }
 
-func (p *PartialLineHandler) Handle(line *decoder.RichLine) {
-	if line.Flag == flagFull {
-		p.SendResult()
-	} else {
-		p.cacheLine(line)
+// NewPartialLineHandler creates a new instance of PartialLineHandler.
+func NewPartialLineHandler(nextHandler decoder.Handler) *PartialLineHandler {
+	return &PartialLineHandler{
+		nextHandler: nextHandler,
+		lineBuf:     decoder.NewMultiLineBuffer(),
 	}
 }
 
-func (p *PartialLineHandler) cacheLine(line *decoder.RichLine) {
-	p.lineBuf.appendContent(line.Content)
+// Handle writes the line into buffer and send buffered content if given message
+// is the last line of a full log.
+func (p *PartialLineHandler) Handle(line *decoder.RichLine) {
+	p.lineBuf.Write(line)
+	// directly send the buffered content when the incoming line is
+	// a Full message (meaning it's the last part of a log) or the
+	// current buffer is full.
+	if line.Flag == flagFull || p.lineBuf.IsFull() {
+		p.SendResult()
+	}
 }
 
+// Cleanup send the result and clean up the next handlers.
 func (p *PartialLineHandler) Cleanup() {
 	p.nextHandler.SendResult()
 	p.nextHandler.Cleanup()
 }
 
+// SendResult sends result to the next handler.
 func (p *PartialLineHandler) SendResult() {
-	line := p.lineBuf.toLine()
+	defer p.lineBuf.Reset()
+	line := p.lineBuf.ToLine()
 	if line != nil {
 		p.nextHandler.Handle(line)
 	}

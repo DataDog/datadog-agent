@@ -112,3 +112,65 @@ type RichLine struct {
 	// to be true.
 	needTailing bool
 }
+
+// RichLineBuilder builds a complete RichLine.
+type RichLineBuilder struct {
+	line *RichLine
+}
+
+// NewRichLineBuilder creates a new instance of RichLineBuilder.
+func NewRichLineBuilder() *RichLineBuilder {
+	return &RichLineBuilder{
+		line: &RichLine{
+			Line: parser.Line{},
+		},
+	}
+}
+
+// Timestamp sets the timestamp of the line.
+func (r *RichLineBuilder) Timestamp(timestamp string) *RichLineBuilder {
+	r.line.Timestamp = timestamp
+	return r
+}
+
+// Status sets the status of this line.
+func (r *RichLineBuilder) Status(status string) *RichLineBuilder {
+	r.line.Status = status
+	return r
+}
+
+// IsLeading sets the needLeading value of the line.
+func (r *RichLineBuilder) IsLeading(leading bool) *RichLineBuilder {
+	r.line.needLeading = leading
+	return r
+}
+
+// IsTailing sets the needTailing value of the line.
+func (r *RichLineBuilder) IsTailing(tailing bool) *RichLineBuilder {
+	r.line.needTailing = tailing
+	return r
+}
+
+// Content sets the content of this line.
+func (r *RichLineBuilder) Content(content []byte) *RichLineBuilder {
+	r.line.Content = content
+	r.line.Size = len(content)
+	return r
+}
+
+// Flag sets the flag of the line.
+func (r *RichLineBuilder) Flag(flag string) *RichLineBuilder {
+	r.line.Flag = flag
+	return r
+}
+
+// ContentString sets the content as string of the line.
+func (r *RichLineBuilder) ContentString(content string) *RichLineBuilder {
+	return r.Content([]byte(content))
+}
+
+// Build returns a created RichLine. After this step all the values should
+// not be updated any more.
+func (r *RichLineBuilder) Build() *RichLine {
+	return r.line
+}

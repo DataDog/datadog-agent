@@ -8,7 +8,6 @@ package decoder
 import (
 	"bytes"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/stretchr/testify/assert"
 	"strconv"
 	"strings"
@@ -171,16 +170,11 @@ func assertNoMoreOutput(t *testing.T, outputChan chan *Output, waitTimeout time.
 }
 
 func richLine(content string, needLeading bool, needTailing bool) *RichLine {
-	return &RichLine{
-		Line: parser.Line{
-			Prefix: parser.Prefix{
-				Timestamp: "2019-06-06T16:35:55.930852911Z",
-				Status:    message.StatusInfo,
-			},
-			Content: []byte(content),
-			Size:    len(content),
-		},
-		needLeading: needLeading,
-		needTailing: needTailing,
-	}
+	return NewRichLineBuilder().
+		ContentString(content).
+		Timestamp("2019-06-06T16:35:55.930852911Z").
+		Status(message.StatusInfo).
+		IsLeading(needLeading).
+		IsTailing(needTailing).
+		Build()
 }
