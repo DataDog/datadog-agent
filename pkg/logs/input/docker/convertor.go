@@ -14,6 +14,25 @@ import (
 	"regexp"
 )
 
+var (
+	delimiter = []byte{' '}
+	// 2019-05-29T09:26:32.155255473Z
+	timestampMatcher = regexp.MustCompile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{9}Z")
+	// Escaped CRLF, used for determine empty messages
+	windowsEOFMark     = []byte{'\\', 'r', '\\', 'n'}
+	carriageReturnMark = []byte{'\\', 'r'}
+	lineFeedMark       = []byte{'\\', 'n'}
+)
+
+const (
+	numOfComponents    = 2 // [htimestamp message]
+	indexOfTimestamp   = 8
+	indexOfHeader      = 0
+	indexOfContent     = 1
+	indexOfContentSize = 4
+	indexOfStatus      = 0
+)
+
 // Convertor specific for docker logs read from socket.
 type Convertor struct {
 	iParser.Convertor
@@ -23,7 +42,7 @@ type Convertor struct {
 // used as prefix.
 func (c *Convertor) Convert(msg []byte, defaultPrefix iParser.Prefix) *iParser.Line {
 	components := bytes.SplitN(msg, delimiter, numOfComponents)
-	if !c.validate(components[0]) {
+	if !c.validate(components[indexOfHeader]) {
 		// take this msg as partial log splitted by upstream.
 		return &iParser.Line{
 			Prefix:  defaultPrefix,
@@ -32,19 +51,19 @@ func (c *Convertor) Convert(msg []byte, defaultPrefix iParser.Prefix) *iParser.L
 		}
 	}
 
-	if len(components) < numOfComponents || c.isEmptyMsg(components[1]) {
+	if len(components) < numOfComponents || c.isEmptyMsg(components[indexOfContent]) {
 		return nil
 	}
 
-	status, timestamp, contentLen := c.parseHeader(components[0])
+	status, timestamp, contentLen := c.parseHeader(components[indexOfHeader])
 	if contentLen <= 0 && status == "" { // take it as tty, which means msg does not contain 8 bytes docker header.
 		return &iParser.Line{
 			Prefix: iParser.Prefix{
 				Status:    message.StatusInfo,
 				Timestamp: timestamp,
 			},
-			Content: components[1],
-			Size:    len(components[1]),
+			Content: components[indexOfContent],
+			Size:    len(components[indexOfContent]),
 		}
 	}
 	content := c.parseContent(msg)
@@ -70,9 +89,9 @@ func (c *Convertor) parseContent(msg []byte) []byte {
 	var result bytes.Buffer
 	for len(msg) > 0 {
 		components := bytes.SplitN(msg, delimiter, numOfComponents)
-		_, _, length := c.parseHeader(components[0])
-		result.Write(components[1][:length])
-		msg = components[1][length:]
+		_, _, length := c.parseHeader(components[indexOfHeader])
+		result.Write(components[indexOfContent][:length])
+		msg = components[indexOfContent][length:]
 	}
 	return result.Bytes()
 }
@@ -87,15 +106,15 @@ func (c *Convertor) parseHeader(header []byte) (string, string, int) {
 	var contentLen int
 	// rely on the first byte of header to know whether this header contains leading
 	// 8 Bytes docker header or not.
-	switch header[0] {
+	switch header[indexOfStatus] {
 	case 1:
 		status = message.StatusInfo
-		timestamp = string(header[8:])
-		contentLen = bytesToUint32(header[4:8])
+		timestamp = string(header[indexOfTimestamp:])
+		contentLen = bytesToUint32(header[indexOfContentSize:indexOfTimestamp])
 	case 2:
 		status = message.StatusError
-		timestamp = string(header[8:])
-		contentLen = bytesToUint32(header[4:8])
+		timestamp = string(header[indexOfTimestamp:])
+		contentLen = bytesToUint32(header[indexOfContentSize:indexOfTimestamp])
 	default: // 1 or other
 		timestamp = string(header)
 	}
@@ -115,7 +134,7 @@ func (c *Convertor) validate(header []byte) bool {
 	hasStdOutPrefix := bytes.HasPrefix(header, headerStdoutPrefix)
 	hasStdErrPrefix := bytes.HasPrefix(header, headerStderrPrefix)
 	return (!hasStdOutPrefix && !hasStdErrPrefix && timestampMatcher.MatchString(string(header))) || // tty
-		((hasStdErrPrefix || hasStdOutPrefix) && timestampMatcher.MatchString(string(header[8:])))
+		((hasStdErrPrefix || hasStdOutPrefix) && timestampMatcher.MatchString(string(header[indexOfTimestamp:])))
 }
 
 // isNewLineOnly checks if the content is in the form of escaped new line or empty.
@@ -126,15 +145,3 @@ func (c *Convertor) isEmptyMsg(content []byte) bool {
 		bytes.Equal(content, lineFeedMark) ||
 		bytes.Equal(content, windowsEOFMark)
 }
-
-var delimiter = []byte{' '}
-
-// 2019-05-29T09:26:32.155255473Z
-var timestampMatcher = regexp.MustCompile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{9}Z")
-
-const numOfComponents = 2 // [htimestamp message]
-
-// Escaped CRLF, used for determine empty messages
-var windowsEOFMark = []byte{'\\', 'r', '\\', 'n'}
-var carriageReturnMark = []byte{'\\', 'r'}
-var lineFeedMark = []byte{'\\', 'n'}
