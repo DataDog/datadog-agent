@@ -67,9 +67,11 @@ type testServer struct {
 	server  *httptest.Server
 	latency time.Duration
 
-	mu   sync.Mutex // guards seen
-	seen map[string]*requestStatus
+	mu       sync.Mutex // guards below
+	seen     map[string]*requestStatus
+	payloads []*payload
 
+	// stats
 	total, accepted uint64
 	retried, failed uint64
 	peak, active    int64
@@ -108,6 +110,13 @@ func (ts *testServer) Total() int { return int(atomic.LoadUint64(&ts.total)) }
 // 2xx HTTP status code.
 func (ts *testServer) Accepted() int { return int(atomic.LoadUint64(&ts.accepted)) }
 
+// Payloads returns the payloads that were accepted by the server, as received.
+func (ts *testServer) Payloads() []*payload {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	return ts.payloads
+}
+
 // ServeHTTP responds based on the request body.
 func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	atomic.AddUint64(&ts.total, 1)
@@ -132,6 +141,19 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		atomic.AddUint64(&ts.retried, 1)
 	case 2: // 2xx
 		atomic.AddUint64(&ts.accepted, 1)
+		// for 2xx, we store the payload contents too
+		headers := make(map[string]string, len(req.Header))
+		for k, vs := range req.Header {
+			for _, v := range vs {
+				headers[k] = v
+			}
+		}
+		ts.mu.Lock()
+		defer ts.mu.Unlock()
+		ts.payloads = append(ts.payloads, &payload{
+			body:    slurp,
+			headers: headers,
+		})
 	default:
 		atomic.AddUint64(&ts.failed, 1)
 	}

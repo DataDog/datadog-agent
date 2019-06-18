@@ -92,6 +92,25 @@ func TestTestServer(t *testing.T) {
 		assert.True(d > 50*time.Millisecond)
 	})
 
+	t.Run("payloads", func(t *testing.T) {
+		assert := assert.New(t)
+		ts := newTestServer()
+		defer ts.Close()
+
+		req, err := http.NewRequest("POST", ts.URL, strings.NewReader("ABC"))
+		assert.NoError(err)
+		req.Header.Set("Secret-Number", "123")
+		req.Header.Set("Secret-Letter", "Q")
+		resp, err := http.DefaultClient.Do(req)
+		assert.NoError(err)
+		assert.Equal(200, resp.StatusCode)
+
+		assert.Len(ts.Payloads(), 1)
+		assert.Equal("ABC", string(ts.Payloads()[0].body))
+		assert.Equal("123", ts.Payloads()[0].headers["Secret-Number"])
+		assert.Equal("Q", ts.Payloads()[0].headers["Secret-Letter"])
+	})
+
 	t.Run("custom-body", func(t *testing.T) {
 		assert := assert.New(t)
 		ts := newTestServer()
