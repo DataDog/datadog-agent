@@ -94,12 +94,15 @@ type eventData struct {
 	// count specfies the number of payloads that this events refers to.
 	count int
 	// duration specifies the time it took to complete this event. It
-	// is set for eventTypeFlushed, eventTypeSent, eventTypeRetry and
-	// eventTypeFailed.
+	// is set for eventType{Flushed,Sent,Retry,Failed}.
 	duration time.Duration
 	// err specifies the error that may have occurred on events like
 	// eventTypeRetry and eventTypeFailed.
 	err error
+	// connectionFill specifies the percentage of allowed connections used.
+	// At 100% (1.0) the writer will become blocking. It is reported for events
+	// eventType{Sent,Retry,Failed}.
+	connectionFill float64
 }
 
 // maxQueueSize specifies the maximum allowed queue size. If it is surpassed, older
@@ -252,10 +255,11 @@ func (q *sender) sendPayloads(payloads []*payload) (done, retries uint64) {
 			start := time.Now()
 			err = q.do(req)
 			stats := &eventData{
-				bytes:    len(p.body),
-				count:    1,
-				duration: time.Since(start),
-				err:      err,
+				bytes:          len(p.body),
+				count:          1,
+				duration:       time.Since(start),
+				err:            err,
+				connectionFill: float64(len(q.climit)) / float64(len(q.climit)),
 			}
 			switch err.(type) {
 			case *retriableError:

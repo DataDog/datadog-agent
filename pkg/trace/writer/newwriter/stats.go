@@ -216,6 +216,10 @@ func (w *StatsWriter) report() {
 // recordEvent implements eventRecorder.
 func (w *StatsWriter) recordEvent(t eventType, data *eventData) {
 	switch t {
+	case eventTypeRetry, eventTypeSent, eventTypeFailed:
+		metrics.Histogram("datadog.trace_agent.stats_writer.connection_fill", data.connectionFill, nil, 1)
+	}
+	switch t {
 	case eventTypeRetry:
 		log.Errorf("Retrying to flush stats payload (error: %q)", data.err)
 		atomic.AddInt64(&w.stats.Retries, 1)

@@ -206,6 +206,10 @@ var _ eventRecorder = (*TraceWriter)(nil)
 // recordEvent implements eventRecorder.
 func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 	switch t {
+	case eventTypeRetry, eventTypeSent, eventTypeFailed:
+		metrics.Histogram("datadog.trace_agent.trace_writer.connection_fill", data.connectionFill, nil, 1)
+	}
+	switch t {
 	case eventTypeRetry:
 		log.Errorf("Retrying to flush trace payload; error: %s", data.err)
 		atomic.AddInt64(&w.stats.Retries, 1)
