@@ -1262,9 +1262,9 @@ latest_release:
 # - set the IMAGE and TAG envvars
 # - in the gitlab pipeline view, trigger the step (in the first column)
 #
-.delete_docker_tag:
+delete_docker_tag:
   tags: [ "runner:docker", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:18.03.1
   before_script:
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
@@ -1276,8 +1276,8 @@ latest_release:
   when: manual
   variables:
     <<: *docker_hub_variables
-    IMAGE: ""  # image name, for example "agent"
-    TAG: ""  # tag name, for example "6.9.0"
+    IMAGE: "agent-dev"  # image name, for example "agent"
+    TAG: "ahmed-mez-disable-startup-event-when-empty-hostname-jmx"  # tag name, for example "6.9.0"
     ORGANIZATION: "datadog"
   script:
     - if [[ -z "$IMAGE" ]]; then echo "Need an image"; exit 1; fi
