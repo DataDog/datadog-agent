@@ -66,37 +66,37 @@ int init_string_helpers(void) {
     }
 
     // get pyyaml load()
-    char func_name[] = "load";
-    yload = PyObject_GetAttrString(yaml, func_name);
+    char load_name[] = "load";
+    yload = PyObject_GetAttrString(yaml, load_name);
     if (yload == NULL) {
         goto done;
     }
 
     // We try to use the C-extensions, if they're available, but it's a best effort
     char c_loader_name[] = "CSafeLoader";
-    loader = PyObject_getAttrString(yaml, c_loader_name);
+    loader = PyObject_GetAttrString(yaml, c_loader_name);
     if (loader == NULL) {
         PyErr_Clear();
         char loader_name[] = "SafeLoader";
-        loader = PyObject_getAttrString(yaml, loader_name);
+        loader = PyObject_GetAttrString(yaml, loader_name);
         if (loader == NULL) {
             goto done;
         }
     }
 
     // get pyyaml dump()
-    char func_name[] = "dump";
-    ydump = PyObject_GetAttrString(yaml, func_name);
+    char dump_name[] = "dump";
+    ydump = PyObject_GetAttrString(yaml, dump_name);
     if (ydump == NULL) {
         goto done;
     }
 
     char c_dumper_name[] = "CSafeDumper";
-    dumper = PyObject_getAttrString(yaml, c_dumper_name);
+    dumper = PyObject_GetAttrString(yaml, c_dumper_name);
     if (dumper == NULL) {
         PyErr_Clear();
         char dumper_name[] = "SafeDumper";
-        dumper = PyObject_getAttrString(yaml, dumper_name);
+        dumper = PyObject_GetAttrString(yaml, dumper_name);
         if (dumper == NULL) {
             goto done;
         }

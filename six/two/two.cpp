@@ -884,3 +884,8 @@ done:
 
     return wheels;
 }
+
+bool Two::initStringUtils(void) const
+{
+    return bool(init_string_helpers());
+}

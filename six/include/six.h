@@ -57,7 +57,7 @@ public:
 #ifndef _WIN32
     bool handleCrashes(const bool coredump) const;
 #endif
-    bool Six::initStringUtils();
+    virtual bool initStringUtils(void) const = 0;
 
     // Python Helpers
     virtual char *getIntegrationList() = 0;
