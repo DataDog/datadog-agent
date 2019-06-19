@@ -145,7 +145,7 @@ func (c *Convertor) parseHeader(header []byte) (string, string, int) {
 // SIZE1, SIZE2, SIZE3, and SIZE4 are four bytes of uint32 encoded as big endian.
 // This is the size of OUTPUT.
 // the last part is timstamp in this format: 2019-05-29T09:26:32.155255473Z
-// the full header is: �2019-05-29T09:26:32.155255473Z
+// the full header is: <8-byte-header>2019-05-29T09:26:32.155255473Z
 // In case of docker exec with tty, 8 bytes header is absent. In this case the full
 // header becomes: 2019-05-29T09:26:32.155255473Z, which should also be valid.
 func (c *Convertor) validateHeader(header []byte) bool {
