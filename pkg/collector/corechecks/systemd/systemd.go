@@ -27,9 +27,6 @@ import (
 const (
 	systemdCheckName = "systemd"
 
-	unitTag            = "unit"
-	unitActiveStateTag = "active_state"
-
 	unitActiveState = "active"
 	unitLoadedState = "loaded"
 
@@ -235,7 +232,7 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 		if !c.isMonitored(unit.Name) {
 			continue
 		}
-		tags := []string{unitTag + ":" + unit.Name}
+		tags := []string{"unit:" + unit.Name}
 		sender.ServiceCheck(unitStateServiceCheck, getServiceCheckStatus(unit.ActiveState), "", tags, "")
 
 		c.submitBasicUnitMetrics(sender, conn, unit, tags)
@@ -284,7 +281,7 @@ func (c *SystemdCheck) submitCountMetrics(sender aggregator.Sender, units []dbus
 
 	for _, activeState := range unitActiveStates {
 		count := counts[activeState]
-		sender.Gauge("systemd.unit.count", float64(count), "", []string{unitActiveStateTag + ":" + activeState})
+		sender.Gauge("systemd.unit.count", float64(count), "", []string{"active_state:" + activeState})
 	}
 }
 
