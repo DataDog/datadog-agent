@@ -160,7 +160,8 @@ func (ns *networkState) Connections(id string, latestTime uint64, latestConns []
 	return conns
 }
 
-// getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
+// getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation and the number of collisions
+// encountered while transforming the array of connections into the map
 func getConnsByKey(conns []ConnectionStats, buf *bytes.Buffer) (map[string]*ConnectionStats, int) {
 	collisions := 0
 

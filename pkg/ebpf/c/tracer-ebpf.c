@@ -412,7 +412,7 @@ static __u32 new_tcp_id() {
     __u32* val;
     __u32 zero = 0;
 
-    // TODO this is safe to do since the count will only be accessed by one CPU
+    // XXX this is safe to do since the count will only be accessed by one CPU
     bpf_map_update_elem(&tcp_mono_count, &cpu, &zero, BPF_NOEXIST);
     val = bpf_map_lookup_elem(&tcp_mono_count, &cpu);
     if (val) {
@@ -547,9 +547,11 @@ static void update_conn_stats(
             bpf_map_update_elem(&tcp_stats, &t, &empty, BPF_NOEXIST);
             tcp_val = bpf_map_lookup_elem(&tcp_stats, &t);
             if (tcp_val != NULL && tcp_val->id == 0) {
-                // Use fetch and add for safety, since this gets executed only when id == 0 it gives us what we want
-                __u32 id;
-                id = new_tcp_id();
+                // TODO: make sure that this is thread safe (only executed by the same CPU)
+                // It seems we can't use __sync_val_compare_and_swap/__sync_bool_compare_and_swap
+                // in bpf
+                // Only add the ID (same as swapping) if the previous one is zero
+                __u32 id = new_tcp_id();
                 __sync_fetch_and_add(&tcp_val->id, id);
             }
         }
