@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -75,8 +76,6 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 	log.Infof("Starting async loop to collect External Metrics")
 	tick := time.NewTicker(time.Duration(p.maxAge) * time.Second)
 	defer tick.Stop()
-	out := createTimer(3 * time.Duration(p.maxAge) * time.Second)
-	defer out.timer.Stop()
 
 	// If we exceed 3 retries trying to access the ConfigMap, we permafail and stop trying to refresh the External Metrics.
 	ctxCancel, cancel := context.WithCancel(ctx)
@@ -89,9 +88,14 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 			// TODO as we implement a more resilient logic to access a potentially deleted CM, we should pass in ctxCancel in case of permafail.
 			rawMetrics, err := p.store.ListAllExternalMetricValues()
 			if err != nil {
-				log.Errorf("Could not list the external metrics in the store: %s", err.Error())
-				p.isServing = false
-				break
+				if k8serrors.IsNotFound(err) {
+					log.Errorf("ConfigMap for external metrics not found: %s", err.Error())
+					cancel()
+				} else {
+					log.Errorf("Could not list the external metrics in the store: %s", err.Error())
+					p.isServing = false
+					break
+				}
 			}
 
 			for _, metric := range rawMetrics {
@@ -121,10 +125,6 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 			p.isServing = true
 
 			out.resetTimer()
-
-		case <-out.timer.C:
-			log.Error("Timeout while processing the collection of external metrics")
-			cancel()
 
 		case <-ctxCancel.Done():
 			p.isServing = false
