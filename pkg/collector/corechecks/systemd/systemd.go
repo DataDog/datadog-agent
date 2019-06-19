@@ -250,7 +250,7 @@ func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *db
 		return
 	}
 
-	ActiveEnterTimestamp, err := getPropertyUint64(unitProperties, "ActiveEnterTimestamp")
+	activeEnterTimestamp, err := getPropertyUint64(unitProperties, "ActiveEnterTimestamp")
 	if err != nil {
 		log.Errorf("Error getting property ActiveEnterTimestamp: %v", err)
 		return
@@ -265,7 +265,7 @@ func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *db
 	}
 	sender.Gauge("systemd.unit.active", float64(active), "", tags)
 	sender.Gauge("systemd.unit.loaded", float64(loaded), "", tags)
-	sender.Gauge("systemd.unit.uptime", float64(computeUptime(unit.ActiveState, ActiveEnterTimestamp, c.stats.TimeNanoNow())), "", tags)
+	sender.Gauge("systemd.unit.uptime", float64(computeUptime(unit.ActiveState, activeEnterTimestamp, c.stats.TimeNanoNow())), "", tags)
 }
 
 func (c *SystemdCheck) submitCountMetrics(sender aggregator.Sender, units []dbus.UnitStatus) {

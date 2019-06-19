@@ -94,7 +94,6 @@ unit_regexes:
 	err := check.Configure(rawInstanceConfig, []byte(``))
 
 	assert.Nil(t, err)
-	// assert.Equal(t, true, check.config.instance.UnitNames)
 	assert.ElementsMatch(t, []string{"ssh.service", "syslog.socket"}, check.config.instance.UnitNames)
 	regexes := []*regexp.Regexp{
 		regexp.MustCompile("lvm2-.*"),
