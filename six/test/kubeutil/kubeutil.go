@@ -21,6 +21,7 @@ import (
 // extern void getConnectionInfo(char **);
 //
 // static void initKubeUtilTests(six_t *six) {
+//    init_stringutils(six);
 //    set_get_connection_info_cb(six, getConnectionInfo);
 // }
 import "C"

@@ -767,4 +767,3 @@ bool Three::initStringUtils(void) const
 {
     return bool(init_string_helpers());
 }
-
