@@ -3,7 +3,7 @@ init_config:
 instances:
     -
     ## @param unit_names - list of strings - optional
-    ## List of systemd unit to monitor (full name e.g. ssh.service).
+    ## List of systemd units to monitor (full name e.g. ssh.service).
     ## If unit_names and unit_regex are both NOT specified, the check will monitor all units.
     #
     # unit_names:
