@@ -127,6 +127,10 @@ void GetKubeletConnectionInfo(char *);
 void initkubeutilModule(six_t *six) {
 	set_get_connection_info_cb(six, GetKubeletConnectionInfo);
 }
+
+int initHelpers(six_t *six) {
+	return init_stringutils(six);
+}
 */
 import "C"
 
@@ -258,6 +262,7 @@ func Initialize(paths ...string) error {
 	}
 
 	// Setup custom builtin before Six initialization
+	C.initHelpers(six)
 	C.initCgoFree(six)
 	C.initDatadogAgentModule(six)
 	C.initAggregatorModule(six)

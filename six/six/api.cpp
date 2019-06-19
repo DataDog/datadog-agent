@@ -376,6 +376,16 @@ char *get_integration_list(six_t *six)
 }
 
 /*
+ * stringutils API
+ */
+
+DATADOG_AGENT_SIX_API int init_stringutils(six_t *six)
+{
+    // enable implicit cast to bool
+    return AS_CTYPE(Six, six)->initStringUtils() ? 1 : 0;
+}
+
+/*
  * _util API
  */
 void set_get_subprocess_output_cb(six_t *six, cb_get_subprocess_output_t cb)

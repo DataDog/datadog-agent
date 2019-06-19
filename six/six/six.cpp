@@ -18,6 +18,9 @@
 #include <iostream>
 #include <sstream>
 #include <errno.h>
+
+// C helpers
+#include <stringutils.h>
 // clang-format on
 
 core_trigger_t core_dump = NULL;
@@ -82,6 +85,11 @@ bool Six::handleCrashes(const bool coredump) const
 }
 
 #endif
+
+bool Six::initStringUtils()
+{
+    return bool(init_string_helpers());
+}
 
 void Six::setError(const std::string &msg) const
 {
