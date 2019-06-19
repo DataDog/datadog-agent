@@ -56,6 +56,8 @@ type Tracer struct {
 	perfLost        int64
 	skippedConns    int64
 	expiredTCPConns int64
+	expiredUDPConns int64
+	connsStored     int64
 
 	buffer     []ConnectionStats
 	bufferLock sync.Mutex
@@ -172,6 +174,14 @@ func (t *Tracer) expvarStats() {
 			continue
 		}
 
+		if stats, ok := stats["tracer"]; ok {
+			for metric, val := range stats.(map[string]int64) {
+				currVal := &expvar.Int{}
+				currVal.Set(val)
+				probeExpvar.Set(snakeToCapInitialCamel(metric), currVal)
+			}
+		}
+
 		if states, ok := stats["state"]; ok {
 			if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
 				for metric, val := range telemetry.(map[string]int64) {
@@ -234,8 +244,9 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				lost := atomic.SwapInt64(&t.perfLost, 0)
 				skip := atomic.SwapInt64(&t.skippedConns, 0)
 				tcpExpired := atomic.SwapInt64(&t.expiredTCPConns, 0)
+				udpExpired := atomic.SwapInt64(&t.expiredUDPConns, 0)
 				if lost > 0 {
-					log.Warnf("closed connection polling: %d received, %d lost, %d skipped, %d expired TCP", recv, lost, skip, tcpExpired)
+					log.Warnf("closed connection polling: %d received, %d lost, %d skipped, %d expired TCP, %d expired UDP", recv, lost, skip, tcpExpired, udpExpired)
 				}
 			}
 		}
@@ -308,6 +319,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 		return nil, 0, fmt.Errorf("error populating port mapping: %s", err)
 	}
 
+	var connsStored int64
 	// Iterate through all key-value pairs in map
 	key, nextKey, stats := &ConnTuple{}, &ConnTuple{}, &ConnStatsWithTimestamp{}
 	var expired []*ConnTuple
@@ -317,9 +329,6 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 			break
 		} else if stats.isExpired(latestTime, t.timeoutForConn(nextKey)) {
 			expired = append(expired, nextKey.copy())
-			if nextKey.isTCP() {
-				atomic.AddInt64(&t.expiredTCPConns, 1)
-			}
 		} else {
 			conn := connStats(nextKey, stats, t.getTCPStats(tcpMp, nextKey))
 			conn.Direction = t.determineConnectionDirection(&conn)
@@ -333,7 +342,10 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 			}
 		}
 		key = nextKey
+		connsStored++
 	}
+
+	atomic.SwapInt64(&t.connsStored, connsStored)
 
 	// Remove expired entries
 	t.removeEntries(mp, tcpMp, expired)
@@ -364,31 +376,61 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 	// Used to create the keys
 	statsWithTs, tcpStats := &ConnStatsWithTimestamp{}, &TCPStats{}
 
+	activeTCPConns, err := ActiveTCPConns(t.buf)
+	if err != nil {
+		log.Warnf("error retrieving active tcp connections: %s", err)
+	}
+
+	var tcpExpired, udpExpired int64
+
 	// Remove the entries from the eBPF Map
 	for i := range entries {
-		err := t.m.DeleteElement(mp, unsafe.Pointer(entries[i]))
-		if err != nil {
-			// It's possible some other process deleted this entry already (e.g. tcp_close)
-			_ = log.Warnf("failed to remove entry from connections map: %s", err)
-		}
-
-		// Append the connection key to the keys to remove from the userspace state
 		bk, err := connStats(entries[i], statsWithTs, tcpStats).ByteKey(t.buf)
 		if err != nil {
 			log.Warnf("failed to create connection byte_key: %s", err)
-		} else {
-			keys = append(keys, string(bk))
 		}
 
-		// We have to remove the PID to remove the element from the TCP Map since we don't use the pid there
-		entries[i].pid = 0
-		// We can ignore the error for this map since it will not always contain the entry
-		_ = t.m.DeleteElement(tcpMp, unsafe.Pointer(entries[i]))
+		if entries[i].isTCP() {
+			// First check if the connection is not still active
+			// if it is let's just not clear it
+			if _, ok := activeTCPConns[string(bk)]; ok {
+				continue
+			}
+			tcpExpired++
+
+			// It's possible some other process deleted this entry already (e.g. tcp_close)
+			t.m.DeleteElement(mp, unsafe.Pointer(entries[i]))
+
+			// We have to remove the PID to remove the element from the TCP Map since we don't use the pid there
+			entries[i].pid = 0
+			// We can ignore the error for this map since it will not always contain the entry
+			_ = t.m.DeleteElement(tcpMp, unsafe.Pointer(entries[i]))
+		} else {
+			udpExpired++
+			err := t.m.DeleteElement(mp, unsafe.Pointer(entries[i]))
+			if err != nil {
+				log.Warnf("failed to remove entry from connections map: %s", err)
+			}
+		}
+
+		// Append the connection key to the keys to remove from the userspace state
+		if len(bk) != 0 {
+			keys = append(keys, string(bk))
+		}
 	}
 
+	atomic.AddInt64(&t.expiredTCPConns, tcpExpired)
+	atomic.AddInt64(&t.expiredUDPConns, udpExpired)
 	t.state.RemoveConnections(keys)
 
-	log.Debugf("Removed %d entries in %s", len(keys), time.Now().Sub(now))
+	log.Debugf(
+		"Removed %d of %d expired entries (tcp: %d, udp: %d) in %s",
+		len(keys),
+		len(entries),
+		tcpExpired,
+		udpExpired,
+		time.Now().Sub(now),
+	)
 }
 
 // getTCPStats reads tcp related stats for the given ConnTuple
@@ -472,13 +514,23 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	received := atomic.LoadInt64(&t.perfReceived)
 	skipped := atomic.LoadInt64(&t.skippedConns)
 	expiredTCP := atomic.LoadInt64(&t.expiredTCPConns)
+	expiredUDP := atomic.LoadInt64(&t.expiredUDPConns)
+	connsStored := atomic.LoadInt64(&t.connsStored)
 
-	stateStats := t.state.GetStats(lost, received, skipped, expiredTCP)
+	stateStats := t.state.GetStats()
 	conntrackStats := t.conntracker.GetStats()
 
 	return map[string]interface{}{
 		"conntrack": conntrackStats,
 		"state":     stateStats,
+		"tracer": map[string]int64{
+			"closed_conn_polling_lost":     lost,
+			"closed_conn_polling_received": received,
+			"ok_conns_skipped":             skipped, // Skipped connections (e.g. Local DNS requests)
+			"expired_tcp_conns":            expiredTCP,
+			"expired_udp_conns":            expiredUDP,
+			"connections_stored":           connsStored,
+		},
 	}, nil
 }
 

@@ -4,13 +4,86 @@ import (
 	"bufio"
 	"bytes"
 	"io"
+	"net"
 	"os"
 	"strconv"
+	"syscall"
 
+	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	psnet "github.com/DataDog/gopsutil/net"
 )
 
 const tcpListen = 10
+
+// ActiveTCPConns returns a set of active tcp connections where the keys
+// are encoded connections keys
+func ActiveTCPConns(buf *bytes.Buffer) (map[string]struct{}, error) {
+	conns, err := psnet.Connections("tcp")
+	if err != nil {
+		return nil, errors.Wrap(err, "error retrieving active tcp connections")
+	}
+
+	keys := map[string]struct{}{}
+	for _, c := range conns {
+		cs, ok := formatPsutilConn(c)
+		if !ok {
+			continue
+		}
+
+		bk, err := cs.ByteKey(buf)
+		if err != nil {
+			log.Warnf("error building connection byte key: %s", err)
+			continue
+		}
+
+		keys[string(bk)] = struct{}{}
+	}
+
+	return keys, nil
+}
+
+// formatPsutilConn formats a gopsutil connection into a ConnectionStats struct
+// It also returns a boolean indicating if we should or not process the connection
+func formatPsutilConn(c psnet.ConnectionStat) (ConnectionStats, bool) {
+	cs := ConnectionStats{
+		Pid:    uint32(c.Pid),
+		Source: util.AddressFromString(c.Laddr.IP),
+		Dest:   util.AddressFromString(c.Raddr.IP),
+		SPort:  uint16(c.Laddr.Port),
+		DPort:  uint16(c.Raddr.Port),
+	}
+
+	if cs.Pid == 0 || cs.SPort == 0 || cs.DPort == 0 {
+		return cs, false
+	}
+
+	if c.Family == syscall.AF_INET {
+		cs.Family = AFINET
+	} else if c.Family == syscall.AF_INET6 {
+		// Check if the IPv6 is mapped to IPv4
+		isV4 := net.ParseIP(c.Laddr.IP).To4() != nil || net.ParseIP(c.Raddr.IP).To4() != nil
+		if isV4 {
+			cs.Family = AFINET
+		} else {
+			cs.Family = AFINET6
+		}
+	} else {
+		return cs, false
+	}
+
+	if c.Type == syscall.SOCK_STREAM {
+		cs.Type = TCP
+	} else if c.Type == syscall.SOCK_DGRAM {
+		cs.Type = UDP
+	} else {
+		return cs, false
+	}
+
+	return cs, true
+}
 
 // readProcNet reads a /proc/net/ file and returns a list of all ports being listened on
 func readProcNet(path string) ([]uint16, error) {
