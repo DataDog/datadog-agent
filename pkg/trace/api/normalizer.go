@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -21,9 +23,8 @@ const (
 	MaxNameLen = 100
 	// MaxTypeLen the maximum length a span type can have
 	MaxTypeLen = 100
-	// MaxEndDateOffset the maximum amount of time in the future we
-	// tolerate for span end dates
-	MaxEndDateOffset = 10 * time.Minute
+	// TODO: should it be service as mentioned in the RFC or something more obvious to indicate a problem?
+	DefaultServiceName = "_no-name"
 )
 
 var (
@@ -32,37 +33,58 @@ var (
 )
 
 // normalize makes sure a Span is properly initialized and encloses the minimum required info
-func normalize(s *pb.Span) error {
+func normalize(ts *info.TagStats, s *pb.Span) error {
+	fallbackServiceName := DefaultServiceName
+	if ts.Lang != "" {
+		fallbackServiceName = ts.Lang
+	}
+
 	// Service
 	if s.Service == "" {
-		return errors.New("empty `Service`")
+		atomic.AddInt64(&ts.TracesMalformedServiceEmpty, 1)
+		log.Debugf("fixing malformed-trace (reason:service_empty), setting span.service=%s: %s", fallbackServiceName, s)
+		s.Service = fallbackServiceName
 	}
 	if len(s.Service) > MaxServiceLen {
-		return fmt.Errorf("`Service` too long (%d chars max): %s", MaxServiceLen, s.Service)
+		atomic.AddInt64(&ts.TracesMalformedServiceTruncate, 1)
+		log.Debugf("fixing malformed-trace (reason:service_truncate), truncating span.service to length=%d: %s", MaxServiceLen, s)
+		s.Service = s.Service[:MaxServiceLen]
 	}
 	// service should comply with Datadog tag normalization as it's eventually a tag
 	svc := normalizeTag(s.Service)
 	if svc == "" {
-		return fmt.Errorf("invalid `Service`: %q", s.Service)
+		atomic.AddInt64(&ts.TracesMalformedServiceInvalid, 1)
+		log.Debugf("fixing malformed-trace (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s: %s", s.Service, fallbackServiceName, s)
+		svc = fallbackServiceName
 	}
 	s.Service = svc
 
 	// Name
+	// TODO: is this what we want? Could be confusing?
+	fallbackSpanName := "service.trace"
 	if s.Name == "" {
-		return errors.New("empty `Name`")
+		atomic.AddInt64(&ts.TracesMalformedSpanNameEmpty, 1)
+		log.Debugf("fixing malformed-trace (reason:span_name_empty), setting span.name=%s: %s", fallbackSpanName, s)
+		s.Name = fallbackSpanName
 	}
 	if len(s.Name) > MaxNameLen {
-		return fmt.Errorf("`Name` too long (%d chars max): %s", MaxNameLen, s.Name)
+		atomic.AddInt64(&ts.TracesMalformedSpanNameTruncate, 1)
+		log.Debugf("fixing malformed-trace (reason:span_name_truncate), truncating span.name to length=%d: %s", MaxServiceLen, s)
+		s.Name = s.Name[:MaxNameLen]
 	}
 	// name shall comply with Datadog metric name normalization
 	name, ok := normMetricNameParse(s.Name)
 	if !ok {
-		return fmt.Errorf("invalid `Name`: %s", s.Name)
+		atomic.AddInt64(&ts.TracesMalformedSpanNameInvalid, 1)
+		log.Debugf("fixing malformed-trace (reason:span_name_invalid), setting span.name=%s: %s", fallbackSpanName, s)
+		name = fallbackSpanName
 	}
 	s.Name = name
 
 	if s.Resource == "" {
-		return errors.New("`Resource` can not be empty")
+		atomic.AddInt64(&ts.TracesMalformedResourceEmpty, 1)
+		log.Debugf("fixing malformed-trace (reason:resource_empty), setting span.resource=%s: %s", s.Name, s)
+		s.Resource = s.Name
 	}
 	s.Resource = toUTF8(s.Resource)
 
@@ -80,16 +102,15 @@ func normalize(s *pb.Span) error {
 	// if s.Start is very little, less than year 2000 probably a unit issue so discard
 	// (or it is "le bug de l'an 2000")
 	if s.Start < Year2000NanosecTS {
-		return fmt.Errorf("invalid `Start` (must be nanosecond epoch): %d", s.Start)
+		atomic.AddInt64(&ts.TracesMalformedInvalidStartDate, 1)
+		log.Debugf("fixing malformed-trace (reason:invalid_start_date), setting span.start=time.now(): %s", s)
+		s.Start = time.Now().UnixNano()
 	}
 
-	// If the end date is too far away in the future, it's probably a mistake.
-	if s.Start+s.Duration > time.Now().Add(MaxEndDateOffset).UnixNano() {
-		return fmt.Errorf("invalid `Start`+`Duration`: too far in the future")
-	}
-
-	if s.Duration <= 0 {
-		return fmt.Errorf("invalid `Duration`: %d", s.Duration)
+	if s.Duration < 0 {
+		atomic.AddInt64(&ts.TracesMalformedInvalidDuration, 1)
+		log.Debugf("fixing malformed-trace (reason:invalid_duration), setting span.duration=0: %s", s)
+		s.Duration = 0
 	}
 
 	// ParentID set on the client side, no way of checking
@@ -97,7 +118,9 @@ func normalize(s *pb.Span) error {
 	// Type
 	s.Type = toUTF8(s.Type)
 	if len(s.Type) > MaxTypeLen {
-		return fmt.Errorf("`Type` too long (%d chars max): %s", MaxTypeLen, s.Type)
+		atomic.AddInt64(&ts.TracesMalformedTypeTruncate, 1)
+		log.Debugf("fixing malformed-trace (reason:type_truncate), truncating span.type to length=%d: %s", MaxTypeLen, s)
+		s.Type = s.Type[:MaxTypeLen]
 	}
 
 	for k, v := range s.Meta {
@@ -119,8 +142,9 @@ func normalize(s *pb.Span) error {
 	// Status Code
 	if sc, ok := s.Meta["http.status_code"]; ok {
 		if !isValidStatusCode(sc) {
+			atomic.AddInt64(&ts.TracesMalformedInvalidHttpStatusCode, 1)
+			log.Debugf("fixing malformed-trace (reason:invalid_http_status_code), dropping invalid http.status_code=%s: %s", sc, s)
 			delete(s.Meta, "http.status_code")
-			log.Debugf("Drop invalid meta `http.status_code`: %s", sc)
 		}
 	}
 
@@ -134,10 +158,11 @@ func normalize(s *pb.Span) error {
 // * rejects traces where at least one span cannot be normalized
 // * return the normalized trace and an error:
 //   - nil if the trace can be accepted
-//   - an error string if the trace needs to be dropped
-func normalizeTrace(t pb.Trace) error {
+//   - a reason tag explaining the reason, as per the https://github.com/DataDog/architecture/blob/master/rfcs/apm/agent/trace-agent-normalization/rfc.md
+func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	if len(t) == 0 {
-		return errors.New("empty trace")
+		atomic.AddInt64(&ts.TracesDroppedEmptyTrace, 1)
+		return errors.New("empty_trace")
 	}
 
 	spanIDs := make(map[uint64]struct{})
@@ -145,20 +170,25 @@ func normalizeTrace(t pb.Trace) error {
 
 	for _, span := range t {
 		if span.TraceID == 0 {
-			return errors.New("empty `TraceID`")
+			atomic.AddInt64(&ts.TracesDroppedTraceIdZero, 1)
+			return errors.New("trace_id_zero")
 		}
 		if span.SpanID == 0 {
-			return errors.New("empty `SpanID`")
-		}
-		if _, ok := spanIDs[span.SpanID]; ok {
-			return fmt.Errorf("duplicate `SpanID` %v (span %v)", span.SpanID, span)
+			atomic.AddInt64(&ts.TracesDroppedSpanIdZero, 1)
+			return errors.New("span_id_zero")
 		}
 		if span.TraceID != traceID {
-			return fmt.Errorf("foreign span in trace (Name:TraceID) %s:%x != %s:%x", t[0].Name, t[0].TraceID, span.Name, span.TraceID)
+			atomic.AddInt64(&ts.TracesDroppedForeignSpan, 1)
+			return fmt.Errorf("foreign_span - (Name:TraceID) %s:%x != %s:%x", t[0].Name, t[0].TraceID, span.Name, span.TraceID)
 		}
-		if err := normalize(span); err != nil {
+		if err := normalize(ts, span); err != nil {
 			return fmt.Errorf("invalid span (SpanID:%d): %v", span.SpanID, err)
 		}
+		if _, ok := spanIDs[span.SpanID]; ok {
+			atomic.AddInt64(&ts.TracesMalformedDuplicateSpanId, 1)
+			log.Warnf("duplicate `SpanID` %v (span %v)", span.SpanID, span)
+		}
+
 		spanIDs[span.SpanID] = struct{}{}
 	}
 

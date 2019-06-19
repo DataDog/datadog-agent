@@ -308,17 +308,11 @@ func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
 
 		atomic.AddInt64(&ts.SpansReceived, int64(spans))
 
-		err := normalizeTrace(trace)
+		err := normalizeTrace(ts, trace)
 		if err != nil {
-			atomic.AddInt64(&ts.TracesDropped, 1)
 			atomic.AddInt64(&ts.SpansDropped, int64(spans))
-
-			msg := fmt.Sprintf("Dropping trace; reason: %s", err)
-			if len(msg) > 150 && !r.debug {
-				// we're not in DEBUG log level, truncate long messages.
-				msg = msg[:150] + "... (set DEBUG log level for more info)"
-			}
-			log.Errorf(msg)
+			// TODO: add periodic log, maybe once per metric flush, summary of trace normalization issues according to counts
+			log.Debugf("Dropping trace; reason: %s", err)
 			continue
 		}
 

@@ -2,7 +2,10 @@ package info
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -114,10 +117,42 @@ func newTagStats(tags Tags) *TagStats {
 	return &TagStats{tags, Stats{}}
 }
 
+type reasonCount struct {
+	reason string
+	count int64
+}
+
+func (ts *TagStats) droppedTraceReasonCounts() []reasonCount {
+	return []reasonCount{
+		{"decoding_error", atomic.LoadInt64(&ts.TracesDroppedDecodingError)},
+		{"empty_trace", atomic.LoadInt64(&ts.TracesDroppedEmptyTrace)},
+		{"trace_id_zero", atomic.LoadInt64(&ts.TracesDroppedTraceIdZero)},
+		{"span_id_zero", atomic.LoadInt64(&ts.TracesDroppedSpanIdZero)},
+		{"foreign_span", atomic.LoadInt64(&ts.TracesDroppedForeignSpan)},
+	}
+}
+
+func (ts *TagStats) malformedTraceReasonCounts() []reasonCount {
+	return []reasonCount{
+		{"duplicate_span_id", atomic.LoadInt64(&ts.TracesMalformedDuplicateSpanId)},
+		{"service_empty", atomic.LoadInt64(&ts.TracesMalformedServiceEmpty)},
+		{"service_truncate", atomic.LoadInt64(&ts.TracesMalformedServiceTruncate)},
+		{"service_invalid", atomic.LoadInt64(&ts.TracesMalformedServiceInvalid)},
+		{"span_name_empty", atomic.LoadInt64(&ts.TracesMalformedSpanNameEmpty)},
+		{"span_name_truncate", atomic.LoadInt64(&ts.TracesMalformedSpanNameTruncate)},
+		{"span_name_invalid", atomic.LoadInt64(&ts.TracesMalformedSpanNameInvalid)},
+		{"resource_empty", atomic.LoadInt64(&ts.TracesMalformedResourceEmpty)},
+		{"type_truncate", atomic.LoadInt64(&ts.TracesMalformedTypeTruncate)},
+		{"invalid_start_date", atomic.LoadInt64(&ts.TracesMalformedInvalidStartDate)},
+		{"invalid_duration", atomic.LoadInt64(&ts.TracesMalformedInvalidDuration)},
+		{"invalid_http_status_code", atomic.LoadInt64(&ts.TracesMalformedInvalidHttpStatusCode)},
+	}
+}
+
+
 func (ts *TagStats) publish() {
 	// Atomically load the stats from ts
 	tracesReceived := atomic.LoadInt64(&ts.TracesReceived)
-	tracesDropped := atomic.LoadInt64(&ts.TracesDropped)
 	tracesFiltered := atomic.LoadInt64(&ts.TracesFiltered)
 	tracesPriorityNone := atomic.LoadInt64(&ts.TracesPriorityNone)
 	tracesPriorityNeg := atomic.LoadInt64(&ts.TracesPriorityNeg)
@@ -139,7 +174,6 @@ func (ts *TagStats) publish() {
 
 	metrics.Count("datadog.trace_agent.receiver.trace", tracesReceived, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.traces_received", tracesReceived, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_dropped", tracesDropped, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.traces_filtered", tracesFiltered, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriorityNone, append(tags, "priority:none"), 1)
 	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriorityNeg, append(tags, "priority:neg"), 1)
@@ -155,6 +189,35 @@ func (ts *TagStats) publish() {
 	metrics.Count("datadog.trace_agent.receiver.events_extracted", eventsExtracted, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.payload_accepted", requestsMade, tags, 1)
+
+
+	var droppedReasons []string
+	for _, c := range ts.droppedTraceReasonCounts() {
+		if c.count > 0 {
+			metrics.Count("datadog.trace_agent.normalizer.traces_dropped", c.count, append(tags, "reason:" + c.reason), 1)
+			droppedReasons = append(droppedReasons, c.reason + ":" + strconv.FormatInt(c.count, 10))
+		}
+	}
+
+	var malformedReasons []string
+	for _, c := range ts.malformedTraceReasonCounts() {
+		if c.count > 0 {
+			metrics.Count("datadog.trace_agent.normalizer.traces_malformed", c.count, append(tags, "reason:" + c.reason), 1)
+			malformedReasons = append(malformedReasons, c.reason + ":" + strconv.FormatInt(c.count, 10))
+		}
+	}
+
+	var normalizerMessages []string
+	if len(droppedReasons) > 0 {
+		normalizerMessages = append(normalizerMessages, fmt.Sprintf("dropped_traces(%s)", strings.Join(droppedReasons, ", ")))
+	}
+	if len(malformedReasons) > 0 {
+		normalizerMessages = append(normalizerMessages, fmt.Sprintf("malformed_traces(%s)", strings.Join(malformedReasons, ", ")))
+	}
+
+	if len(normalizerMessages) > 0 {
+		log.Warn("trace normalization problems detected: %s", strings.Join(normalizerMessages, " "))
+	}
 }
 
 // Stats holds the metrics that will be reported every 10s by the agent.
@@ -162,8 +225,30 @@ func (ts *TagStats) publish() {
 type Stats struct {
 	// TracesReceived is the total number of traces received, including the dropped ones.
 	TracesReceived int64
+	// TracesDroppedDecodingError is the number of traces dropped due to decoding error
+	TracesDroppedDecodingError int64
+	// TracesDroppedEmptyTrace is the number of traces dropped due to empty trace
+	TracesDroppedEmptyTrace int64
+	// TracesDropped is the number of traces dropped due to trace-ID=zero
+	TracesDroppedTraceIdZero int64
 	// TracesDropped is the number of traces dropped.
-	TracesDropped int64
+	TracesDroppedSpanIdZero int64
+	// TracesDropped is the number of traces dropped.
+	TracesDroppedForeignSpan int64
+	// TracesMalformedDuplicateSpanId is the number of traces dropped.
+	TracesMalformedDuplicateSpanId int64
+	TracesMalformedServiceEmpty int64
+	TracesMalformedServiceTruncate int64
+	TracesMalformedServiceInvalid int64
+	TracesMalformedSpanNameEmpty int64
+	TracesMalformedSpanNameTruncate int64
+	TracesMalformedSpanNameInvalid int64
+	TracesMalformedResourceEmpty int64
+	TracesMalformedTypeTruncate int64
+	TracesMalformedInvalidStartDate int64
+	TracesMalformedInvalidDuration int64
+	TracesMalformedInvalidHttpStatusCode int64
+
 	// TracesFiltered is the number of traces filtered.
 	TracesFiltered int64
 	// TracesPriorityNone is the number of traces with no sampling priority.
@@ -198,7 +283,12 @@ type Stats struct {
 
 func (s *Stats) update(recent *Stats) {
 	atomic.AddInt64(&s.TracesReceived, atomic.LoadInt64(&recent.TracesReceived))
-	atomic.AddInt64(&s.TracesDropped, atomic.LoadInt64(&recent.TracesDropped))
+	atomic.AddInt64(&s.TracesDroppedDecodingError, atomic.LoadInt64(&recent.TracesDroppedDecodingError))
+	atomic.AddInt64(&s.TracesDroppedEmptyTrace, atomic.LoadInt64(&recent.TracesDroppedEmptyTrace))
+	atomic.AddInt64(&s.TracesDroppedTraceIdZero, atomic.LoadInt64(&recent.TracesDroppedTraceIdZero))
+	atomic.AddInt64(&s.TracesDroppedSpanIdZero, atomic.LoadInt64(&recent.TracesDroppedSpanIdZero))
+	atomic.AddInt64(&s.TracesDroppedForeignSpan, atomic.LoadInt64(&recent.TracesDroppedForeignSpan))
+	atomic.AddInt64(&s.TracesMalformedDuplicateSpanId, atomic.LoadInt64(&recent.TracesMalformedDuplicateSpanId))
 	atomic.AddInt64(&s.TracesFiltered, atomic.LoadInt64(&recent.TracesFiltered))
 	atomic.AddInt64(&s.TracesPriorityNone, atomic.LoadInt64(&recent.TracesPriorityNone))
 	atomic.AddInt64(&s.TracesPriorityNeg, atomic.LoadInt64(&recent.TracesPriorityNeg))
@@ -218,7 +308,12 @@ func (s *Stats) update(recent *Stats) {
 
 func (s *Stats) reset() {
 	atomic.StoreInt64(&s.TracesReceived, 0)
-	atomic.StoreInt64(&s.TracesDropped, 0)
+	atomic.StoreInt64(&s.TracesDroppedDecodingError, 0)
+	atomic.StoreInt64(&s.TracesDroppedEmptyTrace, 0)
+	atomic.StoreInt64(&s.TracesDroppedTraceIdZero, 0)
+	atomic.StoreInt64(&s.TracesDroppedSpanIdZero, 0)
+	atomic.StoreInt64(&s.TracesDroppedForeignSpan, 0)
+	atomic.StoreInt64(&s.TracesMalformedDuplicateSpanId, 0)
 	atomic.StoreInt64(&s.TracesFiltered, 0)
 	atomic.StoreInt64(&s.TracesPriorityNone, 0)
 	atomic.StoreInt64(&s.TracesPriorityNeg, 0)
@@ -244,6 +339,7 @@ func (s *Stats) isEmpty() bool {
 
 // String returns a string representation of the Stats struct
 func (s *Stats) String() string {
+	// TODO: just marshal this whole thing to JSON
 	// Atomically load the stats
 	tracesReceived := atomic.LoadInt64(&s.TracesReceived)
 	tracesDropped := atomic.LoadInt64(&s.TracesDropped)
