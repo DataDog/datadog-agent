@@ -4,10 +4,22 @@
 // Copyright 2019 Datadog, Inc.
 #ifndef DATADOG_AGENT_SIX_UTIL_H
 #define DATADOG_AGENT_SIX_UTIL_H
+
+/*! \file util.h
+    \brief Six util builtin header file.
+
+    The prototypes here defined provide functions to initialize the python util
+    builtin module, and set its relevant callbacks for the six caller.
+*/
+
 #include <Python.h>
 #include <six_types.h>
 
 #define UTIL_MODULE_NAME "util"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #ifdef DATADOG_AGENT_THREE
 
@@ -18,13 +30,7 @@
     array in 'util.c' and registered into python. This function is python3 only.
 */
 PyMODINIT_FUNC PyInit_util(void);
-#endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#ifdef DATADOG_AGENT_TWO
+#elif defined(DATADOG_AGENT_TWO)
 
 /*! \fn void Py2_init_util()
     \brief Initializes the util builtin python module.

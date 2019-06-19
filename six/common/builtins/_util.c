@@ -14,6 +14,11 @@ static cb_get_subprocess_output_t cb_get_subprocess_output = NULL;
 static PyObject *subprocess_output(PyObject *self, PyObject *args);
 
 // Exceptions
+
+/*! \fn void addSubprocessException(PyObject *m)
+    \brief Adds a custom SubprocessOutputEmptyError exception to the module passed as parameter.
+    \param m A PyObject* pointer to the module we wishj to register the exception with.
+*/
 void addSubprocessException(PyObject *m)
 {
     PyObject *SubprocessOutputEmptyError = PyErr_NewException(_SUBPROCESS_OUTPUT_ERROR_NS_NAME, NULL, NULL);
@@ -53,6 +58,13 @@ void _set_get_subprocess_output_cb(cb_get_subprocess_output_t cb)
     cb_get_subprocess_output = cb;
 }
 
+/*! \fn void raiseEmptyOutputError()
+    \brief sets the SubprocessOutputEmptyError exception as the interpreter error.
+
+    If everything goes well the exception error will be set in the interpreter.
+    Otherwise, if the module or the exception class are not found, the relevant
+    error will be set in the interpreter instead.
+*/
 static void raiseEmptyOutputError()
 {
     PyObject *utilModule = PyImport_ImportModule(_UTIL_MODULE_NAME);
@@ -73,11 +85,25 @@ static void raiseEmptyOutputError()
     Py_DecRef(utilModule);
 }
 
+/*! \fn PyObject *subprocess_output(PyObject *self, PyObject *args)
+    \brief This function implements the `_util.subprocess_output` _and_ `_util.get_subprocess_output`
+    python method, allowing to execute a subprocess and collect its output.
+    \param self A PyObject* pointer to the _util module.
+    \param args A PyObject* pointer to the args tuple with the desired subprocess commands, and
+    optionally a boolean raise_on_empty flag.
+    \return a PyObject * pointer to a python tuple with the stdout, stderr output and the
+    command exit code.
+
+    This function is callable as the `_util.subprocess_output` or `_util.get_subprocess_output`
+    python methods. The command arguments list is fed to the CGO callback, where the command is
+    executed in go-land. The stdout, stderr and exit codes for the command are returned by the
+    callback; these are then converted into python strings and integer respectively and returned
+    in a tuple. If the optional `raise_on_empty` boolean flag is set, and the command output is
+    empty an exception will be raised: the error will be set in the interpreter and NULL will be
+    returned.
+*/
 PyObject *subprocess_output(PyObject *self, PyObject *args)
 {
-    if (!cb_get_subprocess_output)
-        Py_RETURN_NONE;
-
     int i;
     int raise = 0;
     int ret_code = 0;
@@ -90,8 +116,14 @@ PyObject *subprocess_output(PyObject *self, PyObject *args)
     PyObject *cmd_raise_on_empty = NULL;
     PyObject *pyResult = NULL;
 
+    if (!cb_get_subprocess_output) {
+        Py_RETURN_NONE;
+    }
+
     PyGILState_STATE gstate = PyGILState_Ensure();
 
+    // `cmd_args` is mandatory and should be a list, `cmd_raise_on_empty` is an optional
+    // boolean. The string after the ':' is used as the function name in error messages.
     if (!PyArg_ParseTuple(args, "O|O:get_subprocess_output", &cmd_args, &cmd_raise_on_empty)) {
         goto cleanup;
     }

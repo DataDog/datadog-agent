@@ -121,7 +121,7 @@ func LogMessage(message *C.char, logLevel C.int) {
 	return
 }
 
-// SetExternalTags adds a set of tags for a given hostnane to the External Host
+// SetExternalTags adds a set of tags for a given hostname to the External Host
 // Tags metadata provider cache.
 //export SetExternalTags
 func SetExternalTags(hostname *C.char, sourceType *C.char, tags **C.char) {

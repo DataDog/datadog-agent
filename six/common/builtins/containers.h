@@ -16,16 +16,16 @@
     \brief Initializes the containers builtin python module.
 
     The containers python builtin is created and registered here as per the module_def
-    PyMethodDef definition. The get_connection_info method is registered with the
-    module. A fresh reference to the module is created here. This function is python3
+    PyMethodDef definition in `containers.c` with the corresponding C-implemented python
+    methods. A fresh reference to the module is created here. This function is python3
     only.
 */
 /*! \fn void Py2_init_containers()
     \brief Initializes the containers builtin python module.
 
-    The containers python builtin is created and registered here as per the methods
-    PyMethodDef array definition. The get_connection_info method is registered with the
-    module. A fresh reference to the module is created here. This function is python2
+    The containers python builtin is created and registered here as per the module_def
+    PyMethodDef definition in `containers.c` with the corresponding C-implemented python
+    methods. A fresh reference to the module is created here. This function is python2
     only.
 */
 /*! \fn void _set_is_excluded_cb(cb_is_excluded_t)
