@@ -25,10 +25,15 @@ var (
 )
 
 const (
-	numOfComponents    = 2 // [htimestamp message]
-	indexOfTimestamp   = 8
+	// [8ByteHeaderTimestamp Message]
+	numOfComponents    = 2
+
+	// message indices
 	indexOfHeader      = 0
 	indexOfContent     = 1
+
+	// 8Byte header indices
+	indexOfTimestamp   = 8
 	indexOfContentSize = 4
 	indexOfStatus      = 0
 )
