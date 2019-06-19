@@ -227,8 +227,9 @@ func (w *StatsWriter) recordEvent(t eventType, data *eventData) {
 		atomic.AddInt64(&w.stats.Retries, 1)
 
 	case eventTypeFlushed:
-		log.Debugf("Flushed queue of %d stats payload(s) to the API in %s.", data.count, data.duration)
+		log.Debugf("Flushed queue of %d stats payload(s) and %.2fKB to the API in %s.", data.count, float64(data.bytes)/1024, data.duration)
 		timing.Since("datadog.trace_agent.stats_writer.flush_queue", time.Now().Add(-data.duration))
+		metrics.Gauge("datadog.trace_agent.stats_writer.flush_bytes", float64(data.bytes), nil, 1)
 
 	case eventTypeSent:
 		log.Tracef("Flushed stats to the API; time: %s, bytes: %d", data.duration, data.bytes)

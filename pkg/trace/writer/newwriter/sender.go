@@ -189,7 +189,7 @@ func (q *sender) flush() {
 	// we drain the queue, which is a blocking operation, meaning that
 	// new payloads are stopped from coming in while this happens; but
 	// it is a fast.
-	payloads := q.drainQueue()
+	payloads, size := q.drainQueue()
 
 	// we send the payloads we've retrieved; while we do this, more payloads
 	// can join the list.
@@ -197,6 +197,7 @@ func (q *sender) flush() {
 	if done > 0 {
 		q.recordEvent(eventTypeFlushed, &eventData{
 			count:    int(done),
+			bytes:    size,
 			duration: time.Since(startTime),
 		})
 	}
@@ -221,17 +222,18 @@ func (q *sender) flush() {
 	}
 }
 
-// drainQueue drains the entire queue and returns all the payloads that were in it.
-func (q *sender) drainQueue() []*payload {
+// drainQueue drains the entire queue and returns all the payloads that were in it,
+// along with the total size of the queue.
+func (q *sender) drainQueue() (payloads []*payload, size int) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	var payloads []*payload
 	for q.list.Len() > 0 {
 		v := q.list.Remove(q.list.Front())
 		payloads = append(payloads, v.(*payload))
 	}
+	size = q.size
 	q.size = 0
-	return payloads
+	return payloads, size
 }
 
 // sendPayloads concurrently sends the given list of payloads. It returns
