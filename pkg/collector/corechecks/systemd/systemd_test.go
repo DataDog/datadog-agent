@@ -72,7 +72,7 @@ func getCreatePropertieWithDefaults(props map[string]interface{}) map[string]int
 }
 
 func TestDefaultConfiguration(t *testing.T) {
-	check := Check{}
+	check := SystemdCheck{}
 	check.Configure([]byte(``), []byte(``))
 
 	assert.Equal(t, []string(nil), check.config.instance.UnitNames)
@@ -82,7 +82,7 @@ func TestDefaultConfiguration(t *testing.T) {
 
 func TestConfiguration(t *testing.T) {
 	// setup data
-	check := Check{}
+	check := SystemdCheck{}
 	rawInstanceConfig := []byte(`
 unit_names:
  - ssh.service
@@ -105,7 +105,7 @@ unit_regex:
 
 func TestConfigurationSkipOnRegexErr(t *testing.T) {
 	// setup data
-	check := Check{}
+	check := SystemdCheck{}
 	rawInstanceConfig := []byte(`
 unit_regex:
  - lvm2-.*
@@ -125,7 +125,7 @@ func TestDbusConnectionErr(t *testing.T) {
 	stats := &mockSystemdStats{}
 	stats.On("NewConn").Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
 
-	check := Check{stats: stats}
+	check := SystemdCheck{stats: stats}
 	check.Configure([]byte(``), []byte(``))
 
 	mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
@@ -144,7 +144,7 @@ func TestSystemStateCallErr(t *testing.T) {
 	stats.On("NewConn").Return(&dbus.Conn{}, nil)
 	stats.On("SystemState", mock.Anything).Return((*dbus.Property)(nil), fmt.Errorf("some error"))
 
-	check := Check{stats: stats}
+	check := SystemdCheck{stats: stats}
 	check.Configure([]byte(``), []byte(``))
 
 	mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
@@ -161,7 +161,7 @@ func TestListUnitErr(t *testing.T) {
 	stats := createDefaultMockSystemdStats()
 	stats.On("ListUnits", mock.Anything).Return(([]dbus.UnitStatus)(nil), fmt.Errorf("some error"))
 
-	check := Check{stats: stats}
+	check := SystemdCheck{stats: stats}
 	check.Configure([]byte(``), []byte(``))
 
 	mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
@@ -195,7 +195,7 @@ func TestCountMetrics(t *testing.T) {
 unit_names:
  - monitor_nothing
 `)
-	check := Check{stats: stats}
+	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, nil)
 
 	// setup expectations
@@ -256,7 +256,7 @@ unit_names:
 		"ActiveEnterTimestamp": uint64(100),
 	}, nil)
 
-	check := Check{stats: stats}
+	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, nil)
 
 	// setup expectation
@@ -321,7 +321,7 @@ unit_names:
 		"ActiveEnterTimestamp": uint64(1),
 	}, nil)
 
-	check := Check{stats: stats}
+	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, nil)
 
 	// setup expectation
@@ -396,7 +396,7 @@ unit_names:
 		"TasksCurrent":     uint64(1),
 	}, nil)
 
-	check := Check{stats: stats}
+	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, nil)
 
 	// setup expectation
@@ -444,7 +444,7 @@ func TestServiceCheckSystemStateAndCanConnect(t *testing.T) {
 			stats.On("SystemState", mock.Anything).Return(&dbus.Property{Name: "SystemState", Value: godbus.MakeVariant(d.systemStatus)}, nil)
 			stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{}, nil)
 
-			check := Check{stats: stats}
+			check := SystemdCheck{stats: stats}
 			check.Configure([]byte(``), []byte(``))
 
 			mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
@@ -491,7 +491,7 @@ unit_names:
 		"ActiveEnterTimestamp": uint64(200),
 	}, nil)
 
-	check := Check{stats: stats}
+	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, nil)
 
 	// setup expectation
@@ -546,7 +546,7 @@ func TestSendServicePropertyAsGaugeSkipAndWarnOnMissingProperty(t *testing.T) {
 	serviceUnitConfigCPU := metricConfigItem{metricName: "systemd.service.cpu_usage_n_sec", propertyName: "CPUUsageNSec", accountingProperty: "CPUAccounting", optional: false}
 	serviceUnitConfigNRestart := metricConfigItem{metricName: "systemd.service.n_restarts", propertyName: "NRestarts", accountingProperty: "", optional: false}
 
-	check := Check{}
+	check := SystemdCheck{}
 	mockSender := mocksender.NewMockSender(check.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
@@ -570,7 +570,7 @@ unit_regex:
   - ^zyz$
 `)
 
-	check := Check{}
+	check := SystemdCheck{}
 	check.Configure(rawInstanceConfig, nil)
 
 	data := []struct {
@@ -599,7 +599,7 @@ unit_regex:
 func TestIsMonitoredEmptyConfigShouldMonitorAll(t *testing.T) {
 	// setup data
 	rawInstanceConfig := []byte(``)
-	check := Check{}
+	check := SystemdCheck{}
 	check.Configure(rawInstanceConfig, nil)
 
 	data := []struct {

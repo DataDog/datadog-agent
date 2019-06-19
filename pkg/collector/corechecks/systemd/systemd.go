@@ -110,8 +110,8 @@ var systemdStatusMapping = map[string]metrics.ServiceCheckStatus{
 	"stopping":     metrics.ServiceCheckCritical,
 }
 
-// Check aggregates metrics from one Check instance
-type Check struct {
+// SystemdCheck aggregates metrics from one Check instance
+type SystemdCheck struct {
 	core.CheckBase
 	stats  systemdStats
 	config systemdConfig
@@ -171,7 +171,7 @@ func (s *defaultSystemdStats) TimeNanoNow() int64 {
 }
 
 // Run executes the check
-func (c *Check) Run() error {
+func (c *SystemdCheck) Run() error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
@@ -191,7 +191,7 @@ func (c *Check) Run() error {
 	return nil
 }
 
-func (c *Check) getDbusConn(sender aggregator.Sender) (*dbus.Conn, error) {
+func (c *SystemdCheck) getDbusConn(sender aggregator.Sender) (*dbus.Conn, error) {
 	conn, err := c.stats.NewConn()
 	if err != nil {
 		newErr := fmt.Errorf("Cannot create a connection: %v", err)
@@ -219,7 +219,7 @@ func (c *Check) getDbusConn(sender aggregator.Sender) (*dbus.Conn, error) {
 	return conn, nil
 }
 
-func (c *Check) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) error {
+func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) error {
 	units, err := c.stats.ListUnits(conn)
 	if err != nil {
 		return fmt.Errorf("Error getting list of units: %v", err)
@@ -246,7 +246,7 @@ func (c *Check) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) error {
 	return nil
 }
 
-func (c *Check) submitBasicUnitMetrics(sender aggregator.Sender, conn *dbus.Conn, unit dbus.UnitStatus, tags []string) {
+func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *dbus.Conn, unit dbus.UnitStatus, tags []string) {
 	unitProperties, err := c.stats.GetUnitTypeProperties(conn, unit.Name, dbusTypeMap[typeUnit])
 	if err != nil {
 		log.Errorf("Error getting unit unitProperties: %s", unit.Name)
@@ -271,7 +271,7 @@ func (c *Check) submitBasicUnitMetrics(sender aggregator.Sender, conn *dbus.Conn
 	sender.Gauge("systemd.unit.uptime", float64(computeUptime(unit.ActiveState, ActiveEnterTimestamp, c.stats.TimeNanoNow())), "", tags)
 }
 
-func (c *Check) submitCountMetrics(sender aggregator.Sender, units []dbus.UnitStatus) {
+func (c *SystemdCheck) submitCountMetrics(sender aggregator.Sender, units []dbus.UnitStatus) {
 	counts := map[string]int{}
 
 	for _, activeState := range unitActiveStates {
@@ -288,7 +288,7 @@ func (c *Check) submitCountMetrics(sender aggregator.Sender, units []dbus.UnitSt
 	}
 }
 
-func (c *Check) submitPropertyMetricsAsGauge(sender aggregator.Sender, conn *dbus.Conn, unit dbus.UnitStatus, tags []string) {
+func (c *SystemdCheck) submitPropertyMetricsAsGauge(sender aggregator.Sender, conn *dbus.Conn, unit dbus.UnitStatus, tags []string) {
 	for unitType := range metricConfigs {
 		if !strings.HasSuffix(unit.Name, "."+unitType) {
 			continue
@@ -396,7 +396,7 @@ func getServiceCheckStatus(activeState string) metrics.ServiceCheckStatus {
 }
 
 // isMonitored verifies if a unit should be monitored.
-func (c *Check) isMonitored(unitName string) bool {
+func (c *SystemdCheck) isMonitored(unitName string) bool {
 	if len(c.config.instance.UnitNames) == 0 && len(c.config.instance.UnitRegexPatterns) == 0 {
 		return true
 	}
@@ -414,7 +414,7 @@ func (c *Check) isMonitored(unitName string) bool {
 }
 
 // Configure configures the systemd checks
-func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integration.Data) error {
+func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data) error {
 	err := c.CommonConfigure(rawInstance)
 	if err != nil {
 		return err
@@ -440,7 +440,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 }
 
 func systemdFactory() check.Check {
-	return &Check{
+	return &SystemdCheck{
 		stats:     &defaultSystemdStats{},
 		CheckBase: core.NewCheckBase(systemdCheckName),
 	}
