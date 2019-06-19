@@ -119,7 +119,7 @@ type SystemdCheck struct {
 
 type systemdInstanceConfig struct {
 	UnitNames         []string `yaml:"unit_names"`
-	UnitRegexStrings  []string `yaml:"unit_regex"`
+	UnitRegexStrings  []string `yaml:"unit_regexes"`
 	UnitRegexPatterns []*regexp.Regexp
 }
 
@@ -431,7 +431,7 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 	for _, regexString := range c.config.instance.UnitRegexStrings {
 		pattern, err := regexp.Compile(regexString)
 		if err != nil {
-			log.Errorf("Failed to parse systemd check option unit_regex: %s", err)
+			log.Errorf("Failed to parse systemd check option unit_regexes: %s", err)
 			continue
 		}
 		c.config.instance.UnitRegexPatterns = append(c.config.instance.UnitRegexPatterns, pattern)

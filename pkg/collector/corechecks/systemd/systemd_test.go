@@ -87,7 +87,7 @@ func TestConfiguration(t *testing.T) {
 unit_names:
  - ssh.service
  - syslog.socket
-unit_regex:
+unit_regexes:
  - lvm2-.*
  - cloud-.*
 `)
@@ -107,7 +107,7 @@ func TestConfigurationSkipOnRegexErr(t *testing.T) {
 	// setup data
 	check := SystemdCheck{}
 	rawInstanceConfig := []byte(`
-unit_regex:
+unit_regexes:
  - lvm2-.*
  - cloud-[[$$.*
  - abc
@@ -563,7 +563,7 @@ func TestIsMonitored(t *testing.T) {
 unit_names:
   - unit1.service
   - unit2.service
-unit_regex:
+unit_regexes:
   - docker-.*
   - abc 
   - ^efg

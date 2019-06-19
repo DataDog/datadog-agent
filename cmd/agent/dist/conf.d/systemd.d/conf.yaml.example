@@ -4,20 +4,20 @@ instances:
     -
     ## @param unit_names - list of strings - optional
     ## List of systemd units to monitor (full name e.g. ssh.service).
-    ## If unit_names and unit_regex are both NOT specified, the check will monitor all units.
+    ## If unit_names and unit_regexes are both NOT specified, the check will monitor all units.
     #
     # unit_names:
     #   - <UNIT_NAME>
 
-    ## @param unit_regex - list of strings - optional
+    ## @param unit_regexes - list of strings - optional
     ## Regex pattern[s] matching the names of processes to monitor.
-    ## If unit_names and unit_regex are both NOT specified, the check will monitor all units.
+    ## If unit_names and unit_regexes are both NOT specified, the check will monitor all units.
     ## 
     ## If the number of units managed by systemd is unbounded, it might infinitely increase
     ## the number of metrics.
     ## Learn more about custom metrics: https://docs.datadoghq.com/developers/metrics/custom_metrics/#how-is-a-custom-metric-defined
     #
-    # unit_regex:
+    # unit_regexes:
     #   - <UNIT_NAME>          # match any unit name containing "<UNIT_NAME>"
     #   - ^<UNIT_NAME>$        # match exactly the unit name "<UNIT_NAME>"
     #   - ^<PREFIX>            # match unit name with prefix "<PREFIX>"
