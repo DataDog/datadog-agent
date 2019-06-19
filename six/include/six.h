@@ -42,7 +42,6 @@ public:
     //! Destructor.
     virtual ~Six(){};
 
-
     // Public API
     //! Pure virtual init member.
     /*!
@@ -155,7 +154,6 @@ public:
     */
     virtual void setModuleAttrString(char *module, char *attr, char *value) = 0;
 
-
     // Public Const API
     //! Pure virtual getPyInfo member.
     /*!
@@ -223,14 +221,12 @@ public:
     bool handleCrashes(const bool coredump) const;
 #endif
 
-
     // Python Helpers
     //! getIntegrationList member.
     /*!
       \return A C-string with the list of every datadog integration wheel installed.
     */
     virtual char *getIntegrationList() = 0;
-
 
     // aggregator API
     //! setSubmitMetricCb member.
@@ -374,7 +370,7 @@ public:
 
 private:
     mutable std::string _error; /*!< string containing a Six error */
-    mutable bool _errorFlag;    /*!< boolean indicating whether an error was set on Six */
+    mutable bool _errorFlag; /*!< boolean indicating whether an error was set on Six */
 };
 
 /*! create_t function prototype
@@ -389,7 +385,7 @@ typedef Six *(create_t)(const char *python_home);
   \typedef destroy_t defines the destructor function prototype to destroy existing Six instances.
   \param A Six object pointer to the instance that should be destroyed.
 */
-typedef void (destroy_t)(Six *);
+typedef void(destroy_t)(Six *);
 
 #ifndef _WIN32
 /*! core_trigger_t function pointer

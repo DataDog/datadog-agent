@@ -46,7 +46,7 @@ extern "C" {
 #endif
 
 #ifdef DATADOG_AGENT_THREE
-//PyMODINIT_FUNC macro already specifies extern "C", nesting these is legal
+// PyMODINIT_FUNC macro already specifies extern "C", nesting these is legal
 PyMODINIT_FUNC PyInit_kubeutil(void);
 #elif defined(DATADOG_AGENT_TWO)
 void Py2_init_kubeutil();
