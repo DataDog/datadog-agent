@@ -23,7 +23,7 @@ instances:
     #   - ^<PREFIX>            # match unit name with prefix "<PREFIX>"
     #   - <SUFFIX>$            # match unit name with suffix "<SUFFIX>"
 
-    ## @param tags  - list of key:value element - optional
+    ## @param tags  - list of key:value elements - optional
     ## List of tags to attach to every metric, event, and service check emitted by this integration.
     ##
     ## Learn more about tagging at https://docs.datadoghq.com/tagging
