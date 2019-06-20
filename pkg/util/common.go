@@ -18,6 +18,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"golang.org/x/net/proxy"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -189,6 +191,18 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 	}
 }
 
+// GetSOCKS5DialFunc returns a function used to establish
+// a connection to a backend through a SOCKS5 proxy.
+func GetSOCKS5DialFunc(address string) func(string, string) (net.Conn, error) {
+	dialer, err := proxy.SOCKS5("tcp", address, nil, proxy.Direct)
+	if err != nil {
+		return func(string, string) (net.Conn, error) {
+			return nil, err
+		}
+	}
+	return dialer.Dial
+}
+
 // CreateHTTPTransport creates an *http.Transport for use in the agent
 func CreateHTTPTransport() *http.Transport {
 	tlsConfig := &tls.Config{
@@ -223,6 +237,11 @@ func CreateHTTPTransport() *http.Transport {
 
 	if proxies := config.GetProxies(); proxies != nil {
 		transport.Proxy = GetProxyTransportFunc(proxies)
+		socks5 := proxies.SOCKS5
+		if socks5 != "" {
+			transport.Dial = GetSOCKS5DialFunc(socks5)
+		}
 	}
+
 	return transport
 }

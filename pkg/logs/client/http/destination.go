@@ -33,14 +33,17 @@ type Destination struct {
 }
 
 // NewDestination returns a new Destination.
-// TODO: add support for SOCKS5
 func NewDestination(endpoint config.Endpoint, destinationsContext *client.DestinationsContext) *Destination {
+	transport := util.CreateHTTPTransport()
+	if endpoint.ProxyAddress != "" {
+		transport.Dial = util.GetSOCKS5DialFunc(endpoint.ProxyAddress)
+	}
 	return &Destination{
 		url: buildURL(endpoint),
 		client: &http.Client{
 			Timeout: time.Second * 10,
 			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: util.CreateHTTPTransport(),
+			Transport: transport,
 		},
 		destinationsContext: destinationsContext,
 	}

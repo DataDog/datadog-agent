@@ -429,7 +429,7 @@ func TestLoadProxyConfOnly(t *testing.T) {
 	config := setupConf()
 
 	// check value loaded before aren't overwrite when no env variables are set
-	p := &Proxy{HTTP: "test", HTTPS: "test2", NoProxy: []string{"a", "b", "c"}}
+	p := &Proxy{HTTP: "test", HTTPS: "test2", NoProxy: []string{"a", "b", "c"}, SOCKS5: "test3"}
 	config.Set("proxy", p)
 
 	// circleCI set some proxy setting
@@ -449,6 +449,7 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 	os.Setenv("HTTP_PROXY", "http_url")
 	os.Setenv("HTTPS_PROXY", "https_url")
 	os.Setenv("NO_PROXY", "a,b,c") // comma-separated list
+	os.Setenv("SOCKS5_PROXY", "socks5_url")
 
 	loadProxyFromEnv(config)
 
@@ -457,9 +458,11 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 		&Proxy{
 			HTTP:    "http_url",
 			HTTPS:   "https_url",
-			NoProxy: []string{"a", "b", "c"}},
+			NoProxy: []string{"a", "b", "c"},
+			SOCKS5:  "socks5_url"},
 		proxies)
 
+	os.Unsetenv("SOCKS5_PROXY")
 	os.Unsetenv("NO_PROXY")
 	os.Unsetenv("HTTPS_PROXY")
 	os.Unsetenv("HTTP_PROXY")
@@ -469,6 +472,7 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 	os.Setenv("http_proxy", "http_url2")
 	os.Setenv("https_proxy", "https_url2")
 	os.Setenv("no_proxy", "1,2,3") // comma-separated list
+	os.Setenv("socks5_proxy", "socks5_url2")
 
 	loadProxyFromEnv(config)
 	proxies = GetProxies()
@@ -476,9 +480,11 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 		&Proxy{
 			HTTP:    "http_url2",
 			HTTPS:   "https_url2",
-			NoProxy: []string{"1", "2", "3"}},
+			NoProxy: []string{"1", "2", "3"},
+			SOCKS5:  "socks5_url2"},
 		proxies)
 
+	os.Unsetenv("socks5_proxy")
 	os.Unsetenv("no_proxy")
 	os.Unsetenv("https_proxy")
 	os.Unsetenv("http_proxy")
@@ -490,6 +496,7 @@ func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 	os.Setenv("DD_PROXY_HTTP", "http_url")
 	os.Setenv("DD_PROXY_HTTPS", "https_url")
 	os.Setenv("DD_PROXY_NO_PROXY", "a b c") // space-separated list
+	os.Setenv("DD_PROXY_SOCKS5", "socks5_url")
 
 	loadProxyFromEnv(config)
 
@@ -498,12 +505,14 @@ func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 		&Proxy{
 			HTTP:    "http_url",
 			HTTPS:   "https_url",
-			NoProxy: []string{"a", "b", "c"}},
+			NoProxy: []string{"a", "b", "c"},
+			SOCKS5:  "socks5_url"},
 		proxies)
 
 	os.Unsetenv("DD_PROXY_HTTP")
 	os.Unsetenv("DD_PROXY_HTTPS")
 	os.Unsetenv("DD_PROXY_NO_PROXY")
+	os.Unsetenv("DD_PROXY_SOCKS5")
 }
 
 func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
@@ -512,9 +521,11 @@ func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
 	os.Setenv("DD_PROXY_HTTP", "dd_http_url")
 	os.Setenv("DD_PROXY_HTTPS", "dd_https_url")
 	os.Setenv("DD_PROXY_NO_PROXY", "a b c")
+	os.Setenv("DD_PROXY_SOCKS5", "dd_socks5_url")
 	os.Setenv("HTTP_PROXY", "env_http_url")
 	os.Setenv("HTTPS_PROXY", "env_https_url")
 	os.Setenv("NO_PROXY", "d,e,f")
+	os.Setenv("SOCKS5_PROXY", "env_socks5_url")
 
 	loadProxyFromEnv(config)
 
@@ -523,15 +534,18 @@ func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
 		&Proxy{
 			HTTP:    "dd_http_url",
 			HTTPS:   "dd_https_url",
-			NoProxy: []string{"a", "b", "c"}},
+			NoProxy: []string{"a", "b", "c"},
+			SOCKS5:  "dd_socks5_url"},
 		proxies)
 
+	os.Unsetenv("SOCKS5_PROXY")
 	os.Unsetenv("NO_PROXY")
 	os.Unsetenv("HTTPS_PROXY")
 	os.Unsetenv("HTTP_PROXY")
 	os.Unsetenv("DD_PROXY_HTTP")
 	os.Unsetenv("DD_PROXY_HTTPS")
 	os.Unsetenv("DD_PROXY_NO_PROXY")
+	os.Unsetenv("DD_PROXY_SOCKS5")
 }
 
 func TestLoadProxyStdEnvAndConf(t *testing.T) {
@@ -540,6 +554,7 @@ func TestLoadProxyStdEnvAndConf(t *testing.T) {
 	os.Setenv("HTTP_PROXY", "http_env")
 	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
 	config.Set("proxy.http", "http_conf")
+	config.Set("proxy.socks5", "socks5_url")
 	defer os.Unsetenv("HTTP")
 
 	loadProxyFromEnv(config)
@@ -548,7 +563,8 @@ func TestLoadProxyStdEnvAndConf(t *testing.T) {
 		&Proxy{
 			HTTP:    "http_env",
 			HTTPS:   "",
-			NoProxy: []string{"d", "e", "f"}},
+			NoProxy: []string{"d", "e", "f"},
+			SOCKS5:  "socks5_url"},
 		proxies)
 }
 
@@ -558,6 +574,7 @@ func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 	os.Setenv("DD_PROXY_HTTP", "http_env")
 	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
 	config.Set("proxy.http", "http_conf")
+	config.Set("proxy.socks5", "socks5_url")
 	defer os.Unsetenv("DD_PROXY_HTTP")
 
 	loadProxyFromEnv(config)
@@ -566,7 +583,8 @@ func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 		&Proxy{
 			HTTP:    "http_env",
 			HTTPS:   "",
-			NoProxy: []string{"d", "e", "f"}},
+			NoProxy: []string{"d", "e", "f"},
+			SOCKS5:  "socks5_url"},
 		proxies)
 }
 
@@ -575,9 +593,11 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 
 	os.Setenv("DD_PROXY_HTTP", "")
 	os.Setenv("DD_PROXY_NO_PROXY", "a b c")
+	os.Setenv("DD_PROXY_SOCKS5", "")
 	os.Setenv("HTTP_PROXY", "env_http_url")
 	os.Setenv("HTTPS_PROXY", "")
 	os.Setenv("NO_PROXY", "")
+	os.Setenv("SOCKS5_PROXY", "socks5_url")
 	config.Set("proxy.https", "https_conf")
 
 	loadProxyFromEnv(config)
@@ -587,7 +607,8 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 		&Proxy{
 			HTTP:    "",
 			HTTPS:   "",
-			NoProxy: []string{"a", "b", "c"}},
+			NoProxy: []string{"a", "b", "c"},
+			SOCKS5:  ""},
 		proxies)
 
 	os.Unsetenv("NO_PROXY")
@@ -596,6 +617,7 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	os.Unsetenv("DD_PROXY_HTTP")
 	os.Unsetenv("DD_PROXY_HTTPS")
 	os.Unsetenv("DD_PROXY_NO_PROXY")
+	os.Unsetenv("DD_PROXY_SOCKS5")
 }
 
 func TestSanitizeAPIKey(t *testing.T) {

@@ -127,6 +127,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseSSL)
 	suite.Equal("agent-http-intake.logs.datadoghq.com", endpoint.Host)
+	suite.Equal("", endpoint.ProxyAddress)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndOverride() {
@@ -144,6 +145,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseSSL)
 	suite.Equal("foo", endpoint.Host)
+	suite.Equal("", endpoint.ProxyAddress)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidProxyConfig() {
@@ -162,6 +164,26 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidProxyCo
 	suite.True(endpoint.UseSSL)
 	suite.Equal("foo", endpoint.Host)
 	suite.Equal(1234, endpoint.Port)
+	suite.Equal("", endpoint.ProxyAddress)
+}
+
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidSOCKS5Config() {
+	var endpoints *Endpoints
+	var endpoint Endpoint
+	var err error
+
+	suite.config.Set("logs_config.use_http", true)
+	suite.config.Set("logs_config.dd_url", "foo")
+	suite.config.Set("logs_config.socks5_proxy_address", "bar:1234")
+
+	endpoints, err = BuildEndpoints()
+	suite.Nil(err)
+	suite.True(endpoints.UseHTTP)
+
+	endpoint = endpoints.Main
+	suite.True(endpoint.UseSSL)
+	suite.Equal("foo", endpoint.Host)
+	suite.Equal("bar:1234", endpoint.ProxyAddress)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFailWithInvalidProxyConfig() {

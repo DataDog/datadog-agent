@@ -73,6 +73,7 @@ type Proxy struct {
 	HTTP    string   `mapstructure:"http"`
 	HTTPS   string   `mapstructure:"https"`
 	NoProxy []string `mapstructure:"no_proxy"`
+	SOCKS5  string   `mapstructure:"socks5"`
 }
 
 func init() {
@@ -562,12 +563,21 @@ func loadProxyFromEnv(config Config) {
 		p.NoProxy = strings.Split(noProxy, ",") // comma-separated list, consistent with other tools that use the NO_PROXY env var
 	}
 
+	if socks5, found := lookupEnv("DD_PROXY_SOCKS5"); found {
+		isSet = true
+		p.SOCKS5 = socks5
+	} else if socks5, found := lookupEnvCaseInsensitive("SOCKS5_PROXY"); found {
+		isSet = true
+		p.SOCKS5 = socks5
+	}
+
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
 	if isSet {
 		config.Set("proxy.http", p.HTTP)
 		config.Set("proxy.https", p.HTTPS)
 		config.Set("proxy.no_proxy", p.NoProxy)
+		config.Set("proxy.socks5", p.SOCKS5)
 		proxies = p
 	}
 }

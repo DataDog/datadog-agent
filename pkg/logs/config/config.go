@@ -138,8 +138,10 @@ func buildTCPEndpoints() (*Endpoints, error) {
 
 func buildHTTPEndpoints() (*Endpoints, error) {
 	var useSSL bool
+	proxyAddress := coreConfig.Datadog.GetString("logs_config.socks5_proxy_address")
 	main := Endpoint{
-		APIKey: getLogsAPIKey(coreConfig.Datadog),
+		APIKey:       getLogsAPIKey(coreConfig.Datadog),
+		ProxyAddress: proxyAddress,
 	}
 
 	switch {
@@ -164,6 +166,7 @@ func buildHTTPEndpoints() (*Endpoints, error) {
 	}
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = useSSL
+		additionals[i].ProxyAddress = proxyAddress
 	}
 
 	return NewEndpoints(main, additionals, false, true), nil
