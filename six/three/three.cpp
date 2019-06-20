@@ -103,9 +103,14 @@ bool Three::init()
         }
     }
 
+    if (init_stringutils() != EXIT_SUCCESS) {
+        goto done;
+    }
+
     // load the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
 
+done:
     // save tread state and release the GIL
     _threadState = PyEval_SaveThread();
     return _baseClass != NULL;
