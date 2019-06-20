@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/legacy"
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
-	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -76,9 +75,9 @@ type AgentConfig struct {
 	ReceiverTimeout int
 
 	// Writers
-	ServiceWriterConfig writerconfig.ServiceWriterConfig
-	StatsWriterConfig   writerconfig.StatsWriterConfig
-	TraceWriterConfig   writerconfig.TraceWriterConfig
+	ServiceWriter *SenderConfig
+	StatsWriter   *SenderConfig
+	TraceWriter   *SenderConfig
 
 	// internal telemetry
 	StatsdHost string
@@ -134,9 +133,9 @@ func New() *AgentConfig {
 		ReceiverPort:    8126,
 		ConnectionLimit: 2000,
 
-		ServiceWriterConfig: writerconfig.DefaultServiceWriterConfig(),
-		StatsWriterConfig:   writerconfig.DefaultStatsWriterConfig(),
-		TraceWriterConfig:   writerconfig.DefaultTraceWriterConfig(),
+		ServiceWriter: new(SenderConfig),
+		StatsWriter:   new(SenderConfig),
+		TraceWriter:   new(SenderConfig),
 
 		StatsdHost: "localhost",
 		StatsdPort: 8125,

@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
-	newwriter "github.com/DataDog/datadog-agent/pkg/trace/writer/newwriter"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,9 +34,9 @@ type Agent struct {
 	ErrorsScoreSampler *Sampler
 	PrioritySampler    *Sampler
 	EventProcessor     *event.Processor
-	TraceWriter        *newwriter.TraceWriter
+	TraceWriter        *writer.TraceWriter
 	ServiceWriter      *writer.ServiceWriter
-	StatsWriter        *newwriter.StatsWriter
+	StatsWriter        *writer.StatsWriter
 	ServiceExtractor   *TraceServiceExtractor
 	ServiceMapper      *ServiceMapper
 
@@ -45,7 +44,7 @@ type Agent struct {
 	// tags based on their type.
 	obfuscator *obfuscate.Obfuscator
 
-	spansOut chan *newwriter.SampledSpans
+	spansOut chan *writer.SampledSpans
 
 	// config
 	conf    *config.AgentConfig
@@ -62,7 +61,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 
 	// inter-component channels
 	rawTraceChan := make(chan pb.Trace, 5000)
-	spansOut := make(chan *newwriter.SampledSpans, 1000)
+	spansOut := make(chan *writer.SampledSpans, 1000)
 	statsChan := make(chan []stats.Bucket)
 	serviceChan := make(chan pb.ServicesMetadata, 50)
 	filteredServiceChan := make(chan pb.ServicesMetadata, 50)
@@ -82,8 +81,8 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	ep := eventProcessorFromConf(conf)
 	se := NewTraceServiceExtractor(serviceChan)
 	sm := NewServiceMapper(serviceChan, filteredServiceChan)
-	tw := newwriter.NewTraceWriter(conf, spansOut)
-	sw := newwriter.NewStatsWriter(conf, statsChan)
+	tw := writer.NewTraceWriter(conf, spansOut)
+	sw := writer.NewStatsWriter(conf, statsChan)
 	svcW := writer.NewServiceWriter(conf, filteredServiceChan)
 
 	return &Agent{
@@ -281,10 +280,9 @@ func (a *Agent) Process(t pb.Trace) {
 		defer watchdog.LogOnPanic()
 		defer timing.Since("datadog.trace_agent.internal.sample_ms", time.Now())
 
-		sampledSpans := newwriter.SampledSpans{}
+		var sampledSpans writer.SampledSpans
 
 		sampled, rate := a.sample(pt)
-
 		if sampled {
 			pt.Sampled = sampled
 			sampler.AddGlobalRate(pt.Root, rate)

@@ -1,567 +1,304 @@
 package writer
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/writer/backoff"
-	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewPayloadSetsCreationDate(t *testing.T) {
-	assert := assert.New(t)
+const testAPIKey = "123"
 
-	p := newPayload(nil, nil)
-
-	assert.WithinDuration(time.Now(), p.creationDate, 1*time.Second)
+func TestMain(m *testing.M) {
+	log.SetupDatadogLogger(seelog.Disabled, "error")
+	os.Exit(m.Run())
 }
 
-func TestQueuablePayloadSender_WorkingEndpoint(t *testing.T) {
-	assert := assert.New(t)
-
-	// Given an endpoint that doesn't fail
-	workingEndpoint := &testEndpoint{}
-
-	// And a queuable sender using that endpoint
-	conf := writerconfig.DefaultQueuablePayloadSenderConf()
-	conf.InChannelSize = 0 // block in tests
-	queuableSender := newSender(workingEndpoint, conf)
-
-	// And a test monitor for that sender
-	monitor := newTestPayloadSenderMonitor(queuableSender)
-
-	// When we start the sender
-	monitor.Start()
-	queuableSender.Start()
-
-	// And send some payloads
-	payload1 := randomPayload()
-	queuableSender.Send(payload1)
-	payload2 := randomPayload()
-	queuableSender.Send(payload2)
-	payload3 := randomPayload()
-	queuableSender.Send(payload3)
-	payload4 := randomPayload()
-	queuableSender.Send(payload4)
-	payload5 := randomPayload()
-	queuableSender.Send(payload5)
-
-	// And stop the sender
-	queuableSender.Stop()
-	monitor.Stop()
-
-	// Then we expect all sent payloads to have been successfully sent
-	successPayloads := monitor.SuccessPayloads()
-	errorPayloads := monitor.FailurePayloads()
-	assert.ElementsMatch([]*payload{payload1, payload2, payload3, payload4, payload5}, successPayloads,
-		"Expect all sent payloads to have been successful")
-	assert.ElementsMatch(successPayloads, workingEndpoint.SuccessPayloads(), "Expect sender and endpoint to match on successful payloads")
-	assert.Len(errorPayloads, 0, "No payloads should have errored out on send")
-	assert.Len(workingEndpoint.ErrorPayloads(), 0, "No payloads should have errored out on send")
-}
-
-func TestQueuablePayloadSender_FlakyEndpoint(t *testing.T) {
-	assert := assert.New(t)
-
-	// Given an endpoint that initially works ok
-	flakyEndpoint := &testEndpoint{}
-
-	// And a test backoff timer that can be triggered on-demand
-	testBackoffTimer := testutil.NewTestBackoffTimer()
-
-	// And a queuable sender using said endpoint and timer
-	conf := writerconfig.DefaultQueuablePayloadSenderConf()
-	conf.InChannelSize = 0 // block in tests
-	queuableSender := newSender(flakyEndpoint, conf)
-	queuableSender.backoffTimer = testBackoffTimer
-	syncBarrier := make(chan interface{})
-	queuableSender.syncBarrier = syncBarrier
-	wait := func() {
-		syncBarrier <- nil
-		queuableSender.wg.Wait()
+func TestSender(t *testing.T) {
+	const climit = 100
+	testSenderConfig := func(serverURL string) *senderConfig {
+		url, err := url.Parse(serverURL + "/")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &senderConfig{
+			client:    &http.Client{},
+			url:       url,
+			maxConns:  climit,
+			maxQueued: 40,
+			apiKey:    testAPIKey,
+		}
 	}
 
-	// And a test monitor for that sender
-	monitor := newTestPayloadSenderMonitor(queuableSender)
-
-	monitor.Start()
-	queuableSender.Start()
-
-	// With a working endpoint
-	// We send some payloads
-	payload1 := randomPayload()
-	queuableSender.Send(payload1)
-	payload2 := randomPayload()
-	queuableSender.Send(payload2)
-
-	wait()
-
-	assert.Equal(0, queuableSender.queuedPayloads.Len(), "Expect no queued payloads")
-
-	// With a failing endpoint with a retriable error
-	flakyEndpoint.SetError(&retriableError{err: fmt.Errorf("bleh"), endpoint: flakyEndpoint})
-	// We send some payloads
-	payload3 := randomPayload()
-	queuableSender.Send(payload3)
-
-	wait()
-
-	payload4 := randomPayload()
-	queuableSender.Send(payload4)
-	// And retry once
-	testBackoffTimer.TriggerTick()
-	// And retry twice
-	testBackoffTimer.TriggerTick()
-
-	wait()
-
-	assert.Equal(2, queuableSender.queuedPayloads.Len(), "Expect 2 queued payloads")
-
-	// With the previously failing endpoint working again
-	flakyEndpoint.SetError(nil)
-	// We retry for the third time
-	testBackoffTimer.TriggerTick()
-
-	wait()
-
-	assert.Equal(0, queuableSender.queuedPayloads.Len(), "Expect no queued payloads")
-
-	// Finally, with a failing endpoint with a non-retriable error
-	flakyEndpoint.SetError(fmt.Errorf("non retriable bleh"))
-	// We send some payloads
-	payload5 := randomPayload()
-	queuableSender.Send(payload5)
-	payload6 := randomPayload()
-	queuableSender.Send(payload6)
-
-	wait()
-
-	assert.Equal(0, queuableSender.queuedPayloads.Len(), "Expect no queued payloads")
-
-	// With the previously failing endpoint working again
-	flakyEndpoint.SetError(nil)
-	// We retry just in case there's something in the queue
-	testBackoffTimer.TriggerTick()
-
-	// And stop the sender
-	queuableSender.Stop()
-	monitor.Stop()
-
-	// Then we expect payloads sent during working endpoint or those that were retried due to retriable errors to have
-	// been sent eventually (and in order). Those that failed because of non-retriable errors should have been discarded
-	// even after a retry.
-	successPayloads := monitor.SuccessPayloads()
-	errorPayloads := monitor.FailurePayloads()
-	retryPayloads := monitor.RetryPayloads()
-	assert.ElementsMatch([]*payload{payload1, payload2, payload3, payload4}, successPayloads,
-		"Expect all sent payloads to have been successful")
-	assert.ElementsMatch(successPayloads, flakyEndpoint.SuccessPayloads(), "Expect sender and endpoint to match on successful payloads")
-	// Expect 3 retry events for payload 3 (one because of first send, two others because of the two retries)
-	assert.ElementsMatch([]*payload{payload3, payload3, payload3}, retryPayloads, "Expect payload 3 to have been retries 3 times")
-	// We expect payloads 5 and 6 to appear in error payloads as they failed for non-retriable errors.
-	assert.ElementsMatch([]*payload{payload5, payload6}, errorPayloads, "Expect errored payloads to have been discarded as expected")
-}
-
-func TestQueuablePayloadSender_MaxQueuedPayloads(t *testing.T) {
-	assert := assert.New(t)
-
-	// Given an endpoint that continuously throws out retriable errors
-	flakyEndpoint := &testEndpoint{}
-	flakyEndpoint.SetError(&retriableError{err: fmt.Errorf("bleh"), endpoint: flakyEndpoint})
-
-	// And a test backoff timer that can be triggered on-demand
-	testBackoffTimer := testutil.NewTestBackoffTimer()
-
-	// And a queuable sender using said endpoint and timer and with a meager max queued payloads value of 1
-	conf := writerconfig.DefaultQueuablePayloadSenderConf()
-	conf.InChannelSize = 0 // block in tests
-	conf.MaxQueuedPayloads = 1
-	queuableSender := newSender(flakyEndpoint, conf)
-	queuableSender.backoffTimer = testBackoffTimer
-	syncBarrier := make(chan interface{})
-	queuableSender.syncBarrier = syncBarrier
-	wait := func() {
-		syncBarrier <- nil
-		queuableSender.wg.Wait()
-	}
-
-	// And a test monitor for that sender
-	monitor := newTestPayloadSenderMonitor(queuableSender)
-
-	monitor.Start()
-	queuableSender.Start()
-
-	// When sending a first payload
-	payload1 := randomPayload()
-	queuableSender.Send(payload1)
-	wait()
-
-	// Followed by another one
-	payload2 := randomPayload()
-	queuableSender.Send(payload2)
-	wait()
-
-	// Followed by a third
-	payload3 := randomPayload()
-	queuableSender.Send(payload3)
-	wait()
-
-	// Then, when the endpoint finally works
-	flakyEndpoint.SetError(nil)
-
-	// And we trigger a retry
-	testBackoffTimer.TriggerTick()
-	wait()
-
-	// Then we should have no queued payloads
-	assert.Equal(0, queuableSender.queuedPayloads.Len(), "We should have no queued payloads")
-
-	// When we stop the sender
-	queuableSender.Stop()
-	monitor.Stop()
-
-	// Then endpoint should have received only payload3. Other should have been discarded because max queued payloads
-	// is 1
-	assert.ElementsMatch([]*payload{payload3}, flakyEndpoint.SuccessPayloads(), "Endpoint should have received only payload 3")
-
-	// Monitor should agree on previous fact
-	assert.ElementsMatch([]*payload{payload3}, monitor.SuccessPayloads(),
-		"Monitor should agree with endpoint on successful payloads")
-	assert.ElementsMatch([]*payload{payload1, payload2}, monitor.FailurePayloads(),
-		"Monitor should agree with endpoint on failed payloads")
-	assert.Contains(monitor.FailureEvents()[0].err.Error(), "max queued payloads",
-		"Monitor failure event should mention correct reason for error")
-	assert.Contains(monitor.FailureEvents()[1].err.Error(), "max queued payloads",
-		"Monitor failure event should mention correct reason for error")
-}
-
-func TestQueuablePayloadSender_MaxQueuedBytes(t *testing.T) {
-	assert := assert.New(t)
-
-	// Given an endpoint that continuously throws out retriable errors
-	flakyEndpoint := &testEndpoint{}
-	flakyEndpoint.SetError(&retriableError{err: fmt.Errorf("bleh"), endpoint: flakyEndpoint})
-
-	// And a test backoff timer that can be triggered on-demand
-	testBackoffTimer := testutil.NewTestBackoffTimer()
-
-	// And a queuable sender using said endpoint and timer and with a meager max size of 10 bytes
-	conf := writerconfig.DefaultQueuablePayloadSenderConf()
-	conf.InChannelSize = 0 // block in tests
-	conf.MaxQueuedBytes = 10
-	queuableSender := newSender(flakyEndpoint, conf)
-	queuableSender.backoffTimer = testBackoffTimer
-	syncBarrier := make(chan interface{})
-	queuableSender.syncBarrier = syncBarrier
-	wait := func() {
-		syncBarrier <- nil
-		queuableSender.wg.Wait()
-	}
-
-	// And a test monitor for that sender
-	monitor := newTestPayloadSenderMonitor(queuableSender)
-
-	monitor.Start()
-	queuableSender.Start()
-
-	// When sending a first payload of 4 bytes
-	payload1 := randomSizedPayload(4)
-	queuableSender.Send(payload1)
-	wait()
-
-	// Followed by another one of 2 bytes
-	payload2 := randomSizedPayload(2)
-	queuableSender.Send(payload2)
-	wait()
-
-	// Followed by a third of 8 bytes
-	payload3 := randomSizedPayload(8)
-	queuableSender.Send(payload3)
-	wait()
-
-	// Then, when the endpoint finally works
-	flakyEndpoint.SetError(nil)
-
-	// And we trigger a retry
-	testBackoffTimer.TriggerTick()
-
-	wait()
-
-	// Then we should have no queued payloads
-	assert.Equal(0, queuableSender.queuedPayloads.Len(), "We should have no queued payloads")
-
-	// When we stop the sender
-	queuableSender.Stop()
-	monitor.Stop()
-
-	// Then endpoint should have received payload2 and payload3. Payload1 should have been discarded because keeping all
-	// 3 would have put us over the max size of sender
-	assert.ElementsMatch([]*payload{payload2, payload3}, flakyEndpoint.SuccessPayloads(),
-		"Endpoint should have received only payload 2 and 3 (in that order)")
-
-	// Monitor should agree on previous fact
-	assert.ElementsMatch([]*payload{payload2, payload3}, monitor.SuccessPayloads(),
-		"Monitor should agree with endpoint on successful payloads")
-	assert.ElementsMatch([]*payload{payload1}, monitor.FailurePayloads(),
-		"Monitor should agree with endpoint on failed payloads")
-	assert.Contains(monitor.FailureEvents()[0].err.Error(), "max queued bytes",
-		"Monitor failure event should mention correct reason for error")
-}
-
-func TestQueuablePayloadSender_DropBigPayloadsOnRetry(t *testing.T) {
-	assert := assert.New(t)
-
-	// Given an endpoint that continuously throws out retriable errors
-	flakyEndpoint := &testEndpoint{}
-	flakyEndpoint.SetError(&retriableError{err: fmt.Errorf("bleh"), endpoint: flakyEndpoint})
-
-	// And a test backoff timer that can be triggered on-demand
-	testBackoffTimer := testutil.NewTestBackoffTimer()
-
-	// And a queuable sender using said endpoint and timer and with a meager max size of 10 bytes
-	conf := writerconfig.DefaultQueuablePayloadSenderConf()
-	conf.InChannelSize = 0 // block in tests
-	conf.MaxQueuedBytes = 10
-	queuableSender := newSender(flakyEndpoint, conf)
-	queuableSender.backoffTimer = testBackoffTimer
-	syncBarrier := make(chan interface{})
-	queuableSender.syncBarrier = syncBarrier
-	wait := func() {
-		syncBarrier <- nil
-		queuableSender.wg.Wait()
-	}
-
-	// And a test monitor for that sender
-	monitor := newTestPayloadSenderMonitor(queuableSender)
-
-	monitor.Start()
-	queuableSender.Start()
-
-	// When sending a payload of 12 bytes
-	payload1 := randomSizedPayload(12)
-	queuableSender.Send(payload1)
-
-	wait()
-
-	// Then, when the endpoint finally works
-	flakyEndpoint.SetError(nil)
-
-	// And we trigger a retry
-	testBackoffTimer.TriggerTick()
-
-	wait()
-
-	// Then we should have no queued payloads
-	assert.Equal(0, queuableSender.queuedPayloads.Len(), "We should have no queued payloads")
-
-	// When we stop the sender
-	queuableSender.Stop()
-	monitor.Stop()
-
-	// Then endpoint should have received no payloads because payload1 was too big to store in queue.
-	assert.Len(flakyEndpoint.SuccessPayloads(), 0, "Endpoint should have received no payloads")
-
-	// And monitor should have received failed event for payload1 with correct reason
-	assert.ElementsMatch([]*payload{payload1}, monitor.FailurePayloads(),
-		"Monitor should agree with endpoint on failed payloads")
-	assert.Contains(monitor.FailureEvents()[0].err.Error(), "bigger than max size",
-		"Monitor failure event should mention correct reason for error")
-}
-
-func TestQueuablePayloadSender_SendBigPayloadsIfNoRetry(t *testing.T) {
-	assert := assert.New(t)
-
-	// Given an endpoint that works
-	workingEndpoint := &testEndpoint{}
-
-	// And a test backoff timer that can be triggered on-demand
-	testBackoffTimer := testutil.NewTestBackoffTimer()
-
-	// And a queuable sender using said endpoint and timer and with a meager max size of 10 bytes
-	conf := writerconfig.DefaultQueuablePayloadSenderConf()
-	conf.InChannelSize = 0 // block in tests
-	conf.MaxQueuedBytes = 10
-	queuableSender := newSender(workingEndpoint, conf)
-	queuableSender.backoffTimer = testBackoffTimer
-	syncBarrier := make(chan interface{})
-	queuableSender.syncBarrier = syncBarrier
-	wait := func() {
-		syncBarrier <- nil
-		queuableSender.wg.Wait()
-	}
-
-	// And a test monitor for that sender
-	monitor := newTestPayloadSenderMonitor(queuableSender)
-
-	monitor.Start()
-	queuableSender.Start()
-
-	// When sending a payload of 12 bytes
-	payload1 := randomSizedPayload(12)
-	queuableSender.Send(payload1)
-
-	wait()
-
-	// Then we should have no queued payloads
-	assert.Equal(0, queuableSender.queuedPayloads.Len(), "We should have no queued payloads")
-
-	// When we stop the sender
-	queuableSender.Stop()
-	monitor.Stop()
-
-	// Then endpoint should have received payload1 because although it was big, it didn't get queued.
-	assert.ElementsMatch([]*payload{payload1}, workingEndpoint.SuccessPayloads(), "Endpoint should have received payload1")
-
-	// And monitor should have received success event for payload1
-	assert.ElementsMatch([]*payload{payload1}, monitor.SuccessPayloads(),
-		"Monitor should agree with endpoint on success payloads")
-}
-
-func TestQueuablePayloadSender_MaxAge(t *testing.T) {
-	assert := assert.New(t)
-
-	// Given an endpoint that continuously throws out retriable errors
-	flakyEndpoint := &testEndpoint{}
-	flakyEndpoint.SetError(&retriableError{err: fmt.Errorf("bleh"), endpoint: flakyEndpoint})
-
-	// And a test backoff timer that can be triggered on-demand
-	testBackoffTimer := testutil.NewTestBackoffTimer()
-
-	// And a queuable sender using said endpoint and timer and with a meager max age of 100ms
-	conf := writerconfig.DefaultQueuablePayloadSenderConf()
-	conf.InChannelSize = 0 // block in tests
-	conf.MaxAge = 100 * time.Millisecond
-	queuableSender := newSender(flakyEndpoint, conf)
-	queuableSender.backoffTimer = testBackoffTimer
-	syncBarrier := make(chan interface{})
-	queuableSender.syncBarrier = syncBarrier
-	wait := func() {
-		syncBarrier <- nil
-		queuableSender.wg.Wait()
-	}
-
-	// And a test monitor for that sender
-	monitor := newTestPayloadSenderMonitor(queuableSender)
-
-	monitor.Start()
-	queuableSender.Start()
-
-	// When sending two payloads one after the other
-	payload1 := randomPayload()
-	queuableSender.Send(payload1)
-	payload2 := randomPayload()
-	queuableSender.Send(payload2)
-
-	// And then sleeping for 500ms
-	time.Sleep(500 * time.Millisecond)
-
-	// And then sending a third payload
-	payload3 := randomPayload()
-	queuableSender.Send(payload3)
-
-	// And then triggering a retry
-	testBackoffTimer.TriggerTick()
-
-	wait()
-
-	// Then, when the endpoint finally works
-	flakyEndpoint.SetError(nil)
-
-	// And we trigger a retry
-	testBackoffTimer.TriggerTick()
-
-	wait()
-
-	// Then we should have no queued payloads
-	assert.Equal(0, queuableSender.queuedPayloads.Len(), "We should have no queued payloads")
-
-	// When we stop the sender
-	queuableSender.Stop()
-	monitor.Stop()
-
-	// Then endpoint should have received only payload3. Because payload1 and payload2 were too old after the failed
-	// retry (first TriggerTick).
-	assert.ElementsMatch([]*payload{payload3}, flakyEndpoint.SuccessPayloads(), "Endpoint should have received only payload 3")
-
-	// And monitor should have received failed events for payload1 and payload2 with correct reason
-	assert.ElementsMatch([]*payload{payload1, payload2}, monitor.FailurePayloads(),
-		"Monitor should agree with endpoint on failed payloads")
-	assert.Contains(monitor.FailureEvents()[0].err.Error(), "older than max age",
-		"Monitor failure event should mention correct reason for error")
-}
-
-func TestQueuablePayloadSender_RetryOfTooOldQueue(t *testing.T) {
-	assert := assert.New(t)
-
-	// Given an endpoint that continuously throws out retriable errors
-	flakyEndpoint := &testEndpoint{}
-	flakyEndpoint.SetError(&retriableError{err: fmt.Errorf("bleh"), endpoint: flakyEndpoint})
-
-	// And a backoff timer that triggers every 100ms
-	testBackoffTimer := backoff.NewCustomTimer(func(numRetries int, err error) time.Duration {
-		return 100 * time.Millisecond
+	t.Run("accept", func(t *testing.T) {
+		assert := assert.New(t)
+		server := newTestServer()
+		defer server.Close()
+
+		s := newSender(testSenderConfig(server.URL))
+		for i := 0; i < 20; i++ {
+			s.Push(expectResponses(200))
+		}
+		s.Stop()
+
+		assert.Equal(20, server.Total(), "total")
+		assert.Equal(20, server.Accepted(), "accepted")
+		assert.Equal(0, server.Retried(), "retry")
+		assert.Equal(0, server.Failed(), "failed")
 	})
 
-	// And a queuable sender using said endpoint and timer and with a meager max age of 200ms
-	conf := writerconfig.DefaultQueuablePayloadSenderConf()
-	conf.InChannelSize = 0 // block in tests
-	conf.MaxAge = 200 * time.Millisecond
-	queuableSender := newSender(flakyEndpoint, conf)
-	queuableSender.backoffTimer = testBackoffTimer
-	syncBarrier := make(chan interface{})
-	queuableSender.syncBarrier = syncBarrier
-	wait := func() {
-		syncBarrier <- nil
-		queuableSender.wg.Wait()
+	t.Run("peak", func(t *testing.T) {
+		assert := assert.New(t)
+		server := newTestServerWithLatency(50 * time.Millisecond)
+		defer server.Close()
+
+		s := newSender(testSenderConfig(server.URL))
+		for i := 0; i < climit*2; i++ {
+			time.Sleep(time.Millisecond) // yield to loop
+			s.Push(expectResponses(200))
+		}
+		s.Stop()
+
+		assert.True(server.Peak() <= climit)
+		assert.Equal(climit*2, server.Total(), "total")
+		assert.Equal(climit*2, server.Accepted(), "accepted")
+		assert.Equal(0, server.Retried(), "retry")
+		assert.Equal(0, server.Failed(), "failed")
+	})
+
+	t.Run("failed", func(t *testing.T) {
+		assert := assert.New(t)
+		server := newTestServer()
+		defer server.Close()
+
+		s := newSender(testSenderConfig(server.URL))
+		for i := 0; i < 20; i++ {
+			s.Push(expectResponses(404))
+		}
+		s.Stop()
+
+		assert.Equal(20, server.Total(), "total")
+		assert.Equal(0, server.Accepted(), "accepted")
+		assert.Equal(0, server.Retried(), "retry")
+		assert.Equal(20, server.Failed(), "failed")
+	})
+
+	t.Run("retry", func(t *testing.T) {
+		assert := assert.New(t)
+		server := newTestServer()
+		defer server.Close()
+		defer func(old func(int) time.Duration) { backoffDuration = old }(backoffDuration)
+		var backoffCalls []int
+		backoffDuration = func(d int) time.Duration {
+			backoffCalls = append(backoffCalls, d)
+			return time.Nanosecond
+		}
+
+		s := newSender(testSenderConfig(server.URL))
+		s.Push(expectResponses(503, 503, 200))
+		s.Stop()
+
+		assert.Equal([]int{0, 1, 2}, backoffCalls)
+		assert.Equal(3, server.Total(), "total")
+		assert.Equal(2, server.Retried(), "retry")
+		assert.Equal(1, server.Accepted(), "accepted")
+	})
+
+	t.Run("many", func(t *testing.T) {
+		assert := assert.New(t)
+		server := newTestServer()
+		defer server.Close()
+		defer useBackoffDuration(time.Millisecond)()
+
+		s := newSender(testSenderConfig(server.URL))
+		s.Push(expectResponses(503, 503, 200))
+		for i := 0; i < 20; i++ {
+			s.Push(expectResponses(403))
+		}
+
+		s.Stop()
+
+		assert.Equal(23, server.Total(), "total")
+		assert.Equal(2, server.Retried(), "retry")
+		assert.Equal(1, server.Accepted(), "accepted")
+		assert.Equal(20, server.Failed(), "failed")
+	})
+
+	t.Run("headers", func(t *testing.T) {
+		assert := assert.New(t)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			assert.Equal(testAPIKey, req.Header.Get(headerAPIKey))
+			assert.Equal(userAgent, req.Header.Get(headerUserAgent))
+			wg.Done()
+		}))
+		defer server.Close()
+		s := newSender(testSenderConfig(server.URL))
+		s.Push(expectResponses(http.StatusOK))
+		s.Stop()
+		wg.Wait()
+	})
+
+	t.Run("events", func(t *testing.T) {
+		assert := assert.New(t)
+		server := newTestServer()
+		defer server.Close()
+		defer useBackoffDuration(0)()
+
+		var recorder mockRecorder
+		cfg := testSenderConfig(server.URL)
+		cfg.recorder = &recorder
+		s := newSender(cfg)
+
+		// push a couple of payloads
+		start := time.Now()
+		payloadThirdOk := expectResponses(503, 503, 200)
+		payloadOk := expectResponses(200)
+		payloadFail := expectResponses(403)
+
+		s.Push(payloadThirdOk)
+		s.Push(payloadOk)
+		s.Push(payloadOk)
+		for i := 0; i < 4; i++ {
+			s.Push(payloadFail)
+		}
+		s.Stop()
+
+		retried := recorder.data(eventTypeRetry)
+		assert.Equal(2, len(retried))
+		for i := 0; i < 2; i++ {
+			assert.Equal(payloadThirdOk.body.Len(), retried[i].bytes)
+			assert.Equal(`server responded with "503 Service Unavailable"`, retried[i].err.(*retriableError).err.Error())
+			assert.Equal(1, retried[i].count)
+			assert.True(retried[i].connectionFill > 0 && retried[i].connectionFill < 1, fmt.Sprintf("%f", retried[i].connectionFill))
+			assert.True(time.Since(start)-retried[i].duration < time.Second)
+		}
+
+		sent := recorder.data(eventTypeSent)
+		assert.Equal(3, len(sent))
+		for i := 0; i < 3; i++ {
+			switch size := sent[i].bytes; size {
+			case payloadOk.body.Len(), payloadThirdOk.body.Len():
+				// OK
+			default:
+				t.Fatalf("unexpected body size: %d", size)
+			}
+			assert.NoError(sent[i].err)
+			assert.Equal(1, sent[i].count)
+			assert.True(sent[i].connectionFill > 0 && sent[i].connectionFill < 1, fmt.Sprintf("%f", sent[i].connectionFill))
+			assert.True(time.Since(start)-sent[i].duration < time.Second)
+		}
+
+		failed := recorder.data(eventTypeRejected)
+		assert.Equal(4, len(failed))
+		for i := 0; i < 4; i++ {
+			assert.Equal(payloadFail.body.Len(), failed[i].bytes)
+			assert.Equal("403 Forbidden", failed[i].err.Error())
+			assert.Equal(1, failed[i].count)
+			assert.True(failed[i].connectionFill > 0 && failed[i].connectionFill < 1, fmt.Sprintf("%f", failed[i].connectionFill))
+			assert.True(time.Since(start)-failed[i].duration < time.Second)
+		}
+	})
+}
+
+func TestPayload(t *testing.T) {
+	expectBody := bytes.NewBufferString("body")
+	bodyLength := strconv.Itoa(expectBody.Len())
+
+	t.Run("headers", func(t *testing.T) {
+		assert := assert.New(t)
+		p := newPayload(map[string]string{
+			"k1": "v1",
+			"k2": "v2",
+		})
+		p.body = expectBody
+		u, err := url.Parse("http://whatever")
+		assert.NoError(err)
+		req, err := p.httpRequest(u)
+		assert.NoError(err)
+		assert.Len(req.Header, 3)
+		assert.Equal(req.Header.Get("Content-Length"), bodyLength)
+		assert.Equal("v1", req.Header.Get("k1"))
+		assert.Equal("v2", req.Header.Get("k2"))
+	})
+
+	t.Run("httpRequest", func(t *testing.T) {
+		assert := assert.New(t)
+		p := newPayload(map[string]string{"DD-Api-Key": testAPIKey})
+		p.body = expectBody
+		url, err := url.Parse("http://localhost/my/path")
+		if err != nil {
+			t.Fatal(err)
+		}
+		req, err := p.httpRequest(url)
+		assert.NoError(err)
+		assert.Equal(http.MethodPost, req.Method)
+		assert.Equal("/my/path", req.URL.Path)
+		assert.Equal("4", req.Header.Get("Content-Length"))
+		assert.Equal(testAPIKey, req.Header.Get("DD-Api-Key"))
+		slurp, err := ioutil.ReadAll(req.Body)
+		assert.NoError(err)
+		req.Body.Close()
+		assert.Equal(expectBody.Bytes(), slurp)
+	})
+}
+
+// useBackoffDuration replaces the current backoff duration with d and returns a
+// function which restores it.
+func useBackoffDuration(d time.Duration) func() {
+	old := backoffDuration
+	backoffDuration = func(attempt int) time.Duration { return d }
+	return func() { backoffDuration = old }
+}
+
+// mockRecorder is a mock eventRecorder which records all calls to recordEvent.
+type mockRecorder struct {
+	mu                             sync.RWMutex
+	retry, sent, dropped, rejected []*eventData
+}
+
+// data returns all call data for the given eventType.
+func (r *mockRecorder) data(t eventType) []*eventData {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	switch t {
+	case eventTypeRetry:
+		return r.retry
+	case eventTypeSent:
+		return r.sent
+	case eventTypeDropped:
+		return r.dropped
+	case eventTypeRejected:
+		return r.rejected
+	default:
+		panic("unknown event")
 	}
+}
 
-	// And a test monitor for that sender
-	monitor := newTestPayloadSenderMonitor(queuableSender)
-
-	monitor.Start()
-	queuableSender.Start()
-
-	// When sending two payloads one after the other
-	payload1 := randomPayload()
-	queuableSender.Send(payload1)
-	payload2 := randomPayload()
-	queuableSender.Send(payload2)
-
-	// And then sleeping for 500ms
-	time.Sleep(600 * time.Millisecond)
-
-	// Then, eventually, during one of the retries those 2 payloads should end up being discarded and our queue
-	// will end up with a size of 0 and a flush call will be made for a queue of size 0
-
-	// Then send a third payload
-	payload3 := randomPayload()
-	queuableSender.Send(payload3)
-
-	wait()
-
-	// Then, when the endpoint finally works
-	flakyEndpoint.SetError(nil)
-
-	// Wait for a retry
-	time.Sleep(200 * time.Millisecond)
-
-	// When we stop the sender
-	queuableSender.Stop()
-	monitor.Stop()
-
-	// Then we should have no queued payloads
-	assert.Equal(0, queuableSender.queuedPayloads.Len(), "We should have no queued payloads")
-
-	// Then endpoint should have received only payload3. Because payload1 and payload2 were too old after the failed
-	// retry (first TriggerTick).
-	assert.ElementsMatch([]*payload{payload3}, flakyEndpoint.SuccessPayloads(), "Endpoint should have received only payload 3")
-
-	// And monitor should have received failed events for payload1 and payload2 with correct reason
-	assert.ElementsMatch([]*payload{payload1, payload2}, monitor.FailurePayloads(),
-		"Monitor should agree with endpoint on failed payloads")
-	assert.Contains(monitor.FailureEvents()[0].err.Error(), "older than max age",
-		"Monitor failure event should mention correct reason for error")
+// recordEvent implements eventRecorder.
+func (r *mockRecorder) recordEvent(t eventType, data *eventData) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	switch t {
+	case eventTypeRetry:
+		r.retry = append(r.retry, data)
+	case eventTypeSent:
+		r.sent = append(r.sent, data)
+	case eventTypeDropped:
+		r.dropped = append(r.dropped, data)
+	case eventTypeRejected:
+		r.rejected = append(r.rejected, data)
+	}
 }
