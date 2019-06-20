@@ -76,8 +76,6 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 	log.Infof("Starting async loop to collect External Metrics")
 	tick := time.NewTicker(time.Duration(p.maxAge) * time.Second)
 	defer tick.Stop()
-
-	// If we exceed 3 retries trying to access the ConfigMap, we permafail and stop trying to refresh the External Metrics.
 	ctxCancel, cancel := context.WithCancel(ctx)
 	defer cancel()
 
