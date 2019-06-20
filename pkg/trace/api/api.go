@@ -311,8 +311,6 @@ func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
 		err := normalizeTrace(ts, trace)
 		if err != nil {
 			atomic.AddInt64(&ts.SpansDropped, int64(spans))
-			// TODO: add periodic log, maybe once per metric flush, summary of trace normalization issues according to counts
-			log.Debugf("Dropping trace; reason: %s", err)
 			continue
 		}
 
