@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <sstream>
+#include <cstdlib>
 
 extern "C" DATADOG_AGENT_SIX_API Six *create(const char *pythonHome)
 {
@@ -80,15 +81,6 @@ bool Two::init()
     // for Python2 it has to be explicit.
     PyEval_InitThreads();
 
-    // init custom builtins
-    Py2_init_aggregator();
-    Py2_init_datadog_agent();
-    Py2_init_util();
-    Py2_init__util();
-    Py2_init_tagger();
-    Py2_init_kubeutil();
-    Py2_init_containers();
-
     // Set PYTHONPATH
     if (_pythonPaths.size()) {
         char pathchr[] = "path";
@@ -113,6 +105,18 @@ bool Two::init()
             }
         }
     }
+
+    // init custom builtins
+    if (init_stringutils() != EXIT_SUCCESS){
+        goto done;
+    }
+    Py2_init_aggregator();
+    Py2_init_datadog_agent();
+    Py2_init_util();
+    Py2_init__util();
+    Py2_init_tagger();
+    Py2_init_kubeutil();
+    Py2_init_containers();
 
     // import the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
@@ -168,6 +172,7 @@ done:
 
 bool Two::runSimpleString(const char *code) const
 {
+    PyErr_Clear();  // REMOVE
     return PyRun_SimpleString(code) == 0;
 }
 
@@ -883,9 +888,4 @@ done:
     GILRelease(state);
 
     return wheels;
-}
-
-bool Two::initStringUtils(void) const
-{
-    return bool(init_string_helpers());
 }

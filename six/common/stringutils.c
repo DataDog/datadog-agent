@@ -8,6 +8,7 @@
 
 #include "stringutils.h"
 
+
 PyObject * yload = NULL;
 PyObject * ydump = NULL;
 PyObject * loader = NULL;
@@ -55,7 +56,7 @@ char *as_string(PyObject *object)
     return retval;
 }
 
-int init_string_helpers(void) {
+int init_stringutils(void) {
     PyObject *yaml = NULL;
     int ret = EXIT_FAILURE;
 
@@ -110,6 +111,8 @@ done:
 }
 
 PyObject *from_yaml(const char *data) {
+    PyObject *args = NULL;
+    PyObject *kwargs = NULL;
     PyObject *retval = NULL;
 
     if (!data) {
@@ -119,11 +122,11 @@ PyObject *from_yaml(const char *data) {
         goto done;
     }
 
-    PyObject *args = PyTuple_New(0);
+    args = PyTuple_New(0);
     if (args == NULL) {
         goto done;
     }
-    PyObject *kwargs = Py_BuildValue("{s:s, s:O}", "stream", data, "Loader", loader);
+    kwargs = Py_BuildValue("{s:s, s:O}", "stream", data, "Loader", loader);
     if (kwargs == NULL) {
         goto done;
     }

@@ -52,7 +52,6 @@ public:
 
     // Python Helpers
     char *getIntegrationList();
-    bool initStringUtils(void) const;
 
     // aggregator API
     void setSubmitMetricCb(cb_submit_metric_t);

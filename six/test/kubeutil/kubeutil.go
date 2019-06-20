@@ -21,7 +21,6 @@ import (
 // extern void getConnectionInfo(char **);
 //
 // static void initKubeUtilTests(six_t *six) {
-//    init_stringutils(six);
 //    set_get_connection_info_cb(six, getConnectionInfo);
 // }
 import "C"
@@ -44,14 +43,14 @@ func setUp() error {
 		return err
 	}
 
-	C.initKubeUtilTests(six)
-
 	// Updates sys.path so testing Check can be found
 	C.add_python_path(six, C.CString("../python"))
 
 	if ok := C.init(six); ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(six)))
 	}
+
+	C.initKubeUtilTests(six)
 
 	return nil
 }
