@@ -137,6 +137,7 @@ func buildTCPEndpoints() (*Endpoints, error) {
 }
 
 func buildHTTPEndpoints() (*Endpoints, error) {
+	var useSSL bool
 	main := Endpoint{
 		APIKey: getLogsAPIKey(coreConfig.Datadog),
 	}
@@ -149,13 +150,23 @@ func buildHTTPEndpoints() (*Endpoints, error) {
 		}
 		main.Host = host
 		main.Port = port
-		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.logs_no_ssl")
+		useSSL = !coreConfig.Datadog.GetBool("logs_config.logs_no_ssl")
 	default:
 		main.Host = coreConfig.GetMainEndpoint(httpEndpointPrefix, "logs_config.dd_url")
-		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
+		useSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
+	}
+	main.UseSSL = useSSL
+
+	var additionals []Endpoint
+	err := coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &additionals)
+	if err != nil {
+		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
+	}
+	for i := 0; i < len(additionals); i++ {
+		additionals[i].UseSSL = useSSL
 	}
 
-	return NewEndpoints(main, nil, false, true), nil
+	return NewEndpoints(main, additionals, false, true), nil
 }
 
 func isSetAndNotEmpty(config coreConfig.Config, key string) bool {
