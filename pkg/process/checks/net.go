@@ -41,7 +41,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemIn
 		c.useLocalTracer = true
 
 		// Checking whether the current kernel version is supported by the tracer
-		if _, err = ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); err != nil {
+		if _, err = ebpf.IsTracerSupportedByOS(cfg.SkipLinuxVersionCheck, cfg.ExcludedBPFLinuxVersions); err != nil {
 			// err is always returned when false, so the above catches the !ok case as well
 			log.Warnf("system probe unsupported by OS: %s", err)
 			return

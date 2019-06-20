@@ -40,7 +40,7 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 	nt := &SystemProbe{}
 
 	// Checking whether the current OS + kernel version is supported by the tracer
-	if nt.supported, err = ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); err != nil {
+	if nt.supported, err = ebpf.IsTracerSupportedByOS(cfg.SkipLinuxVersionCheck, cfg.ExcludedBPFLinuxVersions); err != nil {
 		return nil, fmt.Errorf("%s: %s", ErrTracerUnsupported, err)
 	}
 

@@ -55,6 +55,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.ExcludedBPFLinuxVersions = config.Datadog.GetStringSlice(key(spNS, "excluded_linux_versions"))
 	}
 
+	if config.Datadog.IsSet(key(spNS, "skip_linux_version_check")) {
+		a.SkipLinuxVersionCheck = config.Datadog.GetBool(key(spNS, "skip_linux_version_check"))
+	}
+
 	// The full path to the location of the unix socket where connections will be accessed
 	if socketPath := config.Datadog.GetString(key(spNS, "sysprobe_socket")); socketPath != "" {
 		a.SystemProbeSocketPath = socketPath

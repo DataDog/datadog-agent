@@ -84,6 +84,7 @@ type AgentConfig struct {
 	MaxTrackedConnections        uint
 	SysProbeBPFDebug             bool
 	ExcludedBPFLinuxVersions     []string
+	SkipLinuxVersionCheck        bool
 	EnableConntrack              bool
 	ConntrackShortTermBufferSize int
 	SystemProbeDebugPort         int

@@ -446,6 +446,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.max_closed_connections_buffered")
 	config.SetKnown("system_probe_config.max_connection_state_buffered")
 	config.SetKnown("system_probe_config.excluded_linux_versions")
+	config.SetKnown("system_probe_config.skip_linux_version_check")
 
 	// APM
 	config.SetKnown("apm_config.enabled")

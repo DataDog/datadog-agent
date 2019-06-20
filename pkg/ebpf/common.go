@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -46,7 +47,12 @@ func linuxKernelVersionCode(major, minor, patch uint32) uint32 {
 }
 
 // IsTracerSupportedByOS returns whether or not the current kernel version supports tracer functionality
-func IsTracerSupportedByOS(exclusionList []string) (bool, error) {
+func IsTracerSupportedByOS(skipCheck bool, exclusionList []string) (bool, error) {
+	if skipCheck {
+		log.Info("Skipping check to see if the tracer is supported by the current OS")
+		return true, nil
+	}
+
 	currentKernelCode, err := CurrentKernelVersion()
 	if err != nil {
 		return false, fmt.Errorf("could not get kernel version: %s", err)
