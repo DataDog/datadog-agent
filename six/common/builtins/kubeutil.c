@@ -7,6 +7,7 @@
 #include "cgo_free.h"
 #include <stringutils.h>
 
+
 // these must be set by the Agent
 static cb_get_connection_info_t cb_get_connection_info = NULL;
 
@@ -42,11 +43,13 @@ void _set_get_connection_info_cb(cb_get_connection_info_t cb)
 
 PyObject *get_connection_info(PyObject *self, PyObject *args)
 {
-    // callback must be set
-    if (cb_get_connection_info == NULL)
-        Py_RETURN_NONE;
-
     char *data = NULL;
+
+    // callback must be set
+    if (cb_get_connection_info == NULL) {
+        Py_RETURN_NONE;
+    }
+
     cb_get_connection_info(&data);
 
     // create a new ref
@@ -56,11 +59,12 @@ PyObject *get_connection_info(PyObject *self, PyObject *args)
     cgo_free(data);
 
     if (conn_info_dict == NULL || !PyDict_Check(conn_info_dict)) {
-        // clear error set by `from_yaml`
+        // clear error set by `from_yaml` (if any)
         PyErr_Clear();
         // create a new ref and drop the other one
         Py_XDECREF(conn_info_dict);
         return PyDict_New();
     }
+
     return conn_info_dict;
 }
