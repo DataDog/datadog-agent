@@ -46,4 +46,12 @@ func TestExcludedKernelVersion(t *testing.T) {
 	ok, err = verifyOSVersion(linuxKernelVersionCode(5, 5, 2), "debian", exclusionList)
 	assert.True(t, ok)
 	assert.Nil(t, err)
+
+	ok, err = verifyOSVersion(linuxKernelVersionCode(3, 10, 0), "Linux-3.10.0-957.5.1.el7.x86_64-x86_64-with-centos-7.6.1810-Core", exclusionList)
+	assert.True(t, ok)
+	assert.Nil(t, err)
+
+	ok, err = verifyOSVersion(linuxKernelVersionCode(3, 9, 0), "Linux-3.9.0.x86_64-x86_64-with-centos-7.5", exclusionList)
+	assert.False(t, ok)
+	assert.Error(t, err)
 }
