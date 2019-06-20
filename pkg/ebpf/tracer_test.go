@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 	"unsafe"
@@ -44,8 +45,10 @@ func TestTracerExpvar(t *testing.T) {
 		"ClosedConnPollingLost":     0,
 		"ClosedConnPollingReceived": 0,
 		"ConnDropped":               0,
+		"ConnectionsStored":         0,
 		"ConntrackNoopConntracker":  0,
 		"ExpiredTcpConns":           0,
+		"ExpiredUdpConns":           0,
 		"OkConnsSkipped":            0,
 		"StatsResets":               0,
 		"UnorderedConns":            0,
@@ -624,6 +627,58 @@ func isLocalDNS(c ConnectionStats) bool {
 	return c.SourceAddr().String() == "127.0.0.1" && c.DestAddr().String() == "127.0.0.1" && c.DPort == 53
 }
 
+func TestTCPExpired(t *testing.T) {
+	config := NewDefaultConfig()
+	// Set a super small timeout for testing purposes
+	config.TCPConnTimeout = 50 * time.Millisecond
+
+	tr, err := NewTracer(config)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Register the client
+	getConnections(t, tr)
+
+	// Create TCP Server which sends back serverMessageSize bytes
+	server := NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		c.Write(genPayload(serverMessageSize))
+		time.Sleep(500 * time.Millisecond)
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	c, err := net.DialTimeout("tcp", server.address, 500*time.Millisecond)
+	require.NoError(t, err)
+	defer c.Close()
+	_, err = c.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
+
+	getConnections(t, tr)
+
+	expired := atomic.LoadInt64(&tr.expiredTCPConns)
+	assert.Zero(t, expired)
+
+	// Wait for 100ms (2 * the timeout)
+	time.Sleep(2 * config.TCPConnTimeout)
+	getConnections(t, tr)
+
+	expired = atomic.LoadInt64(&tr.expiredTCPConns)
+	assert.Zero(t, expired)
+
+	// Now simulate a failure on reading the procfs
+	os.Setenv("HOST_PROC", "/tmp/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	// The connection should get expired
+	getConnections(t, tr)
+	expired = atomic.LoadInt64(&tr.expiredTCPConns)
+	assert.True(t, expired > 0)
+
+	doneChan <- struct{}{}
+}
+
 func TestTooSmallBPFMap(t *testing.T) {
 	// Enable BPF-based system probe with BPF maps size = 1
 	config := NewDefaultConfig()
@@ -992,9 +1047,11 @@ func addrPort(addr string) int {
 	return p
 }
 
+const testClient = "1"
+
 func getConnections(t *testing.T, tr *Tracer) *Connections {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetActiveConnections("1")
+	connections, err := tr.GetActiveConnections(testClient)
 	if err != nil {
 		t.Fatal(err)
 	}
