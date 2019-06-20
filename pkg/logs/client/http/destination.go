@@ -5,10 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/net/proxy"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -38,15 +41,18 @@ type Destination struct {
 }
 
 // NewDestination returns a new Destination.
-// TODO: add support for SOCKS5
 func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext) *Destination {
+	// reusing core agent HTTP transport to benefit from proxy settings.
+	transport := util.CreateHTTPTransport()
+	if endpoint.ProxyAddress != "" {
+		transport.Dial = GetSOCKS5DialFunc(endpoint.ProxyAddress)
+	}
 	return &Destination{
 		url:         buildURL(endpoint),
 		contentType: contentType,
 		client: &http.Client{
-			Timeout: time.Second * 10,
-			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: util.CreateHTTPTransport(),
+			Timeout:   time.Second * 10,
+			Transport: transport,
 		},
 		destinationsContext: destinationsContext,
 	}
@@ -135,4 +141,16 @@ func buildURL(endpoint config.Endpoint) string {
 		address = endpoint.Host
 	}
 	return fmt.Sprintf("%v://%v/v1/input/%v", scheme, address, endpoint.APIKey)
+}
+
+// GetSOCKS5DialFunc returns a function used to establish
+// a connection to a backend through a SOCKS5 proxy.
+func GetSOCKS5DialFunc(address string) func(string, string) (net.Conn, error) {
+	dialer, err := proxy.SOCKS5("tcp", address, nil, proxy.Direct)
+	if err != nil {
+		return func(string, string) (net.Conn, error) {
+			return nil, err
+		}
+	}
+	return dialer.Dial
 }
