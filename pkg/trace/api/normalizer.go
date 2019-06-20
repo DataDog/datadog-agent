@@ -33,7 +33,26 @@ var (
 )
 
 // normalize makes sure a Span is properly initialized and encloses the minimum required info
-func normalize(ts *info.TagStats, s *pb.Span) error {
+func normalize(ts *info.TagStats, s *pb.Span, firstSpan *pb.Span) error {
+	if s.TraceID == 0 {
+		atomic.AddInt64(&ts.TracesDroppedTraceIdZero, 1)
+		log.Debugf("dropping invalid-trace (reason:trace_id_zero): %s", s)
+		return errors.New("trace_id_zero")
+	}
+	if s.SpanID == 0 {
+		atomic.AddInt64(&ts.TracesDroppedSpanIdZero, 1)
+		log.Debugf("dropping invalid-trace (reason:span_id_zero): %s", s)
+		return errors.New("span_id_zero")
+	}
+	if s.TraceID != firstSpan.TraceID {
+		atomic.AddInt64(&ts.TracesDroppedForeignSpan, 1)
+		log.Debugf("dropping invalid-trace (reason:foreign_span): %s", s)
+		//TODO: more detailed formatting? ("foreign_span - (Name:TraceID) %s:%x != %s:%x", firstSpan.Name, firstSpan.TraceID, s.Name, s.TraceID)
+		errors.New("foreign_span")
+
+	}
+
+
 	fallbackServiceName := DefaultServiceName
 	if ts.Lang != "" {
 		fallbackServiceName = ts.Lang
@@ -166,22 +185,10 @@ func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	}
 
 	spanIDs := make(map[uint64]struct{})
-	traceID := t[0].TraceID
+	firstSpan := t[0]
 
 	for _, span := range t {
-		if span.TraceID == 0 {
-			atomic.AddInt64(&ts.TracesDroppedTraceIdZero, 1)
-			return errors.New("trace_id_zero")
-		}
-		if span.SpanID == 0 {
-			atomic.AddInt64(&ts.TracesDroppedSpanIdZero, 1)
-			return errors.New("span_id_zero")
-		}
-		if span.TraceID != traceID {
-			atomic.AddInt64(&ts.TracesDroppedForeignSpan, 1)
-			return fmt.Errorf("foreign_span - (Name:TraceID) %s:%x != %s:%x", t[0].Name, t[0].TraceID, span.Name, span.TraceID)
-		}
-		if err := normalize(ts, span); err != nil {
+		if err := normalize(ts, span, firstSpan); err != nil {
 			return fmt.Errorf("invalid span (SpanID:%d): %v", span.SpanID, err)
 		}
 		if _, ok := spanIDs[span.SpanID]; ok {
