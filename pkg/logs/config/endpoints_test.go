@@ -221,6 +221,40 @@ func (suite *EndpointsTestSuite) TestOverrideApiKey() {
 	suite.Equal("wassuplogskey", endpoints.Main.APIKey)
 }
 
+func (suite *EndpointsTestSuite) TestAdditionalEndpoints() {
+	var (
+		endpoints *Endpoints
+		endpoint  Endpoint
+		err       error
+	)
+
+	suite.config.Set("logs_config.additional_endpoints", []map[string]interface{}{
+		{
+			"host":    "foo",
+			"api_key": "1234",
+		},
+	})
+
+	endpoints, err = BuildEndpoints()
+	suite.Nil(err)
+	suite.Len(endpoints.Additionals, 1)
+
+	endpoint = endpoints.Additionals[0]
+	suite.Equal("foo", endpoint.Host)
+	suite.Equal("1234", endpoint.APIKey)
+	suite.True(endpoint.UseSSL)
+
+	suite.config.Set("logs_config.use_http", true)
+	endpoints, err = BuildEndpoints()
+	suite.Nil(err)
+	suite.Len(endpoints.Additionals, 1)
+
+	endpoint = endpoints.Additionals[0]
+	suite.Equal("foo", endpoint.Host)
+	suite.Equal("1234", endpoint.APIKey)
+	suite.True(endpoint.UseSSL)
+}
+
 func TestEndpointsTestSuite(t *testing.T) {
 	suite.Run(t, new(EndpointsTestSuite))
 }

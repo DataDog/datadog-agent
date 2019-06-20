@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -27,6 +28,8 @@ type Destination struct {
 	url                 string
 	client              *http.Client
 	destinationsContext *client.DestinationsContext
+	once                sync.Once
+	payloadChan         chan []byte
 }
 
 // NewDestination returns a new Destination.
@@ -86,9 +89,29 @@ func (d *Destination) Send(payload []byte) error {
 	}
 }
 
-// SendAsync is not implemented for HTTP.
+// SendAsync sends a payload in background.
 func (d *Destination) SendAsync(payload []byte) {
-	return
+	d.once.Do(func() {
+		payloadChan := make(chan []byte, 100)
+		d.sendInBackground(payloadChan)
+		d.payloadChan = payloadChan
+	})
+	d.payloadChan <- payload
+}
+
+// sendInBackground sends all payloads from payloadChan in background.
+func (d *Destination) sendInBackground(payloadChan chan []byte) {
+	ctx := d.destinationsContext.Context()
+	go func() {
+		for {
+			select {
+			case payload := <-payloadChan:
+				d.Send(payload)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 }
 
 // builURL buils a url from a config endpoint.
