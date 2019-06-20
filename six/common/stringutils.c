@@ -50,8 +50,11 @@ char *as_string(PyObject *object)
 
 PyObject *from_yaml(const char *data) {
     PyObject *retval = NULL;
+    PyObject *args = NULL;
+    PyObject *kwargs = NULL;
+    PyObject *load = NULL;
+    PyObject *loader = NULL;
     PyObject *yaml = NULL;
-    PyObject *safe_load = NULL;
 
     if (!data) {
         goto done;
@@ -63,25 +66,49 @@ PyObject *from_yaml(const char *data) {
         goto done;
     }
 
-    char func_name[] = "safe_load";
-    safe_load = PyObject_GetAttrString(yaml, func_name);
-    if (safe_load == NULL) {
+    char func_name[] = "load";
+    load = PyObject_GetAttrString(yaml, func_name);
+    if (load == NULL) {
         goto done;
     }
 
-    retval = PyObject_CallFunction(safe_load, "s", data);
+    char c_loader_name[] = "CSafeLoader";
+    loader = PyObject_GetAttrString(yaml, c_loader_name);
+    if (loader == NULL) {
+        PyErr_Clear();
+        char loader_name[] = "SafeLoader";
+        loader = PyObject_GetAttrString(yaml, loader_name);
+        if (loader == NULL) {
+            goto done;
+        }
+    }
+
+    args = PyTuple_New(0);
+    if (args == NULL) {
+        goto done;
+    }
+    kwargs = Py_BuildValue("{s:s, s:O}", "stream", data, "Loader", loader);
+    if (kwargs == NULL) {
+        goto done;
+    }
+    retval = PyObject_Call(load, args, kwargs);
 
 done:
+    Py_XDECREF(kwargs);
+    Py_XDECREF(args);
+    Py_XDECREF(load);
     Py_XDECREF(yaml);
-    Py_XDECREF(safe_load);
     return retval;
 }
 
 char *as_yaml(PyObject *object) {
     char *retval = NULL;
-    PyObject *yaml = NULL;
-    PyObject *safe_dump = NULL;
+    PyObject *args = NULL;
+    PyObject *kwargs = NULL;
+    PyObject *dump = NULL;
+    PyObject *dumper = NULL;
     PyObject *dumped = NULL;
+    PyObject *yaml = NULL;
 
     char module_name[] = "yaml";
     yaml = PyImport_ImportModule(module_name);
@@ -89,21 +116,36 @@ char *as_yaml(PyObject *object) {
         goto done;
     }
 
-    char func_name[] = "safe_dump";
-    safe_dump = PyObject_GetAttrString(yaml, func_name);
-    if (safe_dump == NULL) {
+    char func_name[] = "dump";
+    dump = PyObject_GetAttrString(yaml, func_name);
+    if (dump == NULL) {
         goto done;
     }
 
-    dumped = PyObject_CallFunctionObjArgs(safe_dump, object, NULL);
+    char c_dumper_name[] = "CSafeDumper";
+    dumper = PyObject_GetAttrString(yaml, c_dumper_name);
+    if (dumper == NULL) {
+        PyErr_Clear();
+        char dumper_name[] = "SafeDumper";
+        dumper = PyObject_GetAttrString(yaml, dumper_name);
+        if (dumper == NULL) {
+            goto done;
+        }
+    }
+
+    args = PyTuple_New(0);
+    kwargs = Py_BuildValue("{s:O, s:O}", "data", object, "Dumper", dumper);
+    dumped = PyObject_Call(dump, args, kwargs);
     if (dumped == NULL) {
         goto done;
     }
     retval = as_string(dumped);
 
 done:
-    Py_XDECREF(yaml);
-    Py_XDECREF(safe_dump);
+    Py_XDECREF(kwargs);
+    Py_XDECREF(args);
     Py_XDECREF(dumped);
+    Py_XDECREF(dump);
+    Py_XDECREF(yaml);
     return retval;
 }
