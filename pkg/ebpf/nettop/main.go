@@ -17,7 +17,7 @@ func main() {
 	}
 	fmt.Printf("-- Kernel: %d (%d.%d)--\n", kernelVersion, (kernelVersion>>16)&0xff, (kernelVersion>>8)&0xff)
 
-	if ok, err := ebpf.IsTracerSupportedByOS(nil); err != nil {
+	if ok, err := ebpf.IsTracerSupportedByOS(true, nil); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	} else if !ok {
