@@ -690,9 +690,19 @@ api_key:
 ## When running in a memory cgroup, openjdk 8u131 and higher can automatically adjust
 ## its heap memory usage in accordance to the cgroup/container's memory limit.
 ## The Agent set a Xmx of 200MB if none is configured.
-## Note: older openjdk versions and other jvms might fail to start if this option is set
+## Note: older openjdk versions and openjdk 10 and higher as well as other
+## JVMs might fail to start if this option is set.
 #
 # jmx_use_cgroup_memory_limit: false
+
+## @param jmx_use_container_support - boolean - optional - default: false
+## When running in a container, openjdk 10 and higher can automatically detect
+## container specific configuration instead of querying the operating system
+## to adjust resources allotted to the JVM.
+## Note: openjdk versions prior to 10 and other JVMs might fail to start if
+## this option is set.
+#
+# jmx_use_container_support: false
 
 ## @param jmx_max_restarts - integer - optional - default: 3
 ## Number of JMX restarts allowed in the restart-interval before giving up.
