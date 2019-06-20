@@ -172,7 +172,6 @@ done:
 
 bool Two::runSimpleString(const char *code) const
 {
-    PyErr_Clear();  // REMOVE
     return PyRun_SimpleString(code) == 0;
 }
 
