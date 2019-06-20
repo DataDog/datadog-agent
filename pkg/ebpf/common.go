@@ -18,6 +18,10 @@ var (
 	//                               4.4 - perf events)
 	// 	                      -> 4.4
 	minRequiredKernelCode = linuxKernelVersionCode(4, 4, 0)
+
+	// eBPF got backported to centOS
+	// see: https://www.redhat.com/en/blog/introduction-ebpf-red-hat-enterprise-linux-7
+	centOSMinRequiredKernelCode = linuxKernelVersionCode(3, 10, 0)
 )
 
 var (
@@ -68,6 +72,22 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 		}
 	}
 
+	// Hardcoded exclusion list
+	if platform == "" {
+		// If we can't retrieve the platform just return true to avoid blocking the tracer from running
+		return true, nil
+	}
+
+	if isCentOS(platform) && kernelCode >= centOSMinRequiredKernelCode {
+		return true, nil
+	}
+
+	if isUbuntu(platform) {
+		if kernelCode >= linuxKernelVersionCode(4, 4, 119) && kernelCode <= linuxKernelVersionCode(4, 4, 126) {
+			return false, fmt.Errorf("got ubuntu kernel %s with known bug on platform: %s, see: https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCodeToString(kernelCode), platform)
+		}
+	}
+
 	if kernelCode < minRequiredKernelCode {
 		return false, fmt.Errorf(
 			"incompatible linux version. at least %s (%d) required, got %s (%d)",
@@ -76,18 +96,6 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 			kernelCodeToString(kernelCode),
 			kernelCode,
 		)
-	}
-
-	// Hardcoded exclusion list
-	if platform == "" {
-		// If we can't retrieve the platform just return true to avoid blocking the tracer from running
-		return true, nil
-	}
-
-	if isUbuntu(platform) {
-		if kernelCode >= linuxKernelVersionCode(4, 4, 119) && kernelCode <= linuxKernelVersionCode(4, 4, 126) {
-			return false, fmt.Errorf("got ubuntu kernel %s with known bug on platform: %s, see: https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCodeToString(kernelCode), platform)
-		}
 	}
 
 	return true, nil
@@ -104,6 +112,10 @@ func init() {
 	} else {
 		nativeEndian = binary.BigEndian
 	}
+}
+
+func isCentOS(platform string) bool {
+	return strings.Contains(platform, "centos")
 }
 
 func isUbuntu(platform string) bool {
