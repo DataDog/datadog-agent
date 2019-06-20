@@ -103,7 +103,7 @@ bool Three::init()
         }
     }
 
-    if (init_stringutils() != EXIT_SUCCESS){
+    if (init_stringutils() != EXIT_SUCCESS) {
         goto done;
     }
 

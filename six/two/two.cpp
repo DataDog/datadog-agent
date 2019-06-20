@@ -19,8 +19,8 @@
 #include <util.h>
 
 #include <algorithm>
-#include <sstream>
 #include <cstdlib>
+#include <sstream>
 
 extern "C" DATADOG_AGENT_SIX_API Six *create(const char *pythonHome)
 {
@@ -107,7 +107,7 @@ bool Two::init()
     }
 
     // init custom builtins
-    if (init_stringutils() != EXIT_SUCCESS){
+    if (init_stringutils() != EXIT_SUCCESS) {
         goto done;
     }
     Py2_init_aggregator();
