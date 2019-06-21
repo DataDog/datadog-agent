@@ -73,14 +73,15 @@ ruby_block 'datadog-api-key-unset' do
     retry_delay 5
   end
   
+  # TODO: Add this when we update our datadog Berksfile dependency to 2.20 or 3.0
   # only load system-probe recipe if an agent6 installation comes with it
-  ruby_block 'include system-probe' do
-    block do
-      if ::File.exist?('/opt/datadog-agent/embedded/bin/system-probe') && !is_windows
-        run_context.include_recipe 'datadog::system-probe'
-      end
-    end
-  end
+  # ruby_block 'include system-probe' do
+  #   block do
+  #     if ::File.exist?('/opt/datadog-agent/embedded/bin/system-probe') && !is_windows
+  #       run_context.include_recipe 'datadog::system-probe'
+  #     end
+  #   end
+  # end
   
   # Install integration packages
   include_recipe 'datadog::integrations' unless is_windows
