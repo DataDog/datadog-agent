@@ -363,6 +363,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
+	config.SetKnown("logs_config.additional_endpoints")
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
@@ -428,6 +429,9 @@ func initConfig(config Config) {
 	config.SetKnown("process_config.additional_endpoints.*")
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
+	config.SetKnown("process_config.expvar_port")
+	config.SetKnown("process_config.bind_host")
+
 	// System probe
 	config.SetKnown("system_probe_config.enabled")
 	config.SetKnown("system_probe_config.log_file")
@@ -499,6 +503,10 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.stats_writer.queue.exp_backoff_growth_base")
 	config.SetKnown("apm_config.analyzed_rate_by_service.*")
 	config.SetKnown("apm_config.analyzed_spans.*")
+	config.SetKnown("apm_config.log_throttling")
+	config.SetKnown("apm_config.bucket_size_seconds")
+	config.SetKnown("apm_config.receiver_timeout")
+	config.SetKnown("apm_config.watchdog_check_delay")
 
 	setAssetFs(config)
 }
