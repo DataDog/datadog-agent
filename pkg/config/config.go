@@ -187,7 +187,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
 	// Serializer
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
-	// Warning: do not change the two following values. Your metrics will get dropped by the intake.
+	// Warning: do not change the two following values. Your metrics will get dropped by Datadog's intake.
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
 	config.BindEnvAndSetDefault("serializer_max_uncompressed_payload_size", 4*megaByte)
 	config.BindEnvAndSetDefault("use_v2_api.series", false)
