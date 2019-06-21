@@ -240,7 +240,7 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 		r, _ = builder.Build(testSeries)
 	}
 	// ensure we actually had to split
-	if len(r) != 2 {
+	if len(r) != 13 {
 		panic(fmt.Sprintf("expecting two payloads, got %d", len(r)))
 	}
 	// test the compressed size
