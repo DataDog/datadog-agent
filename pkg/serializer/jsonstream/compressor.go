@@ -14,7 +14,6 @@ import (
 	"expvar"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
@@ -46,9 +45,7 @@ func init() {
 
 // the backend accepts payloads up to 3MB/50MB, but being conservative is okay
 var (
-	maxPayloadSize      = config.Datadog.GetInt("serializer_max_payload_size")
-	maxUncompressedSize = config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
-	maxRepacks          = 40 // CPU time vs tighter payload tradeoff
+	maxRepacks = 40 // CPU time vs tighter payload tradeoff
 )
 
 var (
@@ -70,15 +67,21 @@ type compressor struct {
 	repacks             int    // numbers of time we had to pack this payload
 	maxUnzippedItemSize int
 	maxZippedItemSize   int
+	maxPayloadSize      int
+	maxUncompressedSize int
 }
 
 func newCompressor(input, output *bytes.Buffer, header, footer []byte) (*compressor, error) {
+	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
+	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
 	c := &compressor{
 		header:              header,
 		footer:              footer,
 		input:               input,
 		compressed:          output,
 		firstItem:           true,
+		maxPayloadSize:      maxPayloadSize,
+		maxUncompressedSize: maxUncompressedSize,
 		maxUnzippedItemSize: maxPayloadSize - len(footer) - len(header),
 		maxZippedItemSize:   maxUncompressedSize - compression.CompressBound(len(footer)+len(header)),
 	}
