@@ -117,13 +117,13 @@ func newTagStats(tags Tags) *TagStats {
 	return &TagStats{tags, Stats{}}
 }
 
-type reasonCount struct {
-	reason string
-	count int64
+type NormalizationIssue struct {
+	Reason string
+	Count int64
 }
 
-func (ts *TagStats) droppedTraceReasonCounts() []reasonCount {
-	return []reasonCount{
+func (ts *TagStats) DroppedTraceNormalizationIssues() []NormalizationIssue {
+	return []NormalizationIssue{
 		{"decoding_error", atomic.LoadInt64(&ts.TracesDroppedDecodingError)},
 		{"empty_trace", atomic.LoadInt64(&ts.TracesDroppedEmptyTrace)},
 		{"trace_id_zero", atomic.LoadInt64(&ts.TracesDroppedTraceIdZero)},
@@ -132,8 +132,8 @@ func (ts *TagStats) droppedTraceReasonCounts() []reasonCount {
 	}
 }
 
-func (ts *TagStats) malformedTraceReasonCounts() []reasonCount {
-	return []reasonCount{
+func (ts *TagStats) MalformedTraceNormalizationIssues() []NormalizationIssue {
+	return []NormalizationIssue{
 		{"duplicate_span_id", atomic.LoadInt64(&ts.TracesMalformedDuplicateSpanId)},
 		{"service_empty", atomic.LoadInt64(&ts.TracesMalformedServiceEmpty)},
 		{"service_truncate", atomic.LoadInt64(&ts.TracesMalformedServiceTruncate)},
@@ -192,18 +192,18 @@ func (ts *TagStats) publish() {
 
 
 	var droppedReasons []string
-	for _, c := range ts.droppedTraceReasonCounts() {
-		if c.count > 0 {
-			metrics.Count("datadog.trace_agent.normalizer.traces_dropped", c.count, append(tags, "reason:" + c.reason), 1)
-			droppedReasons = append(droppedReasons, c.reason + ":" + strconv.FormatInt(c.count, 10))
+	for _, c := range ts.DroppedTraceNormalizationIssues() {
+		if c.Count > 0 {
+			metrics.Count("datadog.trace_agent.normalizer.traces_dropped", c.Count, append(tags, "reason:" + c.Reason), 1)
+			droppedReasons = append(droppedReasons, c.Reason + ":" + strconv.FormatInt(c.Count, 10))
 		}
 	}
 
 	var malformedReasons []string
-	for _, c := range ts.malformedTraceReasonCounts() {
-		if c.count > 0 {
-			metrics.Count("datadog.trace_agent.normalizer.traces_malformed", c.count, append(tags, "reason:" + c.reason), 1)
-			malformedReasons = append(malformedReasons, c.reason + ":" + strconv.FormatInt(c.count, 10))
+	for _, c := range ts.MalformedTraceNormalizationIssues() {
+		if c.Count > 0 {
+			metrics.Count("datadog.trace_agent.normalizer.traces_malformed", c.Count, append(tags, "reason:" + c.Reason), 1)
+			malformedReasons = append(malformedReasons, c.Reason + ":" + strconv.FormatInt(c.Count, 10))
 		}
 	}
 
@@ -216,7 +216,7 @@ func (ts *TagStats) publish() {
 	}
 
 	if len(normalizerMessages) > 0 {
-		log.Warn("trace normalization problems detected: %s", strings.Join(normalizerMessages, " "))
+		log.Warn("received invalid traces (enable debug logging for more details): %s", strings.Join(normalizerMessages, " "))
 	}
 }
 
@@ -342,7 +342,7 @@ func (s *Stats) String() string {
 	// TODO: just marshal this whole thing to JSON
 	// Atomically load the stats
 	tracesReceived := atomic.LoadInt64(&s.TracesReceived)
-	tracesDropped := atomic.LoadInt64(&s.TracesDropped)
+	//tracesDropped := atomic.LoadInt64(&s.TracesDropped)
 	tracesFiltered := atomic.LoadInt64(&s.TracesFiltered)
 	// Omitting priority information, use expvar or metrics for debugging purpose
 	tracesBytes := atomic.LoadInt64(&s.TracesBytes)
@@ -354,7 +354,7 @@ func (s *Stats) String() string {
 	return fmt.Sprintf("traces received: %d, traces dropped: %d, traces filtered: %d, "+
 		"traces amount: %d bytes, services received: %d, services amount: %d bytes, "+
 		"events extracted: %d, events sampled: %d",
-		tracesReceived, tracesDropped, tracesFiltered,
+		tracesReceived, tracesFiltered,
 		tracesBytes, servicesReceived, servicesBytes,
 		eventsExtracted, eventsSampled)
 }

@@ -138,6 +138,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
+
+    print(cmd.format(**args))
     ctx.run(cmd.format(**args), env=env)
 
     # Render the configuration file template

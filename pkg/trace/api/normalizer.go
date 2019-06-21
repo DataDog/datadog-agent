@@ -24,7 +24,8 @@ const (
 	// MaxTypeLen the maximum length a span type can have
 	MaxTypeLen = 100
 	// TODO: should it be service as mentioned in the RFC or something more obvious to indicate a problem?
-	DefaultServiceName = "_no-name"
+	DefaultServiceName = "_service"
+	DefaultSpanName = "_span"
 )
 
 var (
@@ -48,9 +49,8 @@ func normalize(ts *info.TagStats, s *pb.Span, firstSpan *pb.Span) error {
 		atomic.AddInt64(&ts.TracesDroppedForeignSpan, 1)
 		//TODO: more detailed formatting? ("foreign_span - (Name:TraceID) %s:%x != %s:%x", firstSpan.Name, firstSpan.TraceID, s.Name, s.TraceID)
 		log.Debugf("dropping invalid trace (reason:foreign_span): %s", s)
-		errors.New("foreign_span")
+		return errors.New("foreign_span")
 	}
-
 
 	fallbackServiceName := DefaultServiceName
 	if ts.Lang != "" {
@@ -79,11 +79,10 @@ func normalize(ts *info.TagStats, s *pb.Span, firstSpan *pb.Span) error {
 
 	// Name
 	// TODO: is this what we want? Could be confusing?
-	fallbackSpanName := "service.trace"
 	if s.Name == "" {
 		atomic.AddInt64(&ts.TracesMalformedSpanNameEmpty, 1)
-		log.Debugf("fixing malformed trace (reason:span_name_empty), setting span.name=%s: %s", fallbackSpanName, s)
-		s.Name = fallbackSpanName
+		log.Debugf("fixing malformed trace (reason:span_name_empty), setting span.name=%s: %s", DefaultSpanName, s)
+		s.Name = DefaultSpanName
 	}
 	if len(s.Name) > MaxNameLen {
 		atomic.AddInt64(&ts.TracesMalformedSpanNameTruncate, 1)
@@ -94,8 +93,8 @@ func normalize(ts *info.TagStats, s *pb.Span, firstSpan *pb.Span) error {
 	name, ok := normMetricNameParse(s.Name)
 	if !ok {
 		atomic.AddInt64(&ts.TracesMalformedSpanNameInvalid, 1)
-		log.Debugf("fixing malformed trace (reason:span_name_invalid), setting span.name=%s: %s", fallbackSpanName, s)
-		name = fallbackSpanName
+		log.Debugf("fixing malformed trace (reason:span_name_invalid), setting span.name=%s: %s", DefaultSpanName, s)
+		name = DefaultSpanName
 	}
 	s.Name = name
 
