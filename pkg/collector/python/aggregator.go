@@ -103,12 +103,7 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 		AlertType:      metrics.EventAlertType(eventParseString(event.alert_type, "alert_type")),
 		AggregationKey: eventParseString(event.aggregation_key, "aggregation_key"),
 		SourceTypeName: eventParseString(event.source_type_name, "source_type_name"),
-	}
-
-	if event.ts == 0 {
-		log.Errorf("Can't cast timestamp to integer in event submitted from python check")
-	} else {
-		_event.Ts = int64(event.ts)
+		Ts:             int64(event.ts),
 	}
 
 	sender.Event(_event)

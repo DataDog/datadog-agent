@@ -12,6 +12,7 @@ extern "C" {
 
 #include <Python.h>
 
+int init_stringutils(void);
 char *as_string(PyObject *);
 PyObject *from_yaml(const char *);
 char *as_yaml(PyObject *);

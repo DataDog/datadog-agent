@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const unreadinessTimeout = 30 * time.Second
+
 // PodWatcher regularly pools the kubelet for new/changed/removed containers.
 // It keeps an internal state to only send the updated pods.
 type PodWatcher struct {
@@ -24,6 +26,7 @@ type PodWatcher struct {
 	kubeUtil       *KubeUtil
 	expiryDuration time.Duration
 	lastSeen       map[string]time.Time
+	lastSeenReady  map[string]time.Time
 	tagsDigest     map[string]string
 }
 
@@ -37,6 +40,7 @@ func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 	watcher := &PodWatcher{
 		kubeUtil:       kubeutil,
 		lastSeen:       make(map[string]time.Time),
+		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		expiryDuration: expiryDuration,
 	}
@@ -80,18 +84,31 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 		// Refresh last pod seen time
 		w.lastSeen[podEntity] = now
 
-		// Detect new containers
-		newContainer := false
+		// Detect updated containers
+		updatedContainer := false
+		isPodReady := IsPodReady(pod)
+
 		for _, container := range pod.Status.GetAllContainers() {
 			// We don't check container readiness as init containers are never ready
 			// We check if the container has an ID instead (has run or is running)
 			if !container.IsPending() {
-				// We store readiness in the cache key to resubmit the container on pod phase change
-				containerCacheKey := container.ID + "-ready:" + strconv.FormatBool(IsPodReady(pod))
-				if _, found := w.lastSeen[containerCacheKey]; !found {
-					newContainer = true
+				// new container are always sent ignoring the pod state
+				if _, found := w.lastSeen[container.ID]; !found {
+					updatedContainer = true
 				}
-				w.lastSeen[containerCacheKey] = now
+				w.lastSeen[container.ID] = now
+
+				// for existing ones we look at the readiness state
+				if _, found := w.lastSeenReady[container.ID]; !found && isPodReady {
+					// the pod has never been seen ready or was removed when
+					// reaching the unreadinessTimeout
+					updatedContainer = true
+				}
+
+				// update the readiness expiry cache
+				if isPodReady {
+					w.lastSeenReady[container.ID] = now
+				}
 			}
 		}
 
@@ -104,7 +121,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 			newLabelsOrAnnotations = true
 		}
 
-		if newStaticPod || newContainer || newLabelsOrAnnotations {
+		if newStaticPod || updatedContainer || newLabelsOrAnnotations {
 			updatedPods = append(updatedPods, pod)
 		}
 	}
@@ -124,16 +141,22 @@ func (w *PodWatcher) Expire() ([]string, error) {
 	var expiredContainers []string
 
 	for id, lastSeen := range w.lastSeen {
+		// pod was removed from the pod list, we can safely cleanup everything
 		if now.Sub(lastSeen) > w.expiryDuration {
+			delete(w.lastSeen, id)
+			delete(w.tagsDigest, id)
+			delete(w.lastSeenReady, id)
 			expiredContainers = append(expiredContainers, id)
 		}
 	}
-	if len(expiredContainers) > 0 {
-		for _, id := range expiredContainers {
-			delete(w.lastSeen, id)
-			delete(w.tagsDigest, id)
+	for id, lastSeenReady := range w.lastSeenReady {
+		// we keep pods gone unready for 30 seconds and then force removal
+		if now.Sub(lastSeenReady) > unreadinessTimeout {
+			delete(w.lastSeenReady, id)
+			expiredContainers = append(expiredContainers, id)
 		}
 	}
+
 	return expiredContainers, nil
 }
 

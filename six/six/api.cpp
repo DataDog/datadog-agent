@@ -188,11 +188,6 @@ int init(six_t *six)
     return AS_TYPE(Six, six)->init() ? 1 : 0;
 }
 
-int is_initialized(six_t *six)
-{
-    return AS_CTYPE(Six, six)->isInitialized();
-}
-
 py_info_t *get_py_info(six_t *six)
 {
     return AS_TYPE(Six, six)->getPyInfo();

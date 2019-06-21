@@ -1,0 +1,16 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    Breaking change - In the version 6.11.2 logic was added in the Agent to first look for K8s container files if `/var/log/pods` was not available and then to go for the Docker socket.
+    This created some permission issues as `/var/log/pods` can be a symlink in some configuration and the Agent also needed access to the symlink directory.
+
+    This logic is reverted to its prior behaviour which prioritise the Docker socket for container log collection.
+    It is still possible to force the agent to go for the K8s log files even if the Docker socket is mounted by using the `logs_config.k8s_container_use_file' or `DD_LOGS_CONFIG_K8S_CONTAINER_USE_FILE`. parameter.
+    This is recommended when more than 10 containers are running on the same pod.
