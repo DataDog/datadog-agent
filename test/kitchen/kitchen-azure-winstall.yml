@@ -72,12 +72,12 @@ platforms:
     )
 
     sizes = [
-      "Standard_D1",
-      "Standard_A1",
+      "Standard_D1_v2",
+      "Standard_A1_v2",
     ]
 
     windows_sizes = [
-      "Standard_D1"
+      "Standard_D1_v2"
     ]
 
     location = "North Central US"
