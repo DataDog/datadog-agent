@@ -107,7 +107,7 @@ func (c *compressor) hasRoomForItem(item []byte) bool {
 	if !c.firstItem {
 		uncompressedDataSize += len(jsonSeparator)
 	}
-	return compression.CompressBound(uncompressedDataSize) <= c.remainingSpace() && c.uncompressedWritten+uncompressedDataSize <= maxUncompressedSize
+	return compression.CompressBound(uncompressedDataSize) <= c.remainingSpace() && c.uncompressedWritten+uncompressedDataSize <= c.maxUncompressedSize
 }
 
 // pack flushes the temporary uncompressed buffer input to the compression writer
@@ -191,5 +191,5 @@ func (c *compressor) close() ([]byte, error) {
 }
 
 func (c *compressor) remainingSpace() int {
-	return maxPayloadSize - c.compressed.Len() - len(c.footer)
+	return c.maxPayloadSize - c.compressed.Len() - len(c.footer)
 }
