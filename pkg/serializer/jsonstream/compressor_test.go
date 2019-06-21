@@ -18,13 +18,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 var (
-	maxPayloadSizeDefault = maxPayloadSize
+	maxPayloadSizeDefault = config.Datadog.GetInt("serializer_max_payload_size")
 )
 
 type dummyMarshaller struct {
@@ -34,7 +35,7 @@ type dummyMarshaller struct {
 }
 
 func resetDefaults() {
-	maxPayloadSize = maxPayloadSizeDefault
+	config.Datadog.SetDefault("serializer_max_payload_size", maxPayloadSizeDefault)
 }
 
 func (d *dummyMarshaller) JSONHeader() []byte {
@@ -131,7 +132,7 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 		header: "{[",
 		footer: "]}",
 	}
-	maxPayloadSize = 22
+	config.Datadog.SetDefault("serializer_max_payload_size", 22)
 	defer resetDefaults()
 
 	builder := NewPayloadBuilder()
@@ -148,7 +149,7 @@ func TestTwoPayload(t *testing.T) {
 		header: "{[",
 		footer: "]}",
 	}
-	maxPayloadSize = 22
+	config.Datadog.SetDefault("serializer_max_payload_size", 22)
 	defer resetDefaults()
 
 	builder := NewPayloadBuilder()
