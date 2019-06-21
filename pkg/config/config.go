@@ -430,7 +430,6 @@ func initConfig(config Config) {
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
-	config.SetKnown("process_config.bind_host")
 
 	// System probe
 	config.SetKnown("system_probe_config.enabled")
