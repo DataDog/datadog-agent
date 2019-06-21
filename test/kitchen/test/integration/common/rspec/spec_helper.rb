@@ -34,50 +34,67 @@ def agent_command
   end
 end
 
+def wait_until_stopped
+  for _ in 1..15 do
+    break if !is_running?
+    sleep 1
+  end
+end
+
+def wait_until_started
+  for _ in 1..15 do
+    break if is_running?
+    sleep 1
+  end
+end
+
 def stop
   if os == :windows
     # forces the trace agent (and other dependent services) to stop
-    system 'net stop /y datadogagent 2>&1'
-    sleep 15
+    result = system 'net stop /y datadogagent 2>&1'
   else
     if has_systemctl
-      system 'sudo systemctl stop datadog-agent.service && sleep 10'
+      result = system 'sudo systemctl stop datadog-agent.service'
     else
-      system 'sudo initctl stop datadog-agent && sleep 10'
+      result = system 'sudo initctl stop datadog-agent'
     end
   end
+  wait_until_stopped
+  result
 end
 
 def start
   if os == :windows
-    system 'net start datadogagent 2>&1'
-    sleep 15
+    result = system 'net start datadogagent 2>&1'
   else
     if has_systemctl
-      system 'sudo systemctl start datadog-agent.service && sleep 10'
+      result = system 'sudo systemctl start datadog-agent.service'
     else
-      system 'sudo initctl start datadog-agent && sleep 10'
+      result = system 'sudo initctl start datadog-agent'
     end
   end
+  wait_until_started
+  result
 end
 
 def restart
   if os == :windows
     # forces the trace agent (and other dependent services) to stop
     if is_running?
-      system 'net stop /y datadogagent 2>&1'
-      sleep 15
+      result = system 'net stop /y datadogagent 2>&1'
+      wait_until_stopped
     end
-    system 'net start datadogagent 2>&1'
-    sleep 15
+    result = system 'net start datadogagent 2>&1'
+    wait_until_started
   else
     if has_systemctl
-      system 'sudo systemctl restart datadog-agent.service && sleep 10'
+      result = system 'sudo systemctl restart datadog-agent.service && sleep 10'
     else
       # initctl can't restart
-      system '(sudo initctl restart datadog-agent || sudo initctl start datadog-agent) && sleep 10'
+      result = system '(sudo initctl restart datadog-agent || sudo initctl start datadog-agent) && sleep 10'
     end
   end
+  result
 end
 
 def has_systemctl
@@ -279,19 +296,18 @@ shared_examples_for "a running Agent with no errors" do
   end
 
   it 'has running checks' do
-    # On systems that use systemd (on which the `start` script returns immediately)
-    # sleep a few seconds to let the collector finish its first run
-    # This seems to happen on windows, too
-    if os != :windows
-      system('command -v systemctl 2>&1 > /dev/null && sleep 300')
-    else
-      sleep 30
+    result = false
+    for _ in 1..30 do
+      json_info_output = json_info
+      if json_info_output.key?('runnerStats') &&
+        json_info_output['runnerStats'].key?('Checks') &&
+        !json_info_output['runnerStats']['Checks'].empty?
+        result = true
+        break
+      end
+      sleep 1
     end
-
-    json_info_output = json_info
-    expect(json_info_output).to have_key("runnerStats")
-    expect(json_info_output['runnerStats']).to have_key("Checks")
-    expect(json_info_output['runnerStats']['Checks']).not_to be_empty
+    expect(result).to be_truthy
   end
 
   it 'has an info command' do
@@ -374,7 +390,6 @@ shared_examples_for 'an Agent that stops' do
   end
 
   it 'is not running any agent processes' do
-    sleep 5 # need to wait for the Agent to stop
     expect(agent_processes_running?).to be_falsey
   end
 
