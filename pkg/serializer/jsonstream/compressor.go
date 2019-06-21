@@ -82,8 +82,8 @@ func newCompressor(input, output *bytes.Buffer, header, footer []byte) (*compres
 		firstItem:           true,
 		maxPayloadSize:      maxPayloadSize,
 		maxUncompressedSize: maxUncompressedSize,
-		maxUnzippedItemSize: maxPayloadSize - len(footer) - len(header),
-		maxZippedItemSize:   maxUncompressedSize - compression.CompressBound(len(footer)+len(header)),
+		maxUnzippedItemSize: maxUncompressedSize - len(footer) - len(header),
+		maxZippedItemSize:   maxPayloadSize - compression.CompressBound(len(footer)+len(header)),
 	}
 
 	c.zipper = zlib.NewWriter(c.compressed)
