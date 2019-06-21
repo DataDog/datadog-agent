@@ -211,9 +211,8 @@ suites:
       agent6: true
       agent6_aptrepo: http://apt.datadoghq.com/
       agent6_aptrepo_dist: stable
-      yumrepo: http://yum.datadoghq.com/beta/x86_64/
-      agent6_yumrepo: http://yum.datadoghq.com/beta/x86_64/
-      agent6_yumrepo_suse: http://yum.datadoghq.com/suse/beta/x86_64/
+      agent6_yumrepo: http://yum.datadoghq.com/stable/6/x86_64/
+      agent6_yumrepo_suse: http://yum.datadoghq.com/suse/stable/6/x86_64/
       windows_agent_url: https://s3.amazonaws.com/ddagent-windows-stable/
     dd-agent-install:
       agent6: true
