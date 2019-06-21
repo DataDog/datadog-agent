@@ -143,6 +143,8 @@ platforms:
     username: <%= vm_username %>
     password: <%= vm_password %>
     <% else %>
+    connection_retries: 30
+    connection_retry_sleep: 2
     ssh_key: <%= ENV['AZURE_SSH_KEY_PATH'] %>
     <% end %>
 
