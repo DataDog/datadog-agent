@@ -1,0 +1,7 @@
+goos: darwin
+goarch: amd64
+pkg: github.com/DataDog/datadog-agent/pkg/serializer/jsonstream
+BenchmarkPayloadsSeries-4   	       1	1386024402 ns/op	219583408 B/op	 4800933 allocs/op
+PASS
+ok  	github.com/DataDog/datadog-agent/pkg/serializer/jsonstream	1.434s
+Success: Benchmarks passed.

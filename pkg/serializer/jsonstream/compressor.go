@@ -43,7 +43,6 @@ func init() {
 	expvars.Set("BytesOut", &expvarsBytesOut)
 }
 
-// the backend accepts payloads up to 3MB/50MB, but being conservative is okay
 var (
 	maxRepacks = 40 // CPU time vs tighter payload tradeoff
 )
@@ -72,6 +71,8 @@ type compressor struct {
 }
 
 func newCompressor(input, output *bytes.Buffer, header, footer []byte) (*compressor, error) {
+	// the backend accepts payloads up to 3MB compressed / 50MB uncompressed but
+	// prefers small uncompressed payloads of ~4MB
 	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
 	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
 	c := &compressor{
