@@ -65,7 +65,9 @@ func TestSender(t *testing.T) {
 
 		s := newSender(testSenderConfig(server.URL))
 		for i := 0; i < climit*2; i++ {
-			time.Sleep(time.Millisecond) // yield to loop
+			// we have to sleep for a bit to yield to the receiver, otherwise
+			// the channel will get immediately full.
+			time.Sleep(time.Millisecond)
 			s.Push(expectResponses(200))
 		}
 		s.Stop()
@@ -75,6 +77,28 @@ func TestSender(t *testing.T) {
 		assert.Equal(climit*2, server.Accepted(), "accepted")
 		assert.Equal(0, server.Retried(), "retry")
 		assert.Equal(0, server.Failed(), "failed")
+	})
+
+	t.Run("Push", func(t *testing.T) {
+		s := &sender{cfg: &senderConfig{}, queue: make(chan *payload, 4)}
+		p := func(n string) *payload {
+			return &payload{body: bytes.NewBufferString(n)}
+		}
+
+		s.Push(p("1"))
+		s.Push(p("2"))
+		s.Push(p("3"))
+		s.Push(p("4"))
+		s.Push(p("5"))
+		s.Push(p("6"))
+		s.Push(p("7"))
+		s.Push(p("8"))
+
+		assert.Equal(t, p("5"), <-s.queue)
+		assert.Equal(t, p("6"), <-s.queue)
+		assert.Equal(t, p("7"), <-s.queue)
+		assert.Equal(t, p("8"), <-s.queue)
+		assert.Empty(t, s.queue)
 	})
 
 	t.Run("failed", func(t *testing.T) {
