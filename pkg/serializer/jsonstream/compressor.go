@@ -13,6 +13,8 @@ import (
 	"errors"
 	"expvar"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
@@ -44,9 +46,8 @@ func init() {
 
 // the backend accepts payloads up to 3MB/50MB, but being conservative is okay
 var (
-	megaByte            = 1024 * 1024
-	maxPayloadSize      = 2*megaByte + megaByte/2 // `2.5*megaByte` won't work with strong typing
-	maxUncompressedSize = 45 * megaByte
+	maxPayloadSize      = config.Datadog.GetInt("serializer_max_payload_size")
+	maxUncompressedSize = config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
 	maxRepacks          = 40 // CPU time vs tighter payload tradeoff
 )
 
