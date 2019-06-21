@@ -262,12 +262,14 @@ suites:
       <% end %>
       # Get the latest release agents. The upgrade recipe will take care of
       # adding the staging repo and upgrading to the latest candidate
-      agent6: false
+      agent6: true
       aptrepo: http://apt.datadoghq.com/
       aptrepo_dist: stable
       yumrepo: http://yum.datadoghq.com/rpm/x86_64/
       yumrepo_suse: http://yum.datadoghq.com/suse/rpm/x86_64/
       windows_agent_url: https://s3.amazonaws.com/ddagent-windows-stable/
+    dd-agent-5:
+      api_key: <%= api_key %>
     dd-agent-upgrade:
       add_new_repo: true
       aptrepo: <%= aptrepo %>

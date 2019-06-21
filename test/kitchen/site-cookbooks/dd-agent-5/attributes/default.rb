@@ -33,6 +33,9 @@ default['dd-agent-5']['agent_start'] = true
 default['dd-agent-5']['enable_trace_agent'] = true
 default['dd-agent-5']['enable_process_agent'] = true
 
+default['dd-agent-5']['working_dir'] = '/tmp/install-script/'
+default['dd-agent-5']['install_script_url'] = 'https://raw.githubusercontent.com/DataDog/dd-agent/master/packaging/datadog-agent/source/install_agent.sh'
+
 default['datadog']['agent_start'] = true
 default['datadog']['agent_enable'] = true
 
