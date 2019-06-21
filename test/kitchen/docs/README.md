@@ -11,6 +11,8 @@ The gitlab pipelines which require kitchen testing have 3 independent steps for 
 Each individual test environment is controlled from _.gitlab\_ci.yml_.  The tests are set up using an environment variable, which is a list of test platforms which are turned into test kitchen platforms.  In _.gitlab\_ci.yml_, the platform list has the following syntax:
         `short_name1,azure_full_qualified_name1|short_name2,azure_full_qualified_name2`
 
+The azure qualified name for an image can be found by using `az vm image list`  to search for the image (using the publisher name, the offer name and/or the sku). The _urn_ field contains the azure qualified name.
+
 This configuration is fed to the script _tasks/run-test-kitchen.sh_. That script in turn sets up additional variables for Azure (authentication/environment variables), and then executes the actual kitchen command.  Using the ruby _erb_ syntax, a full matrix of platforms and tests is generated and executed.
 
 There are currently two input files.
