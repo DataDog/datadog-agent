@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	infov1 "k8s.io/client-go/informers/core/v1"
@@ -25,7 +26,6 @@ import (
 
 const (
 	kubeEndpointsAnnotationFormat = "ad.datadoghq.com/endpoints.instances"
-	kubeEndpointIDPrefix          = "kube_endpoint://"
 )
 
 // KubeEndpointsListener listens to kubernetes endpoints creation
@@ -168,39 +168,7 @@ func (l *KubeEndpointsListener) endpointsDiffer(first, second *v1.Endpoints) boo
 // subsetsDiffer detects if two Endpoints have different subsets.
 // The function is separated from endpointsDiffer to facilitate testing.
 func subsetsDiffer(first, second *v1.Endpoints) bool {
-	// Subsets length
-	if len(first.Subsets) != len(second.Subsets) {
-		return true
-	}
-	// Addresses and Ports
-	for i := range first.Subsets {
-		if len(first.Subsets[i].Addresses) != len(second.Subsets[i].Addresses) {
-			return true
-		}
-		if len(first.Subsets[i].Ports) != len(second.Subsets[i].Ports) {
-			return true
-		}
-		// Addresses
-		for j := range first.Subsets[i].Addresses {
-			if first.Subsets[i].Addresses[j].IP != second.Subsets[i].Addresses[j].IP {
-				return true
-			}
-			if first.Subsets[i].Addresses[j].Hostname != second.Subsets[i].Addresses[j].Hostname {
-				return true
-			}
-		}
-		// Ports
-		for j := range first.Subsets[i].Ports {
-			if first.Subsets[i].Ports[j].Port != second.Subsets[i].Ports[j].Port {
-				return true
-			}
-			if first.Subsets[i].Ports[j].Name != second.Subsets[i].Ports[j].Name {
-				return true
-			}
-		}
-	}
-	// No relevant change
-	return false
+	return !equality.Semantic.DeepEqual(first.Subsets, second.Subsets)
 }
 
 // isEndpointsAnnotated looks for the corresponding service of a kubernetes endpoints object
@@ -208,7 +176,7 @@ func subsetsDiffer(first, second *v1.Endpoints) bool {
 func (l *KubeEndpointsListener) isEndpointsAnnotated(kep *v1.Endpoints) bool {
 	ksvc, err := l.serviceLister.Services(kep.Namespace).Get(kep.Name)
 	if err != nil {
-		log.Debugf("Cannot get Kubernetes service: %s", err)
+		log.Tracef("Cannot get Kubernetes service: %s", err)
 	}
 	if ksvc != nil {
 		if _, found := ksvc.Annotations[kubeEndpointsAnnotationFormat]; found {
@@ -234,6 +202,7 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, firstRun bool) 
 	l.m.Unlock()
 
 	for _, ep := range eps {
+		log.Debugf("Creating a new AD service: %s", ep.entity)
 		l.newService <- ep
 	}
 }
@@ -283,6 +252,7 @@ func (l *KubeEndpointsListener) removeService(kep *v1.Endpoints) {
 		delete(l.endpoints, kep.UID)
 		l.m.Unlock()
 		for _, ep := range eps {
+			log.Debugf("Deleting AD service: %s", ep.entity)
 			l.delService <- ep
 		}
 	} else {

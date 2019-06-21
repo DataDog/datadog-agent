@@ -24,7 +24,6 @@ import (
 
 const (
 	kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
-	kubeEndpointIDPrefix         = "kube_endpoint://"
 	kubePodKind                  = "Pod"
 	KubePodPrefix                = "kubernetes_pod://"
 )
