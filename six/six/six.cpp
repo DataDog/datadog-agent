@@ -93,7 +93,7 @@ bool Six::handleCrashes(const bool coredump) const
         setError(ss.str());
     }
 
-    return bool(err);
+    return bool(err == 0);
 }
 
 #endif
