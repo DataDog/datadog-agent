@@ -40,6 +40,19 @@ static void *six_backend = NULL;
 
 #ifdef _WIN32
 
+/*! \fn create_t *loadAndCreate(const char *dll, const char *python_home, char **error)
+    \brief Loads the Python backend DLL from the provided PYTHONHOME, and returns its
+    creation routine.
+    \param dll A C-string containing the expected backend DLL name.
+    \param python_home A C-string containing the expected PYTHONhOME for said DLL.
+    \param error A C-stringi pointer output parameter to return error messages.
+    \return A create_t * function pointer that will allow us to create the relevant python
+    backend. In case of failure NULL is returned and the error string is set on the output
+    parameter.
+    \sa create_t, make2, make3
+
+    This function is windows only. Required by the backend "makers".
+*/
 create_t *loadAndCreate(const char *dll, const char *python_home, char **error)
 {
     // first, add python home to the directory search path for loading DLLs
@@ -68,8 +81,16 @@ create_t *loadAndCreate(const char *dll, const char *python_home, char **error)
     }
     return create;
 }
+
 six_t *make2(const char *python_home, char **error)
 {
+
+    if (six_backend != NULL) {
+        std::string err_msg = "Six already initialized!";
+        *error = strdup(err_msg.c_str());
+        return NULL;
+    }
+
     create_t *create = loadAndCreate(DATADOG_AGENT_TWO, python_home, error);
     if (!create) {
         return NULL;
@@ -79,6 +100,12 @@ six_t *make2(const char *python_home, char **error)
 
 six_t *make3(const char *python_home, char **error)
 {
+    if (six_backend != NULL) {
+        std::string err_msg = "Six already initialized!";
+        *error = strdup(err_msg.c_str());
+        return NULL;
+    }
+
     create_t *create_three = loadAndCreate(DATADOG_AGENT_THREE, python_home, error);
     if (!create_three) {
         return NULL;
@@ -86,6 +113,11 @@ six_t *make3(const char *python_home, char **error)
     return AS_TYPE(six_t, create_three(python_home));
 }
 
+/*! \fn void destroy(six_t *six)
+    \brief Destructor function for the provided six backend.
+    \param six_t A six_t * pointer to the Six instance we wish to destroy.
+    \sa six_t
+*/
 void destroy(six_t *six)
 {
     if (six_backend) {

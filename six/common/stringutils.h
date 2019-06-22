@@ -12,6 +12,21 @@
     The prototypes here defined provide a set of helper functions to convert between
     strings in their C representation and respective python objects. This includes native
     strings but also YAML representations of python objects - allowing for serialization.
+    Please make sure to properly initialize stringutils before using.
+*/
+/*! \fn int init_stringutils(void)
+    \brief Initializes stringutils; grabbing and caching the python relevant pyyaml objects.
+    \return int The success of the operation `EXIT_SUCCESS` (0) or `EXIT_FAILURE` (1).
+    \sa as_yaml, from_yaml
+
+    The function must be called before using the yaml helper functions in the module.
+    Typically this is expected to be done during initialization. The routine grabs the
+    pyyaml load and dump method references, and attempts to grab references to the pyyaml
+    C-extension CSafeLoader and CSafeDumper, these are more performant, but more importantly
+    do not incur in a 30Mb unnecessary RSS excess. If the C-extensions are not available
+    it falls back to its python variants: SafeLoader and SafeDumper. They're all cached
+    and so `as_yaml`, and `from_yaml1` will not need to grab new references and will be able
+    to call them directly.
 */
 /*! \fn char *as_string(PyObject * object)
     \brief Returns a Python object representation for the supplied YAML C-string.
