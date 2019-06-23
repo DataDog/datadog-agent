@@ -19,69 +19,57 @@
 
 # Fail here at converge time if no api_key is set
 ruby_block 'datadog-api-key-unset' do
-    block do
-      raise "Set ['datadog']['api_key'] as an attribute or on the node's run_state to configure this node's Datadog Agent."
-    end
-    only_if { Chef::Datadog.api_key(node).nil? }
+  block do
+    raise "Set ['datadog']['api_key'] as an attribute or on the node's run_state to configure this node's Datadog Agent."
   end
+  only_if { Chef::Datadog.api_key(node).nil? }
+end
   
-  is_windows = node['platform_family'] == 'windows'
-  
-  # Install the agent
+is_windows = node['platform_family'] == 'windows'
+
+#
+# Configures a basic agent
+# To add integration-specific configurations, add 'datadog::config_name' to
+# the node's run_list and set the relevant attributes
+#
+agent6_config_file = ::File.join(node['datadog']['agent6_config_dir'], 'datadog.yaml')
+
+# Common configuration
+service_provider = nil
+if (((node['platform'] == 'amazon' || node['platform_family'] == 'amazon') && node['platform_version'].to_i != 2) ||
+    (node['platform'] == 'ubuntu' && node['platform_version'].to_f < 15.04) || # chef <11.14 doesn't use the correct service provider
+    (node['platform'] != 'amazon' && node['platform_family'] == 'rhel' && node['platform_version'].to_i < 7))
+  # use Upstart provider explicitly for Agent 6 on Amazon Linux < 2.0 and RHEL < 7
+  service_provider = Chef::Provider::Service::Upstart
+end
+
+service 'datadog-agent-6' do
+  service_name node['datadog']['agent_name']
+  action :nothing
+  provider service_provider unless service_provider.nil?
   if is_windows
-    include_recipe 'datadog::_install-windows'
+    supports :restart => true, :start => true, :stop => true
+    restart_command "powershell restart-service #{node['datadog']['agent_name']} -Force"
+    stop_command "powershell stop-service #{node['datadog']['agent_name']} -Force"
   else
-    include_recipe 'datadog::_install-linux'
+    supports :restart => true, :status => true, :start => true, :stop => true
   end
-  
-  # Set the Agent service enable or disable
-  agent_enable = node['datadog']['agent_enable'] ? :enable : :disable
-  # Set the correct Agent startup action
-  agent_start = node['datadog']['agent_start'] ? :start : :stop
-  
-  #
-  # Configures a basic agent
-  # To add integration-specific configurations, add 'datadog::config_name' to
-  # the node's run_list and set the relevant attributes
-  #
-  agent6_config_file = ::File.join(node['datadog']['agent6_config_dir'], 'datadog.yaml')
-  
-  # Common configuration
-  service_provider = nil
-  if (((node['platform'] == 'amazon' || node['platform_family'] == 'amazon') && node['platform_version'].to_i != 2) ||
-      (node['platform'] == 'ubuntu' && node['platform_version'].to_f < 15.04) || # chef <11.14 doesn't use the correct service provider
-     (node['platform'] != 'amazon' && node['platform_family'] == 'rhel' && node['platform_version'].to_i < 7))
-    # use Upstart provider explicitly for Agent 6 on Amazon Linux < 2.0 and RHEL < 7
-    service_provider = Chef::Provider::Service::Upstart
-  end
-  
-  service 'datadog-agent-6' do
-    service_name node['datadog']['agent_name']
-    action [agent_enable, agent_start]
-    provider service_provider unless service_provider.nil?
-    if is_windows
-      supports :restart => true, :start => true, :stop => true
-      restart_command "powershell restart-service #{node['datadog']['agent_name']} -Force"
-      stop_command "powershell stop-service #{node['datadog']['agent_name']} -Force"
-    else
-      supports :restart => true, :status => true, :start => true, :stop => true
-    end
-    subscribes :restart, "template[#{agent6_config_file}]", :delayed unless node['datadog']['agent_start'] == false
-    # HACK: the restart can fail when we hit systemd's restart limits (by default, 5 starts every 10 seconds)
-    # To workaround this, retry once after 5 seconds, and a second time after 10 seconds
-    retries 2
-    retry_delay 5
-  end
-  
-  # TODO: Add this when we update our datadog Berksfile dependency to 2.20 or 3.0
-  # only load system-probe recipe if an agent6 installation comes with it
-  # ruby_block 'include system-probe' do
-  #   block do
-  #     if ::File.exist?('/opt/datadog-agent/embedded/bin/system-probe') && !is_windows
-  #       run_context.include_recipe 'datadog::system-probe'
-  #     end
-  #   end
-  # end
-  
-  # Install integration packages
-  include_recipe 'datadog::integrations' unless is_windows
+  subscribes :restart, "template[#{agent6_config_file}]", :delayed unless node['datadog']['agent_start'] == false
+  # HACK: the restart can fail when we hit systemd's restart limits (by default, 5 starts every 10 seconds)
+  # To workaround this, retry once after 5 seconds, and a second time after 10 seconds
+  retries 2
+  retry_delay 5
+end
+
+# TODO: Add this when we update our datadog Berksfile dependency to 2.20 or 3.0
+# only load system-probe recipe if an agent6 installation comes with it
+# ruby_block 'include system-probe' do
+#   block do
+#     if ::File.exist?('/opt/datadog-agent/embedded/bin/system-probe') && !is_windows
+#       run_context.include_recipe 'datadog::system-probe'
+#     end
+#   end
+# end
+
+# Install integration packages
+#include_recipe 'datadog::integrations' unless is_windows

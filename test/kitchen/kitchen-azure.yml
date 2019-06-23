@@ -321,6 +321,8 @@ suites:
     apt:
       unattended_upgrades:
         enable: false
+    datadog:
+      agent6: true
     dd-agent-step-by-step:
       <% dd_agent_config.each do |key, value| %>
       <%= key %>: <%= value %>

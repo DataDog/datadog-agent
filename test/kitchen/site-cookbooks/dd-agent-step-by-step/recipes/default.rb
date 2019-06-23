@@ -74,6 +74,16 @@ end
 if node['platform_family'] == 'windows'
 end
 
+service_provider = nil
+if node['datadog']['agent6'] &&
+   (((node['platform'] == 'amazon' || node['platform_family'] == 'amazon') && node['platform_version'].to_i != 2) ||
+    (node['platform'] == 'ubuntu' && node['platform_version'].to_f < 15.04) || # chef <11.14 doesn't use the correct service provider
+   (node['platform'] != 'amazon' && node['platform_family'] == 'rhel' && node['platform_version'].to_i < 7))
+  # use Upstart provider explicitly for Agent 6 on Amazon Linux < 2.0 and RHEL < 7
+  service_provider = Chef::Provider::Service::Upstart
+end
+
 service 'datadog-agent' do
+  provider service_provider unless service_provider.nil?
   action :start
 end
