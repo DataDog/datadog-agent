@@ -56,6 +56,7 @@ if ohai["platform"] != "windows"
 
     patch :source => "avoid-allocating-thunks-in-ctypes.patch" if linux?
     patch :source => "fix-platform-ubuntu.diff" if linux?
+    patch :source => "backport-tracemalloc.patch", :plevel => 1
 
     command python_configure.join(" "), :env => env
     command "make -j #{workers}", :env => env
