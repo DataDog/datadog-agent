@@ -67,7 +67,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
 
     ## secrets is not supported on windows because the process agent still runs as
     ## root.  No matter what `get_default_build_tags()` returns, take secrets out.
-    if sys.platform == 'win32':
+    if sys.platform == 'win32' and "secrets" in build_tags:
         build_tags.remove("secrets")
 
     # TODO static option
