@@ -764,8 +764,8 @@ func TestExpvar(t *testing.T) {
 	assert.EqualValues(t, resp.StatusCode, http.StatusOK, "failed to read expvars from local server")
 
 	if resp.StatusCode == http.StatusOK {
-		var varsJSON map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&varsJSON)
+		var out map[string]interface{}
+		err = json.NewDecoder(resp.Body).Decode(&out)
 		assert.NoError(t, err, "/debug/vars must return valid json")
 	}
 }
