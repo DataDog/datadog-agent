@@ -149,6 +149,33 @@ func (ts *TagStats) MalformedTraceNormalizationIssues() []NormalizationIssue {
 	}
 }
 
+func (ts *TagStats) logNormalizerIssues() {
+	var droppedReasons []string
+	for _, c := range ts.DroppedTraceNormalizationIssues() {
+		if c.Count > 0 {
+			droppedReasons = append(droppedReasons, c.Reason + ":" + strconv.FormatInt(c.Count, 10))
+		}
+	}
+
+	var malformedReasons []string
+	for _, c := range ts.MalformedTraceNormalizationIssues() {
+		if c.Count > 0 {
+			malformedReasons = append(malformedReasons, c.Reason + ":" + strconv.FormatInt(c.Count, 10))
+		}
+	}
+
+	var normalizerMessages []string
+	if len(droppedReasons) > 0 {
+		normalizerMessages = append(normalizerMessages, fmt.Sprintf("dropped_traces(%s)", strings.Join(droppedReasons, ", ")))
+	}
+	if len(malformedReasons) > 0 {
+		normalizerMessages = append(normalizerMessages, fmt.Sprintf("malformed_traces(%s)", strings.Join(malformedReasons, ", ")))
+	}
+
+	if len(normalizerMessages) > 0 {
+		log.Warn("received invalid traces (enable debug logging for more details): %s", strings.Join(normalizerMessages, " "))
+	}
+}
 
 func (ts *TagStats) publish() {
 	// Atomically load the stats from ts
@@ -190,33 +217,12 @@ func (ts *TagStats) publish() {
 	metrics.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.payload_accepted", requestsMade, tags, 1)
 
-
-	var droppedReasons []string
 	for _, c := range ts.DroppedTraceNormalizationIssues() {
-		if c.Count > 0 {
-			metrics.Count("datadog.trace_agent.normalizer.traces_dropped", c.Count, append(tags, "reason:" + c.Reason), 1)
-			droppedReasons = append(droppedReasons, c.Reason + ":" + strconv.FormatInt(c.Count, 10))
-		}
+		metrics.Count("datadog.trace_agent.normalizer.traces_dropped", c.Count, append(tags, "reason:" + c.Reason), 1)
 	}
 
-	var malformedReasons []string
 	for _, c := range ts.MalformedTraceNormalizationIssues() {
-		if c.Count > 0 {
-			metrics.Count("datadog.trace_agent.normalizer.traces_malformed", c.Count, append(tags, "reason:" + c.Reason), 1)
-			malformedReasons = append(malformedReasons, c.Reason + ":" + strconv.FormatInt(c.Count, 10))
-		}
-	}
-
-	var normalizerMessages []string
-	if len(droppedReasons) > 0 {
-		normalizerMessages = append(normalizerMessages, fmt.Sprintf("dropped_traces(%s)", strings.Join(droppedReasons, ", ")))
-	}
-	if len(malformedReasons) > 0 {
-		normalizerMessages = append(normalizerMessages, fmt.Sprintf("malformed_traces(%s)", strings.Join(malformedReasons, ", ")))
-	}
-
-	if len(normalizerMessages) > 0 {
-		log.Warn("received invalid traces (enable debug logging for more details): %s", strings.Join(normalizerMessages, " "))
+		metrics.Count("datadog.trace_agent.normalizer.traces_malformed", c.Count, append(tags, "reason:" + c.Reason), 1)
 	}
 }
 

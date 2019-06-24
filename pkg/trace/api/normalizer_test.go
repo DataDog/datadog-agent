@@ -39,6 +39,7 @@ func newTestSpan() *pb.Span {
 	}
 }
 
+// assertNormalizationIssue asserts there is exactly one NormalizationIssue in the provided TagStats matching the reason
 func assertNormalizationIssue(t *testing.T, ts *info.TagStats, reason string) {
 	normalizationIssues := append(ts.DroppedTraceNormalizationIssues(), ts.MalformedTraceNormalizationIssues()...)
 	for _, issue := range normalizationIssues {
@@ -50,6 +51,7 @@ func assertNormalizationIssue(t *testing.T, ts *info.TagStats, reason string) {
 	}
 }
 
+// assertNormalizationIssue asserts there there are no NormalizationIssues in the provided TagStats
 func assertNoNormalizationIssues(t *testing.T, ts *info.TagStats) {
 	allIssues := append(ts.DroppedTraceNormalizationIssues(), ts.MalformedTraceNormalizationIssues()...)
 	for _, issue := range allIssues {
