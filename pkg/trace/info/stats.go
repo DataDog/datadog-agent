@@ -3,7 +3,6 @@ package info
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sort"
 	"strconv"
 	"strings"
@@ -90,22 +89,26 @@ func (rs *ReceiverStats) Reset() {
 }
 
 // Strings gives a multi strings representation of the ReceiverStats struct.
-func (rs *ReceiverStats) Strings() []string {
+func (rs *ReceiverStats) Strings() (infoStrings []string, warnStrings []string) {
 	rs.RLock()
 	defer rs.RUnlock()
 
 	if len(rs.Stats) == 0 {
-		return []string{"no data received"}
+		infoStrings = []string{"no data received"}
+		return infoStrings, warnStrings
 	}
-
-	strings := make([]string, 0, len(rs.Stats))
 
 	for _, ts := range rs.Stats {
 		if !ts.isEmpty() {
-			strings = append(strings, fmt.Sprintf("%v -> %s", ts.Tags.toArray(), ts.String()))
+			infoStrings = append(infoStrings, fmt.Sprintf("%v -> %s", ts.Tags.toArray(), ts.InfoString()))
+			warnString := ts.WarnString()
+			if len(warnString) > 0 {
+				warnStrings = append(warnStrings, warnString)
+			}
 		}
 	}
-	return strings
+
+	return infoStrings, warnStrings
 }
 
 // TagStats is the struct used to associate the stats with their set of tags.
@@ -134,34 +137,6 @@ func (ts *TagStats) DroppedTraceNormalizationIssues() map[string]int64 {
 func (ts *TagStats) MalformedTraceNormalizationIssues() map[string]int64 {
 	m, _ := ts.TracesMalformed.toMap()
 	return m
-}
-
-func (ts *TagStats) logNormalizerIssues() {
-	var droppedReasons []string
-	for reason, count := range ts.DroppedTraceNormalizationIssues() {
-		if count > 0 {
-			droppedReasons = append(droppedReasons, reason+":"+strconv.FormatInt(count, 10))
-		}
-	}
-
-	var malformedReasons []string
-	for reason, count := range ts.MalformedTraceNormalizationIssues() {
-		if count > 0 {
-			malformedReasons = append(malformedReasons, reason+":"+strconv.FormatInt(count, 10))
-		}
-	}
-
-	var normalizerMessages []string
-	if len(droppedReasons) > 0 {
-		normalizerMessages = append(normalizerMessages, fmt.Sprintf("dropped_traces(%s)", strings.Join(droppedReasons, ", ")))
-	}
-	if len(malformedReasons) > 0 {
-		normalizerMessages = append(normalizerMessages, fmt.Sprintf("malformed_traces(%s)", strings.Join(malformedReasons, ", ")))
-	}
-
-	if len(normalizerMessages) > 0 {
-		log.Warnf("received invalid traces (enable debug logging for more details): %s", strings.Join(normalizerMessages, " "))
-	}
 }
 
 func (ts *TagStats) publish() {
@@ -407,10 +382,9 @@ func (s *Stats) isEmpty() bool {
 }
 
 // String returns a string representation of the Stats struct
-func (s *Stats) String() string {
+func (s *Stats) InfoString() string {
 	// Atomically load the stats
 	tracesReceived := atomic.LoadInt64(&s.TracesReceived)
-	//tracesDropped := atomic.LoadInt64(&s.TracesDropped)
 	tracesFiltered := atomic.LoadInt64(&s.TracesFiltered)
 	// Omitting priority information, use expvar or metrics for debugging purpose
 	tracesBytes := atomic.LoadInt64(&s.TracesBytes)
@@ -426,6 +400,33 @@ func (s *Stats) String() string {
 		tracesBytes, servicesReceived, servicesBytes,
 		eventsExtracted, eventsSampled)
 }
+
+func (ts *TagStats) WarnString() string {
+	var droppedReasons []string
+	for reason, count := range ts.DroppedTraceNormalizationIssues() {
+		if count > 0 {
+			droppedReasons = append(droppedReasons, reason+":"+strconv.FormatInt(count, 10))
+		}
+	}
+
+	var malformedReasons []string
+	for reason, count := range ts.MalformedTraceNormalizationIssues() {
+		if count > 0 {
+			malformedReasons = append(malformedReasons, reason+": "+strconv.FormatInt(count, 10))
+		}
+	}
+
+	var normalizerMessages []string
+	if len(droppedReasons) > 0 {
+		normalizerMessages = append(normalizerMessages, fmt.Sprintf("dropped_traces(%s)", strings.Join(droppedReasons, ", ")))
+	}
+	if len(malformedReasons) > 0 {
+		normalizerMessages = append(normalizerMessages, fmt.Sprintf("malformed_traces(%s)", strings.Join(malformedReasons, ", ")))
+	}
+
+	return strings.Join(normalizerMessages, ", ")
+}
+
 
 // Tags holds the tags we parse when we handle the header of the payload.
 type Tags struct {
