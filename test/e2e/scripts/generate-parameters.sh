@@ -31,13 +31,13 @@ check_yq_installed()
 validate_input()
 {
     # Validate workflow name characters
-    if ! [[ $WORKFLOW =~ ^[0-9a-zA-Z._-]+$ ]]; then
+    if ! [[ $WORKFLOW =~ ^[0-9a-zA-Z-]+$ ]]; then
         echo 'Error: Invalid workflow name format: '$WORKFLOW
         exit 1
     fi
 
     # Validate workflow group name characters
-    if ! [[ $WORKFLOW_GROUP =~ ^[0-9a-zA-Z._-]+$ ]]; then
+    if ! [[ $WORKFLOW_GROUP =~ ^[0-9a-zA-Z-]+$ ]]; then
         echo 'Error: Invalid workflow group name format: '$WORKFLOW_GROUP
         exit 1
     fi
