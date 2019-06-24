@@ -117,50 +117,53 @@ func newTagStats(tags Tags) *TagStats {
 	return &TagStats{tags, Stats{}}
 }
 
-type NormalizationIssue struct {
-	Reason string
-	Count int64
+func (ts *TagStats) AllNormalizationIssues() map[string]int64 {
+	m := ts.DroppedTraceNormalizationIssues()
+	for r, c := range ts.MalformedTraceNormalizationIssues() {
+		m[r] = c
+	}
+	return m
 }
 
-func (ts *TagStats) DroppedTraceNormalizationIssues() []NormalizationIssue {
-	return []NormalizationIssue{
-		{"decoding_error", atomic.LoadInt64(&ts.TracesDropped.DecodingError)},
-		{"empty_trace", atomic.LoadInt64(&ts.TracesDropped.EmptyTrace)},
-		{"trace_id_zero", atomic.LoadInt64(&ts.TracesDropped.TraceIdZero)},
-		{"span_id_zero", atomic.LoadInt64(&ts.TracesDropped.SpanIdZero)},
-		{"foreign_span", atomic.LoadInt64(&ts.TracesDropped.ForeignSpan)},
+func (ts *TagStats) DroppedTraceNormalizationIssues() map[string]int64 {
+	return map[string]int64{
+		"decoding_error": atomic.LoadInt64(&ts.TracesDropped.DecodingError),
+		"empty_trace": atomic.LoadInt64(&ts.TracesDropped.EmptyTrace),
+		"trace_id_zero": atomic.LoadInt64(&ts.TracesDropped.TraceIdZero),
+		"span_id_zero": atomic.LoadInt64(&ts.TracesDropped.SpanIdZero),
+		"foreign_span": atomic.LoadInt64(&ts.TracesDropped.ForeignSpan),
 	}
 }
 
-func (ts *TagStats) MalformedTraceNormalizationIssues() []NormalizationIssue {
-	return []NormalizationIssue{
-		{"duplicate_span_id", atomic.LoadInt64(&ts.TracesMalformed.DuplicateSpanId)},
-		{"service_empty", atomic.LoadInt64(&ts.TracesMalformed.ServiceEmpty)},
-		{"service_truncate", atomic.LoadInt64(&ts.TracesMalformed.ServiceTruncate)},
-		{"service_invalid", atomic.LoadInt64(&ts.TracesMalformed.ServiceInvalid)},
-		{"span_name_empty", atomic.LoadInt64(&ts.TracesMalformed.SpanNameEmpty)},
-		{"span_name_truncate", atomic.LoadInt64(&ts.TracesMalformed.SpanNameTruncate)},
-		{"span_name_invalid", atomic.LoadInt64(&ts.TracesMalformed.SpanNameInvalid)},
-		{"resource_empty", atomic.LoadInt64(&ts.TracesMalformed.ResourceEmpty)},
-		{"type_truncate", atomic.LoadInt64(&ts.TracesMalformed.TypeTruncate)},
-		{"invalid_start_date", atomic.LoadInt64(&ts.TracesMalformed.InvalidStartDate)},
-		{"invalid_duration", atomic.LoadInt64(&ts.TracesMalformed.InvalidDuration)},
-		{"invalid_http_status_code", atomic.LoadInt64(&ts.TracesMalformed.InvalidHttpStatusCode)},
+func (ts *TagStats) MalformedTraceNormalizationIssues() map[string]int64 {
+	return map[string]int64{
+		"duplicate_span_id": atomic.LoadInt64(&ts.TracesMalformed.DuplicateSpanId),
+		"service_empty": atomic.LoadInt64(&ts.TracesMalformed.ServiceEmpty),
+		"service_truncate": atomic.LoadInt64(&ts.TracesMalformed.ServiceTruncate),
+		"service_invalid": atomic.LoadInt64(&ts.TracesMalformed.ServiceInvalid),
+		"span_name_empty": atomic.LoadInt64(&ts.TracesMalformed.SpanNameEmpty),
+		"span_name_truncate": atomic.LoadInt64(&ts.TracesMalformed.SpanNameTruncate),
+		"span_name_invalid": atomic.LoadInt64(&ts.TracesMalformed.SpanNameInvalid),
+		"resource_empty": atomic.LoadInt64(&ts.TracesMalformed.ResourceEmpty),
+		"type_truncate": atomic.LoadInt64(&ts.TracesMalformed.TypeTruncate),
+		"invalid_start_date": atomic.LoadInt64(&ts.TracesMalformed.InvalidStartDate),
+		"invalid_duration": atomic.LoadInt64(&ts.TracesMalformed.InvalidDuration),
+		"invalid_http_status_code": atomic.LoadInt64(&ts.TracesMalformed.InvalidHttpStatusCode),
 	}
 }
 
 func (ts *TagStats) logNormalizerIssues() {
 	var droppedReasons []string
-	for _, c := range ts.DroppedTraceNormalizationIssues() {
-		if c.Count > 0 {
-			droppedReasons = append(droppedReasons, c.Reason + ":" + strconv.FormatInt(c.Count, 10))
+	for reason, count := range ts.DroppedTraceNormalizationIssues() {
+		if count > 0 {
+			droppedReasons = append(droppedReasons, reason + ":" + strconv.FormatInt(count, 10))
 		}
 	}
 
 	var malformedReasons []string
-	for _, c := range ts.MalformedTraceNormalizationIssues() {
-		if c.Count > 0 {
-			malformedReasons = append(malformedReasons, c.Reason + ":" + strconv.FormatInt(c.Count, 10))
+	for reason, count := range ts.MalformedTraceNormalizationIssues() {
+		if count > 0 {
+			malformedReasons = append(malformedReasons, reason + ":" + strconv.FormatInt(count, 10))
 		}
 	}
 
@@ -217,41 +220,41 @@ func (ts *TagStats) publish() {
 	metrics.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.payload_accepted", requestsMade, tags, 1)
 
-	for _, c := range ts.DroppedTraceNormalizationIssues() {
-		metrics.Count("datadog.trace_agent.normalizer.traces_dropped", c.Count, append(tags, "reason:" + c.Reason), 1)
+	for reason, count := range ts.DroppedTraceNormalizationIssues() {
+		metrics.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:" + reason), 1)
 	}
 
-	for _, c := range ts.MalformedTraceNormalizationIssues() {
-		metrics.Count("datadog.trace_agent.normalizer.traces_malformed", c.Count, append(tags, "reason:" + c.Reason), 1)
+	for reason, count := range ts.MalformedTraceNormalizationIssues() {
+		metrics.Count("datadog.trace_agent.normalizer.traces_malformed", count, append(tags, "reason:" + reason), 1)
 	}
 }
 
 type TracesDroppedStats struct {
 	// DecodingError is the number of traces dropped due to decoding error
-	DecodingError int64
+	DecodingError int64 `json:"decoding_error"`
 	// EmptyTrace is the number of traces dropped due to empty trace
-	EmptyTrace int64
+	EmptyTrace int64 `json:"empty_trace"`
 	// TraceIdZero is the number of traces dropped due to trace-ID=zero
-	TraceIdZero int64
+	TraceIdZero int64 `json:"trace_id_zero"`
 	// SpanIdZero is the number of traces dropped.
-	SpanIdZero int64
+	SpanIdZero int64 `json:"span_id_zero"`
 	// ForeignSpan is the number of traces dropped.
-	ForeignSpan int64
+	ForeignSpan int64 `json:"foreign_span"`
 }
 
 type TracesMalformedStats struct {
-	DuplicateSpanId int64
-	ServiceEmpty int64
-	ServiceTruncate int64
-	ServiceInvalid int64
-	SpanNameEmpty int64
-	SpanNameTruncate int64
-	SpanNameInvalid int64
-	ResourceEmpty int64
-	TypeTruncate int64
-	InvalidStartDate int64
-	InvalidDuration int64
-	InvalidHttpStatusCode int64
+	DuplicateSpanId int64 `json:"duplicate_span_id"`
+	ServiceEmpty int64 `json:"service_empty"`
+	ServiceTruncate int64 `json:"service_truncate"`
+	ServiceInvalid int64 `json:"service_invalid"`
+	SpanNameEmpty int64 `json:"span_name_empty"`
+	SpanNameTruncate int64 `json:"span_name_truncate"`
+	SpanNameInvalid int64 `json:"span_name_invalid"`
+	ResourceEmpty int64 `json:"resource_empty"`
+	TypeTruncate int64 `json:"type_truncate"`
+	InvalidStartDate int64 `json:"invalid_start_date"`
+	InvalidDuration int64 `json:"invalid_duration"`
+	InvalidHttpStatusCode int64 `json:"invalid_http_status_code"`
 }
 
 // Stats holds the metrics that will be reported every 10s by the agent.

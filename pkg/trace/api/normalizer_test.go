@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"math/rand"
@@ -41,21 +42,32 @@ func newTestSpan() *pb.Span {
 
 // assertNormalizationIssue asserts there is exactly one NormalizationIssue in the provided TagStats matching the reason
 func assertNormalizationIssue(t *testing.T, ts *info.TagStats, reason string) {
-	normalizationIssues := append(ts.DroppedTraceNormalizationIssues(), ts.MalformedTraceNormalizationIssues()...)
-	for _, issue := range normalizationIssues {
-		if issue.Reason == reason {
-			assert.EqualValues(t, issue.Count, 1, fmt.Sprintf("expected normalization issue %s=%d", reason, 1))
-		} else {
-			assert.EqualValues(t, issue.Count, 0, fmt.Sprintf("found unexpected normalization issue %s=%d, expecting only %s=%d", issue.Reason, issue.Count, reason, 1))
+	allIssues := ts.AllNormalizationIssues()
+
+	presentIssues := make(map[string]int64)
+	for r, c := range allIssues {
+		if c > 0 {
+			presentIssues[r] = c
 		}
+	}
+
+	foundIssuesMessage := "none"
+	if len(presentIssues) > 0 {
+		s, _ := json.Marshal(presentIssues)
+		foundIssuesMessage = string(s)
+	}
+
+	if count, ok := presentIssues[reason]; ok {
+		assert.EqualValues(t, 1, count, fmt.Sprintf("expected normalization issue %s=%d. Found issues: %s", reason, 1, foundIssuesMessage))
+	} else {
+		assert.Fail(t, fmt.Sprintf("missing expected normalization issue %s=%d. Found issues: %s", reason, 1, foundIssuesMessage))
 	}
 }
 
 // assertNormalizationIssue asserts there there are no NormalizationIssues in the provided TagStats
 func assertNoNormalizationIssues(t *testing.T, ts *info.TagStats) {
-	allIssues := append(ts.DroppedTraceNormalizationIssues(), ts.MalformedTraceNormalizationIssues()...)
-	for _, issue := range allIssues {
-		assert.EqualValues(t, issue.Count, 0, fmt.Sprintf("found unexpected normalization issue %s=%d, expecting no issues", issue.Reason, issue.Count))
+	for reason, count := range ts.AllNormalizationIssues() {
+		assert.EqualValues(t,0, count, fmt.Sprintf("found unexpected normalization issue %s=%d, expecting no issues", reason, count))
 	}
 }
 
