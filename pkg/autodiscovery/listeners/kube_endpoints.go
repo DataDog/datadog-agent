@@ -272,6 +272,9 @@ func (s *KubeEndpointService) GetADIdentifiers() ([]string, error) {
 
 // GetHosts returns the pod hosts
 func (s *KubeEndpointService) GetHosts() (map[string]string, error) {
+	if s.hosts == nil {
+		return map[string]string{}, nil
+	}
 	return s.hosts, nil
 }
 
@@ -282,11 +285,17 @@ func (s *KubeEndpointService) GetPid() (int, error) {
 
 // GetPorts returns the endpoint's ports
 func (s *KubeEndpointService) GetPorts() ([]ContainerPort, error) {
+	if s.ports == nil {
+		return []ContainerPort{}, nil
+	}
 	return s.ports, nil
 }
 
 // GetTags retrieves tags
 func (s *KubeEndpointService) GetTags() ([]string, error) {
+	if s.tags == nil {
+		return []string{}, nil
+	}
 	return s.tags, nil
 }
 
