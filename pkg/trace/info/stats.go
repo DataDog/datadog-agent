@@ -1,6 +1,7 @@
 package info
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sort"
@@ -126,44 +127,27 @@ func (ts *TagStats) AllNormalizationIssues() map[string]int64 {
 }
 
 func (ts *TagStats) DroppedTraceNormalizationIssues() map[string]int64 {
-	return map[string]int64{
-		"decoding_error": atomic.LoadInt64(&ts.TracesDropped.DecodingError),
-		"empty_trace": atomic.LoadInt64(&ts.TracesDropped.EmptyTrace),
-		"trace_id_zero": atomic.LoadInt64(&ts.TracesDropped.TraceIdZero),
-		"span_id_zero": atomic.LoadInt64(&ts.TracesDropped.SpanIdZero),
-		"foreign_span": atomic.LoadInt64(&ts.TracesDropped.ForeignSpan),
-	}
+	m, _ := ts.TracesDropped.toMap()
+	return m
 }
 
 func (ts *TagStats) MalformedTraceNormalizationIssues() map[string]int64 {
-	return map[string]int64{
-		"duplicate_span_id": atomic.LoadInt64(&ts.TracesMalformed.DuplicateSpanId),
-		"service_empty": atomic.LoadInt64(&ts.TracesMalformed.ServiceEmpty),
-		"service_truncate": atomic.LoadInt64(&ts.TracesMalformed.ServiceTruncate),
-		"service_invalid": atomic.LoadInt64(&ts.TracesMalformed.ServiceInvalid),
-		"span_name_empty": atomic.LoadInt64(&ts.TracesMalformed.SpanNameEmpty),
-		"span_name_truncate": atomic.LoadInt64(&ts.TracesMalformed.SpanNameTruncate),
-		"span_name_invalid": atomic.LoadInt64(&ts.TracesMalformed.SpanNameInvalid),
-		"resource_empty": atomic.LoadInt64(&ts.TracesMalformed.ResourceEmpty),
-		"type_truncate": atomic.LoadInt64(&ts.TracesMalformed.TypeTruncate),
-		"invalid_start_date": atomic.LoadInt64(&ts.TracesMalformed.InvalidStartDate),
-		"invalid_duration": atomic.LoadInt64(&ts.TracesMalformed.InvalidDuration),
-		"invalid_http_status_code": atomic.LoadInt64(&ts.TracesMalformed.InvalidHttpStatusCode),
-	}
+	m, _ := ts.TracesMalformed.toMap()
+	return m
 }
 
 func (ts *TagStats) logNormalizerIssues() {
 	var droppedReasons []string
 	for reason, count := range ts.DroppedTraceNormalizationIssues() {
 		if count > 0 {
-			droppedReasons = append(droppedReasons, reason + ":" + strconv.FormatInt(count, 10))
+			droppedReasons = append(droppedReasons, reason+":"+strconv.FormatInt(count, 10))
 		}
 	}
 
 	var malformedReasons []string
 	for reason, count := range ts.MalformedTraceNormalizationIssues() {
 		if count > 0 {
-			malformedReasons = append(malformedReasons, reason + ":" + strconv.FormatInt(count, 10))
+			malformedReasons = append(malformedReasons, reason+":"+strconv.FormatInt(count, 10))
 		}
 	}
 
@@ -176,7 +160,7 @@ func (ts *TagStats) logNormalizerIssues() {
 	}
 
 	if len(normalizerMessages) > 0 {
-		log.Warn("received invalid traces (enable debug logging for more details): %s", strings.Join(normalizerMessages, " "))
+		log.Warnf("received invalid traces (enable debug logging for more details): %s", strings.Join(normalizerMessages, " "))
 	}
 }
 
@@ -221,40 +205,80 @@ func (ts *TagStats) publish() {
 	metrics.Count("datadog.trace_agent.receiver.payload_accepted", requestsMade, tags, 1)
 
 	for reason, count := range ts.DroppedTraceNormalizationIssues() {
-		metrics.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:" + reason), 1)
+		metrics.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:"+reason), 1)
 	}
 
 	for reason, count := range ts.MalformedTraceNormalizationIssues() {
-		metrics.Count("datadog.trace_agent.normalizer.traces_malformed", count, append(tags, "reason:" + reason), 1)
+		metrics.Count("datadog.trace_agent.normalizer.traces_malformed", count, append(tags, "reason:"+reason), 1)
 	}
 }
 
 type TracesDroppedStats struct {
-	// DecodingError is the number of traces dropped due to decoding error
 	DecodingError int64 `json:"decoding_error"`
-	// EmptyTrace is the number of traces dropped due to empty trace
-	EmptyTrace int64 `json:"empty_trace"`
-	// TraceIdZero is the number of traces dropped due to trace-ID=zero
-	TraceIdZero int64 `json:"trace_id_zero"`
-	// SpanIdZero is the number of traces dropped.
-	SpanIdZero int64 `json:"span_id_zero"`
-	// ForeignSpan is the number of traces dropped.
-	ForeignSpan int64 `json:"foreign_span"`
+	EmptyTrace    int64 `json:"empty_trace"`
+	TraceIdZero   int64 `json:"trace_id_zero"`
+	SpanIdZero    int64 `json:"span_id_zero"`
+	ForeignSpan   int64 `json:"foreign_span"`
+}
+
+func (s * TracesDroppedStats) AtomicCopy() (result TracesDroppedStats) {
+	result.DecodingError = atomic.LoadInt64(&s.DecodingError)
+	result.EmptyTrace = atomic.LoadInt64(&s.EmptyTrace)
+	result.TraceIdZero = atomic.LoadInt64(&s.TraceIdZero)
+	result.SpanIdZero = atomic.LoadInt64(&s.SpanIdZero)
+	result.ForeignSpan = atomic.LoadInt64(&s.ForeignSpan)
+	return result
+}
+
+func (s *TracesDroppedStats) toMap() (result map[string]int64, err error) {
+	sCopy := s.AtomicCopy()
+	statsB, err := json.Marshal(&sCopy)
+	if err != nil {
+		return result, err
+	}
+	err = json.Unmarshal(statsB, &result)
+	return result, err
 }
 
 type TracesMalformedStats struct {
-	DuplicateSpanId int64 `json:"duplicate_span_id"`
-	ServiceEmpty int64 `json:"service_empty"`
-	ServiceTruncate int64 `json:"service_truncate"`
-	ServiceInvalid int64 `json:"service_invalid"`
-	SpanNameEmpty int64 `json:"span_name_empty"`
-	SpanNameTruncate int64 `json:"span_name_truncate"`
-	SpanNameInvalid int64 `json:"span_name_invalid"`
-	ResourceEmpty int64 `json:"resource_empty"`
-	TypeTruncate int64 `json:"type_truncate"`
-	InvalidStartDate int64 `json:"invalid_start_date"`
-	InvalidDuration int64 `json:"invalid_duration"`
+	DuplicateSpanId       int64 `json:"duplicate_span_id"`
+	ServiceEmpty          int64 `json:"service_empty"`
+	ServiceTruncate       int64 `json:"service_truncate"`
+	ServiceInvalid        int64 `json:"service_invalid"`
+	SpanNameEmpty         int64 `json:"span_name_empty"`
+	SpanNameTruncate      int64 `json:"span_name_truncate"`
+	SpanNameInvalid       int64 `json:"span_name_invalid"`
+	ResourceEmpty         int64 `json:"resource_empty"`
+	TypeTruncate          int64 `json:"type_truncate"`
+	InvalidStartDate      int64 `json:"invalid_start_date"`
+	InvalidDuration       int64 `json:"invalid_duration"`
 	InvalidHttpStatusCode int64 `json:"invalid_http_status_code"`
+}
+
+func (s * TracesMalformedStats) AtomicCopy() (result TracesMalformedStats) {
+	result.DuplicateSpanId = atomic.LoadInt64(&s.DuplicateSpanId)
+	result.ServiceEmpty = atomic.LoadInt64(&s.ServiceEmpty)
+	result.ServiceTruncate = atomic.LoadInt64(&s.ServiceTruncate)
+	result.ServiceInvalid = atomic.LoadInt64(&s.ServiceInvalid)
+	result.SpanNameEmpty = atomic.LoadInt64(&s.SpanNameEmpty)
+	result.SpanNameTruncate = atomic.LoadInt64(&s.SpanNameTruncate)
+	result.SpanNameInvalid = atomic.LoadInt64(&s.SpanNameInvalid)
+	result.ResourceEmpty = atomic.LoadInt64(&s.ResourceEmpty)
+	result.TypeTruncate = atomic.LoadInt64(&s.TypeTruncate)
+	result.InvalidStartDate = atomic.LoadInt64(&s.InvalidStartDate)
+	result.InvalidDuration = atomic.LoadInt64(&s.InvalidDuration)
+	result.InvalidHttpStatusCode = atomic.LoadInt64(&s.InvalidHttpStatusCode)
+	return result
+}
+
+func (s *TracesMalformedStats) toMap() (result map[string]int64, err error) {
+	sCopy := s.AtomicCopy()
+	statsB, err := json.Marshal(&sCopy)
+	if err != nil {
+		return result, err
+	}
+	err = json.Unmarshal(statsB, &result)
+	return result, err
 }
 
 // Stats holds the metrics that will be reported every 10s by the agent.
@@ -384,7 +408,6 @@ func (s *Stats) isEmpty() bool {
 
 // String returns a string representation of the Stats struct
 func (s *Stats) String() string {
-	// TODO: just marshal this whole thing to JSON
 	// Atomically load the stats
 	tracesReceived := atomic.LoadInt64(&s.TracesReceived)
 	//tracesDropped := atomic.LoadInt64(&s.TracesDropped)
@@ -396,7 +419,7 @@ func (s *Stats) String() string {
 	eventsExtracted := atomic.LoadInt64(&s.EventsExtracted)
 	eventsSampled := atomic.LoadInt64(&s.EventsSampled)
 
-	return fmt.Sprintf("traces received: %d, traces dropped: %d, traces filtered: %d, "+
+	return fmt.Sprintf("traces received: %d, traces filtered: %d, "+
 		"traces amount: %d bytes, services received: %d, services amount: %d bytes, "+
 		"events extracted: %d, events sampled: %d",
 		tracesReceived, tracesFiltered,

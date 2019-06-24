@@ -281,7 +281,7 @@ func TestInfoReceiverStats(t *testing.T) {
 	stats := NewReceiverStats()
 	t1 := &TagStats{
 		Tags{Lang: "python"},
-		Stats{TracesReceived: 23, TracesDropped: 2, TracesBytes: 3244, SpansReceived: 213, SpansDropped: 14},
+		Stats{TracesReceived: 23,  TracesBytes: 3244, SpansReceived: 213, SpansDropped: 14},
 	}
 	t2 := &TagStats{
 		Tags{Lang: "go"},
