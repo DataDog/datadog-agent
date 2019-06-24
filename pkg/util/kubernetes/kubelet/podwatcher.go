@@ -30,9 +30,10 @@ type PodWatcher struct {
 	tagsDigest     map[string]string
 }
 
-// NewPodWatcher creates a new watcher. User call must then trigger PullChanges
-// and ExpireContainers when needed.
-func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
+// NewPodWatcher creates a new watcher given an expiry duration
+// and if the watcher should watch label/annotation changes on pods.
+// User call must then trigger PullChanges and Expire when needed.
+func NewPodWatcher(expiryDuration time.Duration, isWatchingTags bool) (*PodWatcher, error) {
 	kubeutil, err := GetKubeUtil()
 	if err != nil {
 		return nil, err
@@ -41,10 +42,18 @@ func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 		kubeUtil:       kubeutil,
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
 		expiryDuration: expiryDuration,
 	}
+	if isWatchingTags {
+		watcher.tagsDigest = make(map[string]string)
+	}
 	return watcher, nil
+}
+
+// isWatchingTags returns true if the pod watcher should
+// watch for tag changes on pods
+func (w *PodWatcher) isWatchingTags() bool {
+	return w.tagsDigest != nil
 }
 
 // PullChanges pulls a new podList from the kubelet and returns Pod objects for
@@ -71,7 +80,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 		newStaticPod := false
 		_, foundPod := w.lastSeen[podEntity]
 
-		if !foundPod {
+		if w.isWatchingTags() && !foundPod {
 			w.tagsDigest[podEntity] = digestPodMeta(pod.Metadata)
 		}
 
@@ -114,11 +123,13 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 
 		// Detect changes in labels and annotations values
 		newLabelsOrAnnotations := false
-		newTagsDigest := digestPodMeta(pod.Metadata)
-		if foundPod && newTagsDigest != w.tagsDigest[podEntity] {
-			// update tags digest
-			w.tagsDigest[podEntity] = newTagsDigest
-			newLabelsOrAnnotations = true
+		if w.isWatchingTags() {
+			newTagsDigest := digestPodMeta(pod.Metadata)
+			if foundPod && newTagsDigest != w.tagsDigest[podEntity] {
+				// update tags digest
+				w.tagsDigest[podEntity] = newTagsDigest
+				newLabelsOrAnnotations = true
+			}
 		}
 
 		if newStaticPod || updatedContainer || newLabelsOrAnnotations {
@@ -144,8 +155,10 @@ func (w *PodWatcher) Expire() ([]string, error) {
 		// pod was removed from the pod list, we can safely cleanup everything
 		if now.Sub(lastSeen) > w.expiryDuration {
 			delete(w.lastSeen, id)
-			delete(w.tagsDigest, id)
 			delete(w.lastSeenReady, id)
+			if w.isWatchingTags() {
+				delete(w.tagsDigest, id)
+			}
 			expiredContainers = append(expiredContainers, id)
 		}
 	}

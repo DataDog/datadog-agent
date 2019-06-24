@@ -47,7 +47,6 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -90,7 +89,6 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -132,7 +130,6 @@ func (suite *PodwatcherTestSuite) TestPodWatcherWithInitContainers() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -161,7 +158,6 @@ func (suite *PodwatcherTestSuite) TestPodWatcherWithShortLivedContainers() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -190,7 +186,6 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -292,7 +287,6 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireUnready() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -436,7 +430,7 @@ func (suite *PodwatcherTestSuite) TestPullChanges() {
 	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)
 	mockConfig.Set("kubelet_tls_verify", false)
 
-	watcher, err := NewPodWatcher(5 * time.Minute)
+	watcher, err := NewPodWatcher(5*time.Minute, false)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), watcher)
 	<-kubelet.Requests // Throwing away the first /pods GET
