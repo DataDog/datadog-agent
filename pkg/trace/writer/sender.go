@@ -200,6 +200,7 @@ func (s *sender) Push(p *payload) {
 					bytes: drop.body.Len(),
 					count: 1,
 				})
+				ppool.Put(drop)
 			default:
 				// the queue got drained; not very likely to happen, but
 				// we shouldn't risk a deadlock
@@ -245,6 +246,7 @@ func (s *sender) sendPayload(p *payload) {
 		s.recordEvent(eventTypeRejected, stats)
 	}
 	// we're done with p
+	ppool.Put(p)
 	atomic.AddInt32(&s.inflight, -1)
 }
 
@@ -300,15 +302,22 @@ type payload struct {
 	headers map[string]string // request headers
 }
 
-// newPayload creates a new payload with the given headers.
+// ppool is a pool of payloads.
+var ppool = &sync.Pool{
+	New: func() interface{} {
+		return &payload{
+			body:    &bytes.Buffer{},
+			headers: make(map[string]string),
+		}
+	},
+}
+
+// newPayload returns a new payload with the given headers. The payload should not
+// be used anymore after it has been given to the sender.
 func newPayload(headers map[string]string) *payload {
-	p := &payload{
-		body:    new(bytes.Buffer),
-		headers: make(map[string]string),
-	}
-	for k, v := range headers {
-		p.headers[k] = v
-	}
+	p := ppool.Get().(*payload)
+	p.body.Reset()
+	p.headers = headers
 	return p
 }
 

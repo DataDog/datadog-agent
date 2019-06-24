@@ -188,22 +188,18 @@ func TestSender(t *testing.T) {
 
 		// push a couple of payloads
 		start := time.Now()
-		payloadThirdOk := expectResponses(503, 503, 200)
-		payloadOk := expectResponses(200)
-		payloadFail := expectResponses(403)
-
-		s.Push(payloadThirdOk)
-		s.Push(payloadOk)
-		s.Push(payloadOk)
+		s.Push(expectResponses(503, 503, 200))
+		s.Push(expectResponses(200))
+		s.Push(expectResponses(200))
 		for i := 0; i < 4; i++ {
-			s.Push(payloadFail)
+			s.Push(expectResponses(403))
 		}
 		s.Stop()
 
 		retried := recorder.data(eventTypeRetry)
 		assert.Equal(2, len(retried))
 		for i := 0; i < 2; i++ {
-			assert.Equal(payloadThirdOk.body.Len(), retried[i].bytes)
+			assert.True(retried[i].bytes > len("|503,503,200"))
 			assert.Equal(`server responded with "503 Service Unavailable"`, retried[i].err.(*retriableError).err.Error())
 			assert.Equal(1, retried[i].count)
 			assert.True(retried[i].connectionFill > 0 && retried[i].connectionFill < 1, fmt.Sprintf("%f", retried[i].connectionFill))
@@ -213,12 +209,7 @@ func TestSender(t *testing.T) {
 		sent := recorder.data(eventTypeSent)
 		assert.Equal(3, len(sent))
 		for i := 0; i < 3; i++ {
-			switch size := sent[i].bytes; size {
-			case payloadOk.body.Len(), payloadThirdOk.body.Len():
-				// OK
-			default:
-				t.Fatalf("unexpected body size: %d", size)
-			}
+			assert.True(sent[i].bytes > len("|403"))
 			assert.NoError(sent[i].err)
 			assert.Equal(1, sent[i].count)
 			assert.True(sent[i].connectionFill > 0 && sent[i].connectionFill < 1, fmt.Sprintf("%f", sent[i].connectionFill))
@@ -228,7 +219,7 @@ func TestSender(t *testing.T) {
 		failed := recorder.data(eventTypeRejected)
 		assert.Equal(4, len(failed))
 		for i := 0; i < 4; i++ {
-			assert.Equal(payloadFail.body.Len(), failed[i].bytes)
+			assert.True(failed[i].bytes > len("|403"))
 			assert.Equal("403 Forbidden", failed[i].err.Error())
 			assert.Equal(1, failed[i].count)
 			assert.True(failed[i].connectionFill > 0 && failed[i].connectionFill < 1, fmt.Sprintf("%f", failed[i].connectionFill))
