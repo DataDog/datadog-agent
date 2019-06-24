@@ -197,10 +197,6 @@ func validateArgs(args []string, local bool) error {
 }
 
 func pip(args []string, stdout io.Writer, stderr io.Writer) error {
-	if !allowRoot && !authorizedUser() {
-		return errors.New("Please use this tool as the agent-running user")
-	}
-
 	if flagNoColor {
 		color.NoColor = true
 	}
@@ -257,8 +253,9 @@ func pip(args []string, stdout io.Writer, stderr io.Writer) error {
 }
 
 func install(cmd *cobra.Command, args []string) error {
-	if !isIntegrationUser() {
-		return fmt.Errorf("Installation requires an elevated/root user")
+	err := validateUser(allowRoot)
+	if err != nil {
+		return err
 	}
 	if err := validateArgs(args, localWheel); err != nil {
 		return err
@@ -722,8 +719,9 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 }
 
 func remove(cmd *cobra.Command, args []string) error {
-	if !isIntegrationUser() {
-		return fmt.Errorf("Removal requires an elevated/root user")
+	err := validateUser(allowRoot)
+	if err != nil {
+		return err
 	}
 
 	if err := validateArgs(args, false); err != nil {
