@@ -124,28 +124,28 @@ type NormalizationIssue struct {
 
 func (ts *TagStats) DroppedTraceNormalizationIssues() []NormalizationIssue {
 	return []NormalizationIssue{
-		{"decoding_error", atomic.LoadInt64(&ts.TracesDroppedDecodingError)},
-		{"empty_trace", atomic.LoadInt64(&ts.TracesDroppedEmptyTrace)},
-		{"trace_id_zero", atomic.LoadInt64(&ts.TracesDroppedTraceIdZero)},
-		{"span_id_zero", atomic.LoadInt64(&ts.TracesDroppedSpanIdZero)},
-		{"foreign_span", atomic.LoadInt64(&ts.TracesDroppedForeignSpan)},
+		{"decoding_error", atomic.LoadInt64(&ts.TracesDropped.DecodingError)},
+		{"empty_trace", atomic.LoadInt64(&ts.TracesDropped.EmptyTrace)},
+		{"trace_id_zero", atomic.LoadInt64(&ts.TracesDropped.TraceIdZero)},
+		{"span_id_zero", atomic.LoadInt64(&ts.TracesDropped.SpanIdZero)},
+		{"foreign_span", atomic.LoadInt64(&ts.TracesDropped.ForeignSpan)},
 	}
 }
 
 func (ts *TagStats) MalformedTraceNormalizationIssues() []NormalizationIssue {
 	return []NormalizationIssue{
-		{"duplicate_span_id", atomic.LoadInt64(&ts.TracesMalformedDuplicateSpanId)},
-		{"service_empty", atomic.LoadInt64(&ts.TracesMalformedServiceEmpty)},
-		{"service_truncate", atomic.LoadInt64(&ts.TracesMalformedServiceTruncate)},
-		{"service_invalid", atomic.LoadInt64(&ts.TracesMalformedServiceInvalid)},
-		{"span_name_empty", atomic.LoadInt64(&ts.TracesMalformedSpanNameEmpty)},
-		{"span_name_truncate", atomic.LoadInt64(&ts.TracesMalformedSpanNameTruncate)},
-		{"span_name_invalid", atomic.LoadInt64(&ts.TracesMalformedSpanNameInvalid)},
-		{"resource_empty", atomic.LoadInt64(&ts.TracesMalformedResourceEmpty)},
-		{"type_truncate", atomic.LoadInt64(&ts.TracesMalformedTypeTruncate)},
-		{"invalid_start_date", atomic.LoadInt64(&ts.TracesMalformedInvalidStartDate)},
-		{"invalid_duration", atomic.LoadInt64(&ts.TracesMalformedInvalidDuration)},
-		{"invalid_http_status_code", atomic.LoadInt64(&ts.TracesMalformedInvalidHttpStatusCode)},
+		{"duplicate_span_id", atomic.LoadInt64(&ts.TracesMalformed.DuplicateSpanId)},
+		{"service_empty", atomic.LoadInt64(&ts.TracesMalformed.ServiceEmpty)},
+		{"service_truncate", atomic.LoadInt64(&ts.TracesMalformed.ServiceTruncate)},
+		{"service_invalid", atomic.LoadInt64(&ts.TracesMalformed.ServiceInvalid)},
+		{"span_name_empty", atomic.LoadInt64(&ts.TracesMalformed.SpanNameEmpty)},
+		{"span_name_truncate", atomic.LoadInt64(&ts.TracesMalformed.SpanNameTruncate)},
+		{"span_name_invalid", atomic.LoadInt64(&ts.TracesMalformed.SpanNameInvalid)},
+		{"resource_empty", atomic.LoadInt64(&ts.TracesMalformed.ResourceEmpty)},
+		{"type_truncate", atomic.LoadInt64(&ts.TracesMalformed.TypeTruncate)},
+		{"invalid_start_date", atomic.LoadInt64(&ts.TracesMalformed.InvalidStartDate)},
+		{"invalid_duration", atomic.LoadInt64(&ts.TracesMalformed.InvalidDuration)},
+		{"invalid_http_status_code", atomic.LoadInt64(&ts.TracesMalformed.InvalidHttpStatusCode)},
 	}
 }
 
@@ -226,34 +226,43 @@ func (ts *TagStats) publish() {
 	}
 }
 
+type TracesDroppedStats struct {
+	// DecodingError is the number of traces dropped due to decoding error
+	DecodingError int64
+	// EmptyTrace is the number of traces dropped due to empty trace
+	EmptyTrace int64
+	// TraceIdZero is the number of traces dropped due to trace-ID=zero
+	TraceIdZero int64
+	// SpanIdZero is the number of traces dropped.
+	SpanIdZero int64
+	// ForeignSpan is the number of traces dropped.
+	ForeignSpan int64
+}
+
+type TracesMalformedStats struct {
+	DuplicateSpanId int64
+	ServiceEmpty int64
+	ServiceTruncate int64
+	ServiceInvalid int64
+	SpanNameEmpty int64
+	SpanNameTruncate int64
+	SpanNameInvalid int64
+	ResourceEmpty int64
+	TypeTruncate int64
+	InvalidStartDate int64
+	InvalidDuration int64
+	InvalidHttpStatusCode int64
+}
+
 // Stats holds the metrics that will be reported every 10s by the agent.
 // Its fields require to be accessed in an atomic way.
 type Stats struct {
 	// TracesReceived is the total number of traces received, including the dropped ones.
 	TracesReceived int64
-	// TracesDroppedDecodingError is the number of traces dropped due to decoding error
-	TracesDroppedDecodingError int64
-	// TracesDroppedEmptyTrace is the number of traces dropped due to empty trace
-	TracesDroppedEmptyTrace int64
-	// TracesDropped is the number of traces dropped due to trace-ID=zero
-	TracesDroppedTraceIdZero int64
-	// TracesDropped is the number of traces dropped.
-	TracesDroppedSpanIdZero int64
-	// TracesDropped is the number of traces dropped.
-	TracesDroppedForeignSpan int64
-	// TracesMalformedDuplicateSpanId is the number of traces dropped.
-	TracesMalformedDuplicateSpanId int64
-	TracesMalformedServiceEmpty int64
-	TracesMalformedServiceTruncate int64
-	TracesMalformedServiceInvalid int64
-	TracesMalformedSpanNameEmpty int64
-	TracesMalformedSpanNameTruncate int64
-	TracesMalformedSpanNameInvalid int64
-	TracesMalformedResourceEmpty int64
-	TracesMalformedTypeTruncate int64
-	TracesMalformedInvalidStartDate int64
-	TracesMalformedInvalidDuration int64
-	TracesMalformedInvalidHttpStatusCode int64
+
+	TracesDropped TracesDroppedStats
+
+	TracesMalformed TracesMalformedStats
 
 	// TracesFiltered is the number of traces filtered.
 	TracesFiltered int64
@@ -289,12 +298,28 @@ type Stats struct {
 
 func (s *Stats) update(recent *Stats) {
 	atomic.AddInt64(&s.TracesReceived, atomic.LoadInt64(&recent.TracesReceived))
-	atomic.AddInt64(&s.TracesDroppedDecodingError, atomic.LoadInt64(&recent.TracesDroppedDecodingError))
-	atomic.AddInt64(&s.TracesDroppedEmptyTrace, atomic.LoadInt64(&recent.TracesDroppedEmptyTrace))
-	atomic.AddInt64(&s.TracesDroppedTraceIdZero, atomic.LoadInt64(&recent.TracesDroppedTraceIdZero))
-	atomic.AddInt64(&s.TracesDroppedSpanIdZero, atomic.LoadInt64(&recent.TracesDroppedSpanIdZero))
-	atomic.AddInt64(&s.TracesDroppedForeignSpan, atomic.LoadInt64(&recent.TracesDroppedForeignSpan))
-	atomic.AddInt64(&s.TracesMalformedDuplicateSpanId, atomic.LoadInt64(&recent.TracesMalformedDuplicateSpanId))
+
+	// TracesDropped
+	atomic.AddInt64(&s.TracesDropped.DecodingError, atomic.LoadInt64(&recent.TracesDropped.DecodingError))
+	atomic.AddInt64(&s.TracesDropped.EmptyTrace, atomic.LoadInt64(&recent.TracesDropped.EmptyTrace))
+	atomic.AddInt64(&s.TracesDropped.TraceIdZero, atomic.LoadInt64(&recent.TracesDropped.TraceIdZero))
+	atomic.AddInt64(&s.TracesDropped.SpanIdZero, atomic.LoadInt64(&recent.TracesDropped.SpanIdZero))
+	atomic.AddInt64(&s.TracesDropped.ForeignSpan, atomic.LoadInt64(&recent.TracesDropped.ForeignSpan))
+
+	// Traces Malformed
+	atomic.AddInt64(&s.TracesMalformed.DuplicateSpanId, atomic.LoadInt64(&recent.TracesMalformed.DuplicateSpanId))
+	atomic.AddInt64(&s.TracesMalformed.ServiceEmpty, atomic.LoadInt64(&recent.TracesMalformed.ServiceEmpty))
+	atomic.AddInt64(&s.TracesMalformed.ServiceTruncate, atomic.LoadInt64(&recent.TracesMalformed.ServiceTruncate))
+	atomic.AddInt64(&s.TracesMalformed.ServiceInvalid, atomic.LoadInt64(&recent.TracesMalformed.ServiceInvalid))
+	atomic.AddInt64(&s.TracesMalformed.SpanNameEmpty, atomic.LoadInt64(&recent.TracesMalformed.SpanNameEmpty))
+	atomic.AddInt64(&s.TracesMalformed.SpanNameTruncate, atomic.LoadInt64(&recent.TracesMalformed.SpanNameTruncate))
+	atomic.AddInt64(&s.TracesMalformed.SpanNameInvalid, atomic.LoadInt64(&recent.TracesMalformed.SpanNameInvalid))
+	atomic.AddInt64(&s.TracesMalformed.ResourceEmpty, atomic.LoadInt64(&recent.TracesMalformed.ResourceEmpty))
+	atomic.AddInt64(&s.TracesMalformed.TypeTruncate, atomic.LoadInt64(&recent.TracesMalformed.TypeTruncate))
+	atomic.AddInt64(&s.TracesMalformed.InvalidStartDate, atomic.LoadInt64(&recent.TracesMalformed.InvalidStartDate))
+	atomic.AddInt64(&s.TracesMalformed.InvalidDuration, atomic.LoadInt64(&recent.TracesMalformed.InvalidDuration))
+	atomic.AddInt64(&s.TracesMalformed.InvalidHttpStatusCode, atomic.LoadInt64(&recent.TracesMalformed.InvalidHttpStatusCode))
+
 	atomic.AddInt64(&s.TracesFiltered, atomic.LoadInt64(&recent.TracesFiltered))
 	atomic.AddInt64(&s.TracesPriorityNone, atomic.LoadInt64(&recent.TracesPriorityNone))
 	atomic.AddInt64(&s.TracesPriorityNeg, atomic.LoadInt64(&recent.TracesPriorityNeg))
@@ -314,12 +339,23 @@ func (s *Stats) update(recent *Stats) {
 
 func (s *Stats) reset() {
 	atomic.StoreInt64(&s.TracesReceived, 0)
-	atomic.StoreInt64(&s.TracesDroppedDecodingError, 0)
-	atomic.StoreInt64(&s.TracesDroppedEmptyTrace, 0)
-	atomic.StoreInt64(&s.TracesDroppedTraceIdZero, 0)
-	atomic.StoreInt64(&s.TracesDroppedSpanIdZero, 0)
-	atomic.StoreInt64(&s.TracesDroppedForeignSpan, 0)
-	atomic.StoreInt64(&s.TracesMalformedDuplicateSpanId, 0)
+	atomic.AddInt64(&s.TracesDropped.DecodingError, 0)
+	atomic.AddInt64(&s.TracesDropped.EmptyTrace, 0)
+	atomic.AddInt64(&s.TracesDropped.TraceIdZero, 0)
+	atomic.AddInt64(&s.TracesDropped.SpanIdZero, 0)
+	atomic.AddInt64(&s.TracesDropped.ForeignSpan, 0)
+	atomic.AddInt64(&s.TracesMalformed.DuplicateSpanId, 0)
+	atomic.AddInt64(&s.TracesMalformed.ServiceEmpty, 0)
+	atomic.AddInt64(&s.TracesMalformed.ServiceTruncate, 0)
+	atomic.AddInt64(&s.TracesMalformed.ServiceInvalid, 0)
+	atomic.AddInt64(&s.TracesMalformed.SpanNameEmpty, 0)
+	atomic.AddInt64(&s.TracesMalformed.SpanNameTruncate, 0)
+	atomic.AddInt64(&s.TracesMalformed.SpanNameInvalid, 0)
+	atomic.AddInt64(&s.TracesMalformed.ResourceEmpty, 0)
+	atomic.AddInt64(&s.TracesMalformed.TypeTruncate, 0)
+	atomic.AddInt64(&s.TracesMalformed.InvalidStartDate, 0)
+	atomic.AddInt64(&s.TracesMalformed.InvalidDuration, 0)
+	atomic.AddInt64(&s.TracesMalformed.InvalidHttpStatusCode, 0)
 	atomic.StoreInt64(&s.TracesFiltered, 0)
 	atomic.StoreInt64(&s.TracesPriorityNone, 0)
 	atomic.StoreInt64(&s.TracesPriorityNeg, 0)
