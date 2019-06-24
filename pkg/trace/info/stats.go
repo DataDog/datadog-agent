@@ -103,7 +103,7 @@ func (rs *ReceiverStats) Strings() (infoStrings []string, warnStrings []string) 
 			infoStrings = append(infoStrings, fmt.Sprintf("%v -> %s", ts.Tags.toArray(), ts.InfoString()))
 			warnString := ts.WarnString()
 			if len(warnString) > 0 {
-				warnStrings = append(warnStrings, warnString)
+				warnStrings = append(warnStrings, fmt.Sprintf("%v -> %s", ts.Tags.toArray(), warnString))
 			}
 		}
 	}
