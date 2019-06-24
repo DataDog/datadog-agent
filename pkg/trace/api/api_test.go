@@ -759,8 +759,8 @@ func TestExpvar(t *testing.T) {
 	defer r.Stop()
 
 	resp, err := http.Get("http://localhost:8126/debug/vars")
-	defer resp.Body.Close()
 	assert.NoError(t, err)
+	defer resp.Body.Close()
 	assert.EqualValues(t, resp.StatusCode, http.StatusOK, "failed to read expvars from local server")
 
 	if resp.StatusCode == http.StatusOK {
