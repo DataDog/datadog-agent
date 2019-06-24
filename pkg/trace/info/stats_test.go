@@ -11,12 +11,7 @@ func TestTracesDroppedStatsToMap(t *testing.T) {
 	m, err := s.toMap()
 	assert.NoError(t, err)
 	assert.EqualValues(t, m["decoding_error"], 1)
-	// all other keys should be empty
-	for k, v := range m {
-		if k != "decoding_error" {
-			assert.EqualValues(t, v, 0)
-		}
-	}
+	assert.Len(t, m, 1, "stats map should contain exactly one item as count=0 stats should be omitted")
 }
 
 func TestTracesMalformedStatsToMap(t *testing.T) {
@@ -25,10 +20,5 @@ func TestTracesMalformedStatsToMap(t *testing.T) {
 	m, err := s.toMap()
 	assert.NoError(t, err)
 	assert.EqualValues(t, m["duplicate_span_id"], 1)
-	// all other keys should be empty
-	for k, v := range m {
-		if k != "duplicate_span_id" {
-			assert.EqualValues(t, v, 0)
-		}
-	}
+	assert.Len(t, m, 1, "stats map should contain exactly one item as count=0 stats should be omitted")
 }

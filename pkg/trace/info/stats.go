@@ -3,6 +3,7 @@ package info
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sort"
 	"strconv"
 	"strings"
@@ -189,11 +190,11 @@ func (ts *TagStats) publish() {
 }
 
 type TracesDroppedStats struct {
-	DecodingError int64 `json:"decoding_error"`
-	EmptyTrace    int64 `json:"empty_trace"`
-	TraceIdZero   int64 `json:"trace_id_zero"`
-	SpanIdZero    int64 `json:"span_id_zero"`
-	ForeignSpan   int64 `json:"foreign_span"`
+	DecodingError int64 `json:"decoding_error,omitempty"`
+	EmptyTrace    int64 `json:"empty_trace,omitempty"`
+	TraceIdZero   int64 `json:"trace_id_zero,omitempty"`
+	SpanIdZero    int64 `json:"span_id_zero,omitempty"`
+	ForeignSpan   int64 `json:"foreign_span,omitempty"`
 }
 
 func (s * TracesDroppedStats) AtomicCopy() (result TracesDroppedStats) {
@@ -215,19 +216,31 @@ func (s *TracesDroppedStats) toMap() (result map[string]int64, err error) {
 	return result, err
 }
 
+func (s * TracesDroppedStats) String() string {
+	var reasonStrings []string
+	sMap, err := s.toMap()
+	if err != nil {
+		return log.Error(fmt.Sprintf("Failed to serialize TracesDroppedStats: %s", err)).Error()
+	}
+	for reason, count := range sMap {
+		reasonStrings = append(reasonStrings, reason+":"+strconv.FormatInt(count, 10))
+	}
+	return strings.Join(reasonStrings, ", ")
+}
+
 type TracesMalformedStats struct {
-	DuplicateSpanId       int64 `json:"duplicate_span_id"`
-	ServiceEmpty          int64 `json:"service_empty"`
-	ServiceTruncate       int64 `json:"service_truncate"`
-	ServiceInvalid        int64 `json:"service_invalid"`
-	SpanNameEmpty         int64 `json:"span_name_empty"`
-	SpanNameTruncate      int64 `json:"span_name_truncate"`
-	SpanNameInvalid       int64 `json:"span_name_invalid"`
-	ResourceEmpty         int64 `json:"resource_empty"`
-	TypeTruncate          int64 `json:"type_truncate"`
-	InvalidStartDate      int64 `json:"invalid_start_date"`
-	InvalidDuration       int64 `json:"invalid_duration"`
-	InvalidHttpStatusCode int64 `json:"invalid_http_status_code"`
+	DuplicateSpanId       int64 `json:"duplicate_span_id,omitempty"`
+	ServiceEmpty          int64 `json:"service_empty,omitempty"`
+	ServiceTruncate       int64 `json:"service_truncate,omitempty"`
+	ServiceInvalid        int64 `json:"service_invalid,omitempty"`
+	SpanNameEmpty         int64 `json:"span_name_empty,omitempty"`
+	SpanNameTruncate      int64 `json:"span_name_truncate,omitempty"`
+	SpanNameInvalid       int64 `json:"span_name_invalid,omitempty"`
+	ResourceEmpty         int64 `json:"resource_empty,omitempty"`
+	TypeTruncate          int64 `json:"type_truncate,omitempty"`
+	InvalidStartDate      int64 `json:"invalid_start_date,omitempty"`
+	InvalidDuration       int64 `json:"invalid_duration,omitempty"`
+	InvalidHttpStatusCode int64 `json:"invalid_http_status_code,omitempty"`
 }
 
 func (s * TracesMalformedStats) AtomicCopy() (result TracesMalformedStats) {
@@ -256,16 +269,28 @@ func (s *TracesMalformedStats) toMap() (result map[string]int64, err error) {
 	return result, err
 }
 
+func (s * TracesMalformedStats) String() string {
+	var reasonStrings []string
+	sMap, err := s.toMap()
+	if err != nil {
+		return log.Error(fmt.Sprintf("Failed to serialize TracesMalformedStats: %s", err)).Error()
+	}
+	for reason, count := range sMap {
+		reasonStrings = append(reasonStrings, reason+":"+strconv.FormatInt(count, 10))
+	}
+	return strings.Join(reasonStrings, ", ")
+}
+
+
 // Stats holds the metrics that will be reported every 10s by the agent.
 // Its fields require to be accessed in an atomic way.
 type Stats struct {
 	// TracesReceived is the total number of traces received, including the dropped ones.
 	TracesReceived int64
-
+	// TracesDropped contains stats about the count of dropped traces by reason
 	TracesDropped TracesDroppedStats
-
+	// TracesMalformed contains stats about the count of malformed traces by reason
 	TracesMalformed TracesMalformedStats
-
 	// TracesFiltered is the number of traces filtered.
 	TracesFiltered int64
 	// TracesPriorityNone is the number of traces with no sampling priority.

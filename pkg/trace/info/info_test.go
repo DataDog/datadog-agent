@@ -143,6 +143,7 @@ func TestInfo(t *testing.T) {
 	err = Info(&buf, conf)
 	assert.NoError(err)
 	info := buf.String()
+	assert.NotEmpty(info)
 	t.Logf("Info:\n%s\n", info)
 	expectedInfo, err := ioutil.ReadFile("./testdata/okay.info")
 	assert.NoError(err)
