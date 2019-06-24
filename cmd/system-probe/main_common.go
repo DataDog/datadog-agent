@@ -16,10 +16,10 @@ import (
 
 var (
 	checkEndpoints = map[string]string{
-		"net_maps":    "http://unix/debug/net_maps",
-		"stats":       "http://unix/debug/stats",
-		"net_state":   "http://unix/debug/net_state",
-		"connections": "http://unix/connections",
+		"network_maps":  "http://unix/debug/net_maps",
+		"stats":         "http://unix/debug/stats",
+		"network_state": "http://unix/debug/net_state",
+		"connections":   "http://unix/connections",
 	}
 )
 
@@ -69,7 +69,7 @@ func printResult(r []byte, check string) error {
 	var content interface{}
 
 	switch check {
-	case "net_maps":
+	case "network_maps":
 		fallthrough
 	case "connections":
 		conn := &ebpf.Connections{}
@@ -79,7 +79,7 @@ func printResult(r []byte, check string) error {
 		content = conn
 	case "stats":
 		fallthrough
-	case "net_state":
+	case "network_state":
 		var output map[string]interface{}
 		if err := json.Unmarshal(r, &output); err != nil {
 			return err
