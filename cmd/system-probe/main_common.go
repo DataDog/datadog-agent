@@ -69,17 +69,13 @@ func printResult(r []byte, check string) error {
 	var content interface{}
 
 	switch check {
-	case "network_maps":
-		fallthrough
-	case "connections":
+	case "network_maps", "connections":
 		conn := &ebpf.Connections{}
 		if err := conn.UnmarshalJSON(r); err != nil {
 			return err
 		}
 		content = conn
-	case "stats":
-		fallthrough
-	case "network_state":
+	case "stats", "network_state":
 		var output map[string]interface{}
 		if err := json.Unmarshal(r, &output); err != nil {
 			return err
