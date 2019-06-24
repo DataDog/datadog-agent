@@ -60,29 +60,15 @@ func NewKubeEndpointsListener() (ServiceListener, error) {
 	if endpointsInformer == nil {
 		return nil, fmt.Errorf("cannot get endpoints informer: %s", err)
 	}
-	serviceLister, err := newServiceLister()
-	if err != nil {
-		log.Errorf("Cannot create service lister: %s", err)
-		return nil, err
-	}
-	return &KubeEndpointsListener{
-		endpoints:         make(map[types.UID][]*KubeEndpointService),
-		endpointsInformer: endpointsInformer,
-		serviceLister:     serviceLister,
-	}, nil
-}
-
-// newServiceLister return a kube service lister
-func newServiceLister() (listv1.ServiceLister, error) {
-	ac, err := apiserver.GetAPIClient()
-	if err != nil {
-		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
-	}
 	serviceInformer := ac.InformerFactory.Core().V1().Services()
 	if serviceInformer == nil {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
-	return serviceInformer.Lister(), nil
+	return &KubeEndpointsListener{
+		endpoints:         make(map[types.UID][]*KubeEndpointService),
+		endpointsInformer: endpointsInformer,
+		serviceLister:     serviceInformer.Lister(),
+	}, nil
 }
 
 func (l *KubeEndpointsListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
