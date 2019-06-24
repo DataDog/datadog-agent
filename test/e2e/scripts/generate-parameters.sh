@@ -32,13 +32,13 @@ validate_input()
 {
     # Validate workflow name characters
     if ! [[ $WORKFLOW =~ ^[0-9a-zA-Z-]+$ ]]; then
-        echo 'Error: Invalid workflow name format: '$WORKFLOW
+        echo "Error: Invalid workflow name format: $WORKFLOW"
         exit 1
     fi
 
     # Validate workflow group name characters
-    if ! [[ $WORKFLOW_GROUP =~ ^[0-9a-zA-Z-]+$ ]]; then
-        echo 'Error: Invalid workflow group name format: '$WORKFLOW_GROUP
+    if ! [[ $WORKFLOW_GROUP =~ ^[0-9a-zA-Z._-]+$ ]]; then
+        echo "Error: Invalid workflow group name format: $WORKFLOW_GROUP"
         exit 1
     fi
 }
@@ -49,10 +49,12 @@ generate_namespace()
     # namespace format: <workflow_group>-<workflow>-<firs_5_chars_of_prefix_check_sum>-<random_5_digits>
     echo 'Info: Generating namespace...'
     PREFIX=$WORKFLOW_GROUP-$WORKFLOW
+    # `_` and `.` are not allowed in namespace names, replace them with `-`
+    PREFIX=${PREFIX//[_.]/-} 
     CHECK_SUM=$(echo -n $PREFIX | md5sum | cut -c1-5)
     SUFFIX=$RANDOM
     NAMESPACE=$PREFIX-$CHECK_SUM-$SUFFIX
-    echo 'Info: Generated namespace: $NAMESPACE'
+    echo "Info: Generated namespace: $NAMESPACE"
 }
 
 generate_parameters()
@@ -60,20 +62,20 @@ generate_parameters()
     # Merging parameters
     echo 'Info: Merging parameters...'
     YK_MERGE_COMMAND='yq merge --overwrite --allow-empty'
-    DEFAULT_GLOBAL_PARAM='$WORKFLOWS_DIR/defaults/parameters.yaml'
-    DEFAULT_GROUP_PARAM='$WORKFLOWS_DIR/$WORKFLOW_GROUP/defaults/parameters.yaml'
-    WORKFLOW_PARAM='$WORKFLOWS_DIR/$WORKFLOW_GROUP/$WORKFLOW/parameters.yaml'
-    TMP_YAML_PATH=$NAMESPACE'.tmp.yaml'
-    eval $YK_MERGE_COMMAND $DEFAULT_GLOBAL_PARAM $DEFAULT_GROUP_PARAM $WORKFLOW_PARAM > $TMP_YAML_PATH
+    DEFAULT_GLOBAL_PARAM="$WORKFLOWS_DIR/defaults/parameters.yaml"
+    DEFAULT_GROUP_PARAM="$WORKFLOWS_DIR/$WORKFLOW_GROUP/defaults/parameters.yaml"
+    WORKFLOW_PARAM="$WORKFLOWS_DIR/$WORKFLOW_GROUP/$WORKFLOW/parameters.yaml"
+    TMP_YAML_PATH="$NAMESPACE.tmp.yaml"
+    $YK_MERGE_COMMAND $DEFAULT_GLOBAL_PARAM $DEFAULT_GROUP_PARAM $WORKFLOW_PARAM > $TMP_YAML_PATH
     
-    # Adding the generated namespace
-    echo 'Info: Parameters merged, adding namespace and saving file...'
+    # Rendering namespace
+    echo 'Info: Parameters merged, rendering namespace and saving file...'
     YK_WRITE_COMMAND='yq write'
-    NAMESPACE_PARAM_KEY='namespace'
-    eval $YK_WRITE_COMMAND $TMP_YAML_PATH $NAMESPACE_PARAM_KEY $NAMESPACE > $OUTPUT_YAML_FILE
-    echo 'Info: Generated parameters, yaml file saved: '$OUTPUT_YAML_FILE
+    NAMESPACE_TEMPLATE_VAR="'{{ namespace }}'"
+    sed -e "s/$NAMESPACE_TEMPLATE_VAR/$NAMESPACE/g" $TMP_YAML_PATH > $OUTPUT_YAML_FILE
+    echo "Info: Generated parameters, yaml file saved: $OUTPUT_YAML_FILE"
     
-    # Cleanup
+    # Cleanup temp file
     rm $TMP_YAML_PATH
 }
 
