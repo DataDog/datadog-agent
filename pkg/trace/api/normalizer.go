@@ -24,8 +24,8 @@ const (
 	// MaxTypeLen the maximum length a span type can have
 	MaxTypeLen = 100
 	// TODO: should it be service as mentioned in the RFC or something more obvious to indicate a problem?
-	DefaultServiceName = "_service"
-	DefaultSpanName = "_span"
+	DefaultServiceName = "no_name_service"
+	DefaultSpanName = "no_name_span"
 )
 
 var (
