@@ -28,7 +28,6 @@ typedef struct six_s six_t;
 struct six_pyobject_s;
 typedef struct six_pyobject_s six_pyobject_t;
 
-
 // FACTORIES
 /*! \fn six_t *make2(const char *python_home, char **error)
     \brief Factory function to load the python2 backend DLL and create its relevant Six
@@ -48,7 +47,6 @@ DATADOG_AGENT_SIX_API six_t *make2(const char *pythonhome, char **error);
     \sa six_t
 */
 DATADOG_AGENT_SIX_API six_t *make3(const char *pythonhome, char **error);
-
 
 // API
 /*! \fn void destroy(six_t *six)
@@ -231,7 +229,6 @@ DATADOG_AGENT_SIX_API void six_incref(six_t *, six_pyobject_t *);
 */
 DATADOG_AGENT_SIX_API void set_module_attr_string(six_t *, char *, char *, char *);
 
-
 // CONST API
 /*! \fn six_pyobject_t *get_none(const six_t *)
     \brief Routine to set a string attribute on a given module.
@@ -322,7 +319,6 @@ DATADOG_AGENT_SIX_API int handle_crashes(const six_t *, const int);
 */
 DATADOG_AGENT_SIX_API char *get_integration_list(six_t *);
 
-
 // AGGREGATOR API
 /*! \fn void set_submit_metric_cb(six_t *, cb_submit_metric_t)
     \brief Sets the submit metric callback to be used by six for metric submission.
@@ -352,7 +348,6 @@ DATADOG_AGENT_SIX_API void set_submit_service_check_cb(six_t *, cb_submit_servic
     The callback is expected to be provided by the six caller - in go-context: CGO.
 */
 DATADOG_AGENT_SIX_API void set_submit_event_cb(six_t *, cb_submit_event_t);
-
 
 // DATADOG_AGENT API
 /*! \fn void set_get_version_cb(six_t *, cb_get_version_t)
