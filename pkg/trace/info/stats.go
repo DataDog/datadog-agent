@@ -179,6 +179,8 @@ func (ts *TagStats) publish() {
 	}
 }
 
+// statsStructToMap marshals the provided struct into a map[string]int64 by first marshaling it into json
+// then marshing from json into the map
 func statsStructToMap(v interface{}, name string) (result map[string]int64) {
 	statsB, err := json.Marshal(&v)
 	if err != nil {
@@ -191,6 +193,26 @@ func statsStructToMap(v interface{}, name string) (result map[string]int64) {
 	}
 	return result
 }
+
+// inlineStatsMap serializes the entries in this map into format "key1: value1, key2: value2, ...", sorted by key to
+// ensure output order is always the same for the same keys
+func inlineStatsMap(statsMap map[string]int64) string {
+	keys := make([]string, len(statsMap))
+	i := 0
+	for k := range statsMap {
+		keys[i] = k
+		i++
+	}
+	sort.Strings(keys)
+
+	results := make([]string, len(statsMap))
+	for i, key := range keys {
+		results[i] = fmt.Sprintf("%s:%d", key, statsMap[key])
+	}
+
+	return strings.Join(results, ", ")
+}
+
 
 type TracesDroppedStats struct {
 	DecodingError int64 `json:"decoding_error,omitempty"`
@@ -214,11 +236,7 @@ func (s *TracesDroppedStats) toMap() (result map[string]int64) {
 }
 
 func (s * TracesDroppedStats) String() string {
-	var reasonStrings []string
-	for reason, count := range s.toMap() {
-		reasonStrings = append(reasonStrings, reason+":"+strconv.FormatInt(count, 10))
-	}
-	return strings.Join(reasonStrings, ", ")
+	return inlineStatsMap(s.toMap())
 }
 
 type TracesMalformedStats struct {
@@ -257,13 +275,8 @@ func (s *TracesMalformedStats) toMap() (result map[string]int64) {
 }
 
 func (s * TracesMalformedStats) String() string {
-	var reasonStrings []string
-	for reason, count := range s.toMap() {
-		reasonStrings = append(reasonStrings, reason+":"+strconv.FormatInt(count, 10))
-	}
-	return strings.Join(reasonStrings, ", ")
+	return inlineStatsMap(s.toMap())
 }
-
 
 // Stats holds the metrics that will be reported every 10s by the agent.
 // Its fields require to be accessed in an atomic way.
