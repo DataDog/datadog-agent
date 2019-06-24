@@ -70,7 +70,6 @@ generate_parameters()
     
     # Rendering namespace
     echo 'Info: Parameters merged, rendering namespace and saving file...'
-    YK_WRITE_COMMAND='yq write'
     NAMESPACE_TEMPLATE_VAR="'{{ namespace }}'"
     sed -e "s/$NAMESPACE_TEMPLATE_VAR/$NAMESPACE/g" $TMP_YAML_PATH > $OUTPUT_YAML_FILE
     echo "Info: Generated parameters, yaml file saved: $OUTPUT_YAML_FILE"
