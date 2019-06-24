@@ -26,7 +26,6 @@ var opts struct {
 	pidFilePath string
 	debug       bool
 	version     bool
-	check       string
 }
 
 // Version info sourced from build flags
@@ -44,7 +43,9 @@ func main() {
 	// Parse flags
 	flag.StringVar(&opts.configPath, "config", "/etc/datadog-agent/system-probe.yaml", "Path to system-probe config formatted as YAML")
 	flag.StringVar(&opts.pidFilePath, "pid", "", "Path to set pidfile for process")
-	flag.StringVar(&opts.check, "check", "", "Run a special check from system-probe and print the results. Choose from: connections, network_maps, network_state, stats")
+	checkCmd := flag.NewFlagSet("check", flag.ExitOnError)
+	checkType := checkCmd.String("type", "", "The type of the check to run. Choose from: connections, network_maps, network_state, stats")
+	checkClient := checkCmd.String("client", "", "The client ID that the check will use to run")
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 	flag.Parse()
 
@@ -88,8 +89,21 @@ func main() {
 		gracefulExit()
 	}
 
-	if opts.check != "" {
-		err := querySocketEndpoint(cfg, opts.check)
+	// run check command if the flag is specified
+	if len(os.Args) > 1 && os.Args[1] != "check" {
+		fmt.Println("unknown command argument: ", os.Args[1])
+		os.Exit(1)
+	} else if len(os.Args) == 2 && os.Args[1] == "check" {
+		fmt.Println("a check type is required")
+		checkCmd.PrintDefaults()
+		os.Exit(1)
+	} else if len(os.Args) > 2 && os.Args[1] == "check" {
+		checkCmd.Parse(os.Args[2:])
+		if *checkType == "" {
+			checkCmd.PrintDefaults()
+			os.Exit(1)
+		}
+		err := querySocketEndpoint(cfg, *checkType, *checkClient)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

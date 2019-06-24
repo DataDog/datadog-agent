@@ -23,7 +23,7 @@ var (
 	}
 )
 
-func querySocketEndpoint(cfg *config.AgentConfig, check string) error {
+func querySocketEndpoint(cfg *config.AgentConfig, check string, client string) error {
 	if cfg.SystemProbeSocketPath == "" {
 		return errors.New("No sysprobe_socket has been specified in system-probe.yaml")
 	}
@@ -45,6 +45,10 @@ func querySocketEndpoint(cfg *config.AgentConfig, check string) error {
 	endpoint, ok := checkEndpoints[check]
 	if !ok {
 		return fmt.Errorf("unknown check requested: %s", check)
+	}
+
+	if client != "" {
+		endpoint = fmt.Sprintf("%s?client_id=%s", endpoint, client)
 	}
 
 	resp, err := httpClient.Get(endpoint)
