@@ -23,8 +23,9 @@ const (
 	MaxNameLen = 100
 	// MaxTypeLen the maximum length a span type can have
 	MaxTypeLen = 100
-	// TODO: should it be service as mentioned in the RFC or something more obvious to indicate a problem?
+	// DefaultServiceName TODO: do we really want such indescriptive defaults here like "service"?
 	DefaultServiceName = "no_name_service"
+	// DefaultSpanName TODO: do we really want such indescriptive defaults here like "service.trace"?
 	DefaultSpanName = "no_name_span"
 )
 
@@ -36,12 +37,12 @@ var (
 // normalize makes sure a Span is properly initialized and encloses the minimum required info
 func normalize(ts *info.TagStats, s *pb.Span, firstSpan *pb.Span) error {
 	if s.TraceID == 0 {
-		atomic.AddInt64(&ts.TracesDropped.TraceIdZero, 1)
+		atomic.AddInt64(&ts.TracesDropped.TraceIDZero, 1)
 		log.Debugf("Dropping invalid trace (reason:trace_id_zero): %s", s)
 		return errors.New("trace_id_zero")
 	}
 	if s.SpanID == 0 {
-		atomic.AddInt64(&ts.TracesDropped.SpanIdZero, 1)
+		atomic.AddInt64(&ts.TracesDropped.SpanIDZero, 1)
 		log.Debugf("Dropping invalid trace (reason:span_id_zero): %s", s)
 		return errors.New("span_id_zero")
 	}
@@ -159,7 +160,7 @@ func normalize(ts *info.TagStats, s *pb.Span, firstSpan *pb.Span) error {
 	// Status Code
 	if sc, ok := s.Meta["http.status_code"]; ok {
 		if !isValidStatusCode(sc) {
-			atomic.AddInt64(&ts.TracesMalformed.InvalidHttpStatusCode, 1)
+			atomic.AddInt64(&ts.TracesMalformed.InvalidHTTPStatusCode, 1)
 			log.Debugf("Fixing malformed trace (reason:invalid_http_status_code), dropping invalid http.status_code=%s: %s", sc, s)
 			delete(s.Meta, "http.status_code")
 		}
@@ -190,7 +191,7 @@ func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 			return fmt.Errorf("invalid span (SpanID:%d): %v", span.SpanID, err)
 		}
 		if _, ok := spanIDs[span.SpanID]; ok {
-			atomic.AddInt64(&ts.TracesMalformed.DuplicateSpanId, 1)
+			atomic.AddInt64(&ts.TracesMalformed.DuplicateSpanID, 1)
 			log.Warnf("duplicate `SpanID` %v (span %v)", span.SpanID, span)
 		}
 
