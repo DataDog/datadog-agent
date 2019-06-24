@@ -31,8 +31,9 @@ type PodWatcher struct {
 	isWatchingTags bool
 }
 
-// NewPodWatcher creates a new watcher. User call must then trigger PullChanges
-// and ExpireContainers when needed.
+// NewPodWatcher creates a new watcher given an expiry duration
+// and if the watcher should watch label/annotation changes on pods.
+// User call must then trigger PullChanges and Expire when needed.
 func NewPodWatcher(expiryDuration time.Duration, isWatchingTags bool) (*PodWatcher, error) {
 	kubeutil, err := GetKubeUtil()
 	if err != nil {
@@ -127,7 +128,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 			}
 		}
 
-		if newStaticPod || updatedContainer || (w.isWatchingTags && newLabelsOrAnnotations) {
+		if newStaticPod || updatedContainer || newLabelsOrAnnotations {
 			updatedPods = append(updatedPods, pod)
 		}
 	}
