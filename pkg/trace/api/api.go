@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -178,6 +179,8 @@ func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
 		pprof.Handler("block").ServeHTTP(w, r)
 		runtime.SetBlockProfileRate(0)
 	})
+
+	mux.HandleFunc("/debug/vars", expvar.Handler().ServeHTTP)
 }
 
 // Listen creates a new HTTP server listening on the provided address.
