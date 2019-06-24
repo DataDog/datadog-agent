@@ -332,7 +332,6 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
-		isWatchingTags: true,
 	}
 
 	_, err = watcher.computeChanges(sourcePods)
@@ -375,7 +374,6 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
-		isWatchingTags: true,
 	}
 
 	_, err = watcher.computeChanges(sourcePods)
@@ -453,7 +451,6 @@ func (suite *PodwatcherTestSuite) TestPodWatcherLabelsValueChange() {
 		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
-		isWatchingTags: true,
 	}
 	twoPods := sourcePods[:2]
 	changes, err := watcher.computeChanges(twoPods)
@@ -496,7 +493,6 @@ func (suite *PodwatcherTestSuite) TestPodWatcherAnnotationsValueChange() {
 		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
-		isWatchingTags: true,
 	}
 	twoPods := sourcePods[:2]
 	changes, err := watcher.computeChanges(twoPods)
