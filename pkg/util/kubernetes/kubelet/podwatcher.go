@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const unreadinessTimeout = 30 * time.Second
+
 // PodWatcher regularly pools the kubelet for new/changed/removed containers.
 // It keeps an internal state to only send the updated pods.
 type PodWatcher struct {
@@ -24,14 +26,14 @@ type PodWatcher struct {
 	kubeUtil       *KubeUtil
 	expiryDuration time.Duration
 	lastSeen       map[string]time.Time
-	readinessCache map[string]bool
 	lastSeenReady  map[string]time.Time
 	tagsDigest     map[string]string
 }
 
-// NewPodWatcher creates a new watcher. User call must then trigger PullChanges
-// and ExpireContainers when needed.
-func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
+// NewPodWatcher creates a new watcher given an expiry duration
+// and if the watcher should watch label/annotation changes on pods.
+// User call must then trigger PullChanges and Expire when needed.
+func NewPodWatcher(expiryDuration time.Duration, isWatchingTags bool) (*PodWatcher, error) {
 	kubeutil, err := GetKubeUtil()
 	if err != nil {
 		return nil, err
@@ -39,12 +41,19 @@ func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 	watcher := &PodWatcher{
 		kubeUtil:       kubeutil,
 		lastSeen:       make(map[string]time.Time),
-		readinessCache: make(map[string]bool),
 		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
 		expiryDuration: expiryDuration,
 	}
+	if isWatchingTags {
+		watcher.tagsDigest = make(map[string]string)
+	}
 	return watcher, nil
+}
+
+// isWatchingTags returns true if the pod watcher should
+// watch for tag changes on pods
+func (w *PodWatcher) isWatchingTags() bool {
+	return w.tagsDigest != nil
 }
 
 // PullChanges pulls a new podList from the kubelet and returns Pod objects for
@@ -71,7 +80,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 		newStaticPod := false
 		_, foundPod := w.lastSeen[podEntity]
 
-		if !foundPod {
+		if w.isWatchingTags() && !foundPod {
 			w.tagsDigest[podEntity] = digestPodMeta(pod.Metadata)
 		}
 
@@ -98,13 +107,12 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 				}
 				w.lastSeen[container.ID] = now
 
-				// for existing ones we look at the previous pod state
-				wasPodReady, found := w.readinessCache[container.ID]
-				if found && isPodReady && !wasPodReady {
-					// if pod became ready we want to update it
+				// for existing ones we look at the readiness state
+				if _, found := w.lastSeenReady[container.ID]; !found && isPodReady {
+					// the pod has never been seen ready or was removed when
+					// reaching the unreadinessTimeout
 					updatedContainer = true
 				}
-				w.readinessCache[container.ID] = isPodReady
 
 				// update the readiness expiry cache
 				if isPodReady {
@@ -115,11 +123,13 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 
 		// Detect changes in labels and annotations values
 		newLabelsOrAnnotations := false
-		newTagsDigest := digestPodMeta(pod.Metadata)
-		if foundPod && newTagsDigest != w.tagsDigest[podEntity] {
-			// update tags digest
-			w.tagsDigest[podEntity] = newTagsDigest
-			newLabelsOrAnnotations = true
+		if w.isWatchingTags() {
+			newTagsDigest := digestPodMeta(pod.Metadata)
+			if foundPod && newTagsDigest != w.tagsDigest[podEntity] {
+				// update tags digest
+				w.tagsDigest[podEntity] = newTagsDigest
+				newLabelsOrAnnotations = true
+			}
 		}
 
 		if newStaticPod || updatedContainer || newLabelsOrAnnotations {
@@ -145,15 +155,16 @@ func (w *PodWatcher) Expire() ([]string, error) {
 		// pod was removed from the pod list, we can safely cleanup everything
 		if now.Sub(lastSeen) > w.expiryDuration {
 			delete(w.lastSeen, id)
-			delete(w.tagsDigest, id)
-			delete(w.readinessCache, id)
 			delete(w.lastSeenReady, id)
+			if w.isWatchingTags() {
+				delete(w.tagsDigest, id)
+			}
 			expiredContainers = append(expiredContainers, id)
 		}
 	}
 	for id, lastSeenReady := range w.lastSeenReady {
 		// we keep pods gone unready for 30 seconds and then force removal
-		if now.Sub(lastSeenReady) > 30*time.Second {
+		if now.Sub(lastSeenReady) > unreadinessTimeout {
 			delete(w.lastSeenReady, id)
 			expiredContainers = append(expiredContainers, id)
 		}
