@@ -123,20 +123,10 @@ func newTagStats(tags Tags) *TagStats {
 }
 
 func (ts *TagStats) AllNormalizationIssues() map[string]int64 {
-	m := ts.DroppedTraceNormalizationIssues()
-	for r, c := range ts.MalformedTraceNormalizationIssues() {
+	m := ts.TracesDropped.toMap()
+	for r, c := range ts.TracesMalformed.toMap() {
 		m[r] = c
 	}
-	return m
-}
-
-func (ts *TagStats) DroppedTraceNormalizationIssues() map[string]int64 {
-	m, _ := ts.TracesDropped.toMap()
-	return m
-}
-
-func (ts *TagStats) MalformedTraceNormalizationIssues() map[string]int64 {
-	m, _ := ts.TracesMalformed.toMap()
 	return m
 }
 
@@ -180,13 +170,26 @@ func (ts *TagStats) publish() {
 	metrics.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.payload_accepted", requestsMade, tags, 1)
 
-	for reason, count := range ts.DroppedTraceNormalizationIssues() {
+	for reason, count := range ts.TracesDropped.toMap() {
 		metrics.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:"+reason), 1)
 	}
 
-	for reason, count := range ts.MalformedTraceNormalizationIssues() {
+	for reason, count := range ts.TracesMalformed.toMap() {
 		metrics.Count("datadog.trace_agent.normalizer.traces_malformed", count, append(tags, "reason:"+reason), 1)
 	}
+}
+
+func statsStructToMap(v interface{}, name string) (result map[string]int64) {
+	statsB, err := json.Marshal(&v)
+	if err != nil {
+		log.Errorf("Failed to marshal %s to json: %s", name, err)
+		return result
+	}
+	err = json.Unmarshal(statsB, &result)
+	if err != nil {
+		log.Errorf("Failed to unmarshal %s json to map: %s", name, err)
+	}
+	return result
 }
 
 type TracesDroppedStats struct {
@@ -206,23 +209,13 @@ func (s * TracesDroppedStats) AtomicCopy() (result TracesDroppedStats) {
 	return result
 }
 
-func (s *TracesDroppedStats) toMap() (result map[string]int64, err error) {
-	sCopy := s.AtomicCopy()
-	statsB, err := json.Marshal(&sCopy)
-	if err != nil {
-		return result, err
-	}
-	err = json.Unmarshal(statsB, &result)
-	return result, err
+func (s *TracesDroppedStats) toMap() (result map[string]int64) {
+	return statsStructToMap(s.AtomicCopy(), "TracesDroppedStats")
 }
 
 func (s * TracesDroppedStats) String() string {
 	var reasonStrings []string
-	sMap, err := s.toMap()
-	if err != nil {
-		return log.Error(fmt.Sprintf("Failed to serialize TracesDroppedStats: %s", err)).Error()
-	}
-	for reason, count := range sMap {
+	for reason, count := range s.toMap() {
 		reasonStrings = append(reasonStrings, reason+":"+strconv.FormatInt(count, 10))
 	}
 	return strings.Join(reasonStrings, ", ")
@@ -259,23 +252,13 @@ func (s * TracesMalformedStats) AtomicCopy() (result TracesMalformedStats) {
 	return result
 }
 
-func (s *TracesMalformedStats) toMap() (result map[string]int64, err error) {
-	sCopy := s.AtomicCopy()
-	statsB, err := json.Marshal(&sCopy)
-	if err != nil {
-		return result, err
-	}
-	err = json.Unmarshal(statsB, &result)
-	return result, err
+func (s *TracesMalformedStats) toMap() (result map[string]int64) {
+	return statsStructToMap(s.AtomicCopy(), "TracesDroppedStats")
 }
 
 func (s * TracesMalformedStats) String() string {
 	var reasonStrings []string
-	sMap, err := s.toMap()
-	if err != nil {
-		return log.Error(fmt.Sprintf("Failed to serialize TracesMalformedStats: %s", err)).Error()
-	}
-	for reason, count := range sMap {
+	for reason, count := range s.toMap() {
 		reasonStrings = append(reasonStrings, reason+":"+strconv.FormatInt(count, 10))
 	}
 	return strings.Join(reasonStrings, ", ")
@@ -428,14 +411,14 @@ func (s *Stats) InfoString() string {
 
 func (ts *TagStats) WarnString() string {
 	var droppedReasons []string
-	for reason, count := range ts.DroppedTraceNormalizationIssues() {
+	for reason, count := range ts.TracesDropped.toMap() {
 		if count > 0 {
 			droppedReasons = append(droppedReasons, reason+":"+strconv.FormatInt(count, 10))
 		}
 	}
 
 	var malformedReasons []string
-	for reason, count := range ts.MalformedTraceNormalizationIssues() {
+	for reason, count := range ts.TracesMalformed.toMap() {
 		if count > 0 {
 			malformedReasons = append(malformedReasons, reason+": "+strconv.FormatInt(count, 10))
 		}
