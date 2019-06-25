@@ -1,9 +1,7 @@
 package info
 
 import (
-	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sort"
 	"strings"
 	"sync"
@@ -123,8 +121,8 @@ func newTagStats(tags Tags) *TagStats {
 
 // AllNormalizationIssues returns a map of counts of all normalization issue reasons due to dropped or malformed traces
 func (ts *TagStats) AllNormalizationIssues() map[string]int64 {
-	m := ts.TracesDropped.toMap()
-	for r, c := range ts.TracesMalformed.toMap() {
+	m := ts.TracesDropped.tagValues()
+	for r, c := range ts.TracesMalformed.tagValues() {
 		m[r] = c
 	}
 	return m
@@ -170,33 +168,18 @@ func (ts *TagStats) publish() {
 	metrics.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.payload_accepted", requestsMade, tags, 1)
 
-	for reason, count := range ts.TracesDropped.toMap() {
+	for reason, count := range ts.TracesDropped.tagValues() {
 		metrics.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:"+reason), 1)
 	}
 
-	for reason, count := range ts.TracesMalformed.toMap() {
+	for reason, count := range ts.TracesMalformed.tagValues() {
 		metrics.Count("datadog.trace_agent.normalizer.traces_malformed", count, append(tags, "reason:"+reason), 1)
 	}
 }
 
-// statsStructToMap marshals the provided struct into a map[string]int64 by first marshaling it into json
-// then marshing from json into the map
-func statsStructToMap(v interface{}, name string) (result map[string]int64) {
-	statsB, err := json.Marshal(&v)
-	if err != nil {
-		log.Errorf("Failed to marshal %s to json: %s", name, err)
-		return result
-	}
-	err = json.Unmarshal(statsB, &result)
-	if err != nil {
-		log.Errorf("Failed to unmarshal %s json to map: %s", name, err)
-	}
-	return result
-}
-
-// inlineStatsMap serializes the entries in this map into format "key1: value1, key2: value2, ...", sorted by key to
-// ensure output order is always the same for the same keys
-func inlineStatsMap(statsMap map[string]int64) string {
+// inlineNonZeroTagValues serializes the entries in this map into format "key1: value1, key2: value2, ...", sorted by
+// key to ensure consistent output order. Only non-zero values are included.
+func inlineNonZeroTagValues(statsMap map[string]int64) string {
 	keys := make([]string, len(statsMap))
 	i := 0
 	for k := range statsMap {
@@ -205,22 +188,15 @@ func inlineStatsMap(statsMap map[string]int64) string {
 	}
 	sort.Strings(keys)
 
-	results := make([]string, len(statsMap))
-	for i, key := range keys {
-		results[i] = fmt.Sprintf("%s:%d", key, statsMap[key])
+	var results []string
+	for _, key := range keys {
+		value := statsMap[key]
+		if value > 0 {
+			results = append(results, fmt.Sprintf("%s:%d", key, value))
+		}
 	}
 
 	return strings.Join(results, ", ")
-}
-
-func nonZeroCountsOnly(reasonStats map[string]int64) map[string]int64 {
-	result := make(map[string]int64)
-	for k, v := range reasonStats {
-		if v > 0 {
-			result[k] = v
-		}
-	}
-	return result
 }
 
 // TracesDroppedStats contains counts for reasons traces have been dropped
@@ -232,18 +208,18 @@ type TracesDroppedStats struct {
 	ForeignSpan   int64
 }
 
-func (s *TracesDroppedStats) toMap() (result map[string]int64) {
-	return nonZeroCountsOnly(map[string]int64{
+func (s *TracesDroppedStats) tagValues() (result map[string]int64) {
+	return map[string]int64{
 		"decoding_error": atomic.LoadInt64(&s.DecodingError),
 		"empty_trace":    atomic.LoadInt64(&s.EmptyTrace),
 		"trace_id_zero":  atomic.LoadInt64(&s.TraceIDZero),
 		"span_id_zero":   atomic.LoadInt64(&s.SpanIDZero),
 		"foreign_span":   atomic.LoadInt64(&s.ForeignSpan),
-	})
+	}
 }
 
 func (s *TracesDroppedStats) String() string {
-	return inlineStatsMap(s.toMap())
+	return inlineNonZeroTagValues(s.tagValues())
 }
 
 // TracesMalformedStats contains counts for reasons malformed traces have been accepted after applying automatic fixes
@@ -262,9 +238,9 @@ type TracesMalformedStats struct {
 	InvalidHTTPStatusCode int64
 }
 
-// toMap converts TracesMalformedStats into a map
-func (s *TracesMalformedStats) toMap() (result map[string]int64) {
-	return nonZeroCountsOnly(map[string]int64{
+// tagValues converts TracesMalformedStats into a map
+func (s *TracesMalformedStats) tagValues() (result map[string]int64) {
+	return map[string]int64{
 		"duplicate_span_id":        atomic.LoadInt64(&s.DuplicateSpanID),
 		"service_empty":            atomic.LoadInt64(&s.ServiceEmpty),
 		"service_truncate":         atomic.LoadInt64(&s.ServiceTruncate),
@@ -277,11 +253,11 @@ func (s *TracesMalformedStats) toMap() (result map[string]int64) {
 		"invalid_start_date":       atomic.LoadInt64(&s.InvalidStartDate),
 		"invalid_duration":         atomic.LoadInt64(&s.InvalidDuration),
 		"invalid_http_status_code": atomic.LoadInt64(&s.InvalidHTTPStatusCode),
-	})
+	}
 }
 
 func (s *TracesMalformedStats) String() string {
-	return inlineStatsMap(s.toMap())
+	return inlineNonZeroTagValues(s.tagValues())
 }
 
 // Stats holds the metrics that will be reported every 10s by the agent.

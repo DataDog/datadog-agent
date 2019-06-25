@@ -8,29 +8,39 @@ import (
 func TestTracesDroppedStatsToMap(t *testing.T) {
 	var s TracesDroppedStats
 	s.DecodingError++
-	m := s.toMap()
-	assert.EqualValues(t, m["decoding_error"], 1)
-	assert.Len(t, m, 1, "stats map should contain exactly one item as count=0 stats should be omitted")
+	m := s.tagValues()
+	for k, v := range m {
+		if k == "decoding_error" {
+			assert.EqualValues(t, v, 1)
+		} else {
+			assert.EqualValues(t, v, 0)
+		}
+	}
 }
 
 func TestTracesMalformedStatsToMap(t *testing.T) {
 	var s TracesMalformedStats
 	s.DuplicateSpanID++
-	m := s.toMap()
-	assert.EqualValues(t, m["duplicate_span_id"], 1)
-	assert.Len(t, m, 1, "stats map should contain exactly one item as count=0 stats should be omitted")
+	m := s.tagValues()
+	for k, v := range m {
+		if k == "duplicate_span_id" {
+			assert.EqualValues(t, v, 1)
+		} else {
+			assert.EqualValues(t, v, 0)
+		}
+	}
 }
 
 func TestTracesDroppedStatsToString(t *testing.T) {
 	var s TracesDroppedStats
 	s.DecodingError++
 	s.ForeignSpan++
-	assert.Equal(t, s.String(), "decoding_error:1, foreign_span:1")
+	assert.Equal(t, "decoding_error:1, foreign_span:1", s.String())
 }
 
 func TestTracesMalformedStatsToString(t *testing.T) {
 	var s TracesMalformedStats
 	s.ResourceEmpty++
 	s.DuplicateSpanID++
-	assert.Equal(t, s.String(), "duplicate_span_id:1, resource_empty:1")
+	assert.Equal(t, "duplicate_span_id:1, resource_empty:1", s.String())
 }
