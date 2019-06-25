@@ -7,25 +7,20 @@
 ##### Exit on error #####
 set -e
 
+##### Source utility functions #####
+source utils.sh
+
 ##### Functions #####
 
 usage()
 {
-    echo '    Usage: ./generate_parameters.sh [[-w workflow -g workflow_group] | [-h]]
-    Example: ./generate_parameters.sh -g workflow_group -w workflow
-    Flags:
-    -w, --workflow         workflow name
-    -g, --workflow-group   workflow group name
-    -o, --output-file      generated yaml file name (default parameters.yaml)
-    -d, --workflows-dir    the directory where workflows are defined (default ../argo-workflows)'
-}
-
-check_yq_installed()
-{
-    if ! [ -x "$(command -v yq)" ]; then
-        echo 'Error: yq is not installed.'
-        exit 1
-    fi
+    echo 'Usage: ./generate_parameters.sh [[-w workflow -g workflow_group] | [-h]]
+Example: ./generate_parameters.sh -g workflow_group -w workflow
+Flags:
+-w, --workflow         workflow name
+-g, --workflow-group   workflow group name
+-o, --output-file      generated yaml file name (default parameters.yaml)
+-d, --workflows-dir    the directory where workflows are defined (default ../argo-workflows)'
 }
 
 validate_input()
@@ -43,20 +38,7 @@ validate_input()
     fi
 }
 
-generate_namespace()
-{
-    # Generate unique namespace
-    # namespace format: <workflow_group>-<workflow>-<firs_5_chars_of_prefix_check_sum>-<random_5_digits>
-    echo 'Info: Generating namespace...'
-    PREFIX=$WORKFLOW_GROUP-$WORKFLOW
-    # `_` and `.` are not allowed in namespace names, replace them with `-`
-    PREFIX=${PREFIX//[_.]/-} 
-    CHECK_SUM=$(echo -n $PREFIX | md5sum | cut -c1-5)
-    SUFFIX=$RANDOM
-    NAMESPACE=$PREFIX-$CHECK_SUM-$SUFFIX
-    echo "Info: Generated namespace: $NAMESPACE"
-}
-
+# Usage: generate_parameters <namespace>
 generate_parameters()
 {   
     # Merging parameters
@@ -71,7 +53,7 @@ generate_parameters()
     # Rendering namespace
     echo 'Info: Parameters merged, rendering namespace and saving file...'
     NAMESPACE_TEMPLATE_VAR="{{ namespace }}"
-    sed -e "s/$NAMESPACE_TEMPLATE_VAR/$NAMESPACE/g" $TMP_YAML_PATH > $OUTPUT_YAML_FILE
+    sed -e "s/$NAMESPACE_TEMPLATE_VAR/$1/g" $TMP_YAML_PATH > $OUTPUT_YAML_FILE
     echo "Info: Generated parameters, yaml file saved: $OUTPUT_YAML_FILE"
     
     # Cleanup temp file
@@ -122,7 +104,7 @@ check_yq_installed
 validate_input
 
 # Generate namespace
-generate_namespace
+generate_namespace $WORKFLOW_GROUP $WORKFLOW
 
 # Generate the parameters file
-generate_parameters
+generate_parameters $NAMESPACE
