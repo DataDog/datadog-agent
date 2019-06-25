@@ -18,9 +18,8 @@ generate_namespace()
     PREFIX=$1-$2
     # `_` and `.` are not allowed in namespace names, replace them with `-`
     PREFIX=${PREFIX//[_.]/-} 
-    CHECK_SUM=$(echo -n $PREFIX | md5sum | cut -c1-5)
-    SUFFIX=$RANDOM
-    NAMESPACE=$PREFIX-$CHECK_SUM-$SUFFIX
+    CHECK_SUM=$(echo -n $PREFIX | md5sum | cut -c1-15)
+    NAMESPACE=$PREFIX-$CHECK_SUM
     if ! [[ $NAMESPACE =~ ^[0-9a-zA-Z-]+$ ]]; then
         echo "Error: Invalid namespace format: $NAMESPACE"
         exit 1
