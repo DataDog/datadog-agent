@@ -387,15 +387,7 @@ func (r *HTTPReceiver) loop() {
 				// We expose the stats accumulated to expvar
 				info.UpdateReceiverStats(accStats)
 
-				infoStrings, warnStrings := accStats.Strings()
-
-				for _, logStr := range infoStrings {
-					log.Info(logStr)
-				}
-
-				for _, logStr := range warnStrings {
-					log.Warn(logStr + ". Enable debug logging for more details.")
-				}
+				accStats.LogStats()
 
 				// We reset the stats accumulated during the last minute
 				accStats.Reset()

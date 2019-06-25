@@ -2,6 +2,7 @@ package info
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sort"
 	"strings"
 	"sync"
@@ -86,27 +87,26 @@ func (rs *ReceiverStats) Reset() {
 	rs.Unlock()
 }
 
-// Strings gives a multi strings representation of the ReceiverStats struct.
-func (rs *ReceiverStats) Strings() (infoStrings []string, warnStrings []string) {
+// LogStats logs one-line summaries of ReceiverStats. Problematic stats are logged as warnings.
+func (rs *ReceiverStats) LogStats() {
 	rs.RLock()
 	defer rs.RUnlock()
 
 	if len(rs.Stats) == 0 {
-		infoStrings = []string{"no data received"}
-		return infoStrings, warnStrings
+		log.Info("No data received")
+		return
 	}
 
 	for _, ts := range rs.Stats {
 		if !ts.isEmpty() {
-			infoStrings = append(infoStrings, fmt.Sprintf("%v -> %s", ts.Tags.toArray(), ts.InfoString()))
+			tags := ts.Tags.toArray()
+			log.Infof("%v -> %s", tags, ts.InfoString())
 			warnString := ts.WarnString()
 			if len(warnString) > 0 {
-				warnStrings = append(warnStrings, fmt.Sprintf("%v -> %s", ts.Tags.toArray(), warnString))
+				log.Warnf("%v -> %s. Enable debug logging for more details.", tags, warnString)
 			}
 		}
 	}
-
-	return infoStrings, warnStrings
 }
 
 // TagStats is the struct used to associate the stats with their set of tags.
