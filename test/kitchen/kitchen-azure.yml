@@ -77,8 +77,8 @@ platforms:
 
     location = "North Central US"
 
-    exclude_platforms = []
     windows_platforms = []
+    sles15_platforms = []
 
     idx = 0
     azure_test_platforms.each do |platform|
@@ -89,12 +89,18 @@ platforms:
       host = "hyperv"
     end
     platform_name = platform[0] + "-#{host}"
+
     windows = platform_name.include?("win")
+    sles15 = platform_name.include?("sles-15")
     windows2008 = windows && platform_name.include?("2008")
+
     if windows
       windows_platforms << platform_name
       size = windows_sizes[idx % windows_sizes.length]
     else
+      if sles15
+        sles15_platforms << platform_name
+      end
       size = sizes[idx % sizes.length]
     end
 
@@ -247,6 +253,10 @@ suites:
 # Installs the latest release Agent 5, then updates it to the latest release
 # candidate
 - name: dd-agent-upgrade-agent5
+  excludes: <% if sles15_platforms.nil? || sles15_platforms.empty? %>[]<% end %> # Agent 5 package doesn't work on SLES 15
+    <% sles15_platforms.each do |p| %>
+    - <%= p %>
+    <% end %>
   run_list:
     #- "recipe[datadog::dd-agent]" # Setup Agent 5
     - "recipe[dd-agent-5]"  # Setup agent 5
