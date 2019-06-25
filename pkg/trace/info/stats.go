@@ -213,27 +213,33 @@ func inlineStatsMap(statsMap map[string]int64) string {
 	return strings.Join(results, ", ")
 }
 
-// TracesDroppedStats contains counts for reasons traces have been dropped
-type TracesDroppedStats struct {
-	DecodingError int64 `json:"decoding_error,omitempty"`
-	EmptyTrace    int64 `json:"empty_trace,omitempty"`
-	TraceIDZero   int64 `json:"trace_id_zero,omitempty"`
-	SpanIDZero    int64 `json:"span_id_zero,omitempty"`
-	ForeignSpan   int64 `json:"foreign_span,omitempty"`
-}
-
-// AtomicCopy returns a safe copy of the struct by doing atomic reads from all fields
-func (s *TracesDroppedStats) AtomicCopy() (result TracesDroppedStats) {
-	result.DecodingError = atomic.LoadInt64(&s.DecodingError)
-	result.EmptyTrace = atomic.LoadInt64(&s.EmptyTrace)
-	result.TraceIDZero = atomic.LoadInt64(&s.TraceIDZero)
-	result.SpanIDZero = atomic.LoadInt64(&s.SpanIDZero)
-	result.ForeignSpan = atomic.LoadInt64(&s.ForeignSpan)
+func nonZeroCountsOnly(reasonStats map[string]int64) map[string]int64 {
+	result := make(map[string]int64)
+	for k, v := range reasonStats {
+		if v > 0 {
+			result[k] = v
+		}
+	}
 	return result
 }
 
+// TracesDroppedStats contains counts for reasons traces have been dropped
+type TracesDroppedStats struct {
+	DecodingError int64
+	EmptyTrace    int64
+	TraceIDZero   int64
+	SpanIDZero    int64
+	ForeignSpan   int64
+}
+
 func (s *TracesDroppedStats) toMap() (result map[string]int64) {
-	return statsStructToMap(s.AtomicCopy(), "TracesDroppedStats")
+	return nonZeroCountsOnly(map[string]int64{
+		"decoding_error": atomic.LoadInt64(&s.DecodingError),
+		"empty_trace":    atomic.LoadInt64(&s.EmptyTrace),
+		"trace_id_zero":  atomic.LoadInt64(&s.TraceIDZero),
+		"span_id_zero":   atomic.LoadInt64(&s.SpanIDZero),
+		"foreign_span":   atomic.LoadInt64(&s.ForeignSpan),
+	})
 }
 
 func (s *TracesDroppedStats) String() string {
@@ -242,39 +248,36 @@ func (s *TracesDroppedStats) String() string {
 
 // TracesMalformedStats contains counts for reasons malformed traces have been accepted after applying automatic fixes
 type TracesMalformedStats struct {
-	DuplicateSpanID       int64 `json:"duplicate_span_id,omitempty"`
-	ServiceEmpty          int64 `json:"service_empty,omitempty"`
-	ServiceTruncate       int64 `json:"service_truncate,omitempty"`
-	ServiceInvalid        int64 `json:"service_invalid,omitempty"`
-	SpanNameEmpty         int64 `json:"span_name_empty,omitempty"`
-	SpanNameTruncate      int64 `json:"span_name_truncate,omitempty"`
-	SpanNameInvalid       int64 `json:"span_name_invalid,omitempty"`
-	ResourceEmpty         int64 `json:"resource_empty,omitempty"`
-	TypeTruncate          int64 `json:"type_truncate,omitempty"`
-	InvalidStartDate      int64 `json:"invalid_start_date,omitempty"`
-	InvalidDuration       int64 `json:"invalid_duration,omitempty"`
-	InvalidHTTPStatusCode int64 `json:"invalid_http_status_code,omitempty"`
+	DuplicateSpanID       int64
+	ServiceEmpty          int64
+	ServiceTruncate       int64
+	ServiceInvalid        int64
+	SpanNameEmpty         int64
+	SpanNameTruncate      int64
+	SpanNameInvalid       int64
+	ResourceEmpty         int64
+	TypeTruncate          int64
+	InvalidStartDate      int64
+	InvalidDuration       int64
+	InvalidHTTPStatusCode int64
 }
 
-// AtomicCopy returns a safe copy of the struct by doing atomic reads from all fields
-func (s *TracesMalformedStats) AtomicCopy() (result TracesMalformedStats) {
-	result.DuplicateSpanID = atomic.LoadInt64(&s.DuplicateSpanID)
-	result.ServiceEmpty = atomic.LoadInt64(&s.ServiceEmpty)
-	result.ServiceTruncate = atomic.LoadInt64(&s.ServiceTruncate)
-	result.ServiceInvalid = atomic.LoadInt64(&s.ServiceInvalid)
-	result.SpanNameEmpty = atomic.LoadInt64(&s.SpanNameEmpty)
-	result.SpanNameTruncate = atomic.LoadInt64(&s.SpanNameTruncate)
-	result.SpanNameInvalid = atomic.LoadInt64(&s.SpanNameInvalid)
-	result.ResourceEmpty = atomic.LoadInt64(&s.ResourceEmpty)
-	result.TypeTruncate = atomic.LoadInt64(&s.TypeTruncate)
-	result.InvalidStartDate = atomic.LoadInt64(&s.InvalidStartDate)
-	result.InvalidDuration = atomic.LoadInt64(&s.InvalidDuration)
-	result.InvalidHTTPStatusCode = atomic.LoadInt64(&s.InvalidHTTPStatusCode)
-	return result
-}
-
+// toMap converts TracesMalformedStats into a map
 func (s *TracesMalformedStats) toMap() (result map[string]int64) {
-	return statsStructToMap(s.AtomicCopy(), "TracesDroppedStats")
+	return nonZeroCountsOnly(map[string]int64{
+		"duplicate_span_id":        atomic.LoadInt64(&s.DuplicateSpanID),
+		"service_empty":            atomic.LoadInt64(&s.ServiceEmpty),
+		"service_truncate":         atomic.LoadInt64(&s.ServiceTruncate),
+		"service_invalid":          atomic.LoadInt64(&s.ServiceInvalid),
+		"span_name_empty":          atomic.LoadInt64(&s.SpanNameEmpty),
+		"span_name_truncate":       atomic.LoadInt64(&s.SpanNameTruncate),
+		"span_name_invalid":        atomic.LoadInt64(&s.SpanNameInvalid),
+		"resource_empty":           atomic.LoadInt64(&s.ResourceEmpty),
+		"type_truncate":            atomic.LoadInt64(&s.TypeTruncate),
+		"invalid_start_date":       atomic.LoadInt64(&s.InvalidStartDate),
+		"invalid_duration":         atomic.LoadInt64(&s.InvalidDuration),
+		"invalid_http_status_code": atomic.LoadInt64(&s.InvalidHTTPStatusCode),
+	})
 }
 
 func (s *TracesMalformedStats) String() string {
