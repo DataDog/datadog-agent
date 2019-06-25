@@ -223,7 +223,7 @@ type TracesDroppedStats struct {
 }
 
 // AtomicCopy returns a safe copy of the struct by doing atomic reads from all fields
-func (s * TracesDroppedStats) AtomicCopy() (result TracesDroppedStats) {
+func (s *TracesDroppedStats) AtomicCopy() (result TracesDroppedStats) {
 	result.DecodingError = atomic.LoadInt64(&s.DecodingError)
 	result.EmptyTrace = atomic.LoadInt64(&s.EmptyTrace)
 	result.TraceIDZero = atomic.LoadInt64(&s.TraceIDZero)
@@ -236,7 +236,7 @@ func (s *TracesDroppedStats) toMap() (result map[string]int64) {
 	return statsStructToMap(s.AtomicCopy(), "TracesDroppedStats")
 }
 
-func (s * TracesDroppedStats) String() string {
+func (s *TracesDroppedStats) String() string {
 	return inlineStatsMap(s.toMap())
 }
 
@@ -257,7 +257,7 @@ type TracesMalformedStats struct {
 }
 
 // AtomicCopy returns a safe copy of the struct by doing atomic reads from all fields
-func (s * TracesMalformedStats) AtomicCopy() (result TracesMalformedStats) {
+func (s *TracesMalformedStats) AtomicCopy() (result TracesMalformedStats) {
 	result.DuplicateSpanID = atomic.LoadInt64(&s.DuplicateSpanID)
 	result.ServiceEmpty = atomic.LoadInt64(&s.ServiceEmpty)
 	result.ServiceTruncate = atomic.LoadInt64(&s.ServiceTruncate)
@@ -277,7 +277,7 @@ func (s *TracesMalformedStats) toMap() (result map[string]int64) {
 	return statsStructToMap(s.AtomicCopy(), "TracesDroppedStats")
 }
 
-func (s * TracesMalformedStats) String() string {
+func (s *TracesMalformedStats) String() string {
 	return inlineStatsMap(s.toMap())
 }
 
@@ -439,7 +439,6 @@ func (ts *TagStats) WarnString() string {
 	}
 	return strings.Join(normalizerMessages, ", ")
 }
-
 
 // Tags holds the tags we parse when we handle the header of the payload.
 type Tags struct {
