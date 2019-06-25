@@ -35,27 +35,19 @@ var (
 )
 
 // normalize makes sure a Span is properly initialized and encloses the minimum required info
-func normalize(ts *info.TagStats, s *pb.Span, firstSpan *pb.Span) error {
-	if s.TraceID == 0 {
-		atomic.AddInt64(&ts.TracesDropped.TraceIDZero, 1)
-		log.Debugf("Dropping invalid trace (reason:trace_id_zero): %s", s)
-		return errors.New("trace_id_zero")
-	}
-	if s.SpanID == 0 {
-		atomic.AddInt64(&ts.TracesDropped.SpanIDZero, 1)
-		log.Debugf("Dropping invalid trace (reason:span_id_zero): %s", s)
-		return errors.New("span_id_zero")
-	}
-	if s.TraceID != firstSpan.TraceID {
-		atomic.AddInt64(&ts.TracesDropped.ForeignSpan, 1)
-		//TODO: more detailed formatting? ("foreign_span - (Name:TraceID) %s:%x != %s:%x", firstSpan.Name, firstSpan.TraceID, s.Name, s.TraceID)
-		log.Debugf("Dropping invalid trace (reason:foreign_span): %s", s)
-		return errors.New("foreign_span")
-	}
-
+func normalize(ts *info.TagStats, s *pb.Span) error {
 	fallbackServiceName := DefaultServiceName
 	if ts.Lang != "" {
 		fallbackServiceName = ts.Lang
+	}
+
+	if s.TraceID == 0 {
+		atomic.AddInt64(&ts.TracesDropped.TraceIDZero, 1)
+		return fmt.Errorf("dropping invalid trace (reason:trace_id_zero): %s", s)
+	}
+	if s.SpanID == 0 {
+		atomic.AddInt64(&ts.TracesDropped.SpanIDZero, 1)
+		return fmt.Errorf("dropping invalid trace (reason:span_id_zero): %s", s)
 	}
 
 	// Service
@@ -180,19 +172,25 @@ func normalize(ts *info.TagStats, s *pb.Span, firstSpan *pb.Span) error {
 func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	if len(t) == 0 {
 		atomic.AddInt64(&ts.TracesDropped.EmptyTrace, 1)
-		return errors.New("empty_trace")
+		return errors.New("dropping invalid trace (reason:empty_trace)")
 	}
 
 	spanIDs := make(map[uint64]struct{})
 	firstSpan := t[0]
 
 	for _, span := range t {
-		if err := normalize(ts, span, firstSpan); err != nil {
-			return fmt.Errorf("invalid span (SpanID:%d): %v", span.SpanID, err)
+		if span.TraceID != firstSpan.TraceID {
+			atomic.AddInt64(&ts.TracesDropped.ForeignSpan, 1)
+			return fmt.Errorf("dropping invalid trace (reason:foreign_span): %s", span)
 		}
+
+		if err := normalize(ts, span); err != nil {
+			return err
+		}
+
 		if _, ok := spanIDs[span.SpanID]; ok {
 			atomic.AddInt64(&ts.TracesMalformed.DuplicateSpanID, 1)
-			log.Warnf("duplicate `SpanID` %v (span %v)", span.SpanID, span)
+			log.Debugf("found malformed trace (reason:duplicate_span_id): %s", span)
 		}
 
 		spanIDs[span.SpanID] = struct{}{}

@@ -69,14 +69,14 @@ func assertNoNormalizationIssues(t *testing.T, ts *info.TagStats) {
 
 func TestNormalizeOK(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assertNoNormalizationIssues(t, ts)
 }
 
 func TestNormalizeServicePassThru(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	before := s.Service
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, before, s.Service)
 	assertNoNormalizationIssues(t, ts)
 }
@@ -84,7 +84,7 @@ func TestNormalizeServicePassThru(t *testing.T) {
 func TestNormalizeEmptyServiceNoLang(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	s.Service = ""
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Service, DefaultServiceName)
 	assertNormalizationIssue(t, ts, "service_empty")
 }
@@ -93,7 +93,7 @@ func TestNormalizeEmptyServiceWithLang(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	s.Service = ""
 	ts.Lang = "java"
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Service, ts.Lang)
 	assertNormalizationIssue(t, ts, "service_empty")
 }
@@ -101,7 +101,7 @@ func TestNormalizeEmptyServiceWithLang(t *testing.T) {
 func TestNormalizeLongService(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	s.Service = strings.Repeat("CAMEMBERT", 100)
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Service, s.Service[:MaxServiceLen])
 	assertNormalizationIssue(t, ts, "service_truncate")
 }
@@ -109,7 +109,7 @@ func TestNormalizeLongService(t *testing.T) {
 func TestNormalizeNamePassThru(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	before := s.Name
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, before, s.Name)
 	assertNoNormalizationIssues(t, ts)
 }
@@ -117,7 +117,7 @@ func TestNormalizeNamePassThru(t *testing.T) {
 func TestNormalizeEmptyName(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	s.Name = ""
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Name, DefaultSpanName)
 	assertNormalizationIssue(t, ts, "span_name_empty")
 }
@@ -125,7 +125,7 @@ func TestNormalizeEmptyName(t *testing.T) {
 func TestNormalizeLongName(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	s.Name = strings.Repeat("CAMEMBERT", 100)
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Name, s.Name[:MaxNameLen])
 	assertNormalizationIssue(t, ts, "span_name_truncate")
 }
@@ -133,7 +133,7 @@ func TestNormalizeLongName(t *testing.T) {
 func TestNormalizeNameNoAlphanumeric(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	s.Name = "/"
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Name, DefaultSpanName)
 	assertNormalizationIssue(t, ts, "span_name_invalid")
 }
@@ -147,7 +147,7 @@ func TestNormalizeNameForMetrics(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	for name, expName := range expNames {
 		s.Name = name
-		assert.NoError(t, normalize(ts, s, s))
+		assert.NoError(t, normalize(ts, s))
 		assert.Equal(t, expName, s.Name)
 		assertNoNormalizationIssues(t, ts)
 	}
@@ -156,7 +156,7 @@ func TestNormalizeNameForMetrics(t *testing.T) {
 func TestNormalizeResourcePassThru(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	before := s.Resource
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, before, s.Resource)
 	assertNoNormalizationIssues(t, ts)
 }
@@ -164,7 +164,7 @@ func TestNormalizeResourcePassThru(t *testing.T) {
 func TestNormalizeEmptyResource(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	s.Resource = ""
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Resource, s.Name)
 	assertNormalizationIssue(t, ts, "resource_empty")
 }
@@ -172,7 +172,7 @@ func TestNormalizeEmptyResource(t *testing.T) {
 func TestNormalizeTraceIDPassThru(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	before := s.TraceID
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, before, s.TraceID)
 	assertNoNormalizationIssues(t, ts)
 }
@@ -180,14 +180,14 @@ func TestNormalizeTraceIDPassThru(t *testing.T) {
 func TestNormalizeNoTraceID(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	s.TraceID = 0
-	assert.Error(t, normalize(ts, s, s))
+	assert.Error(t, normalize(ts, s))
 	assertNormalizationIssue(t, ts, "trace_id_zero")
 }
 
 func TestNormalizeSpanIDPassThru(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	before := s.SpanID
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, before, s.SpanID)
 	assertNoNormalizationIssues(t, ts)
 }
@@ -195,14 +195,14 @@ func TestNormalizeSpanIDPassThru(t *testing.T) {
 func TestNormalizeNoSpanID(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	s.SpanID = 0
-	assert.Error(t, normalize(ts, s, s))
+	assert.Error(t, normalize(ts, s))
 	assertNormalizationIssue(t, ts, "span_id_zero")
 }
 
 func TestNormalizeStartPassThru(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	before := s.Start
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, before, s.Start)
 	assertNoNormalizationIssues(t, ts)
 }
@@ -210,7 +210,7 @@ func TestNormalizeStartPassThru(t *testing.T) {
 func TestNormalizeStartTooSmall(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	s.Start = 42
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assertNormalizationIssue(t, ts, "invalid_start_date")
 
 }
@@ -218,7 +218,7 @@ func TestNormalizeStartTooSmall(t *testing.T) {
 func TestNormalizeDurationPassThru(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	before := s.Duration
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, before, s.Duration)
 	assertNoNormalizationIssues(t, ts)
 }
@@ -226,7 +226,7 @@ func TestNormalizeDurationPassThru(t *testing.T) {
 func TestNormalizeEmptyDuration(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	s.Duration = 0
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.EqualValues(t, s.Duration, 0)
 	assertNoNormalizationIssues(t, ts)
 }
@@ -234,7 +234,7 @@ func TestNormalizeEmptyDuration(t *testing.T) {
 func TestNormalizeNegativeDuration(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	s.Duration = -50
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.EqualValues(t, s.Duration, 0)
 	assertNormalizationIssue(t, ts, "invalid_duration")
 }
@@ -242,7 +242,7 @@ func TestNormalizeNegativeDuration(t *testing.T) {
 func TestNormalizeErrorPassThru(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	before := s.Error
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, before, s.Error)
 	assertNoNormalizationIssues(t, ts)
 }
@@ -250,7 +250,7 @@ func TestNormalizeErrorPassThru(t *testing.T) {
 func TestNormalizeMetricsPassThru(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	before := s.Metrics
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, before, s.Metrics)
 	assertNoNormalizationIssues(t, ts)
 }
@@ -258,7 +258,7 @@ func TestNormalizeMetricsPassThru(t *testing.T) {
 func TestNormalizeMetaPassThru(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	before := s.Meta
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, before, s.Meta)
 	assertNoNormalizationIssues(t, ts)
 }
@@ -266,7 +266,7 @@ func TestNormalizeMetaPassThru(t *testing.T) {
 func TestNormalizeParentIDPassThru(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	before := s.ParentID
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, before, s.ParentID)
 	assertNoNormalizationIssues(t, ts)
 }
@@ -274,7 +274,7 @@ func TestNormalizeParentIDPassThru(t *testing.T) {
 func TestNormalizeTypePassThru(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	before := s.Type
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, before, s.Type)
 	assertNoNormalizationIssues(t, ts)
 }
@@ -282,14 +282,14 @@ func TestNormalizeTypePassThru(t *testing.T) {
 func TestNormalizeTypeTooLong(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	s.Type = strings.Repeat("sql", 1000)
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assertNormalizationIssue(t, ts, "type_truncate")
 }
 
 func TestNormalizeServiceTag(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	s.Service = "retargeting(api-Staging "
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, "retargeting_api-staging", s.Service)
 	assertNoNormalizationIssues(t, ts)
 }
@@ -297,7 +297,7 @@ func TestNormalizeServiceTag(t *testing.T) {
 func TestNormalizeEnv(t *testing.T) {
 	ts, s := &info.TagStats{}, newTestSpan()
 	s.Meta["env"] = "DEVELOPMENT"
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, "development", s.Meta["env"])
 	assertNoNormalizationIssues(t, ts)
 }
@@ -309,7 +309,7 @@ func TestSpecialZipkinRootSpan(t *testing.T) {
 	s.SpanID = 42
 	beforeTraceID := s.TraceID
 	beforeSpanID := s.SpanID
-	assert.NoError(t, normalize(ts, s, s))
+	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, uint64(0), s.ParentID)
 	assert.Equal(t, beforeTraceID, s.TraceID)
 	assert.Equal(t, beforeSpanID, s.SpanID)
@@ -377,7 +377,7 @@ func TestNormalizeInvalidUTF8(t *testing.T) {
 		ts, span := &info.TagStats{}, newTestSpan()
 		span.Service = invalidUTF8
 
-		err := normalize(ts, span, span)
+		err := normalize(ts, span)
 
 		assert.Nil(err)
 		assert.Equal("test", span.Service)
@@ -389,7 +389,7 @@ func TestNormalizeInvalidUTF8(t *testing.T) {
 		ts, span := &info.TagStats{}, newTestSpan()
 		span.Resource = invalidUTF8
 
-		err := normalize(ts, span, span)
+		err := normalize(ts, span)
 
 		assert.Nil(err)
 		assert.Equal("test��", span.Resource)
@@ -401,7 +401,7 @@ func TestNormalizeInvalidUTF8(t *testing.T) {
 		ts, span := &info.TagStats{}, newTestSpan()
 		span.Name = invalidUTF8
 
-		err := normalize(ts, span, span)
+		err := normalize(ts, span)
 
 		assert.Nil(err)
 		assert.Equal("test", span.Name)
@@ -413,7 +413,7 @@ func TestNormalizeInvalidUTF8(t *testing.T) {
 		ts, span := &info.TagStats{}, newTestSpan()
 		span.Type = invalidUTF8
 
-		err := normalize(ts, span, span)
+		err := normalize(ts, span)
 
 		assert.Nil(err)
 		assert.Equal("test��", span.Type)
@@ -428,7 +428,7 @@ func TestNormalizeInvalidUTF8(t *testing.T) {
 			"test2":     invalidUTF8,
 		}
 
-		err := normalize(ts, span, span)
+		err := normalize(ts, span)
 
 		assert.Nil(err)
 		assert.EqualValues(map[string]string{
@@ -443,7 +443,7 @@ func BenchmarkNormalization(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		ts, span := &info.TagStats{}, newTestSpan()
-		normalize(ts, span, span)
+		normalize(ts, span)
 	}
 }
 
