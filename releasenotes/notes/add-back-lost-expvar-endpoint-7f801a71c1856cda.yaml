@@ -8,7 +8,6 @@
 ---
 fixes:
   - |
-    Restore missing `/debug/vars` expvar endpoint.
+    APM: Restore missing `/debug/vars` expvar endpoint.
   - |
-    Fix silent test failures in `pkg/trace/api/...`.
-
+    APM: Fix silent test failures in `pkg/trace/api/...`.
