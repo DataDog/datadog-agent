@@ -64,26 +64,13 @@ func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (Confi
 		DeleteFunc: p.invalidate,
 	})
 
-	p.endpointsLister, err = newEndpointsLister()
-	if err != nil {
-		log.Errorf("Cannot create endpoints lister: %s", err)
-		return nil, err
-	}
-
-	return p, nil
-}
-
-// newEndpointsLister return a kube endpoints lister
-func newEndpointsLister() (listersv1.EndpointsLister, error) {
-	ac, err := apiserver.GetAPIClient()
-	if err != nil {
-		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
-	}
 	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
 	if endpointsInformer == nil {
 		return nil, fmt.Errorf("cannot get endpoint informer: %s", err)
 	}
-	return endpointsInformer.Lister(), nil
+	p.endpointsLister = endpointsInformer.Lister()
+
+	return p, nil
 }
 
 // String returns a string representation of the KubeEndpointsConfigProvider
