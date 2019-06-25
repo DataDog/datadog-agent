@@ -75,7 +75,6 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	s.Service = svc
 
 	// Name
-	// TODO: is this what we want? Could be confusing?
 	if s.Name == "" {
 		atomic.AddInt64(&ts.TracesMalformed.SpanNameEmpty, 1)
 		log.Debugf("Fixing malformed trace (reason:span_name_empty), setting span.name=%s: %s", DefaultSpanName, s)
