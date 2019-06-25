@@ -180,7 +180,7 @@ func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
 		runtime.SetBlockProfileRate(0)
 	})
 
-	mux.HandleFunc("/debug/vars", expvar.Handler().ServeHTTP)
+	mux.Handle("/debug/vars", expvar.Handler())
 }
 
 // Listen creates a new HTTP server listening on the provided address.
