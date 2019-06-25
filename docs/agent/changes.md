@@ -259,7 +259,7 @@ Prior releases were logging to multiple files in that directory (`collector.log`
 ## APM agent
 
 The APM agent (also known as _trace agent_) is shipped by default with the
-Agent 6 in the Linux, MacOS and Windows packages.
+Agent 6 in the Linux and Windows packages.
 
 The APM agent is enabled by default on linux.
 To enable the check on other platforms or disable it on linux,
