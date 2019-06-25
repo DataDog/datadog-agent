@@ -34,7 +34,8 @@ var (
 	Year2000NanosecTS = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC).UnixNano()
 )
 
-// normalize makes sure a Span is properly initialized and encloses the minimum required info
+// normalize makes sure a Span is properly initialized and encloses the minimum required info, returning error if it
+// is invalid beyond repair
 func normalize(ts *info.TagStats, s *pb.Span) error {
 	fallbackServiceName := DefaultServiceName
 	if ts.Lang != "" {
