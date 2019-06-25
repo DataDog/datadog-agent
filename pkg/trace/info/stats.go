@@ -407,16 +407,16 @@ func (s *Stats) InfoString() string {
 // WarnString returns a string representation of the Stats struct containing only issues which we should be warning on
 // if there are no issues then an empty string is returned
 func (ts *TagStats) WarnString() string {
-	var normalizerMessages []string
+	var warnings []string
 	droppedReasons := ts.TracesDropped.String()
 	if len(droppedReasons) > 0 {
-		normalizerMessages = append(normalizerMessages, fmt.Sprintf("dropped_traces(%s)", droppedReasons))
+		warnings = append(warnings, fmt.Sprintf("dropped_traces(%s)", droppedReasons))
 	}
 	malformedReasons := ts.TracesMalformed.String()
 	if len(malformedReasons) > 0 {
-		normalizerMessages = append(normalizerMessages, fmt.Sprintf("malformed_traces(%s)", malformedReasons))
+		warnings = append(warnings, fmt.Sprintf("malformed_traces(%s)", malformedReasons))
 	}
-	return strings.Join(normalizerMessages, ", ")
+	return strings.Join(warnings, ", ")
 }
 
 // Tags holds the tags we parse when we handle the header of the payload.
