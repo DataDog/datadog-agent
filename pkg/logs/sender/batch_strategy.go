@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 const (
@@ -95,6 +96,8 @@ func (s *batchStrategy) sendBuffer(outputChan chan *message.Message, send func([
 		}
 		log.Warnf("Could not send payload: %v", err)
 	}
+
+	metrics.LogsSent.Add(int64(len(messages)))
 
 	for _, message := range messages {
 		outputChan <- message
