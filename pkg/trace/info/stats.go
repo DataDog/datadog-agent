@@ -199,8 +199,8 @@ func inlineNonZeroTagValues(statsMap map[string]int64) string {
 	return strings.Join(results, ", ")
 }
 
-// TracesDroppedStats contains counts for reasons traces have been dropped
-type TracesDroppedStats struct {
+// TracesDropped contains counts for reasons traces have been dropped
+type TracesDropped struct {
 	DecodingError int64
 	EmptyTrace    int64
 	TraceIDZero   int64
@@ -208,7 +208,7 @@ type TracesDroppedStats struct {
 	ForeignSpan   int64
 }
 
-func (s *TracesDroppedStats) tagValues() (result map[string]int64) {
+func (s *TracesDropped) tagValues() (result map[string]int64) {
 	return map[string]int64{
 		"decoding_error": atomic.LoadInt64(&s.DecodingError),
 		"empty_trace":    atomic.LoadInt64(&s.EmptyTrace),
@@ -218,12 +218,12 @@ func (s *TracesDroppedStats) tagValues() (result map[string]int64) {
 	}
 }
 
-func (s *TracesDroppedStats) String() string {
+func (s *TracesDropped) String() string {
 	return inlineNonZeroTagValues(s.tagValues())
 }
 
-// TracesMalformedStats contains counts for reasons malformed traces have been accepted after applying automatic fixes
-type TracesMalformedStats struct {
+// TracesMalformed contains counts for reasons malformed traces have been accepted after applying automatic fixes
+type TracesMalformed struct {
 	DuplicateSpanID       int64
 	ServiceEmpty          int64
 	ServiceTruncate       int64
@@ -238,8 +238,8 @@ type TracesMalformedStats struct {
 	InvalidHTTPStatusCode int64
 }
 
-// tagValues converts TracesMalformedStats into a map
-func (s *TracesMalformedStats) tagValues() (result map[string]int64) {
+// tagValues converts TracesMalformed into a map
+func (s *TracesMalformed) tagValues() (result map[string]int64) {
 	return map[string]int64{
 		"duplicate_span_id":        atomic.LoadInt64(&s.DuplicateSpanID),
 		"service_empty":            atomic.LoadInt64(&s.ServiceEmpty),
@@ -256,7 +256,7 @@ func (s *TracesMalformedStats) tagValues() (result map[string]int64) {
 	}
 }
 
-func (s *TracesMalformedStats) String() string {
+func (s *TracesMalformed) String() string {
 	return inlineNonZeroTagValues(s.tagValues())
 }
 
@@ -266,9 +266,9 @@ type Stats struct {
 	// TracesReceived is the total number of traces received, including the dropped ones.
 	TracesReceived int64
 	// TracesDropped contains stats about the count of dropped traces by reason
-	TracesDropped TracesDroppedStats
+	TracesDropped TracesDropped
 	// TracesMalformed contains stats about the count of malformed traces by reason
-	TracesMalformed TracesMalformedStats
+	TracesMalformed TracesMalformed
 	// TracesFiltered is the number of traces filtered.
 	TracesFiltered int64
 	// TracesPriorityNone is the number of traces with no sampling priority.
