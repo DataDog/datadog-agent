@@ -56,7 +56,6 @@ def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=N
     }
 
     ctx.run("go generate {REPO_PATH}/pkg/trace/info".format(**args), env=env)
-    print cmd.format(**args)
     ctx.run(cmd.format(**args), env=env)
 
 @task
