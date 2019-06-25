@@ -47,7 +47,7 @@ generate_parameters()
     DEFAULT_GLOBAL_PARAM="$WORKFLOWS_DIR/defaults/parameters.yaml"
     DEFAULT_GROUP_PARAM="$WORKFLOWS_DIR/$WORKFLOW_GROUP/defaults/parameters.yaml"
     WORKFLOW_PARAM="$WORKFLOWS_DIR/$WORKFLOW_GROUP/$WORKFLOW/parameters.yaml"
-    TMP_YAML_PATH="$NAMESPACE.tmp.yaml"
+    TMP_YAML_PATH="$1.tmp.yaml"
     $YK_MERGE_COMMAND $DEFAULT_GLOBAL_PARAM $DEFAULT_GROUP_PARAM $WORKFLOW_PARAM > $TMP_YAML_PATH
     
     # Rendering namespace
