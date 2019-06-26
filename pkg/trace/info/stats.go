@@ -179,11 +179,9 @@ func (ts *TagStats) publish() {
 // mapToString serializes the entries in this map into format "key1: value1, key2: value2, ...", sorted by
 // key to ensure consistent output order. Only non-zero values are included.
 func mapToString(statsMap map[string]int64) string {
-	keys := make([]string, len(statsMap))
-	i := 0
+	keys := make([]string, 0, len(statsMap))
 	for k := range statsMap {
-		keys[i] = k
-		i++
+		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
