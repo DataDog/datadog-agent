@@ -176,9 +176,9 @@ func (ts *TagStats) publish() {
 	}
 }
 
-// inlineNonZeroTagValues serializes the entries in this map into format "key1: value1, key2: value2, ...", sorted by
+// mapToString serializes the entries in this map into format "key1: value1, key2: value2, ...", sorted by
 // key to ensure consistent output order. Only non-zero values are included.
-func inlineNonZeroTagValues(statsMap map[string]int64) string {
+func mapToString(statsMap map[string]int64) string {
 	keys := make([]string, len(statsMap))
 	i := 0
 	for k := range statsMap {
@@ -218,7 +218,7 @@ func (s *TracesDropped) tagValues() (result map[string]int64) {
 }
 
 func (s *TracesDropped) String() string {
-	return inlineNonZeroTagValues(s.tagValues())
+	return mapToString(s.tagValues())
 }
 
 // TracesMalformed contains counts for reasons malformed traces have been accepted after applying automatic fixes
@@ -256,7 +256,7 @@ func (s *TracesMalformed) tagValues() (result map[string]int64) {
 }
 
 func (s *TracesMalformed) String() string {
-	return inlineNonZeroTagValues(s.tagValues())
+	return mapToString(s.tagValues())
 }
 
 // Stats holds the metrics that will be reported every 10s by the agent.
