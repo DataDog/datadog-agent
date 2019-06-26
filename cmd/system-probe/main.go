@@ -93,11 +93,7 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] != "check" {
 		fmt.Fprintln(os.Stderr, "unknown command argument: ", os.Args[1])
 		os.Exit(1)
-	} else if len(os.Args) == 2 && os.Args[1] == "check" {
-		fmt.Fprintln(os.Stderr, "a check type is required")
-		checkCmd.PrintDefaults()
-		os.Exit(1)
-	} else if len(os.Args) > 2 && os.Args[1] == "check" {
+	} else if len(os.Args) >= 2 && os.Args[1] == "check" {
 		err = checkCmd.Parse(os.Args[2:])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
