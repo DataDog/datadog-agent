@@ -11,7 +11,7 @@ func TestTracesDropped(t *testing.T) {
 	s.ForeignSpan++
 
 	t.Run("StatsToMap", func(t *testing.T) {
-		for k, v := range s.tagValues() {
+		for k, v := range s.TagValues() {
 			if k == "decoding_error" || k == "foreign_span" {
 				assert.EqualValues(t, v, 1)
 			} else {
@@ -31,7 +31,7 @@ func TestTracesMalformed(t *testing.T) {
 	s.ResourceEmpty++
 
 	t.Run("StatsToMap", func(t *testing.T) {
-		for k, v := range s.tagValues() {
+		for k, v := range s.TagValues() {
 			if k == "service_empty" || k == "resource_empty" {
 				assert.EqualValues(t, v, 1)
 			} else {

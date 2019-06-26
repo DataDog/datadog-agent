@@ -119,15 +119,6 @@ func newTagStats(tags Tags) *TagStats {
 	return &TagStats{tags, Stats{}}
 }
 
-// AllNormalizationIssues returns a map of counts of all normalization issue reasons due to dropped or malformed traces
-func (ts *TagStats) AllNormalizationIssues() map[string]int64 {
-	m := ts.TracesDropped.tagValues()
-	for r, c := range ts.TracesMalformed.tagValues() {
-		m[r] = c
-	}
-	return m
-}
-
 func (ts *TagStats) publish() {
 	// Atomically load the stats from ts
 	tracesReceived := atomic.LoadInt64(&ts.TracesReceived)
@@ -168,10 +159,10 @@ func (ts *TagStats) publish() {
 	metrics.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.payload_accepted", requestsMade, tags, 1)
 
-	for reason, count := range ts.TracesDropped.tagValues() {
+	for reason, count := range ts.TracesDropped.TagValues() {
 		metrics.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:"+reason), 1)
 	}
-	for reason, count := range ts.TracesMalformed.tagValues() {
+	for reason, count := range ts.TracesMalformed.TagValues() {
 		metrics.Count("datadog.trace_agent.normalizer.traces_malformed", count, append(tags, "reason:"+reason), 1)
 	}
 }
@@ -209,7 +200,7 @@ type TracesDropped struct {
 	ForeignSpan   int64
 }
 
-func (s *TracesDropped) tagValues() (result map[string]int64) {
+func (s *TracesDropped) TagValues() (result map[string]int64) {
 	return map[string]int64{
 		"decoding_error": atomic.LoadInt64(&s.DecodingError),
 		"empty_trace":    atomic.LoadInt64(&s.EmptyTrace),
@@ -220,7 +211,7 @@ func (s *TracesDropped) tagValues() (result map[string]int64) {
 }
 
 func (s *TracesDropped) String() string {
-	return mapToString(s.tagValues())
+	return mapToString(s.TagValues())
 }
 
 // TracesMalformed contains counts for reasons malformed traces have been accepted after applying automatic fixes
@@ -252,7 +243,7 @@ type TracesMalformed struct {
 }
 
 // tagValues converts TracesMalformed into a map
-func (s *TracesMalformed) tagValues() (result map[string]int64) {
+func (s *TracesMalformed) TagValues() (result map[string]int64) {
 	return map[string]int64{
 		"duplicate_span_id":        atomic.LoadInt64(&s.DuplicateSpanID),
 		"service_empty":            atomic.LoadInt64(&s.ServiceEmpty),
@@ -270,7 +261,7 @@ func (s *TracesMalformed) tagValues() (result map[string]int64) {
 }
 
 func (s *TracesMalformed) String() string {
-	return mapToString(s.tagValues())
+	return mapToString(s.TagValues())
 }
 
 // Stats holds the metrics that will be reported every 10s by the agent.
