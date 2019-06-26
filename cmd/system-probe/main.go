@@ -91,21 +91,25 @@ func main() {
 
 	// run check command if the flag is specified
 	if len(os.Args) > 1 && os.Args[1] != "check" {
-		fmt.Println("unknown command argument: ", os.Args[1])
+		fmt.Fprintln(os.Stderr, "unknown command argument: ", os.Args[1])
 		os.Exit(1)
 	} else if len(os.Args) == 2 && os.Args[1] == "check" {
-		fmt.Println("a check type is required")
+		fmt.Fprintln(os.Stderr, "a check type is required")
 		checkCmd.PrintDefaults()
 		os.Exit(1)
 	} else if len(os.Args) > 2 && os.Args[1] == "check" {
-		checkCmd.Parse(os.Args[2:])
+		err = checkCmd.Parse(os.Args[2:])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 		if *checkType == "" {
 			checkCmd.PrintDefaults()
 			os.Exit(1)
 		}
 		err := querySocketEndpoint(cfg, *checkType, *checkClient)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 
