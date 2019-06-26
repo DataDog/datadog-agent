@@ -2,12 +2,12 @@ package info
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
 
