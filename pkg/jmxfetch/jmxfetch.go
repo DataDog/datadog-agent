@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -227,44 +226,6 @@ func (j *JMXFetch) Start(manage bool) error {
 	}
 
 	return err
-}
-
-// Stop stops the JMXFetch process
-func (j *JMXFetch) Stop() error {
-	var stopChan chan struct{}
-	if runtime.GOOS != "windows" {
-		// Unix
-		err := j.cmd.Process.Signal(syscall.SIGTERM)
-		if err != nil {
-			return err
-		}
-
-		if j.managed {
-			stopChan = j.stopped
-			close(j.shutdown)
-		} else {
-			stopChan = make(chan struct{})
-
-			go func() {
-				j.Wait()
-				close(stopChan)
-			}()
-		}
-
-		select {
-		case <-time.After(time.Millisecond * 500):
-			log.Warnf("Jmxfetch did not exit during it's grace period, killing it")
-			err = j.cmd.Process.Signal(os.Kill)
-			if err != nil {
-				log.Warnf("Could not kill jmxfetch: %v", err)
-			}
-		case <-stopChan:
-		}
-		return nil
-	} else {
-		// Windows
-		return j.cmd.Process.Kill()
-	}
 }
 
 // Wait waits for the end of the JMXFetch process and returns the error code

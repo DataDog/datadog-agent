@@ -8,3 +8,8 @@
 package jmxfetch
 
 func (j *JMXFetch) Monitor() {}
+
+// Stop stops the JMXFetch process
+func (j *JMXFetch) Stop() error {
+	return j.cmd.Process.Kill()
+}
