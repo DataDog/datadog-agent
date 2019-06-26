@@ -637,6 +637,8 @@ std::string Three::_fetchPythonError() const
                             goto done;
                         }
                         char *item = as_string(s);
+                        // traceback.format_exception returns a list of strings, each ending in a *newline*
+                        // and some containing internal newlines. No need to add any CRLF/newlines.
                         ret_val += item;
                         ::free(item);
                     }

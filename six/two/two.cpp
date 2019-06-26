@@ -657,6 +657,8 @@ std::string Two::_fetchPythonError()
                             goto done;
                         }
                         // we know s is a string, so no need to check return value of PyString_AsString
+                        // traceback.format_exception returns a list of strings, each ending in a *newline*
+                        // and some containing internal newlines. No need to add any CRLF/newlines.
                         ret_val += PyString_AsString(s);
                     }
                 }
