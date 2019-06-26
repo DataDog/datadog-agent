@@ -168,11 +168,11 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 // * rejects traces where at least one span cannot be normalized
 // * return the normalized trace and an error:
 //   - nil if the trace can be accepted
-//   - a reason tag explaining the reason, as per the https://github.com/DataDog/architecture/blob/master/rfcs/apm/agent/trace-agent-normalization/rfc.md
+//   - a reason tag explaining the reason the traces failed normalization
 func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	if len(t) == 0 {
 		atomic.AddInt64(&ts.TracesDropped.EmptyTrace, 1)
-		return errors.New("dropping invalid trace (reason:empty_trace)")
+		return errors.New("reason:empty_trace")
 	}
 
 	spanIDs := make(map[uint64]struct{})
@@ -181,7 +181,7 @@ func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	for _, span := range t {
 		if span.TraceID != firstSpan.TraceID {
 			atomic.AddInt64(&ts.TracesDropped.ForeignSpan, 1)
-			return fmt.Errorf("dropping invalid trace (reason:foreign_span): %s", span)
+			return fmt.Errorf("reason:foreign_span, %s", span)
 		}
 
 		if err := normalize(ts, span); err != nil {
