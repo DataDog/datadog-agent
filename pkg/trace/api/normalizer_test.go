@@ -35,7 +35,7 @@ func newTestSpan() *pb.Span {
 }
 
 func newTagStats() *info.TagStats {
-	return &info.TagStats{Stats:info.Stats{TracesDropped:&info.TracesDropped{}, TracesMalformed:&info.TracesMalformed{}}}
+	return &info.TagStats{Stats: info.Stats{TracesDropped: &info.TracesDropped{}, TracesMalformed: &info.TracesMalformed{}}}
 }
 
 // statsToIssues returns map of {reason->count} for normalization issues due to dropped or malformed traces
