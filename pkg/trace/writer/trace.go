@@ -231,7 +231,7 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 		atomic.AddInt64(&w.stats.Errors, 1)
 
 	case eventTypeDropped:
-		log.Warnf("Stats writer queue full. Payload dropped (%.2fKB).", float64(data.bytes)/1024)
+		log.Warnf("Trace writer queue full. Payload dropped (%.2fKB).", float64(data.bytes)/1024)
 		metrics.Count("datadog.trace_agent.trace_writer.dropped", 1, nil, 1)
 		metrics.Count("datadog.trace_agent.trace_writer.dropped_bytes", int64(data.bytes), nil, 1)
 	}

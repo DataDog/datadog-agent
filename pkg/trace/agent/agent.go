@@ -114,7 +114,6 @@ func (a *Agent) Run() {
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
 		a.ServiceMapper,
-		a.ServiceWriter,
 		a.Concentrator,
 		a.ScoreSampler,
 		a.ErrorsScoreSampler,
@@ -126,6 +125,7 @@ func (a *Agent) Run() {
 
 	go a.TraceWriter.Run()
 	go a.StatsWriter.Run()
+	go a.ServiceWriter.Run()
 
 	n := 1
 	if config.HasFeature("parallel_process") {
