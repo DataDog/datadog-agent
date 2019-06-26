@@ -406,16 +406,16 @@ func (s *Stats) infoString() string {
 // warnString returns a string representation of the Stats struct containing only issues which we should be warning on
 // if there are no issues then an empty string is returned
 func (ts *TagStats) warnString() string {
-	var warnings []string
-	droppedReasons := ts.TracesDropped.String()
-	if len(droppedReasons) > 0 {
-		warnings = append(warnings, fmt.Sprintf("dropped_traces(%s)", droppedReasons))
+	var w []string
+	d := ts.TracesDropped.String()
+	if len(d) > 0 {
+		w = append(w, fmt.Sprintf("dropped_traces(%s)", d))
 	}
-	malformedReasons := ts.TracesMalformed.String()
-	if len(malformedReasons) > 0 {
-		warnings = append(warnings, fmt.Sprintf("malformed_traces(%s)", malformedReasons))
+	m := ts.TracesMalformed.String()
+	if len(m) > 0 {
+		w = append(w, fmt.Sprintf("malformed_traces(%s)", m))
 	}
-	return strings.Join(warnings, ", ")
+	return strings.Join(w, ", ")
 }
 
 // Tags holds the tags we parse when we handle the header of the payload.
