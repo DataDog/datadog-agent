@@ -23,10 +23,10 @@ const (
 	MaxNameLen = 100
 	// MaxTypeLen the maximum length a span type can have
 	MaxTypeLen = 100
-	// DefaultServiceName TODO: do we really want such indescriptive defaults here like "service"?
-	DefaultServiceName = "no_name_service"
-	// DefaultSpanName TODO: do we really want such indescriptive defaults here like "service.trace"?
-	DefaultSpanName = "no_name_span"
+	// DefaultServiceName is the default name we assign a service if it's missing and we have no reasonable fallback
+	DefaultServiceName = "service"
+	// DefaultSpanName is the default name we assign a span if it's missing and we have no reasonable fallback
+	DefaultSpanName = "service.trace"
 )
 
 var (
