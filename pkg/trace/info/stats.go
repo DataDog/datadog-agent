@@ -197,10 +197,15 @@ func mapToString(statsMap map[string]int64) string {
 
 // TracesDropped contains counts for reasons traces have been dropped
 type TracesDropped struct {
+	// DecodingError is when the agent fails to decode a trace payload
 	DecodingError int64
+	// EmptyTrace is when the trace contains no spans
 	EmptyTrace    int64
+	// TraceIDZero is when any spans in a trace have TraceId=0
 	TraceIDZero   int64
+	// SpanIDZero is when any span has SpanId=0
 	SpanIDZero    int64
+	// ForeignSpan is when a span in a trace has a TraceId that is different than the first span in the trace
 	ForeignSpan   int64
 }
 
@@ -220,17 +225,29 @@ func (s *TracesDropped) String() string {
 
 // TracesMalformed contains counts for reasons malformed traces have been accepted after applying automatic fixes
 type TracesMalformed struct {
+	// DuplicateSpanID is when one or more spans in a trace have the same SpanId
 	DuplicateSpanID       int64
+	// ServiceEmpty is when a span has an empty Service field
 	ServiceEmpty          int64
+	// ServiceTruncate is when a span's Service is truncated for exceeding the max length
 	ServiceTruncate       int64
+	// ServiceInvalid is when a span's Service doesn't conform to Datadog tag naming standards
 	ServiceInvalid        int64
+	// SpanNameEmpty is when a span's Name is empty
 	SpanNameEmpty         int64
+	// SpanNameTruncate is when a span's Name is truncated for exceeding the max length
 	SpanNameTruncate      int64
+	// SpanNameInvalid is when a span's Name doesn't conform to Datadog tag naming standards
 	SpanNameInvalid       int64
+	// ResourceEmpty is when a span's Resource is empty
 	ResourceEmpty         int64
+	// TypeTruncate is when a span's Type is truncated for exceeding the max length
 	TypeTruncate          int64
+	// InvalidStartDate is when a span's Start date is invalid
 	InvalidStartDate      int64
+	// InvalidDuration is when a span's Duration is invalid
 	InvalidDuration       int64
+	// InvalidHTTPStatusCode is when a span's metadata contains an invalid http status code
 	InvalidHTTPStatusCode int64
 }
 

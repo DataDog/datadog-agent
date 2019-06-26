@@ -368,7 +368,7 @@ func TestNormalizeTraceInvalidSpan(t *testing.T) {
 func TestNormalizeTraceDuplicateSpanID(t *testing.T) {
 	ts := &info.TagStats{}
 	span1, span2 := newTestSpan(), newTestSpan()
-	
+
 	span2.SpanID = span1.SpanID
 	trace := pb.Trace{span1, span2}
 	err := normalizeTrace(ts, trace)
