@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,9 +9,9 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
@@ -63,35 +64,10 @@ func querySocketEndpoint(cfg *config.AgentConfig, check string, client string) e
 		return err
 	}
 
-	if err = printResult(body, check); err != nil {
-		return err
-	}
-	return nil
-}
+	// print json to stdout
+	var out bytes.Buffer
+	json.Indent(&out, body, "", "  ")
+	out.WriteTo(os.Stdout)
 
-func printResult(r []byte, check string) error {
-	var content interface{}
-
-	switch check {
-	case "network_maps", "connections":
-		conn := &ebpf.Connections{}
-		if err := conn.UnmarshalJSON(r); err != nil {
-			return err
-		}
-		content = conn
-	case "stats", "network_state":
-		var output map[string]interface{}
-		if err := json.Unmarshal(r, &output); err != nil {
-			return err
-		}
-		content = output
-	}
-
-	b, err := json.MarshalIndent(content, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(string(b))
 	return nil
 }
