@@ -5,42 +5,42 @@ import (
 	"testing"
 )
 
-func TestTracesDroppedStatsToMap(t *testing.T) {
-	var s TracesDropped
-	s.DecodingError++
-	m := s.tagValues()
-	for k, v := range m {
-		if k == "decoding_error" {
-			assert.EqualValues(t, v, 1)
-		} else {
-			assert.EqualValues(t, v, 0)
-		}
-	}
-}
-
-func TestTracesMalformedStatsToMap(t *testing.T) {
-	var s TracesMalformed
-	s.DuplicateSpanID++
-	m := s.tagValues()
-	for k, v := range m {
-		if k == "duplicate_span_id" {
-			assert.EqualValues(t, v, 1)
-		} else {
-			assert.EqualValues(t, v, 0)
-		}
-	}
-}
-
-func TestTracesDroppedStatsToString(t *testing.T) {
+func TestTracesDropped(t *testing.T) {
 	var s TracesDropped
 	s.DecodingError++
 	s.ForeignSpan++
-	assert.Equal(t, "decoding_error:1, foreign_span:1", s.String())
+
+	t.Run("StatsToMap", func(t *testing.T) {
+		for k, v := range s.tagValues() {
+			if k == "decoding_error" || k == "foreign_span" {
+				assert.EqualValues(t, v, 1)
+			} else {
+				assert.EqualValues(t, v, 0)
+			}
+		}
+	})
+
+	t.Run("StatsToString", func(t *testing.T) {
+		assert.Equal(t, "decoding_error:1, foreign_span:1", s.String())
+	})
 }
 
-func TestTracesMalformedStatsToString(t *testing.T) {
+func TestTracesMalformed(t *testing.T) {
 	var s TracesMalformed
+	s.ServiceEmpty++
 	s.ResourceEmpty++
-	s.DuplicateSpanID++
-	assert.Equal(t, "duplicate_span_id:1, resource_empty:1", s.String())
+
+	t.Run("StatsToMap", func(t *testing.T) {
+		for k, v := range s.tagValues() {
+			if k == "service_empty" || k == "resource_empty" {
+				assert.EqualValues(t, v, 1)
+			} else {
+				assert.EqualValues(t, v, 0)
+			}
+		}
+	})
+
+	t.Run("StatsToString", func(t *testing.T) {
+		assert.Equal(t, "resource_empty:1, service_empty:1", s.String())
+	})
 }
