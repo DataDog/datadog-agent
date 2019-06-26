@@ -200,7 +200,8 @@ type TracesDropped struct {
 	ForeignSpan   int64
 }
 
-func (s *TracesDropped) TagValues() (result map[string]int64) {
+// TagValues converts TracesDropped into a map representation with keys matching standardized names for all reasons
+func (s *TracesDropped) TagValues() map[string]int64 {
 	return map[string]int64{
 		"decoding_error": atomic.LoadInt64(&s.DecodingError),
 		"empty_trace":    atomic.LoadInt64(&s.EmptyTrace),
@@ -242,8 +243,8 @@ type TracesMalformed struct {
 	InvalidHTTPStatusCode int64
 }
 
-// tagValues converts TracesMalformed into a map
-func (s *TracesMalformed) TagValues() (result map[string]int64) {
+// TagValues converts TracesMalformed into a map representation with keys matching standardized names for all reasons
+func (s *TracesMalformed) TagValues() map[string]int64 {
 	return map[string]int64{
 		"duplicate_span_id":        atomic.LoadInt64(&s.DuplicateSpanID),
 		"service_empty":            atomic.LoadInt64(&s.ServiceEmpty),
