@@ -116,7 +116,7 @@ type TagStats struct {
 }
 
 func newTagStats(tags Tags) *TagStats {
-	return &TagStats{tags, Stats{}}
+	return &TagStats{tags, Stats{TracesDropped:&TracesDropped{}, TracesMalformed:&TracesMalformed{}}}
 }
 
 func (ts *TagStats) publish() {
@@ -270,9 +270,9 @@ type Stats struct {
 	// TracesReceived is the total number of traces received, including the dropped ones.
 	TracesReceived int64
 	// TracesDropped contains stats about the count of dropped traces by reason
-	TracesDropped TracesDropped
+	TracesDropped *TracesDropped
 	// TracesMalformed contains stats about the count of malformed traces by reason
-	TracesMalformed TracesMalformed
+	TracesMalformed *TracesMalformed
 	// TracesFiltered is the number of traces filtered.
 	TracesFiltered int64
 	// TracesPriorityNone is the number of traces with no sampling priority.

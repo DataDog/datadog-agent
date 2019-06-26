@@ -67,11 +67,11 @@ const (
     Traces received: {{ $ts.Stats.TracesReceived }} ({{ $ts.Stats.TracesBytes }} bytes)
     Spans received: {{ $ts.Stats.SpansReceived }}
     Services received: {{ $ts.Stats.ServicesReceived }} ({{ $ts.Stats.ServicesBytes }} bytes)
-    {{ with $ts.Stats.TracesDropped.String }}
-    WARNING: Traces dropped: {{ . }}
+    {{ with $ts.Stats.TracesDropped }}
+    WARNING: Traces dropped: {{ .String }}
     {{end}}
-    {{ with $ts.Stats.TracesMalformed.String }}
-    WARNING: Traces malformed: {{ . }}
+    {{ with $ts.Stats.TracesMalformed }}
+    WARNING: Traces malformed: {{ .String }}
     {{end}}
 
   {{end}}
