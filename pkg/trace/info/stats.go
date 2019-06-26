@@ -192,7 +192,6 @@ func mapToString(statsMap map[string]int64) string {
 			results = append(results, fmt.Sprintf("%s:%d", key, value))
 		}
 	}
-
 	return strings.Join(results, ", ")
 }
 
