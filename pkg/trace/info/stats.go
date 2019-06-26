@@ -100,8 +100,8 @@ func (rs *ReceiverStats) LogStats() {
 	for _, ts := range rs.Stats {
 		if !ts.isEmpty() {
 			tags := ts.Tags.toArray()
-			log.Infof("%v -> %s", tags, ts.InfoString())
-			warnString := ts.WarnString()
+			log.Infof("%v -> %s", tags, ts.infoString())
+			warnString := ts.warnString()
 			if len(warnString) > 0 {
 				log.Warnf("%v -> %s. Enable debug logging for more details.", tags, warnString)
 			}
@@ -383,8 +383,8 @@ func (s *Stats) isEmpty() bool {
 	return tracesBytes == 0
 }
 
-// InfoString returns a string representation of the Stats struct containing standard operational stats (not problems)
-func (s *Stats) InfoString() string {
+// infoString returns a string representation of the Stats struct containing standard operational stats (not problems)
+func (s *Stats) infoString() string {
 	// Atomically load the stats
 	tracesReceived := atomic.LoadInt64(&s.TracesReceived)
 	tracesFiltered := atomic.LoadInt64(&s.TracesFiltered)
@@ -403,9 +403,9 @@ func (s *Stats) InfoString() string {
 		eventsExtracted, eventsSampled)
 }
 
-// WarnString returns a string representation of the Stats struct containing only issues which we should be warning on
+// warnString returns a string representation of the Stats struct containing only issues which we should be warning on
 // if there are no issues then an empty string is returned
-func (ts *TagStats) WarnString() string {
+func (ts *TagStats) warnString() string {
 	var warnings []string
 	droppedReasons := ts.TracesDropped.String()
 	if len(droppedReasons) > 0 {
