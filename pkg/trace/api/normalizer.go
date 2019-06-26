@@ -44,11 +44,11 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 
 	if s.TraceID == 0 {
 		atomic.AddInt64(&ts.TracesDropped.TraceIDZero, 1)
-		return fmt.Errorf("dropping invalid trace (reason:trace_id_zero): %s", s)
+		return fmt.Errorf("reason:trace_id_zero, %s", s)
 	}
 	if s.SpanID == 0 {
 		atomic.AddInt64(&ts.TracesDropped.SpanIDZero, 1)
-		return fmt.Errorf("dropping invalid trace (reason:span_id_zero): %s", s)
+		return fmt.Errorf("reason:span_id_zero, %s", s)
 	}
 
 	// Service
