@@ -2,7 +2,6 @@ package api
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -38,26 +37,16 @@ func newTestSpan() *pb.Span {
 
 // assertNormalizationIssue asserts there is exactly one NormalizationIssue in the provided TagStats matching the reason
 func assertNormalizationIssue(t *testing.T, ts *info.TagStats, reason string) {
-	allIssues := ts.AllNormalizationIssues()
+	expected := map[string]int64{reason: 1}
 
-	presentIssues := make(map[string]int64)
-	for r, c := range allIssues {
+	found := make(map[string]int64)
+	for r, c := range ts.AllNormalizationIssues() {
 		if c > 0 {
-			presentIssues[r] = c
+			found[r] = c
 		}
 	}
 
-	foundIssuesMessage := "none"
-	if len(presentIssues) > 0 {
-		s, _ := json.Marshal(presentIssues)
-		foundIssuesMessage = string(s)
-	}
-
-	if count, ok := presentIssues[reason]; ok {
-		assert.EqualValues(t, 1, count, fmt.Sprintf("expected normalization issue %s=%d. Found issues: %s", reason, 1, foundIssuesMessage))
-	} else {
-		assert.Fail(t, fmt.Sprintf("missing expected normalization issue %s=%d. Found issues: %s", reason, 1, foundIssuesMessage))
-	}
+	assert.EqualValues(t, expected, found, fmt.Sprintf("expected exactly one normalization issue: %s", reason))
 }
 
 // assertNormalizationIssue asserts there there are no NormalizationIssues in the provided TagStats
