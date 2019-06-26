@@ -12,15 +12,6 @@ normal exit 0
 console log
 env DD_LOG_TO_CONSOLE=false
 
-# mount debugfs before start
-pre-start script
-  if [ -d /sys/kernel/debug ]; then
-    if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
-      mount -t debugfs none /sys/kernel/debug
-    fi
-  fi
-end script
-
 script
   exec <%= install_dir %>/embedded/bin/system-probe --config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/system-probe.pid
 end script
