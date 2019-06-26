@@ -42,9 +42,6 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 		fallbackServiceName = ts.Lang
 	}
 
-	// While it's technically possible to get TraceID=0 (with 1 in 2**64 probability) we figured it's far more likely
-	// for an integration coding error to produce TraceID=0 so we prevent that here to avoid negative downstream
-	// consequences. Same thing for SpanID.
 	if s.TraceID == 0 {
 		atomic.AddInt64(&ts.TracesDropped.TraceIDZero, 1)
 		return fmt.Errorf("dropping invalid trace (reason:trace_id_zero): %s", s)
