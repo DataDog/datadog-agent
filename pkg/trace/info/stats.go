@@ -171,7 +171,6 @@ func (ts *TagStats) publish() {
 	for reason, count := range ts.TracesDropped.tagValues() {
 		metrics.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:"+reason), 1)
 	}
-
 	for reason, count := range ts.TracesMalformed.tagValues() {
 		metrics.Count("datadog.trace_agent.normalizer.traces_malformed", count, append(tags, "reason:"+reason), 1)
 	}
