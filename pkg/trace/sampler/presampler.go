@@ -5,18 +5,10 @@ package sampler
 
 import (
 	"fmt"
-	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	// TraceCountHeader is the header client implementation should fill
-	// with the number of traces contained in the payload.
-	TraceCountHeader = "X-Datadog-Trace-Count"
 )
 
 // PreSamplerStats contains pre-sampler data. The public content
@@ -134,7 +126,10 @@ func (ps *PreSampler) Stats() *PreSamplerStats {
 	return &stats
 }
 
-func (ps *PreSampler) sampleWithCount(traceCount int64) bool {
+// SampleWithCount tells wether a given payload should be kept (true means: "yes, keep it").
+// Calling this alters the statistics, it affects the result of RealRate() so
+// only call it once per payload.
+func (ps *PreSampler) SampleWithCount(traceCount int64) bool {
 	if traceCount <= 0 {
 		return true // no sensible value in traceCount, disable pre-sampling
 	}
@@ -161,22 +156,6 @@ func (ps *PreSampler) sampleWithCount(traceCount int64) bool {
 	}
 
 	return keep
-}
-
-// Sample tells wether a given request should be kept (true means: "yes, keep it").
-// Calling this alters the statistics, it affects the result of RealRate() so
-// only call it once per payload.
-func (ps *PreSampler) Sample(req *http.Request) bool {
-	traceCount := int64(0)
-	if traceCountStr := req.Header.Get(TraceCountHeader); traceCountStr != "" {
-		var err error
-		traceCount, err = strconv.ParseInt(traceCountStr, 10, 64)
-		if err != nil {
-			log.Errorf("unable to parse HTTP header %s: %s", TraceCountHeader, traceCountStr)
-		}
-	}
-
-	return ps.sampleWithCount(traceCount)
 }
 
 // decayScore applies the decay to the rolling counters

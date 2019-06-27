@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"expvar"
 	"fmt"
 	"io"
@@ -37,6 +38,10 @@ const (
 	maxRequestBodyLength = 10 * 1024 * 1024
 	tagTraceHandler      = "handler:traces"
 	tagServiceHandler    = "handler:services"
+
+	// TraceCountHeader is the header client implementation should fill
+	// with the number of traces contained in the payload.
+	TraceCountHeader = "X-Datadog-Trace-Count"
 )
 
 // Version is a dumb way to version our collector handlers
@@ -263,9 +268,22 @@ func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
 	}
 }
 
+func getTraceCount(req *http.Request) (traceCount int64) {
+	if traceCountStr := req.Header.Get(TraceCountHeader); traceCountStr != "" {
+		var err error
+		traceCount, err = strconv.ParseInt(traceCountStr, 10, 64)
+		if err != nil {
+			log.Errorf("unable to parse HTTP header %s: %s", TraceCountHeader, traceCountStr)
+		}
+	}
+	return traceCount
+}
+
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
-	if !r.PreSampler.Sample(req) {
+	traceCount := getTraceCount(req)
+
+	if !r.PreSampler.SampleWithCount(traceCount) {
 		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(r.presamplerResponse)
 		r.replyTraces(v, w)
@@ -273,19 +291,26 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		return
 	}
 
-	traces, ok := getTraces(v, w, req)
-	if !ok {
-		return
-	}
-
-	r.replyTraces(v, w)
-
 	ts := r.Stats.GetTagStats(info.Tags{
 		Lang:          req.Header.Get("Datadog-Meta-Lang"),
 		LangVersion:   req.Header.Get("Datadog-Meta-Lang-Version"),
 		Interpreter:   req.Header.Get("Datadog-Meta-Lang-Interpreter"),
 		TracerVersion: req.Header.Get("Datadog-Meta-Tracer-Version"),
 	})
+
+	traces, err := getTraces(v, w, req)
+	if err != nil {
+		if strings.HasPrefix(err.Error(), "Cannot decode") {
+			if traceCount > 0 {
+				atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
+			} else {
+				metrics.Count("datadog.trace_agent.receiver.decoding_error", 1, nil, 1)
+			}
+		}
+		return
+	}
+
+	r.replyTraces(v, w)
 
 	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
 	atomic.AddInt64(&ts.TracesBytes, int64(req.Body.(*LimitedReader).Count))
@@ -470,7 +495,7 @@ func (r *HTTPReceiver) Languages() string {
 	return strings.Join(str, "|")
 }
 
-func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, bool) {
+func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, error) {
 	var traces pb.Traces
 	mediaType := getMediaType(req)
 	switch v {
@@ -482,16 +507,16 @@ func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, 
 		case "application/json", "text/json", "":
 			// ok
 		default:
-			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
-			return nil, false
+			err := fmt.Errorf("unsupported media type: %q", mediaType)
+			httpFormatError(w, v, err)
+			return nil, err
 		}
 
 		// in v01 we actually get spans that we have to transform in traces
 		var spans []pb.Span
 		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
-			log.Errorf("Cannot decode %s traces payload: %v", v, err)
 			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-			return nil, false
+			return nil, log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		}
 		traces = tracesFromSpans(spans)
 	case v02:
@@ -500,16 +525,15 @@ func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, 
 		fallthrough
 	case v04:
 		if err := decodeReceiverPayload(req.Body, &traces, v, mediaType); err != nil {
-			log.Errorf("Cannot decode %s traces payload: %v", v, err)
 			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-			return nil, false
+			return nil, log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		}
 	default:
 		httpEndpointNotSupported([]string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-		return nil, false
+		return nil, errors.New("endpoint not supported")
 	}
 
-	return traces, true
+	return traces, nil
 }
 
 func decodeReceiverPayload(r io.Reader, dest msgp.Decodable, v Version, mediaType string) error {
