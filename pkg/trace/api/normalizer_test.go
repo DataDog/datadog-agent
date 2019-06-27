@@ -40,7 +40,7 @@ func newTagStats() *info.TagStats {
 
 // tsMalformed returns a new info.TagStats structure containing the given malformed stats.
 func tsMalformed(tm *info.TracesMalformed) *info.TagStats {
-	return &info.TagStats{Stats: info.Stats{TracesMalformed: tm, TracesDropped:&info.TracesDropped{}}}
+	return &info.TagStats{Stats: info.Stats{TracesMalformed: tm, TracesDropped: &info.TracesDropped{}}}
 }
 
 // tagStatsDropped returns a new info.TagStats structure containing the given dropped stats.
@@ -178,7 +178,7 @@ func TestNormalizeNoTraceID(t *testing.T) {
 	s := newTestSpan()
 	s.TraceID = 0
 	assert.Error(t, normalize(ts, s))
-	assert.Equal(t, tsDropped(&info.TracesDropped{TraceIDZero:1}), ts)
+	assert.Equal(t, tsDropped(&info.TracesDropped{TraceIDZero: 1}), ts)
 }
 
 func TestNormalizeSpanIDPassThru(t *testing.T) {
