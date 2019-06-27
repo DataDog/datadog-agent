@@ -1,7 +1,7 @@
 source 'https://rubygems.org'
 
 # Install omnibus
-gem 'omnibus', git: 'https://github.com/DataDog/omnibus-ruby.git', branch: (ENV['OMNIBUS_RUBY_VERSION'] || 'datadog-5.5.0')
+gem 'omnibus', git: 'https://github.com/DataDog/omnibus-ruby.git', branch: "kserrania/macos-loader-path-fix" #(ENV['OMNIBUS_RUBY_VERSION'] || 'datadog-5.5.0')
 
 # Use Chef's software definitions. It is recommended that you write your own
 # software definitions, but you can clone/fork Chef's to get you started.
