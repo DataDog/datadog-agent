@@ -96,10 +96,24 @@ bool Three::init()
     if (_pythonPaths.size()) {
         char pathchr[] = "path";
         PyObject *path = PySys_GetObject(pathchr); // borrowed
+        if (path == NULL) {
+            // sys.path doesn't exist, which should never happen.
+            // No exception is set on the interpreter, so no need to handle any.
+            setError("could not access sys.path");
+            goto done;
+        }
         for (PyPaths::iterator pit = _pythonPaths.begin(); pit != _pythonPaths.end(); ++pit) {
-            PyObject *p = PyUnicode_FromString((*pit).c_str());
-            PyList_Append(path, p);
+            PyObject *p = PyUnicode_FromString(pit->c_str());
+            if (p == NULL) {
+                setError("could not set pythonPath: " + _fetchPythonError());
+                goto done;
+            }
+            int retval = PyList_Append(path, p);
             Py_XDECREF(p);
+            if (retval == -1) {
+                setError("could not append path to pythonPath: " + _fetchPythonError());
+                goto done;
+            }
         }
     }
 
@@ -107,12 +121,13 @@ bool Three::init()
         goto done;
     }
 
-    // load the base class
+    // import the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
 
 done:
-    // save tread state and release the GIL
+    // save thread state and release the GIL
     _threadState = PyEval_SaveThread();
+
     return _baseClass != NULL;
 }
 
@@ -205,8 +220,9 @@ bool Three::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&p
 
     obj_class = _findSubclassOf(_baseClass, obj_module);
     if (obj_class == NULL) {
+        // `_findSubclassOf` does not set the interpreter's error flag, but leaves an error on six
         std::ostringstream err;
-        err << "unable to find a subclass of the base check in module '" << module << "': " << _fetchPythonError();
+        err << "unable to find a subclass of the base check in module '" << module << "': " << getError();
         setError(err.str());
         Py_XDECREF(obj_module);
         return false;
@@ -234,7 +250,7 @@ bool Three::getCheck(SixPyObject *py_class, const char *init_config_str, const c
     PyObject *name = NULL;
 
     char load_config[] = "load_config";
-    char format[] = "(s)";
+    char format[] = "(s)"; // use parentheses to force Tuple creation
 
     // call `AgentCheck.load_config(init_config)`
     init_config = PyObject_CallMethod(klass, load_config, format, init_config_str);
@@ -246,6 +262,10 @@ bool Three::getCheck(SixPyObject *py_class, const char *init_config_str, const c
     if (init_config == Py_None) {
         Py_XDECREF(init_config);
         init_config = PyDict_New();
+        if (init_config == NULL) {
+            setError("error 'init_config' can't be initialized to an empty dict: " + _fetchPythonError());
+            goto done;
+        }
     } else if (!PyDict_Check(init_config)) {
         setError("error 'init_config' is not a dict");
         goto done;
@@ -258,22 +278,52 @@ bool Three::getCheck(SixPyObject *py_class, const char *init_config_str, const c
         goto done;
     } else if (!PyDict_Check(instance)) {
         setError("error instance is not a dict");
+        Py_XDECREF(instance); // we still own the reference to instance, so we need to decref it here
         goto done;
     }
 
     instances = PyTuple_New(1);
+    if (instances == NULL) {
+        setError("could not create tuple for instances: " + _fetchPythonError());
+        Py_XDECREF(instance); // we still own the reference to instance, so we need to decref it here
+        goto done;
+    }
+    // As stated in the Python C-API documentation
+    // https://github.com/python/cpython/blob/2.7/Doc/c-api/intro.rst#reference-count-details, PyTuple_SetItem takes
+    // over ownership of the given item (instance in this case). This means that we should NOT DECREF it
     if (PyTuple_SetItem(instances, 0, instance) != 0) {
-        setError("Could not create Tuple for instances: " + _fetchPythonError());
+        setError("could not set instance item on instances: " + _fetchPythonError());
         goto done;
     }
 
     // create `args` and `kwargs` to invoke `AgentCheck` constructor
     args = PyTuple_New(0);
+    if (args == NULL) {
+        setError("error 'args' can't be initialized to an empty tuple: " + _fetchPythonError());
+        goto done;
+    }
     kwargs = PyDict_New();
+    if (kwargs == NULL) {
+        setError("error 'kwargs' can't be initialized to an empty dict: " + _fetchPythonError());
+        goto done;
+    }
     name = PyUnicode_FromString(check_name);
-    PyDict_SetItemString(kwargs, "name", name);
-    PyDict_SetItemString(kwargs, "init_config", init_config);
-    PyDict_SetItemString(kwargs, "instances", instances);
+    if (name == NULL) {
+        setError("error 'name' can't be initialized: " + _fetchPythonError());
+        goto done;
+    }
+    if (PyDict_SetItemString(kwargs, "name", name) == -1) {
+        setError("error 'name' key can't be set: " + _fetchPythonError());
+        goto done;
+    }
+    if (PyDict_SetItemString(kwargs, "init_config", init_config) == -1) {
+        setError("error 'init_config' key can't be set: " + _fetchPythonError());
+        goto done;
+    }
+    if (PyDict_SetItemString(kwargs, "instances", instances) == -1) {
+        setError("error 'instances' key can't be set: " + _fetchPythonError());
+        goto done;
+    }
 
     if (agent_config_str != NULL) {
         agent_config = PyObject_CallMethod(klass, load_config, format, agent_config_str);
@@ -285,7 +335,10 @@ bool Three::getCheck(SixPyObject *py_class, const char *init_config_str, const c
             goto done;
         }
 
-        PyDict_SetItemString(kwargs, "agentConfig", agent_config);
+        if (PyDict_SetItemString(kwargs, "agentConfig", agent_config) == -1) {
+            setError("error 'agentConfig' key can't be set: " + _fetchPythonError());
+            goto done;
+        }
     }
 
     // call `AgentCheck` constructor
@@ -315,10 +368,13 @@ bool Three::getCheck(SixPyObject *py_class, const char *init_config_str, const c
     }
 
 done:
+    // We purposefully avoid calling Py_XDECREF on instance because we lost ownership earlier by
+    // calling PyTuple_SetItem. More details are available in the comment above this PyTuple_SetItem
+    // call
     Py_XDECREF(name);
     Py_XDECREF(check_id);
     Py_XDECREF(init_config);
-    Py_XDECREF(instance);
+    Py_XDECREF(instances);
     Py_XDECREF(agent_config);
     Py_XDECREF(args);
     Py_XDECREF(kwargs);
@@ -365,31 +421,49 @@ done:
 
 char **Three::getCheckWarnings(SixPyObject *check)
 {
-    if (check == NULL)
+    if (check == NULL) {
         return NULL;
+    }
+
     PyObject *py_check = reinterpret_cast<PyObject *>(check);
+    char **warnings = NULL;
 
     char func_name[] = "get_warnings";
+    Py_ssize_t numWarnings;
+
     PyObject *warns_list = PyObject_CallMethod(py_check, func_name, NULL);
     if (warns_list == NULL) {
         setError("error invoking 'get_warnings' method: " + _fetchPythonError());
-        return NULL;
+        goto done;
     }
 
-    Py_ssize_t numWarnings = PyList_Size(warns_list);
-    char **warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
+    numWarnings = PyList_Size(warns_list);
+    // docs are not clear but `PyList_Size` can actually fail and in case it would
+    // return -1, see https://github.com/python/cpython/blob/3.8/Objects/listobject.c#L223
+    if (numWarnings == -1) {
+        setError("error computing 'len(warnings)': " + _fetchPythonError());
+        goto done;
+    }
+
+    warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
     if (!warnings) {
-        Py_XDECREF(warns_list);
-        setError("could not allocate memory to get warnings: ");
-        return NULL;
+        setError("could not allocate memory to store warnings");
+        goto done;
     }
-
     warnings[numWarnings] = NULL;
 
     for (Py_ssize_t idx = 0; idx < numWarnings; idx++) {
         PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
+        if (warn == NULL) {
+            setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
+            free(warnings);
+            warnings = NULL;
+            goto done;
+        }
         warnings[idx] = as_string(warn);
     }
+
+done:
     Py_XDECREF(warns_list);
     return warnings;
 }
@@ -522,32 +596,54 @@ std::string Three::_fetchPythonError() const
     PyObject *ptype = NULL;
     PyObject *pvalue = NULL;
     PyObject *ptraceback = NULL;
+    PyObject *format_exception = NULL;
+    PyObject *traceback = NULL;
+    PyObject *fmt_exc = NULL;
 
     // Fetch error and make sure exception values are normalized, as per python C
     // API docs.
+    // PyErr_Fetch returns void, no need to check its return value
     PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+    // PyErr_NormalizeException returns void, no need to check its return value
     PyErr_NormalizeException(&ptype, &pvalue, &ptraceback);
 
     // There's a traceback, try to format it nicely
     if (ptraceback != NULL) {
-        PyObject *traceback = PyImport_ImportModule("traceback");
+        traceback = PyImport_ImportModule("traceback");
         if (traceback != NULL) {
             char fname[] = "format_exception";
-            PyObject *format_exception = PyObject_GetAttrString(traceback, fname);
+            format_exception = PyObject_GetAttrString(traceback, fname);
             if (format_exception != NULL) {
-                PyObject *fmt_exc = PyObject_CallFunctionObjArgs(format_exception, ptype, pvalue, ptraceback, NULL);
+                fmt_exc = PyObject_CallFunctionObjArgs(format_exception, ptype, pvalue, ptraceback, NULL);
                 if (fmt_exc != NULL) {
+                    Py_ssize_t len = PyList_Size(fmt_exc);
+                    // docs are not clear but `PyList_Size` can actually fail and in case it would
+                    // return -1, see https://github.com/python/cpython/blob/2.7/Objects/listobject.c#L170
+                    if (len == -1) {
+                        // don't fetch the actual error or the caller might think it was the root cause,
+                        // while it's not. Setting `ret_val` empty will make the function return "unknown error".
+                        // PyErr_Clear() will be called before returning.
+                        ret_val = "";
+                        goto done;
+                    }
+
                     // "format_exception" returns a list of strings (one per line)
-                    for (int i = 0; i < PyList_Size(fmt_exc); i++) {
-                        char *item = as_string(PyList_GetItem(fmt_exc, i));
+                    for (int i = 0; i < len; i++) {
+                        PyObject *s = PyList_GetItem(fmt_exc, i); // borrowed ref
+                        if (s == NULL || !PyString_Check(s)) {
+                            // unlikely to happen but same as above, do not propagate this error upstream
+                            // to avoid confusing the caller. PyErr_Clear() will be called before returning.
+                            ret_val = "";
+                            goto done;
+                        }
+                        char *item = as_string(s);
+                        // traceback.format_exception returns a list of strings, each ending in a *newline*
+                        // and some containing internal newlines. No need to add any CRLF/newlines.
                         ret_val += item;
                         ::free(item);
                     }
                 }
-                Py_XDECREF(fmt_exc);
-                Py_XDECREF(format_exception);
             }
-            Py_XDECREF(traceback);
         } else {
             // If we reach this point, there was an error while formatting the
             // exception
@@ -558,6 +654,7 @@ std::string Three::_fetchPythonError() const
     else if (pvalue != NULL) {
         PyObject *pvalue_obj = PyObject_Str(pvalue);
         if (pvalue_obj != NULL) {
+            // we know pvalue_obj is a string (we just casted it), no need to PyString_Check()
             char *ret = as_string(pvalue_obj);
             ret_val += ret;
             ::free(ret);
@@ -566,6 +663,7 @@ std::string Three::_fetchPythonError() const
     } else if (ptype != NULL) {
         PyObject *ptype_obj = PyObject_Str(ptype);
         if (ptype_obj != NULL) {
+            // we know ptype_obj is a string (we just casted it), no need to PyString_Check()
             char *ret = as_string(ptype_obj);
             ret_val += ret;
             ::free(ret);
@@ -573,12 +671,18 @@ std::string Three::_fetchPythonError() const
         }
     }
 
+done:
     if (ret_val == "") {
         ret_val = "unknown error";
     }
 
-    // clean up and return the string
+    // something might've gone wrong while fetching the error, ensure
+    // the error state is clean before returning
     PyErr_Clear();
+
+    Py_XDECREF(traceback);
+    Py_XDECREF(format_exception);
+    Py_XDECREF(fmt_exc);
     Py_XDECREF(ptype);
     Py_XDECREF(pvalue);
     Py_XDECREF(ptraceback);
@@ -636,9 +740,10 @@ void Three::set_module_attr_string(char *module, char *attr, char *value)
     }
 
     PyObject *py_value = PyStringFromCString(value);
-    if (PyObject_SetAttrString(py_module, attr, py_value) != 0)
+    if (PyObject_SetAttrString(py_module, attr, py_value) != 0) {
         setError("error setting the '" + std::string(module) + "." + std::string(attr)
                  + "' attribute: " + _fetchPythonError());
+    }
 
     Py_XDECREF(py_module);
     Py_XDECREF(py_value);
@@ -745,6 +850,11 @@ char *Three::getIntegrationList()
     }
 
     args = PyTuple_New(0);
+    if (args == NULL) {
+        setError("could not initialize args to empty tuple: " + _fetchPythonError());
+        goto done;
+    }
+
     packages = PyObject_Call(pkgLister, args, NULL);
     if (packages == NULL) {
         setError("error fetching wheels list: " + _fetchPythonError());
@@ -757,6 +867,10 @@ char *Three::getIntegrationList()
     }
 
     wheels = as_yaml(packages);
+    if (wheels == NULL) {
+        setError("'packages' could not be serialized to yaml: " + _fetchPythonError());
+        goto done;
+    }
 
 done:
     Py_XDECREF(pyPackages);
