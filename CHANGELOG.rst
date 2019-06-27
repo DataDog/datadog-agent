@@ -29,9 +29,9 @@ Upgrade Notes
   performance issues. Instead, the trace is kept in a queue awaiting to
   be processed.
 
-- Breaking change - In the version 6.11.2 logic was added in the Agent to first look for K8s container files if `/var/log/pods` was not available and then to go for the Docker socket.
+- Logs: Breaking Change for Kubernetes log collection - In the version 6.11.2 logic was added in the Agent to first look for K8s container files if `/var/log/pods` was not available and then to go for the Docker socket.
   This created some permission issues as `/var/log/pods` can be a symlink in some configuration and the Agent also needed access to the symlink directory.
-  
+
   This logic is reverted to its prior behaviour which prioritise the Docker socket for container log collection.
   It is still possible to force the agent to go for the K8s log files even if the Docker socket is mounted by using the `logs_config.k8s_container_use_file' or `DD_LOGS_CONFIG_K8S_CONTAINER_USE_FILE`. parameter.
   This is recommended when more than 10 containers are running on the same pod.
@@ -113,7 +113,7 @@ Deprecation Notes
 Bug Fixes
 ---------
 
-- Updated the DataDog/gopsutil library to include changes related to excessive DEBUG logging in the process agent 
+- Updated the DataDog/gopsutil library to include changes related to excessive DEBUG logging in the process agent
 
 - The computeMem is only called in the check when we ensure that it does not get passed with an empty pointer.
   But if someone was to reuse it without checking for the nil pointer it could cause a segfault.
@@ -122,15 +122,15 @@ Bug Fixes
 - APM: Fixed a bug where normalize tag would not truncate tags correctly
   in some situations.
 
-- APM: Fixed a small issue with normalizing tags that contained the 
+- APM: Fixed a small issue with normalizing tags that contained the
   unicode replacement character.
 
 - APM: fixed a bug where modulo operators caused SQL obfuscation to fail.
 
 - Fix issue on process agent for DD_PROCESS_AGENT_ENABLED where 'false' did not turn off process/container collection.
 
-- Fix an error when adding a custom check config through the GUI 
-  when the folder where the config will reside does not 
+- Fix an error when adding a custom check config through the GUI
+  when the folder where the config will reside does not
   exist yet.
 
 - APM: on macOS, trace-agent is now enabled by default, and, similarly to other
