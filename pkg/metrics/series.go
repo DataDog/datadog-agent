@@ -23,12 +23,6 @@ import (
 
 var seriesExpvar = expvar.NewMap("series")
 
-var (
-	jsonSeparator  = []byte(",")
-	jsonArrayStart = []byte("[")
-	jsonArrayEnd   = []byte("]")
-)
-
 // Point represents a metric value at a specific time
 type Point struct {
 	Ts    float64
