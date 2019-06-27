@@ -2,27 +2,28 @@ package ebpf
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
+	"io/ioutil"
+	"path"
 	"strings"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/pkg/errors"
 )
 
-var (
-	// Feature versions sourced from: https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
-	// Minimum kernel version -> max(3.15 - eBPF,
-	//                               3.18 - tables/maps,
-	//                               4.1 - kprobes,
-	//                               4.4 - perf events)
-	// 	                      -> 4.4
-	minRequiredKernelCode = linuxKernelVersionCode(4, 4, 0)
-
-	// eBPF got backported to centOS
-	// see: https://www.redhat.com/en/blog/introduction-ebpf-red-hat-enterprise-linux-7
-	centOSMinRequiredKernelCode = linuxKernelVersionCode(3, 10, 0)
-)
+var requiredKernelFuncs = []string{
+	// Maps (3.18)
+	"bpf_map_lookup_elem",
+	"bpf_map_update_elem",
+	"bpf_map_delete_elem",
+	// kprobes (4.1)
+	"bpf_probe_read",
+	// Perf events (4.4)
+	"bpf_perf_event_output",
+	"bpf_perf_event_read",
+}
 
 var (
 	// ErrNotImplemented will be returned on non-linux environments like Windows and Mac OSX
@@ -78,27 +79,52 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 		return true, nil
 	}
 
-	if isCentOS(platform) && kernelCode >= centOSMinRequiredKernelCode {
-		return true, nil
-	}
-
 	if isUbuntu(platform) {
 		if kernelCode >= linuxKernelVersionCode(4, 4, 119) && kernelCode <= linuxKernelVersionCode(4, 4, 126) {
 			return false, fmt.Errorf("got ubuntu kernel %s with known bug on platform: %s, see: https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCodeToString(kernelCode), platform)
 		}
 	}
 
-	if kernelCode < minRequiredKernelCode {
-		return false, fmt.Errorf(
-			"incompatible linux version. at least %s (%d) required, got %s (%d)",
-			kernelCodeToString(minRequiredKernelCode),
-			minRequiredKernelCode,
-			kernelCodeToString(kernelCode),
-			kernelCode,
-		)
+	kallsyms, err := readKallsyms()
+	if err != nil {
+		log.Warnf("error reading /proc/kallsyms file: %s", err)
+		// If we can't read the /proc/kallsyms file let's just return true to avoid blocking the tracer from running
+		return true, nil
 	}
 
-	return true, nil
+	return verifyKernelFuncs(kallsyms), nil
+}
+
+func readKallsyms() (string, error) {
+	procRoot := util.GetProcRoot()
+	raw, err := ioutil.ReadFile(path.Join(procRoot, "kallsyms"))
+	if err != nil {
+		return "", errors.Wrapf(err, "error reading kallsyms file from proc dir: %s", procRoot)
+	}
+
+	return string(raw), nil
+}
+
+func verifyKernelFuncs(kallsyms string) bool {
+	lines := strings.Split(kallsyms, "\n")
+	funcs := make(map[string]struct{}, len(lines))
+
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+
+		funcs[fields[2]] = struct{}{}
+	}
+
+	for _, f := range requiredKernelFuncs {
+		if _, ok := funcs[f]; !ok {
+			return false
+		}
+	}
+
+	return true
 }
 
 // In lack of binary.NativeEndian ...

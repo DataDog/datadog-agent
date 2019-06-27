@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
@@ -140,4 +141,17 @@ func execCmd(head string, args ...string) (string, error) {
 	}
 
 	return strings.ToLower(strings.TrimSpace(stdout.String())), nil
+}
+
+// GetProcRoot retrieves the current procfs dir we should use
+func GetProcRoot() string {
+	if v := os.Getenv("HOST_PROC"); v != "" {
+		return v
+	}
+
+	if config.IsContainerized() && PathExists("/host") {
+		return "/host/proc"
+	}
+
+	return "/proc"
 }

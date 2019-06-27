@@ -1,6 +1,7 @@
 package ebpf
 
 import (
+	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -50,8 +51,16 @@ func TestExcludedKernelVersion(t *testing.T) {
 	ok, err = verifyOSVersion(linuxKernelVersionCode(3, 10, 0), "Linux-3.10.0-957.5.1.el7.x86_64-x86_64-with-centos-7.6.1810-Core", exclusionList)
 	assert.True(t, ok)
 	assert.Nil(t, err)
+}
 
-	ok, err = verifyOSVersion(linuxKernelVersionCode(3, 9, 0), "Linux-3.9.0.x86_64-x86_64-with-centos-7.5", exclusionList)
-	assert.False(t, ok)
-	assert.Error(t, err)
+func TestVerifyKernelFuncs(t *testing.T) {
+	kallsyms, err := ioutil.ReadFile("./testdata/kallsyms.supported")
+	assert.NoError(t, err)
+
+	assert.True(t, verifyKernelFuncs(string(kallsyms)))
+
+	kallsymsUnsupported, err := ioutil.ReadFile("./testdata/kallsyms.unsupported")
+	assert.NoError(t, err)
+
+	assert.False(t, verifyKernelFuncs(string(kallsymsUnsupported)))
 }
