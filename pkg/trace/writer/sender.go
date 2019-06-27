@@ -20,8 +20,7 @@ import (
 )
 
 // newSenders returns a list of senders based on the given agent configuration, using climit
-// as the maximum number of concurrent outgoing connections, writing to path. The given
-// namespace is used as a prefix for reported metrics.
+// as the maximum number of concurrent outgoing connections, writing to path.
 func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, qsize int) []*sender {
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
@@ -130,6 +129,9 @@ type sender struct {
 	climit   chan struct{} // semaphore for limiting concurrent connections
 	inflight int32         // inflight payloads
 	attempt  int32         // active retry attempt
+
+	mu     sync.RWMutex // guards closed
+	closed bool         // closed reports if the loop is stopped
 }
 
 // newSender returns a new sender based on the given config cfg.
@@ -181,6 +183,9 @@ outer:
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
+	s.mu.Lock()
+	s.closed = true
+	s.mu.Unlock()
 	close(s.queue)
 }
 
@@ -227,6 +232,12 @@ func (s *sender) sendPayload(p *payload) {
 	switch err.(type) {
 	case *retriableError:
 		// request failed again, but can be retried
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		if s.closed {
+			// sender is stopped
+			return
+		}
 		atomic.AddInt32(&s.attempt, 1)
 		select {
 		case s.queue <- p:

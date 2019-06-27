@@ -237,7 +237,7 @@ func (w *StatsWriter) recordEvent(t eventType, data *eventData) {
 	}
 	switch t {
 	case eventTypeRetry:
-		log.Errorf("Retrying to flush stats payload (error: %q)", data.err)
+		log.Debugf("Retrying to flush stats payload (error: %q)", data.err)
 		atomic.AddInt64(&w.stats.Retries, 1)
 
 	case eventTypeSent:
