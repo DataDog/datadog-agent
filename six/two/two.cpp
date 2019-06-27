@@ -82,7 +82,7 @@ bool Two::init()
     PyEval_InitThreads();
 
     // Set PYTHONPATH
-    if (_pythonPaths.size()) {
+    if (!_pythonPaths.empty()) {
         char pathchr[] = "path";
         PyObject *path = PySys_GetObject(pathchr); // borrowed
         if (path == NULL) {
@@ -92,7 +92,7 @@ bool Two::init()
             goto done;
         }
         for (PyPaths::iterator pit = _pythonPaths.begin(); pit != _pythonPaths.end(); ++pit) {
-            PyObject *p = PyString_FromString((*pit).c_str());
+            PyObject *p = PyString_FromString(pit->c_str());
             if (p == NULL) {
                 setError("could not set pythonPath: " + _fetchPythonError());
                 goto done;
@@ -202,33 +202,6 @@ void Two::GILRelease(six_gilstate_t state)
     }
 }
 
-// return new reference
-PyObject *Two::_importFrom(const char *module, const char *name)
-{
-    PyObject *obj_module = NULL;
-    PyObject *obj_symbol = NULL;
-
-    obj_module = PyImport_ImportModule(module);
-    if (obj_module == NULL) {
-        setError(_fetchPythonError());
-        goto error;
-    }
-
-    obj_symbol = PyObject_GetAttrString(obj_module, name);
-    if (obj_symbol == NULL) {
-        setError(_fetchPythonError());
-        goto error;
-    }
-
-    Py_XDECREF(obj_module);
-    return obj_symbol;
-
-error:
-    Py_XDECREF(obj_module);
-    Py_XDECREF(obj_symbol);
-    return NULL;
-}
-
 bool Two::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyClass)
 {
     PyObject *obj_module = NULL;
@@ -260,6 +233,7 @@ bool Two::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyC
 bool Two::getCheck(SixPyObject *py_class, const char *init_config_str, const char *instance_str,
                    const char *check_id_str, const char *check_name, const char *agent_config_str, SixPyObject *&check)
 {
+
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
     PyObject *agent_config = NULL;
     PyObject *init_config = NULL;
@@ -409,6 +383,118 @@ done:
     return true;
 }
 
+const char *Two::runCheck(SixPyObject *check)
+{
+    if (check == NULL) {
+        return NULL;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+    // result will be eventually returned as a copy and the corresponding Python
+    // string decref'ed, caller will be responsible for memory deallocation.
+    char *ret = NULL;
+    char *ret_copy = NULL;
+    char run[] = "run";
+    PyObject *result = NULL;
+
+    result = PyObject_CallMethod(py_check, run, NULL);
+    if (result == NULL) {
+        setError("error invoking 'run' method: " + _fetchPythonError());
+        goto done;
+    }
+
+    // `ret` points to the Python string internal storage and will be eventually
+    // deallocated along with the corresponding Python object.
+    ret = PyString_AsString(result);
+    if (ret == NULL) {
+        setError("error converting 'run' result to string: " + _fetchPythonError());
+        goto done;
+    }
+
+    ret_copy = _strdup(ret);
+
+done:
+    Py_XDECREF(result);
+    return ret_copy;
+}
+
+char **Two::getCheckWarnings(SixPyObject *check)
+{
+    if (check == NULL) {
+        return NULL;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+    char **warnings = NULL;
+
+    char func_name[] = "get_warnings";
+    Py_ssize_t numWarnings;
+
+    PyObject *warns_list = PyObject_CallMethod(py_check, func_name, NULL);
+    if (warns_list == NULL) {
+        setError("error invoking 'get_warnings' method: " + _fetchPythonError());
+        goto done;
+    }
+
+    numWarnings = PyList_Size(warns_list);
+    // docs are not clear but `PyList_Size` can actually fail and in case it would
+    // return -1, see https://github.com/python/cpython/blob/2.7/Objects/listobject.c#L170
+    if (numWarnings == -1) {
+        setError("error computing 'len(warnings)': " + _fetchPythonError());
+        goto done;
+    }
+
+    warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
+    if (!warnings) {
+        setError("could not allocate memory to store warnings");
+        goto done;
+    }
+    warnings[numWarnings] = NULL;
+
+    for (Py_ssize_t idx = 0; idx < numWarnings; idx++) {
+        PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
+        if (warn == NULL) {
+            setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
+            free(warnings);
+            warnings = NULL;
+            goto done;
+        }
+        warnings[idx] = as_string(warn);
+    }
+
+done:
+    Py_XDECREF(warns_list);
+    return warnings;
+}
+
+// return new reference
+PyObject *Two::_importFrom(const char *module, const char *name)
+{
+    PyObject *obj_module = NULL;
+    PyObject *obj_symbol = NULL;
+
+    obj_module = PyImport_ImportModule(module);
+    if (obj_module == NULL) {
+        setError(_fetchPythonError());
+        goto error;
+    }
+
+    obj_symbol = PyObject_GetAttrString(obj_module, name);
+    if (obj_symbol == NULL) {
+        setError(_fetchPythonError());
+        goto error;
+    }
+
+    Py_XDECREF(obj_module);
+    return obj_symbol;
+
+error:
+    Py_XDECREF(obj_module);
+    Py_XDECREF(obj_symbol);
+    return NULL;
+}
+
 PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module)
 {
     // baseClass is not a Class type
@@ -517,91 +603,6 @@ done:
     return klass;
 }
 
-const char *Two::runCheck(SixPyObject *check)
-{
-    if (check == NULL) {
-        return NULL;
-    }
-
-    PyObject *py_check = reinterpret_cast<PyObject *>(check);
-
-    // result will be eventually returned as a copy and the corresponding Python
-    // string decref'ed, caller will be responsible for memory deallocation.
-    char *ret = NULL;
-    char *ret_copy = NULL;
-    char run[] = "run";
-    PyObject *result = NULL;
-
-    result = PyObject_CallMethod(py_check, run, NULL);
-    if (result == NULL) {
-        setError("error invoking 'run' method: " + _fetchPythonError());
-        goto done;
-    }
-
-    // `ret` points to the Python string internal storage and will be eventually
-    // deallocated along with the corresponding Python object.
-    ret = PyString_AsString(result);
-    if (ret == NULL) {
-        setError("error converting result to string: " + _fetchPythonError());
-        goto done;
-    }
-
-    ret_copy = _strdup(ret);
-
-done:
-    Py_XDECREF(result);
-    return ret_copy;
-}
-
-char **Two::getCheckWarnings(SixPyObject *check)
-{
-    if (check == NULL) {
-        return NULL;
-    }
-
-    PyObject *py_check = reinterpret_cast<PyObject *>(check);
-    char **warnings = NULL;
-
-    char func_name[] = "get_warnings";
-    Py_ssize_t numWarnings;
-
-    PyObject *warns_list = PyObject_CallMethod(py_check, func_name, NULL);
-    if (warns_list == NULL) {
-        setError("error invoking 'get_warnings' method: " + _fetchPythonError());
-        goto done;
-    }
-
-    numWarnings = PyList_Size(warns_list);
-    // docs are not clear but `PyList_Size` can actually fail and in case it would
-    // return -1, see https://github.com/python/cpython/blob/2.7/Objects/listobject.c#L170
-    if (numWarnings == -1) {
-        setError("error computing 'len(warnings)': " + _fetchPythonError());
-        goto done;
-    }
-
-    warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
-    if (!warnings) {
-        setError("could not allocate memory to store warnings");
-        goto done;
-    }
-    warnings[numWarnings] = NULL;
-
-    for (Py_ssize_t idx = 0; idx < numWarnings; idx++) {
-        PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
-        if (warn == NULL) {
-            setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
-            free(warnings);
-            warnings = NULL;
-            goto done;
-        }
-        warnings[idx] = as_string(warn);
-    }
-
-done:
-    Py_XDECREF(warns_list);
-    return warnings;
-}
-
 std::string Two::_fetchPythonError()
 {
     std::string ret_val = "";
@@ -613,6 +614,9 @@ std::string Two::_fetchPythonError()
     PyObject *ptype = NULL;
     PyObject *pvalue = NULL;
     PyObject *ptraceback = NULL;
+    PyObject *format_exception = NULL;
+    PyObject *traceback = NULL;
+    PyObject *fmt_exc = NULL;
 
     // Fetch error and make sure exception values are normalized, as per python C
     // API docs.
@@ -623,12 +627,12 @@ std::string Two::_fetchPythonError()
 
     // There's a traceback, try to format it nicely
     if (ptraceback != NULL) {
-        PyObject *traceback = PyImport_ImportModule("traceback");
+        traceback = PyImport_ImportModule("traceback");
         if (traceback != NULL) {
             char fname[] = "format_exception";
-            PyObject *format_exception = PyObject_GetAttrString(traceback, fname);
+            format_exception = PyObject_GetAttrString(traceback, fname);
             if (format_exception != NULL) {
-                PyObject *fmt_exc = PyObject_CallFunctionObjArgs(format_exception, ptype, pvalue, ptraceback, NULL);
+                fmt_exc = PyObject_CallFunctionObjArgs(format_exception, ptype, pvalue, ptraceback, NULL);
                 if (fmt_exc != NULL) {
                     Py_ssize_t len = PyList_Size(fmt_exc);
                     // docs are not clear but `PyList_Size` can actually fail and in case it would
@@ -638,9 +642,6 @@ std::string Two::_fetchPythonError()
                         // while it's not. Setting `ret_val` empty will make the function return "unknown error".
                         // PyErr_Clear() will be called before returning.
                         ret_val = "";
-                        Py_XDECREF(traceback);
-                        Py_XDECREF(format_exception);
-                        Py_XDECREF(fmt_exc);
                         goto done;
                     }
 
@@ -651,21 +652,16 @@ std::string Two::_fetchPythonError()
                             // unlikely to happen but same as above, do not propagate this error upstream
                             // to avoid confusing the caller. PyErr_Clear() will be called before returning.
                             ret_val = "";
-                            Py_XDECREF(traceback);
-                            Py_XDECREF(format_exception);
-                            Py_XDECREF(fmt_exc);
                             goto done;
                         }
-                        // we know s is a string, so no need to check return value of PyString_AsString
                         // traceback.format_exception returns a list of strings, each ending in a *newline*
                         // and some containing internal newlines. No need to add any CRLF/newlines.
+                        // PyString_AsString returns a char* to a temporary object, no need to strdup it because
+                        // of the implicit conversion to std::string, which already makes a copy.
                         ret_val += PyString_AsString(s);
                     }
                 }
-                Py_XDECREF(fmt_exc);
-                Py_XDECREF(format_exception);
             }
-            Py_XDECREF(traceback);
         } else {
             // If we reach this point, there was an error while formatting the
             // exception
@@ -676,14 +672,18 @@ std::string Two::_fetchPythonError()
     else if (pvalue != NULL) {
         PyObject *pvalue_obj = PyObject_Str(pvalue);
         if (pvalue_obj != NULL) {
-            // we know pvalue_obj is a string, no need to check return value of PyString_AsString
+            // we know pvalue_obj is a string (we just casted it), no need to PyString_Check()
+            // PyString_AsString returns a char* to a temporary object, no need to strdup it because
+            // of the implicit conversion to std::string, which already makes a copy.
             ret_val = PyString_AsString(pvalue_obj);
             Py_XDECREF(pvalue_obj);
         }
     } else if (ptype != NULL) {
         PyObject *ptype_obj = PyObject_Str(ptype);
         if (ptype_obj != NULL) {
-            // we know ptype_obj is a string, no need to check return value of PyString_AsString
+            // we know ptype_obj is a string (we just casted it), no need to PyString_Check()
+            // PyString_AsString returns a char* to a temporary object, no need to strdup it because
+            // of the implicit conversion to std::string, which already makes a copy.
             ret_val = PyString_AsString(ptype_obj);
             Py_XDECREF(ptype_obj);
         }
@@ -698,6 +698,9 @@ done:
     // the error state is clean before returning
     PyErr_Clear();
 
+    Py_XDECREF(traceback);
+    Py_XDECREF(format_exception);
+    Py_XDECREF(fmt_exc);
     Py_XDECREF(ptype);
     Py_XDECREF(pvalue);
     Py_XDECREF(ptraceback);
@@ -717,7 +720,12 @@ bool Two::getAttrString(SixPyObject *obj, const char *attributeName, char *&valu
     py_attr = PyObject_GetAttrString(py_obj, attributeName);
     if (py_attr != NULL && PyString_Check(py_attr)) {
         value = as_string(py_attr);
-        res = true;
+        if (value == NULL) {
+            // as_string clears the error, so we can't fetch it here
+            setError("error converting attribute " + std::string(attributeName) + " to string");
+        } else {
+            res = true;
+        }
     } else if (py_attr != NULL && !PyString_Check(py_attr)) {
         setError("error attribute " + std::string(attributeName) + " has a different type than string");
         PyErr_Clear();
@@ -834,8 +842,7 @@ void Two::setIsExcludedCb(cb_is_excluded_t cb)
 
 // Python Helpers
 
-// get_integration_list return a list of every datadog's wheels installed. The
-// returned list must be free by calling free_integration_list.
+// get_integration_list return a list of every datadog's wheels installed.
 char *Two::getIntegrationList()
 {
     PyObject *pyPackages = NULL;

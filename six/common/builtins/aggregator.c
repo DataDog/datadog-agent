@@ -74,7 +74,6 @@ void _set_submit_event_cb(cb_submit_event_t cb)
 static char **py_tag_to_c(PyObject *py_tags)
 {
     char **tags = NULL;
-    char *err = NULL;
     PyObject *py_tags_list = NULL; // new reference
 
     if (!PySequence_Check(py_tags)) {
@@ -95,7 +94,7 @@ static char **py_tag_to_c(PyObject *py_tags)
         return tags;
     }
 
-    py_tags_list = PySequence_Fast(py_tags, err); // new reference
+    py_tags_list = PySequence_Fast(py_tags, "py_tags is not a sequence"); // new reference
     if (py_tags_list == NULL) {
         goto done;
     }
@@ -120,7 +119,6 @@ static char **py_tag_to_c(PyObject *py_tags)
     tags[nb_valid_tag] = NULL;
 
 done:
-    free(err);
     Py_XDECREF(py_tags_list);
     return tags;
 }
