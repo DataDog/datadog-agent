@@ -19,6 +19,7 @@
 #include <util.h>
 
 #include <algorithm>
+#include <cstdlib>
 #include <sstream>
 
 extern "C" DATADOG_AGENT_SIX_API Six *create(const char *pythonHome)
@@ -72,18 +73,13 @@ bool Two::init()
 
     Py_Initialize();
 
+    if (!Py_IsInitialized()) {
+        return false;
+    }
+
     // In recent versions of Python3 this is called from Py_Initialize already,
     // for Python2 it has to be explicit.
     PyEval_InitThreads();
-
-    // init custom builtins
-    Py2_init_aggregator();
-    Py2_init_datadog_agent();
-    Py2_init_util();
-    Py2_init__util();
-    Py2_init_tagger();
-    Py2_init_kubeutil();
-    Py2_init_containers();
 
     // Set PYTHONPATH
     if (!_pythonPaths.empty()) {
@@ -110,6 +106,18 @@ bool Two::init()
         }
     }
 
+    // init custom builtins
+    if (init_stringutils() != EXIT_SUCCESS) {
+        goto done;
+    }
+    Py2_init_aggregator();
+    Py2_init_datadog_agent();
+    Py2_init_util();
+    Py2_init__util();
+    Py2_init_tagger();
+    Py2_init_kubeutil();
+    Py2_init_containers();
+
     // import the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
 
@@ -118,11 +126,6 @@ done:
     _threadState = PyEval_SaveThread();
 
     return _baseClass != NULL;
-}
-
-bool Two::isInitialized() const
-{
-    return Py_IsInitialized();
 }
 
 py_info_t *Two::getPyInfo()
@@ -651,6 +654,8 @@ std::string Two::_fetchPythonError()
                             ret_val = "";
                             goto done;
                         }
+                        // traceback.format_exception returns a list of strings, each ending in a *newline*
+                        // and some containing internal newlines. No need to add any CRLF/newlines.
                         // PyString_AsString returns a char* to a temporary object, no need to strdup it because
                         // of the implicit conversion to std::string, which already makes a copy.
                         ret_val += PyString_AsString(s);

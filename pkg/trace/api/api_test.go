@@ -61,7 +61,7 @@ func TestMain(m *testing.M) {
 	defer func(old func(string)) { killProcess = old }(killProcess)
 	killProcess = func(_ string) {}
 
-	m.Run()
+	os.Exit(m.Run())
 }
 
 func TestReceiverRequestBodyLength(t *testing.T) {
@@ -746,6 +746,27 @@ func BenchmarkWatchdog(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		r.watchdog(now)
+	}
+}
+
+func TestExpvar(t *testing.T) {
+	if testing.Short() {
+		return
+	}
+
+	r := newTestReceiverFromConfig(config.New())
+	r.Start()
+	defer r.Stop()
+
+	resp, err := http.Get("http://localhost:8126/debug/vars")
+	assert.NoError(t, err)
+	defer resp.Body.Close()
+	assert.EqualValues(t, resp.StatusCode, http.StatusOK, "failed to read expvars from local server")
+
+	if resp.StatusCode == http.StatusOK {
+		var varsJSON map[string]interface{}
+		err = json.NewDecoder(resp.Body).Decode(&varsJSON)
+		assert.NoError(t, err, "/debug/vars must return valid json")
 	}
 }
 

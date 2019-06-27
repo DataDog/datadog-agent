@@ -108,7 +108,7 @@
       RemoveFolderEx requires that we "remember" the path for uninstall.
       Read the path value and set the PROJECTLOCATION property with the value.
     -->
-    <Property Id="PROJECTLOCATION">
+    <Property Id="PROJECTLOCATION" Secure="yes">
       <RegistrySearch Key="SOFTWARE\Datadog\Datadog Agent"
                       Root="HKLM"
                       Type="raw"
@@ -404,7 +404,7 @@
       <!-- only do the uninstall (which removes the user state and file perms) 
            on a full uninstall -->
       <Custom Action='SetUninstallProperty' Before='DoUninstall'> <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
-      <Custom Action='DoUninstall' Before='InstallFinalize'>      <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
+      <Custom Action='DoUninstall' Before='RemoveRegistryValues'>      <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
 
       <Custom Action='DoRollback' Before='FinalizeInstall'>       <![CDATA[REMOVE<>"ALL" OR UPGRADINGPRODUCTCODE<>""]]> </Custom>
     </InstallExecuteSequence>

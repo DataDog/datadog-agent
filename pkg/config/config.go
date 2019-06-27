@@ -27,6 +27,8 @@ import (
 // the user-provided value is invalid.
 const DefaultForwarderRecoveryInterval = 2
 
+const megaByte = 1024 * 1024
+
 // DefaultSite is the default site the Agent sends data to.
 const DefaultSite = "datadoghq.com"
 
@@ -185,6 +187,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
 	// Serializer
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
+	// Warning: do not change the two following values. Your payloads will get dropped by Datadog's intake.
+	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
+	config.BindEnvAndSetDefault("serializer_max_uncompressed_payload_size", 4*megaByte)
 	config.BindEnvAndSetDefault("use_v2_api.series", false)
 	config.BindEnvAndSetDefault("use_v2_api.events", false)
 	config.BindEnvAndSetDefault("use_v2_api.service_checks", false)
@@ -352,6 +357,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.open_files_limit", 100)
 	// add global processing rules that are applied on all logs
 	config.BindEnv("logs_config.processing_rules")
+	// enforce the agent to use files to collect container logs on kubernetes environment
+	config.BindEnvAndSetDefault("logs_config.k8s_container_use_file", false)
 
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
@@ -361,6 +368,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
+	config.SetKnown("logs_config.additional_endpoints")
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
@@ -407,7 +415,7 @@ func initConfig(config Config) {
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
 
-	// Process
+	// Process agent
 	config.SetKnown("process_config.dd_agent_env")
 	config.SetKnown("process_config.enabled")
 	config.SetKnown("process_config.intervals.process_realtime")
@@ -420,16 +428,32 @@ func initConfig(config Config) {
 	config.SetKnown("process_config.dd_agent_bin")
 	config.SetKnown("process_config.custom_sensitive_words")
 	config.SetKnown("process_config.scrub_args")
-	config.SetKnown("process.strip_proc_arguments")
+	config.SetKnown("process_config.strip_proc_arguments")
 	config.SetKnown("process_config.windows.args_refresh_interval")
 	config.SetKnown("process_config.windows.add_new_args")
-	config.SetKnown("process.additional_endpoints.*")
-	config.SetKnown("process.container_source")
-	config.SetKnown("process.intervals.connections")
+	config.SetKnown("process_config.additional_endpoints.*")
+	config.SetKnown("process_config.container_source")
+	config.SetKnown("process_config.intervals.connections")
+	config.SetKnown("process_config.expvar_port")
+
+	// System probe
 	config.SetKnown("system_probe_config.enabled")
 	config.SetKnown("system_probe_config.log_file")
 	config.SetKnown("system_probe_config.debug_port")
 	config.SetKnown("system_probe_config.bpf_debug")
+	config.SetKnown("system_probe_config.disable_tcp")
+	config.SetKnown("system_probe_config.disable_udp")
+	config.SetKnown("system_probe_config.disable_ipv6")
+	config.SetKnown("system_probe_config.collect_local_dns")
+	config.SetKnown("system_probe_config.use_local_system_probe")
+	config.SetKnown("system_probe_config.enable_conntrack")
+	config.SetKnown("system_probe_config.sysprobe_socket")
+	config.SetKnown("system_probe_config.conntrack_short_term_buffer_size")
+	config.SetKnown("system_probe_config.max_conns_per_message")
+	config.SetKnown("system_probe_config.max_tracked_connections")
+	config.SetKnown("system_probe_config.max_closed_connections_buffered")
+	config.SetKnown("system_probe_config.max_connection_state_buffered")
+	config.SetKnown("system_probe_config.excluded_linux_versions")
 
 	// APM
 	config.SetKnown("apm_config.enabled")
@@ -483,6 +507,10 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.stats_writer.queue.exp_backoff_growth_base")
 	config.SetKnown("apm_config.analyzed_rate_by_service.*")
 	config.SetKnown("apm_config.analyzed_spans.*")
+	config.SetKnown("apm_config.log_throttling")
+	config.SetKnown("apm_config.bucket_size_seconds")
+	config.SetKnown("apm_config.receiver_timeout")
+	config.SetKnown("apm_config.watchdog_check_delay")
 
 	setAssetFs(config)
 }

@@ -268,9 +268,7 @@ func Initialize(paths ...string) error {
 	C.initkubeutilModule(six)
 
 	// Init Six machinery
-	C.init(six)
-
-	if C.is_initialized(six) == 0 {
+	if C.init(six) == 0 {
 		err := C.GoString(C.get_error(six))
 		return addExpvarPythonInitErrors(err)
 	}

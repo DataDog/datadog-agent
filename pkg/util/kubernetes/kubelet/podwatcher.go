@@ -11,12 +11,13 @@ import (
 	"hash/fnv"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const unreadinessTimeout = 30 * time.Second
 
 // PodWatcher regularly pools the kubelet for new/changed/removed containers.
 // It keeps an internal state to only send the updated pods.
@@ -25,14 +26,14 @@ type PodWatcher struct {
 	kubeUtil       *KubeUtil
 	expiryDuration time.Duration
 	lastSeen       map[string]time.Time
+	lastSeenReady  map[string]time.Time
 	tagsDigest     map[string]string
 }
 
-const readinessCacheSeparator = "-ready:"
-
-// NewPodWatcher creates a new watcher. User call must then trigger PullChanges
-// and ExpireContainers when needed.
-func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
+// NewPodWatcher creates a new watcher given an expiry duration
+// and if the watcher should watch label/annotation changes on pods.
+// User call must then trigger PullChanges and Expire when needed.
+func NewPodWatcher(expiryDuration time.Duration, isWatchingTags bool) (*PodWatcher, error) {
 	kubeutil, err := GetKubeUtil()
 	if err != nil {
 		return nil, err
@@ -40,10 +41,19 @@ func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 	watcher := &PodWatcher{
 		kubeUtil:       kubeutil,
 		lastSeen:       make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
+		lastSeenReady:  make(map[string]time.Time),
 		expiryDuration: expiryDuration,
 	}
+	if isWatchingTags {
+		watcher.tagsDigest = make(map[string]string)
+	}
 	return watcher, nil
+}
+
+// isWatchingTags returns true if the pod watcher should
+// watch for tag changes on pods
+func (w *PodWatcher) isWatchingTags() bool {
+	return w.tagsDigest != nil
 }
 
 // PullChanges pulls a new podList from the kubelet and returns Pod objects for
@@ -70,7 +80,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 		newStaticPod := false
 		_, foundPod := w.lastSeen[podEntity]
 
-		if !foundPod {
+		if w.isWatchingTags() && !foundPod {
 			w.tagsDigest[podEntity] = digestPodMeta(pod.Metadata)
 		}
 
@@ -85,26 +95,41 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 
 		// Detect updated containers
 		updatedContainer := false
+		isPodReady := IsPodReady(pod)
+
 		for _, container := range pod.Status.GetAllContainers() {
 			// We don't check container readiness as init containers are never ready
 			// We check if the container has an ID instead (has run or is running)
 			if !container.IsPending() {
-				// We store readiness in the cache key to resubmit the container on pod phase change
-				containerCacheKey := container.ID + readinessCacheSeparator + strconv.FormatBool(IsPodReady(pod))
-				if _, found := w.lastSeen[containerCacheKey]; !found {
+				// new container are always sent ignoring the pod state
+				if _, found := w.lastSeen[container.ID]; !found {
 					updatedContainer = true
 				}
-				w.lastSeen[containerCacheKey] = now
+				w.lastSeen[container.ID] = now
+
+				// for existing ones we look at the readiness state
+				if _, found := w.lastSeenReady[container.ID]; !found && isPodReady {
+					// the pod has never been seen ready or was removed when
+					// reaching the unreadinessTimeout
+					updatedContainer = true
+				}
+
+				// update the readiness expiry cache
+				if isPodReady {
+					w.lastSeenReady[container.ID] = now
+				}
 			}
 		}
 
 		// Detect changes in labels and annotations values
 		newLabelsOrAnnotations := false
-		newTagsDigest := digestPodMeta(pod.Metadata)
-		if foundPod && newTagsDigest != w.tagsDigest[podEntity] {
-			// update tags digest
-			w.tagsDigest[podEntity] = newTagsDigest
-			newLabelsOrAnnotations = true
+		if w.isWatchingTags() {
+			newTagsDigest := digestPodMeta(pod.Metadata)
+			if foundPod && newTagsDigest != w.tagsDigest[podEntity] {
+				// update tags digest
+				w.tagsDigest[podEntity] = newTagsDigest
+				newLabelsOrAnnotations = true
+			}
 		}
 
 		if newStaticPod || updatedContainer || newLabelsOrAnnotations {
@@ -127,11 +152,21 @@ func (w *PodWatcher) Expire() ([]string, error) {
 	var expiredContainers []string
 
 	for id, lastSeen := range w.lastSeen {
+		// pod was removed from the pod list, we can safely cleanup everything
 		if now.Sub(lastSeen) > w.expiryDuration {
 			delete(w.lastSeen, id)
-			delete(w.tagsDigest, id)
-			// sanitize cache key before sending it
-			expiredContainers = append(expiredContainers, strings.Split(id, readinessCacheSeparator)[0])
+			delete(w.lastSeenReady, id)
+			if w.isWatchingTags() {
+				delete(w.tagsDigest, id)
+			}
+			expiredContainers = append(expiredContainers, id)
+		}
+	}
+	for id, lastSeenReady := range w.lastSeenReady {
+		// we keep pods gone unready for 30 seconds and then force removal
+		if now.Sub(lastSeenReady) > unreadinessTimeout {
+			delete(w.lastSeenReady, id)
+			expiredContainers = append(expiredContainers, id)
 		}
 	}
 
