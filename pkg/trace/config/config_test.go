@@ -192,8 +192,6 @@ func TestFullIniConfig(t *testing.T) {
 
 	assert.Equal(5, c.TraceWriter.ConnectionLimit)
 	assert.Equal(6, c.TraceWriter.QueueSize)
-	assert.Equal(1, c.ServiceWriter.ConnectionLimit)
-	assert.Equal(2, c.ServiceWriter.QueueSize)
 	assert.Equal(3, c.StatsWriter.ConnectionLimit)
 	assert.Equal(4, c.StatsWriter.QueueSize)
 }
@@ -308,8 +306,6 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	// Assert Trace Writer
 	assert.Equal(1, c.TraceWriter.ConnectionLimit)
 	assert.Equal(2, c.TraceWriter.QueueSize)
-	assert.Equal(3, c.ServiceWriter.ConnectionLimit)
-	assert.Equal(4, c.ServiceWriter.QueueSize)
 	assert.Equal(5, c.StatsWriter.ConnectionLimit)
 	assert.Equal(6, c.StatsWriter.QueueSize)
 	// analysis legacy

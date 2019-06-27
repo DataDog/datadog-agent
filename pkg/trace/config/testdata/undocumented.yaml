@@ -12,9 +12,6 @@ apm_config:
   trace_writer:
     connection_limit: 1
     queue_size: 2
-  service_writer:
-    connection_limit: 3
-    queue_size: 4
   stats_writer:
     connection_limit: 5
     queue_size: 6

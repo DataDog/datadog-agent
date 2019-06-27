@@ -274,20 +274,18 @@ func TestConverter(t *testing.T) {
 
 	// int values
 	for k, v := range map[string]int{
-		"apm_config.bucket_size_seconds":             5,    // trace.concentrator.bucket_size_seconds
-		"apm_config.receiver_port":                   8126, // trace.receiver.receiver_port
-		"apm_config.connection_limit":                2000, // trace.receiver.connection_limit
-		"apm_config.receiver_timeout":                4,    // trace.receiver.timeout
-		"apm_config.max_connections":                 40,   // trace.watchdog.max_connections
-		"apm_config.watchdog_check_delay":            5,    // trace.watchdog.check_delay_seconds
-		"apm_config.extra_sample_rate":               1,
-		"dogstatsd_port":                             8125,
-		"apm_config.service_writer.connection_limit": 1,
-		"apm_config.service_writer.queue_size":       2,
-		"apm_config.stats_writer.connection_limit":   3,
-		"apm_config.stats_writer.queue_size":         4,
-		"apm_config.trace_writer.connection_limit":   5,
-		"apm_config.trace_writer.queue_size":         6,
+		"apm_config.bucket_size_seconds":           5,    // trace.concentrator.bucket_size_seconds
+		"apm_config.receiver_port":                 8126, // trace.receiver.receiver_port
+		"apm_config.connection_limit":              2000, // trace.receiver.connection_limit
+		"apm_config.receiver_timeout":              4,    // trace.receiver.timeout
+		"apm_config.max_connections":               40,   // trace.watchdog.max_connections
+		"apm_config.watchdog_check_delay":          5,    // trace.watchdog.check_delay_seconds
+		"apm_config.extra_sample_rate":             1,
+		"dogstatsd_port":                           8125,
+		"apm_config.stats_writer.connection_limit": 3,
+		"apm_config.stats_writer.queue_size":       4,
+		"apm_config.trace_writer.connection_limit": 5,
+		"apm_config.trace_writer.queue_size":       6,
 	} {
 		require.True(c.IsSet(k), k)
 		require.Equal(v, c.GetInt(k), k)

@@ -175,8 +175,6 @@ func extractTraceAgentConfig(agentConfig Config, configConverter *config.LegacyC
 		"trace.watchdog.max_cpu_percent":         "apm_config.max_cpu_percent",
 		"trace.watchdog.max_connections":         "apm_config.max_connections",
 		"trace.watchdog.check_delay_seconds":     "apm_config.watchdog_check_delay",
-		"trace.writer.services.connection_limit": "apm_config.service_writer.connection_limit",
-		"trace.writer.services.queue_size":       "apm_config.service_writer.queue_size",
 		"trace.writer.stats.connection_limit":    "apm_config.stats_writer.connection_limit",
 		"trace.writer.stats.queue_size":          "apm_config.stats_writer.queue_size",
 		"trace.writer.traces.connection_limit":   "apm_config.trace_writer.connection_limit",

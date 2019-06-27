@@ -75,9 +75,8 @@ type AgentConfig struct {
 	ReceiverTimeout int
 
 	// Writers
-	ServiceWriter *SenderConfig
-	StatsWriter   *SenderConfig
-	TraceWriter   *SenderConfig
+	StatsWriter *SenderConfig
+	TraceWriter *SenderConfig
 
 	// internal telemetry
 	StatsdHost string
@@ -133,9 +132,8 @@ func New() *AgentConfig {
 		ReceiverPort:    8126,
 		ConnectionLimit: 2000,
 
-		ServiceWriter: new(SenderConfig),
-		StatsWriter:   new(SenderConfig),
-		TraceWriter:   new(SenderConfig),
+		StatsWriter: new(SenderConfig),
+		TraceWriter: new(SenderConfig),
 
 		StatsdHost: "localhost",
 		StatsdPort: 8125,

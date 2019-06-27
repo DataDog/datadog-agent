@@ -230,9 +230,8 @@ func (c *AgentConfig) applyDatadogConfig() error {
 
 	// undocumented writers
 	for key, cfg := range map[string]*SenderConfig{
-		"apm_config.service_writer": c.ServiceWriter,
-		"apm_config.trace_writer":   c.TraceWriter,
-		"apm_config.stats_writer":   c.StatsWriter,
+		"apm_config.trace_writer": c.TraceWriter,
+		"apm_config.stats_writer": c.StatsWriter,
 	} {
 		if err := config.Datadog.UnmarshalKey(key, cfg); err != nil {
 			log.Errorf("Error reading writer config %q: %v", key, err)
