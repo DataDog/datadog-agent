@@ -237,8 +237,8 @@ func (s *sender) sendPayload(p *payload) {
 			s.releasePayload(p, eventTypeDropped, stats)
 		}
 	case nil:
-		// request was successful; if there were many attempts, we need to cut down
-		// the backoff slowly to avoid hitting the edge too hard.
+		// request was successful; the retry queue may have grown large - we should
+		// reduce the backoff gradually to avoid hitting the edge too hard.
 		for {
 			// interlock with other sends to avoid setting the same value
 			attempt := atomic.LoadInt32(&s.attempt)
