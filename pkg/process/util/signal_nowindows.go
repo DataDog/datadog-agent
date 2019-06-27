@@ -1,4 +1,4 @@
-// +build docker
+// +build !windows
 
 package util
 
