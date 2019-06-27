@@ -67,10 +67,6 @@ platforms:
     # TEST_PLATFORMS syntax is `short_name1,parent vhd folder,parent_vhd_name|...`
     azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
 
-    chef_versions = %w(
-      13.6.4
-    )
-
     sizes = [
       "Standard_D1",
       "Standard_A1",
@@ -87,17 +83,11 @@ platforms:
       "Central US",
     ]
 
-    drivers = %w(
-      azurerm
-    )
-
-    platforms_x64 = azure_test_platforms.product(chef_versions, drivers).select{|p, c, d| not p[0].include? "i386"}.collect{|p, c, d| p[0] + "-" + c + "-" + d}
-
     exclude_platforms = []
     windows_platforms = []
 
     idx = 0
-    azure_test_platforms.product(chef_versions).each do |platform, chef_version|
+    azure_test_platforms.each do |platform|
     idx += 1
     location = locations[idx % locations.length]
 
@@ -109,7 +99,6 @@ platforms:
     windows = platform_name.include?("win")
     if windows
       windows_platforms << platform_name
-      size = "Standard_D1"
       size = windows_sizes[idx % windows_sizes.length]
     else
       size = sizes[idx % sizes.length]
