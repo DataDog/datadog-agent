@@ -44,11 +44,11 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 
 	if s.TraceID == 0 {
 		atomic.AddInt64(&ts.TracesDropped.TraceIDZero, 1)
-		return fmt.Errorf("(reason:trace_id_zero): %s", s)
+		return fmt.Errorf("trace_id_zero: %s", s)
 	}
 	if s.SpanID == 0 {
 		atomic.AddInt64(&ts.TracesDropped.SpanIDZero, 1)
-		return fmt.Errorf("(reason:span_id_zero): %s", s)
+		return fmt.Errorf("span_id_zero: %s", s)
 	}
 
 	// Service
@@ -172,7 +172,7 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	if len(t) == 0 {
 		atomic.AddInt64(&ts.TracesDropped.EmptyTrace, 1)
-		return errors.New("(reason:empty_trace)")
+		return errors.New("empty_trace")
 	}
 
 	spanIDs := make(map[uint64]struct{})
@@ -181,7 +181,7 @@ func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	for _, span := range t {
 		if span.TraceID != firstSpan.TraceID {
 			atomic.AddInt64(&ts.TracesDropped.ForeignSpan, 1)
-			return fmt.Errorf("(reason:foreign_span): %s", span)
+			return fmt.Errorf("foreign_span: %s", span)
 		}
 
 		if err := normalize(ts, span); err != nil {

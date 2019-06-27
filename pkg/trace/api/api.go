@@ -335,7 +335,7 @@ func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
 
 		err := normalizeTrace(ts, trace)
 		if err != nil {
-			log.Debug("Dropping invalid trace: %s", err)
+			log.Debug("Dropping invalid trace: reason:%s", err)
 			atomic.AddInt64(&ts.SpansDropped, int64(spans))
 			continue
 		}
