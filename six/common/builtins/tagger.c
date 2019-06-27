@@ -60,10 +60,9 @@ PyObject *buildTagsList(char **tags)
         PyObject *pyTag = PyStringFromCString(tags[i]);
         cgo_free(tags[i]);
 
-        // PyList_Append does not steal references so DECREF necessary for pyTag
-        PyList_Append(res, pyTag);
         // PyList_Append (unlike `PyList_SetItem`) increments the refcount on pyTag
-        // so we decrease it once appended
+        // so we must DECREF once appended
+        PyList_Append(res, pyTag);
         Py_XDECREF(pyTag);
     }
     cgo_free(tags);

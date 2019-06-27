@@ -86,8 +86,7 @@ six_t *make2(const char *python_home, char **error)
 {
 
     if (six_backend != NULL) {
-        std::string err_msg = "Six already initialized!";
-        *error = strdup(err_msg.c_str());
+        *error = strdup("Six already initialized!");
         return NULL;
     }
 
@@ -101,8 +100,7 @@ six_t *make2(const char *python_home, char **error)
 six_t *make3(const char *python_home, char **error)
 {
     if (six_backend != NULL) {
-        std::string err_msg = "Six already initialized!";
-        *error = strdup(err_msg.c_str());
+        *error = strdup("Six already initialized!");
         return NULL;
     }
 
