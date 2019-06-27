@@ -843,25 +843,25 @@ testkitchen_cleanup_azure:
 # image_build
 #
 
-.docker_build_job_definition: &docker_build_job_definition
-  stage: image_build
-  tags: [ "runner:docker", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
-  before_script: [ "# noop" ] # Override top level entry
-  dependencies: [] # Don't download Gitlab artifacts
-  script:
-    - aws s3 sync --only-show-errors "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID" $BUILD_CONTEXT
-    - TAG_SUFFIX=${TAG_SUFFIX:-}
-    - BUILD_ARG=${BUILD_ARG:-}
-    - TARGET_TAG=$IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
-    # Pull base image(s) with content trust enabled
-    - pip install -r requirements.txt
-    - inv -e docker.pull-base-images --signed-pull $BUILD_CONTEXT/Dockerfile
-    # Build testing stage if provided
-    - test "$TESTING_ARG" &&  docker build $TESTING_ARG $BUILD_CONTEXT
-    # Build release stage and push to ECR
-    - docker build $BUILD_ARG --pull --tag $TARGET_TAG $BUILD_CONTEXT
-    - docker push $TARGET_TAG
+      #.docker_build_job_definition: &docker_build_job_definition
+      #  stage: image_build
+      #  tags: [ "runner:docker", "size:large" ]
+      #  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
+      #  before_script: [ "# noop" ] # Override top level entry
+      #  dependencies: [] # Don't download Gitlab artifacts
+      #  script:
+      #    - aws s3 sync --only-show-errors "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID" $BUILD_CONTEXT
+      #    - TAG_SUFFIX=${TAG_SUFFIX:-}
+      #    - BUILD_ARG=${BUILD_ARG:-}
+      #    - TARGET_TAG=$IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
+      #    # Pull base image(s) with content trust enabled
+      #    - pip install -r requirements.txt
+      #    - inv -e docker.pull-base-images --signed-pull $BUILD_CONTEXT/Dockerfile
+      #    # Build testing stage if provided
+      #    - test "$TESTING_ARG" &&  docker build $TESTING_ARG $BUILD_CONTEXT
+      #    # Build release stage and push to ECR
+      #    - docker build $BUILD_ARG --pull --tag $TARGET_TAG $BUILD_CONTEXT
+      #    - docker push $TARGET_TAG
 
 # build the agent6 image
 # build_agent6:
@@ -900,58 +900,58 @@ testkitchen_cleanup_azure:
 # Docker dev image deployments
 #
 
-twistlock_scan:
-  stage: image_deploy
-  tags: [ "runner:docker", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
-  dependencies: [] # Don't download Gitlab artefacts
-  allow_failure: true # Don't block the pipeline
-  variables:
-    SRC_AGENT: *agent_ecr
-    SRC_DSD: *dogstatsd_ecr
-    SRC_DCA: *cluster-agent_ecr
-  before_script:
-    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
-    - export DOCKER_CLIENT_ADDRESS=$DOCKER_HOST
-    - TWISTLOCK_PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.twistlock_password --with-decryption --query "Parameter.Value" --out text)
-    - scan () { echo -e "\n==== Scanning $1 ====\n"; docker pull $1 > /dev/null; /twistcli images scan --address="$TWISTLOCK_URL" --user="$TWISTLOCK_USER" --password="$TWISTLOCK_PASS" --vulnerability-threshold=$THRESHOLD --details $1; }
-  script:
-    - scan ${SRC_AGENT}:${SRC_TAG}
-    - scan ${SRC_AGENT}:${SRC_TAG}-jmx
-    - scan ${SRC_DSD}:${SRC_TAG}
-    - scan ${SRC_DCA}:${SRC_TAG}
+      #twistlock_scan:
+      #  stage: image_deploy
+      #  tags: [ "runner:docker", "size:large" ]
+      #  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
+      #  dependencies: [] # Don't download Gitlab artefacts
+      #  allow_failure: true # Don't block the pipeline
+      #  variables:
+      #    SRC_AGENT: *agent_ecr
+      #    SRC_DSD: *dogstatsd_ecr
+      #    SRC_DCA: *cluster-agent_ecr
+      #  before_script:
+      #    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
+      #    - export DOCKER_CLIENT_ADDRESS=$DOCKER_HOST
+      #    - TWISTLOCK_PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.twistlock_password --with-decryption --query "Parameter.Value" --out text)
+      #    - scan () { echo -e "\n==== Scanning $1 ====\n"; docker pull $1 > /dev/null; /twistcli images scan --address="$TWISTLOCK_URL" --user="$TWISTLOCK_USER" --password="$TWISTLOCK_PASS" --vulnerability-threshold=$THRESHOLD --details $1; }
+      #  script:
+      #    - scan ${SRC_AGENT}:${SRC_TAG}
+      #    - scan ${SRC_AGENT}:${SRC_TAG}-jmx
+      #    - scan ${SRC_DSD}:${SRC_TAG}
+      #    - scan ${SRC_DCA}:${SRC_TAG}
 
-.docker_tag_job_definition: &docker_tag_job_definition
-  stage: image_deploy
-  tags: [ "runner:docker", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
-  before_script:
-    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
-    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
-    - pip install -r requirements.txt
-    - if [[ -z "$DELEGATION_PASS_SSM_KEY" ]]; then echo "No signing key set"; exit 0; fi
-    - echo "Importing delegation signing key"
-    - export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DELEGATION_PASS_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DELEGATION_KEY_SSM_KEY --with-decryption --query "Parameter.Value" --out text > /tmp/docker.key
-    - notary -d ~/.docker/trust key import /tmp/docker.key; rm /tmp/docker.key
-  dependencies: [] # Don't download Gitlab artefacts
+      # .docker_tag_job_definition: &docker_tag_job_definition
+      #   stage: image_deploy
+      #   tags: [ "runner:docker", "size:large" ]
+      #   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
+      #   before_script:
+      #     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
+      #     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+      #     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+      #     - pip install -r requirements.txt
+      #     - if [[ -z "$DELEGATION_PASS_SSM_KEY" ]]; then echo "No signing key set"; exit 0; fi
+      #     - echo "Importing delegation signing key"
+      #     - export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DELEGATION_PASS_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+      #     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DELEGATION_KEY_SSM_KEY --with-decryption --query "Parameter.Value" --out text > /tmp/docker.key
+      #     - notary -d ~/.docker/trust key import /tmp/docker.key; rm /tmp/docker.key
+      #   dependencies: [] # Don't download Gitlab artefacts
 
-.docker_hub_variables: &docker_hub_variables
-  DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
-  DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
-  DELEGATION_KEY_SSM_KEY: docker_hub_signing_key
-  DELEGATION_PASS_SSM_KEY: docker_hub_signing_pass
-  DOCKER_REGISTRY_URL: docker.io
-  SRC_AGENT: *agent_ecr
-  SRC_DSD: *dogstatsd_ecr
-  SRC_DCA: *cluster-agent_ecr
-
-.quay_variables: &quay_variables
-  <<: *docker_hub_variables
-  DOCKER_REGISTRY_LOGIN_SSM_KEY: quay_login
-  DOCKER_REGISTRY_PWD_SSM_KEY: quay_pwd
-  DOCKER_REGISTRY_URL: quay.io
+  # .docker_hub_variables: &docker_hub_variables
+  #   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
+  #   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
+  #   DELEGATION_KEY_SSM_KEY: docker_hub_signing_key
+  #   DELEGATION_PASS_SSM_KEY: docker_hub_signing_pass
+  #   DOCKER_REGISTRY_URL: docker.io
+  #   SRC_AGENT: *agent_ecr
+  #   SRC_DSD: *dogstatsd_ecr
+  #   SRC_DCA: *cluster-agent_ecr
+  # 
+  # .quay_variables: &quay_variables
+  #   <<: *docker_hub_variables
+  #   DOCKER_REGISTRY_LOGIN_SSM_KEY: quay_login
+  #   DOCKER_REGISTRY_PWD_SSM_KEY: quay_pwd
+  #   DOCKER_REGISTRY_URL: quay.io
 
   # dev_branch_docker_hub:
   #   <<: *docker_tag_job_definition
@@ -1211,17 +1211,17 @@ deploy_process_and_sysprobe:
 # Docker releases
 #
 
-tag_release:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
-  stage: deploy
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent:${CI_COMMIT_TAG}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent:${CI_COMMIT_TAG}-jmx
-    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:${CI_COMMIT_TAG}
+      #tag_release:
+      #  <<: *docker_tag_job_definition
+      #  <<: *run_when_triggered_on_tag
+      #  stage: deploy
+      #  when: manual
+      #  variables:
+      #    <<: *docker_hub_variables
+      #  script:
+      #    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent:${CI_COMMIT_TAG}
+      #    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent:${CI_COMMIT_TAG}-jmx
+      #    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:${CI_COMMIT_TAG}
 
       # latest_release:
       #   <<: *docker_tag_job_definition
@@ -1242,29 +1242,29 @@ tag_release:
 # - set the RELEASE envvar
 # - in the gitlab pipeline view, trigger the step (in the first column)
 #
-.latest_revert_to_previous_release:
-  <<: *docker_tag_job_definition
-  stage: source_test
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-    RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
-  script:
-    - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
-    - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
-
-
-dca_tag_release:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
-  stage: deploy
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent:${CI_COMMIT_TAG#$(echo "dca-")}
+#.latest_revert_to_previous_release:
+#  <<: *docker_tag_job_definition
+#  stage: source_test
+#  when: manual
+#  variables:
+#    <<: *docker_hub_variables
+#    RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
+#  script:
+#    - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
+#    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest
+#    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
+#    - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
+#
+#
+#dca_tag_release:
+#  <<: *docker_tag_job_definition
+#  <<: *run_when_triggered_on_tag
+#  stage: deploy
+#  when: manual
+#  variables:
+#    <<: *docker_hub_variables
+#  script:
+#    - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent:${CI_COMMIT_TAG#$(echo "dca-")}
 
 # dca_latest_release:
 #   <<: *docker_tag_job_definition
