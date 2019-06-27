@@ -35,7 +35,13 @@ func NewServiceWriter(cfg *config.AgentConfig, in chan pb.ServicesMetadata) *Ser
 		buffer: make(pb.ServicesMetadata),
 		stop:   make(chan struct{}),
 	}
-	sw.senders = newSenders(cfg, sw, pathServices, 10, 10)
+	// The services endpoint is being deprecated and is very low volume.
+	// It should never reach more than one concurrent connection, but let's
+	// allow it to have at least two and a small queue, which will likely never
+	// grow.
+	climit := 2
+	qsize := 10
+	sw.senders = newSenders(cfg, sw, pathServices, climit, qsize)
 	return sw
 }
 

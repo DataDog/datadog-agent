@@ -195,12 +195,11 @@ func (s *sender) Push(p *payload) {
 		default:
 			// drop the oldest item in the queue to make room
 			select {
-			case drop := <-s.queue:
-				s.recordEvent(eventTypeDropped, &eventData{
-					bytes: drop.body.Len(),
+			case p := <-s.queue:
+				s.releasePayload(p, eventTypeDropped, &eventData{
+					bytes: p.body.Len(),
 					count: 1,
 				})
-				ppool.Put(drop)
 			default:
 				// the queue got drained; not very likely to happen, but
 				// we shouldn't risk a deadlock
@@ -235,17 +234,22 @@ func (s *sender) sendPayload(p *payload) {
 			return
 		default:
 			// queue is full; since this is the oldest payload, we drop it
-			s.recordEvent(eventTypeDropped, stats)
+			s.releasePayload(p, eventTypeDropped, stats)
 		}
 	case nil:
 		// request was successful
 		atomic.SwapInt32(&s.attempt, 0)
-		s.recordEvent(eventTypeSent, stats)
+		s.releasePayload(p, eventTypeSent, stats)
 	default:
 		// this is a fatal error, we have to drop this payload
-		s.recordEvent(eventTypeRejected, stats)
+		s.releasePayload(p, eventTypeRejected, stats)
 	}
-	// we're done with p
+}
+
+// releasePayload releases the payload p and records the specified event. The payload
+// should not be used again after a release.
+func (s *sender) releasePayload(p *payload, t eventType, data *eventData) {
+	s.recordEvent(t, data)
 	ppool.Put(p)
 	atomic.AddInt32(&s.inflight, -1)
 }
@@ -253,15 +257,16 @@ func (s *sender) sendPayload(p *payload) {
 // recordEvent records the occurrence of the given event type t. It additionally
 // passes on the data and augments it with additional information.
 func (s *sender) recordEvent(t eventType, data *eventData) {
-	if recorder := s.cfg.recorder; recorder != nil {
-		data.host = s.cfg.url.Hostname()
-		data.connectionFill = float64(len(s.climit)) / float64(cap(s.climit))
-		data.queueFill = float64(len(s.queue)) / float64(cap(s.queue))
-		recorder.recordEvent(t, data)
+	if s.cfg.recorder == nil {
+		return
 	}
+	data.host = s.cfg.url.Hostname()
+	data.connectionFill = float64(len(s.climit)) / float64(cap(s.climit))
+	data.queueFill = float64(len(s.queue)) / float64(cap(s.queue))
+	s.cfg.recorder.recordEvent(t, data)
 }
 
-// userAgent is the computed user agent we'll use when communicating with Datadog var
+// userAgent is the computed user agent we'll use when communicating with Datadog
 var userAgent = fmt.Sprintf("Datadog Trace Agent/%s/%s", info.Version, info.GitCommit)
 
 // retriableError is an error returned by the server which may be retried at a later time.
@@ -280,7 +285,8 @@ func (s *sender) do(req *http.Request) error {
 	req.Header.Set(headerUserAgent, userAgent)
 	resp, err := s.cfg.client.Do(req)
 	if err != nil {
-		// request errors are either redirect errors, url errors
+		// request errors include timeouts or name resolution errors and
+		// should thus be retried.
 		return &retriableError{err}
 	}
 	if resp.StatusCode/100 == 5 {
@@ -290,7 +296,8 @@ func (s *sender) do(req *http.Request) error {
 		}
 	}
 	if resp.StatusCode/100 != 2 {
-		// non-2xx errors are failures
+		// status codes that are neither 2xx nor 5xx are considered
+		// non-retriable failures
 		return errors.New(resp.Status)
 	}
 	return nil

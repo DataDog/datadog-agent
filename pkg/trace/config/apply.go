@@ -88,7 +88,7 @@ type ReplaceRule struct {
 // SenderConfig specifies the configuration for the sender.
 type SenderConfig struct {
 	// ConnectionLimit specifies the maximum number of concurrent outgoing
-	// connections allowed for this sender.
+	// connections allowed for the sender.
 	ConnectionLimit int `mapstructure:"connection_limit"`
 
 	// QueueSize specifies the maximum number or payloads allowed to be queued
