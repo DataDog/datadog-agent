@@ -864,37 +864,37 @@ testkitchen_cleanup_azure:
     - docker push $TARGET_TAG
 
 # build the agent6 image
-build_agent6:
-  <<: *docker_build_job_definition
-  variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
-    BUILD_CONTEXT: Dockerfiles/agent
-    BUILD_ARG: --target release
-    TESTING_ARG:  --target testing
-
-# build the agent6 jmx image
-build_agent6_jmx:
-  <<: *docker_build_job_definition
-  variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
-    BUILD_CONTEXT: Dockerfiles/agent
-    TAG_SUFFIX: -jmx
-    BUILD_ARG: --target release --build-arg WITH_JMX=true
-    TESTING_ARG:  --target testing --build-arg WITH_JMX=true
-
-# build the cluster-agent image
-build_cluster_agent:
-  <<: *docker_build_job_definition
-  variables:
-    IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
-    BUILD_CONTEXT: Dockerfiles/cluster-agent
-
-# build the dogstatsd image
-build_dogstatsd:
-  <<: *docker_build_job_definition
-  variables:
-    IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
-    BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
+# build_agent6:
+#   <<: *docker_build_job_definition
+#   variables:
+#     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+#     BUILD_CONTEXT: Dockerfiles/agent
+#     BUILD_ARG: --target release
+#     TESTING_ARG:  --target testing
+# 
+# # build the agent6 jmx image
+# build_agent6_jmx:
+#   <<: *docker_build_job_definition
+#   variables:
+#     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+#     BUILD_CONTEXT: Dockerfiles/agent
+#     TAG_SUFFIX: -jmx
+#     BUILD_ARG: --target release --build-arg WITH_JMX=true
+#     TESTING_ARG:  --target testing --build-arg WITH_JMX=true
+# 
+# # build the cluster-agent image
+# build_cluster_agent:
+#   <<: *docker_build_job_definition
+#   variables:
+#     IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+#     BUILD_CONTEXT: Dockerfiles/cluster-agent
+# 
+# # build the dogstatsd image
+# build_dogstatsd:
+#   <<: *docker_build_job_definition
+#   variables:
+#     IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+#     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
 
 #
 # Docker dev image deployments
