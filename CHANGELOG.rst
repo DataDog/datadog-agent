@@ -2,6 +2,183 @@
 Release Notes
 =============
 
+6.12.0
+======
+
+Prelude
+-------
+
+Release on: 2019-06-26
+
+This release is not available on Windows.
+
+- Please refer to the `6.12.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6120>`_ for the list of changes on the Core Checks
+
+
+Upgrade Notes
+-------------
+
+- APM: Log throttling is now automatically enabled by default when
+  `log_level` differs from `debug`. A maximum of no more than 10 error
+  messages every 10 seconds will be displayed.
+
+- APM: the writer will now flush based on an estimated number of bytes
+  in accumulated buffer size, as opposed to a maximum number of spans.
+
+- APM: traces are not dropped anymore because or rate limiting due to
+  performance issues. Instead, the trace is kept in a queue awaiting to
+  be processed.
+
+- Logs: Breaking Change for Kubernetes log collection - In the version 6.11.2 logic was added in the Agent to first look for K8s container files if `/var/log/pods` was not available and then to go for the Docker socket.
+  This created some permission issues as `/var/log/pods` can be a symlink in some configuration and the Agent also needed access to the symlink directory.
+
+  This logic is reverted to its prior behaviour which prioritise the Docker socket for container log collection.
+  It is still possible to force the agent to go for the K8s log files even if the Docker socket is mounted by using the `logs_config.k8s_container_use_file' or `DD_LOGS_CONFIG_K8S_CONTAINER_USE_FILE`. parameter.
+  This is recommended when more than 10 containers are running on the same pod.
+
+
+New Features
+------------
+
+- A count named ``datadog.agent.started`` is now sent with a value of 1 when the agent starts.
+
+- APM: Maximum allowed CPU percentage usage is now
+  configurable via DD_APM_MAX_CPU_PERCENT.
+
+- Node Agent can now perform checks on kubernetes service endpoints.
+  It consumes the check configs from the Cluster Agent API via the
+  endpointschecks config provider.
+  Versions 1.3.0+ of the Cluster Agent are required for this feature.
+
+- Logs can now be collected from init and stopped containers (possibly short-lived).
+
+- Allow tracking pod labels and annotations value change to update labels/annotations_as_tags.
+  Make the explicit tagging feature dynamic (introduced in https://github.com/DataDog/datadog-agent/pull/3024).
+
+
+Enhancement Notes
+-----------------
+
+- Logs docker container ID when parse invalid docker log in DEBUG level.
+
+- Set the User-Agent string to include the agent name and version string.
+
+- Adds host tags in the Hostname section of the
+  agent status command and the status tab of the GUI.
+
+- Expose the number of logs processed and sent to the agent status
+
+- Added a warning message on agent status command and status gui
+  tab when ntp offset is too large and may result in metrics
+  ignored by Datadog.
+
+- APM: minor improvements to CPU performance.
+
+- APM: improved trace writer performance by introducing concurrent writing.
+
+- APM: the stats writer now writes concurrently to the Datadog API, improving resource usage and processing speed of the trace-agent.
+
+- Extends the docker check to accommodate the kernel memory usage metric.
+  This metric shows the cgroup current kernel memory allocation.
+
+- Ask confirmation before overwriting the output file while using
+  the dogstatsd-stats command.
+
+- Do not ship autotools within the Agent package.
+
+- The ``datadog-agent integration`` subcommand is now capable of installing prereleases of official integration wheels
+
+- Upgraded JMXFetch to 0.29.1. See https://github.com/DataDog/jmxfetch/releases/tag/0.28.0,
+  https://github.com/DataDog/jmxfetch/releases/tag/0.29.0 and
+  https://github.com/DataDog/jmxfetch/releases/tag/0.29.1
+
+- Added validity checks to NTP responses
+
+- Allow the '--check_period' flag of jmxfetch to be overriden by the
+  DD_JMX_CHECK_PERIOD environment variable.
+
+- Ship integrations and their dependencies on Python 3 in Omnibus.
+
+- Added a warning about unknown keys in datadog.yaml.
+
+
+Deprecation Notes
+-----------------
+
+- APM: the yaml setting `apm_config.trace_writer.max_spans_per_payload`
+  is no longer in use; writes are now based solely on accumulated byte
+  size.
+
+
+Bug Fixes
+---------
+
+- Updated the DataDog/gopsutil library to include changes related to excessive DEBUG logging in the process agent
+
+- The computeMem is only called in the check when we ensure that it does not get passed with an empty pointer.
+  But if someone was to reuse it without checking for the nil pointer it could cause a segfault.
+  This PR moves the nil checking logic inside the function to ensure it is safe.
+
+- APM: Fixed a bug where normalize tag would not truncate tags correctly
+  in some situations.
+
+- APM: Fixed a small issue with normalizing tags that contained the
+  unicode replacement character.
+
+- APM: fixed a bug where modulo operators caused SQL obfuscation to fail.
+
+- Fix issue on process agent for DD_PROCESS_AGENT_ENABLED where 'false' did not turn off process/container collection.
+
+- Fix an error when adding a custom check config through the GUI
+  when the folder where the config will reside does not
+  exist yet.
+
+- APM: on macOS, trace-agent is now enabled by default, and, similarly to other
+  platforms, can be enabled/disabled with the `apm_config.enabled` config setting
+  or the `DD_APM_ENABLED` env var
+
+- Fix a bug where when the log agent is mis-configured, it temporarily hog on resources after being killed
+
+- Fix a potential crash when doing a ``configcheck`` while the agent was not properly initialized yet.
+
+- Fix a crash that could occur when having trouble connecting to the Kubelet.
+
+- Fix nil pointer access for container without memory cgroups.
+
+- Improved credentials scrubbing logic.
+
+- The ``datadog-agent integration show`` subcommand now properly accepts only Datadog integrations as argument
+
+- Fix incorrectly reported IO metrics when OS counters wrap in Linux.
+
+- Fixed JMXFetch process not being terminated on Windows in certain cases.
+
+- Empty logs could appear when collecting Docker logs in addition
+  to the actual container logs. This was due to the way the Agent
+  handles the header Docker adds to the logs. The process has been
+  changed to make sure that no empty logs are generated.
+
+- Fix bug when docker container terminate the last logs are missing
+  and partially recovered from restart.
+
+- Properly move configuration files for wheels installed locally via the ``integration`` command.
+
+- Reduced memory usage of the flare command
+
+- Use a custom patch for a costly regex in PyYAML,
+  see `<https://github.com/yaml/pyyaml/pull/301>`_.
+
+- On Windows, restore the ``system.mem.pagefile.pct_free`` metric
+
+
+Other Notes
+-----------
+
+- The 'integration freeze' cli subcommand now only
+  displays datadog packages instead of the complete
+  result of the 'pip freeze' command.
+
+
 .. _Release Notes_6.11.3:
 
 6.11.3
