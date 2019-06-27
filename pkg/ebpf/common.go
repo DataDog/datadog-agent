@@ -140,10 +140,6 @@ func init() {
 	}
 }
 
-func isCentOS(platform string) bool {
-	return strings.Contains(platform, "centos")
-}
-
 func isUbuntu(platform string) bool {
 	return strings.Contains(platform, "ubuntu")
 }
