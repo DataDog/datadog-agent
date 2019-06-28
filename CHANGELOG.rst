@@ -177,6 +177,7 @@ Other Notes
 - The 'integration freeze' cli subcommand now only
   displays datadog packages instead of the complete
   result of the 'pip freeze' command.
+- The Secrets Management feature is no longer in beta.
 
 
 .. _Release Notes_6.11.3:
