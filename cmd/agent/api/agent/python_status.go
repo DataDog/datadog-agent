@@ -8,6 +8,7 @@
 // at the agent level.
 
 // +build python
+// +build !windows
 
 package agent
 

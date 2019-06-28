@@ -7,7 +7,7 @@
 // This group of endpoints is meant to provide high-level functionalities
 // at the agent level.
 
-// +build !python
+// +build !python windows
 
 package agent
 
