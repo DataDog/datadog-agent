@@ -17,7 +17,7 @@ static PyObject *subprocess_output(PyObject *self, PyObject *args);
 
 /*! \fn void addSubprocessException(PyObject *m)
     \brief Adds a custom SubprocessOutputEmptyError exception to the module passed as parameter.
-    \param m A PyObject* pointer to the module we wishj to register the exception with.
+    \param m A PyObject* pointer to the module we wish to register the exception with.
 */
 void addSubprocessException(PyObject *m)
 {
