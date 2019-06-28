@@ -211,9 +211,10 @@ func TestNormalizeStartTooSmall(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Start = 42
+	before := s.Start
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: 1}), ts)
-
+	assert.True(t, s.Start > before, "start should have been reset to current time")
 }
 
 func TestNormalizeDurationPassThru(t *testing.T) {
