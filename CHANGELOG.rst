@@ -2,6 +2,23 @@
 Release Notes
 =============
 
+6.12.1
+======
+
+Prelude
+-------
+
+Release on: 2019-06-28
+
+This release is not available on Windows.
+
+- Please refer to the `6.12.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6121>`_ for the list of changes on the Core Checks
+
+Bug Fixes
+---------
+
+- Fixed a bug in the kubernetes and kubelet integrations preventing the collectiong of the ``kubernetes.cpu.*`` and ``kubernetes.memory.*`` metrics.
+
 6.12.0
 ======
 
