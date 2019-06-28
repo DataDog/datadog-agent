@@ -1,9 +1,10 @@
 package ebpf
 
 import (
+	"bufio"
 	"encoding/binary"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path"
 	"strings"
 	"unsafe"
@@ -85,46 +86,50 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 		}
 	}
 
-	kallsyms, err := readKallsyms()
+	supported, err := verifyKernelFuncs(path.Join(util.GetProcRoot(), "kallsyms"))
 	if err != nil {
-		log.Warnf("error reading /proc/kallsyms file: %s", err)
+		log.Warnf("error reading /proc/kallsyms file: %s (check your kernel version, current is: %s)", err, kernelCodeToString(kernelCode))
 		// If we can't read the /proc/kallsyms file let's just return true to avoid blocking the tracer from running
 		return true, nil
 	}
 
-	return verifyKernelFuncs(kallsyms), nil
+	return supported, nil
 }
 
-func readKallsyms() (string, error) {
-	procRoot := util.GetProcRoot()
-	raw, err := ioutil.ReadFile(path.Join(procRoot, "kallsyms"))
-	if err != nil {
-		return "", errors.Wrapf(err, "error reading kallsyms file from proc dir: %s", procRoot)
+func verifyKernelFuncs(path string) (bool, error) {
+	// Will hold the found functions
+	found := make(map[string]bool, len(requiredKernelFuncs))
+	for _, f := range requiredKernelFuncs {
+		found[f] = false
 	}
 
-	return string(raw), nil
-}
+	f, err := os.Open(path)
+	if err != nil {
+		return true, errors.Wrapf(err, "error reading kallsyms file from: %s", path)
+	}
+	defer f.Close()
 
-func verifyKernelFuncs(kallsyms string) bool {
-	lines := strings.Split(kallsyms, "\n")
-	funcs := make(map[string]struct{}, len(lines))
+	scanner := bufio.NewScanner(f)
+	scanner.Split(bufio.ScanLines)
 
-	for _, line := range lines {
-		fields := strings.Fields(line)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
 		if len(fields) < 3 {
 			continue
 		}
 
-		funcs[fields[2]] = struct{}{}
-	}
-
-	for _, f := range requiredKernelFuncs {
-		if _, ok := funcs[f]; !ok {
-			return false
+		name := fields[2]
+		if _, ok := found[name]; ok {
+			found[name] = true
 		}
 	}
 
-	return true
+	supported := true
+	for _, b := range found {
+		supported = supported && b
+	}
+
+	return supported, nil
 }
 
 // In lack of binary.NativeEndian ...

@@ -1,7 +1,6 @@
 package ebpf
 
 import (
-	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,16 +53,19 @@ func TestExcludedKernelVersion(t *testing.T) {
 }
 
 func TestVerifyKernelFuncs(t *testing.T) {
-	kallsyms, err := ioutil.ReadFile("./testdata/kallsyms.supported")
+	ok, err := verifyKernelFuncs("./testdata/kallsyms.supported")
+	assert.True(t, ok)
 	assert.NoError(t, err)
 
-	assert.True(t, verifyKernelFuncs(string(kallsyms)))
-
-	kallsymsUnsupported, err := ioutil.ReadFile("./testdata/kallsyms.unsupported")
+	ok, err = verifyKernelFuncs("./testdata/kallsyms.unsupported")
+	assert.False(t, ok)
 	assert.NoError(t, err)
 
-	assert.False(t, verifyKernelFuncs(string(kallsymsUnsupported)))
+	ok, err = verifyKernelFuncs("./testdata/kallsyms.empty")
+	assert.False(t, ok)
+	assert.NoError(t, err)
 
-	emptyKallsyms := ""
-	assert.False(t, verifyKernelFuncs(emptyKallsyms))
+	ok, err = verifyKernelFuncs("./testdata/kallsyms.d_o_n_o_t_e_x_i_s_t")
+	assert.True(t, ok)
+	assert.Error(t, err)
 }
