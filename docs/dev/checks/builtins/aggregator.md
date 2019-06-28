@@ -10,21 +10,21 @@ checks to the [aggregator](/pkg/aggregator) component of the Datadog Agent.
 
 ## Implementation
 
-* [aggregator.c](/six/common/builtins/aggregator.c)
-* [aggregator.h](/six/common/builtins/aggregator.h)
+* [aggregator.c](/rtloader/common/builtins/aggregator.c)
+* [aggregator.h](/rtloader/common/builtins/aggregator.h)
 * [aggregator.go](/pkg/collector/python/aggregator.go)
 
 ## Constants
 
 ```python
 
-GAUGE           = DATADOG_AGENT_SIX_GAUGE
-RATE            = DATADOG_AGENT_SIX_RATE
-COUNT           = DATADOG_AGENT_SIX_COUNT
-MONOTONIC_COUNT = DATADOG_AGENT_SIX_MONOTONIC_COUNT
-COUNTER         = DATADOG_AGENT_SIX_COUNTER
-HISTOGRAM       = DATADOG_AGENT_SIX_HISTOGRAM
-HISTORATE       = DATADOG_AGENT_SIX_HISTORATE
+GAUGE           = DATADOG_AGENT_RTLOADER_GAUGE
+RATE            = DATADOG_AGENT_RTLOADER_RATE
+COUNT           = DATADOG_AGENT_RTLOADER_COUNT
+MONOTONIC_COUNT = DATADOG_AGENT_RTLOADER_MONOTONIC_COUNT
+COUNTER         = DATADOG_AGENT_RTLOADER_COUNTER
+HISTOGRAM       = DATADOG_AGENT_RTLOADER_HISTOGRAM
+HISTORATE       = DATADOG_AGENT_RTLOADER_HISTORATE
 ```
 
 ## Functions

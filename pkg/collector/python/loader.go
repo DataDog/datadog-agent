@@ -27,7 +27,7 @@ import (
 )
 
 // #include <stdlib.h>
-// #include <datadog_agent_six.h>
+// #include <datadog_agent_rtloader.h>
 import "C"
 
 var (
@@ -79,9 +79,9 @@ func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 	return &PythonCheckLoader{}, nil
 }
 
-func getSixError() error {
-	if C.has_error(six) == 1 {
-		c_err := C.get_error(six)
+func getRtLoaderError() error {
+	if C.has_error(rtloader) == 1 {
+		c_err := C.get_error(rtloader)
 		return errors.New(C.GoString(c_err))
 	}
 	return nil
@@ -90,7 +90,7 @@ func getSixError() error {
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
 func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, error) {
-	if six == nil {
+	if rtloader == nil {
 		return nil, fmt.Errorf("python is not initialized")
 	}
 
@@ -119,19 +119,19 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 	var loadedAsWheel bool
 
 	var name string
-	var checkModule *C.six_pyobject_t
-	var checkClass *C.six_pyobject_t
+	var checkModule *C.rtloader_pyobject_t
+	var checkClass *C.rtloader_pyobject_t
 	for _, name = range modules {
 		moduleName := C.CString(name)
 		defer C.free(unsafe.Pointer(moduleName))
-		if res := C.get_class(six, moduleName, &checkModule, &checkClass); res != 0 {
+		if res := C.get_class(rtloader, moduleName, &checkModule, &checkClass); res != 0 {
 			if strings.HasPrefix(name, fmt.Sprintf("%s.", wheelNamespace)) {
 				loadedAsWheel = true
 			}
 			break
 		}
 
-		if err = getSixError(); err != nil {
+		if err = getRtLoaderError(); err != nil {
 			log.Debugf("Unable to load python module - %s: %v", name, err)
 		} else {
 			log.Debugf("Unable to load python module - %s", name)
@@ -149,11 +149,11 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 	var version *C.char
 	versionAttr := C.CString("__version__")
 	defer C.free(unsafe.Pointer(versionAttr))
-	if res := C.get_attr_string(six, checkModule, versionAttr, &version); res != 0 {
+	if res := C.get_attr_string(rtloader, checkModule, versionAttr, &version); res != 0 {
 		wheelVersion = C.GoString(version)
-		C.six_free(six, unsafe.Pointer(version))
+		C.rtloader_free(rtloader, unsafe.Pointer(version))
 	} else {
-		log.Debugf("python check '%s' doesn't have a '__version__' attribute: %s", config.Name, getSixError())
+		log.Debugf("python check '%s' doesn't have a '__version__' attribute: %s", config.Name, getRtLoaderError())
 	}
 
 	if !agentConfig.Datadog.GetBool("disable_py3_validation") && !loadedAsWheel {
@@ -163,12 +163,12 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 		var checkFilePath *C.char
 		fileAttr := C.CString("__file__")
 		defer C.free(unsafe.Pointer(fileAttr))
-		if res := C.get_attr_string(six, checkModule, fileAttr, &checkFilePath); res != 0 {
+		if res := C.get_attr_string(rtloader, checkModule, fileAttr, &checkFilePath); res != 0 {
 			reportPy3Warnings(name, C.GoString(checkFilePath))
-			C.six_free(six, unsafe.Pointer(checkFilePath))
+			C.rtloader_free(rtloader, unsafe.Pointer(checkFilePath))
 		} else {
 			reportPy3Warnings(name, "")
-			log.Debugf("Could not query the __file__ attribute for check %s: %s", name, getSixError())
+			log.Debugf("Could not query the __file__ attribute for check %s: %s", name, getRtLoaderError())
 		}
 	}
 
@@ -185,8 +185,8 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 		check.version = wheelVersion
 		checks = append(checks, check)
 	}
-	C.six_decref(six, checkClass)
-	C.six_decref(six, checkModule)
+	C.rtloader_decref(rtloader, checkClass)
+	C.rtloader_decref(rtloader, checkModule)
 
 	if len(checks) == 0 {
 		return nil, fmt.Errorf("Could not configure any python check %s", moduleName)

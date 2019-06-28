@@ -10,8 +10,8 @@ not used anywhere in Datadog codebase.
 
 ## Implementation
 
-* [util.c](/six/common/builtins/util.c)
-* [util.h](/six/common/builtins/util.h)
+* [util.c](/rtloader/common/builtins/util.c)
+* [util.h](/rtloader/common/builtins/util.h)
 * [datadog_agent.go](/pkg/collector/python/datadog_agent.go) (Go code is reused)
 
 ## Functions
