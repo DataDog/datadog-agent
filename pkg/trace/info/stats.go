@@ -415,11 +415,11 @@ func (ts *TagStats) warnString() string {
 	var w []string
 	d := ts.TracesDropped.String()
 	if len(d) > 0 {
-		w = append(w, fmt.Sprintf("dropped_traces(%s)", d))
+		w = append(w, fmt.Sprintf("traces_dropped(%s)", d))
 	}
 	m := ts.SpansMalformed.String()
 	if len(m) > 0 {
-		w = append(w, fmt.Sprintf("malformed_spans(%s)", m))
+		w = append(w, fmt.Sprintf("spans_malformed(%s)", m))
 	}
 	return strings.Join(w, ", ")
 }
