@@ -101,7 +101,7 @@ build do
             # The prerm and preinst scripts of the package will use this list to detect which files
             # have been setup by the installer, this way, on removal, we'll be able to delete only files
             # which have not been created by the package.
-            command "find #{install_dir}/embedded/lib/python2.7/site-packages ! -name 'datadog_checks*' -type d -name 'datadog_*' >> #{install_dir}/embedded/.installed_by_pkg.txt
+            command "find #{install_dir}/embedded/lib/python2.7/site-packages ! -name 'datadog_checks*' -type d -name 'datadog_*' >> #{install_dir}/embedded/.installed_by_pkg.txt"
 
             # Setup pip aliases: `/opt/datadog-agent/embedded/bin/pip` will default to `pip2`
             if with_python_runtime? "2"
