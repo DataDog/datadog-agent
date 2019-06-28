@@ -17,7 +17,7 @@ Prelude
 
 Release on: 2019-06-26
 
-This release is not available on Windows and Docker.
+This release is not available on Windows.
 
 - Please refer to the `6.12.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6120>`_ for the list of changes on the Core Checks
 
