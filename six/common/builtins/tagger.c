@@ -113,7 +113,7 @@ PyObject *tag(PyObject *self, PyObject *args)
     \brief builds a tag list as per the entity id and cardinality passed as
     arguments.
     \param self A PyObject* pointer to the tagger module.
-    \param args A PyObject* pointer to the python args, typically expected to
+    \param args A PyObject* pointer to the python args, expected to
     contain the id and the cardinality.
     \return a PyObject * pointer to the python tag list.
 
