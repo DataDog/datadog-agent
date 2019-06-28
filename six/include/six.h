@@ -31,10 +31,6 @@ class Six
 {
 public:
     //! Constructor.
-    /*!
-      Basic constructor, initializes the _error string to an empty string and
-      errorFlag to false.
-    */
     Six()
         : _error()
         , _errorFlag(false){};
