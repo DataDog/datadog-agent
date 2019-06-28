@@ -102,7 +102,7 @@ build do
             # have been setup by the installer, this way, on removal, we'll be able to delete only files
             # which have not been created by the package.
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.installed_by_pkg.txt"
-            command "find #{install_dir}/embedded/lib/python2.7/site-packages -type d -name 'datadog_*' >> #{install_dir}/embedded/.installed_by_pkg.txt"
+            command "find #{install_dir}/embedded/lib/python2.7/site-packages >> #{install_dir}/embedded/.installed_by_pkg.txt"
             # TODO(remy): remove
             command "cat #{install_dir}/embedded/.installed_by_pkg.txt"
 

@@ -107,9 +107,10 @@ uninstall_integrations()
     # be installed by the package.
 
     if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
-        find $INSTALL_DIR/embedded/lib/python2.7/site-packages -type d -name 'datadog_*' > $INSTALL_DIR/embedded/.all-integrations.txt
+        find $INSTALL_DIR/embedded/lib/python2.7/site-packages > $INSTALL_DIR/embedded/.all-integrations.txt
         grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt > $INSTALL_DIR/embedded/.extra-integrations.txt
         if [ -f "$INSTALL_DIR/embedded/.extra-integrations.txt" ]; then
+            echo "Will remove:"
             cat $INSTALL_DIR/embedded/.extra-integrations.txt
             cat $INSTALL_DIR/embedded/.extra-integrations.txt | grep -v '^#' | xargs rm -rf
         fi
