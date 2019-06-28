@@ -734,7 +734,7 @@ SEC("kretprobe/tcp_sendmsg")
 int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
     int ret = PT_REGS_RC(ctx);
 
-    // If ret < 0 it means an error occured but we still counted the bytes as being sent
+    // If ret < 0 it means an error occurred but we still counted the bytes as being sent
     // let's increment our miscount count
     if (ret < 0) {
         // Initialize the counter if it does not exist
