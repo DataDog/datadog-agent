@@ -67,6 +67,7 @@ void Three::initPythonHome(const char *pythonHome)
 bool Three::init()
 {
     // add custom builtins init funcs to Python inittab, one by one
+    // Unlinke its py2 counterpart, these need to be called before Py_Initialize
     PyImport_AppendInittab(AGGREGATOR_MODULE_NAME, PyInit_aggregator);
     PyImport_AppendInittab(DATADOG_AGENT_MODULE_NAME, PyInit_datadog_agent);
     PyImport_AppendInittab(UTIL_MODULE_NAME, PyInit_util);
