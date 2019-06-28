@@ -5,12 +5,19 @@ Release Notes
 6.12.0
 ======
 
+Known Issues
+-------
+
+Some metrics from the kubernetes and kublet integrations (``kuberentes.cpu.*`` and ``kuberentes.memory.*``) are missing for certain configurations.
+A fix will be released early next week. In the meanwhile if downgrading to 6.11.3 is not an option we recommend using the runtime metrics
+(ex: ``docker.cpu.*``, ``docker.mem.*``, ``containerd.cpu.*``, ...).
+
 Prelude
 -------
 
 Release on: 2019-06-26
 
-This release is not available on Windows.
+This release is not available on Windows and Docker.
 
 - Please refer to the `6.12.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6120>`_ for the list of changes on the Core Checks
 
