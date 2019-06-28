@@ -419,7 +419,7 @@ func (ts *TagStats) warnString() string {
 	}
 	m := ts.SpansMalformed.String()
 	if len(m) > 0 {
-		w = append(w, fmt.Sprintf("malformed_traces(%s)", m))
+		w = append(w, fmt.Sprintf("malformed_spans(%s)", m))
 	}
 	return strings.Join(w, ", ")
 }
