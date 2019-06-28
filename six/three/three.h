@@ -113,7 +113,7 @@ public:
 private:
     //! initPythonHome member.
     /*!
-      \brief This member function sets the Python home for the underlying python2.7 interpreter.
+      \brief This member function sets the Python home for the underlying python3 interpreter.
       \param pythonHome A C-string to the target python home for the python runtime.
     */
     void initPythonHome(const char *pythonHome = NULL);
