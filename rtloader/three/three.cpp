@@ -44,9 +44,7 @@ Three::~Three()
     // For more information on why Py_Finalize() isn't called here please
     // refer to the header file or the doxygen documentation.
     PyEval_RestoreThread(_threadState);
-    if (_pythonHome) {
-        PyMem_RawFree((void *)_pythonHome);
-    }
+    PyMem_RawFree((void *)_pythonHome);
     Py_XDECREF(_baseClass);
 }
 
@@ -55,9 +53,7 @@ void Three::initPythonHome(const char *pythonHome)
     if (pythonHome == NULL || strlen(pythonHome) == 0) {
         _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
     } else {
-        if (_pythonHome) {
-            PyMem_RawFree((void *)_pythonHome);
-        }
+       PyMem_RawFree((void *)_pythonHome);
         _pythonHome = Py_DecodeLocale(pythonHome, NULL);
     }
 
