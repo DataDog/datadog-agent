@@ -111,7 +111,7 @@ uninstall_integrations()
         grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt > $INSTALL_DIR/embedded/.extra-integrations.txt
         if [ -f "$INSTALL_DIR/embedded/.extra-integrations.txt" ]; then
             cat $INSTALL_DIR/embedded/.extra-integrations.txt
-            cat $INSTALL_DIR/embedded/.extra-integrations.txt | grep -v '^#' | xargs rm -f
+            cat $INSTALL_DIR/embedded/.extra-integrations.txt | grep -v '^#' | xargs rm -rf
         fi
         # TODO(remy): uncommentme
         # rm $INSTALL_DIR/embedded/.{extra,all}-integrations.txt
