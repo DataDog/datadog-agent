@@ -268,20 +268,21 @@ func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
 	}
 }
 
-func getTraceCount(req *http.Request) (traceCount int64) {
+func traceCount(req *http.Request) int64 {
+	c := int64(0)
 	if traceCountStr := req.Header.Get(headerTraceCount); traceCountStr != "" {
 		var err error
-		traceCount, err = strconv.ParseInt(traceCountStr, 10, 64)
+		c, err = strconv.ParseInt(traceCountStr, 10, 64)
 		if err != nil {
 			log.Errorf("unable to parse HTTP header %s: %s", headerTraceCount, traceCountStr)
 		}
 	}
-	return traceCount
+	return c
 }
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
-	traceCount := getTraceCount(req)
+	traceCount := traceCount(req)
 
 	if !r.PreSampler.SampleWithCount(traceCount) {
 		io.Copy(ioutil.Discard, req.Body)
