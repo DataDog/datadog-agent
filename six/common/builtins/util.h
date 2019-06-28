@@ -36,7 +36,7 @@ PyMODINIT_FUNC PyInit_util(void);
     \brief Initializes the util builtin python module.
 
     The 'util' python builtin is created with the methods from the PyMethodDef
-    array in 'util.c' and registered into python. This function is python3 only.
+    array in 'util.c' and registered into python. This function is python2 only.
 */
 void Py2_init_util();
 #endif

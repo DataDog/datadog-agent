@@ -173,7 +173,7 @@ PyObject *get_config(PyObject *self, PyObject *args)
 /*! \fn PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs)
     \brief This function provides a standars set of HTTP headers the caller might want to
     use for HTTP requests.
-    \param self A PyObject* pointer to the util module.
+    \param self A PyObject* pointer to the `datadog_agent` module.
     \param args A PyObject* pointer to the `agentConfig`, but not expected to be used.
     \param kwargs A PyObject* pointer to a dictonary. If the `http_host` key is present
     it will be added to the headers.

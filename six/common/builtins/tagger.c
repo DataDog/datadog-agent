@@ -75,7 +75,7 @@ PyObject *buildTagsList(char **tags)
     \param self A PyObject* pointer to the tagger module.
     \param args A PyObject* pointer to the tag method, typically expected to
     contain the id and the cardinality..
-    \return a PyObject * pointer to the python tag list.
+    \return a PyObject * pointer to the tag list, NONE if callback not set, or NULL in an error.
 
     The method will return a tag list as long as the cardinality provided is
     one of LOW, ORCHESTRATOR, OR HIGH. This function calls the cgo-bound cb_tags
@@ -113,7 +113,7 @@ PyObject *tag(PyObject *self, PyObject *args)
     \brief builds a tag list as per the entity id and cardinality passed as
     arguments.
     \param self A PyObject* pointer to the tagger module.
-    \param args A PyObject* pointer to the python args, typically expected to
+    \param args A PyObject* pointer to the python args, expected to
     contain the id and the cardinality.
     \return a PyObject * pointer to the python tag list.
 
