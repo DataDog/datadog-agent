@@ -70,19 +70,19 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
                 -c "Datadog Agent" dd-agent && \
                 { usermod -L dd-agent || echo "[ WARNING ]\tCannot lock the 'dd-agent' user account"; }
 
-        # Uninstall every datadog integration
-        # Starting with 6.10, integrations are also uninstalled on package removal
-        # See https://github.com/DataDog/datadog-agent/pull/3066 for more details
-        # TODO(remy): remove
-        #PIP_PATH=$INSTALL_DIR/embedded/bin/pip
-        #if [ -x $PIP_PATH ]; then
-        #    echo "Uninstalling integrations..."
-        #    $PIP_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP_PATH uninstall -y -q --no-cache-dir || true
-        #fi
 
-        # Remove all directories which have not been created during the install of the pkg
+        #
+        # Starting with 6.10, integrations are also uninstalled on package removal
+        #
+
+        echo "Uninstalling integrations..."
+
+        # Since 6.13, a file containing all integrations which have been installed by
+        # the package is avaiblable, use it ro remove only the files which have *NOT*
+        # be installed by the package.
+
         if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
-            find #{install_dir}/embedded/lib/python2.7/site-packages ! -name 'datadog_checks*' -type d -name 'datadog_*' >> $INSTALL_DIR/embedded/.all-integrations.txt
+            find $INSTALL_DIR/embedded/lib/python2.7/site-packages ! -name 'datadog_checks*' -type d -name 'datadog_*' >> $INSTALL_DIR/embedded/.all-integrations.txt
             grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt > $INSTALL_DIR/embedded/.extra-integrations.txt
             if [ -f "$INSTALL_DIR/embedded/.extra-integrations.txt" ]; then
                 cat $INSTALL_DIR/embedded/.extra-integrations.txt
@@ -90,6 +90,14 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             fi
             # TODO(remy): uncommentme
             # rm $INSTALL_DIR/embedded/.{extra,all}-integrations.txt
+        else
+            # If the file containing all integrations which have been installed by the
+            # package is not available: uninstall every datadog integrations.
+            # See https://github.com/DataDog/datadog-agent/pull/3066 for more details
+            PIP_PATH=$INSTALL_DIR/embedded/bin/pip
+            if [ -x $PIP_PATH ]; then
+                $PIP_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP_PATH uninstall -y -q --no-cache-dir || true
+            fi
         fi
 
         # Delete all the .pyc/.pyo files in the embedded dir that are part of the old agent's package
