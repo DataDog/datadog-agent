@@ -15,9 +15,9 @@ import (
 )
 
 /*
-#cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
+#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 
-#include <datadog_agent_six.h>
+#include <datadog_agent_rtloader.h>
 */
 import "C"
 
@@ -31,7 +31,7 @@ func initializePlatform() error {
 			cCoreDump = 1
 		}
 
-		if C.handle_crashes(six, C.int(cCoreDump)) == 0 {
+		if C.handle_crashes(rtloader, C.int(cCoreDump)) == 0 {
 			log.Errorf("Unable to install crash handler, C-land stacktraces and dumps will be unavailable")
 		}
 	}

@@ -26,7 +26,7 @@ import (
 
 /*
 #include <stdlib.h>
-#include <datadog_agent_six.h>
+#include <datadog_agent_rtloader.h>
 
 char *getStringAddr(char **array, unsigned int idx);
 */
@@ -36,17 +36,17 @@ import "C"
 type PythonCheck struct {
 	id           check.ID
 	version      string
-	instance     *C.six_pyobject_t
-	class        *C.six_pyobject_t
+	instance     *C.rtloader_pyobject_t
+	class        *C.rtloader_pyobject_t
 	ModuleName   string
 	interval     time.Duration
 	lastWarnings []error
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
-func NewPythonCheck(name string, class *C.six_pyobject_t) *PythonCheck {
+func NewPythonCheck(name string, class *C.rtloader_pyobject_t) *PythonCheck {
 	glock := newStickyLock()
-	C.six_incref(six, class) // own the ref
+	C.rtloader_incref(rtloader, class) // own the ref
 	glock.unlock()
 	pyCheck := &PythonCheck{
 		ModuleName:   name,
@@ -65,14 +65,14 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 
 	log.Debugf("Running python check %s %s", c.ModuleName, c.id)
 
-	cResult := C.run_check(six, c.instance)
+	cResult := C.run_check(rtloader, c.instance)
 	if cResult == nil {
-		if err := getSixError(); err != nil {
+		if err := getRtLoaderError(); err != nil {
 			return err
 		}
 		return fmt.Errorf("An error occurred while running python check %s", c.ModuleName)
 	}
-	defer C.six_free(six, unsafe.Pointer(cResult))
+	defer C.rtloader_free(rtloader, unsafe.Pointer(cResult))
 
 	if commitMetrics {
 		s, err := aggregator.GetSender(c.ID())
@@ -128,9 +128,9 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 	This function is run with the GIL locked by runCheck
 	**/
 
-	pyWarnings := C.get_checks_warnings(six, c.instance)
+	pyWarnings := C.get_checks_warnings(rtloader, c.instance)
 	if pyWarnings == nil {
-		if err := getSixError(); err != nil {
+		if err := getRtLoaderError(); err != nil {
 			log.Errorf("error while collecting python check's warnings: %s", err)
 		}
 		return nil
@@ -145,9 +145,9 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 		}
 		warn := C.GoString(warnPtr)
 		warnings = append(warnings, errors.New(warn))
-		C.six_free(six, unsafe.Pointer(warnPtr))
+		C.rtloader_free(rtloader, unsafe.Pointer(warnPtr))
 	}
-	C.six_free(six, unsafe.Pointer(pyWarnings))
+	C.rtloader_free(rtloader, unsafe.Pointer(pyWarnings))
 
 	return warnings
 }
@@ -188,10 +188,10 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 	defer C.free(unsafe.Pointer(cCheckID))
 	defer C.free(unsafe.Pointer(cCheckName))
 
-	var check *C.six_pyobject_t
-	res := C.get_check(six, c.class, cInitConfig, cInstance, cCheckID, cCheckName, &check)
+	var check *C.rtloader_pyobject_t
+	res := C.get_check(rtloader, c.class, cInitConfig, cInstance, cCheckID, cCheckName, &check)
 	if res == 0 {
-		log.Warnf("could not get a '%s' check instance with the new api: %s", c.ModuleName, getSixError())
+		log.Warnf("could not get a '%s' check instance with the new api: %s", c.ModuleName, getRtLoaderError())
 		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
 
 		allSettings := config.Datadog.AllSettings()
@@ -203,9 +203,9 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 		cAgentConfig := C.CString(string(agentConfig))
 		defer C.free(unsafe.Pointer(cAgentConfig))
 
-		res := C.get_check_deprecated(six, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, &check)
+		res := C.get_check_deprecated(rtloader, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, &check)
 		if res == 0 {
-			return fmt.Errorf("could not invoke '%s' python check constructor: %s", c.ModuleName, getSixError())
+			return fmt.Errorf("could not invoke '%s' python check constructor: %s", c.ModuleName, getRtLoaderError())
 		}
 		log.Warnf("passing `agentConfig` to the constructor is deprecated, please use the `get_config` function from the 'datadog_agent' package (%s).", c.ModuleName)
 	}
@@ -242,9 +242,9 @@ func pythonCheckFinalizer(c *PythonCheck) {
 	go func(c *PythonCheck) {
 		glock := newStickyLock() // acquire lock to call DecRef
 		defer glock.unlock()
-		C.six_decref(six, c.class)
+		C.rtloader_decref(rtloader, c.class)
 		if c.instance != nil {
-			C.six_decref(six, c.instance)
+			C.rtloader_decref(rtloader, c.instance)
 		}
 	}(c)
 }
