@@ -9,7 +9,7 @@ Known Issues
 -------
 
 Some metrics from the kubernetes and kublet integrations (``kuberentes.cpu.*`` and ``kuberentes.memory.*``) are missing for certain configurations.
-A fix will be released early next week. In the meanwhile if downgrading to 6.11.3 is not an option we recommend using the runtime metrics
+A fix will be released in v6.12.1. Meanwhile if downgrading to 6.11.3 is not an option we recommend using the runtime metrics
 (ex: ``docker.cpu.*``, ``docker.mem.*``, ``containerd.cpu.*``, ...).
 
 Prelude
