@@ -619,7 +619,7 @@ std::string Three::_fetchPythonError() const
                     // "format_exception" returns a list of strings (one per line)
                     for (int i = 0; i < len; i++) {
                         PyObject *s = PyList_GetItem(fmt_exc, i); // borrowed ref
-                        if (s == NULL || !PyString_Check(s)) {
+                        if (s == NULL || !PyUnicode_Check(s)) {
                             // unlikely to happen but same as above, do not propagate this error upstream
                             // to avoid confusing the caller. PyErr_Clear() will be called before returning.
                             ret_val = "";
@@ -643,7 +643,7 @@ std::string Three::_fetchPythonError() const
     else if (pvalue != NULL) {
         PyObject *pvalue_obj = PyObject_Str(pvalue);
         if (pvalue_obj != NULL) {
-            // we know pvalue_obj is a string (we just casted it), no need to PyString_Check()
+            // we know pvalue_obj is a string (we just casted it), no need to PyUnicode_Check()
             char *ret = as_string(pvalue_obj);
             ret_val += ret;
             ::free(ret);
@@ -652,7 +652,7 @@ std::string Three::_fetchPythonError() const
     } else if (ptype != NULL) {
         PyObject *ptype_obj = PyObject_Str(ptype);
         if (ptype_obj != NULL) {
-            // we know ptype_obj is a string (we just casted it), no need to PyString_Check()
+            // we know ptype_obj is a string (we just casted it), no need to PyUnicode_Check()
             char *ret = as_string(ptype_obj);
             ret_val += ret;
             ::free(ret);
