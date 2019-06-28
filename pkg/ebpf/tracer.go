@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
 	"github.com/mailru/easyjson/buffer"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -427,6 +428,25 @@ func (t *Tracer) getLatestTimestamp() (uint64, bool, error) {
 	}
 
 	return latestTime, true, nil
+}
+
+// getEbpfTelemetry reads the telemetry map from the kernelspace and returns a map of key -> count
+func (t *Tracer) getEbpfTelemetry() (map[string]int64, error) {
+	mp, err := t.getMap(telemetryMap)
+	if err != nil {
+		return nil, errors.Wrap(err, "error retrieving telemetry map")
+	}
+
+	telemetry := &kernelTelemetry{}
+	if err := t.m.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
+		// This can happen if we haven't initialized the telemetry object yet
+		// so let's just use a debug log
+		log.Debug("error retrieving the telemetry struct: %s", err)
+	}
+
+	return map[string]int64{
+		"tcp_sent_miscounts": int64(telemetry.tcp_sent_miscounts),
+	}, nil
 }
 
 func (t *Tracer) getMap(name bpfMapName) (*bpflib.Map, error) {

@@ -139,6 +139,19 @@ struct bpf_map_def SEC("maps/port_bindings") port_bindings = {
     .namespace = "",
 };
 
+/* This maps is used for telemetry in kernelspace
+ * only key 0 is used
+ * value is a telemetry object
+ */
+struct bpf_map_def SEC("maps/telemetry") telemetry = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u16),
+    .value_size = sizeof(telemetry_t),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* http://stackoverflow.com/questions/1001307/detecting-endianness-programmatically-in-a-c-program */
 __attribute__((always_inline))
 static bool is_big_endian(void) {
@@ -715,6 +728,27 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
 
     return handle_message(sk, status, pid_tgid, CONN_TYPE_TCP, size, 0);
+}
+
+SEC("kretprobe/tcp_sendmsg")
+int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
+    int ret = PT_REGS_RC(ctx);
+
+    // If ret < 0 it means an error occured but we still counted the bytes as being sent
+    // let's increment our miscount count
+    if (ret < 0) {
+        // Initialize the counter if it does not exist
+        __u64 key = 0;
+        telemetry_t empty = {};
+        telemetry_t* val;
+        bpf_map_update_elem(&telemetry, &key, &empty, BPF_NOEXIST);
+        val = bpf_map_lookup_elem(&telemetry, &key);
+        if (val != NULL) {
+            __sync_fetch_and_add(&val->tcp_sent_miscounts, 1);
+        }
+    }
+
+    return 0;
 }
 
 SEC("kprobe/tcp_cleanup_rbuf")
