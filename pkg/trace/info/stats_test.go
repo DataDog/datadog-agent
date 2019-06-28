@@ -26,8 +26,8 @@ func TestTracesDropped(t *testing.T) {
 	})
 }
 
-func TestTracesMalformed(t *testing.T) {
-	var s TracesMalformed
+func TestSpansMalformed(t *testing.T) {
+	var s SpansMalformed
 	s.ServiceEmpty++
 	s.ResourceEmpty++
 

@@ -35,17 +35,17 @@ func newTestSpan() *pb.Span {
 }
 
 func newTagStats() *info.TagStats {
-	return &info.TagStats{Stats: info.Stats{TracesDropped: &info.TracesDropped{}, TracesMalformed: &info.TracesMalformed{}}}
+	return &info.TagStats{Stats: info.Stats{TracesDropped: &info.TracesDropped{}, SpansMalformed: &info.SpansMalformed{}}}
 }
 
 // tsMalformed returns a new info.TagStats structure containing the given malformed stats.
-func tsMalformed(tm *info.TracesMalformed) *info.TagStats {
-	return &info.TagStats{Stats: info.Stats{TracesMalformed: tm, TracesDropped: &info.TracesDropped{}}}
+func tsMalformed(tm *info.SpansMalformed) *info.TagStats {
+	return &info.TagStats{Stats: info.Stats{SpansMalformed: tm, TracesDropped: &info.TracesDropped{}}}
 }
 
 // tagStatsDropped returns a new info.TagStats structure containing the given dropped stats.
 func tsDropped(td *info.TracesDropped) *info.TagStats {
-	return &info.TagStats{Stats: info.Stats{TracesMalformed: &info.TracesMalformed{}, TracesDropped: td}}
+	return &info.TagStats{Stats: info.Stats{SpansMalformed: &info.SpansMalformed{}, TracesDropped: td}}
 }
 
 func TestNormalizeOK(t *testing.T) {
@@ -70,7 +70,7 @@ func TestNormalizeEmptyServiceNoLang(t *testing.T) {
 	s.Service = ""
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Service, DefaultServiceName)
-	assert.Equal(t, tsMalformed(&info.TracesMalformed{ServiceEmpty: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{ServiceEmpty: 1}), ts)
 }
 
 func TestNormalizeEmptyServiceWithLang(t *testing.T) {
@@ -80,7 +80,7 @@ func TestNormalizeEmptyServiceWithLang(t *testing.T) {
 	ts.Lang = "java"
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Service, ts.Lang)
-	tsExpected := tsMalformed(&info.TracesMalformed{ServiceEmpty: 1})
+	tsExpected := tsMalformed(&info.SpansMalformed{ServiceEmpty: 1})
 	tsExpected.Lang = ts.Lang
 	assert.Equal(t, tsExpected, ts)
 }
@@ -91,7 +91,7 @@ func TestNormalizeLongService(t *testing.T) {
 	s.Service = strings.Repeat("CAMEMBERT", 100)
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Service, s.Service[:MaxServiceLen])
-	assert.Equal(t, tsMalformed(&info.TracesMalformed{ServiceTruncate: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{ServiceTruncate: 1}), ts)
 }
 
 func TestNormalizeNamePassThru(t *testing.T) {
@@ -109,7 +109,7 @@ func TestNormalizeEmptyName(t *testing.T) {
 	s.Name = ""
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Name, DefaultSpanName)
-	assert.Equal(t, tsMalformed(&info.TracesMalformed{SpanNameEmpty: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameEmpty: 1}), ts)
 }
 
 func TestNormalizeLongName(t *testing.T) {
@@ -118,7 +118,7 @@ func TestNormalizeLongName(t *testing.T) {
 	s.Name = strings.Repeat("CAMEMBERT", 100)
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Name, s.Name[:MaxNameLen])
-	assert.Equal(t, tsMalformed(&info.TracesMalformed{SpanNameTruncate: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameTruncate: 1}), ts)
 }
 
 func TestNormalizeNameNoAlphanumeric(t *testing.T) {
@@ -127,7 +127,7 @@ func TestNormalizeNameNoAlphanumeric(t *testing.T) {
 	s.Name = "/"
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Name, DefaultSpanName)
-	assert.Equal(t, tsMalformed(&info.TracesMalformed{SpanNameInvalid: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameInvalid: 1}), ts)
 }
 
 func TestNormalizeNameForMetrics(t *testing.T) {
@@ -161,7 +161,7 @@ func TestNormalizeEmptyResource(t *testing.T) {
 	s.Resource = ""
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, s.Resource, s.Name)
-	assert.Equal(t, tsMalformed(&info.TracesMalformed{ResourceEmpty: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{ResourceEmpty: 1}), ts)
 }
 
 func TestNormalizeTraceIDPassThru(t *testing.T) {
@@ -212,7 +212,7 @@ func TestNormalizeStartTooSmall(t *testing.T) {
 	s := newTestSpan()
 	s.Start = 42
 	assert.NoError(t, normalize(ts, s))
-	assert.Equal(t, tsMalformed(&info.TracesMalformed{InvalidStartDate: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: 1}), ts)
 
 }
 
@@ -240,7 +240,7 @@ func TestNormalizeNegativeDuration(t *testing.T) {
 	s.Duration = -50
 	assert.NoError(t, normalize(ts, s))
 	assert.EqualValues(t, s.Duration, 0)
-	assert.Equal(t, tsMalformed(&info.TracesMalformed{InvalidDuration: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidDuration: 1}), ts)
 }
 
 func TestNormalizeErrorPassThru(t *testing.T) {
@@ -293,7 +293,7 @@ func TestNormalizeTypeTooLong(t *testing.T) {
 	s := newTestSpan()
 	s.Type = strings.Repeat("sql", 1000)
 	assert.NoError(t, normalize(ts, s))
-	assert.Equal(t, tsMalformed(&info.TracesMalformed{TypeTruncate: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{TypeTruncate: 1}), ts)
 }
 
 func TestNormalizeServiceTag(t *testing.T) {
@@ -356,7 +356,7 @@ func TestNormalizeTraceInvalidSpan(t *testing.T) {
 	trace := pb.Trace{span1, span2}
 	err := normalizeTrace(ts, trace)
 	assert.NoError(t, err)
-	assert.Equal(t, tsMalformed(&info.TracesMalformed{SpanNameEmpty: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameEmpty: 1}), ts)
 }
 
 func TestNormalizeTraceDuplicateSpanID(t *testing.T) {
@@ -367,7 +367,7 @@ func TestNormalizeTraceDuplicateSpanID(t *testing.T) {
 	trace := pb.Trace{span1, span2}
 	err := normalizeTrace(ts, trace)
 	assert.NoError(t, err)
-	assert.Equal(t, tsMalformed(&info.TracesMalformed{DuplicateSpanID: 1}), ts)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{DuplicateSpanID: 1}), ts)
 }
 
 func TestNormalizeTrace(t *testing.T) {

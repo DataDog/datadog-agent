@@ -70,8 +70,8 @@ const (
     {{ with $ts.Stats.TracesDropped }}
     WARNING: Traces dropped: {{ .String }}
     {{end}}
-    {{ with $ts.Stats.TracesMalformed }}
-    WARNING: Traces malformed: {{ .String }}
+    {{ with $ts.Stats.SpansMalformed }}
+    WARNING: Spans malformed: {{ .String }}
     {{end}}
 
   {{end}}

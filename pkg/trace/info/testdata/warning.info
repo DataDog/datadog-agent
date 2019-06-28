@@ -18,7 +18,7 @@ Trace Agent (v 0.99.0)
     Spans received: 984
     Services received: 0 (0 bytes)
     WARNING: Traces dropped: empty_trace:3
-    WARNING: Traces malformed: span_name_empty:3, type_truncate:2
+    WARNING: Spans malformed: span_name_empty:3, type_truncate:2
 
   WARNING: Pre-sampling traces: 42.1 %
   WARNING: Pre-sampler: raising pre-sampling rate from 3.1 % to 5.0 %

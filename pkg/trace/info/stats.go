@@ -116,7 +116,7 @@ type TagStats struct {
 }
 
 func newTagStats(tags Tags) *TagStats {
-	return &TagStats{tags, Stats{TracesDropped: &TracesDropped{}, TracesMalformed: &TracesMalformed{}}}
+	return &TagStats{tags, Stats{TracesDropped: &TracesDropped{}, SpansMalformed: &SpansMalformed{}}}
 }
 
 func (ts *TagStats) publish() {
@@ -162,8 +162,8 @@ func (ts *TagStats) publish() {
 	for reason, count := range ts.TracesDropped.tagValues() {
 		metrics.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:"+reason), 1)
 	}
-	for reason, count := range ts.TracesMalformed.tagValues() {
-		metrics.Count("datadog.trace_agent.normalizer.traces_malformed", count, append(tags, "reason:"+reason), 1)
+	for reason, count := range ts.SpansMalformed.tagValues() {
+		metrics.Count("datadog.trace_agent.normalizer.spans_malformed", count, append(tags, "reason:"+reason), 1)
 	}
 }
 
@@ -215,8 +215,8 @@ func (s *TracesDropped) String() string {
 	return mapToString(s.tagValues())
 }
 
-// TracesMalformed contains counts for reasons malformed traces have been accepted after applying automatic fixes
-type TracesMalformed struct {
+// SpansMalformed contains counts for reasons malformed spans have been accepted after applying automatic fixes
+type SpansMalformed struct {
 	// DuplicateSpanID is when one or more spans in a trace have the same SpanId
 	DuplicateSpanID int64
 	// ServiceEmpty is when a span has an empty Service field
@@ -243,8 +243,8 @@ type TracesMalformed struct {
 	InvalidHTTPStatusCode int64
 }
 
-// tagValues converts TracesMalformed into a map representation with keys matching standardized names for all reasons
-func (s *TracesMalformed) tagValues() map[string]int64 {
+// tagValues converts SpansMalformed into a map representation with keys matching standardized names for all reasons
+func (s *SpansMalformed) tagValues() map[string]int64 {
 	return map[string]int64{
 		"duplicate_span_id":        atomic.LoadInt64(&s.DuplicateSpanID),
 		"service_empty":            atomic.LoadInt64(&s.ServiceEmpty),
@@ -261,7 +261,7 @@ func (s *TracesMalformed) tagValues() map[string]int64 {
 	}
 }
 
-func (s *TracesMalformed) String() string {
+func (s *SpansMalformed) String() string {
 	return mapToString(s.tagValues())
 }
 
@@ -272,8 +272,8 @@ type Stats struct {
 	TracesReceived int64
 	// TracesDropped contains stats about the count of dropped traces by reason
 	TracesDropped *TracesDropped
-	// TracesMalformed contains stats about the count of malformed traces by reason
-	TracesMalformed *TracesMalformed
+	// SpansMalformed contains stats about the count of malformed traces by reason
+	SpansMalformed *SpansMalformed
 	// TracesFiltered is the number of traces filtered.
 	TracesFiltered int64
 	// TracesPriorityNone is the number of traces with no sampling priority.
@@ -316,19 +316,19 @@ func (s *Stats) update(recent *Stats) {
 	atomic.AddInt64(&s.TracesDropped.SpanIDZero, atomic.LoadInt64(&recent.TracesDropped.SpanIDZero))
 	atomic.AddInt64(&s.TracesDropped.ForeignSpan, atomic.LoadInt64(&recent.TracesDropped.ForeignSpan))
 
-	// Traces Malformed
-	atomic.AddInt64(&s.TracesMalformed.DuplicateSpanID, atomic.LoadInt64(&recent.TracesMalformed.DuplicateSpanID))
-	atomic.AddInt64(&s.TracesMalformed.ServiceEmpty, atomic.LoadInt64(&recent.TracesMalformed.ServiceEmpty))
-	atomic.AddInt64(&s.TracesMalformed.ServiceTruncate, atomic.LoadInt64(&recent.TracesMalformed.ServiceTruncate))
-	atomic.AddInt64(&s.TracesMalformed.ServiceInvalid, atomic.LoadInt64(&recent.TracesMalformed.ServiceInvalid))
-	atomic.AddInt64(&s.TracesMalformed.SpanNameEmpty, atomic.LoadInt64(&recent.TracesMalformed.SpanNameEmpty))
-	atomic.AddInt64(&s.TracesMalformed.SpanNameTruncate, atomic.LoadInt64(&recent.TracesMalformed.SpanNameTruncate))
-	atomic.AddInt64(&s.TracesMalformed.SpanNameInvalid, atomic.LoadInt64(&recent.TracesMalformed.SpanNameInvalid))
-	atomic.AddInt64(&s.TracesMalformed.ResourceEmpty, atomic.LoadInt64(&recent.TracesMalformed.ResourceEmpty))
-	atomic.AddInt64(&s.TracesMalformed.TypeTruncate, atomic.LoadInt64(&recent.TracesMalformed.TypeTruncate))
-	atomic.AddInt64(&s.TracesMalformed.InvalidStartDate, atomic.LoadInt64(&recent.TracesMalformed.InvalidStartDate))
-	atomic.AddInt64(&s.TracesMalformed.InvalidDuration, atomic.LoadInt64(&recent.TracesMalformed.InvalidDuration))
-	atomic.AddInt64(&s.TracesMalformed.InvalidHTTPStatusCode, atomic.LoadInt64(&recent.TracesMalformed.InvalidHTTPStatusCode))
+	// SpansMalformed
+	atomic.AddInt64(&s.SpansMalformed.DuplicateSpanID, atomic.LoadInt64(&recent.SpansMalformed.DuplicateSpanID))
+	atomic.AddInt64(&s.SpansMalformed.ServiceEmpty, atomic.LoadInt64(&recent.SpansMalformed.ServiceEmpty))
+	atomic.AddInt64(&s.SpansMalformed.ServiceTruncate, atomic.LoadInt64(&recent.SpansMalformed.ServiceTruncate))
+	atomic.AddInt64(&s.SpansMalformed.ServiceInvalid, atomic.LoadInt64(&recent.SpansMalformed.ServiceInvalid))
+	atomic.AddInt64(&s.SpansMalformed.SpanNameEmpty, atomic.LoadInt64(&recent.SpansMalformed.SpanNameEmpty))
+	atomic.AddInt64(&s.SpansMalformed.SpanNameTruncate, atomic.LoadInt64(&recent.SpansMalformed.SpanNameTruncate))
+	atomic.AddInt64(&s.SpansMalformed.SpanNameInvalid, atomic.LoadInt64(&recent.SpansMalformed.SpanNameInvalid))
+	atomic.AddInt64(&s.SpansMalformed.ResourceEmpty, atomic.LoadInt64(&recent.SpansMalformed.ResourceEmpty))
+	atomic.AddInt64(&s.SpansMalformed.TypeTruncate, atomic.LoadInt64(&recent.SpansMalformed.TypeTruncate))
+	atomic.AddInt64(&s.SpansMalformed.InvalidStartDate, atomic.LoadInt64(&recent.SpansMalformed.InvalidStartDate))
+	atomic.AddInt64(&s.SpansMalformed.InvalidDuration, atomic.LoadInt64(&recent.SpansMalformed.InvalidDuration))
+	atomic.AddInt64(&s.SpansMalformed.InvalidHTTPStatusCode, atomic.LoadInt64(&recent.SpansMalformed.InvalidHTTPStatusCode))
 
 	atomic.AddInt64(&s.TracesFiltered, atomic.LoadInt64(&recent.TracesFiltered))
 	atomic.AddInt64(&s.TracesPriorityNone, atomic.LoadInt64(&recent.TracesPriorityNone))
@@ -354,18 +354,18 @@ func (s *Stats) reset() {
 	atomic.AddInt64(&s.TracesDropped.TraceIDZero, 0)
 	atomic.AddInt64(&s.TracesDropped.SpanIDZero, 0)
 	atomic.AddInt64(&s.TracesDropped.ForeignSpan, 0)
-	atomic.AddInt64(&s.TracesMalformed.DuplicateSpanID, 0)
-	atomic.AddInt64(&s.TracesMalformed.ServiceEmpty, 0)
-	atomic.AddInt64(&s.TracesMalformed.ServiceTruncate, 0)
-	atomic.AddInt64(&s.TracesMalformed.ServiceInvalid, 0)
-	atomic.AddInt64(&s.TracesMalformed.SpanNameEmpty, 0)
-	atomic.AddInt64(&s.TracesMalformed.SpanNameTruncate, 0)
-	atomic.AddInt64(&s.TracesMalformed.SpanNameInvalid, 0)
-	atomic.AddInt64(&s.TracesMalformed.ResourceEmpty, 0)
-	atomic.AddInt64(&s.TracesMalformed.TypeTruncate, 0)
-	atomic.AddInt64(&s.TracesMalformed.InvalidStartDate, 0)
-	atomic.AddInt64(&s.TracesMalformed.InvalidDuration, 0)
-	atomic.AddInt64(&s.TracesMalformed.InvalidHTTPStatusCode, 0)
+	atomic.AddInt64(&s.SpansMalformed.DuplicateSpanID, 0)
+	atomic.AddInt64(&s.SpansMalformed.ServiceEmpty, 0)
+	atomic.AddInt64(&s.SpansMalformed.ServiceTruncate, 0)
+	atomic.AddInt64(&s.SpansMalformed.ServiceInvalid, 0)
+	atomic.AddInt64(&s.SpansMalformed.SpanNameEmpty, 0)
+	atomic.AddInt64(&s.SpansMalformed.SpanNameTruncate, 0)
+	atomic.AddInt64(&s.SpansMalformed.SpanNameInvalid, 0)
+	atomic.AddInt64(&s.SpansMalformed.ResourceEmpty, 0)
+	atomic.AddInt64(&s.SpansMalformed.TypeTruncate, 0)
+	atomic.AddInt64(&s.SpansMalformed.InvalidStartDate, 0)
+	atomic.AddInt64(&s.SpansMalformed.InvalidDuration, 0)
+	atomic.AddInt64(&s.SpansMalformed.InvalidHTTPStatusCode, 0)
 	atomic.StoreInt64(&s.TracesFiltered, 0)
 	atomic.StoreInt64(&s.TracesPriorityNone, 0)
 	atomic.StoreInt64(&s.TracesPriorityNeg, 0)
@@ -417,7 +417,7 @@ func (ts *TagStats) warnString() string {
 	if len(d) > 0 {
 		w = append(w, fmt.Sprintf("dropped_traces(%s)", d))
 	}
-	m := ts.TracesMalformed.String()
+	m := ts.SpansMalformed.String()
 	if len(m) > 0 {
 		w = append(w, fmt.Sprintf("malformed_traces(%s)", m))
 	}
