@@ -17,7 +17,7 @@ This release is not available on Windows.
 Bug Fixes
 ---------
 
-- Fixed a bug in the kubernetes and kubelet integrations preventing the collectiong of the ``kubernetes.cpu.*`` and ``kubernetes.memory.*`` metrics.
+- Fixed a bug in the kubelet and fargate integrations preventing the collectiong of the ``kubernetes.cpu.*`` and ``kubernetes.memory.*`` metrics.
 
 6.12.0
 ======
@@ -25,7 +25,7 @@ Bug Fixes
 Known Issues
 -------
 
-Some metrics from the kubernetes and kubelet integrations (``kubernetes.cpu.*`` and ``kubernetes.memory.*``) are missing for certain configurations.
+Some metrics from the kubelet and fargate integrations (``kubernetes.cpu.*`` and ``kubernetes.memory.*``) are missing for certain configurations.
 A fix will be released in v6.12.1. Meanwhile if downgrading to 6.11.3 is not an option we recommend using the runtime metrics
 (ex: ``docker.cpu.*``, ``docker.mem.*``, ``containerd.cpu.*``, ...).
 
