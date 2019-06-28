@@ -224,7 +224,7 @@ public:
     // Python Helpers
     //! getIntegrationList member.
     /*!
-      \return A C-string with the list of every datadog integration wheel installed.
+      \return A yaml-encoded C-string with the list of every datadog integration wheel installed.
     */
     virtual char *getIntegrationList() = 0;
 
