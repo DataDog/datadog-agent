@@ -5,6 +5,13 @@ Release Notes
 6.12.0
 ======
 
+Known Issues
+-------
+
+Some metrics from the kubernetes and kubelet integrations (``kubernetes.cpu.*`` and ``kubernetes.memory.*``) are missing for certain configurations.
+A fix will be released in v6.12.1. Meanwhile if downgrading to 6.11.3 is not an option we recommend using the runtime metrics
+(ex: ``docker.cpu.*``, ``docker.mem.*``, ``containerd.cpu.*``, ...).
+
 Prelude
 -------
 
