@@ -5,6 +5,38 @@
 // Copyright 2019 Datadog, Inc.
 #ifndef DATADOG_AGENT_SIX_CONTAINERS_H
 #define DATADOG_AGENT_SIX_CONTAINERS_H
+
+/*! \file containers.h
+    \brief Six containers builtin header file.
+
+    The prototypes here defined provide functions to initialize the python containers
+    builtin module, and set its relevant callbacks for the six caller.
+*/
+/*! \fn PyMODINIT_FUNC PyInit_containers(void)
+    \brief Initializes the containers builtin python module.
+
+    The containers python builtin is created and registered here as per the module_def
+    PyMethodDef definition in `containers.c` with the corresponding C-implemented python
+    methods. A fresh reference to the module is created here. This function is python3
+    only.
+*/
+/*! \fn void Py2_init_containers()
+    \brief Initializes the containers builtin python module.
+
+    The containers python builtin is created and registered here as per the module_def
+    PyMethodDef definition in `containers.c` with the corresponding C-implemented python
+    methods. A fresh reference to the module is created here. This function is python2
+    only.
+*/
+/*! \fn void _set_is_excluded_cb(cb_is_excluded_t)
+    \brief Sets a callback to be used by six to determine if a container is excluded
+    from metric collection.
+    \param object A function pointer with cb_is_excluded_t function prototype to the
+    callback function.
+
+    The callback is expected to be provided by the six caller - in go-context: CGO.
+*/
+
 #include <Python.h>
 #include <six_types.h>
 

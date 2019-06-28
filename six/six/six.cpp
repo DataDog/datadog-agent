@@ -28,6 +28,21 @@ static inline void core(int sig)
     kill(getpid(), sig);
 }
 
+//! signalHandler
+/*!
+  \brief Crash handler for UNIX OSes
+  \param sig Integer representing the signal number that triggered the crash.
+  \param Unused siginfo_t parameter.
+  \param Unused void * pointer parameter.
+
+  This crash handler intercepts crashes triggered in C-land, printing the stacktrace
+  at the time of the crash to stderr - logging cannot be assumed to be working at this
+  poinrt and hence the use of stderr. If the core dump has been enabled, we will also
+  dump a core - of course the correct ulimits need to be set for the dump to be created.
+  The idea of handling the crashes here is to allow us to collect the stacktrace, with
+  all its C-context, before it unwinds as would be the case if we allowed the go runtime
+  to handle it.
+*/
 #    define STACKTRACE_SIZE 500
 void signalHandler(int sig, siginfo_t *, void *)
 {
@@ -78,7 +93,7 @@ bool Six::handleCrashes(const bool coredump) const
         setError(ss.str());
     }
 
-    return bool(err);
+    return bool(err == 0);
 }
 
 #endif

@@ -43,9 +43,7 @@ PyMODINIT_FUNC PyInit_datadog_agent(void)
 {
     return PyModule_Create(&module_def);
 }
-#endif
-
-#ifdef DATADOG_AGENT_TWO
+#elif defined(DATADOG_AGENT_TWO)
 // in Python2 keep the object alive for the program lifetime
 static PyObject *module;
 
@@ -90,6 +88,17 @@ void _set_set_external_tags_cb(cb_set_external_tags_t cb)
     cb_set_external_tags = cb;
 }
 
+/*! \fn PyObject *get_version(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog-agent.get_version` method, collecting
+    the agent version from the agent.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to any empty tuple, as no input args are taken.
+    \return a PyObject * pointer to a python string with the agent version. Or `None`
+    if the callback is unavailable.
+
+    This function is callable as the `datadog_agent.get_version` python method, it uses
+    the `cb_get_version()` callback to retrieve the value from the agent with CGO.
+*/
 PyObject *get_version(PyObject *self, PyObject *args)
 {
     if (cb_get_version == NULL) {
@@ -101,24 +110,40 @@ PyObject *get_version(PyObject *self, PyObject *args)
 
     if (v != NULL) {
         PyObject *retval = PyStringFromCString(v);
+        // v is allocated from CGO and thus requires being freed with the
+        // cgo_free callback for windows safety.
         cgo_free(v);
         return retval;
     }
     Py_RETURN_NONE;
 }
 
-/**
- * Before Six the Agent used reflection to inspect the contents of a configuration
- * value and the CPython API to perform conversion to a Python equivalent. Such
- * a conversion wouldn't be possible in a Python-agnostic way so we use YAML to
- * pass the data from Go to Python. The configuration value is loaded in the Agent,
- * marshalled into YAML and passed as a `char*` to Six, where the string is
- * decoded back to Python and passed to the caller. YAML usage is transparent to
- * the caller, who would receive a Python object as returned from `yaml.safe_load`.
- * YAML is used instead of JSON since the `json.load` return unicode for
- * string, for python2, which would be a breaking change from the previous
- * version of the agent.
- */
+/*! \fn PyObject *get_config(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog-agent.get_config` method, allowing
+    to collect elements in the agent configuration, from the agent.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a tuple containing a python string.
+    \return a PyObject * pointer to a safe unmarshaled python object. Or `None`
+    if the callback is unavailable.
+
+    This function is callable as the `datadog_agent.get_config` python method. It
+    uses the`cb_get_config()` callback to retrieve the element in the agent configuration
+    associated with the key passed in with the args argument. The value returned
+    will depend on the element type found for the key, and is a python object
+    unmarshaled by the `yaml.safe_load` function when calling `from_yaml()` with
+    the payload returned by callback. If no callback is set, `None` will be returned.
+
+    Before Six the Agent used reflection to inspect the contents of a configuration
+    value and the CPython API to perform conversion to a Python equivalent. Such
+    a conversion wouldn't be possible in a Python-agnostic way so we use YAML to
+    pass the data from Go to Python. The configuration value is loaded in the Agent,
+    marshalled into YAML and passed as a `char*` to Six, where the string is
+    decoded back to Python and passed to the caller. YAML usage is transparent to
+    the caller, who would receive a Python object as returned from `yaml.safe_load`.
+    YAML is used instead of JSON since the `json.load` return unicode for
+    string, for python2, which would be a breaking change from the previous
+    version of the agent.
+*/
 PyObject *get_config(PyObject *self, PyObject *args)
 {
     // callback must be set
@@ -145,15 +170,24 @@ PyObject *get_config(PyObject *self, PyObject *args)
     return value;
 }
 
-/**
- * datadog_agent.headers() isn't used by any official integration provided by
- * Datdog but custom checks might still rely on that.
- * Currently the contents of the returned string are the same but defined in two
- * different places:
- *
- *  1. github.com/DataDog/integrations-core/datadog_checks_base/datadog_checks/base/utils/headers.py
- *  2. github.com/DataDog/datadog-agent/pkg/util/common.go
- */
+/*! \fn PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs)
+    \brief This function provides a standars set of HTTP headers the caller might want to
+    use for HTTP requests.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to the `agentConfig`, but not expected to be used.
+    \param kwargs A PyObject* pointer to a dictonary. If the `http_host` key is present
+    it will be added to the headers.
+    \return a PyObject * pointer to a python dictionary with the expected headers.
+
+    This function is callable as the `datadog_agent.headers` python method. The method is
+    duplicated and also callable from `util.headers`. `datadog_agent.headers()` isn't used
+    by any official integration provided by Datdog but custom checks might still rely on it.
+    Currently the contents of the returned string are the same but defined in two
+    different places:
+
+     1. github.com/DataDog/integrations-core/blob/master/datadog_checks_base/datadog_checks/base/utils/headers.py
+     2. github.com/DataDog/datadog-agent/blob/master/pkg/util/common.go
+*/
 PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs)
 {
     // callback must be set but be resilient for the Python caller
@@ -197,6 +231,18 @@ PyObject *_public_headers(PyObject *self, PyObject *args, PyObject *kwargs)
     return headers(self, args, kwargs);
 }
 
+/*! \fn PyObject *get_hostname(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog-agent.get_hostname` method, collecting
+    the canonical hostname from the agent.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to any empty tuple, as no input args are taken.
+    \return a PyObject * pointer to a python string with the canonical hostname. Or
+    `None` if the callback is unavailable.
+
+    This function is callable as the `datadog_agent.get_hostname` python method, it uses
+    the `cb_get_hostname()` callback to retrieve the value from the agent with CGO. If
+    the callback has not been set `None` will be returned.
+*/
 PyObject *get_hostname(PyObject *self, PyObject *args)
 {
     // callback must be set
@@ -215,6 +261,18 @@ PyObject *get_hostname(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
+/*! \fn PyObject *get_clustername(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog-agent.get_clustername` method, collecting
+    the K8s clustername from the agent.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to any empty tuple, as no input args are taken.
+    \return a PyObject * pointer to a python string with the canonical clustername. Or
+    `None` if the callback is unavailable.
+
+    This function is callable as the `datadog_agent.get_clustername` python method, it uses
+    the `cb_get_clustername()` callback to retrieve the value from the agent with CGO. If
+    the callback has not been set `None` will be returned.
+*/
 PyObject *get_clustername(PyObject *self, PyObject *args)
 {
     // callback must be set
@@ -233,6 +291,18 @@ PyObject *get_clustername(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
+/*! \fn PyObject *log_message(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog_agent.log` method, allowing to log
+    python messages using the agent's go logging subsytem and its facilities.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to any empty tuple, as no input args are taken.
+    \return a PyObject * pointer to a python string with the canonical clustername. Or
+    `None` if the callback is unavailable.
+
+    This function is callable as the `datadog_agent.get_clustername` python method, it uses
+    the `cb_get_clustername()` callback to retrieve the value from the agent with CGO. If
+    the callback has not been set `None` will be returned.
+*/
 static PyObject *log_message(PyObject *self, PyObject *args)
 {
     // callback must be set
@@ -252,11 +322,38 @@ static PyObject *log_message(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-// set_external_tags receive the following data:
-// [('hostname', {'source_type': ['tag1', 'tag2']})]
+//
+/*! \fn PyObject *set_external_tags(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog_agent.set_external_tags` method,
+    allowing to set additional external tags for hostnames.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a tuple containing a single positional argument
+    containing a list.
+    \return a PyObject * pointer to `None` if everything goes well, or `NULL` if an exception
+    is raised.
+
+    This function is callable as the `datadog_agent.set_external_tags` python method, it uses
+    the `cb_set_external_tags()` callback to set additional external tags for specific hostnames.
+    The argument expected is a list of 2-tuples, where the first element is the hostname, and
+    the second element is a dictionary with `source_type` as the key, and a list of tags for
+    said `source_type`. For instance: `[('hostname', {'source_type': ['tag1', 'tag2']})]`.
+    This function will iterate the python list, and call the `cb_set_external_tags` successively
+    for each element in the list.
+    If everything goes well `None` will be returned, otherwise an exception will be set in the
+    interpreter and NULL will be returned.
+
+    A few integrations such as vsphere or openstack require this functionality to add additional
+    tagging for their hosts.
+*/
 static PyObject *set_external_tags(PyObject *self, PyObject *args)
 {
     PyObject *input_list = NULL;
+
+    // callback must be set
+    if (cb_set_external_tags == NULL) {
+        Py_RETURN_NONE;
+    }
+
     PyGILState_STATE gstate = PyGILState_Ensure();
 
     // function expects only one positional arg containing a list
@@ -359,15 +456,18 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
     }
 
 done:
-    if (hostname)
+    if (hostname) {
         free(hostname);
-    if (source_type)
+    }
+    if (source_type) {
         free(source_type);
+    }
     PyGILState_Release(gstate);
 
     // we need to return NULL to raise the exception set by PyErr_SetString
-    if (error)
+    if (error) {
         return NULL;
+    }
     Py_RETURN_NONE;
 
 error:

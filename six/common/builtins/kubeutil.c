@@ -41,6 +41,16 @@ void _set_get_connection_info_cb(cb_get_connection_info_t cb)
     cb_get_connection_info = cb;
 }
 
+/*! \fn void get_connection_info(PyObject *self, PyObject *args)
+    \brief Implements the python method to collect the kubernetes connection information
+    by calling the corresponding callback.
+    \param self A PyObject* pointer to the kubeutil module.
+    \param args A PyObject* pointer to an empty tuple as this method has no input args.
+    \return a PyObject * pointer to a python dictionary containing the K8s connection info.
+
+    This function is callable as the `kubeutil.get_connection_info` python method, the
+    callback is expected to have been set previously, if not `None` will be returned.
+*/
 PyObject *get_connection_info(PyObject *self, PyObject *args)
 {
     char *data = NULL;

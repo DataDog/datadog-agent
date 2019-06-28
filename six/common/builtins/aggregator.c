@@ -23,6 +23,14 @@ static PyMethodDef methods[] = {
     { NULL, NULL } // guards
 };
 
+/*! \fn add_constants(PyObject *m)
+    \brief A helper function to add a a set of constants to a python module.
+    \param m A PyObject * pointer to  the module you wish to add the constant to.
+
+    The returned char ** string array pointer is heap allocated here and should
+    be subsequently freed by the caller. This function may set and raise python
+    interpreter errors. The function is static and not in the builtin's API.
+*/
 static void add_constants(PyObject *m)
 {
     PyModule_AddIntConstant(m, "GAUGE", DATADOG_AGENT_SIX_GAUGE);
@@ -43,9 +51,7 @@ PyMODINIT_FUNC PyInit_aggregator(void)
     add_constants(m);
     return m;
 }
-#endif
-
-#ifdef DATADOG_AGENT_TWO
+#elif defined(DATADOG_AGENT_TWO)
 // module object storage
 static PyObject *module;
 
@@ -71,6 +77,16 @@ void _set_submit_event_cb(cb_submit_event_t cb)
     cb_submit_event = cb;
 }
 
+/*! \fn py_tag_to_c(PyObject *py_tags)
+    \brief A function to convert a list of python strings (tags) into an
+    array of C-strings.
+    \return a char ** pointer to the C-representation of the provided python
+    tag list. In the event of failure NULL is returned.
+
+    The returned char ** string array pointer is heap allocated here and should
+    be subsequently freed by the caller. This function may set and raise python
+    interpreter errors. The function is static and not in the builtin's API.
+*/
 static char **py_tag_to_c(PyObject *py_tags)
 {
     char **tags = NULL;
@@ -123,6 +139,13 @@ done:
     return tags;
 }
 
+/*! \fn free_tags(char **tags)
+    \brief A helper function to free the memory allocated by the py_tag_to_c() function.
+
+    This function is for internal use and expects the tag array to be properly intialized,
+    and have a NULL canary at the end of the array, just like py_tag_to_c() initializes and
+    populates the array. Be mindful if using this function in any other context.
+*/
 static void free_tags(char **tags)
 {
     int i;
@@ -132,6 +155,16 @@ static void free_tags(char **tags)
     free(tags);
 }
 
+/*! \fn submit_metric(PyObject *self, PyObject *args)
+    \brief Aggregator builtin class method for metric submission.
+    \param self A PyObject * pointer to self - the aggregator module.
+    \param args A PyObject * pointer to the python args or kwargs.
+    \return This function returns a new reference to None (already INCREF'd), or NULL in case of error.
+
+    This function implements the `submit_metric` python callable in C and is used from the python code.
+    More specifically, in the context of six and datadog-agent, this is called from our python base check
+    class to submit metrics to the aggregator.
+*/
 static PyObject *submit_metric(PyObject *self, PyObject *args)
 {
     if (cb_submit_metric == NULL) {
@@ -169,6 +202,16 @@ error:
     return NULL;
 }
 
+/*! \fn submit_service_check(PyObject *self, PyObject *args)
+    \brief Aggregator builtin class method for service_check submission.
+    \param self A PyObject * pointer to self - the aggregator module.
+    \param args A PyObject * pointer to the python args or kwargs.
+    \return This function returns a new reference to None (already INCREF'd), or NULL in case of error.
+
+    This function implements the `submit_service_check` python callable in C and is used from the python code.
+    More specifically, in the context of six and datadog-agent, this is called from our python base check
+    class to submit service_checks to the aggregator.
+*/
 static PyObject *submit_service_check(PyObject *self, PyObject *args)
 {
     if (cb_submit_service_check == NULL) {
@@ -207,6 +250,16 @@ error:
     return NULL;
 }
 
+/*! \fn submit_event(PyObject *self, PyObject *args)
+    \brief Aggregator builtin class method for event submission.
+    \param self A PyObject * pointer to self - the aggregator module.
+    \param args A PyObject * pointer to the python args or kwargs.
+    \return This function returns a new reference to None (already INCREF'd), or NULL in case of error.
+
+    This function implements the `submit_event` python callable in C and is used from the python code.
+    More specifically, in the context of six and datadog-agent, this is called from our python base check
+    class to submit events to the aggregator.
+*/
 static PyObject *submit_event(PyObject *self, PyObject *args)
 {
     if (cb_submit_event == NULL) {

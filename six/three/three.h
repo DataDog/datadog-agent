@@ -24,7 +24,34 @@
 class Three : public Six
 {
 public:
+    //! Constructor.
+    /*!
+      \param python_home A C-string representation to the python home for the
+      underlying python interpreter.
+
+      Basic constructor, initializes the _error string to an empty string and
+      errorFlag to false and set the supplied PYTHONHOME.
+    */
     Three(const char *python_home);
+
+    //! Destructor.
+    /*!
+      Destroys the Three instance, including relevant python teardown calls.
+
+      We do not call Py_Finalize() since we won't be calling it from the same
+      thread where we called Py_Initialize(), this is a product of the go runtime
+      switch threads constantly. It's not really an issue here as we destroy this
+      class instance just before exiting the agent.
+      Calling Py_Finalize from a different thread cause the "threading"
+      package to raise an exception: "Exception KeyError: KeyError(<current
+      thread id>,) in <module 'threading'".
+      Even if Python ignores it, the exception ends up in the log files for
+      upstart/syslog/...
+
+      More info here:
+      https://stackoverflow.com/questions/8774958/keyerror-in-module-threading-after-a-successful-py-test-run/12639040#12639040
+
+    */
     ~Three();
 
     bool init();
@@ -41,7 +68,7 @@ public:
     char **getCheckWarnings(SixPyObject *check);
     void decref(SixPyObject *obj);
     void incref(SixPyObject *obj);
-    void set_module_attr_string(char *module, char *attr, char *value);
+    void setModuleAttrString(char *module, char *attr, char *value);
 
     // const API
     py_info_t *getPyInfo();
@@ -84,17 +111,57 @@ public:
     void setIsExcludedCb(cb_is_excluded_t);
 
 private:
+    //! initPythonHome member.
+    /*!
+      \brief This member function sets the Python home for the underlying python3 interpreter.
+      \param pythonHome A C-string to the target python home for the python runtime.
+    */
     void initPythonHome(const char *pythonHome = NULL);
+
+    //! _importFrom member.
+    /*!
+      \brief This member function imports a Python object by name from the specified
+      module.
+      \param module A C-string representation of the Python module we wish to import from.
+      \param name A C-string representation of the target Python object we wish to import.
+      \return A PyObject * pointer to the imported Python object, or NULL in case of error.
+
+      This function returns a new reference to the underlying PyObject. In case of error,
+      NULL is returned with clean interpreter error flag.
+    */
     PyObject *_importFrom(const char *module, const char *name);
+
+    //! _findSubclassOf member.
+    /*!
+      \brief This member function attemts to find a subclass of the provided base class in
+      the specified Python module.
+      \param base A PyObject * pointer to the Python base class we wish to search for.
+      \param moduleName A PyObject * pointer to the module we wish to find a derived class
+      in.
+      \return A PyObject * pointer to the found subclass Python object, or NULL in case of error.
+
+      This function returns a new reference to the underlying PyObject. In case of error,
+      NULL is returned with clean interpreter error flag.
+    */
     PyObject *_findSubclassOf(PyObject *base, PyObject *module);
+
+    //! _fetchPythonError member.
+    /*!
+      \brief This member function retrieves the error set on the python interpreter.
+      \return A string describing the python error/exception set on the underlying python
+      interpreter.
+    */
     std::string _fetchPythonError() const;
 
+    /*! PyPaths type prototype
+      \typedef PyPaths defines a vector of strings.
+    */
     typedef std::vector<std::string> PyPaths;
 
-    wchar_t *_pythonHome;
-    PyObject *_baseClass;
-    PyPaths _pythonPaths;
-    PyThreadState *_threadState;
+    wchar_t *_pythonHome; /*!< unicode string with the PYTHONHOME for the underlying interpreter */
+    PyObject *_baseClass; /*!< PyObject * pointer to the base Agent check class */
+    PyPaths _pythonPaths; /*!< string vector containing paths in the PYTHONPATH */
+    PyThreadState *_threadState; /*!< PyThreadState * pointer to the saved Python interpreter thread state */
 };
 
 #endif
