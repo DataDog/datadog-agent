@@ -1,3 +1,4 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
@@ -35,7 +36,7 @@ func TestSender(t *testing.T) {
 	destination := tcp.AddrToDestination(l.Addr(), destinationsCtx)
 	destinations := client.NewDestinations(destination, nil)
 
-	sender := NewStreamSender(input, output, destinations)
+	sender := NewSender(input, output, destinations, StreamStrategy)
 	sender.Start()
 
 	expectedMessage := newMessage([]byte("fake line"), source, "")
@@ -68,7 +69,7 @@ func TestSenderNotBlockedByAdditional(t *testing.T) {
 	additionalDestination := tcp.NewDestination(config.Endpoint{Host: "dont.exist.local", Port: 0}, true, destinationsCtx)
 	destinations := client.NewDestinations(mainDestination, []client.Destination{additionalDestination})
 
-	sender := NewStreamSender(input, output, destinations)
+	sender := NewSender(input, output, destinations, StreamStrategy)
 	sender.Start()
 
 	expectedMessage1 := newMessage([]byte("fake line"), source, "")
