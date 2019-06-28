@@ -7,9 +7,31 @@
 
 package jmxfetch
 
+import (
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
 func (j *JMXFetch) Monitor() {}
 
 // Stop stops the JMXFetch process
 func (j *JMXFetch) Stop() error {
-	return j.cmd.Process.Kill()
+	err := j.cmd.Process.Kill()
+	if err != nil {
+		return err
+	}
+
+	stopChan := make(chan struct{})
+	go func() {
+		j.Wait()
+		close(stopChan)
+	}()
+
+	select {
+	case <-time.After(time.Millisecond * 1000):
+		log.Warnf("Jmxfetch was still running 1 second after trying to kill it")
+	case <-stopChan:
+	}
+	return nil
 }
