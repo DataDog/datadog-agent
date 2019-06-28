@@ -83,14 +83,17 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # been installed by the package.
 
         if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
-            find $INSTALL_DIR/embedded/lib/python2.7/site-packages ! -name 'datadog_checks*' -type d -name 'datadog_*' > $INSTALL_DIR/embedded/.all-integrations.txt
+            find $INSTALL_DIR/embedded/lib/python2.7/site-packages -type d -name 'datadog_*' > $INSTALL_DIR/embedded/.all-integrations.txt
             grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt > $INSTALL_DIR/embedded/.extra-integrations.txt
             if [ -f "$INSTALL_DIR/embedded/.extra-integrations.txt" ]; then
                 cat $INSTALL_DIR/embedded/.extra-integrations.txt
                 cat $INSTALL_DIR/embedded/.extra-integrations.txt | grep -v '^#' | xargs rm -rf
             fi
+
             # TODO(remy): uncommentme
-            # rm $INSTALL_DIR/embedded/.{extra,all}-integrations.txt
+            cp $INSTALL_DIR/embedded/.{extra,all}-integrations.txt /tmp
+
+            rm $INSTALL_DIR/embedded/.{extra,all}-integrations.txt
         else
             # If the file containing all integrations which have been installed by the
             # package is not available: uninstall every datadog integrations.
