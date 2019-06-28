@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -xe
 #
 # Perform necessary datadog-agent setup steps prior to remove the old package.
 #
@@ -97,6 +97,9 @@ uninstall_integrations()
     # Starting with 6.10, integrations are also uninstalled on package removal
     #
 
+    # TODO(remy): remove
+    echo "prerm"
+
     echo "Uninstalling integrations..."
 
     # Since 6.13, a file containing all integrations which have been installed by
@@ -104,7 +107,7 @@ uninstall_integrations()
     # be installed by the package.
 
     if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
-        find $INSTALL_DIR/embedded/lib/python2.7/site-packages ! -name 'datadog_checks*' -type d -name 'datadog_*' >> $INSTALL_DIR/embedded/.all-integrations.txt
+        find $INSTALL_DIR/embedded/lib/python2.7/site-packages ! -name 'datadog_checks*' -type d -name 'datadog_*' > $INSTALL_DIR/embedded/.all-integrations.txt
         grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt > $INSTALL_DIR/embedded/.extra-integrations.txt
         if [ -f "$INSTALL_DIR/embedded/.extra-integrations.txt" ]; then
             cat $INSTALL_DIR/embedded/.extra-integrations.txt
