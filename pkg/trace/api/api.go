@@ -39,9 +39,9 @@ const (
 	tagTraceHandler      = "handler:traces"
 	tagServiceHandler    = "handler:services"
 
-	// TraceCountHeader is the header client implementation should fill
+	// headerTraceCount is the header client implementation should fill
 	// with the number of traces contained in the payload.
-	TraceCountHeader = "X-Datadog-Trace-Count"
+	headerTraceCount = "X-Datadog-Trace-Count"
 )
 
 // Version is a dumb way to version our collector handlers
@@ -269,11 +269,11 @@ func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
 }
 
 func getTraceCount(req *http.Request) (traceCount int64) {
-	if traceCountStr := req.Header.Get(TraceCountHeader); traceCountStr != "" {
+	if traceCountStr := req.Header.Get(headerTraceCount); traceCountStr != "" {
 		var err error
 		traceCount, err = strconv.ParseInt(traceCountStr, 10, 64)
 		if err != nil {
-			log.Errorf("unable to parse HTTP header %s: %s", TraceCountHeader, traceCountStr)
+			log.Errorf("unable to parse HTTP header %s: %s", headerTraceCount, traceCountStr)
 		}
 	}
 	return traceCount

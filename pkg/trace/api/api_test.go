@@ -350,7 +350,7 @@ func TestReceiverFailedPayloadDecode(t *testing.T) {
 		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
 		assert.NoError(err)
 		traceCount := 10
-		req.Header.Set(TraceCountHeader, strconv.Itoa(traceCount))
+		req.Header.Set(headerTraceCount, strconv.Itoa(traceCount))
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := client.Do(req)
@@ -622,7 +622,7 @@ func TestReceiverPreSamplerCancel(t *testing.T) {
 				reader := &chunkedReader{reader: bytes.NewReader(buf.Bytes())}
 				req, err := http.NewRequest("POST", url, reader)
 				req.Header.Set("Content-Type", "application/msgpack")
-				req.Header.Set(TraceCountHeader, strconv.Itoa(n))
+				req.Header.Set(headerTraceCount, strconv.Itoa(n))
 				assert.Nil(err)
 
 				resp, err := client.Do(req)
@@ -852,7 +852,7 @@ func TestWatchdog(t *testing.T) {
 			t.Fatal(err)
 		}
 		req.Header.Set("Content-Type", "application/msgpack")
-		req.Header.Set(TraceCountHeader, "3")
+		req.Header.Set(headerTraceCount, "3")
 		resp, err = http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
