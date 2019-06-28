@@ -298,8 +298,39 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		TracerVersion: req.Header.Get("Datadog-Meta-Tracer-Version"),
 	})
 
-	traces, ok := getTraces(ts, traceCount, v, w, req)
-	if !ok {
+	var traces pb.Traces
+	mediaType := getMediaType(req)
+	switch v {
+	case v01:
+		// We cannot use decodeReceiverPayload because []model.Span does not
+		// implement msgp.Decodable. This hack can be removed once we
+		// drop v01 support.
+		switch mediaType {
+		case "application/json", "text/json", "":
+			// ok
+		default:
+			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
+			return
+		}
+
+		// in v01 we actually get spans that we have to transform in traces
+		var spans []pb.Span
+		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
+			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
+			atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
+			log.Errorf("Cannot decode %s traces payload: %v", v, err)
+			return
+		}
+		traces = tracesFromSpans(spans)
+	case v02, v03, v04:
+		if err := decodeReceiverPayload(req.Body, &traces, v, mediaType); err != nil {
+			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
+			atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
+			log.Errorf("Cannot decode %s traces payload: %v", v, err)
+			return
+		}
+	default:
+		httpEndpointNotSupported([]string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
 		return
 	}
 
@@ -486,50 +517,6 @@ func (r *HTTPReceiver) Languages() string {
 
 	sort.Strings(str)
 	return strings.Join(str, "|")
-}
-
-func getTraces(ts *info.TagStats, traceCount int64, v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, bool) {
-	var traces pb.Traces
-	mediaType := getMediaType(req)
-	switch v {
-	case v01:
-		// We cannot use decodeReceiverPayload because []model.Span does not
-		// implement msgp.Decodable. This hack can be removed once we
-		// drop v01 support.
-		switch mediaType {
-		case "application/json", "text/json", "":
-			// ok
-		default:
-			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
-			return nil, false
-		}
-
-		// in v01 we actually get spans that we have to transform in traces
-		var spans []pb.Span
-		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
-			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-			atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
-			log.Errorf("Cannot decode %s traces payload: %v", v, err)
-			return nil, false
-		}
-		traces = tracesFromSpans(spans)
-	case v02:
-		fallthrough
-	case v03:
-		fallthrough
-	case v04:
-		if err := decodeReceiverPayload(req.Body, &traces, v, mediaType); err != nil {
-			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-			atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
-			log.Errorf("Cannot decode %s traces payload: %v", v, err)
-			return nil, false
-		}
-	default:
-		httpEndpointNotSupported([]string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-		return nil, false
-	}
-
-	return traces, true
 }
 
 func decodeReceiverPayload(r io.Reader, dest msgp.Decodable, v Version, mediaType string) error {
