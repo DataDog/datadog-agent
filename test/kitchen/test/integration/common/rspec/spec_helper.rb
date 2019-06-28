@@ -34,15 +34,19 @@ def agent_command
   end
 end
 
-def wait_until_stopped
-  for _ in 1..15 do
+def wait_until_stopped(timeout = 15)
+  # Check if the agent has stopped every second
+  # Timeout after the given number of seconds
+  for _ in 1..timeout do
     break if !is_running?
     sleep 1
   end
 end
 
-def wait_until_started
-  for _ in 1..15 do
+def wait_until_started(timeout = 15)
+  # Check if the agent has started every second
+  # Timeout after the given number of seconds
+  for _ in 1..timeout do
     break if is_running?
     sleep 1
   end
@@ -88,10 +92,16 @@ def restart
     wait_until_started
   else
     if has_systemctl
-      result = system 'sudo systemctl restart datadog-agent.service && sleep 10'
+      result = system 'sudo systemctl restart datadog-agent.service'
+      # Worst case: the Agent has already stopped and restarted when we check if the process has been stopped
+      # and we lose 5 seconds.
+      wait_until_stopped 5
+      wait_until_started 5
     else
       # initctl can't restart
-      result = system '(sudo initctl restart datadog-agent || sudo initctl start datadog-agent) && sleep 10'
+      result = system '(sudo initctl restart datadog-agent || sudo initctl start datadog-agent)'
+      wait_until_stopped 5
+      wait_until_started 5
     end
   end
   result
@@ -297,6 +307,8 @@ shared_examples_for "a running Agent with no errors" do
 
   it 'has running checks' do
     result = false
+    # Wait for the collector to do its first run
+    # Timeout after 30 seconds
     for _ in 1..30 do
       json_info_output = json_info
       if json_info_output.key?('runnerStats') &&
