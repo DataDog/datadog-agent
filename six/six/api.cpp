@@ -45,7 +45,7 @@ static void *six_backend = NULL;
     creation routine.
     \param dll A C-string containing the expected backend DLL name.
     \param python_home A C-string containing the expected PYTHONHOME for said DLL.
-    \param error A C-stringi pointer output parameter to return error messages.
+    \param error A C-string pointer output parameter to return error messages.
     \return A create_t * function pointer that will allow us to create the relevant python
     backend. In case of failure NULL is returned and the error string is set on the output
     parameter.
