@@ -26,8 +26,6 @@ static PyMethodDef methods[] = {
 /*! \fn add_constants(PyObject *m)
     \brief A helper function to add a a set of constants to a python module.
     \param m A PyObject * pointer to  the module you wish to add the constant to.
-    \return a char ** pointer to the C-representation of the provided python
-    tag list. In the event of failure NULL is returned.
 
     The returned char ** string array pointer is heap allocated here and should
     be subsequently freed by the caller. This function may set and raise python

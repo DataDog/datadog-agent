@@ -73,8 +73,8 @@ PyObject *buildTagsList(char **tags)
     \brief builds a tag list as per the entity id and cardinality passed as method
     arguments.
     \param self A PyObject* pointer to the tagger module.
-    \param args A PyObject* pointer to the tag method, typically expected to
-    contain the id and the cardinality..
+    \param args A PyObject* pointer to the tag python args, expected to contain the
+    id and the cardinality.
     \return a PyObject * pointer to the tag list, NONE if callback not set, or NULL in an error.
 
     The method will return a tag list as long as the cardinality provided is
