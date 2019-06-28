@@ -43,7 +43,7 @@ void _set_is_excluded_cb(cb_is_excluded_t cb)
 /*! \fn PyObject *is_excluded(PyObject *self, PyObject *args)
     \brief Method to determine whether a container is excluded from metric
     collection or not.
-    \param self A PyObject* pointer to the tagger module.
+    \param self A PyObject* pointer to the containers module.
     \param args A PyObject* pointer to the python args, typically expected to
     contain the container and images names as strings.
     \return a PyObject * pointer, typically a boolean reflecting if the container
