@@ -63,4 +63,7 @@ func TestVerifyKernelFuncs(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.False(t, verifyKernelFuncs(string(kallsymsUnsupported)))
+
+	emptyKallsyms := ""
+	assert.False(t, verifyKernelFuncs(emptyKallsyms))
 }
