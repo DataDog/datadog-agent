@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -88,6 +89,9 @@ func Run(ctx context.Context) {
 	if err != nil {
 		osutil.Exitf("cannot configure dogstatsd: %v", err)
 	}
+	defer metrics.Flush()
+	defer timing.Stop()
+
 	metrics.Count("datadog.trace_agent.started", 1, nil, 1)
 
 	// Seed rand
