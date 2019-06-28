@@ -51,6 +51,7 @@ func TestTracerExpvar(t *testing.T) {
 		"StatsResets":               0,
 		"UnorderedConns":            0,
 		"TimeSyncCollisions":        0,
+		"EbpfTcpSentMiscounts":      0,
 	}
 
 	res := map[string]float64{}
@@ -746,9 +747,7 @@ func TestTCPMiscount(t *testing.T) {
 	// we don't have the correct count since retries happened
 	assert.False(t, uint64(len(x)) == conn.MonotonicSentBytes)
 
-	tel, err := tr.getEbpfTelemetry()
-	require.NoError(t, err)
-
+	tel := tr.getEbpfTelemetry()
 	assert.NotZero(t, tel["tcp_sent_miscounts"])
 }
 
