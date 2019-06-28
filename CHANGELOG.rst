@@ -17,7 +17,7 @@ This release is not available on Windows.
 Bug Fixes
 ---------
 
-- Fixed a bug in the kubelet and fargate integrations preventing the collectiong of the ``kubernetes.cpu.*`` and ``kubernetes.memory.*`` metrics.
+- Fixed a bug in the kubelet and fargate integrations preventing the collection of the ``kubernetes.cpu.*`` and ``kubernetes.memory.*`` metrics.
 
 6.12.0
 ======
