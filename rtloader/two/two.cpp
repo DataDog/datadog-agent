@@ -34,6 +34,7 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
 
 Two::Two(const char *python_home)
     : RtLoader()
+    , _pythonHome(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
 {
@@ -42,17 +43,23 @@ Two::Two(const char *python_home)
 
 Two::~Two()
 {
+    // For more information on why Py_Finalize() isn't called here please
+    // refer to the header file or the doxygen documentation.
     PyEval_RestoreThread(_threadState);
+    free(_pythonHome);
     Py_XDECREF(_baseClass);
 }
 
 void Two::initPythonHome(const char *pythonHome)
 {
-    if (pythonHome != NULL && strlen(pythonHome) != 0) {
-        _pythonHome = pythonHome;
+    free(_pythonHome);
+    if (pythonHome == NULL || strlen(pythonHome) == 0) {
+        _pythonHome = _strdup(_defaultPythonHome);
+    } else {
+        _pythonHome = _strdup(pythonHome);
     }
 
-    Py_SetPythonHome(const_cast<char *>(_pythonHome));
+    Py_SetPythonHome(_pythonHome);
 }
 
 bool Two::init()
