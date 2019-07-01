@@ -264,6 +264,15 @@ func traceCount(req *http.Request) int64 {
 	return int64(n)
 }
 
+func (r *HTTPReceiver) tagStats(req *http.Request) *info.TagStats {
+	return r.Stats.GetTagStats(info.Tags{
+		Lang:          req.Header.Get("Datadog-Meta-Lang"),
+		LangVersion:   req.Header.Get("Datadog-Meta-Lang-Version"),
+		Interpreter:   req.Header.Get("Datadog-Meta-Lang-Interpreter"),
+		TracerVersion: req.Header.Get("Datadog-Meta-Tracer-Version"),
+	})
+}
+
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
 	traceCount := traceCount(req)
@@ -278,15 +287,10 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		return
 	}
 
-	ts := r.Stats.GetTagStats(info.Tags{
-		Lang:          req.Header.Get("Datadog-Meta-Lang"),
-		LangVersion:   req.Header.Get("Datadog-Meta-Lang-Version"),
-		Interpreter:   req.Header.Get("Datadog-Meta-Lang-Interpreter"),
-		TracerVersion: req.Header.Get("Datadog-Meta-Tracer-Version"),
-	})
+	ts := r.tagStats(req)
+	mediaType := getMediaType(req)
 
 	var traces pb.Traces
-	mediaType := getMediaType(req)
 	switch v {
 	case v01:
 		// We cannot use decodeReceiverPayload because []model.Span does not
