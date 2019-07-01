@@ -75,9 +75,6 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # Starting with 6.10, integrations are also uninstalled on package removal
         #
 
-        # TODO(remy): remove
-        echo "preinst"
-
         # Since 6.13, a file containing all integrations which have been installed by
         # the package is available, we use it to remove only the files which have *NOT*
         # been installed by the package.
@@ -89,9 +86,6 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
                 cat $INSTALL_DIR/embedded/.extra-integrations.txt
                 cat $INSTALL_DIR/embedded/.extra-integrations.txt | grep -v '^#' | xargs rm -rf
             fi
-
-            # TODO(remy): uncommentme
-            cp $INSTALL_DIR/embedded/.{extra,all}-integrations.txt /tmp
 
             rm $INSTALL_DIR/embedded/.{extra,all}-integrations.txt
         else

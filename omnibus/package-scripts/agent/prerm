@@ -80,15 +80,11 @@ remove_py_compiled_files()
     fi
 }
 
-# TODO(remy): remove
 uninstall_integrations()
 {
     #
     # Starting with 6.10, integrations are also uninstalled on package removal
     #
-
-    # TODO(remy): remove
-    echo "prerm"
 
     echo "Uninstalling integrations..."
 
@@ -104,9 +100,6 @@ uninstall_integrations()
             cat $INSTALL_DIR/embedded/.extra-integrations.txt
             cat $INSTALL_DIR/embedded/.extra-integrations.txt | grep -v '^#' | xargs rm -rf
         fi
-
-        # TODO(remy): uncommentme
-        cp $INSTALL_DIR/embedded/.{extra,all}-integrations.txt /tmp
 
         rm $INSTALL_DIR/embedded/.{extra,all}-integrations.txt
     else
@@ -125,7 +118,6 @@ if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIB
     deregister_agent
     uninstall_integrations
     remove_py_compiled_files
-    remove_downloader_data
 elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
     stop_agent
     deregister_agent
