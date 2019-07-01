@@ -68,22 +68,22 @@ jobs:
           command: |
             inv deps --verbose
       - run:
-          name: build six
+          name: build rtloader
           command: |
-            inv six.build --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
-            inv six.install
+            inv rtloader.build --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
+            inv rtloader.install
       - run:
-          name: lint six
+          name: lint rtloader
           command: |
-            inv six.format
-            # only check for diff in six folder since "inv deps" step might update Gopkg.lock
-            [[ $(git ls-files -m six | wc -l) -eq 0 ]]
+            inv rtloader.format
+            # only check for diff in rtloader folder since "inv deps" step might update Gopkg.lock
+            [[ $(git ls-files -m rtloader | wc -l) -eq 0 ]]
       - run:
-          name: test six
+          name: test rtloader
           command: |
             # remove base check before running tests, go on if pip fails
             pip uninstall datadog-checks-base -y || :
-            inv six.test
+            inv rtloader.test
       - run:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only

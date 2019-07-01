@@ -8,83 +8,77 @@ package sender
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-func TestMessageBufferRequestSize(t *testing.T) {
-	mb := NewMessageBuffer(2, 1000)
-	source := config.NewLogSource("", &config.LogsConfig{})
-	//Add a first message lower than request size, should append and not trigger a send yet
-	success := mb.TryAddMessage(newMessage(make([]byte, 500), source, ""))
-	assert.True(t, success)
-	//Try to add a second message above the request size, should not append and trigger a send
-	success = mb.TryAddMessage(newMessage(make([]byte, 501), source, ""))
-	assert.False(t, success)
-	mb.Clear()
-	//Clearing, try to add the previous message again, should append and not trigger a send
-	success = mb.TryAddMessage(newMessage(make([]byte, 501), source, ""))
-	assert.True(t, success)
+func TestMessageBufferSize(t *testing.T) {
+	buffer := NewMessageBuffer(2, 3)
+
+	// expect buffer to be empty
+	assert.True(t, buffer.IsEmpty())
+	assert.False(t, buffer.IsFull())
+
+	// expect add to success
+	assert.True(t, buffer.AddMessage(message.NewMessage([]byte("a"), nil, "")))
+	assert.Len(t, buffer.GetMessages(), 1)
+	assert.False(t, buffer.IsEmpty())
+	assert.False(t, buffer.IsFull())
+	assert.Equal(t, buffer.GetMessages()[0].Content, []byte("a"))
+
+	// expect add to success and buffer to be full
+	assert.True(t, buffer.AddMessage(message.NewMessage([]byte("b"), nil, "")))
+	assert.Len(t, buffer.GetMessages(), 2)
+	assert.False(t, buffer.IsEmpty())
+	assert.True(t, buffer.IsFull())
+	assert.Equal(t, buffer.GetMessages()[1].Content, []byte("b"))
+
+	// expect add to success to fail because of buffer full
+	assert.False(t, buffer.AddMessage(message.NewMessage([]byte("c"), nil, "")))
+	assert.Len(t, buffer.GetMessages(), 2)
+	assert.False(t, buffer.IsEmpty())
+	assert.True(t, buffer.IsFull())
+	assert.Equal(t, buffer.GetMessages()[1].Content, []byte("b"))
+
+	// expect buffer to be empty
+	buffer.Clear()
+	assert.Len(t, buffer.GetMessages(), 0)
+	assert.True(t, buffer.IsEmpty())
+	assert.False(t, buffer.IsFull())
 }
 
-func TestMessageBufferBatchCount(t *testing.T) {
-	mb := NewMessageBuffer(2, 1000)
-	source := config.NewLogSource("", &config.LogsConfig{})
-	//Add a first message lower than request size, should append
-	success := mb.TryAddMessage(newMessage(make([]byte, 10), source, ""))
-	assert.True(t, success)
-	//Try to add a second message lower the request size, should append
-	success = mb.TryAddMessage(newMessage(make([]byte, 10), source, ""))
-	assert.True(t, success)
-	//Try to add a third message should fail append
-	success = mb.TryAddMessage(newMessage(make([]byte, 10), source, ""))
-	assert.False(t, success)
-	mb.Clear()
-	//Clearing, add a new message, should append and not trigger a send
-	success = mb.TryAddMessage(newMessage(make([]byte, 10), source, ""))
-	assert.True(t, success)
-}
+func TestMessageBufferContentSize(t *testing.T) {
+	buffer := NewMessageBuffer(3, 2)
 
-func TestMessageBufferPayload(t *testing.T) {
-	mb := NewMessageBuffer(2, 1000)
-	source := config.NewLogSource("", &config.LogsConfig{})
-	buffer := string(mb.GetPayload())
-	assert.Equal(t, "[", buffer)
-	mb.Clear()
-	mb.TryAddMessage(newMessage([]byte("messagebuffer"), source, ""))
-	buffer = string(mb.GetPayload())
-	assert.Equal(t, "[messagebuffer]", buffer)
-	mb.Clear()
-	mb.TryAddMessage(newMessage([]byte("messagebuffer"), source, ""))
-	mb.TryAddMessage(newMessage([]byte("messagebuffer"), source, ""))
-	buffer = string(mb.GetPayload())
-	assert.Equal(t, "[messagebuffer,messagebuffer]", buffer)
-	buffer = string(mb.GetPayload())
-	assert.Equal(t, "[messagebuffer,messagebuffer]", buffer)
-}
+	// expect buffer to be empty
+	assert.True(t, buffer.IsEmpty())
+	assert.False(t, buffer.IsFull())
 
-func TestMessageBufferIsFullEmpty(t *testing.T) {
-	mb := NewMessageBuffer(2, 1000)
-	assert.True(t, mb.IsEmpty())
-	assert.False(t, mb.IsFull())
-	source := config.NewLogSource("", &config.LogsConfig{})
-	mb.TryAddMessage(newMessage([]byte("messagebuffer"), source, ""))
-	assert.False(t, mb.IsEmpty())
-	assert.False(t, mb.IsFull())
-	mb.TryAddMessage(newMessage([]byte("messagebuffer"), source, ""))
-	assert.False(t, mb.IsEmpty())
-	assert.True(t, mb.IsFull())
-}
+	// expect add to success
+	assert.True(t, buffer.AddMessage(message.NewMessage([]byte("a"), nil, "")))
+	assert.Len(t, buffer.GetMessages(), 1)
+	assert.False(t, buffer.IsEmpty())
+	assert.False(t, buffer.IsFull())
+	assert.Equal(t, buffer.GetMessages()[0].Content, []byte("a"))
 
-func TestMessageBufferGetMessages(t *testing.T) {
-	mb := NewMessageBuffer(2, 1000)
-	source := config.NewLogSource("", &config.LogsConfig{})
-	msgs := mb.GetMessages()
-	assert.Equal(t, 0, len(msgs))
-	m1 := newMessage([]byte("messagebuffer"), source, "")
-	mb.TryAddMessage(m1)
-	msgs = mb.GetMessages()
-	assert.Equal(t, 1, len(msgs))
-	assert.Equal(t, m1, msgs[0])
+	// expect add to success and buffer to be full
+	assert.True(t, buffer.AddMessage(message.NewMessage([]byte("b"), nil, "")))
+	assert.Len(t, buffer.GetMessages(), 2)
+	assert.False(t, buffer.IsEmpty())
+	assert.True(t, buffer.IsFull())
+	assert.Equal(t, buffer.GetMessages()[1].Content, []byte("b"))
 
+	// expect add to success to fail because of buffer full
+	assert.False(t, buffer.AddMessage(message.NewMessage([]byte("c"), nil, "")))
+	assert.Len(t, buffer.GetMessages(), 2)
+	assert.False(t, buffer.IsEmpty())
+	assert.True(t, buffer.IsFull())
+	assert.Equal(t, buffer.GetMessages()[1].Content, []byte("b"))
+
+	// expect buffer to be empty
+	buffer.Clear()
+	assert.Len(t, buffer.GetMessages(), 0)
+	assert.True(t, buffer.IsEmpty())
+	assert.False(t, buffer.IsFull())
 }

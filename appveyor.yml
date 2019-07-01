@@ -35,10 +35,10 @@ cache:
 build: off
 
 test_script:
-  - inv -e six.build --install-prefix=%APPVEYOR_BUILD_FOLDER%\dev --cmake-options="-G \"MSYS Makefiles\""
-  - inv -e six.install
-  - inv -e six.format
-  - inv -e six.test
+  - inv -e rtloader.build --install-prefix=%APPVEYOR_BUILD_FOLDER%\dev --cmake-options="-G \"MSYS Makefiles\""
+  - inv -e rtloader.install
+  - inv -e rtloader.format
+  - inv -e rtloader.test
   - inv -e deps
   - inv -e test --coverage --profile --fail-on-fmt --python-home-2=C:\Python27-x64 --python-home-3=C:\Python37-x64
   - codecov -f profile.cov -F windows

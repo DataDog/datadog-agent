@@ -37,7 +37,7 @@ func NewHTTPServerTest(statusCode int) *HTTPServerTest {
 		Host:   strings.Replace(url[1], "/", "", -1),
 		Port:   port,
 		UseSSL: false,
-	}, destCtx)
+	}, JSONContentType, destCtx)
 	return &HTTPServerTest{
 		httpServer:  ts,
 		destCtx:     destCtx,
@@ -89,6 +89,8 @@ func TestDestinationSend500(t *testing.T) {
 	server := NewHTTPServerTest(500)
 	err := server.destination.Send([]byte("yo"))
 	assert.NotNil(t, err)
+	_, ok := err.(*client.RetryableError)
+	assert.True(t, ok)
 	assert.Equal(t, "server error", err.Error())
 	server.stop()
 }
@@ -97,6 +99,8 @@ func TestDestinationSend400(t *testing.T) {
 	server := NewHTTPServerTest(400)
 	err := server.destination.Send([]byte("yo"))
 	assert.NotNil(t, err)
+	_, ok := err.(*client.RetryableError)
+	assert.False(t, ok)
 	assert.Equal(t, "client error", err.Error())
 	server.stop()
 }

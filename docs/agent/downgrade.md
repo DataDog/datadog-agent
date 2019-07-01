@@ -1,6 +1,6 @@
 # Downgrade back to Agent 5
 
-This guide assumes you upgraded to the beta using our [upgrade guide][upgrade-guide]
+This guide assumes you upgraded to the Agent v6 using our [upgrade guide][upgrade-guide]
 
 We have been careful to keep the legacy configurations in place to ease the the
 downgrade process should you decide you do not wish to continue trying the beta.
