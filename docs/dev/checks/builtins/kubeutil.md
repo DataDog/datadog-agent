@@ -10,8 +10,8 @@ kubernetes clusters.
 
 ## Implementation
 
-* [kubeutil.c](/six/common/builtins/kubeutil.c)
-* [kubeutil.h](/six/common/builtins/kubeutil.h)
+* [kubeutil.c](/rtloader/common/builtins/kubeutil.c)
+* [kubeutil.h](/rtloader/common/builtins/kubeutil.h)
 * [kubeutil.go](/pkg/collector/python/kubeutil.go)
 
 ## Functions

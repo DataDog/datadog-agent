@@ -9,17 +9,17 @@ The module exposes [tagger](/pkg/tagger) functionalities to Python integrations.
 
 ## Implementation
 
-* [tagger.c](/six/common/builtins/tagger.c)
-* [tagger.h](/six/common/builtins/tagger.h)
+* [tagger.c](/rtloader/common/builtins/tagger.c)
+* [tagger.h](/rtloader/common/builtins/tagger.h)
 * [tagger.go](/pkg/collector/python/tagger.go)
 
 ## Constants
 
 ```python
 
-LOW          = DATADOG_AGENT_SIX_TAGGER_LOW
-ORCHESTRATOR = DATADOG_AGENT_SIX_TAGGER_ORCHESTRATOR
-HIGH         = DATADOG_AGENT_SIX_TAGGER_HIGH
+LOW          = DATADOG_AGENT_RTLOADER_TAGGER_LOW
+ORCHESTRATOR = DATADOG_AGENT_RTLOADER_TAGGER_ORCHESTRATOR
+HIGH         = DATADOG_AGENT_RTLOADER_TAGGER_HIGH
 
 ```
 

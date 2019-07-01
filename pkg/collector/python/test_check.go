@@ -19,63 +19,63 @@ import (
 )
 
 /*
-#include <datadog_agent_six.h>
+#include <datadog_agent_rtloader.h>
 #include <stdlib.h>
 
 int gil_locked_calls = 0;
-six_gilstate_t ensure_gil(six_t *s) {
+rtloader_gilstate_t ensure_gil(rtloader_t *s) {
 	gil_locked_calls++;
 	return 0;
 }
 
 int gil_unlocked_calls = 0;
-void release_gil(six_t *s, six_gilstate_t state) {
+void release_gil(rtloader_t *s, rtloader_gilstate_t state) {
 	gil_unlocked_calls++;
 }
 
-int six_incref_calls = 0;
-void six_incref(six_t *s, six_pyobject_t *p) {
-	six_incref_calls++;
+int rtloader_incref_calls = 0;
+void rtloader_incref(rtloader_t *s, rtloader_pyobject_t *p) {
+	rtloader_incref_calls++;
 	return;
 }
 
-int six_decref_calls = 0;
-void six_decref(six_t *s, six_pyobject_t *p) {
-	six_decref_calls++;
+int rtloader_decref_calls = 0;
+void rtloader_decref(rtloader_t *s, rtloader_pyobject_t *p) {
+	rtloader_decref_calls++;
 	return;
 }
 
 char **get_checks_warnings_return = NULL;
 int get_checks_warnings_calls = 0;
-char **get_checks_warnings(six_t *s, six_pyobject_t *check) {
+char **get_checks_warnings(rtloader_t *s, rtloader_pyobject_t *check) {
 	get_checks_warnings_calls++;
 	return get_checks_warnings_return;
 }
 
 int has_error_calls = 0;
 int has_error_return = 0;
-int has_error(const six_t *s) {
+int has_error(const rtloader_t *s) {
 	has_error_calls++;
 	return has_error_return;
 }
 
 int get_error_calls = 0;
 char *get_error_return = "";
-const char *get_error(const six_t *s) {
+const char *get_error(const rtloader_t *s) {
 	get_error_calls++;
 	return get_error_return;
 }
 
-int six_free_calls = 0;
-void six_free(six_t *s, void *p) {
-	six_free_calls++;
+int rtloader_free_calls = 0;
+void rtloader_free(rtloader_t *s, void *p) {
+	rtloader_free_calls++;
 	return;
 }
 
 int run_check_calls = 0;
 char *run_check_return = NULL;
-six_pyobject_t *run_check_instance = NULL;
-const char *run_check(six_t *s, six_pyobject_t *check) {
+rtloader_pyobject_t *run_check_instance = NULL;
+const char *run_check(rtloader_t *s, rtloader_pyobject_t *check) {
 	run_check_instance = check;
 	run_check_calls++;
 	return run_check_return;
@@ -87,15 +87,15 @@ const char *run_check(six_t *s, six_pyobject_t *check) {
 
 int get_check_return = 0;
 int get_check_calls = 0;
-six_pyobject_t *get_check_py_class = NULL;
+rtloader_pyobject_t *get_check_py_class = NULL;
 const char *get_check_init_config = NULL;
 const char *get_check_instance = NULL;
 const char *get_check_check_id = NULL;
 const char *get_check_check_name = NULL;
-six_pyobject_t *get_check_check = NULL;
+rtloader_pyobject_t *get_check_check = NULL;
 
-int get_check(six_t *six, six_pyobject_t *py_class, const char *init_config, const char *instance,
-const char *check_id, const char *check_name, six_pyobject_t **check) {
+int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char *instance,
+const char *check_id, const char *check_name, rtloader_pyobject_t **check) {
 
 	get_check_py_class = py_class;
 	get_check_init_config = strdup(init_config);
@@ -112,17 +112,17 @@ const char *check_id, const char *check_name, six_pyobject_t **check) {
 
 int get_check_deprecated_calls = 0;
 int get_check_deprecated_return = 0;
-six_pyobject_t *get_check_deprecated_py_class = NULL;
+rtloader_pyobject_t *get_check_deprecated_py_class = NULL;
 const char *get_check_deprecated_init_config = NULL;
 const char *get_check_deprecated_instance = NULL;
 const char *get_check_deprecated_check_id = NULL;
 const char *get_check_deprecated_check_name = NULL;
 const char *get_check_deprecated_agent_config = NULL;
-six_pyobject_t *get_check_deprecated_check = NULL;
+rtloader_pyobject_t *get_check_deprecated_check = NULL;
 
-int get_check_deprecated(six_t *six, six_pyobject_t *py_class, const char *init_config,
+int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config,
 const char *instance, const char *agent_config, const char *check_id, const char *check_name,
-six_pyobject_t **check) {
+rtloader_pyobject_t **check) {
 
 	get_check_deprecated_py_class = py_class;
 	get_check_deprecated_init_config = strdup(init_config);
@@ -139,15 +139,15 @@ six_pyobject_t **check) {
 void reset_check_mock() {
 	gil_locked_calls = 0;
 	gil_unlocked_calls = 0;
-	six_incref_calls = 0;
-	six_decref_calls = 0;
+	rtloader_incref_calls = 0;
+	rtloader_decref_calls = 0;
 	get_checks_warnings_return = NULL;
 	get_checks_warnings_calls = 0;
 	has_error_calls = 0;
 	has_error_return = 0;
 	get_error_calls = 0;
 	get_error_return = "";
-	six_free_calls = 0;
+	rtloader_free_calls = 0;
 	run_check_calls = 0;
 	get_check_return = 0;
 
@@ -176,7 +176,7 @@ import "C"
 
 func testRunCheck(t *testing.T) {
 	check := NewPythonCheck("fake_check", nil)
-	check.instance = &C.six_pyobject_t{}
+	check.instance = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
 	C.run_check_return = C.CString("")
@@ -197,7 +197,7 @@ func testRunCheck(t *testing.T) {
 
 func testRunErrorNil(t *testing.T) {
 	check := NewPythonCheck("fake_check", nil)
-	check.instance = &C.six_pyobject_t{}
+	check.instance = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
 	C.run_check_return = nil
@@ -218,7 +218,7 @@ func testRunErrorNil(t *testing.T) {
 
 func testRunErrorReturn(t *testing.T) {
 	check := NewPythonCheck("fake_check", nil)
-	check.instance = &C.six_pyobject_t{}
+	check.instance = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
 	C.run_check_return = C.CString("not OK")
@@ -240,7 +240,7 @@ func testRun(t *testing.T) {
 	sender.SetupAcceptAll()
 
 	c := NewPythonCheck("fake_check", nil)
-	c.instance = &C.six_pyobject_t{}
+	c.instance = &C.rtloader_pyobject_t{}
 	c.id = check.ID("testID")
 
 	C.reset_check_mock()
@@ -266,7 +266,7 @@ func testRunSimple(t *testing.T) {
 	sender.SetupAcceptAll()
 
 	c := NewPythonCheck("fake_check", nil)
-	c.instance = &C.six_pyobject_t{}
+	c.instance = &C.rtloader_pyobject_t{}
 	c.id = check.ID("testID")
 
 	C.reset_check_mock()
@@ -289,12 +289,12 @@ func testRunSimple(t *testing.T) {
 
 func testConfigure(t *testing.T) {
 	c := NewPythonCheck("fake_check", nil)
-	c.class = &C.six_pyobject_t{}
+	c.class = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
 
 	C.get_check_return = 1
-	C.get_check_check = &C.six_pyobject_t{}
+	C.get_check_check = &C.rtloader_pyobject_t{}
 	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("aaa"))
 	assert.Nil(t, err)
 
@@ -316,12 +316,12 @@ func testConfigure(t *testing.T) {
 
 func testConfigureDeprecated(t *testing.T) {
 	c := NewPythonCheck("fake_check", nil)
-	c.class = &C.six_pyobject_t{}
+	c.class = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
 
 	C.get_check_return = 0
-	C.get_check_deprecated_check = &C.six_pyobject_t{}
+	C.get_check_deprecated_check = &C.rtloader_pyobject_t{}
 	C.get_check_deprecated_return = 1
 	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("aaa"))
 	assert.Nil(t, err)

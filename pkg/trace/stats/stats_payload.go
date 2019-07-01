@@ -1,9 +1,9 @@
 package stats
 
 import (
-	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"io"
 )
 
 // Payload represents the payload to be flushed to the stats endpoint
@@ -13,17 +13,12 @@ type Payload struct {
 	Stats    []Bucket `json:"stats"`
 }
 
-// EncodePayload encodes the stats payload as json/gzip.
-func EncodePayload(payload *Payload) ([]byte, error) {
-	var b bytes.Buffer
-	var err error
-
-	gz, err := gzip.NewWriterLevel(&b, gzip.BestSpeed)
+// EncodePayload encodes the payload as Gzipped JSON into w.
+func EncodePayload(w io.Writer, payload *Payload) error {
+	gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	err = json.NewEncoder(gz).Encode(payload)
-	gz.Close()
-
-	return b.Bytes(), err
+	defer gz.Close()
+	return json.NewEncoder(gz).Encode(payload)
 }

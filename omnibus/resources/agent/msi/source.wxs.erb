@@ -226,7 +226,7 @@
 
 
         </Component>
-        <Component Id="SIXDLLS" Guid="E81FBBB0-7BB9-4D52-A5F1-36A2123E6979">
+        <Component Id="RTLOADERDLLS" Guid="E81FBBB0-7BB9-4D52-A5F1-36A2123E6979">
           <?if $(var.IncludePython2) = true ?>
           <File Id="twodll"
                 Name="libdatadog-agent-two.dll"
@@ -420,7 +420,7 @@
       <ComponentRef Id="REGISTRYDIRECTORY" />
       <ComponentRef Id="ApplicationShortcut" />
       <ComponentRef Id="DATADOGAGENTSERVICE" />
-      <ComponentRef Id="SIXDLLS" />
+      <ComponentRef Id="RTLOADERDLLS" />
       <ComponentRef Id="DATADOGAPMSERVICE" />
       <ComponentRef Id="DATADOGPROCESSSERVICE" />
       <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />

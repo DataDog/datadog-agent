@@ -21,9 +21,9 @@ import (
 )
 
 /*
-#include <datadog_agent_six.h>
-#cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
-#cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
+#include <datadog_agent_rtloader.h>
+#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 */
 import (
 	"C"
@@ -33,7 +33,7 @@ import (
 //export GetVersion
 func GetVersion(agentVersion **C.char) {
 	av, _ := version.New(version.AgentVersion, version.Commit)
-	// version will be free by six when it's done with it
+	// version will be free by rtloader when it's done with it
 	*agentVersion = C.CString(av.GetNumber())
 }
 
@@ -45,7 +45,7 @@ func GetHostname(hostname **C.char) {
 		log.Warnf("Error getting hostname: %s\n", err)
 		goHostname = ""
 	}
-	// hostname will be free by six when it's done with it
+	// hostname will be free by rtloader when it's done with it
 	*hostname = C.CString(goHostname)
 }
 
@@ -53,7 +53,7 @@ func GetHostname(hostname **C.char) {
 //export GetClusterName
 func GetClusterName(clusterName **C.char) {
 	goClusterName := clustername.GetClusterName()
-	// clusterName will be free by six when it's done with it
+	// clusterName will be free by rtloader when it's done with it
 	*clusterName = C.CString(goClusterName)
 }
 
@@ -68,7 +68,7 @@ func Headers(yamlPayload **C.char) {
 		*yamlPayload = nil
 		return
 	}
-	// yamlPayload will be free by six when it's done with it
+	// yamlPayload will be free by rtloader when it's done with it
 	*yamlPayload = C.CString(string(data))
 }
 
@@ -89,7 +89,7 @@ func GetConfig(key *C.char, yamlPayload **C.char) {
 		*yamlPayload = nil
 		return
 	}
-	// yaml Payload will be free by six when it's done with it
+	// yaml Payload will be free by rtloader when it's done with it
 	*yamlPayload = C.CString(string(data))
 }
 
@@ -121,7 +121,7 @@ func LogMessage(message *C.char, logLevel C.int) {
 	return
 }
 
-// SetExternalTags adds a set of tags for a given hostnane to the External Host
+// SetExternalTags adds a set of tags for a given hostname to the External Host
 // Tags metadata provider cache.
 //export SetExternalTags
 func SetExternalTags(hostname *C.char, sourceType *C.char, tags **C.char) {

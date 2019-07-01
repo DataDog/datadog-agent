@@ -42,6 +42,7 @@ MISSPELL_IGNORED_TARGETS = [
     os.path.join("cmd", "agent", "dist", "checks", "prometheus_check"),
     os.path.join("cmd", "agent", "gui", "views", "private"),
     os.path.join("pkg", "collector", "corechecks", "system", "testfiles"),
+    os.path.join("pkg", "ebpf", "testdata"),
 ]
 
 @task
@@ -106,7 +107,7 @@ def lint(ctx, targets):
 
 
 @task
-def vet(ctx, targets, six_root=None, build_tags=None):
+def vet(ctx, targets, rtloader_root=None, build_tags=None):
     """
     Run go vet on targets.
 
@@ -123,7 +124,7 @@ def vet(ctx, targets, six_root=None, build_tags=None):
     tags = build_tags or get_default_build_tags()
     tags.append("dovet")
 
-    _, _, env = get_build_flags(ctx, six_root=six_root)
+    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
 
     ctx.run("go vet -tags \"{}\" ".format(" ".join(tags)) + " ".join(args), env=env)
     # go vet exits with status 1 when it finds an issue, if we're here
@@ -266,15 +267,13 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
 
         if core_dir:
             checks_base = os.path.join(os.path.abspath(core_dir), 'datadog_checks_base')
-            ctx.run('pip install -{} -e {}'.format(verbosity, checks_base))
-            ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
+            ctx.run('pip install -{} -e "{}[deps]"'.format(verbosity, checks_base))
         else:
             core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
             checks_base = os.path.join(core_dir, 'datadog_checks_base')
             if not os.path.isdir(core_dir):
                 ctx.run('git clone -{} https://github.com/DataDog/integrations-core {}'.format(verbosity, core_dir))
-            ctx.run('pip install -{} {}'.format(verbosity, checks_base))
-            ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
+            ctx.run('pip install -{} "{}[deps]"'.format(verbosity, checks_base))
     checks_done = datetime.datetime.now()
 
     print("dep ensure, elapsed:    {}".format(dep_done - start))
