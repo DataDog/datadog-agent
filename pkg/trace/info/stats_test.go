@@ -13,13 +13,10 @@ func TestTracesDropped(t *testing.T) {
 	}
 
 	t.Run("StatsToMap", func(t *testing.T) {
-		for k, v := range s.tagValues() {
-			if k == "decoding_error" || k == "foreign_span" {
-				assert.EqualValues(t, v, 1)
-			} else {
-				assert.EqualValues(t, v, 0)
-			}
-		}
+		expected := (&TracesDropped{}).tagValues()
+		expected["decoding_error"] = 1
+		expected["foreign_span"] = 1
+		assert.Equal(t, expected, s.tagValues())
 	})
 
 	t.Run("StatsToString", func(t *testing.T) {
@@ -34,7 +31,7 @@ func TestSpansMalformed(t *testing.T) {
 	}
 
 	t.Run("StatsToMap", func(t *testing.T) {
-		expected := SpansMalformed{}.tagValues()
+		expected := (&SpansMalformed{}).tagValues()
 		expected["service_empty"] = 1
 		expected["resource_empty"] = 1
 		assert.Equal(t, expected, s.tagValues())
