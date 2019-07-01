@@ -348,8 +348,7 @@ func (r *HTTPReceiver) replyTracesOK(v Version, w http.ResponseWriter, req *http
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
-	handled := r.applyPresampler(v, w, req)
-	if handled {
+	if r.applyPresampler(v, w, req) {
 		return
 	}
 
