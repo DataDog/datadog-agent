@@ -273,9 +273,9 @@ func (r *HTTPReceiver) tagStats(req *http.Request) *info.TagStats {
 	})
 }
 
-// handleTraces knows how to handle a bunch of traces
-func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
-	traceCount := traceCount(req)
+// handlePresampler gives the presampler an opportunity to drop the payload, returning true if the request was completed
+// early due to dropping the payload.
+func (r *HTTPReceiver) handlePresampler(v Version, traceCount int64, w http.ResponseWriter, req *http.Request) bool {
 	if !r.PreSampler.SampleWithCount(traceCount) {
 		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(r.presamplerResponse)
@@ -286,10 +286,14 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			httpRateByService(w, r.dynConf)
 		}
 		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, nil, 1)
-		return
+		return true
 	}
+	return false
+}
 
-	ts := r.tagStats(req)
+// handleDecodeTraces decodes the trace payload from the request. It returns the decoded trace payload along with a bool
+// saying whether it completed the request early due to an error.
+func (r *HTTPReceiver) handleDecodeTraces(v Version, traceCount int64, ts *info.TagStats, w http.ResponseWriter, req *http.Request) (pb.Traces, bool) {
 	mediaType := getMediaType(req)
 	var traces pb.Traces
 	switch v {
@@ -302,7 +306,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			// ok
 		default:
 			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
-			return
+			return traces, true
 		}
 
 		// in v01 we actually get spans that we have to transform in traces
@@ -311,7 +315,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
 			atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
 			log.Errorf("Cannot decode %s traces payload: %v", v, err)
-			return
+			return traces, true
 		}
 		traces = tracesFromSpans(spans)
 	case v02, v03, v04:
@@ -319,19 +323,42 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
 			atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
 			log.Errorf("Cannot decode %s traces payload: %v", v, err)
-			return
+			return traces, true
 		}
 	default:
 		httpEndpointNotSupported([]string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-		return
+		return traces, true
 	}
 
+	return traces, false
+}
+
+
+// replyTracesOK returns a standard success traces response to the client
+func (r *HTTPReceiver) replyTracesOK(v Version, w http.ResponseWriter, req *http.Request) {
 	switch v {
 	case v01, v02, v03:
 		httpOK(w)
 	case v04:
 		httpRateByService(w, r.dynConf)
 	}
+}
+
+// handleTraces knows how to handle a bunch of traces
+func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
+	traceCount := traceCount(req)
+	handled := r.handlePresampler(v, traceCount, w, req)
+	if handled {
+		return
+	}
+
+	ts := r.tagStats(req)
+	traces, handled := r.handleDecodeTraces(v, traceCount, ts, w, req)
+	if handled {
+		return
+	}
+
+	r.replyTracesOK(v, w, req)
 
 	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
 	atomic.AddInt64(&ts.TracesBytes, int64(req.Body.(*LimitedReader).Count))
