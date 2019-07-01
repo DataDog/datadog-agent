@@ -14,7 +14,7 @@ func TestTracesDropped(t *testing.T) {
 		SpanIDZero: 1,
 	}
 
-	t.Run("StatsToMap", func(t *testing.T) {
+	t.Run("tagValues", func(t *testing.T) {
 		expected := (&TracesDropped{}).tagValues()
 		expected["decoding_error"] = 1
 		expected["foreign_span"] = 1
@@ -23,7 +23,7 @@ func TestTracesDropped(t *testing.T) {
 		assert.Equal(t, expected, s.tagValues())
 	})
 
-	t.Run("StatsToString", func(t *testing.T) {
+	t.Run("String", func(t *testing.T) {
 		assert.Equal(t, "decoding_error:1, foreign_span:1, span_id_zero:1, trace_id_zero:1", s.String())
 	})
 }
@@ -37,7 +37,7 @@ func TestSpansMalformed(t *testing.T) {
 		TypeTruncate:1,
 	}
 
-	t.Run("StatsToMap", func(t *testing.T) {
+	t.Run("tagValues", func(t *testing.T) {
 		expected := (&SpansMalformed{}).tagValues()
 		expected["service_empty"] = 1
 		expected["resource_empty"] = 1
@@ -47,7 +47,7 @@ func TestSpansMalformed(t *testing.T) {
 		assert.Equal(t, expected, s.tagValues())
 	})
 
-	t.Run("StatsToString", func(t *testing.T) {
+	t.Run("String", func(t *testing.T) {
 		assert.Equal(t, "resource_empty:1, service_empty:1, service_invalid:1, span_name_truncate:1, type_truncate:1", s.String())
 	})
 }
