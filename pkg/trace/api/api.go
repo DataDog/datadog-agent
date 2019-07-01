@@ -252,21 +252,6 @@ func (r *HTTPReceiver) httpHandleWithVersion(v Version, f func(Version, http.Res
 	})
 }
 
-func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
-	switch v {
-	case v01:
-		fallthrough
-	case v02:
-		fallthrough
-	case v03:
-		// Simple response, simply acknowledge with "OK"
-		httpOK(w)
-	case v04:
-		// Return the recommended sampling rate for each service as a JSON.
-		httpRateByService(w, r.dynConf)
-	}
-}
-
 func traceCount(req *http.Request) int64 {
 	str := req.Header.Get(headerTraceCount)
 	if str == "" {
@@ -286,7 +271,9 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	if !r.PreSampler.SampleWithCount(traceCount) {
 		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(r.presamplerResponse)
-		r.replyTraces(v, w)
+		if v == v04 {
+			httpRateByService(w, r.dynConf)
+		}
 		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, nil, 1)
 		return
 	}
@@ -334,7 +321,12 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		return
 	}
 
-	r.replyTraces(v, w)
+	switch v {
+	case v01, v02, v03:
+		httpOK(w)
+	case v04:
+		httpRateByService(w, r.dynConf)
+	}
 
 	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
 	atomic.AddInt64(&ts.TracesBytes, int64(req.Body.(*LimitedReader).Count))
