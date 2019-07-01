@@ -176,15 +176,15 @@ func TestReceiverJSONDecoder(t *testing.T) {
 		contentType string
 		traces      []pb.Trace
 	}{
-		{"v02 with empty content-type", newTestReceiverFromConfig(conf), v02, "", testutil.GetTestTrace(1, 1, false)},
-		{"v03 with empty content-type", newTestReceiverFromConfig(conf), v03, "", testutil.GetTestTrace(1, 1, false)},
-		{"v04 with empty content-type", newTestReceiverFromConfig(conf), v04, "", testutil.GetTestTrace(1, 1, false)},
-		{"v02 with application/json", newTestReceiverFromConfig(conf), v02, "application/json", testutil.GetTestTrace(1, 1, false)},
-		{"v03 with application/json", newTestReceiverFromConfig(conf), v03, "application/json", testutil.GetTestTrace(1, 1, false)},
-		{"v04 with application/json", newTestReceiverFromConfig(conf), v04, "application/json", testutil.GetTestTrace(1, 1, false)},
-		{"v02 with text/json", newTestReceiverFromConfig(conf), v02, "text/json", testutil.GetTestTrace(1, 1, false)},
-		{"v03 with text/json", newTestReceiverFromConfig(conf), v03, "text/json", testutil.GetTestTrace(1, 1, false)},
-		{"v04 with text/json", newTestReceiverFromConfig(conf), v04, "text/json", testutil.GetTestTrace(1, 1, false)},
+		{"v02 with empty content-type", newTestReceiverFromConfig(conf), v02, "", testutil.GetTestTraces(1, 1, false)},
+		{"v03 with empty content-type", newTestReceiverFromConfig(conf), v03, "", testutil.GetTestTraces(1, 1, false)},
+		{"v04 with empty content-type", newTestReceiverFromConfig(conf), v04, "", testutil.GetTestTraces(1, 1, false)},
+		{"v02 with application/json", newTestReceiverFromConfig(conf), v02, "application/json", testutil.GetTestTraces(1, 1, false)},
+		{"v03 with application/json", newTestReceiverFromConfig(conf), v03, "application/json", testutil.GetTestTraces(1, 1, false)},
+		{"v04 with application/json", newTestReceiverFromConfig(conf), v04, "application/json", testutil.GetTestTraces(1, 1, false)},
+		{"v02 with text/json", newTestReceiverFromConfig(conf), v02, "text/json", testutil.GetTestTraces(1, 1, false)},
+		{"v03 with text/json", newTestReceiverFromConfig(conf), v03, "text/json", testutil.GetTestTraces(1, 1, false)},
+		{"v04 with text/json", newTestReceiverFromConfig(conf), v04, "text/json", testutil.GetTestTraces(1, 1, false)},
 	}
 
 	for _, tc := range testCases {
@@ -240,10 +240,10 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 		contentType string
 		traces      pb.Traces
 	}{
-		{"v01 with application/msgpack", newTestReceiverFromConfig(conf), v01, "application/msgpack", testutil.GetTestTrace(1, 1, false)},
-		{"v02 with application/msgpack", newTestReceiverFromConfig(conf), v02, "application/msgpack", testutil.GetTestTrace(1, 1, false)},
-		{"v03 with application/msgpack", newTestReceiverFromConfig(conf), v03, "application/msgpack", testutil.GetTestTrace(1, 1, false)},
-		{"v04 with application/msgpack", newTestReceiverFromConfig(conf), v04, "application/msgpack", testutil.GetTestTrace(1, 1, false)},
+		{"v01 with application/msgpack", newTestReceiverFromConfig(conf), v01, "application/msgpack", testutil.GetTestTraces(1, 1, false)},
+		{"v02 with application/msgpack", newTestReceiverFromConfig(conf), v02, "application/msgpack", testutil.GetTestTraces(1, 1, false)},
+		{"v03 with application/msgpack", newTestReceiverFromConfig(conf), v03, "application/msgpack", testutil.GetTestTraces(1, 1, false)},
+		{"v04 with application/msgpack", newTestReceiverFromConfig(conf), v04, "application/msgpack", testutil.GetTestTraces(1, 1, false)},
 	}
 
 	for _, tc := range testCases {
@@ -499,7 +499,7 @@ func TestHandleTraces(t *testing.T) {
 
 	// prepare the msgpack payload
 	var buf bytes.Buffer
-	msgp.Encode(&buf, testutil.GetTestTrace(10, 10, true))
+	msgp.Encode(&buf, testutil.GetTestTraces(10, 10, true))
 
 	// prepare the receiver
 	conf := newTestReceiverConfig()
@@ -563,7 +563,7 @@ func TestReceiverPreSamplerCancel(t *testing.T) {
 	var buf bytes.Buffer
 
 	n := 100 // Payloads need to be big enough, else bug is not triggered
-	msgp.Encode(&buf, testutil.GetTestTrace(n, n, true))
+	msgp.Encode(&buf, testutil.GetTestTraces(n, n, true))
 
 	conf := newTestReceiverConfig()
 	receiver := newTestReceiverFromConfig(conf)
@@ -617,7 +617,7 @@ func BenchmarkHandleTracesFromOneApp(b *testing.B) {
 	// prepare the payload
 	// msgpack payload
 	var buf bytes.Buffer
-	msgp.Encode(&buf, testutil.GetTestTrace(1, 1, true))
+	msgp.Encode(&buf, testutil.GetTestTraces(1, 1, true))
 
 	// prepare the receiver
 	conf := newTestReceiverConfig()
@@ -657,7 +657,7 @@ func BenchmarkHandleTracesFromMultipleApps(b *testing.B) {
 	// prepare the payload
 	// msgpack payload
 	var buf bytes.Buffer
-	msgp.Encode(&buf, testutil.GetTestTrace(1, 1, true))
+	msgp.Encode(&buf, testutil.GetTestTraces(1, 1, true))
 
 	// prepare the receiver
 	conf := newTestReceiverConfig()
@@ -695,7 +695,7 @@ func BenchmarkHandleTracesFromMultipleApps(b *testing.B) {
 
 func BenchmarkDecoderJSON(b *testing.B) {
 	assert := assert.New(b)
-	traces := testutil.GetTestTrace(150, 66, true)
+	traces := testutil.GetTestTraces(150, 66, true)
 
 	// json payload
 	payload, err := json.Marshal(traces)
@@ -720,7 +720,7 @@ func BenchmarkDecoderMsgpack(b *testing.B) {
 
 	// msgpack payload
 	var buf bytes.Buffer
-	err := msgp.Encode(&buf, testutil.GetTestTrace(150, 66, true))
+	err := msgp.Encode(&buf, testutil.GetTestTraces(150, 66, true))
 	assert.Nil(err)
 
 	// benchmark
