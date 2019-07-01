@@ -41,7 +41,6 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	if ts.Lang != "" {
 		fallbackServiceName = ts.Lang
 	}
-
 	if s.TraceID == 0 {
 		atomic.AddInt64(&ts.TracesDropped.TraceIDZero, 1)
 		return fmt.Errorf("TraceID is zero (reason:trace_id_zero): %s", s)
@@ -50,8 +49,6 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 		atomic.AddInt64(&ts.TracesDropped.SpanIDZero, 1)
 		return fmt.Errorf("SpanID is zero (reason:span_id_zero): %s", s)
 	}
-
-	// Service
 	if s.Service == "" {
 		atomic.AddInt64(&ts.SpansMalformed.ServiceEmpty, 1)
 		log.Debugf("Fixing malformed trace. Service is empty (reason:service_empty), setting span.service=%s: %s", fallbackServiceName, s)
@@ -71,7 +68,6 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	}
 	s.Service = svc
 
-	// Name
 	if s.Name == "" {
 		atomic.AddInt64(&ts.SpansMalformed.SpanNameEmpty, 1)
 		log.Debugf("Fixing malformed trace. Name is empty (reason:span_name_empty), setting span.name=%s: %s", DefaultSpanName, s)
@@ -116,7 +112,6 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 		log.Debugf("Fixing malformed trace. Start date is invalid (reason:invalid_start_date), setting span.start=time.now(): %s", s)
 		s.Start = time.Now().UnixNano()
 	}
-
 	if s.Duration < 0 {
 		atomic.AddInt64(&ts.SpansMalformed.InvalidDuration, 1)
 		log.Debugf("Fixing malformed trace. Duration is invalid (reason:invalid_duration), setting span.duration=0: %s", s)
@@ -125,14 +120,12 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 
 	// ParentID set on the client side, no way of checking
 
-	// Type
 	s.Type = toUTF8(s.Type)
 	if len(s.Type) > MaxTypeLen {
 		atomic.AddInt64(&ts.SpansMalformed.TypeTruncate, 1)
 		log.Debugf("Fixing malformed trace. Type is too long (reason:type_truncate), truncating span.type to length=%d: %s", MaxTypeLen, s)
 		s.Type = s.Type[:MaxTypeLen]
 	}
-
 	for k, v := range s.Meta {
 		utf8K := toUTF8(k)
 
@@ -143,13 +136,9 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 
 		s.Meta[k] = toUTF8(v)
 	}
-
-	// Environment
 	if env, ok := s.Meta["env"]; ok {
 		s.Meta["env"] = normalizeTag(env)
 	}
-
-	// Status Code
 	if sc, ok := s.Meta["http.status_code"]; ok {
 		if !isValidStatusCode(sc) {
 			atomic.AddInt64(&ts.SpansMalformed.InvalidHTTPStatusCode, 1)
@@ -157,7 +146,6 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 			delete(s.Meta, "http.status_code")
 		}
 	}
-
 	return nil
 }
 
