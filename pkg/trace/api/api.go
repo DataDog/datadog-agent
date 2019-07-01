@@ -336,7 +336,6 @@ func (r *HTTPReceiver) decodeTraces(v Version, ts *info.TagStats, w http.Respons
 	return
 }
 
-
 // replyTracesOK returns a standard success traces response to the client
 func (r *HTTPReceiver) replyTracesOK(v Version, w http.ResponseWriter, req *http.Request) {
 	switch v {
