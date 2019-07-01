@@ -1,4 +1,4 @@
-#!/bin/sh -xe
+#!/bin/sh
 #
 # Perform necessary datadog-agent setup steps before package is installed.
 #
