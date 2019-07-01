@@ -58,7 +58,7 @@ func TestBatchFlushOnStop(t *testing.T) {
 	batcher.Shutdown()
 }
 
-func TestBatchFlushOnCommit(t *testing.T) {
+func TestBatchFlushOnComplete(t *testing.T) {
 	serializer := serializer2.NewAgentV1MockSerializer()
 	batcher := newAsynchronousBatcher(serializer, testHost, testAgent, 100)
 
@@ -85,7 +85,7 @@ func TestBatchFlushOnCommit(t *testing.T) {
 	batcher.Shutdown()
 }
 
-func TestBatchNoDataNoCommit(t *testing.T) {
+func TestBatchNoDataNoComplete(t *testing.T) {
 	serializer := serializer2.NewAgentV1MockSerializer()
 	batcher := newAsynchronousBatcher(serializer, testHost, testAgent, 100)
 

@@ -5,6 +5,6 @@
 
 #include <Python.h>
 
-void initstackstate();
+void inittopology();
 
 #endif //_PY_MIRROR_API_H

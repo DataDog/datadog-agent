@@ -17,7 +17,7 @@ import (
 
 // #cgo pkg-config: python-2.7
 // #cgo windows LDFLAGS: -Wl,--allow-multiple-definition
-// #include "stackstate_api.h"
+// #include "topology_api.h"
 // #include "api.h"
 // #include "stdlib.h"
 // #include <Python.h>
@@ -232,6 +232,6 @@ func extractStructureValueFrom(value *C.PyObject, checkID string) (_value interf
 	}
 }
 
-func initStackState() {
-	C.initstackstate()
+func initTopology() {
+	C.inittopology()
 }

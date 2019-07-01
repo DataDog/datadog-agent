@@ -8,21 +8,21 @@ import (
 // Topologies is the type representing topologies gathered per check
 type Topologies map[check.ID]topology.Topology
 
-// TopologyBuilder is a helper class to build topology based on submitted data
+// TopologyBuilder is a helper class to build topology based on submitted data, this data structure is not thread safe
 type TopologyBuilder struct {
 	topologies Topologies
 	// Count the amount of elements we gathered
 	elementCount int
 	// Amount of elements when we flush
-	flushElementCount int
+	maxCapacity int
 }
 
 // NewTopologyBuilder constructs a TopologyBuilder
-func NewTopologyBuilder(flushElementCount int) TopologyBuilder {
+func NewTopologyBuilder(maxCapacity int) TopologyBuilder {
 	return TopologyBuilder{
-		topologies:        make(map[check.ID]topology.Topology),
-		elementCount:      0,
-		flushElementCount: flushElementCount,
+		topologies:   make(map[check.ID]topology.Topology),
+		elementCount: 0,
+		maxCapacity:  maxCapacity,
 	}
 }
 
@@ -86,7 +86,7 @@ func (builder *TopologyBuilder) Flush() Topologies {
 func (builder *TopologyBuilder) incrementAndTryFlush() Topologies {
 	builder.elementCount = builder.elementCount + 1
 
-	if builder.elementCount >= builder.flushElementCount {
+	if builder.elementCount >= builder.maxCapacity {
 		return builder.Flush()
 	}
 

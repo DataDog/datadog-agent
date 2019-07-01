@@ -186,7 +186,7 @@ func StartAgent() error {
 	agg := aggregator.InitAggregator(s, hostname, "agent")
 	agg.AddAgentStartupEvent(version.AgentVersion)
 
-	batcher.InitBatcher(s, hostname, "agent", config.GetBatcherLimit())
+	batcher.InitBatcher(s, hostname, "agent", config.GetMaxCapacity())
 
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {

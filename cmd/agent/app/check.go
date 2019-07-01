@@ -104,7 +104,7 @@ var checkCmd = &cobra.Command{
 
 		s := serializer.NewSerializer(common.Forwarder)
 		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, "agent", checkCmdFlushInterval)
-		batcher.InitBatcher(&printingAgentV1Serializer{}, hostname, "agent", config.GetBatcherLimit())
+		batcher.InitBatcher(&printingAgentV1Serializer{}, hostname, "agent", config.GetMaxCapacity())
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 		cs := collector.GetChecksByNameForConfigs(checkName, common.AC.GetAllConfigs())
 		if len(cs) == 0 {

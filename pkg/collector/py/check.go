@@ -14,8 +14,8 @@ import (
 	"runtime"
 	"time"
 
-	python "github.com/sbinet/go-python"
-	yaml "gopkg.in/yaml.v2"
+	"github.com/sbinet/go-python"
+	"gopkg.in/yaml.v2"
 
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
@@ -65,6 +65,7 @@ func (c *PythonCheck) Run() error {
 	emptyTuple := python.PyTuple_New(0)
 	defer emptyTuple.DecRef()
 	result := c.instance.CallMethod("run", emptyTuple)
+	batcher.GetBatcher().SubmitComplete(c.ID())
 	log.Debugf("Run returned for %s %s", c.ModuleName, c.id)
 	if result == nil {
 		pyErr, err := gstate.getPythonError()
@@ -81,7 +82,6 @@ func (c *PythonCheck) Run() error {
 	}
 
 	s.Commit()
-	batcher.GetBatcher().SubmitComplete(c.ID())
 
 	// grab the warnings and add them to the struct
 	c.lastWarnings = c.getPythonWarnings(gstate)

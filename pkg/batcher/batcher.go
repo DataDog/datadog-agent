@@ -26,15 +26,15 @@ type Batcher interface {
 }
 
 // InitBatcher initializes the global batcher instance
-func InitBatcher(serializer serializer.AgentV1Serializer, hostname, agentName string, batchLimit int) {
+func InitBatcher(serializer serializer.AgentV1Serializer, hostname, agentName string, maxCapacity int) {
 	batcherInit.Do(func() {
-		batcherInstance = newAsynchronousBatcher(serializer, hostname, agentName, batchLimit)
+		batcherInstance = newAsynchronousBatcher(serializer, hostname, agentName, maxCapacity)
 	})
 }
 
-func newAsynchronousBatcher(serializer serializer.AgentV1Serializer, hostname, agentName string, batchLimit int) AsynchronousBatcher {
+func newAsynchronousBatcher(serializer serializer.AgentV1Serializer, hostname, agentName string, maxCapacity int) AsynchronousBatcher {
 	batcher := AsynchronousBatcher{
-		builder:    NewTopologyBuilder(batchLimit),
+		builder:    NewTopologyBuilder(maxCapacity),
 		hostname:   hostname,
 		agentName:  agentName,
 		input:      make(chan interface{}),

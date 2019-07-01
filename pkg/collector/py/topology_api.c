@@ -1,6 +1,6 @@
 // +build cpython
 
-#include "stackstate_api.h"
+#include "topology_api.h"
 
 PyObject* SubmitComponent(PyObject*, char*, PyObject*, char*, char*, PyObject*);
 PyObject* SubmitRelation(PyObject*, char*, PyObject*, char*, char*, char*, PyObject*);
@@ -90,7 +90,7 @@ static PyMethodDef TopologyMethods[] = {
   {NULL, NULL}  // guards
 };
 
-void initstackstate()
+void inittopology()
 {
   PyGILState_STATE gstate;
   gstate = PyGILState_Ensure();

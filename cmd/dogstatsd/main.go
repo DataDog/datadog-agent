@@ -186,7 +186,7 @@ func start(cmd *cobra.Command, args []string) error {
 
 	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")
 
-	batcher.InitBatcher(s, hname, "agent", config.GetBatcherLimit())
+	batcher.InitBatcher(s, hname, "agent", config.GetMaxCapacity())
 
 	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetBufferedChannels())
 	if err != nil {

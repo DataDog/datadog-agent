@@ -162,7 +162,7 @@ func start(cmd *cobra.Command, args []string) error {
 	aggregatorInstance := aggregator.InitAggregator(s, hostname, "cluster_agent")
 	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
-	batcher.InitBatcher(s, hostname, "agent", config.GetBatcherLimit())
+	batcher.InitBatcher(s, hostname, "agent", config.GetMaxCapacity())
 
 	log.Infof("Datadog Cluster Agent is now running.")
 
