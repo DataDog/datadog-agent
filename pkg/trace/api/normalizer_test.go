@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"math"
 	"math/rand"
 	"strings"
 	"testing"
@@ -239,6 +240,15 @@ func TestNormalizeNegativeDuration(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Duration = -50
+	assert.NoError(t, normalize(ts, s))
+	assert.EqualValues(t, s.Duration, 0)
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidDuration: 1}), ts)
+}
+
+func TestNormalizeLargeDuration(t *testing.T) {
+	ts := newTagStats()
+	s := newTestSpan()
+	s.Duration = int64(math.MaxInt64)
 	assert.NoError(t, normalize(ts, s))
 	assert.EqualValues(t, s.Duration, 0)
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidDuration: 1}), ts)
