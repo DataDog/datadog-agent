@@ -101,7 +101,7 @@ func (rs *ReceiverStats) LogStats() {
 		if !ts.isEmpty() {
 			tags := ts.Tags.toArray()
 			log.Infof("%v -> %s", tags, ts.infoString())
-			warnString := ts.warnString()
+			warnString := ts.WarnString()
 			if len(warnString) > 0 {
 				log.Warnf("%v -> %s. Enable debug logging for more details.", tags, warnString)
 			}
@@ -409,15 +409,21 @@ func (s *Stats) infoString() string {
 		eventsExtracted, eventsSampled)
 }
 
-// warnString returns a string representation of the Stats struct containing only issues which we should be warning on
+// WarnString returns a string representation of the Stats struct containing only issues which we should be warning on
 // if there are no issues then an empty string is returned
-func (ts *TagStats) warnString() string {
+func (ts *TagStats) WarnString() string {
 	var w []string
-	d := ts.TracesDropped.String()
+	d := ""
+	if ts.TracesDropped != nil {
+		d = ts.TracesDropped.String()
+	}
 	if len(d) > 0 {
 		w = append(w, fmt.Sprintf("traces_dropped(%s)", d))
 	}
-	m := ts.SpansMalformed.String()
+	m := ""
+	if ts.SpansMalformed != nil {
+		m = ts.SpansMalformed.String()
+	}
 	if len(m) > 0 {
 		w = append(w, fmt.Sprintf("spans_malformed(%s)", m))
 	}

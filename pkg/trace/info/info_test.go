@@ -115,7 +115,7 @@ func testInit(t *testing.T) *config.AgentConfig {
 	assert.NotNil(conf)
 
 	err := InitInfo(conf)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	return conf
 }
@@ -131,12 +131,12 @@ func TestInfo(t *testing.T) {
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	hostPort := strings.Split(url.Host, ":")
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
-	assert.Nil(err)
+	assert.NoError(err)
 	conf.ReceiverPort = port
 
 	var buf bytes.Buffer
@@ -158,7 +158,7 @@ func TestHideAPIKeys(t *testing.T) {
 	assert.NotEqual("", js)
 	var got config.AgentConfig
 	err := json.Unmarshal([]byte(js), &got)
-	assert.Nil(err)
+	assert.NoError(err)
 	assert.NotEmpty(conf.Endpoints[0].APIKey)
 	assert.Empty(got.Endpoints[0].APIKey)
 }
@@ -174,17 +174,17 @@ func TestWarning(t *testing.T) {
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	hostPort := strings.Split(url.Host, ":")
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
-	assert.Nil(err)
+	assert.NoError(err)
 	conf.ReceiverPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
-	assert.Nil(err)
+	assert.NoError(err)
 	info := buf.String()
 
 	expectedWarning, err := ioutil.ReadFile("./testdata/warning.info")
@@ -204,14 +204,14 @@ func TestNotRunning(t *testing.T) {
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	server.Close()
 
 	hostPort := strings.Split(url.Host, ":")
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
-	assert.Nil(err)
+	assert.NoError(err)
 	conf.ReceiverPort = port
 
 	var buf bytes.Buffer
@@ -245,12 +245,12 @@ func TestError(t *testing.T) {
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	hostPort := strings.Split(url.Host, ":")
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
-	assert.Nil(err)
+	assert.NoError(err)
 	conf.ReceiverPort = port
 
 	var buf bytes.Buffer
@@ -347,7 +347,7 @@ func TestInfoConfig(t *testing.T) {
 	assert.NotEqual("", js)
 	var confCopy config.AgentConfig
 	err := json.Unmarshal([]byte(js), &confCopy)
-	assert.Nil(err)
+	assert.NoError(err)
 	for i, e := range confCopy.Endpoints {
 		assert.Equal("", e.APIKey, "API Keys should *NEVER* be exported")
 		conf.Endpoints[i].APIKey = "" // make conf equal to confCopy to assert equality of other fields
