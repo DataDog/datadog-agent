@@ -151,7 +151,9 @@ PyObject *get_config(PyObject *self, PyObject *args)
         Py_RETURN_NONE;
     }
 
-    char *key;
+    char *key = NULL;
+    // Py_arg_ParseTuple returns a pointer to the existing string in &key
+    // No need to free the result.
     if (!PyArg_ParseTuple(args, "s", &key)) {
         return NULL;
     }
@@ -213,7 +215,7 @@ PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs)
     // `kwargs` might contain the `http_host` key, let's grab it
     if (kwargs != NULL) {
         char key[] = "http_host";
-        // borrowed
+        // Returns a borrowed reference; no exception set if not present
         PyObject *pyHTTPHost = PyDict_GetItemString(kwargs, key);
         if (pyHTTPHost != NULL) {
             PyDict_SetItemString(headers_dict, "Host", pyHTTPHost);
@@ -250,7 +252,7 @@ PyObject *get_hostname(PyObject *self, PyObject *args)
         Py_RETURN_NONE;
     }
 
-    char *v;
+    char *v = NULL;
     cb_get_hostname(&v);
 
     if (v != NULL) {
@@ -280,7 +282,7 @@ PyObject *get_clustername(PyObject *self, PyObject *args)
         Py_RETURN_NONE;
     }
 
-    char *v;
+    char *v = NULL;
     cb_get_clustername(&v);
 
     if (v != NULL) {
@@ -310,10 +312,11 @@ static PyObject *log_message(PyObject *self, PyObject *args)
         Py_RETURN_NONE;
     }
 
-    char *message;
+    char *message = NULL;
     int log_level;
 
-    // datadog_agent.log(message, log_level)
+    // Py_arg_ParseTuple returns a pointer to the existing string in &message
+    // No need to free the result.
     if (!PyArg_ParseTuple(args, "si", &message, &log_level)) {
         return NULL;
     }
@@ -357,6 +360,8 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
     PyGILState_STATE gstate = PyGILState_Ensure();
 
     // function expects only one positional arg containing a list
+    // the reference count in the returned object (input list) is _not_ 
+    // incremented
     if (!PyArg_ParseTuple(args, "O", &input_list)) {
         PyGILState_Release(gstate);
         return NULL;
@@ -381,6 +386,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         // list must contain only tuples in form ('hostname', {'source_type': ['tag1', 'tag2']},)
         if (!PyTuple_Check(tuple)) {
             PyErr_SetString(PyExc_TypeError, "external host tags list must contain only tuples");
+            error = 1;
             goto error;
         }
 
@@ -388,6 +394,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         hostname = as_string(PyTuple_GetItem(tuple, 0));
         if (hostname == NULL) {
             PyErr_SetString(PyExc_TypeError, "hostname is not a valid string");
+            error = 1;
             goto error;
         }
 
@@ -395,6 +402,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         PyObject *dict = PyTuple_GetItem(tuple, 1);
         if (!PyDict_Check(dict)) {
             PyErr_SetString(PyExc_TypeError, "second elem of the host tags tuple must be a dict");
+            error = 1;
             goto error;
         }
 
@@ -402,6 +410,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         Py_ssize_t pos = 0;
         PyObject *key = NULL, *value = NULL;
         if (!PyDict_Next(dict, &pos, &key, &value)) {
+            error = 1;
             continue;
         }
 
@@ -409,11 +418,13 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         source_type = as_string(key);
         if (source_type == NULL) {
             PyErr_SetString(PyExc_TypeError, "source_type is not a valid string");
+            error = 1;
             goto error;
         }
 
         if (!PyList_Check(value)) {
             PyErr_SetString(PyExc_TypeError, "dict value must be a list of tags");
+            error = 1;
             goto error;
         }
 
@@ -423,6 +434,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         int tags_len = PyList_Size(value);
         if (!(tags = (char **)malloc(sizeof(*tags) * tags_len + 1))) {
             PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
+            error = 1;
             goto error;
         }
 
@@ -455,7 +467,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         free(tags);
     }
 
-done:
+error:
     if (hostname) {
         free(hostname);
     }
@@ -470,7 +482,4 @@ done:
     }
     Py_RETURN_NONE;
 
-error:
-    error = 1;
-    goto done;
 }
