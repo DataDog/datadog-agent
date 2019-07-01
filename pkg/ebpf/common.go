@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Feature versions sourced from: https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
 var requiredKernelFuncs = []string{
 	// Maps (3.18)
 	"bpf_map_lookup_elem",
