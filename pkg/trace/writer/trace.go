@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"math"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -54,6 +55,7 @@ type TraceWriter struct {
 	senders  []*sender
 	stop     chan struct{}
 	stats    *info.TraceWriterInfo
+	wg       sync.WaitGroup // waits for gzippers
 
 	traces       []*pb.APITrace // traces buffered
 	events       []*pb.Span     // events buffered
@@ -90,6 +92,7 @@ func (w *TraceWriter) Stop() {
 	log.Debug("Exiting trace writer. Trying to flush whatever is left...")
 	w.stop <- struct{}{}
 	<-w.stop
+	w.wg.Wait()
 	stopSenders(w.senders)
 }
 
@@ -172,27 +175,33 @@ func (w *TraceWriter) flush() {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
 		return
 	}
-	p := newPayload(map[string]string{
-		"Content-Type":     "application/x-protobuf",
-		"Content-Encoding": "gzip",
-		headerLanguages:    strings.Join(info.Languages(), "|"),
-	})
-	gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
-	if err != nil {
-		// it will never happen, unless an invalid compression is chosen;
-		// we know gzip.BestSpeed is valid.
-		log.Errorf("gzip.NewWriterLevel: %d", err)
-		return
-	}
-	gzipw.Write(b)
-	gzipw.Close()
 
 	atomic.AddInt64(&w.stats.BytesUncompressed, int64(len(b)))
 	atomic.AddInt64(&w.stats.BytesEstimated, int64(w.bufferedSize))
 
-	for _, sender := range w.senders {
-		sender.Push(p)
-	}
+	w.wg.Add(1)
+	go func() {
+		defer timing.Since("datadog.trace_agent.trace_writer.compress_ms", time.Now())
+		defer w.wg.Done()
+		p := newPayload(map[string]string{
+			"Content-Type":     "application/x-protobuf",
+			"Content-Encoding": "gzip",
+			headerLanguages:    strings.Join(info.Languages(), "|"),
+		})
+		gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
+		if err != nil {
+			// it will never happen, unless an invalid compression is chosen;
+			// we know gzip.BestSpeed is valid.
+			log.Errorf("gzip.NewWriterLevel: %d", err)
+			return
+		}
+		gzipw.Write(b)
+		gzipw.Close()
+
+		for _, sender := range w.senders {
+			sender.Push(p)
+		}
+	}()
 }
 
 func (w *TraceWriter) report() {
