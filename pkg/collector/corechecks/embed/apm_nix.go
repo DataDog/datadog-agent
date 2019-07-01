@@ -28,5 +28,5 @@ func getAPMAgentDefaultBinPath() (string, error) {
 	if err == nil {
 		return binPath, nil
 	}
-	return binPath, fmt.Errorf("Can't access the default apm binary at %s: %s", binPath, err.Error())
+	return binPath, fmt.Errorf("Can't access the default apm binary at %s: %s", binPath, err)
 }
