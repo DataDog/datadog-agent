@@ -24,7 +24,7 @@ func TestTraceWriter(t *testing.T) {
 			APIKey: "123",
 			Host:   srv.URL,
 		}},
-		TraceWriter: &config.SenderConfig{ConnectionLimit: 200, QueueSize: 40},
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
 	}
 
 	t.Run("ok", func(t *testing.T) {
@@ -71,6 +71,7 @@ func randomSampledSpans(spans, events int) *SampledSpans {
 
 // payloadContains checks that the given payload contains the given set of sampled spans.
 func payloadContains(t *testing.T, p *payload, sampledSpans []*SampledSpans) {
+	t.Helper()
 	assert := assert.New(t)
 	gzipr, err := gzip.NewReader(p.body)
 	assert.NoError(err)

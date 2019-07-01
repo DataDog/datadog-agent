@@ -184,7 +184,7 @@ func testStatsWriter() (*StatsWriter, chan []stats.Bucket, *testServer) {
 		Hostname:    testHostname,
 		DefaultEnv:  testEnv,
 		Endpoints:   []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
-		StatsWriter: &config.SenderConfig{ConnectionLimit: 20, QueueSize: 20},
+		StatsWriter: &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 	}
 	return NewStatsWriter(cfg, in), in, srv
 }

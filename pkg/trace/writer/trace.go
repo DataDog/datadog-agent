@@ -56,6 +56,7 @@ type TraceWriter struct {
 	stop     chan struct{}
 	stats    *info.TraceWriterInfo
 	wg       sync.WaitGroup // waits for gzippers
+	tick     time.Duration  // flush frequency
 
 	traces       []*pb.APITrace // traces buffered
 	events       []*pb.Span     // events buffered
@@ -71,6 +72,7 @@ func NewTraceWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceWrit
 		env:      cfg.DefaultEnv,
 		stats:    &info.TraceWriterInfo{},
 		stop:     make(chan struct{}),
+		tick:     5 * time.Second,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -81,6 +83,9 @@ func NewTraceWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceWrit
 	if qsize == 0 {
 		// default to 50% of maximum memory.
 		qsize = int(math.Max(1, cfg.MaxMemory/2/float64(maxPayloadSize)))
+	}
+	if s := cfg.TraceWriter.FlushPeriodSeconds; s != 0 {
+		tw.tick = time.Duration(s*1000) * time.Millisecond
 	}
 	log.Debugf("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
 	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize)
@@ -98,7 +103,7 @@ func (w *TraceWriter) Stop() {
 
 // Run starts the TraceWriter.
 func (w *TraceWriter) Run() {
-	t := time.NewTicker(5 * time.Second)
+	t := time.NewTicker(w.tick)
 	defer t.Stop()
 	defer close(w.stop)
 	for {
