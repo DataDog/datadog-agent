@@ -89,7 +89,7 @@ uninstall_integrations()
     echo "Uninstalling integrations..."
 
     # Since 6.13.0, a file containing all integrations which have been installed by
-    # the package is avaiblable, use it ro remove only the files which have *NOT*
+    # the package is available, use it to remove only the files which have *NOT*
     # be installed by the package.
 
     if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
