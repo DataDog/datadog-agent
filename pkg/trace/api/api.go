@@ -243,7 +243,7 @@ func (r *HTTPReceiver) httpHandleWithVersion(v Version, f func(Version, http.Res
 	return r.httpHandle(func(w http.ResponseWriter, req *http.Request) {
 		mediaType := getMediaType(req)
 		if mediaType == "application/msgpack" && (v == v01 || v == v02) {
-			// msgpack is only supported for versions 0.3
+			// msgpack is only supported for versions >= 0.3
 			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
 			return
 		}
@@ -279,7 +279,10 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	if !r.PreSampler.SampleWithCount(traceCount) {
 		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(r.presamplerResponse)
-		if v == v04 {
+		switch v {
+		case v01, v02, v03:
+			httpOKMessage(w)
+		case v04:
 			httpRateByService(w, r.dynConf)
 		}
 		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, nil, 1)
