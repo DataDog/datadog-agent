@@ -110,11 +110,6 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             # (commented lines are filtered out)
             cat $INSTALL_DIR/embedded/.py_compiled_files.txt | grep -v '^#' | xargs rm -f
         fi
-        # Remove all the data that was downloaded using the integration command
-        DOWNLOADER_DATA="$INSTALL_DIR/embedded/lib/python2.7/site-packages/datadog_checks/downloader/data"
-        if [ -f $DOWNLOADER_DATA ]; then
-            rm -rf $DOWNLOADER_DATA
-        fi
     else
         echo "[ FAILED ]\tYour system is currently not supported by this script.";
         exit 1;

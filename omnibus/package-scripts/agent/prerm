@@ -80,16 +80,6 @@ remove_py_compiled_files()
     fi
 }
 
-remove_downloader_data()
-{
-    # Remove all the data that was downloaded using the integration command
-    # This is purely for cleaning up after ourselves
-    DOWNLOADER_DATA="$INSTALL_DIR/embedded/lib/python2.7/site-packages/datadog_checks/downloader/data"
-    if [ -d $DOWNLOADER_DATA ]; then
-        rm -rf $DOWNLOADER_DATA
-    fi
-}
-
 # TODO(remy): remove
 uninstall_integrations()
 {
@@ -145,7 +135,6 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
             # We're uninstalling.
             uninstall_integrations
             remove_py_compiled_files
-            remove_downloader_data
         ;;
         1)
             # We're upgrading.
