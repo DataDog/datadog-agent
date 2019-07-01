@@ -309,14 +309,11 @@ type Stats struct {
 func (s *Stats) update(recent *Stats) {
 	atomic.AddInt64(&s.TracesReceived, atomic.LoadInt64(&recent.TracesReceived))
 
-	// TracesDropped
 	atomic.AddInt64(&s.TracesDropped.DecodingError, atomic.LoadInt64(&recent.TracesDropped.DecodingError))
 	atomic.AddInt64(&s.TracesDropped.EmptyTrace, atomic.LoadInt64(&recent.TracesDropped.EmptyTrace))
 	atomic.AddInt64(&s.TracesDropped.TraceIDZero, atomic.LoadInt64(&recent.TracesDropped.TraceIDZero))
 	atomic.AddInt64(&s.TracesDropped.SpanIDZero, atomic.LoadInt64(&recent.TracesDropped.SpanIDZero))
 	atomic.AddInt64(&s.TracesDropped.ForeignSpan, atomic.LoadInt64(&recent.TracesDropped.ForeignSpan))
-
-	// SpansMalformed
 	atomic.AddInt64(&s.SpansMalformed.DuplicateSpanID, atomic.LoadInt64(&recent.SpansMalformed.DuplicateSpanID))
 	atomic.AddInt64(&s.SpansMalformed.ServiceEmpty, atomic.LoadInt64(&recent.SpansMalformed.ServiceEmpty))
 	atomic.AddInt64(&s.SpansMalformed.ServiceTruncate, atomic.LoadInt64(&recent.SpansMalformed.ServiceTruncate))
