@@ -276,7 +276,6 @@ func (r *HTTPReceiver) tagStats(req *http.Request) *info.TagStats {
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
 	traceCount := traceCount(req)
-
 	if !r.PreSampler.SampleWithCount(traceCount) {
 		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(r.presamplerResponse)
@@ -289,7 +288,6 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 
 	ts := r.tagStats(req)
 	mediaType := getMediaType(req)
-
 	var traces pb.Traces
 	switch v {
 	case v01:
