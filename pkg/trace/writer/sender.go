@@ -201,10 +201,11 @@ func (s *sender) Push(p *payload) {
 			// drop the oldest item in the queue to make room
 			select {
 			case p := <-s.queue:
-				s.releasePayload(p, eventTypeDropped, &eventData{
+				s.recordEvent(eventTypeDropped, &eventData{
 					bytes: p.body.Len(),
 					count: 1,
 				})
+				ppool.Put(p)
 			default:
 				// the queue got drained; not very likely to happen, but
 				// we shouldn't risk a deadlock
@@ -245,7 +246,7 @@ func (s *sender) sendPayload(p *payload) {
 			return
 		default:
 			// queue is full; since this is the oldest payload, we drop it
-			s.releasePayload(p, eventTypeDropped, stats)
+			s.recordEvent(eventTypeDropped, stats)
 		}
 	case nil:
 		// request was successful; the retry queue may have grown large - we should
@@ -257,17 +258,11 @@ func (s *sender) sendPayload(p *payload) {
 				break
 			}
 		}
-		s.releasePayload(p, eventTypeSent, stats)
+		s.recordEvent(eventTypeSent, stats)
 	default:
 		// this is a fatal error, we have to drop this payload
-		s.releasePayload(p, eventTypeRejected, stats)
+		s.recordEvent(eventTypeRejected, stats)
 	}
-}
-
-// releasePayload releases the payload p and records the specified event. The payload
-// should not be used again after a release.
-func (s *sender) releasePayload(p *payload, t eventType, data *eventData) {
-	s.recordEvent(t, data)
 	ppool.Put(p)
 	atomic.AddInt32(&s.inflight, -1)
 }
