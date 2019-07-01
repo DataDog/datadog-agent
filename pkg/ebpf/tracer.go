@@ -518,7 +518,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"tracer": map[string]int64{
 			"closed_conn_polling_lost":     lost,
 			"closed_conn_polling_received": received,
-			"ok_conns_skipped":             skipped, // Skipped connections (e.g. Local DNS requests)
+			"conn_valid_skipped":           skipped, // Skipped connections (e.g. Local DNS requests)
 			"expired_tcp_conns":            expiredTCP,
 		},
 		"ebpf": t.getEbpfTelemetry(),
