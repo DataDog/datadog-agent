@@ -184,6 +184,22 @@ func (t *Tracer) expvarStats() {
 			continue
 		}
 
+		if tracerStats, ok := stats["tracer"]; ok {
+			for metric, val := range tracerStats.(map[string]int64) {
+				currVal := &expvar.Int{}
+				currVal.Set(val)
+				probeExpvar.Set(snakeToCapInitialCamel(metric), currVal)
+			}
+		}
+
+		if ebpfStats, ok := stats["ebpf"]; ok {
+			for metric, val := range ebpfStats.(map[string]int64) {
+				currVal := &expvar.Int{}
+				currVal.Set(val)
+				probeExpvar.Set(fmt.Sprintf("Ebpf%s", snakeToCapInitialCamel(metric)), currVal)
+			}
+		}
+
 		if states, ok := stats["state"]; ok {
 			if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
 				for metric, val := range telemetry.(map[string]int64) {
@@ -441,6 +457,26 @@ func (t *Tracer) getLatestTimestamp() (uint64, bool, error) {
 	return latestTime, true, nil
 }
 
+// getEbpfTelemetry reads the telemetry map from the kernelspace and returns a map of key -> count
+func (t *Tracer) getEbpfTelemetry() map[string]int64 {
+	mp, err := t.getMap(telemetryMap)
+	if err != nil {
+		log.Warnf("error retrieving telemetry map", err)
+		return map[string]int64{}
+	}
+
+	telemetry := &kernelTelemetry{}
+	if err := t.m.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
+		// This can happen if we haven't initialized the telemetry object yet
+		// so let's just use a debug log
+		log.Debugf("error retrieving the telemetry struct: %s", err)
+	}
+
+	return map[string]int64{
+		"tcp_sent_miscounts": int64(telemetry.tcp_sent_miscounts),
+	}
+}
+
 func (t *Tracer) getMap(name bpfMapName) (*bpflib.Map, error) {
 	mp := t.m.Map(string(name))
 	if mp == nil {
@@ -485,12 +521,19 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	skipped := atomic.LoadInt64(&t.skippedConns)
 	expiredTCP := atomic.LoadInt64(&t.expiredTCPConns)
 
-	stateStats := t.state.GetStats(lost, received, skipped, expiredTCP)
+	stateStats := t.state.GetStats()
 	conntrackStats := t.conntracker.GetStats()
 
 	return map[string]interface{}{
 		"conntrack": conntrackStats,
 		"state":     stateStats,
+		"tracer": map[string]int64{
+			"closed_conn_polling_lost":     lost,
+			"closed_conn_polling_received": received,
+			"conn_valid_skipped":           skipped, // Skipped connections (e.g. Local DNS requests)
+			"expired_tcp_conns":            expiredTCP,
+		},
+		"ebpf": t.getEbpfTelemetry(),
 	}, nil
 }
 

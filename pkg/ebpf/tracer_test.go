@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 	"unsafe"
@@ -50,6 +51,7 @@ func TestTracerExpvar(t *testing.T) {
 		"StatsResets":               0,
 		"UnorderedConns":            0,
 		"TimeSyncCollisions":        0,
+		"EbpfTcpSentMiscounts":      0,
 	}
 
 	res := map[string]float64{}
@@ -690,6 +692,63 @@ func TestIsExpired(t *testing.T) {
 	} {
 		assert.Equal(t, tc.expected, tc.stats.isExpired(tc.latestTime, timeout))
 	}
+}
+
+func TestTCPMiscount(t *testing.T) {
+	tr, err := NewTracer(NewDefaultConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Create a dummy TCP Server
+	server := NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		for {
+			if _, err := r.ReadBytes(byte('\n')); err != nil { // indicates that EOF has been reached,
+				break
+			}
+		}
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	file, err := c.(*net.TCPConn).File()
+	require.NoError(t, err)
+
+	fd := int(file.Fd())
+
+	// Set a really low sendtimeout of 100us to trigger EAGAIN errors in `tcp_sendmsg`
+	err = syscall.SetsockoptTimeval(fd, syscall.SOL_SOCKET, syscall.SO_SNDTIMEO, &syscall.Timeval{
+		Sec:  0,
+		Usec: 100,
+	})
+	assert.NoError(t, err)
+
+	// 10 MB payload
+	x := make([]byte, 10*1024*1024)
+
+	n, err := c.Write(x)
+	assert.NoError(t, err)
+	assert.EqualValues(t, len(x), n)
+	fmt.Printf("n = %+v\n", n)
+
+	doneChan <- struct{}{}
+
+	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+	assert.True(t, ok)
+
+	// TODO this should not happen but is expected for now
+	// we don't have the correct count since retries happened
+	assert.False(t, uint64(len(x)) == conn.MonotonicSentBytes)
+
+	tel := tr.getEbpfTelemetry()
+	assert.NotZero(t, tel["tcp_sent_miscounts"])
 }
 
 func findConnection(l, r net.Addr, c *Connections) (*ConnectionStats, bool) {
