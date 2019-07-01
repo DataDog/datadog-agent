@@ -50,8 +50,22 @@ func TestExcludedKernelVersion(t *testing.T) {
 	ok, err = verifyOSVersion(linuxKernelVersionCode(3, 10, 0), "Linux-3.10.0-957.5.1.el7.x86_64-x86_64-with-centos-7.6.1810-Core", exclusionList)
 	assert.True(t, ok)
 	assert.Nil(t, err)
+}
 
-	ok, err = verifyOSVersion(linuxKernelVersionCode(3, 9, 0), "Linux-3.9.0.x86_64-x86_64-with-centos-7.5", exclusionList)
+func TestVerifyKernelFuncs(t *testing.T) {
+	ok, err := verifyKernelFuncs("./testdata/kallsyms.supported")
+	assert.True(t, ok)
+	assert.NoError(t, err)
+
+	ok, err = verifyKernelFuncs("./testdata/kallsyms.unsupported")
 	assert.False(t, ok)
+	assert.NoError(t, err)
+
+	ok, err = verifyKernelFuncs("./testdata/kallsyms.empty")
+	assert.False(t, ok)
+	assert.NoError(t, err)
+
+	ok, err = verifyKernelFuncs("./testdata/kallsyms.d_o_n_o_t_e_x_i_s_t")
+	assert.True(t, ok)
 	assert.Error(t, err)
 }

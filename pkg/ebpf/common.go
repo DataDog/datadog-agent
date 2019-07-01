@@ -1,28 +1,31 @@
 package ebpf
 
 import (
+	"bufio"
 	"encoding/binary"
-	"errors"
 	"fmt"
+	"os"
+	"path"
 	"strings"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/pkg/errors"
 )
 
-var (
-	// Feature versions sourced from: https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
-	// Minimum kernel version -> max(3.15 - eBPF,
-	//                               3.18 - tables/maps,
-	//                               4.1 - kprobes,
-	//                               4.4 - perf events)
-	// 	                      -> 4.4
-	minRequiredKernelCode = linuxKernelVersionCode(4, 4, 0)
-
-	// eBPF got backported to centOS
-	// see: https://www.redhat.com/en/blog/introduction-ebpf-red-hat-enterprise-linux-7
-	centOSMinRequiredKernelCode = linuxKernelVersionCode(3, 10, 0)
-)
+// Feature versions sourced from: https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
+var requiredKernelFuncs = []string{
+	// Maps (3.18)
+	"bpf_map_lookup_elem",
+	"bpf_map_update_elem",
+	"bpf_map_delete_elem",
+	// kprobes (4.1)
+	"bpf_probe_read",
+	// Perf events (4.4)
+	"bpf_perf_event_output",
+	"bpf_perf_event_read",
+}
 
 var (
 	// ErrNotImplemented will be returned on non-linux environments like Windows and Mac OSX
@@ -78,27 +81,56 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 		return true, nil
 	}
 
-	if isCentOS(platform) && kernelCode >= centOSMinRequiredKernelCode {
-		return true, nil
-	}
-
 	if isUbuntu(platform) {
 		if kernelCode >= linuxKernelVersionCode(4, 4, 119) && kernelCode <= linuxKernelVersionCode(4, 4, 126) {
 			return false, fmt.Errorf("got ubuntu kernel %s with known bug on platform: %s, see: https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCodeToString(kernelCode), platform)
 		}
 	}
 
-	if kernelCode < minRequiredKernelCode {
-		return false, fmt.Errorf(
-			"incompatible linux version. at least %s (%d) required, got %s (%d)",
-			kernelCodeToString(minRequiredKernelCode),
-			minRequiredKernelCode,
-			kernelCodeToString(kernelCode),
-			kernelCode,
-		)
+	supported, err := verifyKernelFuncs(path.Join(util.GetProcRoot(), "kallsyms"))
+	if err != nil {
+		log.Warnf("error reading /proc/kallsyms file: %s (check your kernel version, current is: %s)", err, kernelCodeToString(kernelCode))
+		// If we can't read the /proc/kallsyms file let's just return true to avoid blocking the tracer from running
+		return true, nil
 	}
 
-	return true, nil
+	return supported, nil
+}
+
+func verifyKernelFuncs(path string) (bool, error) {
+	// Will hold the found functions
+	found := make(map[string]bool, len(requiredKernelFuncs))
+	for _, f := range requiredKernelFuncs {
+		found[f] = false
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return true, errors.Wrapf(err, "error reading kallsyms file from: %s", path)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Split(bufio.ScanLines)
+
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 3 {
+			continue
+		}
+
+		name := fields[2]
+		if _, ok := found[name]; ok {
+			found[name] = true
+		}
+	}
+
+	supported := true
+	for _, b := range found {
+		supported = supported && b
+	}
+
+	return supported, nil
 }
 
 // In lack of binary.NativeEndian ...
@@ -112,10 +144,6 @@ func init() {
 	} else {
 		nativeEndian = binary.BigEndian
 	}
-}
-
-func isCentOS(platform string) bool {
-	return strings.Contains(platform, "centos")
 }
 
 func isUbuntu(platform string) bool {
