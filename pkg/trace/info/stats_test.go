@@ -7,9 +7,10 @@ import (
 )
 
 func TestTracesDropped(t *testing.T) {
-	var s TracesDropped
-	s.DecodingError++
-	s.ForeignSpan++
+	s := TracesDropped{
+		DecodingError: 1,
+		ForeignSpan: 1,
+	}
 
 	t.Run("StatsToMap", func(t *testing.T) {
 		for k, v := range s.tagValues() {
@@ -27,9 +28,10 @@ func TestTracesDropped(t *testing.T) {
 }
 
 func TestSpansMalformed(t *testing.T) {
-	var s SpansMalformed
-	s.ServiceEmpty++
-	s.ResourceEmpty++
+	s := SpansMalformed{
+		ServiceEmpty:1,
+		ResourceEmpty:1,
+	}
 
 	t.Run("StatsToMap", func(t *testing.T) {
 		for k, v := range s.tagValues() {
