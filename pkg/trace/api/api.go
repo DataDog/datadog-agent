@@ -273,9 +273,9 @@ func (r *HTTPReceiver) tagStats(req *http.Request) *info.TagStats {
 	})
 }
 
-// applyPresampler gives the presampler an opportunity to drop the payload, returning true if the request was completed
+// presample gives the presampler an opportunity to drop the payload, returning true if the request was completed
 // early due to dropping the payload.
-func (r *HTTPReceiver) applyPresampler(v Version, w http.ResponseWriter, req *http.Request) (handled bool) {
+func (r *HTTPReceiver) presample(v Version, w http.ResponseWriter, req *http.Request) (handled bool) {
 	traceCount := traceCount(req)
 	if !r.PreSampler.SampleWithCount(traceCount) {
 		io.Copy(ioutil.Discard, req.Body)
@@ -348,7 +348,7 @@ func (r *HTTPReceiver) replyTracesOK(v Version, w http.ResponseWriter, req *http
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
-	if r.applyPresampler(v, w, req) {
+	if r.presample(v, w, req) {
 		return
 	}
 
@@ -357,7 +357,6 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	if handled {
 		return
 	}
-
 	r.replyTracesOK(v, w, req)
 
 	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
