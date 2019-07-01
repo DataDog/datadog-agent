@@ -557,3 +557,13 @@ func BenchmarkNormalizeTag(b *testing.B) {
 	b.Run("plenty", benchNormalizeTag("fun:ky_ta@#g/1"))
 	b.Run("more", benchNormalizeTag("fun:k####y_ta@#g/1_@@#"))
 }
+
+func TestTruncateUtf8(t *testing.T) {
+	assert.Equal(t, "", truncate("", 5))
+	assert.Equal(t, "télé", truncate("télé", 5))
+	assert.Equal(t, "t", truncate("télé", 2))
+	assert.Equal(t, "éé", truncate("ééééé", 5))
+	assert.Equal(t, "ééééé", truncate("ééééé", 18))
+	assert.Equal(t, "ééééé", truncate("ééééé", 10))
+	assert.Equal(t, "ééé", truncate("ééééé", 6))
+}

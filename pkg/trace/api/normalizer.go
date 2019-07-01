@@ -57,7 +57,7 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	if len(s.Service) > MaxServiceLen {
 		atomic.AddInt64(&ts.SpansMalformed.ServiceTruncate, 1)
 		log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", MaxServiceLen, s)
-		s.Service = s.Service[:MaxServiceLen]
+		s.Service = truncate(s.Service, MaxServiceLen)
 	}
 	// service should comply with Datadog tag normalization as it's eventually a tag
 	svc := normalizeTag(s.Service)
@@ -76,7 +76,7 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	if len(s.Name) > MaxNameLen {
 		atomic.AddInt64(&ts.SpansMalformed.SpanNameTruncate, 1)
 		log.Debugf("Fixing malformed trace. Name is too long (reason:span_name_truncate), truncating span.name to length=%d: %s", MaxServiceLen, s)
-		s.Name = s.Name[:MaxNameLen]
+		s.Name = truncate(s.Name, MaxNameLen)
 	}
 	// name shall comply with Datadog metric name normalization
 	name, ok := normMetricNameParse(s.Name)
@@ -124,7 +124,7 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	if len(s.Type) > MaxTypeLen {
 		atomic.AddInt64(&ts.SpansMalformed.TypeTruncate, 1)
 		log.Debugf("Fixing malformed trace. Type is too long (reason:type_truncate), truncating span.type to length=%d: %s", MaxTypeLen, s)
-		s.Type = s.Type[:MaxTypeLen]
+		s.Type = truncate(s.Type, MaxTypeLen)
 	}
 	for k, v := range s.Meta {
 		utf8K := toUTF8(k)
@@ -397,4 +397,18 @@ func normalizeTag(v string) string {
 		delta += cut[1] - cut[0] - 1
 	}
 	return string(tag)
+}
+
+// truncate truncates the given string to make sure it uses less than limit bytes.
+// If the last character is an utf8 character that would be split, it removes it
+// entirely to make sure the resulting string is not broken.
+func truncate(s string, limit int) string {
+	var lastValidIndex int
+	for i := range s {
+		if i > limit {
+			return s[:lastValidIndex]
+		}
+		lastValidIndex = i
+	}
+	return s
 }

@@ -9,9 +9,9 @@ import (
 func TestTracesDropped(t *testing.T) {
 	s := TracesDropped{
 		DecodingError: 1,
-		ForeignSpan: 1,
-		TraceIDZero: 1,
-		SpanIDZero: 1,
+		ForeignSpan:   1,
+		TraceIDZero:   1,
+		SpanIDZero:    1,
 	}
 
 	t.Run("tagValues", func(t *testing.T) {
@@ -30,11 +30,11 @@ func TestTracesDropped(t *testing.T) {
 
 func TestSpansMalformed(t *testing.T) {
 	s := SpansMalformed{
-		ServiceEmpty:1,
-		ResourceEmpty:1,
-		ServiceInvalid:1,
-		SpanNameTruncate:1,
-		TypeTruncate:1,
+		ServiceEmpty:     1,
+		ResourceEmpty:    1,
+		ServiceInvalid:   1,
+		SpanNameTruncate: 1,
+		TypeTruncate:     1,
 	}
 
 	t.Run("tagValues", func(t *testing.T) {
