@@ -324,17 +324,15 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 	}
 }
 
-func TestReceiverFailedPayloadDecode(t *testing.T) {
-	// tests that decoding errors are correctly tracked in internal statistics
+func TestReceiverDecodingError(t *testing.T) {
 	assert := assert.New(t)
-
 	conf := newTestReceiverConfig()
 	r := newTestReceiverFromConfig(conf)
 	server := httptest.NewServer(http.HandlerFunc(r.httpHandleWithVersion(v04, r.handleTraces)))
 	data := []byte("} invalid json")
 	client := &http.Client{}
 
-	t.Run("DecodingErrorNoTraceCount", func(t *testing.T) {
+	t.Run("no-header", func(t *testing.T) {
 		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
 		assert.NoError(err)
 		req.Header.Set("Content-Type", "application/json")
@@ -346,7 +344,7 @@ func TestReceiverFailedPayloadDecode(t *testing.T) {
 		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{}).TracesDropped.DecodingError)
 	})
 
-	t.Run("DecodingErrorWithTraceCount", func(t *testing.T) {
+	t.Run("with-header", func(t *testing.T) {
 		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
 		assert.NoError(err)
 		traceCount := 10
