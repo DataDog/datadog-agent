@@ -34,13 +34,10 @@ func TestSpansMalformed(t *testing.T) {
 	}
 
 	t.Run("StatsToMap", func(t *testing.T) {
-		for k, v := range s.tagValues() {
-			if k == "service_empty" || k == "resource_empty" {
-				assert.EqualValues(t, v, 1)
-			} else {
-				assert.EqualValues(t, v, 0)
-			}
-		}
+		expected := SpansMalformed{}.tagValues()
+		expected["service_empty"] = 1
+		expected["resource_empty"] = 1
+		assert.Equal(t, expected, s.tagValues())
 	})
 
 	t.Run("StatsToString", func(t *testing.T) {
