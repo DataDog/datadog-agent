@@ -21,6 +21,8 @@ const (
 	// TCPSendMsg traces the tcp_sendmsg() system call
 	TCPSendMsg KProbeName = "kprobe/tcp_sendmsg"
 	// TCPSendMsgReturn traces the return value for the tcp_sendmsg() system call
+	// XXX: This is only used for telemetry for now to count the number of errors returned
+	// by the tcp_sendmsg func (so we can have a # of tcp sent bytes we miscounted)
 	TCPSendMsgReturn KProbeName = "kretprobe/tcp_sendmsg"
 
 	// TCPCleanupRBuf traces the tcp_cleanup_rbuf() system call
