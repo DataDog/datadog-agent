@@ -2,6 +2,10 @@
 
 ## 2.0.4 ( ??? )
 
+**Features**
+
+- Enable new trace agent and propagate starttime, pid and hostname tags _[(STAC-4878)](https://stackstate.atlassian.net/browse/STAC-4878)_
+
 ## 2.0.3 (2019-05-28)
 
 **Features**
