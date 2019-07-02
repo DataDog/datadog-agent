@@ -75,7 +75,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     if remote_docker:
         test_args["exec_opts"] = "-exec \"inv docker.dockerize-test\""
 
-    go_cmd = 'INTEGRATION=yes go test {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
+    go_cmd = 'INTEGRATION=yes go test {race_opt} -v'.format(**test_args)
 
     prefixes = [
         "./pkg/trace/test/testsuite/...",
