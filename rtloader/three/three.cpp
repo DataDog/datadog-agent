@@ -50,7 +50,7 @@ Three::~Three()
 
 void Three::initPythonHome(const char *pythonHome)
 {
-    PyMem_RawFree((void *)_pythonHome);
+    wchar_t *oldPythonHome = _pythonHome;
     if (pythonHome == NULL || strlen(pythonHome) == 0) {
         _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
     } else {
@@ -58,6 +58,7 @@ void Three::initPythonHome(const char *pythonHome)
     }
 
     Py_SetPythonHome(_pythonHome);
+    PyMem_RawFree((void *)oldPythonHome);
 }
 
 bool Three::init()

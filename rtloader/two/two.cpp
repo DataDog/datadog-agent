@@ -52,7 +52,7 @@ Two::~Two()
 
 void Two::initPythonHome(const char *pythonHome)
 {
-    free(_pythonHome);
+    char *oldPythonHome = _pythonHome;
     if (pythonHome == NULL || strlen(pythonHome) == 0) {
         _pythonHome = _strdup(_defaultPythonHome);
     } else {
@@ -60,6 +60,7 @@ void Two::initPythonHome(const char *pythonHome)
     }
 
     Py_SetPythonHome(_pythonHome);
+    free(oldPythonHome);
 }
 
 bool Two::init()
