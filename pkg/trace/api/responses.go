@@ -58,11 +58,6 @@ func httpEndpointNotSupported(tags []string, w http.ResponseWriter) {
 // httpOK is a dumb response for when things are a OK
 func httpOK(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
-	httpOKMessage(w)
-}
-
-// httpOKMessage writes out only the "OK" response content
-func httpOKMessage(w http.ResponseWriter) {
 	io.WriteString(w, "OK\n")
 }
 

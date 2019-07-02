@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -57,7 +58,7 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	if len(s.Service) > MaxServiceLen {
 		atomic.AddInt64(&ts.SpansMalformed.ServiceTruncate, 1)
 		log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", MaxServiceLen, s)
-		s.Service = truncate(s.Service, MaxServiceLen)
+		s.Service = traceutil.TruncateUTF8(s.Service, MaxServiceLen)
 	}
 	// service should comply with Datadog tag normalization as it's eventually a tag
 	svc := normalizeTag(s.Service)
@@ -76,7 +77,7 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	if len(s.Name) > MaxNameLen {
 		atomic.AddInt64(&ts.SpansMalformed.SpanNameTruncate, 1)
 		log.Debugf("Fixing malformed trace. Name is too long (reason:span_name_truncate), truncating span.name to length=%d: %s", MaxServiceLen, s)
-		s.Name = truncate(s.Name, MaxNameLen)
+		s.Name = traceutil.TruncateUTF8(s.Name, MaxNameLen)
 	}
 	// name shall comply with Datadog metric name normalization
 	name, ok := normMetricNameParse(s.Name)
@@ -123,22 +124,18 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 		s.Duration = 0
 	}
 
-	// ParentID set on the client side, no way of checking
-
 	s.Type = toUTF8(s.Type)
 	if len(s.Type) > MaxTypeLen {
 		atomic.AddInt64(&ts.SpansMalformed.TypeTruncate, 1)
 		log.Debugf("Fixing malformed trace. Type is too long (reason:type_truncate), truncating span.type to length=%d: %s", MaxTypeLen, s)
-		s.Type = truncate(s.Type, MaxTypeLen)
+		s.Type = traceutil.TruncateUTF8(s.Type, MaxTypeLen)
 	}
 	for k, v := range s.Meta {
 		utf8K := toUTF8(k)
-
 		if k != utf8K {
 			delete(s.Meta, k)
 			k = utf8K
 		}
-
 		s.Meta[k] = toUTF8(v)
 	}
 	if env, ok := s.Meta["env"]; ok {
@@ -176,16 +173,13 @@ func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 			atomic.AddInt64(&ts.TracesDropped.ForeignSpan, 1)
 			return fmt.Errorf("trace has foreign span (reason:foreign_span): %s", span)
 		}
-
 		if err := normalize(ts, span); err != nil {
 			return err
 		}
-
 		if _, ok := spanIDs[span.SpanID]; ok {
 			atomic.AddInt64(&ts.SpansMalformed.DuplicateSpanID, 1)
 			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): %s", span)
 		}
-
 		spanIDs[span.SpanID] = struct{}{}
 	}
 
@@ -402,18 +396,4 @@ func normalizeTag(v string) string {
 		delta += cut[1] - cut[0] - 1
 	}
 	return string(tag)
-}
-
-// truncate truncates the given string to make sure it uses less than limit bytes.
-// If the last character is an utf8 character that would be split, it removes it
-// entirely to make sure the resulting string is not broken.
-func truncate(s string, limit int) string {
-	var lastValidIndex int
-	for i := range s {
-		if i > limit {
-			return s[:lastValidIndex]
-		}
-		lastValidIndex = i
-	}
-	return s
 }

@@ -409,15 +409,17 @@ func (s *Stats) infoString() string {
 // WarnString returns a string representation of the Stats struct containing only issues which we should be warning on
 // if there are no issues then an empty string is returned
 func (ts *TagStats) WarnString() string {
-	var w []string
-	d := ""
+	var (
+		w []string
+		d string
+	)
 	if ts.TracesDropped != nil {
 		d = ts.TracesDropped.String()
 	}
 	if len(d) > 0 {
 		w = append(w, fmt.Sprintf("traces_dropped(%s)", d))
 	}
-	m := ""
+	var m string
 	if ts.SpansMalformed != nil {
 		m = ts.SpansMalformed.String()
 	}

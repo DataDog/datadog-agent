@@ -15,12 +15,13 @@ func TestTracesDropped(t *testing.T) {
 	}
 
 	t.Run("tagValues", func(t *testing.T) {
-		expected := (&TracesDropped{}).tagValues()
-		expected["decoding_error"] = 1
-		expected["foreign_span"] = 1
-		expected["trace_id_zero"] = 1
-		expected["span_id_zero"] = 1
-		assert.Equal(t, expected, s.tagValues())
+		assert.Equal(t, map[string]int64{
+			"empty_trace":    0,
+			"decoding_error": 1,
+			"foreign_span":   1,
+			"trace_id_zero":  1,
+			"span_id_zero":   1,
+		}, s.tagValues())
 	})
 
 	t.Run("String", func(t *testing.T) {
@@ -38,13 +39,20 @@ func TestSpansMalformed(t *testing.T) {
 	}
 
 	t.Run("tagValues", func(t *testing.T) {
-		expected := (&SpansMalformed{}).tagValues()
-		expected["service_empty"] = 1
-		expected["resource_empty"] = 1
-		expected["service_invalid"] = 1
-		expected["span_name_truncate"] = 1
-		expected["type_truncate"] = 1
-		assert.Equal(t, expected, s.tagValues())
+		assert.Equal(t, map[string]int64{
+			"span_name_invalid":        0,
+			"span_name_empty":          0,
+			"service_truncate":         0,
+			"invalid_start_date":       0,
+			"invalid_http_status_code": 0,
+			"invalid_duration":         0,
+			"duplicate_span_id":        0,
+			"service_empty":            1,
+			"resource_empty":           1,
+			"service_invalid":          1,
+			"span_name_truncate":       1,
+			"type_truncate":            1,
+		}, s.tagValues())
 	})
 
 	t.Run("String", func(t *testing.T) {
