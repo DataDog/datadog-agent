@@ -69,7 +69,9 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 	// expect payload to be sent after timer
 	start := time.Now()
 	assert.Equal(t, message1, <-output)
-	assert.True(t, time.Now().After(start.Add(100*time.Millisecond)))
+	end := start.Add(100 * time.Millisecond)
+	now := time.Now()
+	assert.True(t, now.After(end) || now.Equal(end))
 
 	content = []byte("b\nc")
 
@@ -106,7 +108,9 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 
 	// expect payload to be sent before timer
 	assert.Equal(t, message, <-output)
-	assert.True(t, time.Now().Before(start.Add(100*time.Millisecond)))
+	end := start.Add(100 * time.Millisecond)
+	now := time.Now()
+	assert.True(t, now.Before(end) || now.Equal(end))
 }
 
 func TestBatchStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
