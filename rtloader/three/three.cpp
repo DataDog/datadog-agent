@@ -44,20 +44,21 @@ Three::~Three()
     // For more information on why Py_Finalize() isn't called here please
     // refer to the header file or the doxygen documentation.
     PyEval_RestoreThread(_threadState);
-    PyMem_RawFree((void *)_pythonHome);
     Py_XDECREF(_baseClass);
 }
 
 void Three::initPythonHome(const char *pythonHome)
 {
-    PyMem_RawFree((void *)_pythonHome);
+    wchar_t *oldPythonHome = _pythonHome;
     if (pythonHome == NULL || strlen(pythonHome) == 0) {
         _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
     } else {
         _pythonHome = Py_DecodeLocale(pythonHome, NULL);
     }
 
+    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
     Py_SetPythonHome(_pythonHome);
+    PyMem_RawFree((void *)oldPythonHome);
 }
 
 bool Three::init()

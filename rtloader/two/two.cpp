@@ -46,20 +46,21 @@ Two::~Two()
     // For more information on why Py_Finalize() isn't called here please
     // refer to the header file or the doxygen documentation.
     PyEval_RestoreThread(_threadState);
-    free(_pythonHome);
     Py_XDECREF(_baseClass);
 }
 
 void Two::initPythonHome(const char *pythonHome)
 {
-    free(_pythonHome);
+    char *oldPythonHome = _pythonHome;
     if (pythonHome == NULL || strlen(pythonHome) == 0) {
         _pythonHome = _strdup(_defaultPythonHome);
     } else {
         _pythonHome = _strdup(pythonHome);
     }
 
+    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
     Py_SetPythonHome(_pythonHome);
+    free(oldPythonHome);
 }
 
 bool Two::init()
