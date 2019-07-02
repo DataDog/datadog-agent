@@ -266,18 +266,18 @@ func TestCounterExpirySeconds(t *testing.T) {
 	assert.Equal(t, 0, len(sampler.contextResolver.contextsByKey))
 }
 
-func TestDistSampler(t *testing.T) {
+func TestSketch(t *testing.T) {
 	const (
 		defaultBucketSize = 10
 	)
 
 	var (
-		d = NewTimeSampler(0)
+		sampler = NewTimeSampler(0)
 
 		insert = func(t *testing.T, ts float64, ctx Context, values ...float64) {
 			t.Helper()
 			for _, v := range values {
-				d.addSample(&metrics.MetricSample{
+				sampler.addSample(&metrics.MetricSample{
 					Name:       ctx.Name,
 					Tags:       ctx.Tags,
 					Host:       ctx.Host,
@@ -289,11 +289,11 @@ func TestDistSampler(t *testing.T) {
 		}
 	)
 
-	assert.EqualValues(t, defaultBucketSize, d.interval,
+	assert.EqualValues(t, defaultBucketSize, sampler.interval,
 		"interval should default to 10")
 
 	t.Run("empty flush", func(t *testing.T) {
-		flushed := d.flushSketches(timeNowNano())
+		flushed := sampler.flushSketches(timeNowNano())
 		require.Len(t, flushed, 0)
 	})
 
@@ -312,7 +312,7 @@ func TestDistSampler(t *testing.T) {
 			now++
 		}
 
-		flushed := d.flushSketches(now)
+		flushed := sampler.flushSketches(now)
 		metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
 			Name:     ctx.Name,
 			Tags:     ctx.Tags,
@@ -327,14 +327,14 @@ func TestDistSampler(t *testing.T) {
 			ContextKey: ckey.Generate(ctx.Name, ctx.Host, ctx.Tags),
 		}, flushed[0])
 
-		require.Len(t, d.flushSketches(now), 0, "these points have already been flushed")
+		require.Len(t, sampler.flushSketches(now), 0, "these points have already been flushed")
 	})
 
 }
 
-func TestDistSamplerBucketSampling(t *testing.T) {
+func TestSketchBucketSampling(t *testing.T) {
 
-	distSampler := NewTimeSampler(10)
+	sampler := NewTimeSampler(10)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name",
@@ -350,13 +350,13 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
-	distSampler.addSample(&mSample1, 10001)
-	distSampler.addSample(&mSample2, 10002)
-	distSampler.addSample(&mSample1, 10011)
-	distSampler.addSample(&mSample2, 10012)
-	distSampler.addSample(&mSample1, 10021)
+	sampler.addSample(&mSample1, 10001)
+	sampler.addSample(&mSample2, 10002)
+	sampler.addSample(&mSample1, 10011)
+	sampler.addSample(&mSample2, 10012)
+	sampler.addSample(&mSample1, 10021)
 
-	flushed := distSampler.flushSketches(10020.0)
+	flushed := sampler.flushSketches(10020.0)
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1, 2)
 
@@ -373,11 +373,11 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 	}, flushed[0])
 
 	// The samples added after the flush time remains in the dist sampler
-	assert.Equal(t, 1, distSampler.sketchMap.Len())
+	assert.Equal(t, 1, sampler.sketchMap.Len())
 }
 
-func TestDistSamplerContextSampling(t *testing.T) {
-	distSampler := NewTimeSampler(10)
+func TestSketchContextSampling(t *testing.T) {
+	sampler := NewTimeSampler(10)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name1",
@@ -393,10 +393,10 @@ func TestDistSamplerContextSampling(t *testing.T) {
 		Tags:       []string{"a", "c"},
 		SampleRate: 1,
 	}
-	distSampler.addSample(&mSample1, 10011)
-	distSampler.addSample(&mSample2, 10011)
+	sampler.addSample(&mSample1, 10011)
+	sampler.addSample(&mSample2, 10011)
 
-	flushed := distSampler.flushSketches(10020)
+	flushed := sampler.flushSketches(10020)
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1)
 
@@ -424,4 +424,61 @@ func TestDistSamplerContextSampling(t *testing.T) {
 		},
 		ContextKey: generateContextKey(&mSample2),
 	}, flushed[1])
+}
+
+func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
+	sampler := NewTimeSampler(10)
+
+	dSample1 := metrics.MetricSample{
+		Name:       "distribution.metric.name1",
+		Value:      1,
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"a", "b"},
+		SampleRate: 1,
+	}
+	sampler.addSample(&dSample1, 12345.0)
+	sampler.addSample(&dSample1, 12355.0)
+	sampler.addSample(&dSample1, 12365.0)
+
+	mSample := metrics.MetricSample{
+		Name:       "my.metric.name",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"foo", "bar"},
+		SampleRate: 1,
+	}
+	sampler.addSample(&mSample, 12345.0)
+	sampler.addSample(&mSample, 12355.0)
+	sampler.addSample(&mSample, 12365.0)
+
+	series := sampler.flushSeries(12360.0)
+
+	expectedSerie := &metrics.Serie{
+		Name:       "my.metric.name",
+		Tags:       []string{"foo", "bar"},
+		Points:     []metrics.Point{{Ts: 12340.0, Value: mSample.Value}, {Ts: 12350.0, Value: mSample.Value}},
+		MType:      metrics.APIGaugeType,
+		Interval:   10,
+		NameSuffix: "",
+	}
+
+	assert.Equal(t, 1, len(sampler.metricsByTimestamp))
+	if assert.Equal(t, 1, len(series)) {
+		metrics.AssertSerieEqual(t, expectedSerie, series[0])
+	}
+
+	sketches := sampler.flushSketches(12360.0)
+	expSketch := &quantile.Sketch{}
+	expSketch.Insert(quantile.Default(), 1)
+
+	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+		Name:     "distribution.metric.name1",
+		Tags:     []string{"a", "b"},
+		Interval: 10,
+		Points: []metrics.SketchPoint{
+			{Ts: 12340.0, Sketch: expSketch},
+			{Ts: 12350.0, Sketch: expSketch},
+		},
+		ContextKey: generateContextKey(&dSample1),
+	}, sketches[0])
 }
