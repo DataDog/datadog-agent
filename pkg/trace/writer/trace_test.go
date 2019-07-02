@@ -1,5 +1,3 @@
-// +build !windows
-
 package writer
 
 import (
@@ -46,8 +44,7 @@ func TestTraceWriter(t *testing.T) {
 		// One payload flushes due to overflowing the threshold, and the second one
 		// because of stop.
 		assert.Equal(t, 2, srv.Accepted())
-		payloadContains(t, srv.Payloads()[0], testSpans[:2])
-		payloadContains(t, srv.Payloads()[1], testSpans[2:])
+		payloadsContain(t, srv.Payloads(), testSpans)
 	})
 }
 
@@ -69,32 +66,37 @@ func randomSampledSpans(spans, events int) *SampledSpans {
 	}
 }
 
-// payloadContains checks that the given payload contains the given set of sampled spans.
-func payloadContains(t *testing.T, p *payload, sampledSpans []*SampledSpans) {
+// payloadsContain checks that the given payloads contain the given set of sampled spans.
+func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledSpans) {
 	t.Helper()
-	assert := assert.New(t)
-	gzipr, err := gzip.NewReader(p.body)
-	assert.NoError(err)
-	slurp, err := ioutil.ReadAll(gzipr)
-	assert.NoError(err)
-	var payload pb.TracePayload
-	err = proto.Unmarshal(slurp, &payload)
-	assert.NoError(err)
-	assert.Equal(payload.HostName, testHostname)
-	assert.Equal(payload.Env, testEnv)
+	var all pb.TracePayload
+	for _, p := range payloads {
+		assert := assert.New(t)
+		gzipr, err := gzip.NewReader(p.body)
+		assert.NoError(err)
+		slurp, err := ioutil.ReadAll(gzipr)
+		assert.NoError(err)
+		var payload pb.TracePayload
+		err = proto.Unmarshal(slurp, &payload)
+		assert.NoError(err)
+		assert.Equal(payload.HostName, testHostname)
+		assert.Equal(payload.Env, testEnv)
+		all.Traces = append(all.Traces, payload.Traces...)
+		all.Transactions = append(all.Transactions, payload.Transactions...)
+	}
 	for _, ss := range sampledSpans {
 		var found bool
-		for _, trace := range payload.Traces {
+		for _, trace := range all.Traces {
 			if reflect.DeepEqual(trace.Spans, ([]*pb.Span)(ss.Trace)) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Fatal("payload didn't contain given traces")
+			t.Fatal("payloads didn't contain given traces")
 		}
 		for _, event := range ss.Events {
-			assert.Contains(payload.Transactions, event)
+			assert.Contains(t, all.Transactions, event)
 		}
 	}
 }
