@@ -1,3 +1,5 @@
+// +build !windows
+
 package writer
 
 import (
@@ -11,11 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
-)
-
-const (
-	testHostname = "agent-test-host"
-	testEnv      = "testing"
 )
 
 func TestTraceWriter(t *testing.T) {
@@ -39,7 +36,7 @@ func TestTraceWriter(t *testing.T) {
 		// Use a flush threshold that allows the first two entries to not overflow,
 		// but overflow on the third.
 		defer useFlushThreshold(testSpans[0].size() + testSpans[1].size() + 10)()
-		in := make(chan *SampledSpans, 100)
+		in := make(chan *SampledSpans)
 		tw := NewTraceWriter(cfg, in)
 		go tw.Run()
 		for _, ss := range testSpans {

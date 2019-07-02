@@ -16,6 +16,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	testHostname = "agent-test-host"
+	testEnv      = "testing"
+)
+
 func TestStatsWriter(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		assert := assert.New(t)
