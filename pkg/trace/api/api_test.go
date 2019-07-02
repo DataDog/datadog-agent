@@ -324,6 +324,41 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 	}
 }
 
+func TestReceiverDecodingError(t *testing.T) {
+	assert := assert.New(t)
+	conf := newTestReceiverConfig()
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(http.HandlerFunc(r.httpHandleWithVersion(v04, r.handleTraces)))
+	data := []byte("} invalid json")
+	client := &http.Client{}
+
+	t.Run("no-header", func(t *testing.T) {
+		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
+		assert.NoError(err)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.Do(req)
+		assert.NoError(err)
+
+		assert.Equal(400, resp.StatusCode)
+		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{}).TracesDropped.DecodingError)
+	})
+
+	t.Run("with-header", func(t *testing.T) {
+		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
+		assert.NoError(err)
+		traceCount := 10
+		req.Header.Set(headerTraceCount, strconv.Itoa(traceCount))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.Do(req)
+		assert.NoError(err)
+
+		assert.Equal(400, resp.StatusCode)
+		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{}).TracesDropped.DecodingError)
+	})
+}
+
 func TestReceiverServiceJSONDecoder(t *testing.T) {
 	// testing traces without content-type in agent endpoints, it should use JSON decoding
 	assert := assert.New(t)
@@ -585,7 +620,7 @@ func TestReceiverPreSamplerCancel(t *testing.T) {
 				reader := &chunkedReader{reader: bytes.NewReader(buf.Bytes())}
 				req, err := http.NewRequest("POST", url, reader)
 				req.Header.Set("Content-Type", "application/msgpack")
-				req.Header.Set(sampler.TraceCountHeader, strconv.Itoa(n))
+				req.Header.Set(headerTraceCount, strconv.Itoa(n))
 				assert.Nil(err)
 
 				resp, err := client.Do(req)
@@ -764,8 +799,8 @@ func TestExpvar(t *testing.T) {
 	assert.EqualValues(t, resp.StatusCode, http.StatusOK, "failed to read expvars from local server")
 
 	if resp.StatusCode == http.StatusOK {
-		var varsJSON map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&varsJSON)
+		var out map[string]interface{}
+		err = json.NewDecoder(resp.Body).Decode(&out)
 		assert.NoError(t, err, "/debug/vars must return valid json")
 	}
 }
@@ -815,7 +850,7 @@ func TestWatchdog(t *testing.T) {
 			t.Fatal(err)
 		}
 		req.Header.Set("Content-Type", "application/msgpack")
-		req.Header.Set(sampler.TraceCountHeader, "3")
+		req.Header.Set(headerTraceCount, "3")
 		resp, err = http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)

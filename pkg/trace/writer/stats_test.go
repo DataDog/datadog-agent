@@ -16,6 +16,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	testHostname = "agent-test-host"
+	testEnv      = "testing"
+)
+
 func TestStatsWriter(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		assert := assert.New(t)
@@ -179,7 +184,7 @@ func testStatsWriter() (*StatsWriter, chan []stats.Bucket, *testServer) {
 		Hostname:    testHostname,
 		DefaultEnv:  testEnv,
 		Endpoints:   []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
-		StatsWriter: &config.SenderConfig{ConnectionLimit: 20, QueueSize: 20},
+		StatsWriter: &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 	}
 	return NewStatsWriter(cfg, in), in, srv
 }

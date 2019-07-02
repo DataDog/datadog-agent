@@ -37,6 +37,10 @@ const (
 	maxRequestBodyLength = 10 * 1024 * 1024
 	tagTraceHandler      = "handler:traces"
 	tagServiceHandler    = "handler:services"
+
+	// headerTraceCount is the header client implementation should fill
+	// with the number of traces contained in the payload.
+	headerTraceCount = "X-Datadog-Trace-Count"
 )
 
 // Version is a dumb way to version our collector handlers
@@ -239,7 +243,7 @@ func (r *HTTPReceiver) httpHandleWithVersion(v Version, f func(Version, http.Res
 	return r.httpHandle(func(w http.ResponseWriter, req *http.Request) {
 		mediaType := getMediaType(req)
 		if mediaType == "application/msgpack" && (v == v01 || v == v02) {
-			// msgpack is only supported for versions 0.3
+			// msgpack is only supported for versions >= 0.3
 			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
 			return
 		}
@@ -248,44 +252,71 @@ func (r *HTTPReceiver) httpHandleWithVersion(v Version, f func(Version, http.Res
 	})
 }
 
-func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
+func traceCount(req *http.Request) int64 {
+	str := req.Header.Get(headerTraceCount)
+	if str == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(str)
+	if err != nil {
+		log.Errorf("Error parsing %q HTTP header: %s", headerTraceCount, err)
+	}
+	return int64(n)
+}
+
+func (r *HTTPReceiver) tagStats(req *http.Request) *info.TagStats {
+	return r.Stats.GetTagStats(info.Tags{
+		Lang:          req.Header.Get("Datadog-Meta-Lang"),
+		LangVersion:   req.Header.Get("Datadog-Meta-Lang-Version"),
+		Interpreter:   req.Header.Get("Datadog-Meta-Lang-Interpreter"),
+		TracerVersion: req.Header.Get("Datadog-Meta-Tracer-Version"),
+	})
+}
+
+func (r *HTTPReceiver) decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
+	if v == v01 {
+		var spans []pb.Span
+		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
+			return nil, err
+		}
+		return tracesFromSpans(spans), nil
+	}
+	var traces pb.Traces
+	if err := decodeRequest(req, &traces); err != nil {
+		return nil, err
+	}
+	return traces, nil
+}
+
+func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) {
 	switch v {
-	case v01:
-		fallthrough
-	case v02:
-		fallthrough
-	case v03:
-		// Simple response, simply acknowledge with "OK"
+	case v01, v02, v03:
 		httpOK(w)
 	case v04:
-		// Return the recommended sampling rate for each service as a JSON.
 		httpRateByService(w, r.dynConf)
 	}
 }
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
-	if !r.PreSampler.Sample(req) {
+	traceCount := traceCount(req)
+	if !r.PreSampler.SampleWithCount(traceCount) {
 		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(r.presamplerResponse)
-		r.replyTraces(v, w)
+		r.replyOK(v, w)
 		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, nil, 1)
 		return
 	}
 
-	traces, ok := getTraces(v, w, req)
-	if !ok {
+	ts := r.tagStats(req)
+	traces, err := r.decodeTraces(v, req)
+	if err != nil {
+		httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
+		atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
+		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return
 	}
-
-	r.replyTraces(v, w)
-
-	ts := r.Stats.GetTagStats(info.Tags{
-		Lang:          req.Header.Get("Datadog-Meta-Lang"),
-		LangVersion:   req.Header.Get("Datadog-Meta-Lang-Version"),
-		Interpreter:   req.Header.Get("Datadog-Meta-Lang-Interpreter"),
-		TracerVersion: req.Header.Get("Datadog-Meta-Tracer-Version"),
-	})
+	r.replyOK(v, w)
 
 	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
 	atomic.AddInt64(&ts.TracesBytes, int64(req.Body.(*LimitedReader).Count))
@@ -308,17 +339,10 @@ func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
 
 		atomic.AddInt64(&ts.SpansReceived, int64(spans))
 
-		err := normalizeTrace(trace)
+		err := normalizeTrace(ts, trace)
 		if err != nil {
-			atomic.AddInt64(&ts.TracesDropped, 1)
+			log.Debug("Dropping invalid trace: %s", err)
 			atomic.AddInt64(&ts.SpansDropped, int64(spans))
-
-			msg := fmt.Sprintf("Dropping trace; reason: %s", err)
-			if len(msg) > 150 && !r.debug {
-				// we're not in DEBUG log level, truncate long messages.
-				msg = msg[:150] + "... (set DEBUG log level for more info)"
-			}
-			log.Errorf(msg)
 			continue
 		}
 
@@ -329,9 +353,7 @@ func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
 // handleServices handle a request with a list of several services
 func (r *HTTPReceiver) handleServices(v Version, w http.ResponseWriter, req *http.Request) {
 	var servicesMeta pb.ServicesMetadata
-
-	mediaType := getMediaType(req)
-	if err := decodeReceiverPayload(req.Body, &servicesMeta, v, mediaType); err != nil {
+	if err := decodeRequest(req, &servicesMeta); err != nil {
 		log.Errorf("Cannot decode %s services payload: %v", v, err)
 		httpDecodingError(err, []string{tagServiceHandler, fmt.Sprintf("v:%s", v)}, w)
 		return
@@ -395,9 +417,7 @@ func (r *HTTPReceiver) loop() {
 				// We expose the stats accumulated to expvar
 				info.UpdateReceiverStats(accStats)
 
-				for _, logStr := range accStats.Strings() {
-					log.Info(logStr)
-				}
+				accStats.LogStats()
 
 				// We reset the stats accumulated during the last minute
 				accStats.Reset()
@@ -479,60 +499,24 @@ func (r *HTTPReceiver) Languages() string {
 	return strings.Join(str, "|")
 }
 
-func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, bool) {
-	var traces pb.Traces
-	mediaType := getMediaType(req)
-	switch v {
-	case v01:
-		// We cannot use decodeReceiverPayload because []model.Span does not
-		// implement msgp.Decodable. This hack can be removed once we
-		// drop v01 support.
-		switch mediaType {
-		case "application/json", "text/json", "":
-			// ok
-		default:
-			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
-			return nil, false
-		}
-
-		// in v01 we actually get spans that we have to transform in traces
-		var spans []pb.Span
-		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
-			log.Errorf("Cannot decode %s traces payload: %v", v, err)
-			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-			return nil, false
-		}
-		traces = tracesFromSpans(spans)
-	case v02:
-		fallthrough
-	case v03:
-		fallthrough
-	case v04:
-		if err := decodeReceiverPayload(req.Body, &traces, v, mediaType); err != nil {
-			log.Errorf("Cannot decode %s traces payload: %v", v, err)
-			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-			return nil, false
-		}
-	default:
-		httpEndpointNotSupported([]string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-		return nil, false
-	}
-
-	return traces, true
-}
-
-func decodeReceiverPayload(r io.Reader, dest msgp.Decodable, v Version, mediaType string) error {
-	switch mediaType {
+func decodeRequest(req *http.Request, dest msgp.Decodable) error {
+	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
-		return msgp.Decode(r, dest)
+		return msgp.Decode(req.Body, dest)
 	case "application/json":
 		fallthrough
 	case "text/json":
 		fallthrough
 	case "":
-		return json.NewDecoder(r).Decode(dest)
+		return json.NewDecoder(req.Body).Decode(dest)
 	default:
-		return fmt.Errorf("unknown content type: %q", mediaType)
+		// do our best
+		if err1 := json.NewDecoder(req.Body).Decode(dest); err1 != nil {
+			if err2 := msgp.Decode(req.Body, dest); err2 != nil {
+				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
+			}
+		}
+		return nil
 	}
 }
 

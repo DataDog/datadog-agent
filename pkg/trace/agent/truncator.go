@@ -2,6 +2,7 @@ package agent
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,10 +22,9 @@ const (
 func Truncate(s *pb.Span) {
 	// Resource
 	if len(s.Resource) > MaxResourceLen {
-		s.Resource = truncateString(s.Resource, MaxResourceLen)
+		s.Resource = traceutil.TruncateUTF8(s.Resource, MaxResourceLen)
 		log.Debugf("span.truncate: truncated `Resource` (max %d chars): %s", MaxResourceLen, s.Resource)
 	}
-
 	// Error - Nothing to do
 	// Optional data, Meta & Metrics can be nil
 	// Soft fail on those
@@ -34,12 +34,12 @@ func Truncate(s *pb.Span) {
 		if len(k) > MaxMetaKeyLen {
 			log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, k)
 			delete(s.Meta, k)
-			k = truncateString(k, MaxMetaKeyLen) + "..."
+			k = traceutil.TruncateUTF8(k, MaxMetaKeyLen) + "..."
 			modified = true
 		}
 
 		if len(v) > MaxMetaValLen {
-			v = truncateString(v, MaxMetaValLen) + "..."
+			v = traceutil.TruncateUTF8(v, MaxMetaValLen) + "..."
 			modified = true
 		}
 
@@ -47,28 +47,13 @@ func Truncate(s *pb.Span) {
 			s.Meta[k] = v
 		}
 	}
-
 	for k, v := range s.Metrics {
 		if len(k) > MaxMetricsKeyLen {
 			log.Debugf("span.truncate: truncating `Metrics` key (max %d chars): %s", MaxMetricsKeyLen, k)
 			delete(s.Metrics, k)
-			k = truncateString(k, MaxMetricsKeyLen) + "..."
+			k = traceutil.TruncateUTF8(k, MaxMetricsKeyLen) + "..."
 
 			s.Metrics[k] = v
 		}
 	}
-}
-
-// truncateString truncates the given string to make sure it uses less than limit bytes.
-// If the last character is an utf8 character that would be splitten, it removes it
-// entirely to make sure the resulting string is not broken.
-func truncateString(s string, limit int) string {
-	var lastValidIndex int
-	for i := range s {
-		if i > limit {
-			return s[:lastValidIndex]
-		}
-		lastValidIndex = i
-	}
-	return s
 }

@@ -1,4 +1,12 @@
 #!/usr/bin/execlineb -P
 
-foreground { /initlog.sh "starting system-probe" }
-system-probe --config=/etc/datadog-agent/system-probe.yaml
+# Check if the system-probe exists before running it
+ifthenelse
+    { s6-test -x "$(command -v system-probe)" }
+    {
+        foreground { /initlog.sh "starting system-probe" }
+        system-probe --config=/etc/datadog-agent/system-probe.yaml
+    }
+    {
+        foreground { /initlog.sh "system-probe not bundled, it will not start" }
+    }
