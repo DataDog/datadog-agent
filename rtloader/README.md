@@ -1,8 +1,5 @@
 # Datadog Agent RtLoader
 
-[![Build status](https://ci.appveyor.com/api/projects/status/325i4ry39gdfbfxh?svg=true)](https://ci.appveyor.com/project/Datadog/datadog-agent-rtloader)
-[![CircleCI](https://circleci.com/gh/DataDog/datadog-agent-rtloader.svg?style=svg)](https://circleci.com/gh/DataDog/datadog-agent-rtloader)
-
 CPython embedding/extending backend with support for multiple Python versions.
 
 ## Concepts
