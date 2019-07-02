@@ -40,24 +40,60 @@ func TestTracerExpvar(t *testing.T) {
 
 	<-time.After(time.Second)
 
-	expected := map[string]float64{
-		"ClosedConnDropped":         0,
-		"ClosedConnPollingLost":     0,
-		"ClosedConnPollingReceived": 0,
-		"ConnDropped":               0,
-		"ConntrackNoopConntracker":  0,
-		"ExpiredTcpConns":           0,
-		"OkConnsSkipped":            0,
-		"StatsResets":               0,
-		"UnorderedConns":            0,
-		"TimeSyncCollisions":        0,
-		"EbpfTcpSentMiscounts":      0,
+	expected := []string{
+		"ClosedConnDropped",
+		"ClosedConnPollingLost",
+		"ClosedConnPollingReceived",
+		"ConnDropped",
+		"ConntrackNoopConntracker",
+		"ExpiredTcpConns",
+		"ConnValidSkipped",
+		"StatsResets",
+		"UnorderedConns",
+		"TimeSyncCollisions",
+		"EbpfTcpSentMiscounts",
+		// Kprobe stats
+		"KprobePtcpCleanupRbufHits",
+		"KprobePtcpCleanupRbufMisses",
+		"KprobePtcpCloseHits",
+		"KprobePtcpCloseMisses",
+		"KprobePtcpRetransmitSkbHits",
+		"KprobePtcpRetransmitSkbMisses",
+		"KprobePtcpSendmsgHits",
+		"KprobePtcpSendmsgMisses",
+		"KprobePtcpVConnectHits",
+		"KprobePtcpVConnectMisses",
+		"KprobePtcpVDestroySockHits",
+		"KprobePtcpVDestroySockMisses",
+		"KprobePudpRecvmsgHits",
+		"KprobePudpRecvmsgMisses",
+		"KprobePudpSendmsgHits",
+		"KprobePudpSendmsgMisses",
+		"KprobeRInetCskAcceptHits",
+		"KprobeRInetCskAcceptMisses",
+		"KprobeRTcpSendmsgHits",
+		"KprobeRTcpSendmsgMisses",
+		"KprobeRTcpVConnectHits",
+		"KprobeRTcpVConnectMisses",
+		"KprobeRUdpRecvmsgHits",
+		"KprobeRUdpRecvmsgMisses",
+		"KprobeRinetCskAcceptHits",
+		"KprobeRinetCskAcceptMisses",
+		"KprobeRtcpSendmsgHits",
+		"KprobeRtcpSendmsgMisses",
+		"KprobeRtcpVConnectHits",
+		"KprobeRtcpVConnectMisses",
+		"KprobeRudpRecvmsgHits",
+		"KprobeRudpRecvmsgMisses",
 	}
 
 	res := map[string]float64{}
 	require.NoError(t, json.Unmarshal([]byte(probeExpvar.String()), &res))
 
-	assert.Equal(t, expected, res)
+	assert.Equal(t, len(expected), len(res))
+	for _, k := range expected {
+		assert.Contains(t, res, k)
+	}
 }
 
 func TestSnakeToCamel(t *testing.T) {
@@ -723,20 +759,19 @@ func TestTCPMiscount(t *testing.T) {
 
 	fd := int(file.Fd())
 
-	// Set a really low sendtimeout of 100us to trigger EAGAIN errors in `tcp_sendmsg`
+	// Set a really low sendtimeout of 1us to trigger EAGAIN errors in `tcp_sendmsg`
 	err = syscall.SetsockoptTimeval(fd, syscall.SOL_SOCKET, syscall.SO_SNDTIMEO, &syscall.Timeval{
 		Sec:  0,
-		Usec: 100,
+		Usec: 1,
 	})
 	assert.NoError(t, err)
 
-	// 10 MB payload
-	x := make([]byte, 10*1024*1024)
+	// 50 MB payload
+	x := make([]byte, 50*1024*1024)
 
 	n, err := c.Write(x)
 	assert.NoError(t, err)
 	assert.EqualValues(t, len(x), n)
-	fmt.Printf("n = %+v\n", n)
 
 	doneChan <- struct{}{}
 

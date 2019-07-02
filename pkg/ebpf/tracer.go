@@ -192,6 +192,14 @@ func (t *Tracer) expvarStats() {
 			}
 		}
 
+		if probeStats, ok := stats["kprobes"]; ok {
+			for metric, val := range probeStats.(map[string]int64) {
+				currVal := &expvar.Int{}
+				currVal.Set(val)
+				probeExpvar.Set(fmt.Sprintf("Kprobe%s", snakeToCapInitialCamel(metric)), currVal)
+			}
+		}
+
 		if ebpfStats, ok := stats["ebpf"]; ok {
 			for metric, val := range ebpfStats.(map[string]int64) {
 				currVal := &expvar.Int{}
@@ -461,15 +469,15 @@ func (t *Tracer) getLatestTimestamp() (uint64, bool, error) {
 func (t *Tracer) getEbpfTelemetry() map[string]int64 {
 	mp, err := t.getMap(telemetryMap)
 	if err != nil {
-		log.Warnf("error retrieving telemetry map", err)
+		log.Warnf("error retrieving telemetry map: %s", err)
 		return map[string]int64{}
 	}
 
 	telemetry := &kernelTelemetry{}
 	if err := t.m.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
 		// This can happen if we haven't initialized the telemetry object yet
-		// so let's just use a debug log
-		log.Debugf("error retrieving the telemetry struct: %s", err)
+		// so let's just use a trace log
+		log.Tracef("error retrieving the telemetry struct: %s", err)
 	}
 
 	return map[string]int64{
@@ -533,7 +541,8 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 			"conn_valid_skipped":           skipped, // Skipped connections (e.g. Local DNS requests)
 			"expired_tcp_conns":            expiredTCP,
 		},
-		"ebpf": t.getEbpfTelemetry(),
+		"ebpf":    t.getEbpfTelemetry(),
+		"kprobes": GetProbeStats(),
 	}, nil
 }
 
