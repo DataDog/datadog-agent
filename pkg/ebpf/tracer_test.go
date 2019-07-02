@@ -41,7 +41,7 @@ func TestTracerExpvar(t *testing.T) {
 
 	expectedExpvars := []map[string]float64{
 		map[string]float64{
-			"ConntrackNoopConntracker": 0,
+			"NoopConntracker": 0,
 		},
 		map[string]float64{
 			"UnorderedConns":     0,
@@ -57,7 +57,7 @@ func TestTracerExpvar(t *testing.T) {
 			"ExpiredTcpConns":           0,
 		},
 		map[string]float64{
-			"EbpfTcpSentMiscounts": 0,
+			"TcpSentMiscounts": 0,
 		},
 	}
 

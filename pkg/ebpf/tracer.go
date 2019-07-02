@@ -177,37 +177,16 @@ func (t *Tracer) expvarStats() {
 			continue
 		}
 
-		if tracerStats, ok := stats["tracer"]; ok {
-			for metric, val := range tracerStats.(map[string]int64) {
-				currVal := &expvar.Int{}
-				currVal.Set(val)
-				expvarEndpoints["tracer"].Set(snakeToCapInitialCamel(metric), currVal)
-			}
-		}
-
-		if ebpfStats, ok := stats["ebpf"]; ok {
-			for metric, val := range ebpfStats.(map[string]int64) {
-				currVal := &expvar.Int{}
-				currVal.Set(val)
-				expvarEndpoints["ebpf"].Set(fmt.Sprintf("Ebpf%s", snakeToCapInitialCamel(metric)), currVal)
-			}
-		}
-
-		if states, ok := stats["state"]; ok {
-			if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
-				for metric, val := range telemetry.(map[string]int64) {
-					currVal := &expvar.Int{}
-					currVal.Set(val)
-					expvarEndpoints["state"].Set(snakeToCapInitialCamel(metric), currVal)
+		for name, stat := range stats {
+			if name == "state" {
+				if telemetry, ok := stat.(map[string]interface{})["telemetry"]; ok {
+					stat = telemetry
 				}
 			}
-		}
-
-		if conntrackStats, ok := stats["conntrack"]; ok {
-			for metric, val := range conntrackStats.(map[string]int64) {
+			for metric, val := range stat.(map[string]int64) {
 				currVal := &expvar.Int{}
 				currVal.Set(val)
-				expvarEndpoints["conntrack"].Set(fmt.Sprintf("Conntrack%s", snakeToCapInitialCamel(metric)), currVal)
+				expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
 			}
 		}
 	}
@@ -454,7 +433,7 @@ func (t *Tracer) getLatestTimestamp() (uint64, bool, error) {
 func (t *Tracer) getEbpfTelemetry() map[string]int64 {
 	mp, err := t.getMap(telemetryMap)
 	if err != nil {
-		log.Warnf("error retrieving telemetry map", err)
+		log.Warnf("error retrieving telemetry map: %s", err)
 		return map[string]int64{}
 	}
 
