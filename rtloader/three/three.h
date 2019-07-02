@@ -26,8 +26,8 @@ class Three : public RtLoader
 public:
     //! Constructor.
     /*!
-      \param python_home A C-string representation to the python home for the
-      underlying python interpreter.
+      \param python_home A C-string with the path to the python home for the
+      python interpreter.
 
       Basic constructor, initializes the _error string to an empty string and
       errorFlag to false and set the supplied PYTHONHOME.

@@ -372,7 +372,7 @@ private:
 /*! create_t function prototype
   \typedef create_t defines the factory function prototype to create RtLoader instances for
   the underlying python runtimes.
-  \param python_home A C-string representation of the python home for the target python runtime.
+  \param python_home A C-string path to the python home for the target python runtime.
   \return A pointer to the RtLoader instance created by the implementing function.
 */
 typedef RtLoader *(create_t)(const char *python_home);

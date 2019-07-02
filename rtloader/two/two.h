@@ -25,8 +25,8 @@ class Two : public RtLoader
 public:
     //! Constructor.
     /*!
-      \param python_home A C-string representation to the python home for the
-      underlying python interpreter.
+      \param python_home A C-string with the path to the python home for the
+      python interpreter.
 
       Basic constructor, initializes the _error string to an empty string and
       errorFlag to false and set the supplied PYTHONHOME.
@@ -158,6 +158,7 @@ private:
     */
     typedef std::vector<std::string> PyPaths;
 
+    char *_pythonHome; /*!< string with the PYTHONHOME for the underlying interpreter */
     PyObject *_baseClass; /*!< PyObject * pointer to the base Agent check class */
     PyPaths _pythonPaths; /*!< string vector containing paths in the PYTHONPATH */
     PyThreadState *_threadState; /*!< PyThreadState * pointer to the saved Python interpreter thread state */
