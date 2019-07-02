@@ -20,6 +20,7 @@ venv/
 *.exe
 *.syso
 *.log
+*.test
 
 #file generated at build time by message compiler
 agentmsg.h
