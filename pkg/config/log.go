@@ -351,27 +351,38 @@ func extractShortPathFromFullPath(fullPath string) string {
 
 func createExtraContext(params string) seelog.FormatterFunc {
 	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
-		contextMap, ok := context.CustomContext().(map[string]interface{})
-		if len(contextMap) == 0 || !ok {
+		contextList, ok := context.CustomContext().([]interface{})
+		if len(contextList) == 0 || !ok {
 			return ""
 		}
-		return extractContextString(contextMap)
+		return extractContextString(contextList)
 	}
 }
 
-func extractContextString(contextMap map[string]interface{}) string {
+func extractContextString(contextList []interface{}) string {
 	builder.Reset()
-	if len(contextMap) > 0 {
+	if len(contextList) > 0 {
 		builder.WriteString(",")
 	}
-	i := 0
-	for key, value := range contextMap {
-		if i == len(contextMap)-1 {
-			fmt.Fprintf(&builder, "\"%s\": \"%v\"", key, value)
-		} else {
-			fmt.Fprintf(&builder, "\"%s\": \"%v\",", key, value)
+
+	for i := 0; i < len(contextList); {
+		if i == len(contextList)-1 {
+			// key without value
+			return ""
 		}
-		i++
+		key, val := contextList[i], contextList[i+1]
+		keyStr, ok := key.(string)
+		if !ok {
+			// skip non string keys
+			i += 2
+			continue
+		}
+		if i == len(contextList)-2 {
+			fmt.Fprintf(&builder, "\"%s\": \"%v\"", keyStr, val)
+		} else {
+			fmt.Fprintf(&builder, "\"%s\": \"%v\",", keyStr, val)
+		}
+		i += 2
 	}
 	return builder.String()
 }

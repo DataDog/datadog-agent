@@ -397,7 +397,7 @@ func Info(v ...interface{}) {
 }
 
 // Infoc logs at the info level with context
-func Infoc(message string, context map[string]interface{}) {
+func Infoc(message string, context ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
 		logger.inner.SetContext(context)
 		logger.info(logger.scrub(message))

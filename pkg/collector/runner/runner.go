@@ -320,12 +320,14 @@ func (r *Runner) work() {
 		r.m.Unlock()
 
 		l := "Done running check %s"
-		log.Infoc("Done running", map[string]interface{}{"check": check.String()})
 		if doLog {
 			if lastLog {
 				l = l + fmt.Sprintf(", next runs will be logged every %v runs", config.Datadog.GetInt64("logging_frequency"))
 			}
 			log.Infof(l, check)
+			log.Infoc("Done running",
+				"check", check.String(),
+			)
 		} else {
 			log.Debugf(l, check)
 		}

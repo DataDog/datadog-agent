@@ -47,10 +47,12 @@ func BenchmarkLogFormatShortFilePath(b *testing.B) {
 }
 
 func TestExtractContextString(t *testing.T) {
-	assert.Equal(t, `,"foo": "bar"`, extractContextString(map[string]interface{}{"foo": "bar"}))
-	assert.Equal(t, `,"foo": "bar","bar": "buzz"`, extractContextString(map[string]interface{}{"foo": "bar", "bar": "buzz"}))
-	assert.Equal(t, `,"foo": "3"`, extractContextString(map[string]interface{}{"foo": 3}))
+	assert.Equal(t, `,"foo": "bar"`, extractContextString([]interface{}{"foo", "bar"}))
+	assert.Equal(t, `,"foo": "bar","bar": "buzz"`, extractContextString([]interface{}{"foo", "bar", "bar", "buzz"}))
+	assert.Equal(t, `,"foo": "3"`, extractContextString([]interface{}{"foo", 3}))
 	assert.Equal(t, "", extractContextString(nil))
+	assert.Equal(t, ",", extractContextString([]interface{}{2, 3}))
+	assert.Equal(t, `,"foo": "bar","bar": "buzz"`, extractContextString([]interface{}{"foo", "bar", 2, 3, "bar", "buzz"}))
 }
 
 func benchmarkLogFormatWithContext(logFormat string, b *testing.B) {
@@ -58,7 +60,7 @@ func benchmarkLogFormatWithContext(logFormat string, b *testing.B) {
 	w := bufio.NewWriter(&buff)
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, logFormat)
-	context := map[string]interface{}{"extra": "context", "foo": "bar"}
+	context := []interface{}{"extra", "context", "foo", "bar"}
 
 	for n := 0; n < b.N; n++ {
 		l.SetContext(context)
