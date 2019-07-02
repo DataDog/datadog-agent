@@ -623,7 +623,7 @@ func TestLocalDNSCollectionEnabled(t *testing.T) {
 }
 
 func isLocalDNS(c ConnectionStats) bool {
-	return c.SourceAddr().String() == "127.0.0.1" && c.DestAddr().String() == "127.0.0.1" && c.DPort == 53
+	return c.Source.String() == "127.0.0.1" && c.Dest.String() == "127.0.0.1" && c.DPort == 53
 }
 
 func TestTooSmallBPFMap(t *testing.T) {
@@ -753,7 +753,7 @@ func TestTCPMiscount(t *testing.T) {
 
 func findConnection(l, r net.Addr, c *Connections) (*ConnectionStats, bool) {
 	for _, conn := range c.Conns {
-		if addrMatches(l, conn.SourceAddr().String(), conn.SPort) && addrMatches(r, conn.DestAddr().String(), conn.DPort) {
+		if addrMatches(l, conn.Source.String(), conn.SPort) && addrMatches(r, conn.Dest.String(), conn.DPort) {
 			return &conn, true
 		}
 	}
