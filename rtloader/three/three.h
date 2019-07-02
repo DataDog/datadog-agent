@@ -47,6 +47,7 @@ public:
       thread id>,) in <module 'threading'".
       Even if Python ignores it, the exception ends up in the log files for
       upstart/syslog/...
+      Since we don't call Py_Finalize, we don't free _pythonHome here either.
 
       More info here:
       https://stackoverflow.com/questions/8774958/keyerror-in-module-threading-after-a-successful-py-test-run/12639040#12639040

@@ -58,6 +58,7 @@ void Two::initPythonHome(const char *pythonHome)
         _pythonHome = _strdup(pythonHome);
     }
 
+    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
     Py_SetPythonHome(_pythonHome);
     free(oldPythonHome);
 }

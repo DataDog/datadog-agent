@@ -56,6 +56,7 @@ void Three::initPythonHome(const char *pythonHome)
         _pythonHome = Py_DecodeLocale(pythonHome, NULL);
     }
 
+    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
     Py_SetPythonHome(_pythonHome);
     PyMem_RawFree((void *)oldPythonHome);
 }
