@@ -39,42 +39,33 @@ func TestTracerExpvar(t *testing.T) {
 
 	<-time.After(time.Second)
 
-	expectedConntrack := map[string]float64{
-		"ConntrackNoopConntracker": 0,
+	expectedExpvars := []map[string]float64{
+		map[string]float64{
+			"ConntrackNoopConntracker": 0,
+		},
+		map[string]float64{
+			"UnorderedConns":     0,
+			"ConnDropped":        0,
+			"ClosedConnDropped":  0,
+			"StatsResets":        0,
+			"TimeSyncCollisions": 0,
+		},
+		map[string]float64{
+			"ClosedConnPollingLost":     0,
+			"ClosedConnPollingReceived": 0,
+			"ConnValidSkipped":          0,
+			"ExpiredTcpConns":           0,
+		},
+		map[string]float64{
+			"EbpfTcpSentMiscounts": 0,
+		},
 	}
-	expectedState := map[string]float64{
-		"UnorderedConns":     0,
-		"ConnDropped":        0,
-		"ClosedConnDropped":  0,
-		"StatsResets":        0,
-		"TimeSyncCollisions": 0,
+
+	for i, et := range expvarTypes {
+		expvar := map[string]float64{}
+		require.NoError(t, json.Unmarshal([]byte(expvarEndpoints[et].String()), &expvar))
+		assert.Equal(t, expectedExpvars[i], expvar)
 	}
-	expectedTracer := map[string]float64{
-		"ClosedConnPollingLost":     0,
-		"ClosedConnPollingReceived": 0,
-		"ConnValidSkipped":          0,
-		"ExpiredTcpConns":           0,
-	}
-	expectedEbpf := map[string]float64{
-		"EbpfTcpSentMiscounts": 0,
-	}
-
-	conntrackVars := map[string]float64{}
-	require.NoError(t, json.Unmarshal([]byte(conntrackExpvar.String()), &conntrackVars))
-
-	stateVars := map[string]float64{}
-	require.NoError(t, json.Unmarshal([]byte(stateExpvar.String()), &stateVars))
-
-	tracerVars := map[string]float64{}
-	require.NoError(t, json.Unmarshal([]byte(tracerExpvar.String()), &tracerVars))
-
-	ebpfVars := map[string]float64{}
-	require.NoError(t, json.Unmarshal([]byte(ebpfExpvar.String()), &ebpfVars))
-
-	assert.Equal(t, expectedConntrack, conntrackVars)
-	assert.Equal(t, expectedState, stateVars)
-	assert.Equal(t, expectedTracer, tracerVars)
-	assert.Equal(t, expectedEbpf, ebpfVars)
 }
 
 func TestSnakeToCamel(t *testing.T) {

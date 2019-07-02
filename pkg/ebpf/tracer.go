@@ -20,17 +20,15 @@ import (
 )
 
 var (
-	conntrackExpvar *expvar.Map
-	stateExpvar     *expvar.Map
-	tracerExpvar    *expvar.Map
-	ebpfExpvar      *expvar.Map
+	expvarEndpoints map[string]*expvar.Map
+	expvarTypes     = [4]string{"conntrack", "state", "tracer", "ebpf"}
 )
 
 func init() {
-	conntrackExpvar = expvar.NewMap("conntrack")
-	stateExpvar = expvar.NewMap("state")
-	tracerExpvar = expvar.NewMap("tracer")
-	ebpfExpvar = expvar.NewMap("ebpf")
+	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
+	for _, name := range expvarTypes {
+		expvarEndpoints[name] = expvar.NewMap(name)
+	}
 }
 
 type Tracer struct {
@@ -183,7 +181,7 @@ func (t *Tracer) expvarStats() {
 			for metric, val := range tracerStats.(map[string]int64) {
 				currVal := &expvar.Int{}
 				currVal.Set(val)
-				tracerExpvar.Set(snakeToCapInitialCamel(metric), currVal)
+				expvarEndpoints["tracer"].Set(snakeToCapInitialCamel(metric), currVal)
 			}
 		}
 
@@ -191,7 +189,7 @@ func (t *Tracer) expvarStats() {
 			for metric, val := range ebpfStats.(map[string]int64) {
 				currVal := &expvar.Int{}
 				currVal.Set(val)
-				ebpfExpvar.Set(fmt.Sprintf("Ebpf%s", snakeToCapInitialCamel(metric)), currVal)
+				expvarEndpoints["ebpf"].Set(fmt.Sprintf("Ebpf%s", snakeToCapInitialCamel(metric)), currVal)
 			}
 		}
 
@@ -200,7 +198,7 @@ func (t *Tracer) expvarStats() {
 				for metric, val := range telemetry.(map[string]int64) {
 					currVal := &expvar.Int{}
 					currVal.Set(val)
-					stateExpvar.Set(snakeToCapInitialCamel(metric), currVal)
+					expvarEndpoints["state"].Set(snakeToCapInitialCamel(metric), currVal)
 				}
 			}
 		}
@@ -209,7 +207,7 @@ func (t *Tracer) expvarStats() {
 			for metric, val := range conntrackStats.(map[string]int64) {
 				currVal := &expvar.Int{}
 				currVal.Set(val)
-				conntrackExpvar.Set(fmt.Sprintf("Conntrack%s", snakeToCapInitialCamel(metric)), currVal)
+				expvarEndpoints["conntrack"].Set(fmt.Sprintf("Conntrack%s", snakeToCapInitialCamel(metric)), currVal)
 			}
 		}
 	}
