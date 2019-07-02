@@ -6,7 +6,6 @@
 package config
 
 import (
-	"bytes"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -27,6 +26,8 @@ type LoggerName string
 const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format syntax
 
 var syslogTLSConfig *tls.Config
+
+var builder strings.Builder
 
 // BuildCommonFormat returns the log common format seelog string
 func BuildCommonFormat(loggerName LoggerName) string {
@@ -359,17 +360,20 @@ func createExtraContext(params string) seelog.FormatterFunc {
 }
 
 func extractContextString(contextMap map[string]interface{}) string {
-	b := new(bytes.Buffer)
+	builder.Reset()
+	if len(contextMap) > 0 {
+		builder.WriteString(",")
+	}
 	i := 0
-	sep := ","
 	for key, value := range contextMap {
 		if i == len(contextMap)-1 {
-			sep = ""
+			fmt.Fprintf(&builder, "\"%s\": \"%v\"", key, value)
+		} else {
+			fmt.Fprintf(&builder, "\"%s\": \"%v\",", key, value)
 		}
-		fmt.Fprintf(b, "\"%s\": \"%v\"%s", key, value, sep)
 		i++
 	}
-	return "," + b.String()
+	return builder.String()
 }
 
 func init() {

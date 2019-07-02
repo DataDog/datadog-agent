@@ -50,6 +50,7 @@ func TestExtractContextString(t *testing.T) {
 	assert.Equal(t, `,"foo": "bar"`, extractContextString(map[string]interface{}{"foo": "bar"}))
 	assert.Equal(t, `,"foo": "bar","bar": "buzz"`, extractContextString(map[string]interface{}{"foo": "bar", "bar": "buzz"}))
 	assert.Equal(t, `,"foo": "3"`, extractContextString(map[string]interface{}{"foo": 3}))
+	assert.Equal(t, "", extractContextString(nil))
 }
 
 func benchmarkLogFormatWithContext(logFormat string, b *testing.B) {
