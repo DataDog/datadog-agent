@@ -20,11 +20,17 @@ import (
 )
 
 var (
-	probeExpvar *expvar.Map
+	conntrackExpvar *expvar.Map
+	stateExpvar     *expvar.Map
+	tracerExpvar    *expvar.Map
+	ebpfExpvar      *expvar.Map
 )
 
 func init() {
-	probeExpvar = expvar.NewMap("systemprobe")
+	conntrackExpvar = expvar.NewMap("conntrack")
+	stateExpvar = expvar.NewMap("state")
+	tracerExpvar = expvar.NewMap("tracer")
+	ebpfExpvar = expvar.NewMap("ebpf")
 }
 
 type Tracer struct {
@@ -177,7 +183,7 @@ func (t *Tracer) expvarStats() {
 			for metric, val := range tracerStats.(map[string]int64) {
 				currVal := &expvar.Int{}
 				currVal.Set(val)
-				probeExpvar.Set(snakeToCapInitialCamel(metric), currVal)
+				tracerExpvar.Set(snakeToCapInitialCamel(metric), currVal)
 			}
 		}
 
@@ -185,7 +191,7 @@ func (t *Tracer) expvarStats() {
 			for metric, val := range ebpfStats.(map[string]int64) {
 				currVal := &expvar.Int{}
 				currVal.Set(val)
-				probeExpvar.Set(fmt.Sprintf("Ebpf%s", snakeToCapInitialCamel(metric)), currVal)
+				ebpfExpvar.Set(fmt.Sprintf("Ebpf%s", snakeToCapInitialCamel(metric)), currVal)
 			}
 		}
 
@@ -194,7 +200,7 @@ func (t *Tracer) expvarStats() {
 				for metric, val := range telemetry.(map[string]int64) {
 					currVal := &expvar.Int{}
 					currVal.Set(val)
-					probeExpvar.Set(snakeToCapInitialCamel(metric), currVal)
+					stateExpvar.Set(snakeToCapInitialCamel(metric), currVal)
 				}
 			}
 		}
@@ -203,7 +209,7 @@ func (t *Tracer) expvarStats() {
 			for metric, val := range conntrackStats.(map[string]int64) {
 				currVal := &expvar.Int{}
 				currVal.Set(val)
-				probeExpvar.Set(fmt.Sprintf("Conntrack%s", snakeToCapInitialCamel(metric)), currVal)
+				conntrackExpvar.Set(fmt.Sprintf("Conntrack%s", snakeToCapInitialCamel(metric)), currVal)
 			}
 		}
 	}
@@ -450,7 +456,7 @@ func (t *Tracer) getLatestTimestamp() (uint64, bool, error) {
 func (t *Tracer) getEbpfTelemetry() map[string]int64 {
 	mp, err := t.getMap(telemetryMap)
 	if err != nil {
-		log.Warnf("error retrieving telemetry map", err)
+		log.Warn("error retrieving telemetry map", err)
 		return map[string]int64{}
 	}
 

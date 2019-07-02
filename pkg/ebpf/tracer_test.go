@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"net"
 	"net/url"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -19,8 +20,6 @@ import (
 	"testing"
 	"time"
 	"unsafe"
-
-	"os"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,24 +39,42 @@ func TestTracerExpvar(t *testing.T) {
 
 	<-time.After(time.Second)
 
-	expected := map[string]float64{
-		"ClosedConnDropped":         0,
+	expectedConntrack := map[string]float64{
+		"ConntrackNoopConntracker": 0,
+	}
+	expectedState := map[string]float64{
+		"UnorderedConns":     0,
+		"ConnDropped":        0,
+		"ClosedConnDropped":  0,
+		"StatsResets":        0,
+		"TimeSyncCollisions": 0,
+	}
+	expectedTracer := map[string]float64{
 		"ClosedConnPollingLost":     0,
 		"ClosedConnPollingReceived": 0,
-		"ConnDropped":               0,
-		"ConntrackNoopConntracker":  0,
+		"ConnValidSkipped":          0,
 		"ExpiredTcpConns":           0,
-		"OkConnsSkipped":            0,
-		"StatsResets":               0,
-		"UnorderedConns":            0,
-		"TimeSyncCollisions":        0,
-		"EbpfTcpSentMiscounts":      0,
+	}
+	expectedEbpf := map[string]float64{
+		"EbpfTcpSentMiscounts": 0,
 	}
 
-	res := map[string]float64{}
-	require.NoError(t, json.Unmarshal([]byte(probeExpvar.String()), &res))
+	conntrackVars := map[string]float64{}
+	require.NoError(t, json.Unmarshal([]byte(conntrackExpvar.String()), &conntrackVars))
 
-	assert.Equal(t, expected, res)
+	stateVars := map[string]float64{}
+	require.NoError(t, json.Unmarshal([]byte(stateExpvar.String()), &stateVars))
+
+	tracerVars := map[string]float64{}
+	require.NoError(t, json.Unmarshal([]byte(tracerExpvar.String()), &tracerVars))
+
+	ebpfVars := map[string]float64{}
+	require.NoError(t, json.Unmarshal([]byte(ebpfExpvar.String()), &ebpfVars))
+
+	assert.Equal(t, expectedConntrack, conntrackVars)
+	assert.Equal(t, expectedState, stateVars)
+	assert.Equal(t, expectedTracer, tracerVars)
+	assert.Equal(t, expectedEbpf, ebpfVars)
 }
 
 func TestSnakeToCamel(t *testing.T) {
