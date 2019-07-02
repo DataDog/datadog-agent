@@ -29,15 +29,20 @@ type TimeSampler struct {
 	metricsByTimestamp          map[int64]metrics.ContextMetrics
 	counterLastSampledByContext map[ckey.ContextKey]float64
 	lastCutOffTime              int64
+	sketchMap                   sketchMap
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
 func NewTimeSampler(interval int64) *TimeSampler {
+	if interval == 0 {
+		interval = bucketSize
+	}
 	return &TimeSampler{
 		interval:                    interval,
 		contextResolver:             newContextResolver(),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
+		sketchMap:                   make(sketchMap),
 	}
 }
 
@@ -49,26 +54,64 @@ func (s *TimeSampler) calculateBucketStart(timestamp float64) int64 {
 func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp float64) {
 	// Keep track of the context
 	contextKey := s.contextResolver.trackContext(metricSample, timestamp)
-
 	bucketStart := s.calculateBucketStart(timestamp)
-	// If it's a new bucket, initialize it
-	bucketMetrics, ok := s.metricsByTimestamp[bucketStart]
-	if !ok {
-		bucketMetrics = metrics.MakeContextMetrics()
-		s.metricsByTimestamp[bucketStart] = bucketMetrics
-	}
-	// Update LastSampled timestamp for counters
-	if metricSample.Mtype == metrics.CounterType {
-		s.counterLastSampledByContext[contextKey] = timestamp
-	}
 
-	// Add sample to bucket
-	if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval); err != nil {
-		log.Debug("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
+	switch metricSample.Mtype {
+	case metrics.DistributionType:
+		s.sketchMap.insert(bucketStart, contextKey, metricSample.Value)
+	default:
+		// If it's a new bucket, initialize it
+		bucketMetrics, ok := s.metricsByTimestamp[bucketStart]
+		if !ok {
+			bucketMetrics = metrics.MakeContextMetrics()
+			s.metricsByTimestamp[bucketStart] = bucketMetrics
+		}
+		// Update LastSampled timestamp for counters
+		if metricSample.Mtype == metrics.CounterType {
+			s.counterLastSampledByContext[contextKey] = timestamp
+		}
+
+		// Add sample to bucket
+		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval); err != nil {
+			log.Debug("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
+		}
 	}
 }
 
-func (s *TimeSampler) flush(timestamp float64) metrics.Series {
+func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
+	ctx := s.contextResolver.contextsByKey[ck]
+	ss := metrics.SketchSeries{
+		Name:       ctx.Name,
+		Tags:       ctx.Tags,
+		Host:       ctx.Host,
+		Interval:   s.interval,
+		Points:     points,
+		ContextKey: ck,
+	}
+
+	return ss
+}
+
+func (s *TimeSampler) flushSketches(flushTs float64) metrics.SketchSeriesList {
+	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
+
+	tsb := s.calculateBucketStart(flushTs)
+	s.sketchMap.flushBefore(tsb, func(ck ckey.ContextKey, p metrics.SketchPoint) {
+		if p.Sketch == nil {
+			return
+		}
+		pointsByCtx[ck] = append(pointsByCtx[ck], p)
+	})
+
+	out := make(metrics.SketchSeriesList, 0, len(pointsByCtx))
+	for ck, points := range pointsByCtx {
+		out = append(out, s.newSketchSeries(ck, points))
+	}
+	s.contextResolver.expireContexts(flushTs - defaultExpiry)
+	return out
+}
+
+func (s *TimeSampler) flushSeries(timestamp float64) metrics.Series {
 	var result []*metrics.Serie
 	var rawSeries []*metrics.Serie
 
