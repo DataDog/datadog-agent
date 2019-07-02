@@ -44,7 +44,6 @@ Three::~Three()
     // For more information on why Py_Finalize() isn't called here please
     // refer to the header file or the doxygen documentation.
     PyEval_RestoreThread(_threadState);
-    PyMem_RawFree((void *)_pythonHome);
     Py_XDECREF(_baseClass);
 }
 
