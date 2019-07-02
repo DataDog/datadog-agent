@@ -454,7 +454,7 @@ func (t *Tracer) getLatestTimestamp() (uint64, bool, error) {
 func (t *Tracer) getEbpfTelemetry() map[string]int64 {
 	mp, err := t.getMap(telemetryMap)
 	if err != nil {
-		log.Warn("error retrieving telemetry map", err)
+		log.Warnf("error retrieving telemetry map", err)
 		return map[string]int64{}
 	}
 
