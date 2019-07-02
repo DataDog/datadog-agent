@@ -8,7 +8,7 @@
     "pid": 38149,
     "ratebyservice": {"service:,env:":1,"service:myapp,env:dev":0.123},
     "receiver": [{}],
-    "presampler": {"Rate":1.0},
+    "ratelimiter": {"TargetRate":1.0},
     "uptime": 15,
     "version": {"BuildDate": "2017-02-01T14:28:10+0100", "GitBranch": "ufoot/statusinfo", "GitCommit": "396a217", "GoVersion": "go version go1.7 darwin/amd64", "Version": "0.99.0"}
 }
