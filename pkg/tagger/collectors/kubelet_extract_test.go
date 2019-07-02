@@ -509,6 +509,41 @@ func TestParsePods(t *testing.T) {
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"},
 			}},
+		}, {
+			desc: "cronjob",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "hello-1562187720-xzbzh",
+					Namespace: "default",
+					Owners: []kubelet.PodOwner{
+						{
+							Kind: "Job",
+							Name: "hello-1562187720",
+							ID:   "d0dcc17b-9dd5-11e9-b6f0-42010a840064",
+						},
+					},
+				},
+				Status: dockerContainerStatus,
+				Spec:   dockerContainerSpec,
+			},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"kube_namespace:default",
+					"image_name:datadog/docker-dd-agent",
+					"image_tag:latest5",
+					"kube_container_name:dd-agent",
+					"short_image:docker-dd-agent",
+					"pod_phase:running",
+					"kube_cronjob:hello",
+				},
+				OrchestratorCardTags: []string{"kube_job:hello-1562187720", "pod_name:hello-1562187720-xzbzh"},
+				HighCardTags: []string{
+					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+					"display_container_name:dd-agent_hello-1562187720-xzbzh",
+				},
+			}},
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.desc), func(t *testing.T) {
