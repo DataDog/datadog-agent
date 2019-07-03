@@ -46,7 +46,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
 
     goenv = {}
     # TODO: this is a temporary workaround to avoid the garbage collection issues that the process-agent+go1.11 have had.
-    # Once we have upgraded the go version to 1.12, this can be removed
+    # Once we have upgraded the go version to 1.12, this can be removed (from here and system_probe.py)
     if go_version:
         lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
         for line in lines:
