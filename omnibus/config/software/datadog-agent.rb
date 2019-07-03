@@ -60,6 +60,7 @@ build do
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
   mkdir conf_dir
+  mkdir "#{install_dir}/bin"
   unless windows?
     mkdir "#{install_dir}/run/"
     mkdir "#{install_dir}/scripts/"
@@ -74,9 +75,7 @@ build do
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
   move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
-
-  copy 'bin', install_dir
-
+  copy 'bin/agent', "#{install_dir}/bin/"
 
   block do
     # defer compilation step in a block to allow getting the project's build version, which is populated
