@@ -115,7 +115,7 @@ func (ps *rateLimiter) Stats() *info.RateLimiterStats {
 // the result of calling RealRate(). It should only be called once per payload.
 func (ps *rateLimiter) Permits(n int64) bool {
 	if n <= 0 {
-		return true // no sensible value in n, disable pre-sampling
+		return true // no sensible value in n, disable rate limiting
 	}
 
 	keep := true
@@ -158,7 +158,7 @@ func (ps *rateLimiter) Permits(n int64) bool {
 func computeRateLimitingRate(max, current, rate float64) float64 {
 	const (
 		// deltaMin is a threshold that must be passed before changing the
-		// pre-sampling rate. If set to 0.1, for example, the new rate must be
+		// rate limiting rate. If set to 0.1, for example, the new rate must be
 		// below 90% or above 110% of the previous value, before we actually
 		// adjust the sampling rate. This is to avoid over-adapting and jittering.
 		deltaMin = float64(0.15) // +/- 15% change
@@ -188,7 +188,7 @@ func computeRateLimitingRate(max, current, rate float64) float64 {
 	// (2) It is then applied to the current [rate].
 	newRate := rate * max / current
 	if newRate >= 1 {
-		// no need to pre-sample anything
+		// no need to rate limit anything
 		return 1
 	}
 
@@ -204,7 +204,7 @@ func computeRateLimitingRate(max, current, rate float64) float64 {
 
 	if newRate < rateMin {
 		// Here, we would need a too-aggressive sampling rate to cope with
-		// our objective, and pre-sampling is not the right tool any more.
+		// our objective, and rate limiting is not the right tool any more.
 		return rateMin
 	}
 	return newRate
