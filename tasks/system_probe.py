@@ -18,10 +18,11 @@ EBPF_BUILDER_IMAGE = 'datadog/tracer-bpf-builder'
 EBPF_BUILDER_FILE = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-ebpf")
 
 BPF_TAG = "linux_bpf"
+GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 
 @task
-def build(ctx, race=False, incremental_build=False):
+def build(ctx, race=False, go_version=None, incremental_build=False):
     """
     Build the system_probe
     """
@@ -38,7 +39,22 @@ def build(ctx, race=False, incremental_build=False):
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
+    goenv = {}
+    # TODO: this is a temporary workaround. system probe had issues when built with go 1.11 and 1.12
+    if go_version:
+        lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
+        for line in lines:
+            for env_var in GIMME_ENV_VARS:
+                if env_var in line:
+                    goenv[env_var] = line[line.find(env_var)+len(env_var)+1:-1].strip('\'\"')
+        ld_vars["GoVersion"] = go_version
+
     ldflags, gcflags, env = get_build_flags(ctx)
+
+    # extend PATH from gimme with the one from get_build_flags
+    if "PATH" in os.environ and "PATH" in goenv:
+        goenv["PATH"] += ":" + os.environ["PATH"]
+    env.update(goenv)
 
     # Add custom ld flags
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
