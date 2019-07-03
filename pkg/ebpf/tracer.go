@@ -172,17 +172,12 @@ func (t *Tracer) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
 	// starts running the body immediately instead waiting for the first tick
 	for ; true; <-ticker.C {
-		stats, err := t.GetStats()
+		stats, err := t.getTelemetry()
 		if err != nil {
 			continue
 		}
 
 		for name, stat := range stats {
-			if name == "state" {
-				if telemetry, ok := stat.(map[string]interface{})["telemetry"]; ok {
-					stat = telemetry
-				}
-			}
 			for metric, val := range stat.(map[string]int64) {
 				currVal := &expvar.Int{}
 				currVal.Set(val)
@@ -480,6 +475,21 @@ func (t *Tracer) timeoutForConn(c *ConnTuple) uint64 {
 		return uint64(t.config.TCPConnTimeout.Nanoseconds())
 	}
 	return uint64(t.config.UDPConnTimeout.Nanoseconds())
+}
+
+// getTelemetry calls GetStats and extract telemetry from the state structure
+func (t *Tracer) getTelemetry() (map[string]interface{}, error) {
+	stats, err := t.GetStats()
+	if err != nil {
+		return nil, err
+	}
+
+	if states, ok := stats["state"]; ok {
+		if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
+			stats["state"] = telemetry
+		}
+	}
+	return stats, nil
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state
