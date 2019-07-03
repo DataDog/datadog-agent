@@ -1,8 +1,9 @@
 package ebpf
 
 import (
+	"bufio"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 
@@ -37,16 +38,18 @@ func GetProbeStats() map[string]int64 {
 
 // readKprobeProfile reads a /sys/kernel/debug/tracing/kprobe_profile file and returns a map of probe -> stats
 func readKprobeProfile(path string) (map[string]kprobeStats, error) {
-	f, err := ioutil.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error reading kprobe profile file at: %s", path)
+		return nil, errors.Wrapf(err, "error opening kprobe profile file at: %s", path)
 	}
+	defer f.Close()
 
-	lines := strings.Split(string(f), "\n")
+	scanner := bufio.NewScanner(f)
+	scanner.Split(bufio.ScanLines)
 
-	stats := make(map[string]kprobeStats, len(lines))
-	for _, l := range lines {
-		fields := strings.Fields(l)
+	stats := map[string]kprobeStats{}
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
 		if len(fields) != 3 {
 			continue
 		}
