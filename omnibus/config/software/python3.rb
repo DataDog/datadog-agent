@@ -65,10 +65,11 @@ if ohai["platform"] != "windows"
   end
 
 else
-  default_version "3.7.1"
+  dependency "vc_redist_14"
+  default_version "3.7.3"
 
   source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-         :sha256 => "c9da8a6890ce7df603724abebcd893c63616f499b9a619bb39399a09f382269a"
+         :sha256 => "7077c4d3bf2de4a9a2c84bfab1426c7d676a2771e3aae235ffd7c1efc1d64993"
 
   build do
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""
