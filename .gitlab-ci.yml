@@ -775,7 +775,7 @@ kitchen_suse:
     - cd $DD_AGENT_TESTING_DIR
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP3:2018.09.04"
+    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP4:2019.06.17"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks
