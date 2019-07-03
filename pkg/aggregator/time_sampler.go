@@ -92,16 +92,11 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	return ss
 }
 
-func (s *TimeSampler) flush(timestamp float64) (metrics.Series, metrics.SketchSeriesList) {
-	// series
+func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
 	var series []*metrics.Serie
 	var rawSeries []*metrics.Serie
 
 	serieBySignature := make(map[SerieSignature]*metrics.Serie)
-
-	// Compute a limit timestamp
-	cutoffTime := s.calculateBucketStart(timestamp)
-
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
 	counterContextsToDelete := map[ckey.ContextKey]struct{}{}
 
@@ -158,9 +153,13 @@ func (s *TimeSampler) flush(timestamp float64) (metrics.Series, metrics.SketchSe
 		}
 	}
 
-	// sketches
+	return series
+}
+
+func (s TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
 	sketches := make(metrics.SketchSeriesList, 0, len(pointsByCtx))
+
 	s.sketchMap.flushBefore(cutoffTime, func(ck ckey.ContextKey, p metrics.SketchPoint) {
 		if p.Sketch == nil {
 			return
@@ -170,6 +169,16 @@ func (s *TimeSampler) flush(timestamp float64) (metrics.Series, metrics.SketchSe
 	for ck, points := range pointsByCtx {
 		sketches = append(sketches, s.newSketchSeries(ck, points))
 	}
+
+	return sketches
+}
+
+func (s *TimeSampler) flush(timestamp float64) (metrics.Series, metrics.SketchSeriesList) {
+	// Compute a limit timestamp
+	cutoffTime := s.calculateBucketStart(timestamp)
+
+	series := s.flushSeries(cutoffTime)
+	sketches := s.flushSketches(cutoffTime)
 
 	// expiring contexts
 	s.contextResolver.expireContexts(timestamp - defaultExpiry)

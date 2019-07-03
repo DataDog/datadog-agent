@@ -346,24 +346,26 @@ func (agg *BufferedAggregator) GetSeriesAndSketches() (metrics.Series, metrics.S
 	return series, sketches
 }
 
-func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time) {
-	series, sketches := agg.GetSeriesAndSketches()
-
+func (agg *BufferedAggregator) sendSketches(sketches metrics.SketchSeriesList, start time.Time) {
 	// Serialize and forward sketches in a separate goroutine
 	addFlushCount("Sketches", int64(len(sketches)))
-	if len(sketches) > 0 {
-		go func() {
-			log.Debugf("Flushing %d sketches to the forwarder", len(sketches))
-			err := agg.serializer.SendSketch(sketches)
-			if err != nil {
-				log.Warnf("Error flushing sketch: %v", err)
-				aggregatorSketchesFlushErrors.Add(1)
-			}
-			addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
-			aggregatorSketchesFlushed.Add(int64(len(sketches)))
-		}()
+	if len(sketches) == 0 {
+		return
 	}
 
+	go func() {
+		log.Debugf("Flushing %d sketches to the forwarder", len(sketches))
+		err := agg.serializer.SendSketch(sketches)
+		if err != nil {
+			log.Warnf("Error flushing sketch: %v", err)
+			aggregatorSketchesFlushErrors.Add(1)
+		}
+		addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
+		aggregatorSketchesFlushed.Add(int64(len(sketches)))
+	}()
+}
+
+func (agg *BufferedAggregator) sendSeries(series metrics.Series, start time.Time) {
 	recurrentSeriesLock.Lock()
 	// Adding recurrentSeries to the flushed ones
 	for _, extra := range recurrentSeries {
@@ -437,6 +439,13 @@ func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time) {
 		addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
 		aggregatorSeriesFlushed.Add(int64(len(series)))
 	}()
+}
+
+func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time) {
+	series, sketches := agg.GetSeriesAndSketches()
+
+	agg.sendSketches(sketches, start)
+	agg.sendSeries(series, start)
 }
 
 // GetServiceChecks grabs all the service checks from the queue and clears the queue

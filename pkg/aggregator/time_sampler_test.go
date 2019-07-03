@@ -39,7 +39,6 @@ func TestCalculateBucketStart(t *testing.T) {
 
 	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456.5))
 	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460.5))
-
 }
 
 func TestBucketSampling(t *testing.T) {
