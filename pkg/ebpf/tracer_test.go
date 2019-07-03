@@ -40,23 +40,23 @@ func TestTracerExpvar(t *testing.T) {
 	<-time.After(time.Second)
 
 	expectedExpvars := []map[string]float64{
-		map[string]float64{
+		{
 			"NoopConntracker": 0,
 		},
-		map[string]float64{
+		{
 			"UnorderedConns":     0,
 			"ConnDropped":        0,
 			"ClosedConnDropped":  0,
 			"StatsResets":        0,
 			"TimeSyncCollisions": 0,
 		},
-		map[string]float64{
+		{
 			"ClosedConnPollingLost":     0,
 			"ClosedConnPollingReceived": 0,
 			"ConnValidSkipped":          0,
 			"ExpiredTcpConns":           0,
 		},
-		map[string]float64{
+		{
 			"TcpSentMiscounts": 0,
 		},
 	}
