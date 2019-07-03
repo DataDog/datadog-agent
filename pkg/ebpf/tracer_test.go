@@ -773,8 +773,8 @@ func TestTCPMiscount(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	// 50 MB payload
-	x := make([]byte, 50*1024*1024)
+	// 100 MB payload
+	x := make([]byte, 100*1024*1024)
 
 	n, err := c.Write(x)
 	assert.NoError(t, err)
