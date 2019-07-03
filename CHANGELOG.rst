@@ -10,7 +10,7 @@ Prelude
 
 Release on: 2019-07-03
 
-This release is only available on Windows and contains all the change introduced in 6.12.0 and 6.12.1.
+This release is only available on Windows and contains all the changes introduced in 6.12.0 and 6.12.1.
 
 - Please refer to the `6.12.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6122>`_ for the list of changes on the Core Checks
 
