@@ -19,7 +19,6 @@ Bug Fixes
 
 - Avoid a bug on windows 2016 that caused memory leaks in checks using WMI.
 
-
 6.12.1
 ======
 
