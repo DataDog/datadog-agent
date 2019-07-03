@@ -165,7 +165,6 @@ type BufferedAggregator struct {
 
 	sampler            TimeSampler
 	checkSamplers      map[check.ID]*CheckSampler
-	distSampler        distSampler
 	serviceChecks      metrics.ServiceChecks
 	events             metrics.Events
 	flushInterval      time.Duration
@@ -194,7 +193,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName st
 
 		sampler:            *NewTimeSampler(bucketSize),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
-		distSampler:        newDistSampler(bucketSize),
 		flushInterval:      flushInterval,
 		serializer:         s,
 		hostname:           hostname,
@@ -330,32 +328,44 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 	agg.events = append(agg.events, &e)
 }
 
-// addSample adds the metric sample to either the sampler or distSampler
+// addSample adds the metric sample
 func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, timestamp float64) {
 	metricSample.Tags = deduplicateTags(metricSample.Tags)
-
-	switch metricSample.Mtype {
-	case metrics.DistributionType:
-		agg.distSampler.addSample(metricSample, timestamp)
-	default:
-		agg.sampler.addSample(metricSample, timestamp)
-	}
+	agg.sampler.addSample(metricSample, timestamp)
 }
 
-// GetSeries grabs all the series from the queue and clears the queue
-func (agg *BufferedAggregator) GetSeries() metrics.Series {
-	series := agg.sampler.flush(timeNowNano())
+// GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
+func (agg *BufferedAggregator) GetSeriesAndSketches() (metrics.Series, metrics.SketchSeriesList) {
 	agg.mu.Lock()
+	series, sketches := agg.sampler.flush(timeNowNano())
+
 	for _, checkSampler := range agg.checkSamplers {
 		series = append(series, checkSampler.flush()...)
 	}
 	agg.mu.Unlock()
-	return series
+	return series, sketches
 }
 
-func (agg *BufferedAggregator) flushSeries(start time.Time) {
-	series := agg.GetSeries()
+func (agg *BufferedAggregator) sendSketches(sketches metrics.SketchSeriesList, start time.Time) {
+	// Serialize and forward sketches in a separate goroutine
+	addFlushCount("Sketches", int64(len(sketches)))
+	if len(sketches) == 0 {
+		return
+	}
 
+	go func() {
+		log.Debugf("Flushing %d sketches to the forwarder", len(sketches))
+		err := agg.serializer.SendSketch(sketches)
+		if err != nil {
+			log.Warnf("Error flushing sketch: %v", err)
+			aggregatorSketchesFlushErrors.Add(1)
+		}
+		addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
+		aggregatorSketchesFlushed.Add(int64(len(sketches)))
+	}()
+}
+
+func (agg *BufferedAggregator) sendSeries(series metrics.Series, start time.Time) {
 	recurrentSeriesLock.Lock()
 	// Adding recurrentSeries to the flushed ones
 	for _, extra := range recurrentSeries {
@@ -431,6 +441,13 @@ func (agg *BufferedAggregator) flushSeries(start time.Time) {
 	}()
 }
 
+func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time) {
+	series, sketches := agg.GetSeriesAndSketches()
+
+	agg.sendSketches(sketches, start)
+	agg.sendSeries(series, start)
+}
+
 // GetServiceChecks grabs all the service checks from the queue and clears the queue
 func (agg *BufferedAggregator) GetServiceChecks() metrics.ServiceChecks {
 	agg.mu.Lock()
@@ -473,34 +490,6 @@ func (agg *BufferedAggregator) flushServiceChecks(start time.Time) {
 	}()
 }
 
-// GetSketches grabs all the sketches from the queue and clears the queue
-func (agg *BufferedAggregator) GetSketches() metrics.SketchSeriesList {
-	agg.mu.Lock()
-	defer agg.mu.Unlock()
-
-	return agg.distSampler.flush(timeNowNano())
-}
-
-func (agg *BufferedAggregator) flushSketches(start time.Time) {
-	// Serialize and forward in a separate goroutine
-	sketchSeries := agg.GetSketches()
-	addFlushCount("Sketches", int64(len(sketchSeries)))
-	if len(sketchSeries) == 0 {
-		return
-	}
-
-	go func() {
-		log.Debugf("Flushing %d sketches to the forwarder", len(sketchSeries))
-		err := agg.serializer.SendSketch(sketchSeries)
-		if err != nil {
-			log.Warnf("Error flushing sketch: %v", err)
-			aggregatorSketchesFlushErrors.Add(1)
-		}
-		addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
-		aggregatorSketchesFlushed.Add(int64(len(sketchSeries)))
-	}()
-}
-
 // GetEvents grabs the events from the queue and clears it
 func (agg *BufferedAggregator) GetEvents() metrics.Events {
 	agg.mu.Lock()
@@ -540,8 +529,7 @@ func (agg *BufferedAggregator) flushEvents(start time.Time) {
 }
 
 func (agg *BufferedAggregator) flush(start time.Time) {
-	agg.flushSeries(start)
-	agg.flushSketches(start)
+	agg.flushSeriesAndSketches(start)
 	agg.flushServiceChecks(start)
 	agg.flushEvents(start)
 }

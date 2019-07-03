@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"net"
 	"net/url"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -19,8 +20,6 @@ import (
 	"testing"
 	"time"
 	"unsafe"
-
-	"os"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,59 +39,67 @@ func TestTracerExpvar(t *testing.T) {
 
 	<-time.After(time.Second)
 
-	expected := []string{
-		"ClosedConnDropped",
-		"ClosedConnPollingLost",
-		"ClosedConnPollingReceived",
-		"ConnDropped",
-		"ConntrackNoopConntracker",
-		"ExpiredTcpConns",
-		"ConnValidSkipped",
-		"StatsResets",
-		"UnorderedConns",
-		"TimeSyncCollisions",
-		"EbpfTcpSentMiscounts",
-		// Kprobe stats
-		"KprobePtcpCleanupRbufHits",
-		"KprobePtcpCleanupRbufMisses",
-		"KprobePtcpCloseHits",
-		"KprobePtcpCloseMisses",
-		"KprobePtcpRetransmitSkbHits",
-		"KprobePtcpRetransmitSkbMisses",
-		"KprobePtcpSendmsgHits",
-		"KprobePtcpSendmsgMisses",
-		"KprobePtcpVConnectHits",
-		"KprobePtcpVConnectMisses",
-		"KprobePtcpVDestroySockHits",
-		"KprobePtcpVDestroySockMisses",
-		"KprobePudpRecvmsgHits",
-		"KprobePudpRecvmsgMisses",
-		"KprobePudpSendmsgHits",
-		"KprobePudpSendmsgMisses",
-		"KprobeRInetCskAcceptHits",
-		"KprobeRInetCskAcceptMisses",
-		"KprobeRTcpSendmsgHits",
-		"KprobeRTcpSendmsgMisses",
-		"KprobeRTcpVConnectHits",
-		"KprobeRTcpVConnectMisses",
-		"KprobeRUdpRecvmsgHits",
-		"KprobeRUdpRecvmsgMisses",
-		"KprobeRinetCskAcceptHits",
-		"KprobeRinetCskAcceptMisses",
-		"KprobeRtcpSendmsgHits",
-		"KprobeRtcpSendmsgMisses",
-		"KprobeRtcpVConnectHits",
-		"KprobeRtcpVConnectMisses",
-		"KprobeRudpRecvmsgHits",
-		"KprobeRudpRecvmsgMisses",
+	expected := map[string][]string{
+		"conntrack": {"NoopConntracker"},
+		"state": {
+			"UnorderedConns",
+			"ConnDropped",
+			"ClosedConnDropped",
+			"StatsResets",
+			"TimeSyncCollisions",
+		},
+		"tracer": {
+			"ClosedConnPollingLost",
+			"ClosedConnPollingReceived",
+			"ConnValidSkipped",
+			"ExpiredTcpConns",
+		},
+		"ebpf": {
+			"TcpSentMiscounts",
+		},
+		"kprobes": {
+			"PtcpCleanupRbufHits",
+			"PtcpCleanupRbufMisses",
+			"PtcpCloseHits",
+			"PtcpCloseMisses",
+			"PtcpRetransmitSkbHits",
+			"PtcpRetransmitSkbMisses",
+			"PtcpSendmsgHits",
+			"PtcpSendmsgMisses",
+			"PtcpVConnectHits",
+			"PtcpVConnectMisses",
+			"PtcpVDestroySockHits",
+			"PtcpVDestroySockMisses",
+			"PudpRecvmsgHits",
+			"PudpRecvmsgMisses",
+			"PudpSendmsgHits",
+			"PudpSendmsgMisses",
+			"RInetCskAcceptHits",
+			"RInetCskAcceptMisses",
+			"RTcpSendmsgHits",
+			"RTcpSendmsgMisses",
+			"RTcpVConnectHits",
+			"RTcpVConnectMisses",
+			"RUdpRecvmsgHits",
+			"RUdpRecvmsgMisses",
+			"RinetCskAcceptHits",
+			"RinetCskAcceptMisses",
+			"RtcpSendmsgHits",
+			"RtcpSendmsgMisses",
+			"RtcpVConnectHits",
+			"RtcpVConnectMisses",
+			"RudpRecvmsgHits",
+			"RudpRecvmsgMisses",
+		},
 	}
 
-	res := map[string]float64{}
-	require.NoError(t, json.Unmarshal([]byte(probeExpvar.String()), &res))
-
-	assert.Equal(t, len(expected), len(res))
-	for _, k := range expected {
-		assert.Contains(t, res, k)
+	for _, et := range expvarTypes {
+		expvar := map[string]float64{}
+		require.NoError(t, json.Unmarshal([]byte(expvarEndpoints[et].String()), &expvar))
+		assert.Len(t, expvar, len(expected[et]))
+		for _, name := range expected[et] {
+			assert.Contains(t, expvar, name)
+		}
 	}
 }
 
@@ -659,7 +666,7 @@ func TestLocalDNSCollectionEnabled(t *testing.T) {
 }
 
 func isLocalDNS(c ConnectionStats) bool {
-	return c.SourceAddr().String() == "127.0.0.1" && c.DestAddr().String() == "127.0.0.1" && c.DPort == 53
+	return c.Source.String() == "127.0.0.1" && c.Dest.String() == "127.0.0.1" && c.DPort == 53
 }
 
 func TestTooSmallBPFMap(t *testing.T) {
@@ -788,7 +795,7 @@ func TestTCPMiscount(t *testing.T) {
 
 func findConnection(l, r net.Addr, c *Connections) (*ConnectionStats, bool) {
 	for _, conn := range c.Conns {
-		if addrMatches(l, conn.SourceAddr().String(), conn.SPort) && addrMatches(r, conn.DestAddr().String(), conn.DPort) {
+		if addrMatches(l, conn.Source.String(), conn.SPort) && addrMatches(r, conn.Dest.String(), conn.DPort) {
 			return &conn, true
 		}
 	}

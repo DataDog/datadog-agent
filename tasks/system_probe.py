@@ -178,22 +178,6 @@ def build_dev_docker_image(ctx, image_name, push=False):
 
 
 @task
-def codegen(ctx):
-    """codegen handles retrieving the easyjson dependency and rebuilding
-    the easyjson files
-    """
-
-    ctx.run("go get -u github.com/mailru/easyjson/...")
-    ebpf_path = os.path.join(".", "pkg", "ebpf")
-    paths = [
-        os.path.join(ebpf_path, "event_common.go"),
-        os.path.join(ebpf_path, "netlink", "event.go"),
-    ]
-    for path in paths:
-        ctx.run("easyjson {}".format(path))
-
-
-@task
 def object_files(ctx, install=True):
     """object_files builds the eBPF object files"""
     build_object_files(ctx, install=install)

@@ -17,25 +17,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
-	"github.com/mailru/easyjson/buffer"
 )
 
 var (
-	probeExpvar *expvar.Map
+	expvarEndpoints map[string]*expvar.Map
+	expvarTypes     = [5]string{"conntrack", "state", "tracer", "ebpf", "kprobes"}
 )
 
 func init() {
-	probeExpvar = expvar.NewMap("systemprobe")
-
-	// Configure the easyjson buffer pool to allow for bigger buffers
-	// A connection is ~ 200 B JSON encoded
-	// so setting the max size to 524 KB should allow for buffers that could hold
-	// up to ~ 2600 JSON encoded connections
-	buffer.Init(buffer.PoolConfig{
-		StartSize:  128,
-		PooledSize: 512,
-		MaxSize:    524288,
-	})
+	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
+	for _, name := range expvarTypes {
+		expvarEndpoints[name] = expvar.NewMap(name)
+	}
 }
 
 type Tracer struct {
@@ -179,50 +172,16 @@ func (t *Tracer) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
 	// starts running the body immediately instead waiting for the first tick
 	for ; true; <-ticker.C {
-		stats, err := t.GetStats()
+		stats, err := t.getTelemetry()
 		if err != nil {
 			continue
 		}
 
-		if tracerStats, ok := stats["tracer"]; ok {
-			for metric, val := range tracerStats.(map[string]int64) {
+		for name, stat := range stats {
+			for metric, val := range stat.(map[string]int64) {
 				currVal := &expvar.Int{}
 				currVal.Set(val)
-				probeExpvar.Set(snakeToCapInitialCamel(metric), currVal)
-			}
-		}
-
-		if probeStats, ok := stats["kprobes"]; ok {
-			for metric, val := range probeStats.(map[string]int64) {
-				currVal := &expvar.Int{}
-				currVal.Set(val)
-				probeExpvar.Set(fmt.Sprintf("Kprobe%s", snakeToCapInitialCamel(metric)), currVal)
-			}
-		}
-
-		if ebpfStats, ok := stats["ebpf"]; ok {
-			for metric, val := range ebpfStats.(map[string]int64) {
-				currVal := &expvar.Int{}
-				currVal.Set(val)
-				probeExpvar.Set(fmt.Sprintf("Ebpf%s", snakeToCapInitialCamel(metric)), currVal)
-			}
-		}
-
-		if states, ok := stats["state"]; ok {
-			if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
-				for metric, val := range telemetry.(map[string]int64) {
-					currVal := &expvar.Int{}
-					currVal.Set(val)
-					probeExpvar.Set(snakeToCapInitialCamel(metric), currVal)
-				}
-			}
-		}
-
-		if conntrackStats, ok := stats["conntrack"]; ok {
-			for metric, val := range conntrackStats.(map[string]int64) {
-				currVal := &expvar.Int{}
-				currVal.Set(val)
-				probeExpvar.Set(fmt.Sprintf("Conntrack%s", snakeToCapInitialCamel(metric)), currVal)
+				expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
 			}
 		}
 	}
@@ -257,7 +216,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				if t.shouldSkipConnection(&cs) {
 					atomic.AddInt64(&t.skippedConns, 1)
 				} else {
-					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.SourceAddr(), cs.SPort)
+					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort)
 					t.state.StoreClosedConnection(cs)
 				}
 			case lostCount, ok := <-lostChannel:
@@ -364,7 +323,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
 				// lookup conntrack in for active
-				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.SourceAddr(), conn.SPort)
+				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.Source, conn.SPort)
 				active = append(active, conn)
 			}
 		}
@@ -518,6 +477,21 @@ func (t *Tracer) timeoutForConn(c *ConnTuple) uint64 {
 	return uint64(t.config.UDPConnTimeout.Nanoseconds())
 }
 
+// getTelemetry calls GetStats and extract telemetry from the state structure
+func (t *Tracer) getTelemetry() (map[string]interface{}, error) {
+	stats, err := t.GetStats()
+	if err != nil {
+		return nil, err
+	}
+
+	if states, ok := stats["state"]; ok {
+		if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
+			stats["state"] = telemetry
+		}
+	}
+	return stats, nil
+}
+
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	if t.state == nil {
@@ -592,8 +566,8 @@ func (t *Tracer) populatePortMapping(mp *bpflib.Map) ([]uint16, error) {
 }
 
 func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionDirection {
-	sourceLocal := t.isLocalAddress(conn.SourceAddr())
-	destLocal := t.isLocalAddress(conn.DestAddr())
+	sourceLocal := t.isLocalAddress(conn.Source)
+	destLocal := t.isLocalAddress(conn.Dest)
 
 	if sourceLocal && destLocal {
 		return LOCAL
