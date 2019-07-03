@@ -56,7 +56,7 @@ func TestBucketSampling(t *testing.T) {
 	sampler.addSample(&mSample, 12355.0)
 	sampler.addSample(&mSample, 12365.0)
 
-	series := sampler.flushSeries(12360.0)
+	series, _ := sampler.flush(12360.0)
 
 	expectedSerie := &metrics.Serie{
 		Name:       "my.metric.name",
@@ -103,10 +103,11 @@ func TestContextSampling(t *testing.T) {
 	sampler.addSample(&mSample2, 12346.0)
 	sampler.addSample(&mSample3, 12346.0)
 
-	orderedSeries := OrderedSeries{sampler.flushSeries(12360.0)}
+	series, _ := sampler.flush(12360.0)
+	orderedSeries := OrderedSeries{series}
 	sort.Sort(orderedSeries)
 
-	series := orderedSeries.series
+	series = orderedSeries.series
 
 	expectedSerie1 := &metrics.Serie{
 		Name:     "my.metric.name1",
@@ -174,11 +175,12 @@ func TestCounterExpirySeconds(t *testing.T) {
 	// counterLastSampledByContext should be populated when a sample is added
 	assert.Equal(t, 2, len(sampler.counterLastSampledByContext))
 
-	orderedSeries := OrderedSeries{sampler.flushSeries(1010.0)}
+	series, _ := sampler.flush(1010.0)
+	orderedSeries := OrderedSeries{series}
 
 	sort.Sort(orderedSeries)
 
-	series := orderedSeries.series
+	series = orderedSeries.series
 
 	expectedSerie1 := &metrics.Serie{
 		Name:     "my.counter1",
@@ -217,7 +219,8 @@ func TestCounterExpirySeconds(t *testing.T) {
 	sampler.addSample(sampleCounter1, 1010.0)
 	sampler.addSample(sampleCounter2, 1020.0)
 
-	orderedSeries = OrderedSeries{sampler.flushSeries(1040.0)}
+	series, _ = sampler.flush(1040.0)
+	orderedSeries = OrderedSeries{series}
 	sort.Sort(orderedSeries)
 
 	series = orderedSeries.series
@@ -245,21 +248,21 @@ func TestCounterExpirySeconds(t *testing.T) {
 	metrics.AssertSerieEqual(t, expectedSerie2, series[1])
 
 	// We shouldn't get any empty counter since the last flushSeries was during the same interval
-	series = sampler.flushSeries(1045.0)
+	series, _ = sampler.flush(1045.0)
 	assert.Equal(t, 0, len(series))
 
 	// Now we should get the empty counters
-	series = sampler.flushSeries(1050.0)
+	series, _ = sampler.flush(1050.0)
 	assert.Equal(t, 2, len(series))
 
-	series = sampler.flushSeries(1329.0)
+	series, _ = sampler.flush(1329.0)
 	// Counter1 should have stopped reporting but the context is not expired yet
 	// Counter2 should still report
 	assert.Equal(t, 1, len(series))
 	assert.Equal(t, 1, len(sampler.counterLastSampledByContext))
 	assert.Equal(t, 2, len(sampler.contextResolver.contextsByKey))
 
-	series = sampler.flushSeries(1800.0)
+	series, _ = sampler.flush(1800.0)
 	// Everything stopped reporting and is expired
 	assert.Equal(t, 0, len(series))
 	assert.Equal(t, 0, len(sampler.counterLastSampledByContext))
@@ -293,7 +296,7 @@ func TestSketch(t *testing.T) {
 		"interval should default to 10")
 
 	t.Run("empty flush", func(t *testing.T) {
-		flushed := sampler.flushSketches(timeNowNano())
+		_, flushed := sampler.flush(timeNowNano())
 		require.Len(t, flushed, 0)
 	})
 
@@ -312,7 +315,7 @@ func TestSketch(t *testing.T) {
 			now++
 		}
 
-		flushed := sampler.flushSketches(now)
+		_, flushed := sampler.flush(now)
 		metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
 			Name:     ctx.Name,
 			Tags:     ctx.Tags,
@@ -327,7 +330,8 @@ func TestSketch(t *testing.T) {
 			ContextKey: ckey.Generate(ctx.Name, ctx.Host, ctx.Tags),
 		}, flushed[0])
 
-		require.Len(t, sampler.flushSketches(now), 0, "these points have already been flushed")
+		_, flushed = sampler.flush(now)
+		require.Len(t, flushed, 0, "these points have already been flushed")
 	})
 
 }
@@ -356,7 +360,7 @@ func TestSketchBucketSampling(t *testing.T) {
 	sampler.addSample(&mSample2, 10012)
 	sampler.addSample(&mSample1, 10021)
 
-	flushed := sampler.flushSketches(10020.0)
+	_, flushed := sampler.flush(10020.0)
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1, 2)
 
@@ -396,7 +400,7 @@ func TestSketchContextSampling(t *testing.T) {
 	sampler.addSample(&mSample1, 10011)
 	sampler.addSample(&mSample2, 10011)
 
-	flushed := sampler.flushSketches(10020)
+	_, flushed := sampler.flush(10020)
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1)
 
@@ -451,7 +455,7 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 	sampler.addSample(&mSample, 12355.0)
 	sampler.addSample(&mSample, 12365.0)
 
-	series := sampler.flushSeries(12360.0)
+	series, sketches := sampler.flush(12360.0)
 
 	expectedSerie := &metrics.Serie{
 		Name:       "my.metric.name",
@@ -467,7 +471,6 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 		metrics.AssertSerieEqual(t, expectedSerie, series[0])
 	}
 
-	sketches := sampler.flushSketches(12360.0)
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1)
 

@@ -92,27 +92,9 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	return ss
 }
 
-func (s *TimeSampler) flushSketches(flushTs float64) metrics.SketchSeriesList {
-	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
-
-	tsb := s.calculateBucketStart(flushTs)
-	s.sketchMap.flushBefore(tsb, func(ck ckey.ContextKey, p metrics.SketchPoint) {
-		if p.Sketch == nil {
-			return
-		}
-		pointsByCtx[ck] = append(pointsByCtx[ck], p)
-	})
-
-	out := make(metrics.SketchSeriesList, 0, len(pointsByCtx))
-	for ck, points := range pointsByCtx {
-		out = append(out, s.newSketchSeries(ck, points))
-	}
-	s.contextResolver.expireContexts(flushTs - defaultExpiry)
-	return out
-}
-
-func (s *TimeSampler) flushSeries(timestamp float64) metrics.Series {
-	var result []*metrics.Serie
+func (s *TimeSampler) flush(timestamp float64) (metrics.Series, metrics.SketchSeriesList) {
+	// series
+	var series []*metrics.Serie
 	var rawSeries []*metrics.Serie
 
 	serieBySignature := make(map[SerieSignature]*metrics.Serie)
@@ -172,13 +154,28 @@ func (s *TimeSampler) flushSeries(timestamp float64) metrics.Series {
 			serie.Interval = s.interval
 
 			serieBySignature[serieSignature] = serie
-			result = append(result, serie)
+			series = append(series, serie)
 		}
 	}
 
+	// sketches
+	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
+	sketches := make(metrics.SketchSeriesList, 0, len(pointsByCtx))
+	s.sketchMap.flushBefore(cutoffTime, func(ck ckey.ContextKey, p metrics.SketchPoint) {
+		if p.Sketch == nil {
+			return
+		}
+		pointsByCtx[ck] = append(pointsByCtx[ck], p)
+	})
+	for ck, points := range pointsByCtx {
+		sketches = append(sketches, s.newSketchSeries(ck, points))
+	}
+
+	// expiring contexts
 	s.contextResolver.expireContexts(timestamp - defaultExpiry)
 	s.lastCutOffTime = cutoffTime
-	return result
+
+	return series, sketches
 }
 
 // flushContextMetrics flushes the passed contextMetrics, handles its errors, and returns its series
