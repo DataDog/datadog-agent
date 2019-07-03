@@ -250,14 +250,12 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 }
 
 func printMetrics(agg *aggregator.BufferedAggregator) {
-	series := agg.GetSeries()
+	series, sketches := agg.GetSeriesAndSketches()
 	if len(series) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
 		j, _ := json.MarshalIndent(series, "", "  ")
 		fmt.Println(string(j))
 	}
-
-	sketches := agg.GetSketches()
 	if len(sketches) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Sketches")))
 		j, _ := json.MarshalIndent(sketches, "", "  ")
@@ -282,7 +280,7 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 	aggData := make(map[string]interface{})
 
-	series := agg.GetSeries()
+	series, sketches := agg.GetSeriesAndSketches()
 	if len(series) != 0 {
 		// Workaround to get the raw sequence of metrics, see:
 		// https://github.com/DataDog/datadog-agent/blob/b2d9527ec0ec0eba1a7ae64585df443c5b761610/pkg/metrics/series.go#L109-L122
@@ -292,8 +290,6 @@ func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 
 		aggData["metrics"] = data["series"]
 	}
-
-	sketches := agg.GetSketches()
 	if len(sketches) != 0 {
 		aggData["sketches"] = sketches
 	}

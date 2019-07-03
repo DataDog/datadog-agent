@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// NOTE: This file contains a feature in development that is NOT supported.
-
 package aggregator
 
 import (
@@ -14,67 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 )
-
-type distSampler struct {
-	interval int64
-
-	m           sketchMap
-	ctxResolver *ContextResolver
-}
-
-func newDistSampler(interval int64) distSampler {
-	if interval == 0 {
-		interval = bucketSize
-	}
-
-	return distSampler{
-		interval:    interval,
-		m:           make(sketchMap),
-		ctxResolver: newContextResolver(),
-	}
-}
-
-func (d *distSampler) calculateBucketStart(ts float64) int64 {
-	return int64(ts) - int64(ts)%d.interval
-}
-
-func (d *distSampler) addSample(ms *metrics.MetricSample, ts float64) {
-	ck := d.ctxResolver.trackContext(ms, ts)
-	d.m.insert(d.calculateBucketStart(ts), ck, ms.Value)
-}
-
-func (d *distSampler) flush(flushTs float64) metrics.SketchSeriesList {
-	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
-
-	tsb := d.calculateBucketStart(flushTs)
-	d.m.flushBefore(tsb, func(ck ckey.ContextKey, p metrics.SketchPoint) {
-		if p.Sketch == nil {
-			return
-		}
-		pointsByCtx[ck] = append(pointsByCtx[ck], p)
-	})
-
-	out := make(metrics.SketchSeriesList, 0, len(pointsByCtx))
-	for ck, points := range pointsByCtx {
-		out = append(out, d.newSeries(ck, points))
-	}
-	d.ctxResolver.expireContexts(flushTs - defaultExpiry)
-	return out
-}
-
-func (d *distSampler) newSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
-	ctx := d.ctxResolver.contextsByKey[ck]
-	ss := metrics.SketchSeries{
-		Name:       ctx.Name,
-		Tags:       ctx.Tags,
-		Host:       ctx.Host,
-		Interval:   d.interval,
-		Points:     points,
-		ContextKey: ck,
-	}
-
-	return ss
-}
 
 type sketchMap map[int64]map[ckey.ContextKey]*quantile.Agent
 
