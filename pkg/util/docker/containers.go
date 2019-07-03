@@ -218,6 +218,10 @@ func parseContainerNetworkAddresses(ports []types.Port, netSettings *types.Summa
 		}
 	}
 	for _, network := range netSettings.Networks {
+		if network.IPAddress == "" {
+			log.Debugf("No IP found for container %s in network %s", container, network.NetworkID)
+			continue
+		}
 		IP := net.ParseIP(network.IPAddress)
 		if IP == nil {
 			log.Warnf("Unable to parse IP: %v for container: %s", network.IPAddress, container)
