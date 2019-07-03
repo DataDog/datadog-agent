@@ -20,11 +20,15 @@ import (
 )
 
 var (
-	probeExpvar *expvar.Map
+	expvarEndpoints map[string]*expvar.Map
+	expvarTypes     = [4]string{"conntrack", "state", "tracer", "ebpf"}
 )
 
 func init() {
-	probeExpvar = expvar.NewMap("systemprobe")
+	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
+	for _, name := range expvarTypes {
+		expvarEndpoints[name] = expvar.NewMap(name)
+	}
 }
 
 type Tracer struct {
@@ -168,42 +172,16 @@ func (t *Tracer) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
 	// starts running the body immediately instead waiting for the first tick
 	for ; true; <-ticker.C {
-		stats, err := t.GetStats()
+		stats, err := t.getTelemetry()
 		if err != nil {
 			continue
 		}
 
-		if tracerStats, ok := stats["tracer"]; ok {
-			for metric, val := range tracerStats.(map[string]int64) {
+		for name, stat := range stats {
+			for metric, val := range stat.(map[string]int64) {
 				currVal := &expvar.Int{}
 				currVal.Set(val)
-				probeExpvar.Set(snakeToCapInitialCamel(metric), currVal)
-			}
-		}
-
-		if ebpfStats, ok := stats["ebpf"]; ok {
-			for metric, val := range ebpfStats.(map[string]int64) {
-				currVal := &expvar.Int{}
-				currVal.Set(val)
-				probeExpvar.Set(fmt.Sprintf("Ebpf%s", snakeToCapInitialCamel(metric)), currVal)
-			}
-		}
-
-		if states, ok := stats["state"]; ok {
-			if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
-				for metric, val := range telemetry.(map[string]int64) {
-					currVal := &expvar.Int{}
-					currVal.Set(val)
-					probeExpvar.Set(snakeToCapInitialCamel(metric), currVal)
-				}
-			}
-		}
-
-		if conntrackStats, ok := stats["conntrack"]; ok {
-			for metric, val := range conntrackStats.(map[string]int64) {
-				currVal := &expvar.Int{}
-				currVal.Set(val)
-				probeExpvar.Set(fmt.Sprintf("Conntrack%s", snakeToCapInitialCamel(metric)), currVal)
+				expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
 			}
 		}
 	}
@@ -450,7 +428,7 @@ func (t *Tracer) getLatestTimestamp() (uint64, bool, error) {
 func (t *Tracer) getEbpfTelemetry() map[string]int64 {
 	mp, err := t.getMap(telemetryMap)
 	if err != nil {
-		log.Warnf("error retrieving telemetry map", err)
+		log.Warnf("error retrieving telemetry map: %s", err)
 		return map[string]int64{}
 	}
 
@@ -497,6 +475,21 @@ func (t *Tracer) timeoutForConn(c *ConnTuple) uint64 {
 		return uint64(t.config.TCPConnTimeout.Nanoseconds())
 	}
 	return uint64(t.config.UDPConnTimeout.Nanoseconds())
+}
+
+// getTelemetry calls GetStats and extract telemetry from the state structure
+func (t *Tracer) getTelemetry() (map[string]interface{}, error) {
+	stats, err := t.GetStats()
+	if err != nil {
+		return nil, err
+	}
+
+	if states, ok := stats["state"]; ok {
+		if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
+			stats["state"] = telemetry
+		}
+	}
+	return stats, nil
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state
