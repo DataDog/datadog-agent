@@ -5,7 +5,8 @@ default_version "140"
 
 # source :url => "https://s3.amazonaws.com/dd-agent-omnibus/msvcrntm_x64.tar.gz",
 source :url => "https://s3.amazonaws.com/dd-agent-omnibus/Microsoft_VC141_CRT_x64.msm",
-       :sha256 => "102a2127f528865f6e462c5b28589a7249f70d0d4201676c3b2f2cc46f997b84"
+       :sha256 => "102a2127f528865f6e462c5b28589a7249f70d0d4201676c3b2f2cc46f997b84",
+       :target_filename => "Microsoft_VC141_CRT_x64.msm"
 
 build do
   # Install the vcruntime140.dll properly, using the merge module. Just place

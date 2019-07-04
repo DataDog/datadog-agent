@@ -66,10 +66,10 @@ if ohai["platform"] != "windows"
 
 else
   dependency "vc_redist_14"
-  default_version "3.7.3"
+  default_version "3.7.1"
 
-  source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-         :sha256 => "7077c4d3bf2de4a9a2c84bfab1426c7d676a2771e3aae235ffd7c1efc1d64993"
+  source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-novcr-amd64.zip",
+         :sha256 => "2ebd2eb2155f7c82ec3d2ba5203e0a250b6bbf60c7c5404f1e03f4bc71a096e1"
 
   build do
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""
