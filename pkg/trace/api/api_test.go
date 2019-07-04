@@ -909,11 +909,11 @@ func TestOOMKill(t *testing.T) {
 		}
 	}()
 
-	data := msgpTraces(t, pb.Traces{
-		testutil.RandomTrace(10, 20),
-		testutil.RandomTrace(10, 20),
-		testutil.RandomTrace(10, 20),
-	})
+	var traces pb.Traces
+	for i := 0; i < 20; i++ {
+		traces = append(traces, testutil.RandomTrace(10, 20))
+	}
+	data := msgpTraces(t, traces)
 
 	var wg sync.WaitGroup
 	for tries := 0; tries < 50; tries++ {
@@ -925,11 +925,21 @@ func TestOOMKill(t *testing.T) {
 			}
 		}()
 	}
-	time.Sleep(2 * conf.WatchdogInterval)
 	wg.Wait()
-	if atomic.LoadUint64(&kills) == 0 {
-		t.Fatal("didn't get OOM killed")
+	timeout := time.After(500 * time.Millisecond)
+loop:
+	for {
+		select {
+		case <-timeout:
+			break loop
+		default:
+			if atomic.LoadUint64(&kills) > 1 {
+				return
+			}
+			time.Sleep(conf.WatchdogInterval)
+		}
 	}
+	t.Fatal("didn't get OOM killed")
 }
 
 func msgpTraces(t *testing.T, traces pb.Traces) []byte {
