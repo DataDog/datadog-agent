@@ -46,6 +46,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
+		readinessCache: make(map[string]bool),
+		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
@@ -88,6 +90,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
+		readinessCache: make(map[string]bool),
+		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
@@ -129,6 +133,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherWithInitContainers() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
+		readinessCache: make(map[string]bool),
+		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
@@ -157,6 +163,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherWithShortLivedContainers() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
+		readinessCache: make(map[string]bool),
+		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
@@ -185,6 +193,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
+		readinessCache: make(map[string]bool),
+		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
@@ -206,6 +216,51 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 	require.True(suite.T(), IsPodReady(changes[0]))
 }
 
+func (suite *PodwatcherTestSuite) TestPodWatcherExpireUnready() {
+	sourcePods, err := loadPodsFixture("./testdata/podlist_container_ready.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 5)
+
+	watcher := &PodWatcher{
+		lastSeen:       make(map[string]time.Time),
+		readinessCache: make(map[string]bool),
+		lastSeenReady:  make(map[string]time.Time),
+		tagsDigest:     make(map[string]string),
+		expiryDuration: 5 * time.Minute,
+	}
+
+	changes, err := watcher.computeChanges(sourcePods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 5, fmt.Sprintf("%d", len(changes)))
+
+	expire, err := watcher.Expire()
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), expire, 0)
+
+	// The container goes into unready state
+	sourcePods, err = loadPodsFixture("./testdata/podlist_container_not_ready.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 5)
+
+	// Try
+	testContainerID := "docker://84adac90973fa1263ccf1e296cec72acb4128b6e19fd25bffe4fafb059adafc0"
+
+	// 10 seconds should NOT be enough to expire
+	watcher.lastSeenReady[testContainerID] = watcher.lastSeenReady[testContainerID].Add(-10 * time.Second)
+	expire, err = watcher.Expire()
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), expire, 0)
+
+	// 45 secs should be enough to expire
+	watcher.lastSeenReady[testContainerID] = watcher.lastSeenReady[testContainerID].Add(-45 * time.Second)
+	require.Len(suite.T(), watcher.lastSeenReady, 5)
+	expire, err = watcher.Expire()
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), expire, 1)
+	require.Equal(suite.T(), testContainerID, expire[0])
+	require.Len(suite.T(), watcher.lastSeenReady, 4)
+}
+
 func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 	sourcePods, err := loadPodsFixture("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
@@ -213,6 +268,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
+		readinessCache: make(map[string]bool),
+		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
@@ -229,16 +286,15 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 
 	// Try
 	testContainerID := "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6"
-	testContainerIDCacheKey := testContainerID + "-ready:true"
 
 	// 4 minutes should NOT be enough to expire
-	watcher.lastSeen[testContainerIDCacheKey] = watcher.lastSeen[testContainerIDCacheKey].Add(-4 * time.Minute)
+	watcher.lastSeen[testContainerID] = watcher.lastSeen[testContainerID].Add(-4 * time.Minute)
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 0)
 
 	// 6 minutes should be enough to expire
-	watcher.lastSeen[testContainerIDCacheKey] = watcher.lastSeen[testContainerIDCacheKey].Add(-6 * time.Minute)
+	watcher.lastSeen[testContainerID] = watcher.lastSeen[testContainerID].Add(-6 * time.Minute)
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 1)
@@ -255,6 +311,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
+		readinessCache: make(map[string]bool),
+		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
@@ -331,6 +389,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherLabelsValueChange() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
+		readinessCache: make(map[string]bool),
+		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
@@ -372,6 +432,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherAnnotationsValueChange() {
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
+		readinessCache: make(map[string]bool),
+		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}

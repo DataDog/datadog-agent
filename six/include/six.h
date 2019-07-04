@@ -47,7 +47,6 @@ public:
     virtual void set_module_attr_string(char *module, char *attr, char *value) = 0;
 
     // Public Const API
-    virtual bool isInitialized() const = 0;
     virtual py_info_t *getPyInfo() = 0;
     virtual bool runSimpleString(const char *code) const = 0;
     virtual SixPyObject *getNone() const = 0;

@@ -27,7 +27,7 @@
       {{- if .ntpOffset}}
         <br>NTP Offset: {{ humanizeDuration .ntpOffset "s"}}
         {{- if ntpWarning .ntpOffset}}
-        <br><span class="warning">NTP Offset is high. The web application may ignore metrics sent by this agent.</span>
+        <br><span class="warning">NTP Offset is high. Datadog may ignore metrics sent by this Agent.</span>
         {{- end}}
       {{end}}
       <br>Go Version: {{.platform.goV}}

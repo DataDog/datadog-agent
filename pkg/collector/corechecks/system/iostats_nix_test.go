@@ -8,6 +8,7 @@
 package system
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -36,30 +37,35 @@ var currentStats = map[string]disk.IOCountersStat{
 
 var lastStats = map[string]disk.IOCountersStat{
 	"sda": {
-		ReadCount:        uint64(maxInt),
-		MergedReadCount:  uint64(maxInt),
-		WriteCount:       uint64(maxInt),
-		MergedWriteCount: uint64(maxInt),
-		ReadBytes:        uint64(maxInt),
-		WriteBytes:       uint64(maxInt),
-		ReadTime:         uint64(maxInt),
-		WriteTime:        uint64(maxInt),
+		ReadCount:        uint64(maxLong),
+		MergedReadCount:  uint64(maxLong),
+		WriteCount:       uint64(maxLong),
+		MergedWriteCount: uint64(maxLong),
+		ReadBytes:        uint64(maxLong),
+		WriteBytes:       uint64(maxLong),
+		ReadTime:         uint64(math.MaxUint32),
+		WriteTime:        uint64(math.MaxUint32),
 		IopsInProgress:   0,
-		IoTime:           uint64(maxInt),
-		WeightedIO:       uint64(maxInt),
+		IoTime:           uint64(maxLong),
+		WeightedIO:       uint64(maxLong),
 		Name:             "sda",
 		SerialNumber:     "123456789WD",
 	},
 }
 
+func TestWithRealValues(t *testing.T) {
+	increment := incrementWithOverflow(6176672, 4292830204, math.MaxUint32)
+	assert.Equal(t, int64(8313763), increment)
+}
+
 func TestIncrementWithOverflow(t *testing.T) {
-	prev := uint64(maxInt) - 2
+	prev := uint64(maxLong) - 2
 	for i := -1; i < 2; i++ {
-		curr := uint64(maxInt) + uint64(i)
-		if curr >= uint64(maxInt) {
-			curr -= uint64(maxInt)
+		curr := uint64(maxLong) + uint64(i)
+		if curr >= uint64(maxLong) {
+			curr -= uint64(maxLong)
 		}
-		increment := incrementWithOverflow(curr, prev)
+		increment := incrementWithOverflow(curr, prev, maxLong)
 		assert.Equal(t, int64(1), increment)
 		prev = curr
 	}

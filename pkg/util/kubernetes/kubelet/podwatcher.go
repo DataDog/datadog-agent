@@ -11,7 +11,6 @@ import (
 	"hash/fnv"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -25,10 +24,10 @@ type PodWatcher struct {
 	kubeUtil       *KubeUtil
 	expiryDuration time.Duration
 	lastSeen       map[string]time.Time
+	readinessCache map[string]bool
+	lastSeenReady  map[string]time.Time
 	tagsDigest     map[string]string
 }
-
-const readinessCacheSeparator = "-ready:"
 
 // NewPodWatcher creates a new watcher. User call must then trigger PullChanges
 // and ExpireContainers when needed.
@@ -40,6 +39,8 @@ func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 	watcher := &PodWatcher{
 		kubeUtil:       kubeutil,
 		lastSeen:       make(map[string]time.Time),
+		readinessCache: make(map[string]bool),
+		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
 		expiryDuration: expiryDuration,
 	}
@@ -85,16 +86,30 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 
 		// Detect updated containers
 		updatedContainer := false
+		isPodReady := IsPodReady(pod)
+
 		for _, container := range pod.Status.GetAllContainers() {
 			// We don't check container readiness as init containers are never ready
 			// We check if the container has an ID instead (has run or is running)
 			if !container.IsPending() {
-				// We store readiness in the cache key to resubmit the container on pod phase change
-				containerCacheKey := container.ID + readinessCacheSeparator + strconv.FormatBool(IsPodReady(pod))
-				if _, found := w.lastSeen[containerCacheKey]; !found {
+				// new container are always sent ignoring the pod state
+				if _, found := w.lastSeen[container.ID]; !found {
 					updatedContainer = true
 				}
-				w.lastSeen[containerCacheKey] = now
+				w.lastSeen[container.ID] = now
+
+				// for existing ones we look at the previous pod state
+				wasPodReady, found := w.readinessCache[container.ID]
+				if found && isPodReady && !wasPodReady {
+					// if pod became ready we want to update it
+					updatedContainer = true
+				}
+				w.readinessCache[container.ID] = isPodReady
+
+				// update the readiness expiry cache
+				if isPodReady {
+					w.lastSeenReady[container.ID] = now
+				}
 			}
 		}
 
@@ -127,11 +142,20 @@ func (w *PodWatcher) Expire() ([]string, error) {
 	var expiredContainers []string
 
 	for id, lastSeen := range w.lastSeen {
+		// pod was removed from the pod list, we can safely cleanup everything
 		if now.Sub(lastSeen) > w.expiryDuration {
 			delete(w.lastSeen, id)
 			delete(w.tagsDigest, id)
-			// sanitize cache key before sending it
-			expiredContainers = append(expiredContainers, strings.Split(id, readinessCacheSeparator)[0])
+			delete(w.readinessCache, id)
+			delete(w.lastSeenReady, id)
+			expiredContainers = append(expiredContainers, id)
+		}
+	}
+	for id, lastSeenReady := range w.lastSeenReady {
+		// we keep pods gone unready for 30 seconds and then force removal
+		if now.Sub(lastSeenReady) > 30*time.Second {
+			delete(w.lastSeenReady, id)
+			expiredContainers = append(expiredContainers, id)
 		}
 	}
 

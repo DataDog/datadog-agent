@@ -11,16 +11,14 @@ import (
 	"context"
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
-	statusURL           = "http://unix/status"
-	connectionsURL      = "http://unix/connections"
-	contentTypeProtobuf = "application/protobuf"
+	statusURL      = "http://unix/status"
+	connectionsURL = "http://unix/connections"
 )
 
 var (
@@ -75,14 +73,8 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 }
 
 // GetConnections returns a set of active network connections, retrieved from the system probe service
-func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]*model.Connection, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Accept", contentTypeProtobuf)
-	resp, err := r.httpClient.Do(req)
+func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]ebpf.ConnectionStats, error) {
+	resp, err := r.httpClient.Get(fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID))
 	if err != nil {
 		return nil, err
 	} else if resp.StatusCode != http.StatusOK {
@@ -94,13 +86,12 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]*model.Connectio
 		return nil, err
 	}
 
-	contentType := resp.Header.Get("Content-type")
-	conns, err := encoding.GetUnmarshaler(contentType).Unmarshal(body)
-	if err != nil {
+	conn := &ebpf.Connections{}
+	if err := conn.UnmarshalJSON(body); err != nil {
 		return nil, err
 	}
 
-	return conns.Conns, nil
+	return conn.Conns, nil
 }
 
 // ShouldLogTracerUtilError will return whether or not errors sourced from the RemoteSysProbeUtil _should_ be logged, for less noisy logging.

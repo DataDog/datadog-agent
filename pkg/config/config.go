@@ -352,6 +352,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.open_files_limit", 100)
 	// add global processing rules that are applied on all logs
 	config.BindEnv("logs_config.processing_rules")
+	// enforce the agent to use files to collect container logs on kubernetes environment
+	config.BindEnvAndSetDefault("logs_config.k8s_container_use_file", false)
 
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
@@ -407,7 +409,7 @@ func initConfig(config Config) {
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
 
-	// Process
+	// Process agent
 	config.SetKnown("process_config.dd_agent_env")
 	config.SetKnown("process_config.enabled")
 	config.SetKnown("process_config.intervals.process_realtime")
@@ -420,16 +422,30 @@ func initConfig(config Config) {
 	config.SetKnown("process_config.dd_agent_bin")
 	config.SetKnown("process_config.custom_sensitive_words")
 	config.SetKnown("process_config.scrub_args")
-	config.SetKnown("process.strip_proc_arguments")
+	config.SetKnown("process_config.strip_proc_arguments")
 	config.SetKnown("process_config.windows.args_refresh_interval")
 	config.SetKnown("process_config.windows.add_new_args")
-	config.SetKnown("process.additional_endpoints.*")
-	config.SetKnown("process.container_source")
-	config.SetKnown("process.intervals.connections")
+	config.SetKnown("process_config.additional_endpoints.*")
+	config.SetKnown("process_config.container_source")
+	config.SetKnown("process_config.intervals.connections")
+	// System probe
 	config.SetKnown("system_probe_config.enabled")
 	config.SetKnown("system_probe_config.log_file")
 	config.SetKnown("system_probe_config.debug_port")
 	config.SetKnown("system_probe_config.bpf_debug")
+	config.SetKnown("system_probe_config.disable_tcp")
+	config.SetKnown("system_probe_config.disable_udp")
+	config.SetKnown("system_probe_config.disable_ipv6")
+	config.SetKnown("system_probe_config.collect_local_dns")
+	config.SetKnown("system_probe_config.use_local_system_probe")
+	config.SetKnown("system_probe_config.enable_conntrack")
+	config.SetKnown("system_probe_config.sysprobe_socket")
+	config.SetKnown("system_probe_config.conntrack_short_term_buffer_size")
+	config.SetKnown("system_probe_config.max_conns_per_message")
+	config.SetKnown("system_probe_config.max_tracked_connections")
+	config.SetKnown("system_probe_config.max_closed_connections_buffered")
+	config.SetKnown("system_probe_config.max_connection_state_buffered")
+	config.SetKnown("system_probe_config.excluded_linux_versions")
 
 	// APM
 	config.SetKnown("apm_config.enabled")

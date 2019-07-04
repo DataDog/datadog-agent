@@ -52,7 +52,7 @@ func TestBeautifyKey(t *testing.T) {
 	} {
 		bk, err := c.ByteKey(buf)
 		require.NoError(t, err)
-		expected := fmt.Sprintf(keyFmt, c.Pid, c.Source.String(), c.SPort, c.Dest.String(), c.DPort, c.Family, c.Type)
+		expected := fmt.Sprintf(keyFmt, c.Pid, c.SourceAddr().String(), c.SPort, c.DestAddr().String(), c.DPort, c.Family, c.Type)
 		assert.Equal(t, expected, BeautifyKey(string(bk)))
 	}
 }
