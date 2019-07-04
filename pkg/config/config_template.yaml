@@ -395,7 +395,7 @@ api_key:
   ## @param max_cpu_percent - integer - optional - default: 50
   ## The CPU percentage that the Agent aims to use. If surpassed, the API rate limits
   ## incoming requests to aim and stay below this value. Examples: 50 = half a core, 200 = two cores.
-  ## Set `max_cpu_percent ` to `0` to disable rate limiting based on CPU usage.
+  ## Set `max_cpu_percent` to `0` to disable rate limiting based on CPU usage.
   #
   # max_cpu_percent: 50
 
