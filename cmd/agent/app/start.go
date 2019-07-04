@@ -8,6 +8,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"runtime"
 	"time"
 
@@ -184,6 +185,8 @@ func StartAgent() error {
 	s := serializer.NewSerializer(common.Forwarder)
 	agg := aggregator.InitAggregator(s, hostname, "agent")
 	agg.AddAgentStartupEvent(version.AgentVersion)
+
+	batcher.InitBatcher(s, hostname, "agent", config.GetMaxCapacity())
 
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {

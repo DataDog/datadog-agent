@@ -11,6 +11,7 @@ import (
 	"context"
 	_ "expvar"
 	"fmt"
+	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -184,6 +185,9 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")
+
+	batcher.InitBatcher(s, hname, "agent", config.GetMaxCapacity())
+
 	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetBufferedChannels())
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)

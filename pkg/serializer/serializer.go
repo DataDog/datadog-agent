@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/forwarder"
@@ -78,6 +79,40 @@ type MetricSerializer interface {
 	SendSketch(sketches marshaler.Marshaler) error
 	SendMetadata(m marshaler.Marshaler) error
 	SendJSONToV1Intake(data interface{}) error
+}
+
+// AgentV1Serializer is a serializer for just agent v1 data
+type AgentV1Serializer interface {
+	SendJSONToV1Intake(data interface{}) error
+}
+
+// AgentV1MockSerializer is a mock implementation of agent v1 serializer. USed for testing
+type AgentV1MockSerializer struct {
+	sendJSONToV1IntakeMessages chan interface{}
+}
+
+// NewAgentV1MockSerializer instantiate the agent v1 mock serializer
+func NewAgentV1MockSerializer() AgentV1MockSerializer {
+	return AgentV1MockSerializer{
+		sendJSONToV1IntakeMessages: make(chan interface{}),
+	}
+}
+
+// SendJSONToV1Intake publishes v1 agent data
+func (serializer AgentV1MockSerializer) SendJSONToV1Intake(data interface{}) error {
+	serializer.sendJSONToV1IntakeMessages <- data
+	return nil
+}
+
+// GetJSONToV1IntakeMessage gets message from the mock
+func (serializer AgentV1MockSerializer) GetJSONToV1IntakeMessage() interface{} {
+	select {
+	case res := <- serializer.sendJSONToV1IntakeMessages:
+		return res
+	case <-time.After(3*time.Second):
+		log.Error("Timeout retrieving element")
+		return nil
+	}
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder

@@ -22,6 +22,7 @@ import (
 	"github.com/StackVista/stackstate-agent/cmd/cluster-agent/custommetrics"
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/api/healthprobe"
+	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/clusteragent"
 	"github.com/StackVista/stackstate-agent/pkg/clusteragent/clusterchecks"
 	"github.com/StackVista/stackstate-agent/pkg/config"
@@ -160,6 +161,8 @@ func start(cmd *cobra.Command, args []string) error {
 
 	aggregatorInstance := aggregator.InitAggregator(s, hostname, "cluster_agent")
 	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
+
+	batcher.InitBatcher(s, hostname, "agent", config.GetMaxCapacity())
 
 	log.Infof("Datadog Cluster Agent is now running.")
 
