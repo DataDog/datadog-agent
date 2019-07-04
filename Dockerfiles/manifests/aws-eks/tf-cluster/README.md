@@ -34,31 +34,34 @@ export TF_VAR_CLUSTER_NAME=...
 
 ### Plan and apply
 
-First `make plan` to check what changes Terraform will apply, then deploy the changes with `make apply`.
+```bash
+$ make plan
+$ make apply
+```
 
-The operation takes around 20mins.
+Plan will check what changes Terraform needs to apply, then apply deploys the changes.
 
-### Output
+The operation takes around 20 minutes.
 
-Output are:
+### Configure
 
-- `kubeconfig` file produced by `make kubeconfig`
+Once the deployment is done, the kubeconfig will let kubectl know how to connect to cluster:
+```bash
+$ make kubeconfig
+run the suggested EXPORT
+```
 
-   You can `export KUBECONFIG=<PATH>/tf/kubeconfig` to let kubectl know how to connect to cluster.
+To make workers join the cluster they need to be have a role associated with it:
+```bash
+$ make config-map-aws-auth
+```
+and wait for nodes to appear.
 
-- policy that will allow worker nodes to join cluster `terraform output config-map-aws-auth`
+Your are now ready.
 
 ### Destroy
 
 As simple as `make destroy`.
-
-## Configure kubectl
-
-To allow kubectl to talk to your cluster `make kubeconfig` and follow the suggestion to export kube config path.
-
-Make sure nodes can register `make config-map-aws-auth` and wait for nodes to appear.
-
-Your are now ready.
 
 ## Kubernetes dashboard
 
