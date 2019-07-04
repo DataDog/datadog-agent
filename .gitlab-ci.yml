@@ -1255,6 +1255,34 @@ latest_release:
     - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
 
+#
+# Use this step to delete a tag of a given image
+# We call the Docker Hub API because docker cli doesn't support deleting tags
+# - remove the leading dot from the name
+# - set the IMAGE and TAG envvars
+# - in the gitlab pipeline view, trigger the step (in the first column)
+#
+.delete_docker_tag:
+  tags: [ "runner:docker", "size:large" ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
+  before_script:
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - pip install -r requirements.txt
+    - |
+      export DOCKER_TOKEN=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/ | python -c 'import sys, json; print(json.load(sys.stdin)["token"].strip())'`
+  dependencies: [] # Don't download Gitlab artefacts
+  stage: source_test
+  when: manual
+  variables:
+    <<: *docker_hub_variables
+    IMAGE: ""  # image name, for example "agent"
+    TAG: ""  # tag name, for example "6.9.0"
+    ORGANIZATION: "datadog"
+  script:
+    - if [[ -z "$IMAGE" ]]; then echo "Need an image"; exit 1; fi
+    - if [[ -z "$TAG" ]]; then echo "Need a tag to delete"; exit 1; fi
+    - inv -e docker.delete ${ORGANIZATION} ${IMAGE} ${TAG} ${DOCKER_TOKEN} &>/dev/null
 
 dca_tag_release:
   <<: *docker_tag_job_definition
