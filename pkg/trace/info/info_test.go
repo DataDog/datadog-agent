@@ -44,6 +44,7 @@ func (h *testServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func testServer(t *testing.T) *httptest.Server {
+	t.Helper()
 	server := httptest.NewServer(&testServerHandler{t: t})
 	t.Logf("test server (serving fake yet valid data) listening on %s", server.URL)
 	return server

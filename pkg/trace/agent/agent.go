@@ -109,8 +109,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 
 // Run starts routers routines and individual pieces then stop them when the exit order is received
 func (a *Agent) Run() {
-	info.UpdatePreSampler(*a.Receiver.PreSampler.Stats()) // avoid exposing 0
-
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
 		a.ServiceMapper,
@@ -226,10 +224,10 @@ func (a *Agent) Process(t pb.Trace) {
 	clientSampleRate := sampler.GetGlobalRate(root)
 	sampler.SetClientRate(root, clientSampleRate)
 	// Combine it with the pre-sampling rate.
-	preSamplerRate := a.Receiver.PreSampler.Rate()
-	sampler.SetPreSampleRate(root, preSamplerRate)
+	rateLimiterRate := a.Receiver.RateLimiter.RealRate()
+	sampler.SetPreSampleRate(root, rateLimiterRate)
 	// Update root's global sample rate to include the presampler rate as well
-	sampler.AddGlobalRate(root, preSamplerRate)
+	sampler.AddGlobalRate(root, rateLimiterRate)
 
 	// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
 	// which is not thread-safe while samplers and Concentrator might modify it too.

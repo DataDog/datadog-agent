@@ -385,14 +385,17 @@ api_key:
   # max_events_per_second: 200
 
   ## @param max_memory - integer - optional - default: 500000000
-  ## Maximum memory to allow for the trace Agent. The Agent is killed if this number is surpassed.
+  ## This value is what the Agent aims to use in terms of memory. If surpassed, the API
+  ## rate limits incoming requests to aim and stay below this value.
+  ## Note: The Agent process is killed if it uses more than 150% of `max_memory`.
+  ## Set the `max_memory` parameter to `0` to disable the memory limitation.
   #
   # max_memory: 500000000
 
   ## @param max_cpu_percent - integer - optional - default: 50
-  ## Maximum CPU percentage allowed to be occupied by the trace Agent
-  ## The Agent is killed if this number is surpassed.
-  ## Note: it is possible to go above `100` %. For example, `250` means up to 2.5 cores can be used by the trace Agent.
+  ## The CPU percentage that the Agent aims to use. If surpassed, the API rate limits
+  ## incoming requests to aim and stay below this value. Examples: 50 = half a core, 200 = two cores.
+  ## Set `max_cpu_percent ` to `0` to disable rate limiting based on CPU usage.
   #
   # max_cpu_percent: 50
 

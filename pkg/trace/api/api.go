@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	stdlog "log"
+	"math"
 	"mime"
 	"net"
 	"net/http"
@@ -68,9 +69,9 @@ const (
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
 // a chan where the spans received are sent one by one
 type HTTPReceiver struct {
-	Stats      *info.ReceiverStats
-	PreSampler *sampler.PreSampler
-	Out        chan pb.Trace
+	Stats       *info.ReceiverStats
+	RateLimiter *rateLimiter
+	Out         chan pb.Trace
 
 	services chan pb.ServicesMetadata
 	conf     *config.AgentConfig
@@ -79,7 +80,7 @@ type HTTPReceiver struct {
 
 	maxRequestBodyLength int64
 	debug                bool
-	presamplerResponse   int // HTTP status code when refusing
+	rateLimiterResponse  int // HTTP status code when refusing
 
 	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
@@ -89,15 +90,15 @@ type HTTPReceiver struct {
 func NewHTTPReceiver(
 	conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan pb.Trace, services chan pb.ServicesMetadata,
 ) *HTTPReceiver {
-	presamplerResponse := http.StatusOK
+	rateLimiterResponse := http.StatusOK
 	if config.HasFeature("429") {
-		presamplerResponse = http.StatusTooManyRequests
+		rateLimiterResponse = http.StatusTooManyRequests
 	}
 	// use buffered channels so that handlers are not waiting on downstream processing
 	return &HTTPReceiver{
-		Stats:      info.NewReceiverStats(),
-		PreSampler: sampler.NewPreSampler(),
-		Out:        out,
+		Stats:       info.NewReceiverStats(),
+		RateLimiter: newRateLimiter(),
+		Out:         out,
 
 		conf:     conf,
 		dynConf:  dynConf,
@@ -105,7 +106,7 @@ func NewHTTPReceiver(
 
 		maxRequestBodyLength: maxRequestBodyLength,
 		debug:                strings.ToLower(conf.LogLevel) == "debug",
-		presamplerResponse:   presamplerResponse,
+		rateLimiterResponse:  rateLimiterResponse,
 
 		exit: make(chan struct{}),
 	}
@@ -146,7 +147,7 @@ func (r *HTTPReceiver) Start() {
 		killProcess(err.Error())
 	}
 
-	go r.PreSampler.Run()
+	go r.RateLimiter.Run()
 
 	go func() {
 		defer watchdog.LogOnPanic()
@@ -217,7 +218,7 @@ func (r *HTTPReceiver) Stop() error {
 	r.exit <- struct{}{}
 	<-r.exit
 
-	r.PreSampler.Stop()
+	r.RateLimiter.Stop()
 
 	expiry := time.Now().Add(5 * time.Second) // give it 5 seconds
 	ctx, cancel := context.WithDeadline(context.Background(), expiry)
@@ -300,9 +301,9 @@ func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) {
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
 	traceCount := traceCount(req)
-	if !r.PreSampler.SampleWithCount(traceCount) {
+	if !r.RateLimiter.Permits(traceCount) {
 		io.Copy(ioutil.Discard, req.Body)
-		w.WriteHeader(r.presamplerResponse)
+		w.WriteHeader(r.rateLimiterResponse)
 		r.replyOK(v, w)
 		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, nil, 1)
 		return
@@ -434,50 +435,48 @@ func (r *HTTPReceiver) loop() {
 // killProcess exits the process with the given msg; replaced in tests.
 var killProcess = func(msg string) { osutil.Exitf(msg) }
 
+// watchdog checks the trace-agent's heap and CPU usage and updates the rate limiter using a correct
+// sampling rate to maintain resource usage within set thresholds. These thresholds are defined by
+// the configuration MaxMemory and MaxCPU. If these values are 0, all limits are disabled and the rate
+// limiter will accept everything.
 func (r *HTTPReceiver) watchdog(now time.Time) {
 	wi := watchdog.Info{
 		Mem: watchdog.Mem(),
 		CPU: watchdog.CPU(now),
 	}
-
-	if current, allowed := float64(wi.Mem.Alloc), r.conf.MaxMemory*1.5; current > allowed {
-		// This is a safety mechanism: if the agent is using more than 1.5x max. memory, there
-		// is likely a leak somewhere; we'll kill the process to avoid polluting host memory.
-		metrics.Count("datadog.trace_agent.receiver.oom_kill", 1, nil, 1)
-		metrics.Flush()
-		log.Criticalf("Killing process. Memory threshold exceeded: %.2fM / %.2fM", current/1024/1024, allowed/1024/1024)
-		killProcess("OOM")
+	rateMem := 1.0
+	if r.conf.MaxMemory > 0 {
+		if current, allowed := float64(wi.Mem.Alloc), r.conf.MaxMemory*1.5; current > allowed {
+			// This is a safety mechanism: if the agent is using more than 1.5x max. memory, there
+			// is likely a leak somewhere; we'll kill the process to avoid polluting host memory.
+			metrics.Count("datadog.trace_agent.receiver.oom_kill", 1, nil, 1)
+			metrics.Flush()
+			log.Criticalf("Killing process. Memory threshold exceeded: %.2fM / %.2fM", current/1024/1024, allowed/1024/1024)
+			killProcess("OOM")
+		}
+		rateMem = computeRateLimitingRate(r.conf.MaxMemory, float64(wi.Mem.Alloc), r.RateLimiter.RealRate())
+		if rateMem < 1 {
+			log.Warnf("Memory threshold exceeded (apm_config.max_memory: %.0f bytes): %d", r.conf.MaxMemory, wi.Mem.Alloc)
+		}
+	}
+	rateCPU := 1.0
+	if r.conf.MaxCPU > 0 {
+		rateCPU = computeRateLimitingRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.RateLimiter.RealRate())
+		if rateCPU < 1 {
+			log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg)
+		}
 	}
 
-	rateCPU, err := sampler.CalcPreSampleRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.PreSampler.RealRate())
-	if err != nil {
-		log.Warnf("Problem computing cpu pre-sample rate: %v", err)
-	}
-	rateMem, err := sampler.CalcPreSampleRate(r.conf.MaxMemory, float64(wi.Mem.Alloc), r.PreSampler.RealRate())
-	if err != nil {
-		log.Warnf("Problem computing mem pre-sample rate: %v", err)
-	}
-	r.PreSampler.SetError(err)
-	if rateCPU < 1 {
-		log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg)
-	}
-	if rateMem < 1 {
-		log.Warnf("Memory threshold exceeded (apm_config.max_memory: %.0f bytes): %d", r.conf.MaxMemory, wi.Mem.Alloc)
-	}
-	if rateCPU < rateMem {
-		r.PreSampler.SetRate(rateCPU)
-	} else {
-		r.PreSampler.SetRate(rateMem)
-	}
+	r.RateLimiter.SetTargetRate(math.Min(rateCPU, rateMem))
 
-	stats := r.PreSampler.Stats()
+	stats := r.RateLimiter.Stats()
 
-	info.UpdatePreSampler(*stats)
+	info.UpdateRateLimiter(*stats)
 	info.UpdateWatchdogInfo(wi)
 
 	metrics.Gauge("datadog.trace_agent.heap_alloc", float64(wi.Mem.Alloc), nil, 1)
 	metrics.Gauge("datadog.trace_agent.cpu_percent", wi.CPU.UserAvg*100, nil, 1)
-	metrics.Gauge("datadog.trace_agent.presampler_rate", stats.Rate, nil, 1)
+	metrics.Gauge("datadog.trace_agent.receiver.ratelimit", stats.TargetRate, nil, 1)
 }
 
 // Languages returns the list of the languages used in the traces the agent receives.
