@@ -100,7 +100,7 @@ func parseContainerInPod(status ContainerStatus, pod *Pod) (*containers.Containe
 		c.State = containers.ContainerRunningState
 		c.Created = status.State.Running.StartedAt.Unix()
 		c.Health = parseContainerReadiness(status, pod)
-		c.AddressList = parseContainerNetworkAdresses(status, pod)
+		c.AddressList = parseContainerNetworkAddresses(status, pod)
 	case status.State.Terminated != nil:
 		if status.State.Terminated.ExitCode == 0 {
 			c.State = containers.ContainerExitedState
@@ -115,7 +115,7 @@ func parseContainerInPod(status ContainerStatus, pod *Pod) (*containers.Containe
 	return c, nil
 }
 
-func parseContainerNetworkAdresses(status ContainerStatus, pod *Pod) []containers.NetworkAddress {
+func parseContainerNetworkAddresses(status ContainerStatus, pod *Pod) []containers.NetworkAddress {
 	addrList := []containers.NetworkAddress{}
 	podIP := net.ParseIP(pod.Status.PodIP)
 	if podIP == nil {

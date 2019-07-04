@@ -7,6 +7,8 @@ name "sysstat"
 default_version "11.1.3"
 skip_transitive_dependency_licensing true
 
+ship_source true
+
 source :url => "https://github.com/sysstat/sysstat/archive/v#{version}.tar.gz",
        :sha256 => "e76dff7fa9246b94c4e1efc5ca858422856e110f09d6a58c5bf6000ae9c9d16e"
 
@@ -22,7 +24,6 @@ env = {
 }
 
 build do
-  ship_source "https://github.com/sysstat/sysstat/archive/v#{version}.tar.gz"
   ship_license "https://raw.githubusercontent.com/sysstat/sysstat/master/COPYING"
   command(["./configure",
        "--prefix=#{install_dir}/embedded",

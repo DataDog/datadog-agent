@@ -10,25 +10,11 @@ apm_config:
   max_connections: 50 # deprecated
   max_memory: 30000000
   trace_writer:
-    flush_period_seconds: 22
-    update_info_period_seconds: 33
-    queue:
-      max_age_seconds: 15
-      max_bytes: 2048
-      max_payloads: 100
-  service_writer:
-    update_info_period_seconds: 44
-    flush_period_seconds: 55
-    queue:
-      max_age_seconds: 15
-      max_bytes: 2048
-      max_payloads: 100
+    connection_limit: 1
+    queue_size: 2
   stats_writer:
-    update_info_period_seconds: 66
-    queue:
-      max_age_seconds: 15
-      max_bytes: 2048
-      max_payloads: 100
+    connection_limit: 5
+    queue_size: 6
   analyzed_rate_by_service:
     db: 1
     web: 0.9

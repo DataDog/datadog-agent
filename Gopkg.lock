@@ -42,7 +42,7 @@
   revision = "43b075bb9705588cd89c71363d6d72937e3020c7"
 
 [[projects]]
-  digest = "1:659f95740262dbc680ea46666b4b3c6dae97a0de4f231e3d9688601f7b94a918"
+  digest = "1:84c22eb14ecdebefff6a3764e5d3769739a775095f31d90919dfd10e887170fb"
   name = "github.com/DataDog/gopsutil"
   packages = [
     "cpu",
@@ -53,7 +53,7 @@
     "process",
   ]
   pruneopts = ""
-  revision = "aea6a47ff66c0ded148f385a8276d74321d8fc1a"
+  revision = "3ca45fa2b07679737219be93796a178822ff878f"
 
 [[projects]]
   branch = "master"
@@ -865,10 +865,7 @@
 [[projects]]
   digest = "1:961dc3b1d11f969370533390fdf203813162980c858e1dabe827b60940c909a5"
   name = "github.com/magiconair/properties"
-  packages = [
-    ".",
-    "assert",
-  ]
+  packages = ["."]
   pruneopts = ""
   revision = "c2353362d570a7bfa228149c62842019201cfb71"
   version = "v1.8.0"
@@ -878,7 +875,6 @@
   digest = "1:d9e483f4b9e306facf126bd90b02d512bd22ea4471e1568867e32221a8abbb16"
   name = "github.com/mailru/easyjson"
   packages = [
-    ".",
     "buffer",
     "jlexer",
     "jwriter",
@@ -2029,10 +2025,6 @@
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider",
     "github.com/lxn/walk",
     "github.com/lxn/win",
-    "github.com/magiconair/properties/assert",
-    "github.com/mailru/easyjson",
-    "github.com/mailru/easyjson/jlexer",
-    "github.com/mailru/easyjson/jwriter",
     "github.com/mholt/archiver",
     "github.com/openshift/api/quota/v1",
     "github.com/patrickmn/go-cache",

@@ -100,7 +100,7 @@ executed on each platform.
 
 ### Platforms Tested:
 
-See [kitchen.yml](kitchen.yml)
+See [kitchen-azure.yml](kitchen-azure.yml)
 
 ### Packaging Test Suites
 
@@ -114,8 +114,11 @@ Agent packaging methods tested:
   [chef-datadog](https://github.com/DataDog/chef-datadog). The recipe will
   determine if the base Agent should be installed instead of the regular one
   (based on the system version of Python).
-- `dd-agent-upgrade`: Installs the latest release Agent (the latest publicly
-  available Agent version), then upgrades it to the latest release candidate
+- `dd-agent-upgrade-agent6`: Installs the latest release Agent 6 (the latest publicly
+  available Agent 6 version), then upgrades it to the latest release candidate
+  using the platform's package manager.
+- `dd-agent-upgrade-agent5`: Installs the latest release Agent 5 (the latest publicly
+  available Agent 5 version), then upgrades it to the latest Agent 6 release candidate
   using the platform's package manager.
 - `dd-agent-install-script`: Installs the latest release candidate using our [Agent
   install script](https://raw.github.com/DataDog/dd-agent/master/packaging/datadog-agent/source/install_agent.sh).
@@ -174,12 +177,12 @@ For basic test-kitchen usage, see its [Getting Started
 guide](https://github.com/opscode/test-kitchen/wiki/Getting-Started).
 
 ### Adding a Platform
-Tests are executed on Azure. Platforms are defined in `.kitchen-azure.yml`.
+Tests are executed on Azure. Platforms are defined in `kitchen-azure.yml`.
 
 ### Adding a Suite
 Suites define the commands that should be run on a platform as Chef recipes,
 and tests that verify the outcome of these commands written in RSpec. Suites
-are defined in `kitchen.yml`.
+are defined in `kitchen-azure.yml`.
 
 Add new cookbooks by describing them in `Berksfile`. If you want to write your
 own cookbook that is specific to this repository, place it in the

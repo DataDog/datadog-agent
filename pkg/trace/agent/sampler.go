@@ -108,7 +108,7 @@ func (s *Sampler) logStats() {
 				stats.TotalTPS = float64(totalTraceCount) / duration.Seconds()
 			}
 			engineType := fmt.Sprint(reflect.TypeOf(s.engine))
-			log.Debugf("%s: flushed %d sampled traces out of %d", engineType, keptTraceCount, totalTraceCount)
+			log.Tracef("%s: flushed %d sampled traces out of %d", engineType, keptTraceCount, totalTraceCount)
 
 			state := s.engine.GetState()
 

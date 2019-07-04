@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -53,7 +52,7 @@ func Start() error {
 	status.Init(&isRunning, sources, metrics.LogsExpvars)
 
 	// setup the server config
-	endpoints, err := sender.BuildEndpoints()
+	endpoints, err := config.BuildEndpoints()
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
 		status.AddGlobalError(invalidEndpoints, message)

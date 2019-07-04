@@ -35,7 +35,7 @@ type KubeletCollector struct {
 
 // Detect tries to connect to the kubelet
 func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
-	watcher, err := kubelet.NewPodWatcher(5 * time.Minute)
+	watcher, err := kubelet.NewPodWatcher(5*time.Minute, true)
 	if err != nil {
 		return NoCollection, err
 	}

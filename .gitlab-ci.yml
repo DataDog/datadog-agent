@@ -156,10 +156,10 @@ run_tests_deb-x64:
     - pip install wheel
     - pip install -r requirements.txt
     - go get gopkg.in/yaml.v2
-    - inv -e six.build --install-prefix=$SRC_PATH/dev
-    - inv -e six.install
-    - inv -e six.format
-    - inv -e six.test
+    - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
+    - inv -e rtloader.install
+    - inv -e rtloader.format
+    - inv -e rtloader.test
     - inv deps
   script:
     - inv -e test --race --profile --cpus 4
@@ -179,7 +179,8 @@ run_test_rpm-x64:
 # run tests for eBPF code
 run_tests_ebpf:
   stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:latest
+  # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
   before_script:
     - cd $SRC_PATH
     - inv -e deps
@@ -264,7 +265,8 @@ cluster_agent-build:
 # build system-probe bin
 system_probe-build:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:latest
+  # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
   before_script:
     - cd $SRC_PATH
     - inv -e deps
@@ -773,7 +775,7 @@ kitchen_suse:
     - cd $DD_AGENT_TESTING_DIR
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP3:2018.09.04"
+    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP4:2019.06.17"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks

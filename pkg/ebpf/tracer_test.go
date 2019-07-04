@@ -5,20 +5,21 @@ package ebpf
 import (
 	"bufio"
 	"bytes"
+	json "encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
 	"net"
 	"net/url"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 	"unsafe"
-
-	"os"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +39,33 @@ func TestTracerExpvar(t *testing.T) {
 
 	<-time.After(time.Second)
 
-	assert.Equal(t, "{\"ClosedConnDropped\": 0, \"ClosedConnPollingLost\": 0, \"ClosedConnPollingReceived\": 0, \"ConnDropped\": 0, \"ConntrackNoopConntracker\": 0, \"ExpiredTcpConns\": 0, \"OkConnsSkipped\": 0, \"StatsResets\": 0, \"UnorderedConns\": 0}", probeExpvar.String())
+	expectedExpvars := []map[string]float64{
+		{
+			"NoopConntracker": 0,
+		},
+		{
+			"UnorderedConns":     0,
+			"ConnDropped":        0,
+			"ClosedConnDropped":  0,
+			"StatsResets":        0,
+			"TimeSyncCollisions": 0,
+		},
+		{
+			"ClosedConnPollingLost":     0,
+			"ClosedConnPollingReceived": 0,
+			"ConnValidSkipped":          0,
+			"ExpiredTcpConns":           0,
+		},
+		{
+			"TcpSentMiscounts": 0,
+		},
+	}
+
+	for i, et := range expvarTypes {
+		expvar := map[string]float64{}
+		require.NoError(t, json.Unmarshal([]byte(expvarEndpoints[et].String()), &expvar))
+		assert.Equal(t, expectedExpvars[i], expvar)
+	}
 }
 
 func TestSnakeToCamel(t *testing.T) {
@@ -574,6 +601,7 @@ func TestLocalDNSCollectionEnabled(t *testing.T) {
 	// Enable BPF-based system probe with DNS enabled
 	config := NewDefaultConfig()
 	config.CollectLocalDNS = true
+	config.CollectUDPConns = true
 
 	tr, err := NewTracer(config)
 	if err != nil {
@@ -593,19 +621,17 @@ func TestLocalDNSCollectionEnabled(t *testing.T) {
 	_, err = cn.Write([]byte("test"))
 	assert.NoError(t, err)
 
+	found := false
 	// Iterate through active connections making sure theres at least one connection
 	for _, c := range getConnections(t, tr).Conns {
-		if isLocalDNS(c) {
-			return
-		}
+		found = found || isLocalDNS(c)
 	}
 
-	// We shouldn't get here if the test passes successfully
-	assert.Error(t, nil)
+	assert.True(t, found)
 }
 
 func isLocalDNS(c ConnectionStats) bool {
-	return c.Source == "127.0.0.1" && c.Dest == "127.0.0.1" && c.DPort == 53
+	return c.Source.String() == "127.0.0.1" && c.Dest.String() == "127.0.0.1" && c.DPort == 53
 }
 
 func TestTooSmallBPFMap(t *testing.T) {
@@ -676,9 +702,66 @@ func TestIsExpired(t *testing.T) {
 	}
 }
 
+func TestTCPMiscount(t *testing.T) {
+	tr, err := NewTracer(NewDefaultConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Create a dummy TCP Server
+	server := NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		for {
+			if _, err := r.ReadBytes(byte('\n')); err != nil { // indicates that EOF has been reached,
+				break
+			}
+		}
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	file, err := c.(*net.TCPConn).File()
+	require.NoError(t, err)
+
+	fd := int(file.Fd())
+
+	// Set a really low sendtimeout of 100us to trigger EAGAIN errors in `tcp_sendmsg`
+	err = syscall.SetsockoptTimeval(fd, syscall.SOL_SOCKET, syscall.SO_SNDTIMEO, &syscall.Timeval{
+		Sec:  0,
+		Usec: 100,
+	})
+	assert.NoError(t, err)
+
+	// 10 MB payload
+	x := make([]byte, 10*1024*1024)
+
+	n, err := c.Write(x)
+	assert.NoError(t, err)
+	assert.EqualValues(t, len(x), n)
+	fmt.Printf("n = %+v\n", n)
+
+	doneChan <- struct{}{}
+
+	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+	assert.True(t, ok)
+
+	// TODO this should not happen but is expected for now
+	// we don't have the correct count since retries happened
+	assert.False(t, uint64(len(x)) == conn.MonotonicSentBytes)
+
+	tel := tr.getEbpfTelemetry()
+	assert.NotZero(t, tel["tcp_sent_miscounts"])
+}
+
 func findConnection(l, r net.Addr, c *Connections) (*ConnectionStats, bool) {
 	for _, conn := range c.Conns {
-		if addrMatches(l, conn.SourceAddr().String(), conn.SPort) && addrMatches(r, conn.DestAddr().String(), conn.DPort) {
+		if addrMatches(l, conn.Source.String(), conn.SPort) && addrMatches(r, conn.Dest.String(), conn.DPort) {
 			return &conn, true
 		}
 	}

@@ -107,7 +107,7 @@ func requestFlare(caseID string) error {
 
 	fmt.Fprintln(color.Output, fmt.Sprintf("%s is going to be uploaded to Datadog", color.YellowString(filePath)))
 	if !autoconfirm {
-		confirmation := input.AskForConfirmation("Are you sure you want to upload a flare? [Y/N]")
+		confirmation := input.AskForConfirmation("Are you sure you want to upload a flare? [y/N]")
 		if !confirmation {
 			fmt.Fprintln(color.Output, fmt.Sprintf("Aborting. (You can still use %s)", color.YellowString(filePath)))
 			return nil

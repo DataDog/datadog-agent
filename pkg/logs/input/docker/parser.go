@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
+
 // +build docker
 
 package docker
@@ -24,19 +25,21 @@ const dockerBufferSize = 16 * 1024
 // Escaped CRLF, used for determine empty messages
 var escapedCRLF = []byte{'\\', 'r', '\\', 'n'}
 
-type DockerParser struct {
+// Parser contains the related docker container id.
+type Parser struct {
 	containerID string
 }
 
-func NewDockerParser(containerID string) *DockerParser {
-	return &DockerParser{
+// NewParser create a new instance of docker parser.
+func NewParser(containerID string) *Parser {
+	return &Parser{
 		containerID: containerID,
 	}
 }
 
 // Parse calls parse to extract the message body, status, timestamp
 // can put them in the Message
-func (p *DockerParser) Parse(msg []byte) ([]byte, string, string, error) {
+func (p *Parser) Parse(msg []byte) ([]byte, string, string, error) {
 	return parse(msg, p.containerID)
 }
 

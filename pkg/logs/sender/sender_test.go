@@ -1,3 +1,4 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
@@ -7,11 +8,11 @@ package sender
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -32,10 +33,10 @@ func TestSender(t *testing.T) {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 
-	destination := client.AddrToDestination(l.Addr(), destinationsCtx)
+	destination := tcp.AddrToDestination(l.Addr(), destinationsCtx)
 	destinations := client.NewDestinations(destination, nil)
 
-	sender := NewSender(input, output, destinations)
+	sender := NewSender(input, output, destinations, StreamStrategy)
 	sender.Start()
 
 	expectedMessage := newMessage([]byte("fake line"), source, "")
@@ -63,12 +64,12 @@ func TestSenderNotBlockedByAdditional(t *testing.T) {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 
-	mainDestination := client.AddrToDestination(l.Addr(), destinationsCtx)
+	mainDestination := tcp.AddrToDestination(l.Addr(), destinationsCtx)
 	// This destination doesn't exists
-	additionalDestination := client.NewDestination(client.Endpoint{Host: "dont.exist.local", Port: 0}, destinationsCtx)
-	destinations := client.NewDestinations(mainDestination, []*client.Destination{additionalDestination})
+	additionalDestination := tcp.NewDestination(config.Endpoint{Host: "dont.exist.local", Port: 0}, true, destinationsCtx)
+	destinations := client.NewDestinations(mainDestination, []client.Destination{additionalDestination})
 
-	sender := NewSender(input, output, destinations)
+	sender := NewSender(input, output, destinations, StreamStrategy)
 	sender.Start()
 
 	expectedMessage1 := newMessage([]byte("fake line"), source, "")

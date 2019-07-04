@@ -8,11 +8,13 @@
 package app
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 )
 
 const (
-	pythonBin = "python"
+	pythonBin = "python2"
 )
 
 var (
@@ -22,10 +24,9 @@ var (
 	relConstraintsPath     = filepath.Join("..", "..", constraintsFile)
 )
 
-func authorizedUser() bool {
-	return true
-}
-
-func isIntegrationUser() bool {
-	return true
+func validateUser(allowRoot bool) error {
+	if os.Geteuid() != 0 {
+		return fmt.Errorf("Please run this tool with the root user.")
+	}
+	return nil
 }

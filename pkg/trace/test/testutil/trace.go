@@ -81,9 +81,9 @@ func RandomTrace(maxLevels, maxSpans int) pb.Trace {
 	return t
 }
 
-// GetTestTrace returns a []Trace that is composed by ``traceN`` number
+// GetTestTraces returns a []Trace that is composed by ``traceN`` number
 // of traces, each one composed by ``size`` number of spans.
-func GetTestTrace(traceN, size int, realisticIDs bool) pb.Traces {
+func GetTestTraces(traceN, size int, realisticIDs bool) pb.Traces {
 	traces := pb.Traces{}
 
 	r := rand.New(rand.NewSource(42))

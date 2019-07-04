@@ -44,7 +44,7 @@ type Agent struct {
 	// tags based on their type.
 	obfuscator *obfuscate.Obfuscator
 
-	tracePkgChan chan *writer.TracePackage
+	spansOut chan *writer.SampledSpans
 
 	// config
 	conf    *config.AgentConfig
@@ -61,7 +61,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 
 	// inter-component channels
 	rawTraceChan := make(chan pb.Trace, 5000)
-	tracePkgChan := make(chan *writer.TracePackage, 1000)
+	spansOut := make(chan *writer.SampledSpans, 1000)
 	statsChan := make(chan []stats.Bucket)
 	serviceChan := make(chan pb.ServicesMetadata, 50)
 	filteredServiceChan := make(chan pb.ServicesMetadata, 50)
@@ -81,7 +81,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	ep := eventProcessorFromConf(conf)
 	se := NewTraceServiceExtractor(serviceChan)
 	sm := NewServiceMapper(serviceChan, filteredServiceChan)
-	tw := writer.NewTraceWriter(conf, tracePkgChan)
+	tw := writer.NewTraceWriter(conf, spansOut)
 	sw := writer.NewStatsWriter(conf, statsChan)
 	svcW := writer.NewServiceWriter(conf, filteredServiceChan)
 
@@ -100,7 +100,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ServiceExtractor:   se,
 		ServiceMapper:      sm,
 		obfuscator:         obf,
-		tracePkgChan:       tracePkgChan,
+		spansOut:           spansOut,
 		conf:               conf,
 		dynConf:            dynConf,
 		ctx:                ctx,
@@ -109,14 +109,9 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 
 // Run starts routers routines and individual pieces then stop them when the exit order is received
 func (a *Agent) Run() {
-	info.UpdatePreSampler(*a.Receiver.PreSampler.Stats()) // avoid exposing 0
-
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
-		a.TraceWriter,
-		a.StatsWriter,
 		a.ServiceMapper,
-		a.ServiceWriter,
 		a.Concentrator,
 		a.ScoreSampler,
 		a.ErrorsScoreSampler,
@@ -125,6 +120,10 @@ func (a *Agent) Run() {
 	} {
 		starter.Start()
 	}
+
+	go a.TraceWriter.Run()
+	go a.StatsWriter.Run()
+	go a.ServiceWriter.Run()
 
 	n := 1
 	if config.HasFeature("parallel_process") {
@@ -225,10 +224,10 @@ func (a *Agent) Process(t pb.Trace) {
 	clientSampleRate := sampler.GetGlobalRate(root)
 	sampler.SetClientRate(root, clientSampleRate)
 	// Combine it with the pre-sampling rate.
-	preSamplerRate := a.Receiver.PreSampler.Rate()
-	sampler.SetPreSampleRate(root, preSamplerRate)
+	rateLimiterRate := a.Receiver.RateLimiter.RealRate()
+	sampler.SetPreSampleRate(root, rateLimiterRate)
 	// Update root's global sample rate to include the presampler rate as well
-	sampler.AddGlobalRate(root, preSamplerRate)
+	sampler.AddGlobalRate(root, rateLimiterRate)
 
 	// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
 	// which is not thread-safe while samplers and Concentrator might modify it too.
@@ -279,25 +278,24 @@ func (a *Agent) Process(t pb.Trace) {
 		defer watchdog.LogOnPanic()
 		defer timing.Since("datadog.trace_agent.internal.sample_ms", time.Now())
 
-		tracePkg := writer.TracePackage{}
+		var sampledSpans writer.SampledSpans
 
 		sampled, rate := a.sample(pt)
-
 		if sampled {
 			pt.Sampled = sampled
 			sampler.AddGlobalRate(pt.Root, rate)
-			tracePkg.Trace = pt.Trace
+			sampledSpans.Trace = pt.Trace
 		}
 
 		// NOTE: Events can be processed on non-sampled traces.
 		events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
-		tracePkg.Events = events
+		sampledSpans.Events = events
 
 		atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
-		atomic.AddInt64(&ts.EventsSampled, int64(len(tracePkg.Events)))
+		atomic.AddInt64(&ts.EventsSampled, int64(len(sampledSpans.Events)))
 
-		if !tracePkg.Empty() {
-			a.tracePkgChan <- &tracePkg
+		if !sampledSpans.Empty() {
+			a.spansOut <- &sampledSpans
 		}
 	}(pt)
 }

@@ -274,39 +274,18 @@ func TestConverter(t *testing.T) {
 
 	// int values
 	for k, v := range map[string]int{
-		"apm_config.bucket_size_seconds":                                   5,    // trace.concentrator.bucket_size_seconds
-		"apm_config.receiver_port":                                         8126, // trace.receiver.receiver_port
-		"apm_config.connection_limit":                                      2000, // trace.receiver.connection_limit
-		"apm_config.receiver_timeout":                                      4,    // trace.receiver.timeout
-		"apm_config.max_connections":                                       40,   // trace.watchdog.max_connections
-		"apm_config.watchdog_check_delay":                                  5,    // trace.watchdog.check_delay_seconds
-		"apm_config.extra_sample_rate":                                     1,
-		"dogstatsd_port":                                                   8125,
-		"apm_config.service_writer.flush_period_seconds":                   1,
-		"apm_config.service_writer.update_info_period_seconds":             1,
-		"apm_config.service_writer.queue.max_age_seconds":                  1,
-		"apm_config.service_writer.queue.max_bytes":                        456,
-		"apm_config.service_writer.queue.max_payloads":                     4,
-		"apm_config.service_writer.queue.exp_backoff_max_duration_seconds": 4,
-		"apm_config.service_writer.queue.exp_backoff_base_milliseconds":    1,
-		"apm_config.service_writer.queue.exp_backoff_growth_base":          2,
-		"apm_config.stats_writer.max_entries_per_payload":                  10,
-		"apm_config.stats_writer.update_info_period_seconds":               2,
-		"apm_config.stats_writer.queue.max_age_seconds":                    1,
-		"apm_config.stats_writer.queue.max_bytes":                          456,
-		"apm_config.stats_writer.queue.max_payloads":                       4,
-		"apm_config.stats_writer.queue.exp_backoff_max_duration_seconds":   4,
-		"apm_config.stats_writer.queue.exp_backoff_base_milliseconds":      1,
-		"apm_config.stats_writer.queue.exp_backoff_growth_base":            2,
-		"apm_config.trace_writer.max_spans_per_payload":                    100,
-		"apm_config.trace_writer.flush_period_seconds":                     3,
-		"apm_config.trace_writer.update_info_period_seconds":               2,
-		"apm_config.trace_writer.queue.max_age_seconds":                    1,
-		"apm_config.trace_writer.queue.max_bytes":                          456,
-		"apm_config.trace_writer.queue.max_payloads":                       4,
-		"apm_config.trace_writer.queue.exp_backoff_max_duration_seconds":   4,
-		"apm_config.trace_writer.queue.exp_backoff_base_milliseconds":      1,
-		"apm_config.trace_writer.queue.exp_backoff_growth_base":            2,
+		"apm_config.bucket_size_seconds":           5,    // trace.concentrator.bucket_size_seconds
+		"apm_config.receiver_port":                 8126, // trace.receiver.receiver_port
+		"apm_config.connection_limit":              2000, // trace.receiver.connection_limit
+		"apm_config.receiver_timeout":              4,    // trace.receiver.timeout
+		"apm_config.max_connections":               40,   // trace.watchdog.max_connections
+		"apm_config.watchdog_check_delay":          5,    // trace.watchdog.check_delay_seconds
+		"apm_config.extra_sample_rate":             1,
+		"dogstatsd_port":                           8125,
+		"apm_config.stats_writer.connection_limit": 3,
+		"apm_config.stats_writer.queue_size":       4,
+		"apm_config.trace_writer.connection_limit": 5,
+		"apm_config.trace_writer.queue_size":       6,
 	} {
 		require.True(c.IsSet(k), k)
 		require.Equal(v, c.GetInt(k), k)

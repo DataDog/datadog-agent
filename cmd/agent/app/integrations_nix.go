@@ -9,12 +9,13 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
 
 const (
-	pythonBin = "python"
+	pythonBin = "python2"
 )
 
 var (
@@ -24,10 +25,9 @@ var (
 	relConstraintsPath     = filepath.Join("..", "..", constraintsFile)
 )
 
-func authorizedUser() bool {
-	return (os.Geteuid() != 0)
-}
-
-func isIntegrationUser() bool {
-	return true
+func validateUser(allowRoot bool) error {
+	if os.Geteuid() == 0 && !allowRoot {
+		return fmt.Errorf("Operation is disabled for root user. Please run this tool with the agent-running user or add '--allow-root/-r' to force.")
+	}
+	return nil
 }

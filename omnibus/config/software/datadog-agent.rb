@@ -38,19 +38,19 @@ build do
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
     }
   end
-  
+
   # include embedded path (mostly for `pkg-config` binary)
   env = with_embedded_path(env)
 
   # we assume the go deps are already installed before running omnibus
   if windows?
-    command "inv -e six.build --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\"", :env => env
-    command "mv six/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
-    command "inv -e agent.build --six-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/six --rebuild --no-development --embedded-path=#{install_dir}/embedded", env: env
+    command "inv -e rtloader.build --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\"", :env => env
+    command "mv rtloader/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
+    command "inv -e agent.build --rtloader-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded", env: env
     command "inv -e systray.build --rebuild --no-development", env: env
   else
-    command "inv -e six.build --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
-    command "inv -e six.install"
+    command "inv -e rtloader.build --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
+    command "inv -e rtloader.install"
     command "inv -e agent.build --rebuild --no-development --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded", env: env
   end
 
@@ -60,6 +60,7 @@ build do
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
   mkdir conf_dir
+  mkdir "#{install_dir}/bin"
   unless windows?
     mkdir "#{install_dir}/run/"
     mkdir "#{install_dir}/scripts/"
@@ -74,9 +75,7 @@ build do
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
   move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
-
-  copy 'bin', install_dir
-
+  copy 'bin/agent', "#{install_dir}/bin/"
 
   block do
     # defer compilation step in a block to allow getting the project's build version, which is populated
@@ -92,12 +91,14 @@ build do
   end
 
 
-  # Build the process-agent
-  command "invoke -e process-agent.build", :env => env
-
   if windows?
+    # Build the process-agent with the correct go version for windows
+    command "invoke -e process-agent.build", :env => env
+
     copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
   else
+    # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
+    command "invoke -e process-agent.build --go-version=1.10.1", :env => env
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
     # We don't use the system-probe in macOS builds
     if !osx?

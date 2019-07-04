@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -72,7 +72,7 @@ func (suite *AgentTestSuite) TearDownTest() {
 	metrics.DestinationLogsDropped.Init()
 }
 
-func createAgent(endpoints *client.Endpoints) (*Agent, *config.LogSources, *service.Services) {
+func createAgent(endpoints *config.Endpoints) (*Agent, *config.LogSources, *service.Services) {
 	// setup the sources and the services
 	sources := config.NewLogSources()
 	services := service.NewServices()
@@ -86,8 +86,8 @@ func (suite *AgentTestSuite) TestAgent() {
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 
-	endpoint := client.AddrToEndPoint(l.Addr())
-	endpoints := client.NewEndpoints(endpoint, nil)
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
 
 	agent, sources, _ := createAgent(endpoints)
 
@@ -115,8 +115,8 @@ func (suite *AgentTestSuite) TestAgent() {
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
-	endpoint := client.Endpoint{Host: "fake:", Port: 0}
-	endpoints := client.NewEndpoints(endpoint, nil)
+	endpoint := config.Endpoint{Host: "fake:", Port: 0}
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
 
 	agent, sources, _ := createAgent(endpoints)
 
@@ -137,10 +137,10 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongAdditionalBackend() {
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 
-	endpoint := client.AddrToEndPoint(l.Addr())
-	additionalEndpoint := client.Endpoint{Host: "still_fake", Port: 0}
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	additionalEndpoint := config.Endpoint{Host: "still_fake", Port: 0}
 
-	endpoints := client.NewEndpoints(endpoint, []client.Endpoint{additionalEndpoint})
+	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{additionalEndpoint}, true, false)
 
 	agent, sources, _ := createAgent(endpoints)
 

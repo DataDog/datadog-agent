@@ -7,12 +7,12 @@ package client
 
 // Destinations holds the main destination and additional ones to send logs to.
 type Destinations struct {
-	Main        *Destination
-	Additionals []*Destination
+	Main        Destination
+	Additionals []Destination
 }
 
 // NewDestinations returns a new destinations composite.
-func NewDestinations(main *Destination, additionals []*Destination) *Destinations {
+func NewDestinations(main Destination, additionals []Destination) *Destinations {
 	return &Destinations{
 		Main:        main,
 		Additionals: additionals,

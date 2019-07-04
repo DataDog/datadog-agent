@@ -14,6 +14,7 @@ import (
 
 	ct "github.com/florianl/go-conntrack"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsNat(t *testing.T) {
@@ -44,8 +45,8 @@ func TestRegisterNat(t *testing.T) {
 	translation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345)
 	assert.NotNil(t, translation)
 	assert.Equal(t, &IPTranslation{
-		ReplSrcIP:   "20.0.0.0",
-		ReplDstIP:   "10.0.0.0",
+		ReplSrcIP:   util.AddressFromString("20.0.0.0"),
+		ReplDstIP:   util.AddressFromString("10.0.0.0"),
 		ReplSrcPort: 80,
 		ReplDstPort: 12345,
 	}, translation)
@@ -69,9 +70,30 @@ func TestRegisterNat(t *testing.T) {
 
 }
 
+func TestGetUpdatesGen(t *testing.T) {
+	rt := newConntracker()
+	c := makeTranslatedConn("10.0.0.0:12345", "50.30.40.10:80", "20.0.0.0:80")
+
+	rt.register(c)
+	var last uint8
+	for _, v := range rt.state {
+		v.expGeneration -= 5
+		last = v.expGeneration
+		break // there is only one item in the map
+	}
+
+	iptr := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345)
+	require.NotNil(t, iptr)
+
+	for _, v := range rt.state {
+		assert.NotEqual(t, last, v.expGeneration)
+		break // there is only one item in the map
+	}
+}
+
 func newConntracker() *realConntracker {
 	return &realConntracker{
-		state:               make(map[connKey]*IPTranslation),
+		state:               make(map[connKey]*connValue),
 		shortLivedBuffer:    make(map[connKey]*IPTranslation),
 		maxShortLivedBuffer: 10000,
 		compactTicker:       time.NewTicker(time.Hour),
