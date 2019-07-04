@@ -387,7 +387,7 @@ api_key:
   ## @param max_memory - integer - optional - default: 500000000
   ## This value is what the Agent aims to use in terms of memory. If surpassed, the API
   ## rate limits incoming requests to aim and stay below this value.
-  ##  Note: The Agent process is killed if it uses more than 150% of `max_memory`.
+  ## Note: The Agent process is killed if it uses more than 150% of `max_memory`.
   ## Set the `max_memory` parameter to `0` to disable the memory limitation.
   #
   # max_memory: 500000000
