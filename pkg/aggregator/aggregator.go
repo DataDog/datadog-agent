@@ -257,12 +257,6 @@ func (agg *BufferedAggregator) SetHostname(hostname string) {
 
 // AddAgentStartupTelemetry adds a startup event and count to be sent on the next flush
 func (agg *BufferedAggregator) AddAgentStartupTelemetry(agentVersion string) {
-	event := metrics.Event{
-		Text:           fmt.Sprintf("Version %s", agentVersion),
-		SourceTypeName: "System",
-		Host:           agg.hostname,
-		EventType:      "Agent Startup",
-	}
 	metric := &metrics.MetricSample{
 		Name:       fmt.Sprintf("datadog.%s.started", agg.agentName),
 		Value:      1,
@@ -274,7 +268,12 @@ func (agg *BufferedAggregator) AddAgentStartupTelemetry(agentVersion string) {
 	}
 	if agg.hostname != "" {
 		// Send startup event only when we have a valid hostname
-		agg.eventIn <- event
+		agg.eventIn <- metrics.Event{
+			Text:           fmt.Sprintf("Version %s", agentVersion),
+			SourceTypeName: "System",
+			Host:           agg.hostname,
+			EventType:      "Agent Startup",
+		}
 	}
 	agg.metricIn <- metric
 }
