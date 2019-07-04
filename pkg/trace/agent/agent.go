@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,10 +34,7 @@ type Agent struct {
 	PrioritySampler    *Sampler
 	EventProcessor     *event.Processor
 	TraceWriter        *writer.TraceWriter
-	ServiceWriter      *writer.ServiceWriter
 	StatsWriter        *writer.StatsWriter
-	ServiceExtractor   *TraceServiceExtractor
-	ServiceMapper      *ServiceMapper
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -63,11 +59,9 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	rawTraceChan := make(chan pb.Trace, 5000)
 	spansOut := make(chan *writer.SampledSpans, 1000)
 	statsChan := make(chan []stats.Bucket)
-	serviceChan := make(chan pb.ServicesMetadata, 50)
-	filteredServiceChan := make(chan pb.ServicesMetadata, 50)
 
 	// create components
-	r := api.NewHTTPReceiver(conf, dynConf, rawTraceChan, serviceChan)
+	r := api.NewHTTPReceiver(conf, dynConf, rawTraceChan)
 	c := stats.NewConcentrator(
 		conf.ExtraAggregators,
 		conf.BucketInterval.Nanoseconds(),
@@ -79,11 +73,8 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	ess := NewErrorsSampler(conf)
 	ps := NewPrioritySampler(conf, dynConf)
 	ep := eventProcessorFromConf(conf)
-	se := NewTraceServiceExtractor(serviceChan)
-	sm := NewServiceMapper(serviceChan, filteredServiceChan)
 	tw := writer.NewTraceWriter(conf, spansOut)
 	sw := writer.NewStatsWriter(conf, statsChan)
-	svcW := writer.NewServiceWriter(conf, filteredServiceChan)
 
 	return &Agent{
 		Receiver:           r,
@@ -96,9 +87,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		EventProcessor:     ep,
 		TraceWriter:        tw,
 		StatsWriter:        sw,
-		ServiceWriter:      svcW,
-		ServiceExtractor:   se,
-		ServiceMapper:      sm,
 		obfuscator:         obf,
 		spansOut:           spansOut,
 		conf:               conf,
@@ -111,7 +99,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 func (a *Agent) Run() {
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
-		a.ServiceMapper,
 		a.Concentrator,
 		a.ScoreSampler,
 		a.ErrorsScoreSampler,
@@ -123,7 +110,6 @@ func (a *Agent) Run() {
 
 	go a.TraceWriter.Run()
 	go a.StatsWriter.Run()
-	go a.ServiceWriter.Run()
 
 	for i := 0; i < runtime.NumCPU(); i++ {
 		go a.work()
@@ -156,8 +142,6 @@ func (a *Agent) loop() {
 			a.Concentrator.Stop()
 			a.TraceWriter.Stop()
 			a.StatsWriter.Stop()
-			a.ServiceMapper.Stop()
-			a.ServiceWriter.Stop()
 			a.ScoreSampler.Stop()
 			a.ErrorsScoreSampler.Stop()
 			a.PrioritySampler.Stop()
@@ -248,11 +232,6 @@ func (a *Agent) Process(t pb.Trace) {
 		// this trace has a user defined env.
 		pt.Env = tenv
 	}
-
-	go func() {
-		defer watchdog.LogOnPanic()
-		a.ServiceExtractor.Process(pt.WeightedTrace)
-	}()
 
 	if priority >= 0 {
 		a.sample(ts, pt)

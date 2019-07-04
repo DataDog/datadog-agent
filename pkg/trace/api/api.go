@@ -73,10 +73,9 @@ type HTTPReceiver struct {
 	RateLimiter *rateLimiter
 	Out         chan pb.Trace
 
-	services chan pb.ServicesMetadata
-	conf     *config.AgentConfig
-	dynConf  *sampler.DynamicConfig
-	server   *http.Server
+	conf    *config.AgentConfig
+	dynConf *sampler.DynamicConfig
+	server  *http.Server
 
 	maxRequestBodyLength int64
 	debug                bool
@@ -88,8 +87,7 @@ type HTTPReceiver struct {
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
 func NewHTTPReceiver(
-	conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan pb.Trace, services chan pb.ServicesMetadata,
-) *HTTPReceiver {
+	conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan pb.Trace) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if config.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
@@ -100,9 +98,8 @@ func NewHTTPReceiver(
 		RateLimiter: newRateLimiter(),
 		Out:         out,
 
-		conf:     conf,
-		dynConf:  dynConf,
-		services: services,
+		conf:    conf,
+		dynConf: dynConf,
 
 		maxRequestBodyLength: maxRequestBodyLength,
 		debug:                strings.ToLower(conf.LogLevel) == "debug",
@@ -374,13 +371,13 @@ func (r *HTTPReceiver) handleServices(v Version, w http.ResponseWriter, req *htt
 	ts := r.Stats.GetTagStats(tags)
 
 	atomic.AddInt64(&ts.ServicesReceived, int64(len(servicesMeta)))
-
 	bytesRead := req.Body.(*LimitedReader).Count
 	if bytesRead > 0 {
 		atomic.AddInt64(&ts.ServicesBytes, int64(bytesRead))
 	}
 
-	r.services <- servicesMeta
+	// Do nothing, services are no longer being sent to Datadog as of July 2019
+	// and are now automatically extracted from traces.
 }
 
 // loop periodically submits stats about the receiver to statsd
