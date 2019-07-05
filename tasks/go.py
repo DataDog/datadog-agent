@@ -198,7 +198,7 @@ def misspell(ctx, targets):
         print("misspell found no issues")
 
 @task
-def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_vendor_only=False, dep_no_vendor=False):
+def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_vendor_only=False, no_dep_ensure=False):
     """
     Setup Go dependencies
     """
@@ -228,39 +228,39 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_
         print("gomobile command {}". format(cmd))
         ctx.run(cmd)
 
-    # source level deps
-    print("calling dep ensure")
-    start = datetime.datetime.now()
-    verbosity = ' -v' if verbose else ''
-    vendor_only = ' --vendor-only' if dep_vendor_only else ''
-    no_vendor = ' --no-vendor' if dep_no_vendor else ''
-    ctx.run("dep ensure{}{}{}".format(verbosity, vendor_only, no_vendor))
-    dep_done = datetime.datetime.now()
+    if not no_dep_ensure:
+        # source level deps
+        print("calling dep ensure")
+        start = datetime.datetime.now()
+        verbosity = ' -v' if verbose else ''
+        vendor_only = ' --vendor-only' if dep_vendor_only else ''
+        ctx.run("dep ensure{}{}".format(verbosity, vendor_only))
+        dep_done = datetime.datetime.now()
 
-    # If github.com/DataDog/datadog-agent gets vendored too - nuke it
-    #
-    # This may happen as a result of having to introduce DEPPROJECTROOT
-    # in our builders to get around a known-issue with go dep, and the
-    # strange GOPATH situation in our builders.
-    #
-    # This is only a workaround, we should eliminate the need to resort
-    # to DEPPROJECTROOT.
-    if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
-        print("Removing vendored github.com/DataDog/datadog-agent")
-        shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
+        # If github.com/DataDog/datadog-agent gets vendored too - nuke it
+        #
+        # This may happen as a result of having to introduce DEPPROJECTROOT
+        # in our builders to get around a known-issue with go dep, and the
+        # strange GOPATH situation in our builders.
+        #
+        # This is only a workaround, we should eliminate the need to resort
+        # to DEPPROJECTROOT.
+        if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
+            print("Removing vendored github.com/DataDog/datadog-agent")
+            shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
 
-    # make sure PSUTIL is gone on windows; the dep ensure above will vendor it
-    # in because it's necessary on other platforms
-    if not android and sys.platform == 'win32':
-        print("Removing PSUTIL on Windows")
-        ctx.run("rd /s/q vendor\\github.com\\shirou\\gopsutil")
+        # make sure PSUTIL is gone on windows; the dep ensure above will vendor it
+        # in because it's necessary on other platforms
+        if not android and sys.platform == 'win32':
+            print("Removing PSUTIL on Windows")
+            ctx.run("rd /s/q vendor\\github.com\\shirou\\gopsutil")
 
-    # Make sure that golang.org/x/mobile is deleted.  It will get vendored in
-    # because we use it, and there's no way to exclude; however, we must use
-    # the version from $GOPATH
-    if os.path.exists('vendor/golang.org/x/mobile'):
-        print("Removing vendored golang.org/x/mobile")
-        shutil.rmtree('vendor/golang.org/x/mobile')
+        # Make sure that golang.org/x/mobile is deleted.  It will get vendored in
+        # because we use it, and there's no way to exclude; however, we must use
+        # the version from $GOPATH
+        if os.path.exists('vendor/golang.org/x/mobile'):
+            print("Removing vendored golang.org/x/mobile")
+            shutil.rmtree('vendor/golang.org/x/mobile')
 
     checks_start = datetime.datetime.now()
     if not no_checks:
@@ -278,7 +278,8 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_
             ctx.run('pip install -{} "{}[deps]"'.format(verbosity, checks_base))
     checks_done = datetime.datetime.now()
 
-    print("dep ensure, elapsed:    {}".format(dep_done - start))
+    if not no_dep_ensure:
+        print("dep ensure, elapsed:    {}".format(dep_done - start))
     print("checks install elapsed: {}".format(checks_done - checks_start))
 
 @task

@@ -213,7 +213,7 @@ run_security_scan_test:
       snyk monitor --project-name=datadog-agent-gopkg.lock --file=Gopkg.lock
 
 # check consistency of Gopkg.lock
-check_dep_gopkglock_consistency:
+run_dep_check_lock:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -223,12 +223,8 @@ check_dep_gopkglock_consistency:
     - pip install --upgrade --ignore-installed pip setuptools
     - pip install -r requirements.txt
   script:
-    - inv -e deps --verbose --dep-no-vendor
-    - git_diff="$(git diff-files -p Gopkg.lock)"
-    - git_diff_number="$(git diff-files Gopkg.lock | wc -l)"
-    # if there's a change on Gopkg.lock, that means it's not in sync and should be updated: print error message and fail.
-    - test "0" -eq "$git_diff_number" || printf "Gopkg.lock is not in sync with Gopkg.toml and project imports. Please run 'inv deps' and commit the change on Gopkg.lock. Diff:\n$git_diff\n"
-    - test "0" -eq "$git_diff_number"
+    - inv -e deps --no-dep-ensure
+    - dep check --skip-vendor || printf "Gopkg.lock is not in sync with Gopkg.toml and project imports. Please run 'inv deps' and commit the change on Gopkg.lock"
 
 #
 # binary_build
