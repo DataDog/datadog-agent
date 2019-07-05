@@ -287,7 +287,7 @@ system_probe-build:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
   before_script:
     - cd $SRC_PATH
-    - inv -e deps --verbose
+    - inv -e deps --verbose --dep-vendor-only
   tags: [ "runner:main", "size:large" ]
   script:
     - inv -e system-probe.build
@@ -476,7 +476,7 @@ build_windows_msi_x64:
     - mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
     - xcopy /q/h/e/s * %GOPATH%\src\github.com\DataDog\datadog-agent
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
-    - inv -e deps --verbose
+    - inv -e deps --verbose --dep-vendor-only
   stage: package_build
   variables:
     WINDOWS_BUILDER: 'true'
@@ -505,7 +505,7 @@ agent_android_apk:
     - cd $SRC_PATH
     - pip install -U pip
     - pip install -r requirements.txt
-    - inv -e deps --android
+    - inv -e deps --android --dep-vendor-only
     # Some Android license has changed, we have to accept the new version.
     # But on top of that, there is a bug in sdkmanager not updating correctly
     # the existing license, so, we have to manually accept the new license.
