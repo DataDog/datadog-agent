@@ -160,7 +160,7 @@ run_tests_deb-x64:
     - inv -e rtloader.install
     - inv -e rtloader.format
     - inv -e rtloader.test
-    - inv deps
+    - inv deps --verbose
   script:
     - inv -e test --race --profile --cpus 4
 
@@ -183,7 +183,7 @@ run_tests_ebpf:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
   before_script:
     - cd $SRC_PATH
-    - inv -e deps
+    - inv -e deps --verbose
   tags: [ "runner:main", "size:large" ]
   script:
     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
@@ -269,7 +269,7 @@ system_probe-build:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
   before_script:
     - cd $SRC_PATH
-    - inv -e deps
+    - inv -e deps --verbose
   tags: [ "runner:main", "size:large" ]
   script:
     - inv -e system-probe.build
@@ -458,7 +458,7 @@ build_windows_msi_x64:
     - mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
     - xcopy /q/h/e/s * %GOPATH%\src\github.com\DataDog\datadog-agent
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
-    - inv -e deps
+    - inv -e deps --verbose
   stage: package_build
   variables:
     WINDOWS_BUILDER: 'true'
