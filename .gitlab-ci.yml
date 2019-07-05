@@ -522,8 +522,7 @@ agent_android_apk:
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # for now do the steps manually.  Should eventually move this to an invoke
     # task
-    # Use --skip-deps since the deps are installed by `before_script`
-    - inv -e android.build --skip-deps
+    - inv -e android.build
     - mkdir -p $OMNIBUS_PACKAGE_DIR
     - cp ./bin/agent/ddagent-*-unsigned.apk $OMNIBUS_PACKAGE_DIR
   artifacts:
