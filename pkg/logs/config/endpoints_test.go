@@ -23,35 +23,35 @@ func (suite *EndpointsTestSuite) SetupTest() {
 }
 
 func (suite *EndpointsTestSuite) TestLogsEndpointConfig() {
-	suite.Equal("agent-intake.logs.datadoghq.com", coreConfig.GetMainEndpoint(endpointPrefix, "logs_config.dd_url"))
+	suite.Equal("agent-intake.logs.datadoghq.com", coreConfig.GetMainEndpoint(tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err := BuildEndpoints()
 	suite.Nil(err)
 	suite.Equal("agent-intake.logs.datadoghq.com", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.Set("site", "datadoghq.com")
-	suite.Equal("agent-intake.logs.datadoghq.com", coreConfig.GetMainEndpoint(endpointPrefix, "logs_config.dd_url"))
+	suite.Equal("agent-intake.logs.datadoghq.com", coreConfig.GetMainEndpoint(tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err = BuildEndpoints()
 	suite.Nil(err)
 	suite.Equal("agent-intake.logs.datadoghq.com", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.Set("site", "datadoghq.eu")
-	suite.Equal("agent-intake.logs.datadoghq.eu", coreConfig.GetMainEndpoint(endpointPrefix, "logs_config.dd_url"))
+	suite.Equal("agent-intake.logs.datadoghq.eu", coreConfig.GetMainEndpoint(tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err = BuildEndpoints()
 	suite.Nil(err)
 	suite.Equal("agent-intake.logs.datadoghq.eu", endpoints.Main.Host)
 	suite.Equal(443, endpoints.Main.Port)
 
 	suite.config.Set("logs_config.dd_url", "lambda.logs.datadoghq.co.jp")
-	suite.Equal("lambda.logs.datadoghq.co.jp", coreConfig.GetMainEndpoint(endpointPrefix, "logs_config.dd_url"))
+	suite.Equal("lambda.logs.datadoghq.co.jp", coreConfig.GetMainEndpoint(tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err = BuildEndpoints()
 	suite.Nil(err)
 	suite.Equal("lambda.logs.datadoghq.co.jp", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.Set("logs_config.logs_dd_url", "azure.logs.datadoghq.co.uk:1234")
-	suite.Equal("azure.logs.datadoghq.co.uk:1234", coreConfig.GetMainEndpoint(endpointPrefix, "logs_config.logs_dd_url"))
+	suite.Equal("azure.logs.datadoghq.co.uk:1234", coreConfig.GetMainEndpoint(tcpEndpointPrefix, "logs_config.logs_dd_url"))
 	endpoints, err = BuildEndpoints()
 	suite.Nil(err)
 	suite.Equal("azure.logs.datadoghq.co.uk", endpoints.Main.Host)
@@ -119,6 +119,22 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	var err error
 
 	suite.config.Set("logs_config.use_http", true)
+
+	endpoints, err = BuildEndpoints()
+	suite.Nil(err)
+	suite.True(endpoints.UseHTTP)
+
+	endpoint = endpoints.Main
+	suite.True(endpoint.UseSSL)
+	suite.Equal("agent-http-intake.logs.datadoghq.com", endpoint.Host)
+}
+
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndOverride() {
+	var endpoints *Endpoints
+	var endpoint Endpoint
+	var err error
+
+	suite.config.Set("logs_config.use_http", true)
 	suite.config.Set("logs_config.dd_url", "foo")
 
 	endpoints, err = BuildEndpoints()
@@ -128,15 +144,6 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseSSL)
 	suite.Equal("foo", endpoint.Host)
-}
-
-func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithInvalidHTTPConfig() {
-	var err error
-
-	suite.config.Set("logs_config.use_http", true)
-
-	_, err = BuildEndpoints()
-	suite.NotNil(err)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidProxyConfig() {
