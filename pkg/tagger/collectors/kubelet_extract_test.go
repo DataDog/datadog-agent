@@ -586,8 +586,25 @@ func TestParseDeploymentForReplicaset(t *testing.T) {
 		"frontend-56a89cfff7": "", // no vowels allowed
 	} {
 		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
-			collector := &KubeletCollector{}
-			assert.Equal(t, out, collector.parseDeploymentForReplicaset(in))
+			assert.Equal(t, out, parseDeploymentForReplicaset(in))
+		})
+	}
+}
+
+func TestParseCronJobForJob(t *testing.T) {
+	for in, out := range map[string]string{
+		"hello-1562319360": "hello",
+		"hello-600":        "hello",
+		"hello-world":      "",
+		"hello":            "",
+		"-hello1562319360": "",
+		"hello1562319360":  "",
+		"hello60":          "",
+		"hello-60":         "",
+		"hello-1562319a60": "",
+	} {
+		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+			assert.Equal(t, out, parseCronJobForJob(in))
 		})
 	}
 }

@@ -90,7 +90,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			case "StatefulSet":
 				tags.AddLow("kube_stateful_set", owner.Name)
 			case "Job":
-				cronjob := c.parseCronJobForJob(owner.Name)
+				cronjob := parseCronJobForJob(owner.Name)
 				if cronjob != "" {
 					tags.AddOrchestrator("kube_job", owner.Name)
 					tags.AddLow("kube_cronjob", cronjob)
@@ -98,7 +98,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 					tags.AddLow("kube_job", owner.Name)
 				}
 			case "ReplicaSet":
-				deployment := c.parseDeploymentForReplicaset(owner.Name)
+				deployment := parseDeploymentForReplicaset(owner.Name)
 				if len(deployment) > 0 {
 					tags.AddOrchestrator("kube_replica_set", owner.Name)
 					tags.AddLow("kube_deployment", deployment)
@@ -177,7 +177,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 // parseDeploymentForReplicaset gets the deployment name from a replicaset,
 // or returns an empty string if no parent deployment is found.
-func (c *KubeletCollector) parseDeploymentForReplicaset(name string) string {
+func parseDeploymentForReplicaset(name string) string {
 	lastDash := strings.LastIndexAny(name, "-")
 	if lastDash == -1 {
 		// No dash
@@ -200,7 +200,7 @@ func (c *KubeletCollector) parseDeploymentForReplicaset(name string) string {
 // parseCronJobForJob gets the cronjob name from a job,
 // or returns an empty string if no parent cronjob is found.
 // https://github.com/kubernetes/kubernetes/blob/b4e3bd381bd4d7c0db1959341b39558b45187345/pkg/controller/cronjob/utils.go#L156
-func (c *KubeletCollector) parseCronJobForJob(name string) string {
+func parseCronJobForJob(name string) string {
 	lastDash := strings.LastIndexAny(name, "-")
 	if lastDash == -1 {
 		// No dash
