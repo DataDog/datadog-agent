@@ -187,7 +187,7 @@
 
 [[constraint]]
   name = "github.com/DataDog/gopsutil"
-  revision = "3ca45fa2b07679737219be93796a178822ff878f"
+  revision = "833e93ecbcfd25e491eceea5e42c49c22dac7ed1"
 
 [[constraint]]
   name = "github.com/iovisor/gobpf"
