@@ -104,3 +104,117 @@ func TestDecoderWithHeaderMultiline(t *testing.T) {
 	assert.Equal(t, message.StatusError, output.Status)
 	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.Timestamp)
 }
+
+func TestDecoderWithJSONSingleline(t *testing.T) {
+	var output *decoder.Output
+	var line []byte
+	var lineLen int
+
+	d := decoder.InitializeDecoder(config.NewLogSource("", &config.LogsConfig{}), JSONParser)
+	d.Start()
+	defer d.Stop()
+
+	line = []byte(`{"log":"message\n","stream":"stdout","time":"2019-06-06T16:35:55.930852911Z"}` + "\n")
+	lineLen = len(line)
+	d.InputChan <- decoder.NewInput(line)
+
+	output = <-d.OutputChan
+	assert.Equal(t, []byte("message"), output.Content)
+	assert.Equal(t, lineLen, output.RawDataLen)
+	assert.Equal(t, message.StatusInfo, output.Status)
+	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.Timestamp)
+
+	line = []byte("wrong message\n")
+	lineLen = len(line)
+	d.InputChan <- decoder.NewInput(line)
+
+	output = <-d.OutputChan
+	assert.Equal(t, []byte("wrong message"), output.Content)
+	assert.Equal(t, lineLen, output.RawDataLen)
+	assert.Equal(t, message.StatusInfo, output.Status)
+	assert.Equal(t, "", output.Timestamp)
+}
+
+func TestDecoderWithJSONMultiline(t *testing.T) {
+	var output *decoder.Output
+	var line []byte
+	var lineLen int
+
+	c := &config.LogsConfig{
+		ProcessingRules: []*config.ProcessingRule{
+			{
+				Type:  config.MultiLine,
+				Regex: regexp.MustCompile("1234"),
+			},
+		},
+	}
+
+	d := decoder.InitializeDecoder(config.NewLogSource("", c), JSONParser)
+	d.Start()
+	defer d.Stop()
+
+	line = []byte(`{"log":"1234 hello\n","stream":"stdout","time":"2019-06-06T16:35:55.930852911Z"}` + "\n")
+	lineLen = len(line)
+	d.InputChan <- decoder.NewInput(line)
+
+	line = []byte(`{"log":"world\n","stream":"stdout","time":"2019-06-06T16:35:55.930852912Z"}` + "\n")
+	lineLen += len(line)
+	d.InputChan <- decoder.NewInput(line)
+
+	line = []byte(`{"log":"1234 bye\n","stream":"stderr","time":"2019-06-06T16:35:55.930852913Z"}` + "\n")
+	d.InputChan <- decoder.NewInput(line)
+
+	output = <-d.OutputChan
+	assert.Equal(t, []byte("1234 hello\\nworld"), output.Content)
+	assert.Equal(t, lineLen, output.RawDataLen)
+	assert.Equal(t, message.StatusInfo, output.Status)
+	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.Timestamp)
+
+	lineLen = len(line)
+
+	output = <-d.OutputChan
+	assert.Equal(t, []byte("1234 bye"), output.Content)
+	assert.Equal(t, lineLen, output.RawDataLen)
+	assert.Equal(t, message.StatusError, output.Status)
+	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.Timestamp)
+}
+
+func TestDecoderWithJSONSplittedByDocker(t *testing.T) {
+	var output *decoder.Output
+	var line []byte
+	var lineLen int
+
+	d := decoder.InitializeDecoder(config.NewLogSource("", &config.LogsConfig{}), JSONParser)
+	d.Start()
+	defer d.Stop()
+
+	line = []byte(`{"log":"part1","stream":"stdout","time":"2019-06-06T16:35:55.930852911Z"}` + "\n")
+	lineLen = len(line)
+	d.InputChan <- decoder.NewInput(line)
+
+	line = []byte(`{"log":"part2\n","stream":"stdout","time":"2019-06-06T16:35:55.930852912Z"}` + "\n")
+	d.InputChan <- decoder.NewInput(line)
+
+	// We don't reaggregate partial messages but we expect content of line not finishing with a '\n' character to be reconciliated
+	// with the next line.
+	// TODO: merge partial messages for JSON docker messages.
+	// output = <-d.OutputChan
+	// assert.Equal(t, []byte("part1part2\\n"), output.Content)
+	// assert.Equal(t, lineLen, output.RawDataLen)
+	// assert.Equal(t, message.StatusInfo, output.Status)
+	// assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.Timestamp)
+
+	output = <-d.OutputChan
+	assert.Equal(t, []byte("part1"), output.Content)
+	assert.Equal(t, lineLen, output.RawDataLen)
+	assert.Equal(t, message.StatusInfo, output.Status)
+	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.Timestamp)
+
+	lineLen = len(line)
+
+	output = <-d.OutputChan
+	assert.Equal(t, []byte("part2"), output.Content)
+	assert.Equal(t, lineLen, output.RawDataLen)
+	assert.Equal(t, message.StatusInfo, output.Status)
+	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.Timestamp)
+}

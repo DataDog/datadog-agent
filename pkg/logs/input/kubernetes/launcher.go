@@ -135,9 +135,7 @@ func (l *Launcher) addSource(svc *service.Service) {
 
 	switch svc.Type {
 	case config.DockerType:
-		// docker uses the NJSON format as opposed to other container runtimes
-		// to write log lines to files so there is no need for the custom kubernetes parser.
-		break
+		source.SetSourceType(config.DockerSourceType)
 	default:
 		source.SetSourceType(config.KubernetesSourceType)
 	}
