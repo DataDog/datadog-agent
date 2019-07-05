@@ -44,6 +44,7 @@ build do
 
   # we assume the go deps are already installed before running omnibus
   if windows?
+    platform = windows_arch_i386? ? "x86" : "x64"
     command "inv -e rtloader.build --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
     command "mv rtloader/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
     command "inv -e agent.build --rtloader-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded --arch #{platform}", env: env

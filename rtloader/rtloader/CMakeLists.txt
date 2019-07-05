@@ -34,7 +34,7 @@ set_target_properties(datadog-agent-rtloader PROPERTIES
 )
 
 if(ARCH_I386)
-    set_target_properties(datadog-agent-six PROPERTIES COMPILE_FLAGS "-m32" LINK_FLAGS "-m32")
+    set_target_properties(datadog-agent-rtloader PROPERTIES COMPILE_FLAGS "-m32" LINK_FLAGS "-m32")
 endif()
 
 configure_file(datadog-agent-rtloader.pc.in datadog-agent-rtloader.pc @ONLY)
