@@ -67,7 +67,7 @@ before_script:
   - cd $SRC_PATH
   - pip install --upgrade --ignore-installed pip setuptools
   - pip install -r requirements.txt
-  - inv -e deps
+  - inv -e deps --dep-vendor-only
 
 #
 # Trigger conditions
@@ -160,7 +160,7 @@ run_tests_deb-x64:
     - inv -e rtloader.install
     - inv -e rtloader.format
     - inv -e rtloader.test
-    - inv deps --verbose
+    - inv deps --verbose --dep-vendor-only
   script:
     - inv -e test --race --profile --cpus 4
 
@@ -183,7 +183,7 @@ run_tests_ebpf:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
   before_script:
     - cd $SRC_PATH
-    - inv -e deps --verbose
+    - inv -e deps --verbose --dep-vendor-only
   tags: [ "runner:main", "size:large" ]
   script:
     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
@@ -203,7 +203,7 @@ run_security_scan_test:
     - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
     - cd $GOPATH/src/github.com/DataDog/datadog-agent
     - pip install -r requirements.txt
-    - inv deps
+    - inv deps --dep-vendor-only
   script:
     - set +x     # don't print the api key to the logs
     # send the list of the dependencies to snyk
@@ -211,6 +211,22 @@ run_security_scan_test:
       snyk monitor --project-name=datadog-agent-requirements.txt --file=requirements.txt --package-manager=pip
     - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
       snyk monitor --project-name=datadog-agent-gopkg.lock --file=Gopkg.lock
+
+# check consistency of Gopkg.lock
+check_dep_gopkglock_consistency:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  before_script:
+    - cd $SRC_PATH
+    - pip install --upgrade --ignore-installed pip setuptools
+    - pip install -r requirements.txt
+  script:
+    - inv -e deps --verbose --dep-no-vendor
+    - git_diff="$(git diff-files -p Gopkg.lock)"
+    # if there's a change on Gopkg.lock, that means it's not in sync and should be updated: print error message and fail.
+    - test -z "$git_diff" || printf "Gopkg.lock is not in sync with Gopkg.toml and project imports. Please run inv deps and commit the change on Gopkg.lock. Diff:\n$git_diff\n"
+    - test -z "$git_diff"
 
 #
 # binary_build

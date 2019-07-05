@@ -198,11 +198,10 @@ def misspell(ctx, targets):
         print("misspell found no issues")
 
 @task
-def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
+def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_vendor_only=False, dep_no_vendor=False):
     """
     Setup Go dependencies
     """
-    verbosity = ' -v' if verbose else ''
     deps = get_deps('deps')
     order = deps.get("order", deps.keys())
     for dependency in order:
@@ -232,7 +231,10 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
     # source level deps
     print("calling dep ensure")
     start = datetime.datetime.now()
-    ctx.run("dep ensure{}".format(verbosity))
+    verbosity = ' -v' if verbose else ''
+    vendor_only = ' --vendor-only' if dep_vendor_only else ''
+    no_vendor = ' --no-vendor' if dep_no_vendor else ''
+    ctx.run("dep ensure{}{}{}".format(verbosity, vendor_only, no_vendor))
     dep_done = datetime.datetime.now()
 
     # If github.com/DataDog/datadog-agent gets vendored too - nuke it
