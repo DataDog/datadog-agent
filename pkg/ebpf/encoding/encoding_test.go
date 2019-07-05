@@ -83,6 +83,21 @@ func TestSerialization(t *testing.T) {
 		assert.Equal(out, result)
 	})
 
+	t.Run("requesting empty serialization", func(t *testing.T) {
+		assert := assert.New(t)
+		marshaler := GetMarshaler("")
+		// in case we request empty serialization type, default to application/json
+		assert.Equal("application/json", marshaler.ContentType())
+
+		blob, err := marshaler.Marshal(in)
+		require.NoError(t, err)
+
+		unmarshaler := GetUnmarshaler("")
+		result, err := unmarshaler.Unmarshal(blob)
+		require.NoError(t, err)
+		assert.Equal(out, result)
+	})
+
 	t.Run("requesting application/protobuf serialization", func(t *testing.T) {
 		assert := assert.New(t)
 		marshaler := GetMarshaler("application/protobuf")

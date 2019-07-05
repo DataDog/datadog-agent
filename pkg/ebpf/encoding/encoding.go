@@ -25,7 +25,7 @@ type Unmarshaler interface {
 
 // GetMarshaler returns the appropriate Marshaler based on the given accept header
 func GetMarshaler(accept string) Marshaler {
-	if strings.Contains(ContentTypeProtobuf, accept) {
+	if strings.Contains(accept, ContentTypeProtobuf) {
 		return pSerializer
 	}
 
@@ -34,7 +34,7 @@ func GetMarshaler(accept string) Marshaler {
 
 // GetUnmarshaler returns the appropriate Unmarshaler based on the given content type
 func GetUnmarshaler(ctype string) Unmarshaler {
-	if strings.Contains(ContentTypeProtobuf, ctype) {
+	if strings.Contains(ctype, ContentTypeProtobuf) {
 		return pSerializer
 	}
 
