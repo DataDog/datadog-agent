@@ -71,6 +71,12 @@ func pdhLookupPerfNameByIndex(ndx int) (string, error) {
 func pdhEnumObjectItems(className string) (counters []string, instances []string, err error) {
 	var counterlen uint32
 	var instancelen uint32
+
+	if counterlen != 0 || instancelen != 0 {
+		log.Errorf("invalid parameter %v %v", counterlen, instancelen)
+		counterlen = 0
+		instancelen = 0
+	}
 	r, _, _ := procPdhEnumObjectItems.Call(
 		uintptr(0), // NULL data source, use computer in computername parameter
 		uintptr(0), // local computer
@@ -82,7 +88,7 @@ func pdhEnumObjectItems(className string) (counters []string, instances []string
 		uintptr(PERF_DETAIL_WIZARD),
 		uintptr(0))
 	if r != PDH_MORE_DATA {
-		log.Errorf("Failed to enumerate windows performance counters (class %s)", className)
+		log.Errorf("Failed to enumerate windows performance counters (%v) (class %s)", r, className)
 		log.Errorf("This error indicates that the Windows performance counter database may need to be rebuilt")
 		return nil, nil, fmt.Errorf("Failed to get buffer size %v", r)
 	}
@@ -194,6 +200,9 @@ func pdhGetFormattedCounterValueLarge(hCounter PDH_HCOUNTER) (val int64, err err
 		}
 		return 0, fmt.Errorf("Error retrieving large value 0x%x 0x%x", ret, pValue.CStatus)
 	}
+	if pValue.padding1 != 0 || pValue.padding2 != 0 {
+		log.Warnf("Padding value changed %x %x", pValue.padding1, pValue.padding2)
+	}
 
 	return pValue.LargeValue, nil
 }
@@ -212,6 +221,9 @@ func pdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, err e
 			return 0, NewErrPdhInvalidInstance("Invalid counter instance")
 		}
 		return 0, fmt.Errorf("Error retrieving float value 0x%x 0x%x", ret, pValue.CStatus)
+	}
+	if pValue.padding1 != 0 || pValue.padding2 != 0 {
+		log.Warnf("Padding value changed %x %x", pValue.padding1, pValue.padding2)
 	}
 
 	return pValue.DoubleValue, nil

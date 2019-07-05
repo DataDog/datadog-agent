@@ -319,7 +319,7 @@ BOOL StopDependentServices(SC_HANDLE hScManager, SC_HANDLE hService)
 // Return value:
 //   None
 //
-DWORD __stdcall DoStartSvc(MSIHANDLE hInstall, std::wstring& svcname)
+DWORD  DoStartSvc(MSIHANDLE hInstall, std::wstring& svcname)
 {
     SERVICE_STATUS_PROCESS ssStatus;
     DWORD dwOldCheckPoint;

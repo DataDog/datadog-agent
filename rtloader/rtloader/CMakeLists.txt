@@ -32,6 +32,11 @@ set_target_properties(datadog-agent-rtloader PROPERTIES
     SOVERSION 1
     PUBLIC_HEADER "../include/datadog_agent_rtloader.h;../include/rtloader_types.h"
 )
+
+if(ARCH_I386)
+    set_target_properties(datadog-agent-six PROPERTIES COMPILE_FLAGS "-m32" LINK_FLAGS "-m32")
+endif()
+
 configure_file(datadog-agent-rtloader.pc.in datadog-agent-rtloader.pc @ONLY)
 target_include_directories(datadog-agent-rtloader PRIVATE ./include)
 target_include_directories(datadog-agent-rtloader PUBLIC

@@ -58,12 +58,13 @@ type runnerCheckStats struct {
 
 // Runner ...
 type Runner struct {
+	running          uint32                   // Flag to see if the Runner is, well, running
+	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
 	pending          chan check.Check         // The channel where checks come from
 	runningChecks    map[check.ID]check.Check // The list of checks running
 	scheduler        *scheduler.Scheduler     // Scheduler runner operates on
 	m                sync.Mutex               // To control races on runningChecks
-	running          uint32                   // Flag to see if the Runner is, well, running
-	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
+
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.

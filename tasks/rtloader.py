@@ -10,7 +10,7 @@ def get_rtloader_path():
     return os.path.join(here, '..', 'rtloader')
 
 @task
-def build(ctx, install_prefix=None, python_runtimes=None, cmake_options=''):
+def build(ctx, install_prefix=None, python_runtimes=None, cmake_options='', arch="x64"):
     rtloader_path = get_rtloader_path()
 
     here = os.path.abspath(os.path.dirname(__file__))
@@ -24,6 +24,9 @@ def build(ctx, install_prefix=None, python_runtimes=None, cmake_options=''):
         cmake_args += " -DDISABLE_PYTHON2=ON "
     if '3' not in python_runtimes:
         cmake_args += " -DDISABLE_PYTHON3=ON "
+
+    if arch == "x86":
+        cmake_args += " -DARCH_I386=ON"
 
     ctx.run("cd {} && cmake {} .".format(rtloader_path, cmake_args))
     ctx.run("make -C {}".format(rtloader_path))

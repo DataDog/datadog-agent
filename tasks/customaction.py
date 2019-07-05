@@ -23,7 +23,7 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 
 @task
-def build(ctx, vstudio_root=None):
+def build(ctx, vstudio_root=None, arch="x64"):
     """
     Build the custom action library for the agent
     """
@@ -39,6 +39,7 @@ def build(ctx, vstudio_root=None):
             build_min=build_min,
             build_patch=build_patch
         )
+    print("arch is {}".format(arch))
     cmd = ""
     if not os.getenv("VCINSTALLDIR"):
         print("VC Not installed in environment; checking other locations")
@@ -47,15 +48,21 @@ def build(ctx, vstudio_root=None):
         if not vsroot:
             print("Must have visual studio installed")
             raise Exit(code=2)
-        vs_env_bat = '{}\\VC\\Auxiliary\\Build\\vcvars64.bat'.format(vsroot)
-        cmd = 'call \"{}\" && msbuild omnibus\\resources\\agent\\msi\\cal\\customaction.vcxproj /p:Configuration=Release /p:Platform=x64'.format(vs_env_bat)
+        batchfile = "vcvars64.bat"
+        if arch == "x86":
+            batchfile = "vcvars32.bat"
+        vs_env_bat = '{}\\VC\\Auxiliary\\Build\\{}'.format(vsroot, batchfile)
+        cmd = 'call \"{}\" && msbuild omnibus\\resources\\agent\\msi\\cal\\customaction.vcxproj /p:Configuration=Release /p:Platform={}'.format(vs_env_bat, arch)
     else:
-        cmd = 'msbuild omnibus\\resources\\agent\\msi\\cal\\customaction.vcxproj /p:Configuration=Release /p:Platform=x64'
+        cmd = 'msbuild omnibus\\resources\\agent\\msi\\cal\\customaction.vcxproj /p:Configuration=Release /p:Platform={}'.format(arch)
 
     cmd += verprops
     print("Build Command: %s" % cmd)
 
     ctx.run(cmd)
 
-    shutil.copy2("omnibus/resources/agent/msi/cal/x64/release/customaction.dll", BIN_PATH)
+    if arch is not None and arch == "x86":
+        shutil.copy2("omnibus/resources/agent/msi/cal/release/customaction.dll", BIN_PATH)
+    else:
+        shutil.copy2("omnibus/resources/agent/msi/cal/x64/release/customaction.dll", BIN_PATH)
 

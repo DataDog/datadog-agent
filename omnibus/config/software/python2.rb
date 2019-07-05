@@ -71,12 +71,17 @@ if ohai["platform"] != "windows"
 
 else
   default_version "2.7.16"
-
   dependency "vc_redist"
-  source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-         :sha256 => "6b9fdc51dde1ba6ae4cb698451900e1f8f1900ff1d56d9166dbeab06b10a4dce",
-         :extract => :seven_zip
 
+  if windows_arch_i386?
+    source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-x86.zip",
+           :sha256 => "bd7cfc193972894dc5b8557eeed218e2baf24dc71c0523aee7da6a45e44cb298",
+           :extract => :seven_zip
+  else
+    source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
+           :sha256 => "6b9fdc51dde1ba6ae4cb698451900e1f8f1900ff1d56d9166dbeab06b10a4dce",
+           :extract => :seven_zip
+  end
   build do
     #
     # expand python zip into the embedded directory
