@@ -31,7 +31,8 @@ if linux?
 end
 
 relative_path 'integrations-core'
-whitelist_file "embedded/lib/python3.7"
+whitelist_file "embedded/lib/python3.7/site-packages/psycopg2"
+whitelist_file "embedded/lib/python3.7/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
