@@ -19,10 +19,7 @@ import (
 const ContainerCollectAll = "container_collect_all"
 
 // logs-intake endpoint prefix.
-const (
-	tcpEndpointPrefix  = "agent-intake.logs."
-	httpEndpointPrefix = "agent-http-intake.logs."
-)
+const endpointPrefix = "agent-intake.logs."
 
 // logs-intake endpoints depending on the site and environment.
 var logsEndpoints = map[string]int{
@@ -113,7 +110,7 @@ func buildTCPEndpoints() (*Endpoints, error) {
 	default:
 		// If no proxy is set, we default to 'logs_config.dd_url' if set, or to 'site'.
 		// if none of them is set, we default to the US agent endpoint.
-		main.Host = coreConfig.GetMainEndpoint(tcpEndpointPrefix, "logs_config.dd_url")
+		main.Host = coreConfig.GetMainEndpoint(endpointPrefix, "logs_config.dd_url")
 		if port, found := logsEndpoints[main.Host]; found {
 			main.Port = port
 		} else {
@@ -142,6 +139,9 @@ func buildHTTPEndpoints() (*Endpoints, error) {
 	}
 
 	switch {
+	case isSetAndNotEmpty(coreConfig.Datadog, "logs_config.dd_url"):
+		main.Host = coreConfig.GetMainEndpoint("", "logs_config.dd_url")
+		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
 	case isSetAndNotEmpty(coreConfig.Datadog, "logs_config.logs_dd_url"):
 		host, port, err := parseAddress(coreConfig.Datadog.GetString("logs_config.logs_dd_url"))
 		if err != nil {
@@ -151,8 +151,7 @@ func buildHTTPEndpoints() (*Endpoints, error) {
 		main.Port = port
 		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.logs_no_ssl")
 	default:
-		main.Host = coreConfig.GetMainEndpoint(httpEndpointPrefix, "logs_config.dd_url")
-		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
+		return nil, fmt.Errorf("no url specified for http endpoint")
 	}
 
 	return NewEndpoints(main, nil, false, true), nil
