@@ -10,29 +10,29 @@ import (
 	"strings"
 )
 
+// ContainerEntityPrefix is the prefix that any entity corresponding to a container must have
+// It replaces any prior prefix like <runtime>:// in a pod container status.
+const ContainerEntityPrefix = "container_id://"
 const entitySeparator = "://"
 
-// BuildEntityName builds a valid entity name for a given container runtime and cid
+// BuildEntityName builds a valid entity name for a given container runtime and cid.
+// An empty runtime is fine since we hardcode container_id anyway.
+// TODO: We stopped using the runtime as a prefix as of 6.13, but keep it in the function signature in case we need it back
+// if this doesn't cause any issue in the few coming versions let's remove it
 func BuildEntityName(runtime, id string) string {
-	if id == "" || runtime == "" {
+	if id == "" {
 		return ""
 	}
-	return fmt.Sprintf("%s%s%s", runtime, entitySeparator, id)
+	return fmt.Sprintf("%s%s", ContainerEntityPrefix, id)
 }
 
-// SplitEntityName returns the runtime and container cid parts of a valid entity name
+// SplitEntityName returns the prefix and container cid parts of a valid entity name
 func SplitEntityName(name string) (string, string) {
 	if !IsEntityName(name) {
 		return "", ""
 	}
 	parts := strings.SplitN(name, entitySeparator, 2)
 	return parts[0], parts[1]
-}
-
-// RuntimeForEntity extracts the runtime portion of a container entity name
-func RuntimeForEntity(name string) string {
-	r, _ := SplitEntityName(name)
-	return r
 }
 
 // ContainerIDForEntity extracts the container ID portion of a container entity name

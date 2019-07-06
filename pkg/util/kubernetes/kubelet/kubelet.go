@@ -328,6 +328,8 @@ func (ku *KubeUtil) GetPodFromUID(podUID string) (*Pod, error) {
 	return nil, fmt.Errorf("uid %s not found in pod list", podUID)
 }
 
+// GetPodForEntityID returns a pointer to the pod that corresponds to an entity ID.
+// If the pod is not found it returns nil and an error.
 func (ku *KubeUtil) GetPodForEntityID(entityID string) (*Pod, error) {
 	if strings.HasPrefix(entityID, KubePodPrefix) {
 		uid := strings.TrimPrefix(entityID, KubePodPrefix)

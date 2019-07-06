@@ -11,11 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
-const (
-	// DockerEntityPrefix is the entity prefix for docker containers
-	DockerEntityPrefix = "docker://"
-)
-
 var (
 	// ErrNotImplemented is the "not implemented" error given by `gopsutil` when an
 	// OS doesn't support and API. Unfortunately it's in an internal package so

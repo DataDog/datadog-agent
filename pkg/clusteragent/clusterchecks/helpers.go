@@ -13,12 +13,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 const (
-	kubeServiceIDPrefix  = "kube_service://"
-	KubePodPrefix        = "kubernetes_pod://"
-	kubeEndpointIDPrefix = "kube_endpoint://"
+	kubeServiceIDPrefix  = "kube_service_uid://"
+	kubeEndpointIDPrefix = "kube_endpoint_uid://"
 )
 
 // makeConfigArray flattens a map of configs into a slice. Creating a new slice
@@ -49,7 +49,7 @@ func getServiceUID(config integration.Config) string {
 
 // getPodEntity returns pod entity
 func getPodEntity(podUID string) string {
-	return fmt.Sprintf("%s%s", KubePodPrefix, podUID)
+	return fmt.Sprintf("%s%s", kubelet.KubePodPrefix, podUID)
 }
 
 // getNameAndNamespaceFromADIDs extracts namespace
@@ -75,7 +75,7 @@ func getNameAndNamespaceFromEntity(s string) (string, string) {
 	if !strings.HasPrefix(s, kubeEndpointIDPrefix) {
 		return "", ""
 	}
-	split := strings.Split(s, "/") // Format: kube_endpoint://namespace/name
+	split := strings.Split(s, "/") // Format: kube_endpoint_uid://namespace/name
 	if len(split) == 4 {
 		return split[2], split[3]
 	}

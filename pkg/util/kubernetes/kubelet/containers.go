@@ -10,6 +10,7 @@ package kubelet
 import (
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -83,10 +84,14 @@ func (ku *KubeUtil) UpdateContainerMetrics(ctrList []*containers.Container) erro
 }
 
 func parseContainerInPod(status ContainerStatus, pod *Pod) (*containers.Container, error) {
+	entity, err := KubeContainerIDToEntityID(status.ID)
+	if err != nil {
+		return nil, fmt.Errorf("Skipping container %s from pod %s: %s", status.Name, pod.Metadata.Name, err)
+	}
 	c := &containers.Container{
 		Type:     "kubelet",
 		ID:       TrimRuntimeFromCID(status.ID),
-		EntityID: status.ID,
+		EntityID: entity,
 		Name:     fmt.Sprintf("%s-%s", pod.Metadata.Name, status.Name),
 		Image:    status.Image,
 	}
@@ -184,4 +189,16 @@ func parseContainerReadiness(status ContainerStatus, pod *Pod) string {
 		return containers.ContainerStartingHealth
 	}
 	return containers.ContainerUnhealthy
+}
+
+// KubeContainerIDToEntityID builds an entity ID from a container ID coming from
+// the pod status (i.e. including the <runtime>:// prefix).
+func KubeContainerIDToEntityID(ctrID string) (string, error) {
+	if strings.Contains(ctrID, "://") {
+		lastSlash := strings.LastIndexAny(ctrID, "/")
+		if lastSlash != -1 && len(ctrID) > lastSlash+1 {
+			return containers.ContainerEntityPrefix + ctrID[lastSlash+1:], nil
+		}
+	}
+	return "", fmt.Errorf("can't extract an entity ID from container ID %s", ctrID)
 }

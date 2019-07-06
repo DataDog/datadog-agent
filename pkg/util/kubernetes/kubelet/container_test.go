@@ -8,6 +8,7 @@
 package kubelet
 
 import (
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -47,7 +48,7 @@ func (suite *ContainersTestSuite) TestParseContainerInPod() {
 		{
 			Type:        "kubelet",
 			ID:          "710695aa82cb808e979e39078f6dd18ece04d2bf444fdf78e9b37e360b6882d5",
-			EntityID:    "docker://710695aa82cb808e979e39078f6dd18ece04d2bf444fdf78e9b37e360b6882d5",
+			EntityID:    "container_id://710695aa82cb808e979e39078f6dd18ece04d2bf444fdf78e9b37e360b6882d5",
 			Name:        "kube-scheduler-bpnn6-kube-scheduler",
 			Image:       "gcr.io/google_containers/hyperkube:v1.8.3",
 			Created:     1517487458,
@@ -58,7 +59,7 @@ func (suite *ContainersTestSuite) TestParseContainerInPod() {
 		{
 			Type:     "kubelet",
 			ID:       "61e83ec5ce7af1c134c159bac1bf94d3413486ba655e5ebd6231e0a92a1c7b54",
-			EntityID: "docker://61e83ec5ce7af1c134c159bac1bf94d3413486ba655e5ebd6231e0a92a1c7b54",
+			EntityID: "container_id://61e83ec5ce7af1c134c159bac1bf94d3413486ba655e5ebd6231e0a92a1c7b54",
 			Name:     "nginx-99d8b564-4r4vq-nginx",
 			Image:    "nginx:latest",
 			Created:  1517490715,
@@ -72,7 +73,7 @@ func (suite *ContainersTestSuite) TestParseContainerInPod() {
 		{
 			Type:        "kubelet",
 			ID:          "8a5d143fcca3f0b53dfe5f445905a2e82c02f0ff70fc0a98cc37eca389f9480c",
-			EntityID:    "docker://8a5d143fcca3f0b53dfe5f445905a2e82c02f0ff70fc0a98cc37eca389f9480c",
+			EntityID:    "container_id://8a5d143fcca3f0b53dfe5f445905a2e82c02f0ff70fc0a98cc37eca389f9480c",
 			Name:        "kube-controller-manager-kube-controller-manager",
 			Image:       "gcr.io/google_containers/hyperkube:v1.8.3",
 			Created:     1517487456,
@@ -83,7 +84,7 @@ func (suite *ContainersTestSuite) TestParseContainerInPod() {
 		{
 			Type:        "kubelet",
 			ID:          "b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6",
-			EntityID:    "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6",
+			EntityID:    "container_id://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6",
 			Name:        "kube-proxy-rnd5q-kube-proxy",
 			Image:       "gcr.io/google_containers/hyperkube:v1.8.3",
 			Created:     1517487458,
@@ -94,7 +95,7 @@ func (suite *ContainersTestSuite) TestParseContainerInPod() {
 		{
 			Type:     "kubelet",
 			ID:       "3e13513f94b41d23429804243820438fb9a214238bf2d4f384741a48b575670a",
-			EntityID: "docker://3e13513f94b41d23429804243820438fb9a214238bf2d4f384741a48b575670a",
+			EntityID: "container_id://3e13513f94b41d23429804243820438fb9a214238bf2d4f384741a48b575670a",
 			Name:     "redis-75586d7d7c-jrm7j-redis",
 			Image:    "redis:latest",
 			Created:  1517501194,
@@ -158,4 +159,21 @@ func (suite *ContainersTestSuite) TestParseContainerReadiness() {
 
 func TestContainersTestSuite(t *testing.T) {
 	suite.Run(t, new(ContainersTestSuite))
+}
+
+func TestKubeContainerIDToEntityID(t *testing.T) {
+	for in, out := range map[string]string{
+		"container_id://deadbeef": "container_id://deadbeef",
+		"containerd://deadbeef":   "container_id://deadbeef",
+		"cri-o://deadbeef":        "container_id://deadbeef",
+		"cri-o://d":               "container_id://d",
+		"container_id://":         "",
+		"deadbeef":                "",
+		"/deadbeef":               "",
+	} {
+		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+			res, _ := KubeContainerIDToEntityID(in)
+			assert.Equal(t, out, res)
+		})
+	}
 }

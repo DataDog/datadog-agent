@@ -67,7 +67,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 	require.Equal(suite.T(), changes[0].Metadata.UID, remainingPods[0].Metadata.UID)
 
 	// A new container ID in an existing pod should trigger
-	remainingPods[0].Status.Containers[0].ID = "testNewID"
+	remainingPods[0].Status.Containers[0].ID = "docker://testNewID"
 	// we're modifying the container list here, we need to reset the lazy all containers list
 	remainingPods[0].Status.AllContainers = []ContainerStatus{}
 	changes, err = watcher.computeChanges(remainingPods)
@@ -223,9 +223,10 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 	require.Len(suite.T(), expire, 0)
 
 	testContainerID := "docker://84adac90973fa1263ccf1e296cec72acb4128b6e19fd25bffe4fafb059adafc0"
+	testEntity, _ := KubeContainerIDToEntityID(testContainerID)
 
 	// simulate unreadiness for 10 sec
-	watcher.lastSeenReady[testContainerID] = watcher.lastSeenReady[testContainerID].Add(-10 * time.Second)
+	watcher.lastSeenReady[testEntity] = watcher.lastSeenReady[testEntity].Add(-10 * time.Second)
 	sourcePods, err = loadPodsFixture("./testdata/podlist_container_not_ready.json")
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 5)
@@ -250,7 +251,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 
 	// simulate unreadiness for 45 sec
 	// service should be removed
-	watcher.lastSeenReady[testContainerID] = watcher.lastSeenReady[testContainerID].Add(-45 * time.Second)
+	watcher.lastSeenReady[testEntity] = watcher.lastSeenReady[testEntity].Add(-45 * time.Second)
 	sourcePods, err = loadPodsFixture("./testdata/podlist_container_not_ready.json")
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 5)
@@ -261,7 +262,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 1)
-	require.Equal(suite.T(), testContainerID, expire[0])
+	require.Equal(suite.T(), testEntity, expire[0])
 	require.Len(suite.T(), watcher.lastSeenReady, 4)
 
 	// The container goes into ready state again
@@ -305,20 +306,20 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireUnready() {
 
 	// Try
 	testContainerID := "docker://84adac90973fa1263ccf1e296cec72acb4128b6e19fd25bffe4fafb059adafc0"
-
+	testEntity, _ := KubeContainerIDToEntityID(testContainerID)
 	// 10 seconds should NOT be enough to expire
-	watcher.lastSeenReady[testContainerID] = watcher.lastSeenReady[testContainerID].Add(-10 * time.Second)
+	watcher.lastSeenReady[testEntity] = watcher.lastSeenReady[testEntity].Add(-10 * time.Second)
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 0)
 
 	// 45 secs should be enough to expire
-	watcher.lastSeenReady[testContainerID] = watcher.lastSeenReady[testContainerID].Add(-45 * time.Second)
+	watcher.lastSeenReady[testEntity] = watcher.lastSeenReady[testEntity].Add(-45 * time.Second)
 	require.Len(suite.T(), watcher.lastSeenReady, 5)
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 1)
-	require.Equal(suite.T(), testContainerID, expire[0])
+	require.Equal(suite.T(), testEntity, expire[0])
 	require.Len(suite.T(), watcher.lastSeenReady, 4)
 }
 
@@ -346,19 +347,20 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 
 	// Try
 	testContainerID := "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6"
+	testEntity, _ := KubeContainerIDToEntityID(testContainerID)
 
 	// 4 minutes should NOT be enough to expire
-	watcher.lastSeen[testContainerID] = watcher.lastSeen[testContainerID].Add(-4 * time.Minute)
+	watcher.lastSeen[testEntity] = watcher.lastSeen[testEntity].Add(-4 * time.Minute)
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 0)
 
 	// 6 minutes should be enough to expire
-	watcher.lastSeen[testContainerID] = watcher.lastSeen[testContainerID].Add(-6 * time.Minute)
+	watcher.lastSeen[testEntity] = watcher.lastSeen[testEntity].Add(-6 * time.Minute)
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 1)
-	require.Equal(suite.T(), testContainerID, expire[0])
+	require.Equal(suite.T(), testEntity, expire[0])
 	require.Len(suite.T(), watcher.lastSeen, 11)
 	// 0 pods expired, we'll have all the 7 pods entities in tagsDigest
 	require.Len(suite.T(), watcher.tagsDigest, 7)
@@ -403,9 +405,9 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	expectedExpire := []string{
-		"kubernetes_pod://d91aa43c-0769-11e8-afcc-000c29dea4f6",
-		"docker://3e13513f94b41d23429804243820438fb9a214238bf2d4f384741a48b575670a",
-		"kubernetes_pod://260c2b1d43b094af6d6b4ccba082c2db",
+		"kubernetes_pod_uid://d91aa43c-0769-11e8-afcc-000c29dea4f6",
+		"container_id://3e13513f94b41d23429804243820438fb9a214238bf2d4f384741a48b575670a",
+		"kubernetes_pod_uid://260c2b1d43b094af6d6b4ccba082c2db",
 	}
 
 	require.Equal(suite.T(), len(expectedExpire), len(expire))

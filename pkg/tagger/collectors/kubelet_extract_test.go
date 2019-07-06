@@ -160,7 +160,7 @@ func TestParsePods(t *testing.T) {
 			expectedInfo: []*TagInfo{
 				{
 					Source: "kubelet",
-					Entity: "kubernetes_pod://5e8e05",
+					Entity: "kubernetes_pod_uid://5e8e05",
 					LowCardTags: []string{
 						"kube_namespace:default",
 						"kube_daemon_set:dd-agent-rc",

@@ -19,7 +19,7 @@ var (
 	ErrNotCompiled = errors.New("kubelet support not compiled in")
 
 	// KubePodPrefix is the entity prefix for Kubernetes pods
-	KubePodPrefix = "kubernetes_pod://"
+	KubePodPrefix = "kubernetes_pod_uid://"
 )
 
 // PodUIDToEntityName returns a prefixed entity name from a pod UID

@@ -58,8 +58,8 @@ func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 
 // Fetch fetches ECS tags
 func (c *ECSCollector) Fetch(container string) ([]string, []string, []string, error) {
-	runtime, cID := containers.SplitEntityName(container)
-	if runtime != containers.RuntimeNameDocker || len(cID) == 0 {
+	_, cID := containers.SplitEntityName(container)
+	if len(cID) == 0 {
 		return nil, nil, nil, nil
 	}
 
