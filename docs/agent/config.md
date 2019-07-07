@@ -112,7 +112,8 @@ because they're either:
 | `proxy_user` | superseded by `proxy` |
 | `proxy_password` | superseded by `proxy` |
 | `proxy_forbid_method_switch` | obsolete |
-| `use_mount` | deprecated in v5 |
+| `use_mount` | deprecated in Agent-level config since v5, use in `disk` check config instead |
+| `device_blacklist_re` | deprecated in Agent-level config since v5, use `device_blacklist` in `disk` check config instead |
 | `use_curl_http_client` | obsolete |
 | `exclude_process_args` | deprecated feature |
 | `check_timings` | superseded by internal stats |
