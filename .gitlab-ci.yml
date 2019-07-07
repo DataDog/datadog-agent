@@ -217,13 +217,12 @@ run_dep_check_lock:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
-  allow_failure: true # FIXME as soon as Gopkg.lock is consistent
   before_script:
     - cd $SRC_PATH
     - pip install --upgrade --ignore-installed pip setuptools
     - pip install -r requirements.txt
+    - inv -e deps --no-dep-ensure --no-checks
   script:
-    - inv -e deps --no-dep-ensure
     # Print a message and fail if dep check fails
     - dep check --skip-vendor || (echo "Gopkg.lock is out of sync with Gopkg.toml and project imports. Please run 'inv deps' and commit the change on Gopkg.lock." && false)
 
