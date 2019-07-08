@@ -7,7 +7,7 @@ import sys
 from invoke import task
 from subprocess import check_output
 
-from .utils import bin_name, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only
+from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only
 from .build_tags import get_default_build_tags
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
