@@ -121,7 +121,7 @@ var showCmd = &cobra.Command{
 	RunE:  show,
 }
 
-func detectEnvironment() error {
+func loadPythonInfo() error {
 	rootDir, _ = executable.Folder()
 	for {
 		agentReleaseFile := filepath.Join(rootDir, reqAgentReleaseFile)
@@ -311,7 +311,7 @@ func pip(args []string, stdout io.Writer, stderr io.Writer) error {
 }
 
 func install(cmd *cobra.Command, args []string) error {
-	if err := detectEnvironment(); err != nil {
+	if err := loadPythonInfo(); err != nil {
 		return err
 	}
 
@@ -775,7 +775,7 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 }
 
 func remove(cmd *cobra.Command, args []string) error {
-	if err := detectEnvironment(); err != nil {
+	if err := loadPythonInfo(); err != nil {
 		return err
 	}
 
@@ -799,7 +799,7 @@ func remove(cmd *cobra.Command, args []string) error {
 }
 
 func freeze(cmd *cobra.Command, args []string) error {
-	if err := detectEnvironment(); err != nil {
+	if err := loadPythonInfo(); err != nil {
 		return err
 	}
 
@@ -825,7 +825,7 @@ func freeze(cmd *cobra.Command, args []string) error {
 }
 
 func show(cmd *cobra.Command, args []string) error {
-	if err := detectEnvironment(); err != nil {
+	if err := loadPythonInfo(); err != nil {
 		return err
 	}
 
