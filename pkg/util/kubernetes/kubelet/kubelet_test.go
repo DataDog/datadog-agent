@@ -920,3 +920,33 @@ func TestSearchPodForContainerID(t *testing.T) {
 	_, err := k.GetStatusForContainerID(pod, serviceBaz.GetEntityID())
 	assert.EqualError(t, err, "Container docker://bazID not found")
 }
+
+func (suite *KubeletTestSuite) TestPodListWithNullPod() {
+	mockConfig := config.Mock()
+	mockConfig.Set("kubernetes_pod_expiration_duration", 0)
+
+	kubelet, err := newDummyKubelet("./testdata/podlist_null_pod.json")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.Nil(suite.T(), err)
+
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubelet_auth_token_path", "")
+
+	kubeutil, err := GetKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
+	kubelet.dropRequests() // Throwing away first GETs
+
+	pods, err := kubeutil.ForceGetLocalPodList()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), pods)
+	require.Len(suite.T(), pods, 2)
+
+	for _, po := range pods {
+		require.NotNil(suite.T(), po)
+	}
+}
