@@ -50,6 +50,12 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 func (d *Destination) Send(payload []byte) error {
 	var err error
 
+	content := d.prefixer.apply(payload)
+	frame, err := d.delimiter.delimit(content)
+	if err != nil {
+		return client.NewFramingError(err)
+	}
+
 	// reuse an existing connection from the pool or
 	// create a new one if none is available, this can
 	// happen when this method is called concurrently
@@ -64,12 +70,6 @@ func (d *Destination) Send(payload []byte) error {
 		if err != nil {
 			return err
 		}
-	}
-
-	content := d.prefixer.apply(payload)
-	frame, err := d.delimiter.delimit(content)
-	if err != nil {
-		return client.NewFramingError(err)
 	}
 
 	_, err = conn.Write(frame)
