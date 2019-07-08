@@ -34,7 +34,7 @@ class TestFiles(unittest.TestCase):
             self.assertFalse(os.path.isfile(file), file + " should NOT be present")
 
     def test_files_checksums(self):
-        for file, digest in EXPECTED_CHECKSUMS.iteritems():
+        for file, digest in EXPECTED_CHECKSUMS.items():
             sha = sha256()
             with open(file, 'rb') as f:
                 for chunk in iter(lambda: f.read(4096), b''):
