@@ -152,7 +152,7 @@ PyObject *get_config(PyObject *self, PyObject *args)
     }
 
     char *key = NULL;
-    // Py_arg_ParseTuple returns a pointer to the existing string in &key
+    // PyArg_ParseTuple returns a pointer to the existing string in &key
     // No need to free the result.
     if (!PyArg_ParseTuple(args, "s", &key)) {
         return NULL;
@@ -315,7 +315,7 @@ static PyObject *log_message(PyObject *self, PyObject *args)
     char *message = NULL;
     int log_level;
 
-    // Py_arg_ParseTuple returns a pointer to the existing string in &message
+    // PyArg_ParseTuple returns a pointer to the existing string in &message
     // No need to free the result.
     if (!PyArg_ParseTuple(args, "si", &message, &log_level)) {
         return NULL;
@@ -387,7 +387,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         if (!PyTuple_Check(tuple)) {
             PyErr_SetString(PyExc_TypeError, "external host tags list must contain only tuples");
             error = 1;
-            goto error;
+            goto done;
         }
 
         // first elem is the hostname
@@ -395,7 +395,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         if (hostname == NULL) {
             PyErr_SetString(PyExc_TypeError, "hostname is not a valid string");
             error = 1;
-            goto error;
+            goto done;
         }
 
         // second is a dictionary
@@ -403,14 +403,13 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         if (!PyDict_Check(dict)) {
             PyErr_SetString(PyExc_TypeError, "second elem of the host tags tuple must be a dict");
             error = 1;
-            goto error;
+            goto done;
         }
 
         // dict contains only 1 key, if dict is empty don't do anything
         Py_ssize_t pos = 0;
         PyObject *key = NULL, *value = NULL;
         if (!PyDict_Next(dict, &pos, &key, &value)) {
-            error = 1;
             continue;
         }
 
@@ -419,13 +418,13 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         if (source_type == NULL) {
             PyErr_SetString(PyExc_TypeError, "source_type is not a valid string");
             error = 1;
-            goto error;
+            goto done;
         }
 
         if (!PyList_Check(value)) {
             PyErr_SetString(PyExc_TypeError, "dict value must be a list of tags");
             error = 1;
-            goto error;
+            goto done;
         }
 
         // allocate an array of char* to store the tags we'll send to the Go function
@@ -435,7 +434,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         if (!(tags = (char **)malloc(sizeof(*tags) * tags_len + 1))) {
             PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
             error = 1;
-            goto error;
+            goto done;
         }
 
         // copy the list of tags into an array of char*
@@ -467,7 +466,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         free(tags);
     }
 
-error:
+done:
     if (hostname) {
         free(hostname);
     }

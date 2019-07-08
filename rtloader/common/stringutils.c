@@ -17,9 +17,9 @@ PyObject * dumper = NULL;
 /**
  * returns a C (NULL terminated UTF-8) string from a python string.
  * 
- * @param object  A Python string to be converted to C-string.
+ * \param object  A Python string to be converted to C-string.
  * 
- * @return A standard C string (NULL terminated character pointer)
+ * \return A standard C string (NULL terminated character pointer)
  *  The returned pointer is allocated from the heap and must be
  * deallocated (free()ed) by the caller
  */
