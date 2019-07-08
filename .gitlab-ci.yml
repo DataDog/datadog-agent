@@ -150,7 +150,7 @@ before_script:
 # run tests for deb-x64
 run_tests_deb-x64:
   stage: source_test
-  image: datadog/datadog-agent-runner-circle:six-pip3
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:latest
   tags: [ "runner:main", "size:2xlarge" ]
   before_script:
     - pip install wheel
