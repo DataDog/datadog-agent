@@ -280,6 +280,10 @@ func ImportRegistryConfig() error {
 		overrides["apm_config.apm_dd_url"] = val
 		log.Debugf("Setting apm_config.apm_dd_url to %s", val)
 	}
+	if val, _, err = k.GetStringValue("py_version"); err == nil && val != "" {
+		overrides["python_version"] = val
+		log.Debugf("Setting python version to %s", val)
+	}
 
 	// apply overrides to the config
 	config.SetOverrides(overrides)
