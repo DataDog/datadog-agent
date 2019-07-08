@@ -206,7 +206,6 @@ func (h *MultiLineHandler) run() {
 // so that the agent restarts tailing from the right place.
 func (h *MultiLineHandler) process(line []byte) {
 	unwrappedLine, _, timestamp, err := h.parser.Parse(line)
-	h.lastSeenTimestamp = timestamp
 	if err != nil {
 		log.Debug(err)
 	}
@@ -214,6 +213,8 @@ func (h *MultiLineHandler) process(line []byte) {
 		// send content from lineBuffer
 		h.sendBuffer()
 	}
+	h.lastSeenTimestamp = timestamp
+
 	if !h.lineBuffer.IsEmpty() {
 		// unwrap all the following lines
 		line = unwrappedLine
