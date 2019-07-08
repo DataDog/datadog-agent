@@ -382,7 +382,7 @@
       </Directory>
     </DirectoryRef>
     <DirectoryRef Id="TARGETDIR">
-        <Merge Id="VCRedist141" SourceFile="c:/omnibus-ruby/src/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/Microsoft_VC141_CRT_x64.msm" DiskId="1" Language="0"/>
+        <Merge Id="VCRedist141" SourceFile="$(var.BinFiles)/Microsoft_VC141_CRT_x64.msm" DiskId="1" Language="0"/>
     </DirectoryRef>
     <Feature Id="VCRedist141" Title="Visual C++ 2015 Runtime" AllowAdvertise="no" Display="hidden" Level="1">
         <MergeRef Id="VCRedist141"/>
