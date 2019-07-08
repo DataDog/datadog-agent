@@ -8,6 +8,9 @@
 package kubernetes
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -38,7 +41,7 @@ func TestGetSource(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
-	assert.Equal(t, "/var/log/pods/baz/foo/*.log", source.Config.Path)
+	assert.Equal(t, "/var/log/pods/buu_fuz_baz/foo/*.log", source.Config.Path)
 	assert.Equal(t, "boo", source.Config.Identifier)
 	assert.Equal(t, "bar", source.Config.Source)
 	assert.Equal(t, "bar", source.Config.Service)
@@ -69,7 +72,7 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
-	assert.Equal(t, "/var/log/pods/baz/foo/*.log", source.Config.Path)
+	assert.Equal(t, "/var/log/pods/buu_fuz_baz/foo/*.log", source.Config.Path)
 	assert.Equal(t, "boo", source.Config.Identifier)
 	assert.Equal(t, "any_source", source.Config.Source)
 	assert.Equal(t, "any_service", source.Config.Service)
@@ -176,6 +179,45 @@ func TestContainerCollectAll(t *testing.T) {
 	source, err = launcherCollectAllDisabled.getSource(podBar, containerBar)
 	assert.Equal(t, collectAllDisabledError, err)
 	assert.Nil(t, source)
+}
+
+func TestGetPath(t *testing.T) {
+	launcher := &Launcher{collectAll: true}
+	container := kubelet.ContainerStatus{
+		Name:  "foo",
+		Image: "bar",
+		ID:    "boo",
+	}
+	pod := &kubelet.Pod{
+		Metadata: kubelet.PodMetadata{
+			Name:      "fuz",
+			Namespace: "buu",
+			UID:       "baz",
+		},
+		Status: kubelet.Status{
+			Containers: []kubelet.ContainerStatus{container},
+		},
+	}
+
+	basePath, err := ioutil.TempDir("", "")
+	defer os.RemoveAll(basePath)
+	assert.Nil(t, err)
+
+	var (
+		path         string
+		podDirectory string
+	)
+
+	podDirectory = "buu_fuz_baz"
+	path = launcher.getPath(basePath, pod, container)
+	assert.Equal(t, filepath.Join(basePath, podDirectory, "foo", "*.log"), path)
+
+	podDirectory = "baz"
+	err = os.Mkdir(filepath.Join(basePath, podDirectory), 0777)
+	assert.Nil(t, err)
+
+	path = launcher.getPath(basePath, pod, container)
+	assert.Equal(t, filepath.Join(basePath, podDirectory, "foo", "*.log"), path)
 }
 
 // contains returns true if the list contains all the items.
