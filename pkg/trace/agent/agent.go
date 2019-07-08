@@ -125,11 +125,7 @@ func (a *Agent) Run() {
 	go a.StatsWriter.Run()
 	go a.ServiceWriter.Run()
 
-	n := 1
-	if config.HasFeature("parallel_process") {
-		n = runtime.NumCPU()
-	}
-	for i := 0; i < n; i++ {
+	for i := 0; i < runtime.NumCPU(); i++ {
 		go a.work()
 	}
 
