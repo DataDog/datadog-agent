@@ -1,12 +1,8 @@
 # Configuration Options
 
 This page details the configuration options supported in Agent version 6 or later
-compared to version 5. If you don't see a configuration option listed here, this
-might mean:
-
- * The option is supported as it is, in this case you can find it in the [example file][datadog-yaml]
- * The option refers to a feature that's currently under development
- * The option refers to a feature that's scheduled but will come later
+compared to version 5. If you don't see a configuration option listed here, the option
+should be supported as-is and should be listed in the [example datadog.yaml file][datadog-yaml].
 
 ## Environment variables
 
@@ -117,6 +113,7 @@ because they're either:
 | `use_curl_http_client` | obsolete |
 | `exclude_process_args` | deprecated feature |
 | `check_timings` | superseded by internal stats |
+| `non_local_traffic` | superseded by `dogstatsd_non_local_traffic` for Dogstatsd and `apm_config.apm_non_local_traffic` for the Trace Agent |
 | `dogstatsd_target` | |
 | `dogstreams` | |
 | `custom_emitters` | |
