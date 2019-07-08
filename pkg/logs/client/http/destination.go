@@ -95,7 +95,7 @@ func (d *Destination) Send(payload []byte) error {
 // SendAsync sends a payload in background.
 func (d *Destination) SendAsync(payload []byte) {
 	d.once.Do(func() {
-		payloadChan := make(chan []byte, 100)
+		payloadChan := make(chan []byte, config.ChanSize)
 		d.sendInBackground(payloadChan)
 		d.payloadChan = payloadChan
 	})

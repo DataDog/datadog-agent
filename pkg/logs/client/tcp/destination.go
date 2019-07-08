@@ -16,9 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// FIXME: Changed chanSize to a constant once we refactor packages
 const (
-	chanSize      = 100
 	warningPeriod = 1000
 )
 
@@ -79,7 +77,7 @@ func (d *Destination) Send(payload []byte) error {
 func (d *Destination) SendAsync(payload []byte) {
 	host := d.connManager.endpoint.Host
 	d.once.Do(func() {
-		inputChan := make(chan []byte, chanSize)
+		inputChan := make(chan []byte, config.ChanSize)
 		d.inputChan = inputChan
 		metrics.DestinationLogsDropped.Set(host, &expvar.Int{})
 		go d.runAsync()
