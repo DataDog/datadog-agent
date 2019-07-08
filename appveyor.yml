@@ -39,7 +39,7 @@ test_script:
   - inv -e rtloader.install
   - inv -e rtloader.format
   - inv -e rtloader.test
-  - inv -e deps
+  - inv -e deps --dep-vendor-only
   - inv -e test --coverage --profile --fail-on-fmt --python-home-2=C:\Python27-x64 --python-home-3=C:\Python37-x64
   - codecov -f profile.cov -F windows
 
