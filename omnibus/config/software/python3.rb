@@ -10,6 +10,7 @@ if ohai["platform"] != "windows"
   dependency "bzip2"
   dependency "libsqlite3"
   dependency "liblzma"
+  dependency "libyaml"
 
   version "3.6.7" do
     source :sha256 => "b7c36f7ed8f7143b2c46153b7332db2227669f583ea0cce753facf549d1a4239"

@@ -65,6 +65,11 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
     build_tags = get_default_build_tags(puppy=puppy)
 
+    ## secrets is not supported on windows because the process agent still runs as
+    ## root.  No matter what `get_default_build_tags()` returns, take secrets out.
+    if sys.platform == 'win32' and "secrets" in build_tags:
+        build_tags.remove("secrets")
+
     # TODO static option
     cmd = 'go build {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/process-agent'

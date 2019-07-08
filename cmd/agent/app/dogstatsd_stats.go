@@ -103,7 +103,7 @@ func requestDogstatsdStats() error {
 
 	// if the file is already existing, ask for a confirmation.
 	if _, err := os.Stat(dsdStatsFilePath); err == nil {
-		if !input.AskForConfirmation(fmt.Sprintf("'%s' existing, do you wan't to overwrite it? [Y/N]", dsdStatsFilePath)) {
+		if !input.AskForConfirmation(fmt.Sprintf("'%s' already exists, do you want to overwrite it? [y/N]", dsdStatsFilePath)) {
 			fmt.Println("Canceling.")
 			return nil
 		}

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2019 Datadog, Inc.
 
 //+build zlib
 
@@ -10,10 +10,17 @@ package jsonstream
 import (
 	"bytes"
 
+	"github.com/json-iterator/go"
+
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var jsonConfig = jsoniter.Config{
+	EscapeHTML:                    false,
+	ObjectFieldMustBeSimpleString: true,
+}.Froze()
 
 // PayloadBuilder is used to build payloads. PayloadBuilder allocates memory based
 // on what was previously need to serialize payloads. Keep that in mind and
@@ -41,20 +48,38 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 	input := bytes.NewBuffer(make([]byte, 0, b.inputSizeHint))
 	output := bytes.NewBuffer(make([]byte, 0, b.outputSizeHint))
 
-	compressor, err := newCompressor(input, output, m.JSONHeader(), m.JSONFooter())
+	// Temporary buffers
+	var header, footer bytes.Buffer
+	jsonStream := jsoniter.NewStream(jsonConfig, &header, 4096)
+
+	err := m.WriteHeader(jsonStream)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonStream.Reset(&footer)
+	err = m.WriteFooter(jsonStream)
+	if err != nil {
+		return nil, err
+	}
+
+	compressor, err := newCompressor(input, output, header.Bytes(), footer.Bytes())
 	if err != nil {
 		return nil, err
 	}
 
 	for i < itemCount {
-		json, err := m.JSONItem(i)
+		// We keep reusing the same small buffer in the jsoniter stream. Note that we can do so
+		// because compressor.addItem copies given buffer.
+		jsonStream.Reset(nil)
+		err := m.WriteItem(jsonStream, i)
 		if err != nil {
 			log.Warnf("error marshalling an item, skipping: %s", err)
 			i++
 			continue
 		}
 
-		switch compressor.addItem(json) {
+		switch compressor.addItem(jsonStream.Buffer()) {
 		case errPayloadFull:
 			// payload is full, we need to create a new one
 			payload, err := compressor.close()
@@ -64,7 +89,7 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 			payloads = append(payloads, &payload)
 			input.Reset()
 			output.Reset()
-			compressor, err = newCompressor(input, output, m.JSONHeader(), m.JSONFooter())
+			compressor, err = newCompressor(input, output, header.Bytes(), footer.Bytes())
 			if err != nil {
 				return nil, err
 			}

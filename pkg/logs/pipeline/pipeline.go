@@ -17,13 +17,21 @@ import (
 type Pipeline struct {
 	InputChan chan *message.Message
 	processor *processor.Processor
-	sender    sender.Sender
+	sender    *sender.Sender
 }
 
 // NewPipeline returns a new Pipeline
 func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinations *client.Destinations) *Pipeline {
 	inputChan := make(chan *message.Message, config.ChanSize)
 	senderChan := make(chan *message.Message, config.ChanSize)
+
+	var strategy sender.Strategy
+	if endpoints.UseHTTP {
+		strategy = sender.NewBatchStrategy(sender.NewArraySerializer())
+	} else {
+		strategy = sender.StreamStrategy
+	}
+	sender := sender.NewSender(senderChan, outputChan, destinations, strategy)
 
 	var encoder processor.Encoder
 	if endpoints.UseHTTP {
@@ -35,17 +43,10 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	}
 	processor := processor.New(inputChan, senderChan, processingRules, encoder)
 
-	var newSender sender.Sender
-	if endpoints.UseHTTP {
-		newSender = sender.NewBatchSender(senderChan, outputChan, destinations)
-	} else {
-		newSender = sender.NewStreamSender(senderChan, outputChan, destinations)
-	}
-
 	return &Pipeline{
 		InputChan: inputChan,
 		processor: processor,
-		sender:    newSender,
+		sender:    sender,
 	}
 }
 

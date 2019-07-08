@@ -435,23 +435,20 @@ shared_examples_for 'an Agent that is removed' do
     expect(agent_processes_running?).to be_falsey
   end
 
-  it 'should remove the agent binary' do
-    if os != :windows
-      agent_path = '/usr/bin/datadog-agent'
+  it 'should remove the installation directory' do
+    if os == :windows
+      expect(File).not_to exist("C:\\Program Files\\Datadog\\Datadog Agent\\")
     else
-      agent_path = "C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
+      expect(File).not_to exist("/opt/datadog-agent/")
     end
-    expect(File).not_to exist(agent_path)
   end
 
-  it 'should remove the trace-agent binary' do
-    if os == :windows
-      trace_agent_path = "C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\trace-agent"
-    else
-      trace_agent_path = '/opt/datadog-agent/bin/trace-agent'
+  if os != :windows
+    it 'should remove the agent link from bin' do
+      expect(File).not_to exist('/usr/bin/datadog-agent')
     end
-    expect(File).not_to exist(trace_agent_path)
   end
+
 end
 
 shared_examples_for 'an Agent with APM enabled' do

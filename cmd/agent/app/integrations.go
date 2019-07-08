@@ -197,10 +197,6 @@ func validateArgs(args []string, local bool) error {
 }
 
 func pip(args []string, stdout io.Writer, stderr io.Writer) error {
-	if !allowRoot && !authorizedUser() {
-		return errors.New("Please use this tool as the agent-running user")
-	}
-
 	if flagNoColor {
 		color.NoColor = true
 	}
@@ -257,8 +253,9 @@ func pip(args []string, stdout io.Writer, stderr io.Writer) error {
 }
 
 func install(cmd *cobra.Command, args []string) error {
-	if !isIntegrationUser() {
-		return fmt.Errorf("Installation requires an elevated/root user")
+	err := validateUser(allowRoot)
+	if err != nil {
+		return err
 	}
 	if err := validateArgs(args, localWheel); err != nil {
 		return err
@@ -314,7 +311,7 @@ func install(cmd *cobra.Command, args []string) error {
 		}
 
 		fmt.Println(color.GreenString(fmt.Sprintf(
-			"Successfully installed %s", integration,
+			"Successfully completed the installation of %s", integration,
 		)))
 
 		return nil
@@ -334,21 +331,20 @@ func install(cmd *cobra.Command, args []string) error {
 	if err != nil || versionToInstall == nil {
 		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
 	}
-	currentVersion, err := installedVersion(integration)
+	currentVersion, found, err := installedVersion(integration)
 	if err != nil {
 		return fmt.Errorf("could not get current version of %s: %v", integration, err)
 	}
-
-	if currentVersion != nil && versionToInstall.Equal(*currentVersion) {
+	if found && versionToInstall.Equal(*currentVersion) {
 		fmt.Printf("%s %s is already installed. Nothing to do.\n", integration, versionToInstall)
 		return nil
 	}
 
-	minVersion, err := minAllowedVersion(integration)
+	minVersion, found, err := minAllowedVersion(integration)
 	if err != nil {
 		return fmt.Errorf("unable to get minimal version of %s: %v", integration, err)
 	}
-	if versionToInstall.LessThan(*minVersion) {
+	if found && versionToInstall.LessThan(*minVersion) {
 		return fmt.Errorf(
 			"this command does not allow installing version %s of %s older than version %s shipped with the agent",
 			versionToInstall, integration, minVersion,
@@ -362,11 +358,11 @@ func install(cmd *cobra.Command, args []string) error {
 	}
 
 	// Verify datadog_checks_base is compatible with the requirements
-	shippedBaseVersion, err := installedVersion("datadog-checks-base")
+	shippedBaseVersion, found, err := installedVersion("datadog-checks-base")
 	if err != nil {
 		return fmt.Errorf("unable to get the version of datadog_checks_base: %v", err)
 	}
-	if ok, err := validateBaseDependency(wheelPath, shippedBaseVersion); err != nil {
+	if ok, err := validateBaseDependency(wheelPath, shippedBaseVersion); found && err != nil {
 		return fmt.Errorf("unable to validate compatibility of %s with the agent: %v", wheelPath, err)
 	} else if !ok {
 		return fmt.Errorf(
@@ -595,33 +591,33 @@ func validateRequirement(version *semver.Version, comp string, versionReq *semve
 	}
 }
 
-func minAllowedVersion(integration string) (*semver.Version, error) {
+func minAllowedVersion(integration string) (*semver.Version, bool, error) {
 	here, _ := executable.Folder()
 	lines, err := ioutil.ReadFile(filepath.Join(here, relReqAgentReleasePath))
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	version, err := getVersionFromReqLine(integration, string(lines))
+	version, found, err := getVersionFromReqLine(integration, string(lines))
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	return version, nil
+	return version, found, nil
 }
 
-// Return the version of an installed integration, or nil if the integration isn't installed
-func installedVersion(integration string) (*semver.Version, error) {
+// Return the version of an installed integration and whether or not it was found
+func installedVersion(integration string) (*semver.Version, bool, error) {
 	pythonPath, err := getCommandPython()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	integrationName := getIntegrationName(integration)
 	validName, err := regexp.MatchString("^[0-9a-z_-]+$", integration)
 	if err != nil {
-		return nil, fmt.Errorf("Error validating integration name: %s", err)
+		return nil, false, fmt.Errorf("Error validating integration name: %s", err)
 	}
 	if !validName {
-		return nil, fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
+		return nil, false, fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
 	}
 	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(versionScript, integrationName))
 	output, err := pythonCmd.Output()
@@ -634,44 +630,44 @@ func installedVersion(integration string) (*semver.Version, error) {
 			errMsg = err.Error()
 		}
 
-		return nil, fmt.Errorf("error executing python: %s", errMsg)
+		return nil, false, fmt.Errorf("error executing python: %s", errMsg)
 	}
 
 	outputStr := strings.TrimSpace(string(output))
 	if outputStr == "" {
-		return nil, nil // Either python couldn't import the check or the check didn't have a __version__
+		return nil, false, nil
 	}
 
 	version, err := semver.NewVersion(outputStr)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing version %s: %s", outputStr, err)
+		return nil, true, fmt.Errorf("error parsing version %s: %s", outputStr, err)
 	}
 
-	return version, nil
+	return version, true, nil
 }
 
 // Parse requirements lines to get a package version.
-// Returns the version if found, or nil if package not present
-func getVersionFromReqLine(integration string, lines string) (*semver.Version, error) {
+// Returns the version and whether or not it was found
+func getVersionFromReqLine(integration string, lines string) (*semver.Version, bool, error) {
 	exp, err := regexp.Compile(fmt.Sprintf(reqLinePattern, integration))
 	if err != nil {
-		return nil, fmt.Errorf("internal error: %v", err)
+		return nil, false, fmt.Errorf("internal error: %v", err)
 	}
 
 	groups := exp.FindAllStringSubmatch(lines, 2)
 	if groups == nil {
-		return nil, fmt.Errorf("unknown integration '%s'", integration)
+		return nil, false, nil
 	}
 
 	if len(groups) > 1 {
-		return nil, fmt.Errorf("Found several matches for %s version in %s\nAborting", integration, lines)
+		return nil, true, fmt.Errorf("Found several matches for %s version in %s\nAborting", integration, lines)
 	}
 
 	version, err := semver.NewVersion(groups[0][1])
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
-	return version, nil
+	return version, true, nil
 }
 
 func moveConfigurationFilesOf(integration string) error {
@@ -723,8 +719,9 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 }
 
 func remove(cmd *cobra.Command, args []string) error {
-	if !isIntegrationUser() {
-		return fmt.Errorf("Removal requires an elevated/root user")
+	err := validateUser(allowRoot)
+	if err != nil {
+		return err
 	}
 
 	if err := validateArgs(args, false); err != nil {
@@ -770,9 +767,11 @@ func show(cmd *cobra.Command, args []string) error {
 	}
 	packageName := normalizePackageName(args[0])
 
-	version, err := installedVersion(packageName)
+	version, found, err := installedVersion(packageName)
 	if err != nil {
 		return fmt.Errorf("could not get current version of %s: %v", packageName, err)
+	} else if !found {
+		return fmt.Errorf("could not get current version of %s: not installed", packageName)
 	}
 
 	if version == nil {

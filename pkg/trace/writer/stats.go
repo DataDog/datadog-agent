@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"math"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -10,133 +11,110 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// pathStats is the target host API path for delivering stats.
 const pathStats = "/api/v0.2/stats"
+
+const (
+	// bytesPerEntry specifies the approximate size an entry in a stat payload occupies.
+	bytesPerEntry = 125
+	// maxEntriesPerPayload is the maximum number of entries in a stat payload. An
+	// entry has an average size of 125 bytes in a compressed payload. The current
+	// Datadog intake API limits a compressed payload to ~3MB (24,000 entries), but
+	// let's have the default ensure we don't have paylods > 1.5 MB (12,000
+	// entries).
+	maxEntriesPerPayload = 12000
+)
 
 // StatsWriter ingests stats buckets and flushes them to the API.
 type StatsWriter struct {
-	sender payloadSender
-	exit   chan struct{}
-
-	// InStats is the stream of stat buckets to send out.
-	InStats <-chan []stats.Bucket
-
-	// info contains various statistics about the writer, which are
-	// occasionally sent as metrics to Datadog.
-	info info.StatsWriterInfo
-
-	// hostName specifies the resolved host name on which the agent is
-	// running, to be sent as part of a stats payload.
-	hostName string
-
-	// env is environment this agent is configured with, to be sent as part
-	// of the stats payload.
-	env string
-
-	conf writerconfig.StatsWriterConfig
+	in       <-chan []stats.Bucket
+	hostname string
+	env      string
+	senders  []*sender
+	stop     chan struct{}
+	stats    *info.StatsWriterInfo
 }
 
-// NewStatsWriter returns a new writer for stats.
-func NewStatsWriter(conf *config.AgentConfig, InStats <-chan []stats.Bucket) *StatsWriter {
-	cfg := conf.StatsWriterConfig
-	endpoints := newEndpoints(conf, pathStats)
-	sender := newMultiSender(endpoints, cfg.SenderConfig)
-	log.Infof("Stats writer initializing with config: %+v", cfg)
-
-	return &StatsWriter{
-		sender:   sender,
-		exit:     make(chan struct{}),
-		InStats:  InStats,
-		hostName: conf.Hostname,
-		env:      conf.DefaultEnv,
-		conf:     cfg,
+// NewStatsWriter returns a new StatsWriter. It must be started using Run.
+func NewStatsWriter(cfg *config.AgentConfig, in <-chan []stats.Bucket) *StatsWriter {
+	sw := &StatsWriter{
+		in:       in,
+		hostname: cfg.Hostname,
+		env:      cfg.DefaultEnv,
+		stats:    &info.StatsWriterInfo{},
+		stop:     make(chan struct{}),
 	}
+	climit := cfg.StatsWriter.ConnectionLimit
+	if climit == 0 {
+		// allow 1% of the connection limit to outgoing sends.
+		climit = int(math.Max(1, float64(cfg.ConnectionLimit)/100))
+	}
+	qsize := cfg.StatsWriter.QueueSize
+	if qsize == 0 {
+		payloadSize := float64(maxEntriesPerPayload * bytesPerEntry)
+		// default to 25% of maximum memory.
+		qsize = int(math.Max(1, cfg.MaxMemory/4/payloadSize))
+	}
+	log.Debugf("Stats writer initialized (climit=%d qsize=%d)", climit, qsize)
+	sw.senders = newSenders(cfg, sw, pathStats, climit, qsize)
+	return sw
 }
 
-// Start starts the writer, awaiting stat buckets and flushing them.
-func (w *StatsWriter) Start() {
-	w.sender.Start()
-
-	go func() {
-		defer watchdog.LogOnPanic()
-		w.Run()
-	}()
-
-	go func() {
-		defer watchdog.LogOnPanic()
-		w.monitor()
-	}()
-}
-
-// Run runs the event loop of the writer's main goroutine. It reads stat buckets
-// from InStats, builds stat payloads and sends them out using the base writer.
+// Run starts the StatsWriter, making it ready to receive stats and report metrics.
 func (w *StatsWriter) Run() {
-	defer close(w.exit)
-
-	log.Debug("Starting stats writer")
-
+	t := time.NewTicker(5 * time.Second)
+	defer t.Stop()
+	defer close(w.stop)
 	for {
 		select {
-		case stats := <-w.InStats:
-			w.handleStats(stats)
-		case <-w.exit:
-			log.Info("Exiting stats writer")
+		case stats := <-w.in:
+			w.addStats(stats)
+		case <-t.C:
+			w.report()
+		case <-w.stop:
 			return
 		}
 	}
 }
 
-// Stop stops the writer
+// Stop stops a running StatsWriter.
 func (w *StatsWriter) Stop() {
-	w.exit <- struct{}{}
-	<-w.exit
-	w.sender.Stop()
+	w.stop <- struct{}{}
+	<-w.stop
+	stopSenders(w.senders)
 }
 
-func (w *StatsWriter) handleStats(s []stats.Bucket) {
-	payloads, nbStatBuckets, nbEntries := w.buildPayloads(s, w.conf.MaxEntriesPerPayload)
-	if len(payloads) == 0 {
-		return
-	}
-
+func (w *StatsWriter) addStats(s []stats.Bucket) {
 	defer timing.Since("datadog.trace_agent.stats_writer.encode_ms", time.Now())
 
-	log.Debugf("Going to flush %v entries in %v stat buckets in %v payloads",
-		nbEntries, nbStatBuckets, len(payloads),
-	)
-
-	if len(payloads) > 1 {
-		atomic.AddInt64(&w.info.Splits, 1)
+	payloads, bucketCount, entryCount := w.buildPayloads(s, maxEntriesPerPayload)
+	switch n := len(payloads); {
+	case n == 0:
+		return
+	case n > 1:
+		atomic.AddInt64(&w.stats.Splits, 1)
 	}
-	atomic.AddInt64(&w.info.StatsBuckets, int64(nbStatBuckets))
-
-	headers := map[string]string{
-		languageHeaderKey:  strings.Join(info.Languages(), "|"),
-		"Content-Type":     "application/json",
-		"Content-Encoding": "gzip",
-	}
+	atomic.AddInt64(&w.stats.StatsBuckets, int64(bucketCount))
+	log.Debugf("Flushing %d entries (buckets=%d payloads=%v)", entryCount, bucketCount, len(payloads))
 
 	for _, p := range payloads {
-		// synchronously send the payloads one after the other
-		data, err := stats.EncodePayload(p)
-		if err != nil {
-			log.Errorf("Encoding issue: %v", err)
+		req := newPayload(map[string]string{
+			headerLanguages:    strings.Join(info.Languages(), "|"),
+			"Content-Type":     "application/json",
+			"Content-Encoding": "gzip",
+		})
+		if err := stats.EncodePayload(req.body, p); err != nil {
+			log.Errorf("Stats encoding error: %v", err)
 			return
 		}
-
-		payload := newPayload(data, headers)
-		w.sender.Send(payload)
-
-		atomic.AddInt64(&w.info.Bytes, int64(len(data)))
+		atomic.AddInt64(&w.stats.Bytes, int64(req.body.Len()))
+		for _, sender := range w.senders {
+			sender.Push(req)
+		}
 	}
-}
-
-type timeWindow struct {
-	start, duration int64
 }
 
 // buildPayloads returns a set of payload to send out, each paylods guaranteed
@@ -145,7 +123,6 @@ func (w *StatsWriter) buildPayloads(s []stats.Bucket, maxEntriesPerPayloads int)
 	if len(s) == 0 {
 		return []*stats.Payload{}, 0, 0
 	}
-
 	// 1. Get an estimate of how many payloads we need, based on the total
 	//    number of map entries (i.e.: sum of number of items in the stats
 	//    bucket's count map).
@@ -159,21 +136,20 @@ func (w *StatsWriter) buildPayloads(s []stats.Bucket, maxEntriesPerPayloads int)
 	for _, s := range s {
 		nbEntries += len(s.Counts)
 	}
-
 	if maxEntriesPerPayloads <= 0 || nbEntries < maxEntriesPerPayloads {
 		// nothing to do, break early
 		return []*stats.Payload{{
-			HostName: w.hostName,
+			HostName: w.hostname,
 			Env:      w.env,
 			Stats:    s,
 		}}, len(s), nbEntries
 	}
-
 	nbPayloads := nbEntries / maxEntriesPerPayloads
 	if nbEntries%maxEntriesPerPayloads != 0 {
 		nbPayloads++
 	}
 
+	type timeWindow struct{ start, duration int64 }
 	// 2. Create a slice of nbPayloads maps, mapping a time window (stat +
 	//    duration) to a stat bucket. We will build the payloads from these
 	//    maps. This allows is to have one stat bucket per time window.
@@ -181,7 +157,6 @@ func (w *StatsWriter) buildPayloads(s []stats.Bucket, maxEntriesPerPayloads int)
 	for i := 0; i < nbPayloads; i++ {
 		pMaps[i] = make(map[timeWindow]stats.Bucket, nbPayloads)
 	}
-
 	// 3. Iterate over all entries of each stats. Add the entry to one of
 	//    the payload container mappings, in a round robin fashion. In some
 	//    edge cases, we can end up having the same entry in several
@@ -222,7 +197,6 @@ func (w *StatsWriter) buildPayloads(s []stats.Bucket, maxEntriesPerPayloads int)
 			i++
 		}
 	}
-
 	// 4. Create the nbPayloads payloads from the maps.
 	nbStats := 0
 	nbEntries = 0
@@ -234,7 +208,7 @@ func (w *StatsWriter) buildPayloads(s []stats.Bucket, maxEntriesPerPayloads int)
 			nbEntries += len(sb.Counts)
 		}
 		payloads = append(payloads, &stats.Payload{
-			HostName: w.hostName,
+			HostName: w.hostname,
 			Env:      w.env,
 			Stats:    pstats,
 		})
@@ -244,66 +218,41 @@ func (w *StatsWriter) buildPayloads(s []stats.Bucket, maxEntriesPerPayloads int)
 	return payloads, nbStats, nbEntries
 }
 
-// monitor runs the event loop of the writer's monitoring
-// goroutine. It:
-// - reads events from the payload sender's monitor channel, logs
-//   them, send out statsd metrics, and updates the writer info
-// - periodically dumps the writer info
-func (w *StatsWriter) monitor() {
-	monC := w.sender.Monitor()
+var _ eventRecorder = (*StatsWriter)(nil)
 
-	infoTicker := time.NewTicker(w.conf.UpdateInfoPeriod)
-	defer infoTicker.Stop()
+func (w *StatsWriter) report() {
+	metrics.Count("datadog.trace_agent.stats_writer.payloads", atomic.SwapInt64(&w.stats.Payloads, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.stats_writer.stats_buckets", atomic.SwapInt64(&w.stats.StatsBuckets, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.stats_writer.bytes", atomic.SwapInt64(&w.stats.Bytes, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.stats_writer.retries", atomic.SwapInt64(&w.stats.Retries, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.stats_writer.splits", atomic.SwapInt64(&w.stats.Splits, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.stats_writer.errors", atomic.SwapInt64(&w.stats.Errors, 0), nil, 1)
+}
 
-	for {
-		select {
-		case e, ok := <-monC:
-			if !ok {
-				return
-			}
+// recordEvent implements eventRecorder.
+func (w *StatsWriter) recordEvent(t eventType, data *eventData) {
+	if data != nil {
+		metrics.Histogram("datadog.trace_agent.stats_writer.connection_fill", data.connectionFill, nil, 1)
+		metrics.Histogram("datadog.trace_agent.stats_writer.queue_fill", data.queueFill, nil, 1)
+	}
+	switch t {
+	case eventTypeRetry:
+		log.Debugf("Retrying to flush stats payload (error: %q)", data.err)
+		atomic.AddInt64(&w.stats.Retries, 1)
 
-			switch e.typ {
-			case eventTypeSuccess:
-				url := e.stats.host
-				log.Debugf("Flushed stat payload; url: %s, time:%s, size:%d bytes", url, e.stats.sendTime,
-					len(e.payload.bytes))
-				tags := []string{"url:" + url}
-				metrics.Gauge("datadog.trace_agent.stats_writer.flush_duration",
-					e.stats.sendTime.Seconds(), tags, 1)
-				atomic.AddInt64(&w.info.Payloads, 1)
-			case eventTypeFailure:
-				url := e.stats.host
-				log.Errorf("Failed to flush stat payload; url:%s, time:%s, size:%d bytes, error: %s",
-					url, e.stats.sendTime, len(e.payload.bytes), e.err)
-				atomic.AddInt64(&w.info.Errors, 1)
-			case eventTypeRetry:
-				log.Errorf("Retrying flush stat payload, retryNum: %d, delay:%s, error: %s",
-					e.retryNum, e.retryDelay, e.err)
-				atomic.AddInt64(&w.info.Retries, 1)
-			default:
-				log.Debugf("Unable to handle event with type %T", e)
-			}
+	case eventTypeSent:
+		log.Debugf("Flushed stats to the API; time: %s, bytes: %d", data.duration, data.bytes)
+		timing.Since("datadog.trace_agent.stats_writer.flush_duration", time.Now().Add(-data.duration))
+		atomic.AddInt64(&w.stats.Bytes, int64(data.bytes))
+		atomic.AddInt64(&w.stats.Payloads, 1)
 
-		case <-infoTicker.C:
-			var swInfo info.StatsWriterInfo
+	case eventTypeRejected:
+		log.Warnf("Stats writer payload rejected by edge: %v", data.err)
+		atomic.AddInt64(&w.stats.Errors, 1)
 
-			// Load counters and reset them for the next flush
-			swInfo.Payloads = atomic.SwapInt64(&w.info.Payloads, 0)
-			swInfo.StatsBuckets = atomic.SwapInt64(&w.info.StatsBuckets, 0)
-			swInfo.Bytes = atomic.SwapInt64(&w.info.Bytes, 0)
-			swInfo.Retries = atomic.SwapInt64(&w.info.Retries, 0)
-			swInfo.Splits = atomic.SwapInt64(&w.info.Splits, 0)
-			swInfo.Errors = atomic.SwapInt64(&w.info.Errors, 0)
-
-			// TODO(gbbr): Scope these stats per endpoint (see (config.AgentConfig).AdditionalEndpoints))
-			metrics.Count("datadog.trace_agent.stats_writer.payloads", int64(swInfo.Payloads), nil, 1)
-			metrics.Count("datadog.trace_agent.stats_writer.stats_buckets", int64(swInfo.StatsBuckets), nil, 1)
-			metrics.Count("datadog.trace_agent.stats_writer.bytes", int64(swInfo.Bytes), nil, 1)
-			metrics.Count("datadog.trace_agent.stats_writer.retries", int64(swInfo.Retries), nil, 1)
-			metrics.Count("datadog.trace_agent.stats_writer.splits", int64(swInfo.Splits), nil, 1)
-			metrics.Count("datadog.trace_agent.stats_writer.errors", int64(swInfo.Errors), nil, 1)
-
-			info.UpdateStatsWriterInfo(swInfo)
-		}
+	case eventTypeDropped:
+		log.Warnf("Stats writer queue full. Payload dropped (%.2fKB).", float64(data.bytes)/1024)
+		metrics.Count("datadog.trace_agent.stats_writer.dropped", 1, nil, 1)
+		metrics.Count("datadog.trace_agent.stats_writer.dropped_bytes", int64(data.bytes), nil, 1)
 	}
 }

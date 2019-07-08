@@ -37,7 +37,7 @@ type NetworkState interface {
 	RemoveConnections(keys []string)
 
 	// GetStats returns a map of statistics about the current network state
-	GetStats(closedPollLost, closedPollReceived, tracerSkippedCount, expiredTCP int64) map[string]interface{}
+	GetStats() map[string]interface{}
 
 	// DebugNetworkState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
@@ -392,7 +392,7 @@ func (ns *networkState) RemoveConnections(keys []string) {
 }
 
 // GetStats returns a map of statistics about the current network state
-func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipped, expiredTCP int64) map[string]interface{} {
+func (ns *networkState) GetStats() map[string]interface{} {
 	ns.Lock()
 	defer ns.Unlock()
 
@@ -408,15 +408,11 @@ func (ns *networkState) GetStats(closedPollLost, closedPollReceived, tracerSkipp
 	return map[string]interface{}{
 		"clients": clientInfo,
 		"telemetry": map[string]int64{
-			"stats_resets":                 ns.telemetry.statsResets,
-			"unordered_conns":              ns.telemetry.unorderedConns,
-			"closed_conn_dropped":          ns.telemetry.closedConnDropped,
-			"conn_dropped":                 ns.telemetry.connDropped,
-			"time_sync_collisions":         ns.telemetry.timeSyncCollisions,
-			"closed_conn_polling_lost":     closedPollLost,
-			"closed_conn_polling_received": closedPollReceived,
-			"ok_conns_skipped":             tracerSkipped, // Skipped connections (e.g. Local DNS requests)
-			"expired_tcp_conns":            expiredTCP,
+			"stats_resets":         ns.telemetry.statsResets,
+			"unordered_conns":      ns.telemetry.unorderedConns,
+			"closed_conn_dropped":  ns.telemetry.closedConnDropped,
+			"conn_dropped":         ns.telemetry.connDropped,
+			"time_sync_collisions": ns.telemetry.timeSyncCollisions,
 		},
 		"current_time":       time.Now().Unix(),
 		"latest_bpf_time_ns": ns.latestTimeEpoch,

@@ -10,8 +10,8 @@ from specific integrations.
 
 ## Implementation
 
-* [containers.c](/six/common/builtins/containers.c)
-* [containers.h](/six/common/builtins/containers.h)
+* [containers.c](/rtloader/common/builtins/containers.c)
+* [containers.h](/rtloader/common/builtins/containers.h)
 * [containers.go](/pkg/collector/python/containers.go)
 
 ## Functions

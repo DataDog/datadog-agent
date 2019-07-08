@@ -9,8 +9,8 @@ The module exposes low level functions to run processes from Python integrations
 
 ## Implementation
 
-* [_util.c](/six/common/builtins/_util.c)
-* [_util.h](/six/common/builtins/_util.h)
+* [_util.c](/rtloader/common/builtins/_util.c)
+* [_util.h](/rtloader/common/builtins/_util.h)
 * [util.go](/pkg/collector/python/util.go)
 
 ## Functions

@@ -44,6 +44,7 @@ func (h *testServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func testServer(t *testing.T) *httptest.Server {
+	t.Helper()
 	server := httptest.NewServer(&testServerHandler{t: t})
 	t.Logf("test server (serving fake yet valid data) listening on %s", server.URL)
 	return server
@@ -115,7 +116,7 @@ func testInit(t *testing.T) *config.AgentConfig {
 	assert.NotNil(conf)
 
 	err := InitInfo(conf)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	return conf
 }
@@ -131,18 +132,19 @@ func TestInfo(t *testing.T) {
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	hostPort := strings.Split(url.Host, ":")
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
-	assert.Nil(err)
+	assert.NoError(err)
 	conf.ReceiverPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
 	assert.NoError(err)
 	info := buf.String()
+	assert.NotEmpty(info)
 	t.Logf("Info:\n%s\n", info)
 	expectedInfo, err := ioutil.ReadFile("./testdata/okay.info")
 	assert.NoError(err)
@@ -157,7 +159,7 @@ func TestHideAPIKeys(t *testing.T) {
 	assert.NotEqual("", js)
 	var got config.AgentConfig
 	err := json.Unmarshal([]byte(js), &got)
-	assert.Nil(err)
+	assert.NoError(err)
 	assert.NotEmpty(conf.Endpoints[0].APIKey)
 	assert.Empty(got.Endpoints[0].APIKey)
 }
@@ -173,17 +175,17 @@ func TestWarning(t *testing.T) {
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	hostPort := strings.Split(url.Host, ":")
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
-	assert.Nil(err)
+	assert.NoError(err)
 	conf.ReceiverPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
-	assert.Nil(err)
+	assert.NoError(err)
 	info := buf.String()
 
 	expectedWarning, err := ioutil.ReadFile("./testdata/warning.info")
@@ -203,14 +205,14 @@ func TestNotRunning(t *testing.T) {
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	server.Close()
 
 	hostPort := strings.Split(url.Host, ":")
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
-	assert.Nil(err)
+	assert.NoError(err)
 	conf.ReceiverPort = port
 
 	var buf bytes.Buffer
@@ -244,12 +246,12 @@ func TestError(t *testing.T) {
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	hostPort := strings.Split(url.Host, ":")
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
-	assert.Nil(err)
+	assert.NoError(err)
 	conf.ReceiverPort = port
 
 	var buf bytes.Buffer
@@ -281,7 +283,7 @@ func TestInfoReceiverStats(t *testing.T) {
 	stats := NewReceiverStats()
 	t1 := &TagStats{
 		Tags{Lang: "python"},
-		Stats{TracesReceived: 23, TracesDropped: 2, TracesBytes: 3244, SpansReceived: 213, SpansDropped: 14},
+		Stats{TracesReceived: 23, TracesBytes: 3244, SpansReceived: 213, SpansDropped: 14},
 	}
 	t2 := &TagStats{
 		Tags{Lang: "go"},
@@ -346,7 +348,7 @@ func TestInfoConfig(t *testing.T) {
 	assert.NotEqual("", js)
 	var confCopy config.AgentConfig
 	err := json.Unmarshal([]byte(js), &confCopy)
-	assert.Nil(err)
+	assert.NoError(err)
 	for i, e := range confCopy.Endpoints {
 		assert.Equal("", e.APIKey, "API Keys should *NEVER* be exported")
 		conf.Endpoints[i].APIKey = "" // make conf equal to confCopy to assert equality of other fields

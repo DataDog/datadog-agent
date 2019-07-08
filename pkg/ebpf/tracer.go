@@ -20,11 +20,15 @@ import (
 )
 
 var (
-	probeExpvar *expvar.Map
+	expvarEndpoints map[string]*expvar.Map
+	expvarTypes     = [4]string{"conntrack", "state", "tracer", "ebpf"}
 )
 
 func init() {
-	probeExpvar = expvar.NewMap("systemprobe")
+	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
+	for _, name := range expvarTypes {
+		expvarEndpoints[name] = expvar.NewMap(name)
+	}
 }
 
 type Tracer struct {
@@ -41,9 +45,21 @@ type Tracer struct {
 	perfMap *bpflib.PerfMap
 
 	// Telemetry
-	perfReceived    int64
-	perfLost        int64
-	skippedConns    int64
+	perfReceived int64
+	perfLost     int64
+	skippedConns int64
+	// Will track the count of expired TCP connections
+	// We are manually expiring TCP connections because it seems that we are losing some of the TCP close events
+	// For now we are only tracking the `tcp_close` probe but we should also track the `tcp_set_state` probe when
+	// states are set to `TCP_CLOSE_WAIT`, `TCP_CLOSE` and `TCP_FIN_WAIT1` we should probably also track `tcp_time_wait`
+	// However there are some caveats by doing that:
+	// - `tcp_set_state` does not have access to the PID of the connection => we have to remove the PID from the connection tuple (which can lead to issues)
+	// - We will have multiple probes that can trigger for the same connection close event => we would have to add something to dedupe those
+	// - - Using the timestamp does not seem to be reliable (we are already seeing unordered connections)
+	// - - Having IDs for those events would need to have an internal monotonic counter and this is tricky to manage (race conditions, cleaning)
+	//
+	// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
+	// to determine whether a connection is truly closed or not
 	expiredTCPConns int64
 
 	buffer     []ConnectionStats
@@ -156,26 +172,16 @@ func (t *Tracer) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
 	// starts running the body immediately instead waiting for the first tick
 	for ; true; <-ticker.C {
-		stats, err := t.GetStats()
+		stats, err := t.getTelemetry()
 		if err != nil {
 			continue
 		}
 
-		if states, ok := stats["state"]; ok {
-			if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
-				for metric, val := range telemetry.(map[string]int64) {
-					currVal := &expvar.Int{}
-					currVal.Set(val)
-					probeExpvar.Set(snakeToCapInitialCamel(metric), currVal)
-				}
-			}
-		}
-
-		if conntrackStats, ok := stats["conntrack"]; ok {
-			for metric, val := range conntrackStats.(map[string]int64) {
+		for name, stat := range stats {
+			for metric, val := range stat.(map[string]int64) {
 				currVal := &expvar.Int{}
 				currVal.Set(val)
-				probeExpvar.Set(fmt.Sprintf("Conntrack%s", snakeToCapInitialCamel(metric)), currVal)
+				expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
 			}
 		}
 	}
@@ -418,6 +424,26 @@ func (t *Tracer) getLatestTimestamp() (uint64, bool, error) {
 	return latestTime, true, nil
 }
 
+// getEbpfTelemetry reads the telemetry map from the kernelspace and returns a map of key -> count
+func (t *Tracer) getEbpfTelemetry() map[string]int64 {
+	mp, err := t.getMap(telemetryMap)
+	if err != nil {
+		log.Warnf("error retrieving telemetry map: %s", err)
+		return map[string]int64{}
+	}
+
+	telemetry := &kernelTelemetry{}
+	if err := t.m.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
+		// This can happen if we haven't initialized the telemetry object yet
+		// so let's just use a debug log
+		log.Debugf("error retrieving the telemetry struct: %s", err)
+	}
+
+	return map[string]int64{
+		"tcp_sent_miscounts": int64(telemetry.tcp_sent_miscounts),
+	}
+}
+
 func (t *Tracer) getMap(name bpfMapName) (*bpflib.Map, error) {
 	mp := t.m.Map(string(name))
 	if mp == nil {
@@ -451,6 +477,21 @@ func (t *Tracer) timeoutForConn(c *ConnTuple) uint64 {
 	return uint64(t.config.UDPConnTimeout.Nanoseconds())
 }
 
+// getTelemetry calls GetStats and extract telemetry from the state structure
+func (t *Tracer) getTelemetry() (map[string]interface{}, error) {
+	stats, err := t.GetStats()
+	if err != nil {
+		return nil, err
+	}
+
+	if states, ok := stats["state"]; ok {
+		if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
+			stats["state"] = telemetry
+		}
+	}
+	return stats, nil
+}
+
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	if t.state == nil {
@@ -462,12 +503,19 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	skipped := atomic.LoadInt64(&t.skippedConns)
 	expiredTCP := atomic.LoadInt64(&t.expiredTCPConns)
 
-	stateStats := t.state.GetStats(lost, received, skipped, expiredTCP)
+	stateStats := t.state.GetStats()
 	conntrackStats := t.conntracker.GetStats()
 
 	return map[string]interface{}{
 		"conntrack": conntrackStats,
 		"state":     stateStats,
+		"tracer": map[string]int64{
+			"closed_conn_polling_lost":     lost,
+			"closed_conn_polling_received": received,
+			"conn_valid_skipped":           skipped, // Skipped connections (e.g. Local DNS requests)
+			"expired_tcp_conns":            expiredTCP,
+		},
+		"ebpf": t.getEbpfTelemetry(),
 	}, nil
 }
 

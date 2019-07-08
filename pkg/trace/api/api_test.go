@@ -61,7 +61,7 @@ func TestMain(m *testing.M) {
 	defer func(old func(string)) { killProcess = old }(killProcess)
 	killProcess = func(_ string) {}
 
-	m.Run()
+	os.Exit(m.Run())
 }
 
 func TestReceiverRequestBodyLength(t *testing.T) {
@@ -176,15 +176,15 @@ func TestReceiverJSONDecoder(t *testing.T) {
 		contentType string
 		traces      []pb.Trace
 	}{
-		{"v02 with empty content-type", newTestReceiverFromConfig(conf), v02, "", testutil.GetTestTrace(1, 1, false)},
-		{"v03 with empty content-type", newTestReceiverFromConfig(conf), v03, "", testutil.GetTestTrace(1, 1, false)},
-		{"v04 with empty content-type", newTestReceiverFromConfig(conf), v04, "", testutil.GetTestTrace(1, 1, false)},
-		{"v02 with application/json", newTestReceiverFromConfig(conf), v02, "application/json", testutil.GetTestTrace(1, 1, false)},
-		{"v03 with application/json", newTestReceiverFromConfig(conf), v03, "application/json", testutil.GetTestTrace(1, 1, false)},
-		{"v04 with application/json", newTestReceiverFromConfig(conf), v04, "application/json", testutil.GetTestTrace(1, 1, false)},
-		{"v02 with text/json", newTestReceiverFromConfig(conf), v02, "text/json", testutil.GetTestTrace(1, 1, false)},
-		{"v03 with text/json", newTestReceiverFromConfig(conf), v03, "text/json", testutil.GetTestTrace(1, 1, false)},
-		{"v04 with text/json", newTestReceiverFromConfig(conf), v04, "text/json", testutil.GetTestTrace(1, 1, false)},
+		{"v02 with empty content-type", newTestReceiverFromConfig(conf), v02, "", testutil.GetTestTraces(1, 1, false)},
+		{"v03 with empty content-type", newTestReceiverFromConfig(conf), v03, "", testutil.GetTestTraces(1, 1, false)},
+		{"v04 with empty content-type", newTestReceiverFromConfig(conf), v04, "", testutil.GetTestTraces(1, 1, false)},
+		{"v02 with application/json", newTestReceiverFromConfig(conf), v02, "application/json", testutil.GetTestTraces(1, 1, false)},
+		{"v03 with application/json", newTestReceiverFromConfig(conf), v03, "application/json", testutil.GetTestTraces(1, 1, false)},
+		{"v04 with application/json", newTestReceiverFromConfig(conf), v04, "application/json", testutil.GetTestTraces(1, 1, false)},
+		{"v02 with text/json", newTestReceiverFromConfig(conf), v02, "text/json", testutil.GetTestTraces(1, 1, false)},
+		{"v03 with text/json", newTestReceiverFromConfig(conf), v03, "text/json", testutil.GetTestTraces(1, 1, false)},
+		{"v04 with text/json", newTestReceiverFromConfig(conf), v04, "text/json", testutil.GetTestTraces(1, 1, false)},
 	}
 
 	for _, tc := range testCases {
@@ -240,10 +240,10 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 		contentType string
 		traces      pb.Traces
 	}{
-		{"v01 with application/msgpack", newTestReceiverFromConfig(conf), v01, "application/msgpack", testutil.GetTestTrace(1, 1, false)},
-		{"v02 with application/msgpack", newTestReceiverFromConfig(conf), v02, "application/msgpack", testutil.GetTestTrace(1, 1, false)},
-		{"v03 with application/msgpack", newTestReceiverFromConfig(conf), v03, "application/msgpack", testutil.GetTestTrace(1, 1, false)},
-		{"v04 with application/msgpack", newTestReceiverFromConfig(conf), v04, "application/msgpack", testutil.GetTestTrace(1, 1, false)},
+		{"v01 with application/msgpack", newTestReceiverFromConfig(conf), v01, "application/msgpack", testutil.GetTestTraces(1, 1, false)},
+		{"v02 with application/msgpack", newTestReceiverFromConfig(conf), v02, "application/msgpack", testutil.GetTestTraces(1, 1, false)},
+		{"v03 with application/msgpack", newTestReceiverFromConfig(conf), v03, "application/msgpack", testutil.GetTestTraces(1, 1, false)},
+		{"v04 with application/msgpack", newTestReceiverFromConfig(conf), v04, "application/msgpack", testutil.GetTestTraces(1, 1, false)},
 	}
 
 	for _, tc := range testCases {
@@ -322,6 +322,41 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 			server.Close()
 		})
 	}
+}
+
+func TestReceiverDecodingError(t *testing.T) {
+	assert := assert.New(t)
+	conf := newTestReceiverConfig()
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(http.HandlerFunc(r.httpHandleWithVersion(v04, r.handleTraces)))
+	data := []byte("} invalid json")
+	client := &http.Client{}
+
+	t.Run("no-header", func(t *testing.T) {
+		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
+		assert.NoError(err)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.Do(req)
+		assert.NoError(err)
+
+		assert.Equal(400, resp.StatusCode)
+		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{}).TracesDropped.DecodingError)
+	})
+
+	t.Run("with-header", func(t *testing.T) {
+		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
+		assert.NoError(err)
+		traceCount := 10
+		req.Header.Set(headerTraceCount, strconv.Itoa(traceCount))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.Do(req)
+		assert.NoError(err)
+
+		assert.Equal(400, resp.StatusCode)
+		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{}).TracesDropped.DecodingError)
+	})
 }
 
 func TestReceiverServiceJSONDecoder(t *testing.T) {
@@ -499,7 +534,7 @@ func TestHandleTraces(t *testing.T) {
 
 	// prepare the msgpack payload
 	var buf bytes.Buffer
-	msgp.Encode(&buf, testutil.GetTestTrace(10, 10, true))
+	msgp.Encode(&buf, testutil.GetTestTraces(10, 10, true))
 
 	// prepare the receiver
 	conf := newTestReceiverConfig()
@@ -556,18 +591,18 @@ func (sr *chunkedReader) Read(p []byte) (n int, err error) {
 	return sr.reader.Read(buf)
 }
 
-func TestReceiverPreSamplerCancel(t *testing.T) {
+func TestReceiverRateLimiterCancel(t *testing.T) {
 	assert := assert.New(t)
 
 	var wg sync.WaitGroup
 	var buf bytes.Buffer
 
 	n := 100 // Payloads need to be big enough, else bug is not triggered
-	msgp.Encode(&buf, testutil.GetTestTrace(n, n, true))
+	msgp.Encode(&buf, testutil.GetTestTraces(n, n, true))
 
 	conf := newTestReceiverConfig()
 	receiver := newTestReceiverFromConfig(conf)
-	receiver.PreSampler.SetRate(0.000001) // Make sure we sample aggressively
+	receiver.RateLimiter.SetTargetRate(0.000001) // Make sure we sample aggressively
 
 	server := httptest.NewServer(http.HandlerFunc(receiver.httpHandleWithVersion(v04, receiver.handleTraces)))
 
@@ -585,7 +620,7 @@ func TestReceiverPreSamplerCancel(t *testing.T) {
 				reader := &chunkedReader{reader: bytes.NewReader(buf.Bytes())}
 				req, err := http.NewRequest("POST", url, reader)
 				req.Header.Set("Content-Type", "application/msgpack")
-				req.Header.Set(sampler.TraceCountHeader, strconv.Itoa(n))
+				req.Header.Set(headerTraceCount, strconv.Itoa(n))
 				assert.Nil(err)
 
 				resp, err := client.Do(req)
@@ -617,7 +652,7 @@ func BenchmarkHandleTracesFromOneApp(b *testing.B) {
 	// prepare the payload
 	// msgpack payload
 	var buf bytes.Buffer
-	msgp.Encode(&buf, testutil.GetTestTrace(1, 1, true))
+	msgp.Encode(&buf, testutil.GetTestTraces(1, 1, true))
 
 	// prepare the receiver
 	conf := newTestReceiverConfig()
@@ -657,7 +692,7 @@ func BenchmarkHandleTracesFromMultipleApps(b *testing.B) {
 	// prepare the payload
 	// msgpack payload
 	var buf bytes.Buffer
-	msgp.Encode(&buf, testutil.GetTestTrace(1, 1, true))
+	msgp.Encode(&buf, testutil.GetTestTraces(1, 1, true))
 
 	// prepare the receiver
 	conf := newTestReceiverConfig()
@@ -695,7 +730,7 @@ func BenchmarkHandleTracesFromMultipleApps(b *testing.B) {
 
 func BenchmarkDecoderJSON(b *testing.B) {
 	assert := assert.New(b)
-	traces := testutil.GetTestTrace(150, 66, true)
+	traces := testutil.GetTestTraces(150, 66, true)
 
 	// json payload
 	payload, err := json.Marshal(traces)
@@ -720,7 +755,7 @@ func BenchmarkDecoderMsgpack(b *testing.B) {
 
 	// msgpack payload
 	var buf bytes.Buffer
-	err := msgp.Encode(&buf, testutil.GetTestTrace(150, 66, true))
+	err := msgp.Encode(&buf, testutil.GetTestTraces(150, 66, true))
 	assert.Nil(err)
 
 	// benchmark
@@ -749,64 +784,104 @@ func BenchmarkWatchdog(b *testing.B) {
 	}
 }
 
-func TestWatchdog(t *testing.T) {
+func TestExpvar(t *testing.T) {
 	if testing.Short() {
 		return
 	}
-	os.Setenv("DD_APM_FEATURES", "429")
-	defer os.Unsetenv("DD_APM_FEATURES")
 
-	conf := config.New()
-	conf.Endpoints[0].APIKey = "apikey_2"
-	conf.WatchdogInterval = time.Millisecond
-
-	r := newTestReceiverFromConfig(conf)
+	r := newTestReceiverFromConfig(config.New())
 	r.Start()
 	defer r.Stop()
-	go func() {
-		for {
-			<-r.Out
-		}
-	}()
 
-	data := msgpTraces(t, pb.Traces{
-		testutil.RandomTrace(10, 20),
-		testutil.RandomTrace(10, 20),
-		testutil.RandomTrace(10, 20),
+	resp, err := http.Get("http://localhost:8126/debug/vars")
+	assert.NoError(t, err)
+	defer resp.Body.Close()
+	assert.EqualValues(t, resp.StatusCode, http.StatusOK, "failed to read expvars from local server")
+
+	if resp.StatusCode == http.StatusOK {
+		var out map[string]interface{}
+		err = json.NewDecoder(resp.Body).Decode(&out)
+		assert.NoError(t, err, "/debug/vars must return valid json")
+	}
+}
+
+func TestWatchdog(t *testing.T) {
+	t.Run("rate-limit", func(t *testing.T) {
+		if testing.Short() {
+			return
+		}
+		os.Setenv("DD_APM_FEATURES", "429")
+		defer os.Unsetenv("DD_APM_FEATURES")
+
+		conf := config.New()
+		conf.Endpoints[0].APIKey = "apikey_2"
+		conf.MaxMemory = 1e10
+		conf.WatchdogInterval = time.Minute // we trigger manually
+
+		r := newTestReceiverFromConfig(conf)
+		r.Start()
+		defer r.Stop()
+		go func() {
+			for {
+				<-r.Out
+			}
+		}()
+
+		data := msgpTraces(t, pb.Traces{
+			testutil.RandomTrace(10, 20),
+			testutil.RandomTrace(10, 20),
+			testutil.RandomTrace(10, 20),
+		})
+
+		// first request is accepted
+		r.watchdog(time.Now())
+		resp, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("got %d", resp.StatusCode)
+		}
+
+		// follow-up requests should trigger a reject
+		r.conf.MaxMemory = 1
+		for tries := 0; tries < 100; tries++ {
+			req, err := http.NewRequest("POST", "http://localhost:8126/v0.4/traces", bytes.NewReader(data))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Content-Type", "application/msgpack")
+			req.Header.Set(headerTraceCount, "3")
+			resp, err = http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resp.StatusCode == http.StatusTooManyRequests {
+				break // 👍
+			}
+			r.watchdog(time.Now())
+		}
+		if resp.StatusCode != http.StatusTooManyRequests {
+			t.Fatalf("didn't close, got %d", resp.StatusCode)
+		}
 	})
 
-	// first request is accepted
-	conf.MaxMemory = 1e10
-	resp, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-	time.Sleep(conf.WatchdogInterval)
+	t.Run("disabling", func(t *testing.T) {
+		cfg := config.New()
+		r := &HTTPReceiver{
+			conf:        cfg,
+			RateLimiter: newRateLimiter(),
+		}
 
-	// follow-up requests should trigger a reject
-	r.conf.MaxMemory = 1
-	for tries := 0; tries < 100; tries++ {
-		req, err := http.NewRequest("POST", "http://localhost:8126/v0.4/traces", bytes.NewReader(data))
-		if err != nil {
-			t.Fatal(err)
-		}
-		req.Header.Set("Content-Type", "application/msgpack")
-		req.Header.Set(sampler.TraceCountHeader, "3")
-		resp, err = http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if resp.StatusCode == http.StatusTooManyRequests {
-			break // 👍
-		}
-		time.Sleep(2 * conf.WatchdogInterval)
-	}
-	if resp.StatusCode != http.StatusTooManyRequests {
-		t.Fatalf("didn't close, got %d", resp.StatusCode)
-	}
+		cfg.MaxMemory = 0
+		cfg.MaxCPU = 0
+		r.watchdog(time.Now())
+		assert.Equal(t, 1.0, r.RateLimiter.TargetRate())
+
+		cfg.MaxMemory = 1
+		r.watchdog(time.Now())
+		assert.NotEqual(t, 1.0, r.RateLimiter.TargetRate())
+	})
 }
 
 func TestOOMKill(t *testing.T) {
@@ -834,11 +909,11 @@ func TestOOMKill(t *testing.T) {
 		}
 	}()
 
-	data := msgpTraces(t, pb.Traces{
-		testutil.RandomTrace(10, 20),
-		testutil.RandomTrace(10, 20),
-		testutil.RandomTrace(10, 20),
-	})
+	var traces pb.Traces
+	for i := 0; i < 20; i++ {
+		traces = append(traces, testutil.RandomTrace(10, 20))
+	}
+	data := msgpTraces(t, traces)
 
 	var wg sync.WaitGroup
 	for tries := 0; tries < 50; tries++ {
@@ -850,11 +925,21 @@ func TestOOMKill(t *testing.T) {
 			}
 		}()
 	}
-	time.Sleep(2 * conf.WatchdogInterval)
 	wg.Wait()
-	if atomic.LoadUint64(&kills) == 0 {
-		t.Fatal("didn't get OOM killed")
+	timeout := time.After(500 * time.Millisecond)
+loop:
+	for {
+		select {
+		case <-timeout:
+			break loop
+		default:
+			if atomic.LoadUint64(&kills) > 1 {
+				return
+			}
+			time.Sleep(conf.WatchdogInterval)
+		}
 	}
+	t.Fatal("didn't get OOM killed")
 }
 
 func msgpTraces(t *testing.T, traces pb.Traces) []byte {

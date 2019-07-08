@@ -19,7 +19,7 @@ import (
 
 /*
 #include <stdlib.h>
-#include <datadog_agent_six.h>
+#include <datadog_agent_rtloader.h>
 char *getStringAddr(char **array, unsigned int idx);
 */
 import "C"
@@ -41,7 +41,7 @@ import "C"
 //
 // [0]: https://docs.python.org/2/c-api/init.html#non-python-created-threads
 type stickyLock struct {
-	gstate C.six_gilstate_t
+	gstate C.rtloader_gilstate_t
 	locked uint32 // Flag set to 1 if the lock is locked, 0 otherwise
 }
 
@@ -67,7 +67,7 @@ var (
 // subsequent call to `Unlock` will unregister the very same thread.
 func newStickyLock() *stickyLock {
 	runtime.LockOSThread()
-	state := C.ensure_gil(six)
+	state := C.ensure_gil(rtloader)
 	return &stickyLock{
 		gstate: state,
 		locked: 1,
@@ -79,7 +79,7 @@ func newStickyLock() *stickyLock {
 // Thread safe ; noop when called on an already-unlocked stickylock.
 func (sl *stickyLock) unlock() {
 	atomic.StoreUint32(&sl.locked, 0)
-	C.release_gil(six, sl.gstate)
+	C.release_gil(rtloader, sl.gstate)
 	runtime.UnlockOSThread()
 }
 
@@ -97,11 +97,11 @@ func (sl *stickyLock) getPythonError() (string, error) {
 		return "", fmt.Errorf("the stickyLock is unlocked, can't interact with python interpreter")
 	}
 
-	if C.has_error(six) == 0 {
+	if C.has_error(rtloader) == 0 {
 		return "", fmt.Errorf("no error found")
 	}
 
-	return C.GoString(C.get_error(six)), nil
+	return C.GoString(C.get_error(rtloader)), nil
 }
 
 // cStringArrayToSlice returns a slice with the contents of the char **tags (the function will not free 'array').
@@ -130,18 +130,18 @@ func getModuleName(modulePath string) string {
 
 // GetPythonIntegrationList collects python datadog installed integrations list
 func GetPythonIntegrationList() ([]string, error) {
-	if six == nil {
-		return nil, fmt.Errorf("six is not initialized")
+	if rtloader == nil {
+		return nil, fmt.Errorf("rtloader is not initialized")
 	}
 
 	glock := newStickyLock()
 	defer glock.unlock()
 
-	integrationsList := C.get_integration_list(six)
+	integrationsList := C.get_integration_list(rtloader)
 	if integrationsList == nil {
-		return nil, fmt.Errorf("Could not query integration list: %s", getSixError())
+		return nil, fmt.Errorf("Could not query integration list: %s", getRtLoaderError())
 	}
-	defer C.six_free(six, unsafe.Pointer(integrationsList))
+	defer C.rtloader_free(rtloader, unsafe.Pointer(integrationsList))
 	payload := C.GoString(integrationsList)
 
 	ddIntegrations := []string{}
@@ -161,8 +161,8 @@ func GetPythonIntegrationList() ([]string, error) {
 
 // SetPythonPsutilProcPath sets python psutil.PROCFS_PATH
 func SetPythonPsutilProcPath(procPath string) error {
-	if six == nil {
-		return fmt.Errorf("six is not initialized")
+	if rtloader == nil {
+		return fmt.Errorf("rtloader is not initialized")
 	}
 
 	glock := newStickyLock()
@@ -175,6 +175,6 @@ func SetPythonPsutilProcPath(procPath string) error {
 	attrValue := C.CString(procPath)
 	defer C.free(unsafe.Pointer(attrValue))
 
-	C.set_module_attr_string(six, module, attrName, attrValue)
-	return getSixError()
+	C.set_module_attr_string(rtloader, module, attrName, attrValue)
+	return getRtLoaderError()
 }
