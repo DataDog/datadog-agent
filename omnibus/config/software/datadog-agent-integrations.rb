@@ -31,7 +31,7 @@ source git: 'https://github.com/DataDog/integrations-core.git'
 PIPTOOLS_VERSION = "2.0.2"
 UNINSTALL_PIPTOOLS_DEPS = ['six', 'click', 'first', 'pip-tools']
 
-integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
+integrations_core_version = ENV['STACKSTATE_INTEGRATIONS_VERSION']
 if integrations_core_version.nil? || integrations_core_version.empty?
   integrations_core_version = 'master'
 end
@@ -39,14 +39,9 @@ default_version integrations_core_version
 
 
 blacklist = [
-  'datadog_checks_base',           # namespacing package for wheels (NOT AN INTEGRATION)
-  'datadog_checks_dev',            # Development package, (NOT AN INTEGRATION)
-  'datadog_checks_tests_helper',   # Testing and Development package, (NOT AN INTEGRATION)
-  'agent_metrics',
-  'docker_daemon',
-  'kubernetes',
-  'ntp',  # provided as a go check by the core agent
-  'cisco_aci' # temporary issues with certificate
+  'stackstate_checks_base',           # namespacing package for wheels (NOT AN INTEGRATION)
+  'stackstate_checks_dev',            # Development package, (NOT AN INTEGRATION)
+  'stackstate_checks_tests_helper'    # Testing and Development package, (NOT AN INTEGRATION)
 ]
 blacklist_req = Array.new
 

@@ -20,7 +20,7 @@ def add_prelude(ctx, version):
     |
     Release on: {1}
 
-    - Please refer to the `{0} tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-{2}>`_ for the list of changes on the Core Checks.
+    - Please refer to the `{0} tag on stackstate-agent-integrations <https://github.com/StackVista/stackstate-agent-integrations/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-{2}>`_ for the list of changes on the Core Checks.
 
     - Please refer to the `{0} tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/{0}>`_ for the list of changes on the Process Agent.\n""".format(version, date.today(), version.replace('.', '')))
 

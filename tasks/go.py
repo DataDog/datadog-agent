@@ -10,7 +10,7 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
-from .utils import pkg_config_path, get_build_flags
+from .utils import pkg_config_path, get_build_flags, load_release_versions
 from .bootstrap import get_deps, process_deps
 
 
@@ -192,6 +192,7 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
     verbosity = ' -v' if verbose else ''
     deps = get_deps('deps')
     order = deps.get("order", deps.keys())
+    env = load_release_versions(ctx)
     for dependency in order:
         tool = deps.get(dependency)
         if not tool:
@@ -250,17 +251,20 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
     checks_start = datetime.datetime.now()
     if not no_checks:
         verbosity = 'v' if verbose else 'q'
-        core_dir = core_dir or os.getenv('DD_CORE_DIR')
+        core_dir = core_dir or os.getenv('STACKSTATE_INTEGRATIONS_DIR')
 
         if core_dir:
-            checks_base = os.path.join(os.path.abspath(core_dir), 'datadog_checks_base')
+            checks_base = os.path.join(os.path.abspath(core_dir), 'stackstate_checks_base')
             ctx.run('pip install -{} -e {}'.format(verbosity, checks_base))
             ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
         else:
-            core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
-            checks_base = os.path.join(core_dir, 'datadog_checks_base')
+            core_dir = os.path.join(os.getcwd(), 'vendor', 'stackstate-agent-integrations')
+            checks_base = os.path.join(core_dir, 'stackstate_checks_base')
             if not os.path.isdir(core_dir):
-                ctx.run('git clone -{} https://github.com/DataDog/integrations-core {}'.format(verbosity, core_dir))
+                ctx.run('git clone -{} https://github.com/StackVista/stackstate-agent-integrations {}'.format(verbosity, core_dir))
+            integrations_core_version = os.getenv('STACKSTATE_INTEGRATIONS_VERSION') or env['STACKSTATE_INTEGRATIONS_VERSION'] or "master"
+            ctx.run('git -C {} checkout {}'.format(core_dir, integrations_core_version))
+            ctx.run('git -C {} pull'.format(core_dir))
             ctx.run('pip install -{} {}'.format(verbosity, checks_base))
             ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
     checks_done = datetime.datetime.now()

@@ -57,7 +57,7 @@ If you already installed [datadog_checks_base][datadog_checks_base] in your desi
 Python, you can do `invoke deps --no-checks` to prevent cloning and pip install. If
 you are already doing development on [integrations-core][integrations-core], you
 can specify a path to [integrations-core][integrations-core] using the `--core-dir`
-option or `DD_CORE_DIR` environment variable to omit just the cloning step.
+option or `STACKSTATE_INTEGRATIONS_DIR` environment variable to omit just the cloning step.
 
 ## System or Embedded?
 
