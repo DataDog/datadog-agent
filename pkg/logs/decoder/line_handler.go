@@ -166,13 +166,14 @@ func (h *MultiLineHandler) Start() {
 	go h.run()
 }
 
-// run processes new lines from lineChan and flushes the buffer when the timeout expires
+// run processes new lines from the channel and makes sur the content is properly sent when
+// it stayed for too long in the buffer.
 func (h *MultiLineHandler) run() {
 	flushTimer := time.NewTimer(h.flushTimeout)
 	defer func() {
 		flushTimer.Stop()
-		// last send before closing the channel to flush lineBuffer. This can occur when
-		// container stops before meeting sendContent condition.
+		// make sure the content stored in the buffer gets sent,
+		// this can happen when the stop is called in between two timer ticks.
 		h.sendBuffer()
 		close(h.outputChan)
 	}()
@@ -185,9 +186,9 @@ func (h *MultiLineHandler) run() {
 			}
 			// process the new line and restart the timeout
 			if !flushTimer.Stop() {
-				// stop doesn't not prevent a tick from the Timer if it happens at the same time
-				// we read from the timer channel to prevent an incorrect read
-				// in <-flushTimer.C in the case below
+				// timer stop doesn't not prevent the timer to tick,
+				// makes sure the event is consumed to avoid sending
+				// just one piece of the content.
 				select {
 				case <-flushTimer.C:
 				default:
@@ -196,7 +197,8 @@ func (h *MultiLineHandler) run() {
 			h.process(line)
 			flushTimer.Reset(h.flushTimeout)
 		case <-flushTimer.C:
-			// the timout expired, the content is ready to be sent
+			// no line has been collected since a while,
+			// the content is supposed to be complete.
 			h.sendBuffer()
 		}
 	}
