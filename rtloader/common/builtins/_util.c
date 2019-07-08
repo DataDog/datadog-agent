@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 #include "_util.h"
+#include "memory.h"
+#include "stringutils.h"
 
-#include <cgo_free.h>
 #include <stdio.h>
-#include <stringutils.h>
 
 // must be set by the caller
 static cb_get_subprocess_output_t cb_get_subprocess_output = NULL;

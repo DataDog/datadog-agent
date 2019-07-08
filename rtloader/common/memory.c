@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
-#include "cgo_free.h"
+#include "memory.h"
 
 // these must be set by the Agent
 static cb_cgo_free_t cb_cgo_free = NULL;

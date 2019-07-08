@@ -3,9 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 #include "kubeutil.h"
-
-#include "cgo_free.h"
-#include <stringutils.h>
+#include "memory.h"
+#include "stringutils.h"
 
 
 // these must be set by the Agent

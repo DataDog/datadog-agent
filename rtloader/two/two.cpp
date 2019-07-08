@@ -9,10 +9,10 @@
 
 #include <_util.h>
 #include <aggregator.h>
-#include <cgo_free.h>
 #include <containers.h>
 #include <datadog_agent.h>
 #include <kubeutil.h>
+#include <memory.h>
 #include <rtloader_types.h>
 #include <stringutils.h>
 #include <tagger.h>
