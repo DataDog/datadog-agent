@@ -79,43 +79,42 @@ func (h *SingleLineHandler) run() {
 // the limit and that the length of the line is properly tracked
 // so that the agent restarts tailing from the right place.
 func (h *SingleLineHandler) process(line []byte) {
-	lineLen := len(line)
-	line = bytes.TrimSpace(line)
-	if len(line) == 0 {
+	isTruncated := h.shouldTruncate
+	h.shouldTruncate = false
+
+	rawLen := len(line)
+	if rawLen < h.lineLimit {
+		// lines are delimited on '\n' character when bellow the limit
+		// so we need to make sure it's properly accounted
+		rawLen++
+	}
+
+	content, status, timestamp, err := h.parser.Parse(line)
+	if err != nil {
+		log.Debug(err)
+	}
+	content = bytes.TrimSpace(content)
+	if len(content) == 0 {
+		// don't send empty lines
 		return
 	}
 
-	var content []byte
-	if h.shouldTruncate {
-		// add TRUNCATED at the beginning of content
-		content = append(truncatedFlag, line...)
-		h.shouldTruncate = false
-	} else {
-		// keep content the same
-		content = line
+	if isTruncated {
+		// the previous line has been truncated because it was too long,
+		// the new line is just a remainder,
+		// adding the truncated flag at the beginning of the content
+		content = append(truncatedFlag, content...)
 	}
 
-	if lineLen < h.lineLimit {
-		// send content
-		// add 1 to take into account '\n' that we didn't include in content
-		output, status, timestamp, err := h.parser.Parse(content)
-		if err != nil {
-			log.Debug(err)
-		}
-		if len(output) > 0 {
-			h.outputChan <- NewOutput(output, status, lineLen+1, timestamp)
-		}
+	if len(content) < h.lineLimit {
+		h.outputChan <- NewOutput(content, status, rawLen, timestamp)
 	} else {
-		// add TRUNCATED at the end of content and send it
-		content := append(content, truncatedFlag...)
-		output, status, timestamp, err := h.parser.Parse(content)
-		if err != nil {
-			log.Debug(err)
-		}
-		if len(output) > 0 {
-			h.outputChan <- NewOutput(output, status, lineLen, timestamp)
-			h.shouldTruncate = true
-		}
+		// the line is too long, it needs to be cut off and send,
+		// adding the truncated flag the end of the content
+		content = append(content, truncatedFlag...)
+		h.outputChan <- NewOutput(content, status, rawLen, timestamp)
+		// make sure the following part of the line will be cut off as well
+		h.shouldTruncate = true
 	}
 }
 
