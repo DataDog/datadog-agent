@@ -6,12 +6,12 @@ from testinfra.utils.ansible_runner import AnsibleRunner
 testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('agent_linux_vm')
 
 
-def test_stackstate_agent_is_installed(host):
+def test_stackstate_agent_is_installed(host, common_vars):
     agent = host.package("stackstate-agent")
-    print agent.version
+    print(agent.version)
     assert agent.is_installed
 
-    agent_current_branch = host.ansible("include_vars", "./common_vars.yml")["ansible_facts"]["agent_current_branch"]
+    agent_current_branch = common_vars["agent_current_branch"]
     if agent_current_branch == "master":
         assert agent.version.startswith("2")
 
@@ -35,7 +35,7 @@ def test_stackstate_agent_log(host, hostname):
     # Check for presence of success
     def wait_for_check_successes():
         agent_log = host.file(agent_log_path).content_string
-        print agent_log
+        print(agent_log)
         assert re.search("Sent host metadata payload", agent_log)
 
     util.wait_until(wait_for_check_successes, 30, 3)
@@ -65,7 +65,7 @@ def test_stackstate_process_agent_no_log_errors(host, hostname):
     # Check for presence of success
     def wait_for_check_successes():
         process_agent_log = host.file(process_agent_log_path).content_string
-        print process_agent_log
+        print(process_agent_log)
 
         assert re.search("Finished check #1", process_agent_log)
         if hostname != "agent-centos":
@@ -89,7 +89,7 @@ def test_stackstate_trace_agent_no_log_errors(host, hostname):
     # Check for presence of success
     def wait_for_check_successes():
         trace_agent_log = host.file(trace_agent_log_path).content_string
-        print trace_agent_log
+        print(trace_agent_log)
 
         assert re.search("total number of tracked services", trace_agent_log)
         assert re.search("trace-agent running on host", trace_agent_log)

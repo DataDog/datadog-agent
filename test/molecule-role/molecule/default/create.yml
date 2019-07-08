@@ -31,8 +31,12 @@
         to_port: "{{ winrm_rdp_port }}"
         cidr_ip: '0.0.0.0/0'
       - proto: tcp
-        from_port: 7077  # StackState Receiver port
+        from_port: 7077  # StackState Receiver API port
         to_port: 7077
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: 7070  # StackState Topic API port
+        to_port: 7070
         cidr_ip: '0.0.0.0/0'
       - proto: tcp
         from_port: 443  # HTTPS Port
@@ -53,6 +57,10 @@
       - proto: tcp
         from_port: "{{ connection_port_after_start_windows }}"
         to_port: "{{ connection_port_after_start_windows }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ dnat_service_port }}"
+        to_port: "{{ dnat_service_port }}"
         cidr_ip: '0.0.0.0/0'
       - proto: icmp
         from_port: 8

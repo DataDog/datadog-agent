@@ -100,12 +100,11 @@ def _find_incoming_connection_in_namespace(json_data, port, scope, origin, dest)
                 )
 
 
-def test_created_connection_after_start_with_metrics(host):
+def test_created_connection_after_start_with_metrics(host, common_vars):
     url = "http://localhost:7070/api/topic/sts_correlate_endpoints?limit=1000"
 
-    facts = host.ansible("include_vars", "./common_vars.yml")["ansible_facts"]
-    fedora_conn_port = int(facts["connection_port_after_start_fedora"])
-    windows_conn_port = int(facts["connection_port_after_start_windows"])
+    fedora_conn_port = int(common_vars["connection_port_after_start_fedora"])
+    windows_conn_port = int(common_vars["connection_port_after_start_windows"])
 
     ubuntu_private_ip = _get_instance_config("agent-ubuntu")["private_address"]
     print("ubuntu private: {}".format(ubuntu_private_ip))
@@ -151,12 +150,11 @@ def test_created_connection_after_start_with_metrics(host):
     util.wait_until(wait_for_connection, 30, 3)
 
 
-def test_created_connection_before_start(host):
+def test_created_connection_before_start(host, common_vars):
     url = "http://localhost:7070/api/topic/sts_correlate_endpoints?limit=1000"
 
-    facts = host.ansible("include_vars", "./common_vars.yml")["ansible_facts"]
-    fedora_conn_port = int(facts["connection_port_before_start_fedora"])
-    windows_conn_port = int(facts["connection_port_before_start_windows"])
+    fedora_conn_port = int(common_vars["connection_port_before_start_fedora"])
+    windows_conn_port = int(common_vars["connection_port_before_start_windows"])
 
     ubuntu_private_ip = _get_instance_config("agent-ubuntu")["private_address"]
     print("ubuntu private: {}".format(ubuntu_private_ip))
@@ -300,78 +298,6 @@ def test_process_metrics(host):
         assert get_keys("agent-win") == expected
 
     util.wait_until(wait_for_metrics, 30, 3)
-
-
-def test_topology_components(host):
-    url = "http://localhost:7070/api/topic/sts_topo_process_agents?offset=0&limit=1000"
-
-    def wait_for_components():
-        data = host.check_output("curl \"%s\"" % url)
-        json_data = json.loads(data)
-        with open("./topic-topo-process-agents.json", 'w') as f:
-            json.dump(json_data, f, indent=4)
-
-        def _component_data(type_name, external_id_prefix, command):
-            for message in json_data["messages"]:
-                p = message["message"]["TopologyElement"]["payload"]
-                if "TopologyComponent" in p and p["TopologyComponent"]["typeName"] == type_name and p["TopologyComponent"]["externalId"].startswith(external_id_prefix):
-                    component_data = json.loads(p["TopologyComponent"]["data"])
-                    if command:
-                        if "args" in component_data["command"]:
-                            if component_data["command"]["args"][0] == command:
-                                return component_data
-                    else:
-                        return component_data
-            return None
-
-        assert _component_data("host", "urn:host:/agent-win", None)["system"]["os"]["name"] == "windows"
-        assert _component_data("host", "urn:host:/agent-fedora", None)["system"]["os"]["name"] == "linux"
-        assert _component_data("host", "urn:host:/agent-ubuntu", None)["system"]["os"]["name"] == "linux"
-        assert _component_data("host", "urn:host:/agent-centos", None)["system"]["os"]["name"] == "linux"
-        assert _component_data("process", "urn:process:/agent-fedora", "/opt/stackstate-agent/bin/agent/agent")["hostTags"] == ["os:linux"]
-        assert _component_data("process", "urn:process:/agent-ubuntu", "/opt/stackstate-agent/bin/agent/agent")["hostTags"] == ["os:linux"]
-        assert _component_data("process", "urn:process:/agent-centos", "/opt/stackstate-agent/bin/agent/agent")["hostTags"] == ["os:linux"]
-        assert _component_data("process", "urn:process:/agent-win", "\"C:\\Program Files\\StackState\\StackState Agent\\embedded\\agent.exe\"")["hostTags"] == ["os:windows"]
-
-        # Assert that process filtering works correctly.
-        # Process should be filtered unless it's a top resource using process
-        def _component_filtered(type_name, external_id_prefix, command):
-            _data = _component_data(type_name, external_id_prefix, command)
-            if _data is not None:
-                if "usage:top-cpu" in _data["tags"]:
-                    return True
-                if "usage:top-mem" in _data["tags"]:
-                    return True
-                if "usage:top-io-read" in _data["tags"]:
-                    return True
-                if "usage:top-io-write" in _data["tags"]:
-                    return True
-                # component was not filtered and is not a top resource consuming process
-                return False
-            # component was correctly filtered
-            return True
-
-        # fedora specific process filtering
-        assert _component_filtered("process", "urn:process:/agent-fedora", "/usr/sbin/sshd")
-        assert _component_filtered("process", "urn:process:/agent-fedora", "/usr/sbin/dhclient")
-        assert _component_filtered("process", "urn:process:/agent-fedora", "/usr/lib/systemd/systemd-journald")
-        assert _component_filtered("process", "urn:process:/agent-fedora", "/usr/bin/stress")
-        # ubuntu specific process filtering
-        assert _component_filtered("process", "urn:process:/agent-ubuntu", "/usr/sbin/sshd")
-        assert _component_filtered("process", "urn:process:/agent-ubuntu", "/lib/systemd/systemd-journald")
-        assert _component_filtered("process", "urn:process:/agent-ubuntu", "/sbin/agetty")
-        assert _component_filtered("process", "urn:process:/agent-ubuntu", "/usr/bin/stress")
-        # windows specific process filtering
-        assert _component_filtered("process", "urn:process:/agent-win", "C:\\Windows\\system32\\svchost.exe")
-        assert _component_filtered("process", "urn:process:/agent-win", "winlogon.exe")
-        assert _component_filtered("process", "urn:process:/agent-win", "C:\\Windows\\system32\\wlms\\wlms.exe")
-        # centos specific process filtering
-        assert _component_filtered("process", "urn:process:/agent-centos", "/usr/sbin/sshd")
-        assert _component_filtered("process", "urn:process:/agent-centos", "/sbin/init")
-        assert _component_filtered("process", "urn:process:/agent-centos", "/sbin/agetty")
-        assert _component_filtered("process", "urn:process:/agent-centos", "/usr/bin/stress")
-
-    util.wait_until(wait_for_components, 30, 3)
 
 
 def test_connection_network_namespaces_relations(host):

@@ -1,26 +1,33 @@
 ---
-version: '3'
+version: '2.4'
 
 services:
   kafka:
     image: spotify/kafka:latest
-    ports:
-      - 9092:9092
     environment:
       ADVERTISED_HOST: kafka
       ADVERTISED_PORT: 9092
   receiver:
     image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-receiver:master"
-    command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true"
+    command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
     ports:
       - 7077:7077
     depends_on:
       - kafka
     environment:
       KAFKA_BROKERS: kafka:9092
+    mem_limit: 1G
+  correlate:
+    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-correlate:master"
+    entrypoint: "bin/stackstate-correlate -J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
+    depends_on:
+      - receiver
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    mem_limit: 1G
   topic-api:
     image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-topic-api:master"
-    command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true"
+    command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
     ports:
       - 7070:7070
     depends_on:
@@ -28,10 +35,10 @@ services:
     environment:
       KAFKA_BROKERS: kafka:9092
       ZOOKEEPER_QUORUM: kafka
+    mem_limit: 1G
   nginx:
     image: nginx:1.14.2
     ports:
-      - 80:80
       - 443:443
     depends_on:
       - receiver
@@ -39,3 +46,4 @@ services:
       - ./docker.nginx:/etc/nginx/nginx.conf:ro
       - ./nginx-signed.crt:/etc/ssl/certs/nginx-signed.crt:ro
       - ./nginx-signed.key:/etc/ssl/private/nginx-signed.key:ro
+    mem_limit: 64M

@@ -4,10 +4,10 @@ Agent Molecule tests
 Those are integration tests that spawn new VMs in AWS and do the following:
 
 * install the agents from the debian/rpm repositories
-* run a docker compose setup of the StackState receiver and topic API
+* run a docker compose setup of the StackState receiver, correlate and topic API
 * verify assertion on the target VMs
 
-### Run
+## Run
 
 Prerequisites:
 

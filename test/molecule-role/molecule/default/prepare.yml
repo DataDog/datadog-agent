@@ -187,7 +187,6 @@
         state: present
         version: 0.10.13
         force: yes
-
     - name: disable enhanced exit codes
       win_chocolatey_feature:
         name: useEnhancedExitCodes
@@ -200,7 +199,6 @@
       register: net_try1
       ignore_errors: true
       until: net_try1.finished
-
     - name: Install netcat (2/2)
       win_chocolatey:
         name: netcat
@@ -254,7 +252,6 @@
         path: C:\\Windows\\System32\\drivers\\etc\\hosts
         line: "{{ hostvars['receiver']['ansible_host'] }} test-stackstate-agent.sts"
         state: present
-
     - name: Install stackstate-agent
       win_shell: ". { iwr -useb {{ agent_repo_url }}/install.ps1 } | iex; install -stsApiKey API_KEY -stsUrl https://test-stackstate-agent.sts/stsAgent -hostname {{ inventory_hostname }} -codeName {{ agent_current_branch }} -skipSSLValidation true"
       register: install_result
@@ -272,7 +269,6 @@
       lineinfile:
         path: /etc/hosts
         line: "{{ hostvars['receiver']['ansible_host'] }} test-stackstate-agent.sts"
-
     - name: Install stackstate-agent
       shell: "curl -o- {{ agent_repo_url }}/install.sh | bash"
       environment:
@@ -298,6 +294,20 @@
     - name: Open listening port for windows {{ connection_port_after_start_windows }}
       shell: "nohup ncat --broker --listen -p {{ connection_port_after_start_windows }} &"
       become: true
+    - name: Forward DNAT port {{ dnat_service_port }} to {{ dnat_server_port }}
+      iptables:
+        table: nat
+        # PREROUTING for connections from outside, otherwise OUTPUT for local ones
+        chain: PREROUTING
+        protocol: tcp
+        destination_port: "{{ dnat_service_port }}"
+        jump: DNAT
+        to_destination: "{{ ansible_default_ipv4['address'] }}:{{ dnat_server_port }}"
+        comment: "Redirect traffic with dnat"
+      become: yes
+    - name: Open dnat_server listening port {{ dnat_server_port }}
+      shell: "nohup ncat --broker --listen -p {{ dnat_server_port }} &"
+      become: true
 
 - name: Prepare Fedora Agent connecting after start
   hosts: agent-fedora
@@ -305,8 +315,12 @@
   vars_files:
     - common_vars.yml
   tasks:
-    - name: Connect to Ubuntu agent
+    - name: Connect to Ubuntu agent P2P
       shell: yes | ncat {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_after_start_fedora }}
+      async: "{{ max_test_time }}"
+      poll: 0
+    - name: Connect to Ubuntu agent DNAT
+      shell: yes | ncat {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ dnat_service_port }}
       async: "{{ max_test_time }}"
       poll: 0
 
@@ -316,50 +330,20 @@
   vars_files:
     - common_vars.yml
   tasks:
-    - name: Connect to Ubuntu agent
+    - name: Connect to Ubuntu agent P2P (1/1)
       win_command: nc {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_after_start_windows }}
       async: "{{ max_test_time }}"
       ignore_errors: True
       register: ubuntu_connect_result
       poll: 0
-
-    - name: Connect to Ubuntu agent
+    - name: Connect to Ubuntu agent P2P (1/2)
       win_command: nc {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_after_start_windows }}
       async: "{{ max_test_time }}"
       poll: 0
       when: ubuntu_connect_result is failed
 
-
-- name: Prepare Ubuntu Agent for blacklist inclusion test
-  hosts: agent-ubuntu
-  gather_facts: false
-  vars_files:
-    - common_vars.yml
-  tasks:
-    - name: Wait a bit for the process agent to start
-      pause:
-        seconds: 10
-    - name: Start the stress process that consumes a large amount of memory
-      shell: "/usr/bin/stress --vm 1 --vm-bytes 248M --timeout {{ max_test_time }} --verbose"
-      async: "{{ max_test_time }}"
-      poll: 0
-
-- name: Prepare Fedora Agent for blacklist inclusion test
-  hosts: agent-fedora
-  gather_facts: false
-  vars_files:
-    - common_vars.yml
-  tasks:
-    - name: Wait a bit for the process agent to start
-      pause:
-        seconds: 10
-    - name: Start the stress process that consumes a large amount of memory
-      shell: "/usr/bin/stress --vm 1 --vm-bytes 248M --timeout {{ max_test_time }} --verbose"
-      async: "{{ max_test_time }}"
-      poll: 0
-
-- name: Prepare CentOS Agent for blacklist inclusion test
-  hosts: agent-centos
+- name: Prepare Agent for blacklist inclusion test
+  hosts: agent-ubuntu, agent-fedora, agent-centos
   gather_facts: false
   vars_files:
     - common_vars.yml
@@ -378,9 +362,6 @@
   vars_files:
     - common_vars.yml
   tasks:
-    - name: Wait a bit for the process agent to start
-      pause:
-        seconds: 20
     - name: Connect to netcat 1 docker container
       shell: "docker exec -itd netcat-1 sh -c 'yes | ncat 127.0.0.1 9091'"
     - name: Connect to netcat 2 docker container
