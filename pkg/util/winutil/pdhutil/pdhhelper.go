@@ -200,9 +200,6 @@ func pdhGetFormattedCounterValueLarge(hCounter PDH_HCOUNTER) (val int64, err err
 		}
 		return 0, fmt.Errorf("Error retrieving large value 0x%x 0x%x", ret, pValue.CStatus)
 	}
-	if pValue.padding1 != 0 || pValue.padding2 != 0 {
-		log.Warnf("Padding value changed %x %x", pValue.padding1, pValue.padding2)
-	}
 
 	return pValue.LargeValue, nil
 }
@@ -221,9 +218,6 @@ func pdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, err e
 			return 0, NewErrPdhInvalidInstance("Invalid counter instance")
 		}
 		return 0, fmt.Errorf("Error retrieving float value 0x%x 0x%x", ret, pValue.CStatus)
-	}
-	if pValue.padding1 != 0 || pValue.padding2 != 0 {
-		log.Warnf("Padding value changed %x %x", pValue.padding1, pValue.padding2)
 	}
 
 	return pValue.DoubleValue, nil

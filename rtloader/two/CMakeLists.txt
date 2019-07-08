@@ -54,7 +54,7 @@ if(WIN32)
   if(ARCH_I386)
     set_target_properties(datadog-agent-two PROPERTIES COMPILE_FLAGS "-m32" LINK_FLAGS "-m32 -static")
   else()
-    set_target_properties(datadog-agent-two PROPERTIES "-static")
+    set_target_properties(datadog-agent-two PROPERTIES LINK_FLAGS "-static")
   endif()
 
 endif()
