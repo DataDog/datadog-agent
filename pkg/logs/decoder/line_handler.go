@@ -125,14 +125,17 @@ const defaultFlushTimeout = 1000 * time.Millisecond
 // MultiLineHandler makes sure that multiple lines from a same content
 // are properly put together.
 type MultiLineHandler struct {
-	lineChan          chan []byte
-	outputChan        chan *Output
-	lineBuffer        *LineBuffer
-	lastSeenTimestamp string
-	newContentRe      *regexp.Regexp
-	flushTimeout      time.Duration
-	parser            parser.Parser
-	lineLimit         int
+	lineChan       chan []byte
+	outputChan     chan *Output
+	parser         parser.Parser
+	newContentRe   *regexp.Regexp
+	buffer         *bytes.Buffer
+	flushTimeout   time.Duration
+	lineLimit      int
+	shouldTruncate bool
+	linesLen       int
+	status         string
+	timestamp      string
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler.
@@ -140,10 +143,10 @@ func NewMultiLineHandler(outputChan chan *Output, newContentRe *regexp.Regexp, f
 	return &MultiLineHandler{
 		lineChan:     make(chan []byte),
 		outputChan:   outputChan,
-		lineBuffer:   NewLineBuffer(),
-		newContentRe: newContentRe,
-		flushTimeout: flushTimeout,
 		parser:       parser,
+		newContentRe: newContentRe,
+		buffer:       bytes.NewBuffer(nil),
+		flushTimeout: flushTimeout,
 		lineLimit:    lineLimit,
 	}
 }
@@ -205,56 +208,71 @@ func (h *MultiLineHandler) run() {
 // and that the length of the lines is properly tracked
 // so that the agent restarts tailing from the right place.
 func (h *MultiLineHandler) process(line []byte) {
-	unwrappedLine, _, timestamp, err := h.parser.Parse(line)
+	content, status, timestamp, err := h.parser.Parse(line)
 	if err != nil {
 		log.Debug(err)
 	}
-	if h.newContentRe.Match(unwrappedLine) {
-		// send content from lineBuffer
-		h.sendBuffer()
-	}
-	h.lastSeenTimestamp = timestamp
 
-	if !h.lineBuffer.IsEmpty() {
-		// unwrap all the following lines
-		line = unwrappedLine
-		// add '\n' to content in lineBuffer
-		h.lineBuffer.AddEndOfLine()
-	}
-	// NOTES: this check takes into account the length of "...TRUNCATED..."
-	// which in some scenario is outputting an ending message with
-	// ...TRUNCATED... as only content, see unit test line_handler_test.go/TestMultiLineHandler
-	if len(line)+h.lineBuffer.Length() < h.lineLimit {
-		// add line to content in lineBuffer
-		h.lineBuffer.Add(line)
-	} else {
-		// add line and truncate and flush content in lineBuffer
-		h.lineBuffer.AddIncompleteLine(line)
-		h.lineBuffer.AddTruncate(line)
-		// send content from lineBuffer
+	if h.newContentRe.Match(content) {
+		// the current line is part of a new message,
+		// send the buffer
 		h.sendBuffer()
-		// truncate next content
-		h.lineBuffer.AddTruncate(line)
+	}
+
+	isTruncated := h.shouldTruncate
+	h.shouldTruncate = false
+
+	rawLen := len(line)
+	if rawLen < h.lineLimit {
+		// lines are delimited on '\n' character when bellow the limit
+		// so we need to make sure it's properly accounted
+		rawLen++
+	}
+
+	// track the raw data length and the timestamp so that the agent tails
+	// from the right place at restart
+	h.linesLen += rawLen
+	h.timestamp = timestamp
+	h.status = status
+
+	if h.buffer.Len() > 0 {
+		// the buffer already contains some data which means that
+		// the current line is not the first line of the message
+		h.buffer.Write(escapedLineFeed)
+	}
+
+	if isTruncated {
+		// the previous line has been truncated because it was too long,
+		// the new line is just a remainder,
+		// adding the truncated flag at the beginning of the content
+		h.buffer.Write(truncatedFlag)
+	}
+
+	h.buffer.Write(content)
+
+	if h.buffer.Len() >= h.lineLimit {
+		// the multiline message is too long, it needs to be cut off and send,
+		// adding the truncated flag the end of the content
+		h.buffer.Write(truncatedFlag)
+		h.sendBuffer()
+		h.shouldTruncate = true
 	}
 }
 
 // sendBuffer forwards the content stored in the buffer
 // to the output channel.
 func (h *MultiLineHandler) sendBuffer() {
-	defer h.lineBuffer.Reset()
-	content, rawDataLen := h.lineBuffer.Content()
-	content = bytes.TrimSpace(content)
+	defer func() {
+		h.buffer.Reset()
+		h.linesLen = 0
+		h.shouldTruncate = false
+	}()
+
+	data := bytes.TrimSpace(h.buffer.Bytes())
+	content := make([]byte, len(data))
+	copy(content, data)
+
 	if len(content) > 0 {
-		output, status, _, err := h.parser.Parse(content)
-		if err != nil {
-			log.Debug(err)
-		}
-		if len(output) > 0 {
-			// The output.Timestamp filled by the Parse function is the ts of the first
-			// log line, in order to be useful to setLastSince function, we need to replace
-			// it with the ts of the last log line. Note: this timestamp is NOT used for stamp
-			// the log record, it's ONLY used to recover well when tailing back the container.
-			h.outputChan <- NewOutput(output, status, rawDataLen, h.lastSeenTimestamp)
-		}
+		h.outputChan <- NewOutput(content, h.status, h.linesLen, h.timestamp)
 	}
 }

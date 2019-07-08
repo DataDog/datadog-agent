@@ -171,11 +171,7 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "...TRUNCATED...continue...TRUNCATED...", string(output.Content))
-	assert.Equal(t, 8, output.RawDataLen)
-
-	output = <-outputChan
-	assert.Equal(t, "...TRUNCATED...", string(output.Content))
-	assert.Equal(t, 0, output.RawDataLen)
+	assert.Equal(t, 9, output.RawDataLen)
 
 	// continuous too long lines
 	h.Handle([]byte("5. stringssssssize20"))
