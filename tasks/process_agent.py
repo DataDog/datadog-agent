@@ -108,4 +108,4 @@ def protobuf(ctx):
     cmd = "protoc {proto_dir}/agent.proto -I {gopath}/src -I vendor -I {proto_dir} --gogofaster_out {gopath}/src"
     proto_dir = os.path.join(".", "pkg", "process", "proto")
 
-    ctx.run(cmd.format(gopath=os.environ["GOPATH"], proto_dir=proto_dir))
+    ctx.run(cmd.format(gopath=get_gopath(ctx), proto_dir=proto_dir))

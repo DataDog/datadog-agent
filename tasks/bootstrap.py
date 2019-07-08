@@ -4,6 +4,8 @@ Boostrapping related logic goes here
 import os
 import json
 
+from .utils import get_gopath
+
 # Bootstrap dependencies description
 BOOTSTRAP_DEPS = "bootstrap.json"
 BOOTSTRAP_ORDER_KEY = "order"
@@ -42,14 +44,7 @@ def process_deps(ctx, target, version, kind, step, verbose=False):
     if kind == "go":
         if step == "checkout":
             # download tools
-            gopath = os.environ.get("GOPATH")
-            if not gopath:
-                for line in ctx.run("go env", hide=True).stdout.splitlines():
-                    [name, value] = line.split("=", 1)
-                    if name == "GOPATH":
-                        gopath = value
-                        break
-            path = os.path.join(gopath, 'src', target)
+            path = os.path.join(get_gopath(ctx), 'src', target)
             if not os.path.exists(path):
                 ctx.run("go get{} -d -u {}".format(verbosity, target))
 
