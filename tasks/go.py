@@ -198,7 +198,7 @@ def misspell(ctx, targets):
         print("misspell found no issues")
 
 @task
-def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
+def deps(ctx, verbose=False, android=False):
     """
     Setup Go dependencies
     """
@@ -260,24 +260,7 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
         print("Removing vendored golang.org/x/mobile")
         shutil.rmtree('vendor/golang.org/x/mobile')
 
-    checks_start = datetime.datetime.now()
-    if not no_checks:
-        verbosity = 'v' if verbose else 'q'
-        core_dir = core_dir or os.getenv('DD_CORE_DIR')
-
-        if core_dir:
-            checks_base = os.path.join(os.path.abspath(core_dir), 'datadog_checks_base')
-            ctx.run('pip install -{} -e "{}[deps]"'.format(verbosity, checks_base))
-        else:
-            core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
-            checks_base = os.path.join(core_dir, 'datadog_checks_base')
-            if not os.path.isdir(core_dir):
-                ctx.run('git clone -{} https://github.com/DataDog/integrations-core {}'.format(verbosity, core_dir))
-            ctx.run('pip install -{} "{}[deps]"'.format(verbosity, checks_base))
-    checks_done = datetime.datetime.now()
-
     print("dep ensure, elapsed:    {}".format(dep_done - start))
-    print("checks install elapsed: {}".format(checks_done - checks_start))
 
 @task
 def lint_licenses(ctx):
