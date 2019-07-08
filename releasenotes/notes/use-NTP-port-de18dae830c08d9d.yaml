@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    The port defined in the NTP configuration is no longer a string. Now, it is an integer.
+fixes:
+  - |
+    Use NTP port.
