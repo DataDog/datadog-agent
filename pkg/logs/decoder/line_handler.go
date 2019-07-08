@@ -14,17 +14,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// TRUNCATED is the warning we add at the beginning or/and at the end of a truncated message
-var TRUNCATED = []byte("...TRUNCATED...")
+// truncatedFlag is the flag that is added at the beginning
+// or/and at the end of every trucated lines.
+var truncatedFlag = []byte("...TRUNCATED...")
 
-// LineHandler handles byte slices to form line output
+// escapedLineFeed is used to escape new line character
+// for multiline message.
+// New line character needs to be escaped because they are used
+// as delimiter for transport.
+var escapedLineFeed = []byte(`\n`)
+
+// LineHandler handles raw lines to form structured lines
 type LineHandler interface {
 	Handle(content []byte)
 	Start()
 	Stop()
 }
 
-// SingleLineHandler creates and forward outputs to outputChan from single-lines
+// SingleLineHandler takes care of tracking the line length
+// and truncating them when they are too long.
 type SingleLineHandler struct {
 	lineChan       chan []byte
 	outputChan     chan *Output
@@ -33,7 +41,7 @@ type SingleLineHandler struct {
 	lineLimit      int
 }
 
-// NewSingleLineHandler returns a new SingleLineHandler
+// NewSingleLineHandler returns a new SingleLineHandler.
 func NewSingleLineHandler(outputChan chan *Output, parser parser.Parser, lineLimit int) *SingleLineHandler {
 	return &SingleLineHandler{
 		lineChan:   make(chan []byte),
@@ -43,23 +51,22 @@ func NewSingleLineHandler(outputChan chan *Output, parser parser.Parser, lineLim
 	}
 }
 
-// Handle trims leading and trailing whitespaces from content,
-// and sends it as a new Line to lineChan.
+// Handle puts all new lines into a channel for later processing.
 func (h *SingleLineHandler) Handle(content []byte) {
 	h.lineChan <- content
 }
 
-// Stop stops the handler from processing new lines
+// Stop stops the handler.
 func (h *SingleLineHandler) Stop() {
 	close(h.lineChan)
 }
 
-// Start starts the handler
+// Start starts the handler.
 func (h *SingleLineHandler) Start() {
 	go h.run()
 }
 
-// run consumes lines from lineChan to process them
+// run consumes new lines and processes them.
 func (h *SingleLineHandler) run() {
 	for line := range h.lineChan {
 		h.process(line)
@@ -67,8 +74,10 @@ func (h *SingleLineHandler) run() {
 	close(h.outputChan)
 }
 
-// process creates outputs from lines and forwards them to outputChan
-// When lines are too long, they are truncated
+// process transforms a raw line into a structured line,
+// it guarantees that the content of the line won't exceed
+// the limit and that the length of the line is properly tracked
+// so that the agent restarts tailing from the right place.
 func (h *SingleLineHandler) process(line []byte) {
 	lineLen := len(line)
 	line = bytes.TrimSpace(line)
@@ -79,7 +88,7 @@ func (h *SingleLineHandler) process(line []byte) {
 	var content []byte
 	if h.shouldTruncate {
 		// add TRUNCATED at the beginning of content
-		content = append(TRUNCATED, line...)
+		content = append(truncatedFlag, line...)
 		h.shouldTruncate = false
 	} else {
 		// keep content the same
@@ -98,7 +107,7 @@ func (h *SingleLineHandler) process(line []byte) {
 		}
 	} else {
 		// add TRUNCATED at the end of content and send it
-		content := append(content, TRUNCATED...)
+		content := append(content, truncatedFlag...)
 		output, status, timestamp, err := h.parser.Parse(content)
 		if err != nil {
 			log.Debug(err)
@@ -110,12 +119,12 @@ func (h *SingleLineHandler) process(line []byte) {
 	}
 }
 
-// defaultFlushTimeout represents the time we want to wait before flushing lineBuffer
-// when no more line is received
+// defaultFlushTimeout represents the time after which a multiline
+// will be be considered as complete.
 const defaultFlushTimeout = 1000 * time.Millisecond
 
-// MultiLineHandler reads lines from lineChan and uses lineBuffer to send them
-// when a new line matches with re or flushTimer is fired
+// MultiLineHandler makes sure that multiple lines from a same content
+// are properly put together.
 type MultiLineHandler struct {
 	lineChan          chan []byte
 	outputChan        chan *Output
@@ -127,7 +136,7 @@ type MultiLineHandler struct {
 	lineLimit         int
 }
 
-// NewMultiLineHandler returns a new MultiLineHandler
+// NewMultiLineHandler returns a new MultiLineHandler.
 func NewMultiLineHandler(outputChan chan *Output, newContentRe *regexp.Regexp, flushTimeout time.Duration, parser parser.Parser, lineLimit int) *MultiLineHandler {
 	return &MultiLineHandler{
 		lineChan:     make(chan []byte),
@@ -140,17 +149,17 @@ func NewMultiLineHandler(outputChan chan *Output, newContentRe *regexp.Regexp, f
 	}
 }
 
-// Handle forward lines to lineChan to process them
+// Handle forward lines to lineChan to process them.
 func (h *MultiLineHandler) Handle(content []byte) {
 	h.lineChan <- content
 }
 
-// Stop stops the lineHandler from processing lines
+// Stop stops the handler.
 func (h *MultiLineHandler) Stop() {
 	close(h.lineChan)
 }
 
-// Start starts the handler
+// Start starts the handler.
 func (h *MultiLineHandler) Start() {
 	go h.run()
 }
@@ -162,7 +171,7 @@ func (h *MultiLineHandler) run() {
 		flushTimer.Stop()
 		// last send before closing the channel to flush lineBuffer. This can occur when
 		// container stops before meeting sendContent condition.
-		h.sendContent()
+		h.sendBuffer()
 		close(h.outputChan)
 	}()
 	for {
@@ -186,13 +195,16 @@ func (h *MultiLineHandler) run() {
 			flushTimer.Reset(h.flushTimeout)
 		case <-flushTimer.C:
 			// the timout expired, the content is ready to be sent
-			h.sendContent()
+			h.sendBuffer()
 		}
 	}
 }
 
-// process accumulates lines in lineBuffer and flushes lineBuffer when a new line matches with newContentRe
-// When lines are too long, they are truncated
+// process aggregates multiple lines to form a full multiline message,
+// it stops when a line matches with the new content regular expression.
+// It also makes sure that the content will never exceed the limit
+// and that the length of the lines is properly tracked
+// so that the agent restarts tailing from the right place.
 func (h *MultiLineHandler) process(line []byte) {
 	unwrappedLine, _, timestamp, err := h.parser.Parse(line)
 	h.lastSeenTimestamp = timestamp
@@ -201,7 +213,7 @@ func (h *MultiLineHandler) process(line []byte) {
 	}
 	if h.newContentRe.Match(unwrappedLine) {
 		// send content from lineBuffer
-		h.sendContent()
+		h.sendBuffer()
 	}
 	if !h.lineBuffer.IsEmpty() {
 		// unwrap all the following lines
@@ -220,14 +232,15 @@ func (h *MultiLineHandler) process(line []byte) {
 		h.lineBuffer.AddIncompleteLine(line)
 		h.lineBuffer.AddTruncate(line)
 		// send content from lineBuffer
-		h.sendContent()
+		h.sendBuffer()
 		// truncate next content
 		h.lineBuffer.AddTruncate(line)
 	}
 }
 
-// sendContent forwards the content from lineBuffer to outputChan
-func (h *MultiLineHandler) sendContent() {
+// sendBuffer forwards the content stored in the buffer
+// to the output channel.
+func (h *MultiLineHandler) sendBuffer() {
 	defer h.lineBuffer.Reset()
 	content, rawDataLen := h.lineBuffer.Content()
 	content = bytes.TrimSpace(content)

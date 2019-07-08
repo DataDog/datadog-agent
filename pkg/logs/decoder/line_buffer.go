@@ -52,7 +52,7 @@ func (l *LineBuffer) AddIncompleteLine(line []byte) {
 
 // AddTruncate stores TRUNCATED in buffer
 func (l *LineBuffer) AddTruncate(line []byte) {
-	l.buffer.Write(TRUNCATED)
+	l.buffer.Write(truncatedFlag)
 }
 
 // Content returns the content in buffer and the length of the data that enabled to compute this content

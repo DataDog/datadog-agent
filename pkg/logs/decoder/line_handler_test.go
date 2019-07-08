@@ -89,19 +89,19 @@ func TestSingleLineHandler(t *testing.T) {
 	line = strings.Repeat("a", contentLenLimit+10)
 	h.Handle([]byte(line))
 	output = <-outputChan
-	assert.Equal(t, len(line)+len(TRUNCATED), len(output.Content))
+	assert.Equal(t, len(line)+len(truncatedFlag), len(output.Content))
 	assert.Equal(t, len(line), output.RawDataLen)
 
 	line = strings.Repeat("a", contentLenLimit+10)
 	h.Handle([]byte(line))
 	output = <-outputChan
-	assert.Equal(t, len(TRUNCATED)+len(line)+len(TRUNCATED), len(output.Content))
+	assert.Equal(t, len(truncatedFlag)+len(line)+len(truncatedFlag), len(output.Content))
 	assert.Equal(t, len(line), output.RawDataLen)
 
 	line = strings.Repeat("a", 10)
 	h.Handle([]byte(line))
 	output = <-outputChan
-	assert.Equal(t, string(TRUNCATED)+line, string(output.Content))
+	assert.Equal(t, string(truncatedFlag)+line, string(output.Content))
 	assert.Equal(t, len(line)+1, output.RawDataLen)
 
 	h.Stop()
