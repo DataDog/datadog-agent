@@ -125,11 +125,7 @@ func (a *Agent) Run() {
 	go a.StatsWriter.Run()
 	go a.ServiceWriter.Run()
 
-	n := 1
-	if config.HasFeature("parallel_process") {
-		n = runtime.NumCPU()
-	}
-	for i := 0; i < n; i++ {
+	for i := 0; i < runtime.NumCPU(); i++ {
 		go a.work()
 	}
 
@@ -274,30 +270,25 @@ func (a *Agent) Process(t pb.Trace) {
 		return
 	}
 	// Run both full trace sampling and transaction extraction in another goroutine.
-	go func(pt ProcessedTrace) {
-		defer watchdog.LogOnPanic()
-		defer timing.Since("datadog.trace_agent.internal.sample_ms", time.Now())
+	var sampledSpans writer.SampledSpans
 
-		var sampledSpans writer.SampledSpans
+	sampled, rate := a.sample(pt)
+	if sampled {
+		pt.Sampled = sampled
+		sampler.AddGlobalRate(pt.Root, rate)
+		sampledSpans.Trace = pt.Trace
+	}
 
-		sampled, rate := a.sample(pt)
-		if sampled {
-			pt.Sampled = sampled
-			sampler.AddGlobalRate(pt.Root, rate)
-			sampledSpans.Trace = pt.Trace
-		}
+	// NOTE: Events can be processed on non-sampled traces.
+	events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
+	sampledSpans.Events = events
 
-		// NOTE: Events can be processed on non-sampled traces.
-		events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
-		sampledSpans.Events = events
+	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
+	atomic.AddInt64(&ts.EventsSampled, int64(len(sampledSpans.Events)))
 
-		atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
-		atomic.AddInt64(&ts.EventsSampled, int64(len(sampledSpans.Events)))
-
-		if !sampledSpans.Empty() {
-			a.spansOut <- &sampledSpans
-		}
-	}(pt)
+	if !sampledSpans.Empty() {
+		a.spansOut <- &sampledSpans
+	}
 }
 
 func (a *Agent) sample(pt ProcessedTrace) (sampled bool, rate float64) {
