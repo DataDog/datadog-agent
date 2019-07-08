@@ -57,9 +57,9 @@ func (p *provider) Start() {
 	var main client.Destination
 	var additionals []client.Destination
 	if p.endpoints.UseHTTP {
-		main = http.NewDestination(p.endpoints.Main, p.destinationsContext)
+		main = http.NewDestination(p.endpoints.Main, http.JSONContentType, p.destinationsContext)
 		for _, endpoint := range p.endpoints.Additionals {
-			additionals = append(additionals, http.NewDestination(endpoint, p.destinationsContext))
+			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, p.destinationsContext))
 		}
 	} else {
 		main = tcp.NewDestination(p.endpoints.Main, p.endpoints.UseProto, p.destinationsContext)
