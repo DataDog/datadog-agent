@@ -22,7 +22,7 @@ import (
 var (
 	ntpCfgString = `
 offset_threshold: 60
-port: ntp
+port: 123
 version: 3
 timeout: 5
 `
@@ -342,4 +342,31 @@ func TestDefaultHostConfig(t *testing.T) {
 	ntpCheck.Configure(testedConfig, []byte(""))
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
+}
+
+func TestNTPPortConfig(t *testing.T) {
+	var detectedPorts []int
+
+	ntpQuery = func(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+		detectedPorts = append(detectedPorts, opt.Port)
+		return testNTPQuery(host, opt)
+	}
+	defer func() { ntpQuery = ntp.QueryWithOptions }()
+
+	ntpCheck := new(NTPCheck)
+	const expectedPort = 42
+	ntpCfg := []byte(fmt.Sprintf(`
+offset_threshold: 60
+port: %d
+`, expectedPort))
+	ntpCheck.Configure(ntpCfg, []byte(""))
+
+	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender.SetupAcceptAll()
+
+	ntpCheck.Run()
+
+	for _, port := range detectedPorts {
+		assert.Equal(t, expectedPort, port)
+	}
 }
