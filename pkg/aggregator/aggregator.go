@@ -266,6 +266,7 @@ func (agg *BufferedAggregator) AddAgentStartupTelemetry(agentVersion string) {
 		SampleRate: 1,
 		Timestamp:  0,
 	}
+	agg.metricIn <- metric
 	if agg.hostname != "" {
 		// Send startup event only when we have a valid hostname
 		agg.eventIn <- metrics.Event{
@@ -275,7 +276,6 @@ func (agg *BufferedAggregator) AddAgentStartupTelemetry(agentVersion string) {
 			EventType:      "Agent Startup",
 		}
 	}
-	agg.metricIn <- metric
 }
 
 func (agg *BufferedAggregator) registerSender(id check.ID) error {
