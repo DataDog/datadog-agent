@@ -6,16 +6,17 @@
 #include "three.h"
 
 #include "constants.h"
-#include "stringutils.h"
 
-#include <_util.h>
-#include <aggregator.h>
-#include <containers.h>
-#include <datadog_agent.h>
-#include <kubeutil.h>
-#include <memory.h>
-#include <tagger.h>
-#include <util.h>
+#include "_util.h"
+#include "aggregator.h"
+#include "cgo_free.h"
+#include "containers.h"
+#include "datadog_agent.h"
+#include "kubeutil.h"
+#include "memory.h"
+#include "stringutils.h"
+#include "tagger.h"
+#include "util.h"
 
 #include <algorithm>
 #include <sstream>
@@ -124,7 +125,7 @@ py_info_t *Three::getPyInfo()
     PyObject *path = NULL;
     PyObject *str_path = NULL;
 
-    py_info_t *info = (py_info_t *)malloc(sizeof(*info));
+    py_info_t *info = (py_info_t *)_malloc(sizeof(*info));
     if (!info) {
         setError("could not allocate a py_info_t struct");
         return NULL;
@@ -432,7 +433,7 @@ char **Three::getCheckWarnings(RtLoaderPyObject *check)
         goto done;
     }
 
-    warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
+    warnings = (char **)_malloc(sizeof(*warnings) * (numWarnings + 1));
     if (!warnings) {
         setError("could not allocate memory to store warnings");
         goto done;
@@ -443,7 +444,7 @@ char **Three::getCheckWarnings(RtLoaderPyObject *check)
         PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
         if (warn == NULL) {
             setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
-            free(warnings);
+            _free(warnings);
             warnings = NULL;
             goto done;
         }
@@ -519,7 +520,7 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)
         }
 
         klass = PyObject_GetAttrString(module, symbol_name);
-        ::free(symbol_name);
+        ::_free(symbol_name);
         if (klass == NULL) {
             continue;
         }
@@ -627,7 +628,7 @@ std::string Three::_fetchPythonError() const
                         // traceback.format_exception returns a list of strings, each ending in a *newline*
                         // and some containing internal newlines. No need to add any CRLF/newlines.
                         ret_val += item;
-                        ::free(item);
+                        ::_free(item);
                     }
                 }
             }
@@ -644,7 +645,7 @@ std::string Three::_fetchPythonError() const
             // we know pvalue_obj is a string (we just casted it), no need to PyUnicode_Check()
             char *ret = as_string(pvalue_obj);
             ret_val += ret;
-            ::free(ret);
+            ::_free(ret);
             Py_XDECREF(pvalue_obj);
         }
     } else if (ptype != NULL) {
@@ -653,7 +654,7 @@ std::string Three::_fetchPythonError() const
             // we know ptype_obj is a string (we just casted it), no need to PyUnicode_Check()
             char *ret = as_string(ptype_obj);
             ret_val += ret;
-            ::free(ret);
+            ::_free(ret);
             Py_XDECREF(ptype_obj);
         }
     }

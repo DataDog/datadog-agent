@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 #include "_util.h"
+#include "cgo_free.h"
 #include "memory.h"
 #include "stringutils.h"
 
@@ -140,7 +141,7 @@ PyObject *subprocess_output(PyObject *self, PyObject *args)
         goto cleanup;
     }
 
-    if (!(subprocess_args = (char **)malloc(sizeof(*subprocess_args) * (subprocess_args_sz + 1)))) {
+    if (!(subprocess_args = (char **)_malloc(sizeof(*subprocess_args) * (subprocess_args_sz + 1)))) {
         PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
         goto cleanup;
     }
@@ -228,9 +229,9 @@ cleanup:
 
     if (subprocess_args) {
         for (i = 0; i <= subprocess_args_sz && subprocess_args[i]; i++) {
-            free(subprocess_args[i]);
+            _free(subprocess_args[i]);
         }
-        free(subprocess_args);
+        _free(subprocess_args);
     }
 
     // Please note that if we get here we have a matching PyGILState_Ensure above, so we're safe.

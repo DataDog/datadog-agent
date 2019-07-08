@@ -2,12 +2,13 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
+#include "datadog_agent_rtloader.h"
+#include "memory.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <datadog_agent_rtloader.h>
 
 static rtloader_t *rtloader;
 
@@ -17,7 +18,7 @@ char **get_tags(char *id, int highCard)
     printf("id: %s\n", id);
     printf("highCard: %d\n", highCard);
 
-    char **data = malloc(sizeof(*data) * 4);
+    char **data = _malloc(sizeof(*data) * 4);
     data[0] = strdup("tag1");
     data[1] = strdup("tag2");
     data[2] = strdup("tag3");
@@ -48,7 +49,7 @@ char *read_file(const char *path)
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    char *string = malloc(fsize + 1);
+    char *string = _malloc(fsize + 1);
     long read = fread(string, fsize, 1, f);
     if (read < 1) {
         fprintf(stderr, "Error reading file!\n");

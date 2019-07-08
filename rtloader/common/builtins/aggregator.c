@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 #include "aggregator.h"
-
-#include <stringutils.h>
+#include "memory.h"
+#include "stringutils.h"
 
 // these must be set by the Agent
 static cb_submit_metric_t cb_submit_metric = NULL;
@@ -102,7 +102,7 @@ static char **py_tag_to_c(PyObject *py_tags)
         PyErr_SetString(PyExc_RuntimeError, "could not compute tags length");
         return NULL;
     } else if (len == 0) {
-        if (!(tags = malloc(sizeof(*tags)))) {
+        if (!(tags = _malloc(sizeof(*tags)))) {
             PyErr_SetString(PyExc_RuntimeError, "could not allocate memory for tags");
             return NULL;
         }
@@ -115,7 +115,7 @@ static char **py_tag_to_c(PyObject *py_tags)
         goto done;
     }
 
-    if (!(tags = malloc(sizeof(*tags) * (len + 1)))) {
+    if (!(tags = _malloc(sizeof(*tags) * (len + 1)))) {
         PyErr_SetString(PyExc_RuntimeError, "could not allocate memory for tags");
         goto done;
     }
@@ -150,9 +150,9 @@ static void free_tags(char **tags)
 {
     int i;
     for (i = 0; tags[i] != NULL; i++) {
-        free(tags[i]);
+        _free(tags[i]);
     }
-    free(tags);
+    _free(tags);
 }
 
 /*! \fn submit_metric(PyObject *self, PyObject *args)
@@ -289,7 +289,7 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
         goto gstate_cleanup;
     }
 
-    if (!(ev = (event_t *)malloc(sizeof(event_t)))) {
+    if (!(ev = (event_t *)_malloc(sizeof(event_t)))) {
         PyErr_SetString(PyExc_RuntimeError, "could not allocate memory for event");
         retval = NULL;
         goto gstate_cleanup;
@@ -341,15 +341,15 @@ ev_cleanup:
     if (ev->tags != NULL) {
         free_tags(ev->tags);
     }
-    free(ev->title);
-    free(ev->text);
-    free(ev->priority);
-    free(ev->host);
-    free(ev->alert_type);
-    free(ev->aggregation_key);
-    free(ev->source_type_name);
-    free(ev->event_type);
-    free(ev);
+    _free(ev->title);
+    _free(ev->text);
+    _free(ev->priority);
+    _free(ev->host);
+    _free(ev->alert_type);
+    _free(ev->aggregation_key);
+    _free(ev->source_type_name);
+    _free(ev->event_type);
+    _free(ev);
 
 gstate_cleanup:
     PyGILState_Release(gstate);

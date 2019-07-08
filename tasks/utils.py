@@ -39,12 +39,14 @@ def get_multi_python_location(embedded_path=None, rtloader_root=None):
     if rtloader_root is None:
         rtloader_lib = "{}/lib".format(rtloader_root or embedded_path)
         rtloader_headers = "{}/include".format(rtloader_root or embedded_path)
+        rtloader_common_headers = "{}/common".format(rtloader_root or embedded_path)
     # if rtloader_root is specified we're working in dev mode from the rtloader folder
     else:
         rtloader_lib = "{}/rtloader".format(rtloader_root)
         rtloader_headers = "{}/include".format(rtloader_root)
+        rtloader_common_headers = "{}/common".format(rtloader_root)
 
-    return rtloader_lib, rtloader_headers
+    return rtloader_lib, rtloader_headers, rtloader_common_headers
 
 def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
                     rtloader_root=None, python_home_2=None, python_home_3=None):
@@ -65,7 +67,8 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
         # fall back to local dev path
         embedded_path = "{}/src/github.com/DataDog/datadog-agent/dev".format(get_gopath(ctx))
 
-    rtloader_lib, rtloader_headers = get_multi_python_location(embedded_path, rtloader_root)
+    rtloader_lib, rtloader_headers, rtloader_common_headers = \
+        get_multi_python_location(embedded_path, rtloader_root)
 
     # setting python homes in the code
     if python_home_2:
@@ -77,7 +80,8 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + ":{}".format(rtloader_lib) # OSX
     env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + ":{}".format(rtloader_lib) # linux
     env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + " -L{}".format(rtloader_lib)
-    env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + " -w -I{}".format(rtloader_headers)
+    env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + " -w -I{} -I{}".format(rtloader_headers,
+                                                                                  rtloader_common_headers)
 
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:

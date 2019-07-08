@@ -6,7 +6,7 @@ package testcommon
 #cgo CFLAGS: -I../../common
 #cgo !windows LDFLAGS: -L../../three/ -ldatadog-agent-three
 #cgo windows LDFLAGS: -L../../three/ -ldatadog-agent-three.dll
-#include <memory.h>
+#include "cgo_free.h"
 
 extern void cgo_free(void *ptr);
 

@@ -2,42 +2,43 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
-#ifndef DATADOG_AGENT_RTLOADER_CGO_FREE_H
-#define DATADOG_AGENT_RTLOADER_CGO_FREE_H
+#ifndef DATADOG_AGENT_RTLOADER_MEMORY_H
+#define DATADOG_AGENT_RTLOADER_MEMORY_H
 
-/*! \file cgo_free.h
-    \brief RtLoader cgo_free builtin header file.
+/*! \file memory.h
+    \brief RtLoader memory wrapper header file.
 
-    The prototypes here defined provide functions to free up memory
-    allocated from cgo. This is required by windows for memory protection.
+    The prototypes here defined provide functions to allocate and free memory.
+    The goal is to allow us to track allocations if desired.
 */
 
-#include <rtloader_types.h>
+#include "rtloader_types.h"
+
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/*! \fn void _set_cgo_free_cb(cb_cgo_free_t cb)
-    \brief Sets a callback to be used by rtloader to free memory allocated by the
-    rtloader's caller and passed into rtloader.
+/*! \fn void _set_memory_tracker_cb(cb_memory_tracker_t cb)
+    \brief Sets a callback to be used by rtloader to add memory tracking stats.
     \param object A function pointer to the callback function.
-
-    On Windows we cannot free a memory block from another DLL. This is why we
-    need to call back to the allocating DLL if it wishes to release allocated memory.
 
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
-void _set_cgo_free_cb(cb_cgo_free_t);
+void _set_memory_tracker_cb(cb_memory_tracker_t);
 
-/*! \fn void cgo_free(void *ptr)
-    \brief Frees memory that was originally allocated by the rtloader's caller.
-    \param object A pointer to the memory block to free.
-
-    On Windows we cannot free a memory block from another DLL. This is why we
-    need to call an external free method to release memory allocated externally.
+/*! \fn void *_malloc(size_t sz)
+    \brief Basic malloc wrapper that will also keep memory stats if enabled.
+    \param sz the number of bytes to allocate.
 */
-void DATADOG_AGENT_RTLOADER_API cgo_free(void *ptr);
+void *_malloc(size_t sz);
+
+/*! \fn void _free(void *ptr)
+    \brief Basic free wrapper that will also keep memory stats if enabled.
+    \param ptr the pointer to the heap region you wish to free.
+*/
+void _free(void *ptr);
 
 #ifdef __cplusplus
 }

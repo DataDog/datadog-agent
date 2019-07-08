@@ -11,12 +11,14 @@ import (
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 )
 
-// #cgo CFLAGS: -I../../include
+// #cgo CFLAGS: -I../../include -I../../common
 // #cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
 // #cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
 //
+// #include "datadog_agent_rtloader.h"
+// #include "memory.h"
+//
 // #include <stdlib.h>
-// #include <datadog_agent_rtloader.h>
 //
 // extern char **Tags(char*, int);
 //
@@ -26,8 +28,8 @@ import (
 import "C"
 
 var (
-	rtloader     *C.rtloader_t
-	tmpfile *os.File
+	rtloader *C.rtloader_t
+	tmpfile  *os.File
 )
 
 func setUp() error {
@@ -73,7 +75,7 @@ except Exception as e:
 	state := C.ensure_gil(rtloader)
 
 	ret := C.run_simple_string(rtloader, code) == 1
-	C.free(unsafe.Pointer(code))
+	C._free(unsafe.Pointer(code))
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()
@@ -91,7 +93,7 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 	goId := C.GoString(id)
 
 	length := 4
-	cTags := C.malloc(C.size_t(length) * C.size_t(unsafe.Sizeof(uintptr(0))))
+	cTags := C._malloc(C.size_t(length) * C.size_t(unsafe.Sizeof(uintptr(0))))
 	// convert the C array to a Go Array so we can index it
 	indexTag := (*[1<<29 - 1]*C.char)(cTags)[:length:length]
 	indexTag[length-1] = nil
@@ -115,7 +117,7 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 		indexTag[1] = C.CString("2")
 		indexTag[2] = C.CString("3")
 	default:
-		C.free(cTags)
+		C._free(cTags)
 		return nil
 	}
 	return (**C.char)(cTags)

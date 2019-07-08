@@ -12,8 +12,9 @@
 #include <iostream>
 #include <sstream>
 
-#include <datadog_agent_rtloader.h>
-#include <rtloader.h>
+#include "datadog_agent_rtloader.h"
+#include "memory.h"
+#include "rtloader.h"
 
 #if __linux__
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.so"
@@ -212,6 +213,11 @@ void destroy(rtloader_t *rtloader)
     }
 }
 #endif
+
+void set_memory_tracker_cb(cb_memory_tracker_t cb)
+{
+    _set_memory_tracker_cb(cb);
+}
 
 int init(rtloader_t *rtloader)
 {

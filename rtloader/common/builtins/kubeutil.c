@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 #include "kubeutil.h"
-#include "memory.h"
+
+#include "cgo_free.h"
 #include "stringutils.h"
 
 

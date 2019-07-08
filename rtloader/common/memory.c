@@ -4,24 +4,34 @@
 // Copyright 2019 Datadog, Inc.
 #include "memory.h"
 
-// these must be set by the Agent
-static cb_cgo_free_t cb_cgo_free = NULL;
+#include <stdlib.h>
 
-void _set_cgo_free_cb(cb_cgo_free_t cb) {
-    cb_cgo_free = cb;
+// default memory management functions
+static rtloader_malloc_t rt_malloc = malloc;
+static rtloader_free_t rt_free = free;
+
+// these must be set by the Agent
+static cb_memory_tracker_t cb_memory_tracker = NULL;
+
+void _set_memory_tracker_cb(cb_memory_tracker_t cb) {
+    cb_memory_tracker = NULL;
 }
 
-// On windows we cannot free memory block from another DLL. Agent's Callbacks
-// will return memory block to free, this is why we need a pointer to a CGO
-// free method to release memory allocated in the agent once we're done with
-// them.
-void cgo_free(void *ptr) {
-    // Technically this is not thread-safe as `cb_cgo_free` assignment
-    // is not atomic. Since the setter is called very early on and is
-    // a one-time operation we can live with it. Should that change
-    // we'd need to set a memory barrier here, and in `_set_cgo_free_cb()`
-    if (cb_cgo_free == NULL || ptr == NULL) {
-        return;
+void *_malloc(size_t sz) {
+    void *ptr = NULL;
+    ptr = rt_malloc(sz);
+
+    if (ptr && cb_memory_tracker) {
+        cb_memory_tracker(ptr, sz, DATADOG_AGENT_RTLOADER_ALLOCATION);
     }
-    cb_cgo_free(ptr);
+
+    return ptr;
+}
+
+void _free(void *ptr) {
+    rt_free(ptr);
+
+    if (ptr && cb_memory_tracker) {
+        cb_memory_tracker(ptr, 0, DATADOG_AGENT_RTLOADER_FREE);
+    }
 }

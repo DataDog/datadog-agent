@@ -30,13 +30,23 @@ import (
 #cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 
-#include <datadog_agent_rtloader.h>
+#include "datadog_agent_rtloader.h"
+#include "memory.h"
+
 #include <stdlib.h>
 
 // helpers
 
 char *getStringAddr(char **array, unsigned int idx) {
 	return array[idx];
+}
+
+//
+// init memory tracking facilities method
+//
+void MemoryTracker(void *, size_t, rtloader_mem_ops_t);
+void initMemoryTracker(void) {
+	set_memory_tracker_cb(MemoryTracker);
 }
 
 //
@@ -47,7 +57,7 @@ char *getStringAddr(char **array, unsigned int idx) {
 //
 
 void initCgoFree(rtloader_t *rtloader) {
-	set_cgo_free_cb(rtloader, free);
+	set_cgo_free_cb(rtloader, _free);
 }
 
 //
@@ -221,6 +231,9 @@ func Initialize(paths ...string) error {
 			pythonHome3 = agentpythonHome3
 		}
 	}
+
+	// memory related RTLoader-global initialization
+	C.initMemoryTracker()
 
 	var pyErr *C.char = nil
 	if pythonVersion == "2" {
