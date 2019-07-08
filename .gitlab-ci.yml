@@ -7,12 +7,13 @@ stages:
   - check_deploy
   - testkitchen_deploy
   - testkitchen_testing
-  - testkitchen_cleanup
   - image_build
   - image_deploy
   - deploy
   - deploy_invalidate
   - e2e
+  - testkitchen_cleanup
+
 
 variables:
   # The SRC_PATH is in the GOPATH of the builders which
