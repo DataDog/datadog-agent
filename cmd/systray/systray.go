@@ -28,7 +28,6 @@ type menuItem struct {
 
 var (
 	separator = "SEPARATOR"
-	menuitems []menuItem
 	ni        *walk.NotifyIcon
 	launchgui bool
 	eventname = windows.StringToUTF16Ptr("ddtray-event")
@@ -36,10 +35,13 @@ var (
 
 func init() {
 	enableLoggingToFile()
+}
+
+func createMenuItems() []menuItem {
 	av, _ := version.New(version.AgentVersion, version.Commit)
 	verstring := av.GetNumberAndPre()
 
-	menuitems = make([]menuItem, 0)
+	menuitems := make([]menuItem, 0)
 	menuitems = append(menuitems, menuItem{label: verstring, enabled: false})
 	menuitems = append(menuitems, menuItem{label: separator})
 	menuitems = append(menuitems, menuItem{label: "&Start", handler: onStart, enabled: true})
@@ -49,6 +51,8 @@ func init() {
 	menuitems = append(menuitems, menuItem{label: "&Flare", handler: onFlare, enabled: true})
 	menuitems = append(menuitems, menuItem{label: separator})
 	menuitems = append(menuitems, menuItem{label: "E&xit", handler: onExit, enabled: true})
+
+	return menuitems
 }
 
 func onExit() {
@@ -122,6 +126,9 @@ func main() {
 			log.Warnf("Failed to show custom message %v", err)
 		}
 	})
+
+	menuitems := createMenuItems()
+
 	for _, item := range menuitems {
 		var action *walk.Action
 		if item.label == separator {
