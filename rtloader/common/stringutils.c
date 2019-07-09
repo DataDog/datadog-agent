@@ -14,6 +14,15 @@ PyObject * ydump = NULL;
 PyObject * loader = NULL;
 PyObject * dumper = NULL;
 
+/**
+ * returns a C (NULL terminated UTF-8) string from a python string.
+ * 
+ * \param object  A Python string to be converted to C-string.
+ * 
+ * \return A standard C string (NULL terminated character pointer)
+ *  The returned pointer is allocated from the heap and must be
+ * deallocated (free()ed) by the caller
+ */
 char *as_string(PyObject *object)
 {
     if (object == NULL) {
@@ -151,6 +160,7 @@ char *as_yaml(PyObject *object) {
     retval = as_string(dumped);
 
 done:
+    //Py_XDECREF can accept (and ignore) NULL references
     Py_XDECREF(dumped);
     Py_XDECREF(kwargs);
     Py_XDECREF(args);
