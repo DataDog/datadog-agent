@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"math"
 
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -27,6 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const EXTERNAL_METRICS_MAX_BACKOFF = 32 * time.Second
+const EXTERNAL_METRICS_BASE_BACKOFF = 1 * time.Second
 
 type externalMetric struct {
 	info  provider.ExternalMetricInfo
@@ -74,28 +78,22 @@ func createTimer(period time.Duration) *timer {
 
 func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 	log.Infof("Starting async loop to collect External Metrics")
-	tick := time.NewTicker(time.Duration(p.maxAge) * time.Second)
-	defer tick.Stop()
 	ctxCancel, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	currentBackoff := EXTERNAL_METRICS_BASE_BACKOFF
 	for {
-		select {
-		case <-tick.C:
-			var externalMetricsList []externalMetric
-			// TODO as we implement a more resilient logic to access a potentially deleted CM, we should pass in ctxCancel in case of permafail.
-			rawMetrics, err := p.store.ListAllExternalMetricValues()
-			if err != nil {
-				if k8serrors.IsNotFound(err) {
-					log.Errorf("ConfigMap for external metrics not found: %s", err.Error())
-					cancel()
-				} else {
-					log.Errorf("Could not list the external metrics in the store: %s", err.Error())
-					p.isServing = false
-					break
-				}
+		var externalMetricsList []externalMetric
+		// TODO as we implement a more resilient logic to access a potentially deleted CM, we should pass in ctxCancel in case of permafail.
+		rawMetrics, err := p.store.ListAllExternalMetricValues()
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				log.Errorf("ConfigMap for external metrics not found: %s", err.Error())
+			} else {
+				log.Errorf("Could not list the external metrics in the store: %s", err.Error())
 			}
-
+			p.isServing = false
+		} else {
 			for _, metric := range rawMetrics {
 				// Only metrics that exist in Datadog and available are eligible to be evaluated in the HPA process.
 				if !metric.Valid {
@@ -121,13 +119,23 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 			p.externalMetrics = externalMetricsList
 			p.timestamp = metav1.Now().Unix()
 			p.isServing = true
-
-			out.resetTimer()
-
+		}
+		select {
 		case <-ctxCancel.Done():
-			p.isServing = false
 			log.Infof("Received instruction to terminate collection of External Metrics, stopping async loop")
 			return
+		default:
+			if p.isServing = true {
+				currentBackoff = EXTERNAL_METRICS_BASE_BACKOFF
+			} else {
+				currentBackoff = currentBackoff * 2
+				if currentBackoff > EXTERNAL_METRICS_MAX_BACKOFF {
+					currentBackoff = EXTERNAL_METRICS_MAX_BACKOFF
+				}
+				log.Infof("Retrying externalMetricsSetter with backoff %.0f seconds", currentBackoff.Seconds())
+			}
+			time.Sleep(currentBackoff)
+			continue
 		}
 	}
 }
