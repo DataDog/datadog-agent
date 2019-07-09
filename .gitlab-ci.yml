@@ -706,10 +706,10 @@ kitchen_windows:
     - cd $DD_AGENT_TESTING_DIR
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20181122"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20181125"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter:2016.127.20181122"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter:2019.0.20181122"
+    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks
@@ -730,7 +730,7 @@ kitchen_windows_installer:
     - cd $DD_AGENT_TESTING_DIR
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20181122"
+    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
     - bash -l tasks/run-test-kitchen.sh windows-install-test
   artifacts:
     expire_in: 2 weeks
@@ -752,7 +752,7 @@ kitchen_centos:
     - cd $DD_AGENT_TESTING_DIR
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - export TEST_PLATFORMS="centos-74,OpenLogic:CentOS:7.4:7.4.20171110"
+    - export TEST_PLATFORMS="centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks
@@ -774,8 +774,8 @@ kitchen_ubuntu:
     - cd $DD_AGENT_TESTING_DIR
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201803080"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,Canonical:UbuntuServer:16.04.0-LTS:16.04.201802220"
+    - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,Canonical:UbuntuServer:16.04.0-LTS:16.04.201906170"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks
@@ -819,7 +819,7 @@ kitchen_debian:
     - cd $DD_AGENT_TESTING_DIR
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.0.201803130"
+    - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.20190313.0"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks

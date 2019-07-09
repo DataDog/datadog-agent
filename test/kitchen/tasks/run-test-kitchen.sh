@@ -97,4 +97,4 @@ kitchen diagnose --no-instances --loader
 rm -rf cookbooks
 rm -f Berksfile.lock
 
-rake dd-agent-azure-parallel[20]
+rake dd-agent-azure-parallel
