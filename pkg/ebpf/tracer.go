@@ -21,7 +21,7 @@ import (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = [4]string{"conntrack", "state", "tracer", "ebpf"}
+	expvarTypes     = [5]string{"conntrack", "state", "tracer", "ebpf", "kprobes"}
 )
 
 func init() {
@@ -435,8 +435,8 @@ func (t *Tracer) getEbpfTelemetry() map[string]int64 {
 	telemetry := &kernelTelemetry{}
 	if err := t.m.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
 		// This can happen if we haven't initialized the telemetry object yet
-		// so let's just use a debug log
-		log.Debugf("error retrieving the telemetry struct: %s", err)
+		// so let's just use a trace log
+		log.Tracef("error retrieving the telemetry struct: %s", err)
 	}
 
 	return map[string]int64{
@@ -515,7 +515,8 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 			"conn_valid_skipped":           skipped, // Skipped connections (e.g. Local DNS requests)
 			"expired_tcp_conns":            expiredTCP,
 		},
-		"ebpf": t.getEbpfTelemetry(),
+		"ebpf":    t.getEbpfTelemetry(),
+		"kprobes": GetProbeStats(),
 	}, nil
 }
 
