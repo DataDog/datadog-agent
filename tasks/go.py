@@ -27,6 +27,8 @@ MODULE_WHITELIST = [
     "iostats_pdh_windows.go",
     "iostats_wmi_windows.go",
     "pdh.go",
+    "pdh_amd64.go",
+    "pdh_386.go",
     "pdhhelper.go",
     "shutil.go",
     "tailer_windows.go",
