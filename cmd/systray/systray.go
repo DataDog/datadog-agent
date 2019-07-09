@@ -37,22 +37,41 @@ func init() {
 	enableLoggingToFile()
 }
 
-func createMenuItems() []menuItem {
+func createMenuItems(notifyIcon *walk.NotifyIcon) []menuItem {
 	av, _ := version.New(version.AgentVersion, version.Commit)
 	verstring := av.GetNumberAndPre()
+
+	isAdmin := true
+
+	checkRightsAndRun := func(action func()) func() {
+		return func() {
+			if !isAdmin {
+				showCustomMessage(notifyIcon, "You do not have the right to perform this action."+
+					"Please login with administrator privileges.")
+			} else {
+				action()
+			}
+		}
+	}
 
 	menuitems := make([]menuItem, 0)
 	menuitems = append(menuitems, menuItem{label: verstring, enabled: false})
 	menuitems = append(menuitems, menuItem{label: separator})
-	menuitems = append(menuitems, menuItem{label: "&Start", handler: onStart, enabled: true})
-	menuitems = append(menuitems, menuItem{label: "S&top", handler: onStop, enabled: true})
-	menuitems = append(menuitems, menuItem{label: "&Restart", handler: onRestart, enabled: true})
-	menuitems = append(menuitems, menuItem{label: "&Configure", handler: onConfigure, enabled: canConfigure()})
+	menuitems = append(menuitems, menuItem{label: "&Start", handler: checkRightsAndRun(onStart), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "S&top", handler: checkRightsAndRun(onStop), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "&Restart", handler: checkRightsAndRun(onRestart), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "&Configure", handler: checkRightsAndRun(onConfigure), enabled: canConfigure()})
 	menuitems = append(menuitems, menuItem{label: "&Flare", handler: onFlare, enabled: true})
 	menuitems = append(menuitems, menuItem{label: separator})
 	menuitems = append(menuitems, menuItem{label: "E&xit", handler: onExit, enabled: true})
 
 	return menuitems
+}
+
+func showCustomMessage(notifyIcon *walk.NotifyIcon, message string) {
+	if err := notifyIcon.ShowCustom("Datadog Agent Manager", message); err != nil {
+		log.Warnf("Failed to show custom message %v", err)
+	}
 }
 
 func onExit() {
@@ -118,16 +137,10 @@ func main() {
 		if button != walk.LeftButton {
 			return
 		}
-
-		if err := ni.ShowCustom(
-			"Datadog Agent Manager",
-			"Please right click to display available options."); err != nil {
-
-			log.Warnf("Failed to show custom message %v", err)
-		}
+		showCustomMessage(ni, "Please right click to display available options.")
 	})
 
-	menuitems := createMenuItems()
+	menuitems := createMenuItems(ni)
 
 	for _, item := range menuitems {
 		var action *walk.Action
