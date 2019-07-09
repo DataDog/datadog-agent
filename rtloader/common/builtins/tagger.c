@@ -49,12 +49,11 @@ int parseArgs(PyObject *args, char **id, int *cardinality)
 */
 PyObject *buildTagsList(char **tags)
 {
+    PyObject *res = PyList_New(0);
     if (tags == NULL) {
-        // Py_RETURN_NONE macro increases the refcount on Py_None
-        Py_RETURN_NONE;
+        return res;
     }
 
-    PyObject *res = PyList_New(0);
     int i;
     for (i = 0; tags[i]; i++) {
         PyObject *pyTag = PyStringFromCString(tags[i]);
