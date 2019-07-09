@@ -244,8 +244,8 @@ func (a *Agent) Process(t pb.Trace) {
 		Env:           a.conf.DefaultEnv,
 		Sublayers:     sublayers,
 	}
-	// Replace Agent-configured environment with `env` coming from span tag.
 	if tenv := traceutil.GetEnv(t); tenv != "" {
+		// this trace has a user defined env.
 		pt.Env = tenv
 	}
 
@@ -254,44 +254,42 @@ func (a *Agent) Process(t pb.Trace) {
 		a.ServiceExtractor.Process(pt.WeightedTrace)
 	}()
 
-	go func(pt ProcessedTrace) {
-		defer watchdog.LogOnPanic()
-		defer timing.Since("datadog.trace_agent.internal.concentrator_ms", time.Now())
-		// Everything is sent to concentrator for stats, regardless of sampling.
-		a.Concentrator.Add(&stats.Input{
-			Trace:     pt.WeightedTrace,
-			Sublayers: pt.Sublayers,
-			Env:       pt.Env,
-		})
-	}(pt)
-
-	// Don't go through sampling for < 0 priority traces
-	if priority < 0 {
-		return
-	}
-	// Run both full trace sampling and transaction extraction in another goroutine.
-	var sampledSpans writer.SampledSpans
-
-	sampled, rate := a.sample(pt)
-	if sampled {
-		pt.Sampled = sampled
-		sampler.AddGlobalRate(pt.Root, rate)
-		sampledSpans.Trace = pt.Trace
+	if priority >= 0 {
+		a.sample(ts, pt)
 	}
 
-	// NOTE: Events can be processed on non-sampled traces.
-	events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
-	sampledSpans.Events = events
-
-	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
-	atomic.AddInt64(&ts.EventsSampled, int64(len(sampledSpans.Events)))
-
-	if !sampledSpans.Empty() {
-		a.spansOut <- &sampledSpans
+	a.Concentrator.In <- &stats.Input{
+		Trace:     pt.WeightedTrace,
+		Sublayers: pt.Sublayers,
+		Env:       pt.Env,
 	}
 }
 
-func (a *Agent) sample(pt ProcessedTrace) (sampled bool, rate float64) {
+// sample decides whether the trace will be kept and extracts any APM events
+// from it.
+func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) {
+	var ss writer.SampledSpans
+
+	sampled, rate := a.runSamplers(pt)
+	if sampled {
+		sampler.AddGlobalRate(pt.Root, rate)
+		ss.Trace = pt.Trace
+	}
+
+	events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
+	ss.Events = events
+
+	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
+	atomic.AddInt64(&ts.EventsSampled, int64(len(events)))
+
+	if !ss.Empty() {
+		a.spansOut <- &ss
+	}
+}
+
+// runSamplers runs all the agent's samplers on pt and returns the sampling decision
+// along with the sampling rate.
+func (a *Agent) runSamplers(pt ProcessedTrace) (sampled bool, rate float64) {
 	var sampledPriority, sampledScore bool
 	var ratePriority, rateScore float64
 

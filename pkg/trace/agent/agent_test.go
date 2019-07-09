@@ -302,7 +302,7 @@ func TestSampling(t *testing.T) {
 				sampler.SetSamplingPriority(pt.Root, 1)
 			}
 
-			sampled, rate := a.sample(pt)
+			sampled, rate := a.runSamplers(pt)
 			assert.EqualValues(t, tt.wantRate, rate)
 			assert.EqualValues(t, tt.wantSampled, sampled)
 		})
@@ -567,7 +567,7 @@ func benchThroughput(file string) func(*testing.B) {
 			for {
 				select {
 				case <-agnt.ServiceExtractor.outServices:
-				case <-agnt.Concentrator.OutStats:
+				case <-agnt.Concentrator.Out:
 				case <-exit:
 					return
 				}
