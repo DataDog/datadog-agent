@@ -8,6 +8,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"os/exec"
 
@@ -41,13 +42,20 @@ func createMenuItems(notifyIcon *walk.NotifyIcon) []menuItem {
 	av, _ := version.New(version.AgentVersion, version.Commit)
 	verstring := av.GetNumberAndPre()
 
-	isAdmin := true
+	isAdmin, err := isUserAnAdmin()
+	areAdminButtonsAvailable := isAdmin
+
+	if err != nil {
+		log.Warnf("Failed to call isUserAnAdmin %v", err)
+		// If we cannot determine if the user is admin or not let the user allow to click on the buttons.
+		areAdminButtonsAvailable = true
+	}
 
 	checkRightsAndRun := func(action func()) func() {
 		return func() {
-			if !isAdmin {
-				showCustomMessage(notifyIcon, "You do not have the right to perform this action."+
-					"Please login with administrator privileges.")
+			if !areAdminButtonsAvailable {
+				showCustomMessage(notifyIcon, "You do not have the right to perform this action. "+
+					"Please login with administrator account.")
 			} else {
 				action()
 			}
@@ -66,6 +74,22 @@ func createMenuItems(notifyIcon *walk.NotifyIcon) []menuItem {
 	menuitems = append(menuitems, menuItem{label: "E&xit", handler: onExit, enabled: true})
 
 	return menuitems
+}
+
+func isUserAnAdmin() (bool, error) {
+	shell32 := windows.NewLazySystemDLL("Shell32.dll")
+	defer windows.FreeLibrary(windows.Handle(shell32.Handle()))
+
+	isUserAnAdminProc := shell32.NewProc("IsUserAnAdmin")
+	ret, _, winError := isUserAnAdminProc.Call()
+
+	if winError != windows.NTE_OP_OK {
+		return false, fmt.Errorf("IsUserAnAdmin returns error code %d", winError)
+	}
+	if ret == 0 {
+		return false, nil
+	}
+	return true, nil
 }
 
 func showCustomMessage(notifyIcon *walk.NotifyIcon, message string) {
