@@ -10,6 +10,7 @@ package kubernetes
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -20,8 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
-// The path to the pods log directory.
-const podsDirectoryPath = "/var/log/pods"
+const (
+	basePath   = "/var/log/pods"
+	anyLogFile = "*.log"
+)
 
 var collectAllDisabledError = fmt.Errorf("%s disabled", config.ContainerCollectAll)
 
@@ -39,9 +42,8 @@ type Launcher struct {
 // NewLauncher returns a new launcher.
 func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) (*Launcher, error) {
 	if !isIntegrationAvailable() {
-		return nil, fmt.Errorf("%s not found", podsDirectoryPath)
+		return nil, fmt.Errorf("%s not found", basePath)
 	}
-
 	kubeutil, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return nil, err
@@ -63,7 +65,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 }
 
 func isIntegrationAvailable() bool {
-	if _, err := os.Stat(podsDirectoryPath); err != nil {
+	if _, err := os.Stat(basePath); err != nil {
 		return false
 	}
 
@@ -183,7 +185,7 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		}
 	}
 	cfg.Type = config.FileType
-	cfg.Path = l.getPath(pod, container)
+	cfg.Path = l.getPath(basePath, pod, container)
 	cfg.Identifier = container.ID
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid kubernetes annotation: %v", err)
@@ -220,9 +222,28 @@ func (l *Launcher) getSourceName(pod *kubelet.Pod, container kubelet.ContainerSt
 	return fmt.Sprintf("%s/%s/%s", pod.Metadata.Namespace, pod.Metadata.Name, container.Name)
 }
 
-// getPath returns the path where all the logs of the container of the pod are stored.
-func (l *Launcher) getPath(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
-	return fmt.Sprintf("%s/%s/%s/*.log", podsDirectoryPath, pod.Metadata.UID, container.Name)
+// getPath returns a wildcard matching with any logs file of container in pod.
+func (l *Launcher) getPath(basePath string, pod *kubelet.Pod, container kubelet.ContainerStatus) string {
+	// the pattern for container logs is different depending on the version of Kubernetes
+	// so we need to try both format,
+	// until v1.13 it was `/var/log/pods/{pod_uid}/{container_name}/{n}.log`,
+	// since v1.14 it is `/var/log/pods/{pod_namespace}_{pod_name}_{pod_uid}/{container_name}/{n}.log`.
+	// see: https://github.com/kubernetes/kubernetes/pull/74441 for more information.
+	oldDirectory := filepath.Join(basePath, l.getPodDirectoryUntil1_13(pod))
+	if _, err := os.Stat(oldDirectory); err == nil {
+		return filepath.Join(oldDirectory, container.Name, anyLogFile)
+	}
+	return filepath.Join(basePath, l.getPodDirectorySince1_14(pod), container.Name, anyLogFile)
+}
+
+// getPodDirectoryUntil1_13 returns the name of the directory of pod containers until Kubernetes v1.13.
+func (l *Launcher) getPodDirectoryUntil1_13(pod *kubelet.Pod) string {
+	return pod.Metadata.UID
+}
+
+// getPodDirectorySince1_14 returns the name of the directory of pod containers since Kubernetes v1.14.
+func (l *Launcher) getPodDirectorySince1_14(pod *kubelet.Pod) string {
+	return fmt.Sprintf("%s_%s_%s", pod.Metadata.Namespace, pod.Metadata.Name, pod.Metadata.UID)
 }
 
 // getShortImageName returns the short image name of a container
