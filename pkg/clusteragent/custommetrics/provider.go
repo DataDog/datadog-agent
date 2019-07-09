@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"math"
 
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
