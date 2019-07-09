@@ -11,8 +11,6 @@ type PDH_FMT_COUNTERVALUE_DOUBLE struct {
 	CStatus      uint32
 	floatpadding uint32
 	DoubleValue  float64
-	padding1     uint32
-	padding2     uint32
 }
 
 // Union specialization for 64 bit integer values
@@ -20,8 +18,6 @@ type PDH_FMT_COUNTERVALUE_LARGE struct {
 	CStatus      uint32
 	floatpadding uint32
 	LargeValue   int64
-	padding1     uint32
-	padding2     uint32
 }
 
 // Union specialization for long values
@@ -29,6 +25,4 @@ type PDH_FMT_COUNTERVALUE_LONG struct {
 	CStatus      uint32
 	floatpadding uint32
 	LongValue    int32
-	padding1     int32
-	padding2     int32
 }
