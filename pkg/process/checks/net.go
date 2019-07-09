@@ -144,7 +144,15 @@ func batchConnections(cfg *config.AgentConfig, groupID int32, cxs []*model.Conne
 
 	for len(cxs) > 0 {
 		batchSize := min(cfg.MaxConnsPerMessage, len(cxs))
-		ctrIDForPID := Process.filterCtrIDsByPIDs(connectionPIDs(cxs[:batchSize]))
+		// get the container and process relationship from either process check or container check
+		var ctrIDForPID map[int32]string
+		// process check is never run, use container check instead
+		if Process.lastRun.IsZero() {
+			ctrIDForPID = Container.filterCtrIDsByPIDs(connectionPIDs(cxs[:batchSize]))
+		} else {
+			ctrIDForPID = Process.filterCtrIDsByPIDs(connectionPIDs(cxs[:batchSize]))
+		}
+
 		batches = append(batches, &model.CollectorConnections{
 			HostName:        cfg.HostName,
 			Connections:     cxs[:batchSize],
