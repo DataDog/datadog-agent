@@ -16,12 +16,12 @@ type kprobeStats struct {
 	miss int64
 }
 
-// KPROBEPROFILE is the default path to the kprobe_profile file
-const KPROBEPROFILE = "/sys/kernel/debug/tracing/kprobe_profile"
+// KprobeProfile is the default path to the kprobe_profile file
+const KprobeProfile = "/sys/kernel/debug/tracing/kprobe_profile"
 
 // GetProbeStats gathers stats about the # of kprobes triggered /missed by reading the kprobe_profile file
 func GetProbeStats() map[string]int64 {
-	m, err := readKprobeProfile(KPROBEPROFILE)
+	m, err := readKprobeProfile(KprobeProfile)
 	if err != nil {
 		log.Debugf("error retrieving probe stats: %s", err)
 		return map[string]int64{}
