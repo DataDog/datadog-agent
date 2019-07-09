@@ -14,7 +14,6 @@ stages:
   - e2e
   - testkitchen_cleanup
 
-
 variables:
   # The SRC_PATH is in the GOPATH of the builders which
   # currently is /go
