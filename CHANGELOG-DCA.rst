@@ -2,6 +2,58 @@
 Release Notes
 =============
 
+1.3.1
+=====
+2019-06-19
+
+- Fix "Kube Services" service: `kube service` tags attached to pod are not consistent. 
+
+.. _Release Notes_1.3.0:
+
+1.3.0
+=====
+
+.. _Release Notes_1.3.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2019-05-07
+
+The Datadog Cluster Agent can now auto-discover config templates for kubernetes endpoints checks and expose them to node Agents via its API. This feature is compatible with the version 6.12.0 and up of the Datadog Agent.
+
+Refer to `the official documentation <https://docs.datadoghq.com/agent/autodiscovery/endpointschecks/>`_ to read more about this feature.
+
+
+1.3.0-rc.3
+==========
+2019-05-03
+
+Bug Fixes
+---------
+- Fix race condition: immutable MetaBundle stored in DCA cache.
+
+Bug Fixes
+---------
+- Fix race condition in Cluster Agent's API handler.
+
+1.3.0-rc.1
+==========
+2019-04-24
+
+New Features
+------------
+- The Cluster Agent can now auto-discover config templates for kubernetes endpoints checks and expose them to node Agents via its API
+- Add the ``config`` and ``configcheck`` command to the cluster agent CLI
+- Add the ``diagnose`` command to the cluster agent CLI and flare
+- Add cluster_checks.extra_tags option
+
+Enhancement Notes
+-----------------
+- Improving Lifecycle of the External Metrics Provider
+- Support milliquantities for the External Metrics Provider
+- Move logs info to debug
+
 .. _Release Notes_1.2.0:
 
 1.2.0
