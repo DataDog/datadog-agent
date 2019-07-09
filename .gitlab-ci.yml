@@ -705,6 +705,7 @@ kitchen_windows:
   script:
     - cd $CI_PROJECT_DIR
     - cd $DD_AGENT_TESTING_DIR
+    - rm -rf $CI_PROJECT_DIR/kitchen_logs
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20181122"
@@ -729,6 +730,7 @@ kitchen_windows_installer:
   script:
     - cd $CI_PROJECT_DIR
     - cd $DD_AGENT_TESTING_DIR
+    - rm -rf $CI_PROJECT_DIR/kitchen_logs
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20181122"
@@ -751,6 +753,7 @@ kitchen_centos:
   script:
     - cd $CI_PROJECT_DIR
     - cd $DD_AGENT_TESTING_DIR
+    - rm -rf $CI_PROJECT_DIR/kitchen_logs
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="centos-74,OpenLogic:CentOS:7.4:7.4.20171110"
@@ -773,6 +776,7 @@ kitchen_ubuntu:
   script:
     - cd $CI_PROJECT_DIR
     - cd $DD_AGENT_TESTING_DIR
+    - rm -rf $CI_PROJECT_DIR/kitchen_logs
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201803080"
@@ -796,6 +800,7 @@ kitchen_suse:
   script:
     - cd $CI_PROJECT_DIR
     - cd $DD_AGENT_TESTING_DIR
+    - rm -rf $CI_PROJECT_DIR/kitchen_logs
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP4:2019.06.17"
@@ -818,6 +823,7 @@ kitchen_debian:
   script:
     - cd $CI_PROJECT_DIR
     - cd $DD_AGENT_TESTING_DIR
+    - rm -rf $CI_PROJECT_DIR/kitchen_logs
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.0.201803130"
