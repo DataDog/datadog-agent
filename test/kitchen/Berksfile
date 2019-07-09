@@ -7,7 +7,7 @@ cookbook 'datadog', git: "https://github.com/datadog/chef-datadog.git", branch: 
 # apt update fails a lot in our debian instances.
 # This can be removed if the datadog cookbook no longer depends on apt, since it's only used there
 # (ie: when the datadog cookbook requires chef >= 13.3, which already bundles everything we use from apt).
-cookbook 'apt', '< 4.0'
+cookbook 'apt', '>= 7.1'
 
 cookbook 'dd-agent-install', path: './site-cookbooks/dd-agent-install'
 cookbook 'dd-agent-upgrade', path: './site-cookbooks/dd-agent-upgrade'
