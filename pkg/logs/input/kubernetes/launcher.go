@@ -226,18 +226,23 @@ func (l *Launcher) getSourceName(pod *kubelet.Pod, container kubelet.ContainerSt
 func (l *Launcher) getPath(basePath string, pod *kubelet.Pod, container kubelet.ContainerStatus) string {
 	// the pattern for container logs is different depending on the version of Kubernetes
 	// so we need to try both format,
-	// previously it was `/var/log/pods/{pod_uid}/{container_name}/{n}.log`,
-	// then it changed to `/var/log/pods/{pod_namespace}_{pod_name}_{pod_uid}/{container_name}/{n}.log`.
+	// until v1.13 it was `/var/log/pods/{pod_uid}/{container_name}/{n}.log`,
+	// since v1.14 it is `/var/log/pods/{pod_namespace}_{pod_name}_{pod_uid}/{container_name}/{n}.log`.
 	// see: https://github.com/kubernetes/kubernetes/pull/74441 for more information.
-	oldDirectory := filepath.Join(basePath, pod.Metadata.UID)
+	oldDirectory := filepath.Join(basePath, l.getPodDirectoryUntil1_13(pod))
 	if _, err := os.Stat(oldDirectory); err == nil {
-		return filepath.Join(basePath, pod.Metadata.UID, container.Name, anyLogFile)
+		return filepath.Join(oldDirectory, container.Name, anyLogFile)
 	}
-	return filepath.Join(basePath, l.getPodDirectory(pod), container.Name, anyLogFile)
+	return filepath.Join(basePath, l.getPodDirectorySince1_14(pod), container.Name, anyLogFile)
 }
 
-// getPodDirectory returns the name of the directory of pod containers.
-func (l *Launcher) getPodDirectory(pod *kubelet.Pod) string {
+// getPodDirectoryUntil1_13 returns the name of the directory of pod containers until Kubernetes v1.13.
+func (l *Launcher) getPodDirectoryUntil1_13(pod *kubelet.Pod) string {
+	return pod.Metadata.UID
+}
+
+// getPodDirectorySince1_14 returns the name of the directory of pod containers since Kubernetes v1.14.
+func (l *Launcher) getPodDirectorySince1_14(pod *kubelet.Pod) string {
 	return fmt.Sprintf("%s_%s_%s", pod.Metadata.Namespace, pod.Metadata.Name, pod.Metadata.UID)
 }
 
