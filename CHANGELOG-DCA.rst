@@ -2,6 +2,12 @@
 Release Notes
 =============
 
+1.3.1
+=====
+2019-06-19
+
+- Fix "Kube Services" service: `kube service` tags attached to pod are not consistent. 
+
 .. _Release Notes_1.3.0:
 
 1.3.0
