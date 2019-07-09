@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"strings"
 	"testing"
+	"time"
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -70,7 +71,7 @@ func TestNormalizeEmptyServiceNoLang(t *testing.T) {
 	s := newTestSpan()
 	s.Service = ""
 	assert.NoError(t, normalize(ts, s))
-	assert.Equal(t, s.Service, DefaultServiceName)
+	assert.Equal(t, DefaultServiceName, s.Service)
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{ServiceEmpty: 1}), ts)
 }
 
@@ -109,7 +110,7 @@ func TestNormalizeEmptyName(t *testing.T) {
 	s := newTestSpan()
 	s.Name = ""
 	assert.NoError(t, normalize(ts, s))
-	assert.Equal(t, s.Name, DefaultSpanName)
+	assert.Equal(t, s.Name, strings.ReplaceAll(DefaultSpanName, "-", "_"))
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameEmpty: 1}), ts)
 }
 
@@ -212,6 +213,17 @@ func TestNormalizeStartTooSmall(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpan()
 	s.Start = 42
+	before := s.Start
+	assert.NoError(t, normalize(ts, s))
+	assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: 1}), ts)
+	assert.True(t, s.Start > before, "start should have been reset to current time")
+}
+
+func TestNormalizeStartTooSmallWithLargeDuration(t *testing.T) {
+	ts := newTagStats()
+	s := newTestSpan()
+	s.Start = 42
+	s.Duration = time.Now().UnixNano() * 2
 	before := s.Start
 	assert.NoError(t, normalize(ts, s))
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: 1}), ts)

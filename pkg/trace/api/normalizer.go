@@ -25,9 +25,9 @@ const (
 	// MaxTypeLen the maximum length a span type can have
 	MaxTypeLen = 100
 	// DefaultServiceName is the default name we assign a service if it's missing and we have no reasonable fallback
-	DefaultServiceName = "service"
+	DefaultServiceName = "unnamed-service"
 	// DefaultSpanName is the default name we assign a span if it's missing and we have no reasonable fallback
-	DefaultSpanName = "service.trace"
+	DefaultSpanName = "unnamed-operation"
 )
 
 var (
@@ -108,11 +108,6 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	// Start & Duration as nanoseconds timestamps
 	// if s.Start is very little, less than year 2000 probably a unit issue so discard
 	// (or it is "le bug de l'an 2000")
-	if s.Start < Year2000NanosecTS {
-		atomic.AddInt64(&ts.SpansMalformed.InvalidStartDate, 1)
-		log.Debugf("Fixing malformed trace. Start date is invalid (reason:invalid_start_date), setting span.start=time.now(): %s", s)
-		s.Start = time.Now().UnixNano()
-	}
 	if s.Duration < 0 {
 		atomic.AddInt64(&ts.SpansMalformed.InvalidDuration, 1)
 		log.Debugf("Fixing malformed trace. Duration is invalid (reason:invalid_duration), setting span.duration=0: %s", s)
@@ -122,6 +117,15 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 		atomic.AddInt64(&ts.SpansMalformed.InvalidDuration, 1)
 		log.Debugf("Fixing malformed trace. Duration is too large and causes overflow (reason:invalid_duration), setting span.duration=0: %s", s)
 		s.Duration = 0
+	}
+	if s.Start < Year2000NanosecTS {
+		atomic.AddInt64(&ts.SpansMalformed.InvalidStartDate, 1)
+		log.Debugf("Fixing malformed trace. Start date is invalid (reason:invalid_start_date), setting span.start=time.now(): %s", s)
+		now := time.Now().UnixNano()
+		s.Start = now - s.Duration
+		if s.Start < 0 {
+			s.Start = now
+		}
 	}
 
 	s.Type = toUTF8(s.Type)
