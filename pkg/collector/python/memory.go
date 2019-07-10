@@ -49,6 +49,7 @@ func init() {
 func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 	// run async for performance reasons
 	go func() {
+		log.Debugf("Memory Tracker - ptr: %v, sz: %v, op: %v", ptr, sz, op)
 		switch op {
 		case C.DATADOG_AGENT_RTLOADER_ALLOCATION:
 			pointerCache.Store(ptr, sz)
