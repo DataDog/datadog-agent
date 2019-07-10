@@ -57,9 +57,11 @@ type metricConfigItem struct {
 var metricConfigs = map[string][]metricConfigItem{
 	typeService: {
 		{
+			// only present from systemd v220
 			metricName:         "systemd.service.cpu_usage_n_sec",
 			propertyName:       "CPUUsageNSec",
 			accountingProperty: "CPUAccounting",
+			optional:           true,
 		},
 		{
 			metricName:         "systemd.service.memory_current",
@@ -428,7 +430,7 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 	for _, regexString := range c.config.instance.UnitRegexStrings {
 		pattern, err := regexp.Compile(regexString)
 		if err != nil {
-			c.Warnf("Failed to parse systemd check option unit_regexes: %s", err)
+			log.Warnf("Failed to parse systemd check option unit_regexes: %s", err)
 			continue
 		}
 		c.config.instance.UnitRegexPatterns = append(c.config.instance.UnitRegexPatterns, pattern)
