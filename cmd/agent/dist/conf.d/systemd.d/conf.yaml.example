@@ -4,7 +4,7 @@ instances:
     -
     ## @param unit_names - list of strings - optional
     ## List of systemd units to monitor (full name e.g. ssh.service).
-    ## If unit_names and unit_regexes are both NOT specified, the check will monitor all units.
+    ## If `unit_names` and `unit_regexes` are both NOT specified, the check monitors all units.
     #
     # unit_names:
     #   - <UNIT_NAME>
