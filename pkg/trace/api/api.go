@@ -205,7 +205,7 @@ func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
 	mux.Handle("/debug/vars", expvar.Handler())
 }
 
-// listenUnix returns a *net.Listener listening on the given "unix" socket path.
+// listenUnix returns a net.Listener listening on the given "unix" socket path.
 func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
 	fi, err := os.Stat(path)
 	if err == nil {
@@ -227,7 +227,7 @@ func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
 	return ln, err
 }
 
-// listenTCP creates a new HTTP server listening on the provided TCP address.
+// listenTCP creates a new net.Listener on the provided TCP address.
 func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 	tcpln, err := net.Listen("tcp", addr)
 	if err != nil {
