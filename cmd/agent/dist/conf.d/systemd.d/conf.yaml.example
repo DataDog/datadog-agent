@@ -18,10 +18,7 @@ instances:
     ## Learn more about custom metrics: https://docs.datadoghq.com/developers/metrics/custom_metrics/#how-is-a-custom-metric-defined
     #
     # unit_regexes:
-    #   - <UNIT_NAME>          # match any unit name containing "<UNIT_NAME>"
     #   - ^<UNIT_NAME>$        # match exactly the unit name "<UNIT_NAME>"
-    #   - ^<PREFIX>            # match unit name with prefix "<PREFIX>"
-    #   - <SUFFIX>$            # match unit name with suffix "<SUFFIX>"
 
     ## @param tags  - list of key:value elements - optional
     ## List of tags to attach to every metric, event, and service check emitted by this integration.
