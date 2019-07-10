@@ -294,6 +294,7 @@ func (r *HTTPReceiver) tagStats(req *http.Request) *info.TagStats {
 	return r.Stats.GetTagStats(info.Tags{
 		Lang:          req.Header.Get("Datadog-Meta-Lang"),
 		LangVersion:   req.Header.Get("Datadog-Meta-Lang-Version"),
+		LangVendor:    req.Header.Get("Datadog-Meta-Lang-Interpreter-Vendor"),
 		Interpreter:   req.Header.Get("Datadog-Meta-Lang-Interpreter"),
 		TracerVersion: req.Header.Get("Datadog-Meta-Tracer-Version"),
 	})
