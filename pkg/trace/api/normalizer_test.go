@@ -210,6 +210,7 @@ func TestNormalizeStart(t *testing.T) {
 		assert.Equal(t, before, s.Start)
 		assert.Equal(t, newTagStats(), ts)
 	})
+
 	t.Run("too-small", func(t *testing.T) {
 		ts := newTagStats()
 		s := newTestSpan()
@@ -218,6 +219,7 @@ func TestNormalizeStart(t *testing.T) {
 		assert.Equal(t, before, s.Start)
 		assert.Equal(t, newTagStats(), ts)
 	})
+
 	t.Run("large-duration", func(t *testing.T) {
 		ts := newTagStats()
 		s := newTestSpan()
