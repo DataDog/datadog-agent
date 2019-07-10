@@ -218,7 +218,7 @@ func TestNormalizeStart(t *testing.T) {
 		minStart := time.Now().UnixNano() - s.Duration
 		assert.NoError(t, normalize(ts, s))
 		assert.True(t, s.Start >= minStart)
-		assert.True(t, s.Start <= time.Now().UnixNano() - s.Duration)
+		assert.True(t, s.Start <= time.Now().UnixNano()-s.Duration)
 		assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: 1}), ts)
 	})
 
