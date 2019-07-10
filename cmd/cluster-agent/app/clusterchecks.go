@@ -29,21 +29,19 @@ var clusterChecksCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// we'll search for a config file named `datadog-cluster.yaml`
 		config.Datadog.SetConfigName("datadog-cluster")
-		err := common.SetupConfig(confPath)
-		if err != nil {
-			return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)
-		}
 		if flagNoColor {
 			color.NoColor = true
 		}
-		err = flare.GetClusterChecks(color.Output)
-		if err != nil {
+
+		var err error
+		if err = common.SetupConfig(confPath); err != nil {
+			return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)
+		}
+
+		if err = flare.GetClusterChecks(color.Output); err != nil {
 			return err
 		}
-		err = flare.GetEndpointsChecks(color.Output)
-		if err != nil {
-			return err
-		}
-		return nil
+
+		return flare.GetEndpointsChecks(color.Output)
 	},
 }
