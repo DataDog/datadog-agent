@@ -40,7 +40,7 @@ var (
 func normalize(ts *info.TagStats, s *pb.Span) error {
 	fallbackServiceName := DefaultServiceName
 	if ts.Lang != "" {
-		fallbackServiceName = ts.Lang
+		fallbackServiceName = fmt.Sprintf("unnamed-%s-service", ts.Lang)
 	}
 	if s.TraceID == 0 {
 		atomic.AddInt64(&ts.TracesDropped.TraceIDZero, 1)

@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"math/rand"
 	"strings"
@@ -81,7 +82,7 @@ func TestNormalizeEmptyServiceWithLang(t *testing.T) {
 	s.Service = ""
 	ts.Lang = "java"
 	assert.NoError(t, normalize(ts, s))
-	assert.Equal(t, s.Service, ts.Lang)
+	assert.Equal(t, s.Service, fmt.Sprintf("unnamed-%s-service", ts.Lang))
 	tsExpected := tsMalformed(&info.SpansMalformed{ServiceEmpty: 1})
 	tsExpected.Lang = ts.Lang
 	assert.Equal(t, tsExpected, ts)
