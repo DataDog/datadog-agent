@@ -18,7 +18,7 @@ import (
 // Install registers v1 API endpoints for endpoints checks
 func installEndpointsCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/endpointschecks/configs/{nodeName}", getEndpointsCheckConfigs(sc)).Methods("GET")
-	r.HandleFunc("/endpointschecks", getEndpointsChecksState(sc)).Methods("GET")
+	r.HandleFunc("/endpointschecks/configs", getAllEndpointsCheckConfigs(sc)).Methods("GET")
 }
 
 // getEndpointsCheckConfigs is used by the node-agent's config provider
@@ -45,14 +45,14 @@ func getEndpointsCheckConfigs(sc clusteragent.ServerContext) func(w http.Respons
 	}
 }
 
-// getEndpointsChecksState is used by clusterchecks command to retrieve the endpointscheck configs
-func getEndpointsChecksState(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
+// getAllEndpointsCheckConfigs is used by clusterchecks command to retrieve the endpointscheck configs
+func getAllEndpointsCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
 	if sc.ClusterCheckHandler == nil {
 		return clusterChecksDisabledHandler
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		response, err := sc.ClusterCheckHandler.GetEndpointsChecksState()
+		response, err := sc.ClusterCheckHandler.GetAllEndpointsCheckConfigs()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			incrementRequestMetric("GetEndpointsChecksState", http.StatusInternalServerError)

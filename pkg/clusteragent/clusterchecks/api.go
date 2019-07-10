@@ -79,9 +79,9 @@ func (h *Handler) GetEndpointsConfigs(nodeName string) (types.ConfigResponse, er
 	return response, err
 }
 
-// GetEndpointsChecksState returns all pod-backed dispatched endpointscheck configurations
-func (h *Handler) GetEndpointsChecksState() (types.ConfigResponse, error) {
-	configs, err := h.dispatcher.getEndpointsChecksState()
+// GetAllEndpointsCheckConfigs returns all pod-backed dispatched endpointscheck configurations
+func (h *Handler) GetAllEndpointsCheckConfigs() (types.ConfigResponse, error) {
+	configs, err := h.dispatcher.getAllEndpointsCheckConfigs()
 	response := types.ConfigResponse{
 		Configs:    configs,
 		LastChange: 0,

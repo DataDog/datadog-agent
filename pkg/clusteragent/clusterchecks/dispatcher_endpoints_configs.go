@@ -23,16 +23,16 @@ func (d *dispatcher) getEndpointsConfigs(nodeName string) ([]integration.Config,
 	return nodeConfigs, nil
 }
 
-// getEndpointsChecksState provides all config templates of endpoints checks
-func (d *dispatcher) getEndpointsChecksState() ([]integration.Config, error) {
+// getAllEndpointsCheckConfigs provides all config templates of endpoints checks
+func (d *dispatcher) getAllEndpointsCheckConfigs() ([]integration.Config, error) {
 	configs := []integration.Config{}
 	d.store.RLock()
+	defer d.store.RUnlock()
 	for _, configMap := range d.store.endpointsConfigs {
 		for _, config := range configMap {
 			configs = append(configs, config)
 		}
 	}
-	d.store.RUnlock()
 	return configs, nil
 }
 

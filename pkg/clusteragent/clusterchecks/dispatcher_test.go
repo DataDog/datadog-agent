@@ -511,7 +511,7 @@ func TestExtraTags(t *testing.T) {
 	}
 }
 
-func TestGetEndpointsChecksState(t *testing.T) {
+func TestGetAllEndpointsCheckConfigs(t *testing.T) {
 	dispatcher := newDispatcher()
 
 	// Register configs to different nodes
@@ -520,7 +520,7 @@ func TestGetEndpointsChecksState(t *testing.T) {
 	dispatcher.addEndpointConfig(generateEndpointsIntegration("endpoints-check3", "node2"), "node2")
 
 	// Get state
-	configs, err := dispatcher.getEndpointsChecksState()
+	configs, err := dispatcher.getAllEndpointsCheckConfigs()
 
 	assert.NoError(t, err)
 	assert.Len(t, configs, 3)
