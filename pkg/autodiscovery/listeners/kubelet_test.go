@@ -96,7 +96,7 @@ func getMockedPods() []*kubelet.Pod {
 		{
 			Name:  "foo",
 			Image: "datadoghq.com/foo:latest",
-			ID:    "docker://foorandomhash",
+			ID:    "container_id://foorandomhash",
 		},
 		{
 			Name:  "bar",
@@ -106,17 +106,17 @@ func getMockedPods() []*kubelet.Pod {
 		{
 			Name:  "baz",
 			Image: "datadoghq.com/baz:latest",
-			ID:    "docker://containerid",
+			ID:    "container_id://containerid",
 		},
 		{
 			Name:  "clustercheck",
 			Image: "k8s.gcr.io/pause:latest",
-			ID:    "docker://clustercheck",
+			ID:    "container_id://clustercheck",
 		},
 		{
 			Name:  "excluded",
 			Image: "datadoghq.com/baz:latest",
-			ID:    "docker://excluded",
+			ID:    "container_id://excluded",
 		},
 	}
 	kubeletStatus := kubelet.Status{
@@ -162,10 +162,10 @@ func TestProcessNewPod(t *testing.T) {
 
 	select {
 	case service := <-services:
-		assert.Equal(t, "docker://foorandomhash", string(service.GetEntity()))
+		assert.Equal(t, "container_id://foorandomhash", string(service.GetEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
-		assert.Equal(t, []string{"docker://foorandomhash", "datadoghq.com/foo:latest", "foo"}, adIdentifiers)
+		assert.Equal(t, []string{"container_id://foorandomhash", "datadoghq.com/foo:latest", "foo"}, adIdentifiers)
 		hosts, err := service.GetHosts()
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
@@ -198,10 +198,10 @@ func TestProcessNewPod(t *testing.T) {
 
 	select {
 	case service := <-services:
-		assert.Equal(t, "docker://containerid", string(service.GetEntity()))
+		assert.Equal(t, "container_id://containerid", string(service.GetEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
-		assert.Equal(t, []string{"docker://containerid"}, adIdentifiers)
+		assert.Equal(t, []string{"container_id://containerid"}, adIdentifiers)
 		hosts, err := service.GetHosts()
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
@@ -216,10 +216,10 @@ func TestProcessNewPod(t *testing.T) {
 
 	select {
 	case service := <-services:
-		assert.Equal(t, "docker://clustercheck", string(service.GetEntity()))
+		assert.Equal(t, "container_id://clustercheck", string(service.GetEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
-		assert.Equal(t, []string{"docker://clustercheck", "k8s.gcr.io/pause:latest", "pause"}, adIdentifiers)
+		assert.Equal(t, []string{"container_id://clustercheck", "k8s.gcr.io/pause:latest", "pause"}, adIdentifiers)
 		hosts, err := service.GetHosts()
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
@@ -235,10 +235,10 @@ func TestProcessNewPod(t *testing.T) {
 	// Fifth container is filtered out, should receive the pod service
 	select {
 	case service := <-services:
-		assert.Equal(t, "kubernetes_pod://mock-pod-uid", string(service.GetEntity()))
+		assert.Equal(t, "kubernetes_pod_uid://mock-pod-uid", string(service.GetEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
-		assert.Equal(t, []string{"kubernetes_pod://mock-pod-uid"}, adIdentifiers)
+		assert.Equal(t, []string{"kubernetes_pod_uid://mock-pod-uid"}, adIdentifiers)
 		hosts, err := service.GetHosts()
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)

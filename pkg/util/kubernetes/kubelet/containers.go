@@ -196,7 +196,7 @@ func parseContainerReadiness(status ContainerStatus, pod *Pod) string {
 func KubeContainerIDToEntityID(ctrID string) (string, error) {
 	sep := strings.LastIndex(ctrID, "://")
 	if sep != -1 && len(ctrID) > sep+1 {
-		return containers.ContainerEntityPrefix + ctrID[lastSlash+1:], nil
+		return containers.ContainerEntityPrefix + ctrID[sep+1:], nil
 	}
 	return "", fmt.Errorf("can't extract an entity ID from container ID %s", ctrID)
 }

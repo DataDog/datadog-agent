@@ -17,7 +17,7 @@ import (
 )
 
 func TestParsePods(t *testing.T) {
-	dockerEntityID := "docker://d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
+	dockerEntityID := "container_id://d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
 	dockerContainerStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
 			{
@@ -37,7 +37,7 @@ func TestParsePods(t *testing.T) {
 		},
 	}
 
-	dockerEntityID2 := "docker://ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
+	dockerEntityID2 := "container_id://ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
 	dockerTwoContainersStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
 			{

@@ -25,7 +25,7 @@ import (
 const (
 	kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
 	kubePodKind                  = "Pod"
-	KubePodPrefix                = "kubernetes_pod://"
+	KubePodPrefix                = "kubernetes_pod_uid://"
 )
 
 // KubeEndpointsConfigProvider implements the ConfigProvider interface for the apiserver.

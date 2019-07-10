@@ -41,7 +41,7 @@ func TestSplitEntityName(t *testing.T) {
 		expectedCID    string
 	}{
 		// OK
-		{"docker://5bef08742407ef", "docker", "5bef08742407ef"},
+		{"container_id://5bef08742407ef", "docker", "5bef08742407ef"},
 		{"container_id://5bef08742407ef", "container_id", "5bef08742407ef"},
 		// Invalid
 		{"5bef08742407ef", "", ""},

@@ -41,14 +41,14 @@ func TestGetConfigIDFromPs(t *testing.T) {
 	dl := DockerListener{}
 
 	ids := dl.getConfigIDFromPs(co)
-	assert.Equal(t, []string{"docker://deadbeef", "test"}, ids)
+	assert.Equal(t, []string{"container_id://deadbeef", "test"}, ids)
 
 	prefixCo := types.Container{
 		ID:    "deadbeef",
 		Image: "org/test",
 	}
 	ids = dl.getConfigIDFromPs(prefixCo)
-	assert.Equal(t, []string{"docker://deadbeef", "org/test", "test"}, ids)
+	assert.Equal(t, []string{"container_id://deadbeef", "org/test", "test"}, ids)
 
 	labeledCo := types.Container{
 		ID:     "deadbeef",
@@ -84,7 +84,7 @@ func TestGetConfigIDFromPs(t *testing.T) {
 		Labels: map[string]string{"com.datadoghq.ad.instances": "[]]"},
 	}
 	ids = dl.getConfigIDFromPs(templatedCo)
-	assert.Equal(t, []string{"docker://deadbeef"}, ids)
+	assert.Equal(t, []string{"container_id://deadbeef"}, ids)
 }
 
 func TestGetHostsFromPs(t *testing.T) {
@@ -182,7 +182,7 @@ func TestGetADIdentifiers(t *testing.T) {
 
 	ids, err := s.GetADIdentifiers()
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"docker://deadbeef", "org/test", "test"}, ids)
+	assert.Equal(t, []string{"container_id://deadbeef", "org/test", "test"}, ids)
 
 	s = DockerService{cID: "deadbeef"}
 	labeledCo := types.ContainerJSON{

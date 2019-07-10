@@ -42,12 +42,12 @@ func TestProcessService(t *testing.T) {
 	}
 
 	svc := processService(ksvc, true)
-	assert.Equal(t, "kube_service://test", svc.GetEntity())
+	assert.Equal(t, "kube_service_uid://test", svc.GetEntity())
 	assert.Equal(t, integration.Before, svc.GetCreationTime())
 
 	adID, err := svc.GetADIdentifiers()
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"kube_service://test"}, adID)
+	assert.Equal(t, []string{"kube_service_uid://test"}, adID)
 
 	hosts, err := svc.GetHosts()
 	assert.NoError(t, err)
@@ -59,7 +59,7 @@ func TestProcessService(t *testing.T) {
 
 	tags, err := svc.GetTags()
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default"}, tags)
+	assert.Equal(t, []string{"kube_service_uid:myservice", "kube_namespace:default"}, tags)
 
 	svc = processService(ksvc, false)
 	assert.Equal(t, integration.After, svc.GetCreationTime())

@@ -46,7 +46,7 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 			expectedOut: []integration.Config{
 				{
 					Name:          "http_check",
-					ADIdentifiers: []string{"kube_service://test"},
+					ADIdentifiers: []string{"kube_service_uid://test"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 					ClusterCheck:  true,

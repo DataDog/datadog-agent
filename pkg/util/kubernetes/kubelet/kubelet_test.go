@@ -434,7 +434,7 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	require.True(suite.T(), errors.IsNotFound(err))
 
 	// Valid container ID
-	pod, err = kubeutil.GetPodForContainerID("docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
+	pod, err = kubeutil.GetPodForContainerID("container_id://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
 	// The /pods request is still cached
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pod)
@@ -477,7 +477,7 @@ func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
 	}()
 
 	// Valid container ID
-	pod, err := kubeutil.GetPodForContainerID("docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
+	pod, err := kubeutil.GetPodForContainerID("container_id://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
 	require.NoError(suite.T(), err)
 	require.NotNil(suite.T(), pod)
 	assert.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
@@ -517,7 +517,7 @@ func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
 	}()
 
 	// We should fail after two requests only (initial + nocache)
-	_, err = kubeutil.GetPodForContainerID("docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
+	_, err = kubeutil.GetPodForContainerID("container_id://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
 	require.Error(suite.T(), err)
 	requestsMutex.Lock()
 	assert.Equal(suite.T(), 2, requests)
@@ -884,12 +884,12 @@ func TestSearchPodForContainerID(t *testing.T) {
 	containerFoo := ContainerStatus{
 		Name:  "fooName",
 		Image: "fooImage",
-		ID:    "docker://fooID",
+		ID:    "container_id://fooID",
 	}
 	containerBar := ContainerStatus{
 		Name:  "barName",
 		Image: "barImage",
-		ID:    "docker://barID",
+		ID:    "container_id://barID",
 	}
 	pod := &Pod{
 		Metadata: PodMetadata{
@@ -918,7 +918,7 @@ func TestSearchPodForContainerID(t *testing.T) {
 	assert.Equal(t, containerFoo, container)
 
 	_, err := k.GetStatusForContainerID(pod, serviceBaz.GetEntityID())
-	assert.EqualError(t, err, "Container docker://bazID not found")
+	assert.EqualError(t, err, "Container container_id://bazID not found")
 }
 
 func (suite *KubeletTestSuite) TestPodListWithNullPod() {

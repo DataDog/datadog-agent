@@ -67,7 +67,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 	require.Equal(suite.T(), changes[0].Metadata.UID, remainingPods[0].Metadata.UID)
 
 	// A new container ID in an existing pod should trigger
-	remainingPods[0].Status.Containers[0].ID = "docker://testNewID"
+	remainingPods[0].Status.Containers[0].ID = "container_id://testNewID"
 	// we're modifying the container list here, we need to reset the lazy all containers list
 	remainingPods[0].Status.AllContainers = []ContainerStatus{}
 	changes, err = watcher.computeChanges(remainingPods)
@@ -222,7 +222,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 0)
 
-	testContainerID := "docker://84adac90973fa1263ccf1e296cec72acb4128b6e19fd25bffe4fafb059adafc0"
+	testContainerID := "container_id://84adac90973fa1263ccf1e296cec72acb4128b6e19fd25bffe4fafb059adafc0"
 	testEntity, _ := KubeContainerIDToEntityID(testContainerID)
 
 	// simulate unreadiness for 10 sec
@@ -305,7 +305,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireUnready() {
 	require.Len(suite.T(), sourcePods, 5)
 
 	// Try
-	testContainerID := "docker://84adac90973fa1263ccf1e296cec72acb4128b6e19fd25bffe4fafb059adafc0"
+	testContainerID := "container_id://84adac90973fa1263ccf1e296cec72acb4128b6e19fd25bffe4fafb059adafc0"
 	testEntity, _ := KubeContainerIDToEntityID(testContainerID)
 	// 10 seconds should NOT be enough to expire
 	watcher.lastSeenReady[testEntity] = watcher.lastSeenReady[testEntity].Add(-10 * time.Second)
@@ -346,7 +346,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 	require.Len(suite.T(), expire, 0)
 
 	// Try
-	testContainerID := "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6"
+	testContainerID := "container_id://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6"
 	testEntity, _ := KubeContainerIDToEntityID(testContainerID)
 
 	// 4 minutes should NOT be enough to expire
