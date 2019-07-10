@@ -40,6 +40,10 @@ var clusterChecksCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		err = flare.GetEndpointsChecks(color.Output)
+		if err != nil {
+			return err
+		}
 		return nil
 	},
 }

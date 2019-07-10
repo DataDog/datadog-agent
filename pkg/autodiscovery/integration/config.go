@@ -47,7 +47,7 @@ type Config struct {
 	Provider      string       `json:"provider"`       // the provider that issued the config
 	Entity        string       `json:"-"`              // the id of the entity (optional)
 	ClusterCheck  bool         `json:"cluster_check"`  // cluster-check configuration flag
-	NodeName      string       `json:"-"`              // Node name in case of an endpoint check backed by a pod
+	NodeName      string       `json:"node_name"`      // node name in case of an endpoint check backed by a pod
 	CreationTime  CreationTime `json:"-"`              // creation time of service
 }
 

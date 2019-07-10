@@ -510,3 +510,23 @@ func TestExtraTags(t *testing.T) {
 		})
 	}
 }
+
+func TestGetEndpointsChecksState(t *testing.T) {
+	dispatcher := newDispatcher()
+
+	// Register configs to different nodes
+	dispatcher.addEndpointConfig(generateEndpointsIntegration("endpoints-check1", "node1"), "node1")
+	dispatcher.addEndpointConfig(generateEndpointsIntegration("endpoints-check2", "node1"), "node1")
+	dispatcher.addEndpointConfig(generateEndpointsIntegration("endpoints-check3", "node2"), "node2")
+
+	// Get state
+	configs, err := dispatcher.getEndpointsChecksState()
+
+	assert.NoError(t, err)
+	assert.Len(t, configs, 3)
+	assert.Contains(t, configs, generateEndpointsIntegration("endpoints-check1", "node1"))
+	assert.Contains(t, configs, generateEndpointsIntegration("endpoints-check2", "node1"))
+	assert.Contains(t, configs, generateEndpointsIntegration("endpoints-check3", "node2"))
+
+	requireNotLocked(t, dispatcher.store)
+}
