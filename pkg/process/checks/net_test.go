@@ -3,6 +3,7 @@ package checks
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/model"
@@ -25,6 +26,8 @@ func TestNetworkConnectionBatching(t *testing.T) {
 	for _, proc := range p {
 		Process.lastCtrIDForPID[proc.Pid] = fmt.Sprintf("%d", proc.Pid)
 	}
+	// update lastRun to indicate that Process check is enabled and ran
+	Process.lastRun = time.Now()
 
 	cfg := config.NewDefaultAgentConfig()
 
