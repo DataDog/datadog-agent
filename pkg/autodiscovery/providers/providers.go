@@ -25,7 +25,7 @@ const (
 	Zookeeper       = "zookeeper"
 )
 
-// Define the kube endpoints provider name
+// KubeEndpointsProviderName defines the kube endpoints provider name
 const KubeEndpointsProviderName = "kube_endpoints"
 
 // ProviderCatalog keeps track of config providers by name
