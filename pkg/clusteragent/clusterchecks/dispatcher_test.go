@@ -510,4 +510,3 @@ func TestExtraTags(t *testing.T) {
 		})
 	}
 }
-

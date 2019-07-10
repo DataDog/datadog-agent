@@ -167,6 +167,7 @@ func TestKubeContainerIDToEntityID(t *testing.T) {
 		"containerd://deadbeef":   "container_id://deadbeef",
 		"cri-o://deadbeef":        "container_id://deadbeef",
 		"cri-o://d":               "container_id://d",
+		"runtime://deadbeef":      "container_id://deadbeef",
 		"container_id://":         "",
 		"deadbeef":                "",
 		"/deadbeef":               "",
