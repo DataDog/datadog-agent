@@ -17,7 +17,6 @@ Trace Agent (v 0.99.0)
   From unknown clients
     Traces received: 0 (0 bytes)
     Spans received: 0
-    Services received: 0 (0 bytes)
 
   Priority sampling rate for 'service:myapp,env:dev': 12.3 %
 
@@ -25,4 +24,3 @@ Trace Agent (v 0.99.0)
 
   Traces: 4 payloads, 26 traces, 123 events, 3245 bytes
   Stats: 6 payloads, 12 stats buckets, 8329 bytes
-  Services: 1 payloads, 2 services, 1234 bytes

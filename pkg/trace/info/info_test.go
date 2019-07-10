@@ -287,7 +287,7 @@ func TestInfoReceiverStats(t *testing.T) {
 	}
 	t2 := &TagStats{
 		Tags{Lang: "go"},
-		Stats{ServicesReceived: 4, ServicesBytes: 1543},
+		Stats{},
 	}
 	stats.Stats = map[Tags]*TagStats{
 		t1.Tags: t1,

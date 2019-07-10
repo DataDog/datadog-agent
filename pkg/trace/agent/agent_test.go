@@ -566,7 +566,6 @@ func benchThroughput(file string) func(*testing.B) {
 			defer close(exit)
 			for {
 				select {
-				case <-agnt.ServiceExtractor.outServices:
 				case <-agnt.Concentrator.Out:
 				case <-exit:
 					return
