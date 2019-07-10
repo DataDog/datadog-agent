@@ -214,21 +214,24 @@ func TestNormalizeStart(t *testing.T) {
 	t.Run("too-small", func(t *testing.T) {
 		ts := newTagStats()
 		s := newTestSpan()
-		before := s.Start
+		s.Start = 42
+		minStart := time.Now().UnixNano() - s.Duration
 		assert.NoError(t, normalize(ts, s))
-		assert.Equal(t, before, s.Start)
-		assert.Equal(t, newTagStats(), ts)
+		assert.True(t, s.Start >= minStart)
+		assert.True(t, s.Start <= time.Now().UnixNano() - s.Duration)
+		assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: 1}), ts)
 	})
 
-	t.Run("large-duration", func(t *testing.T) {
+	t.Run("too-small-with-large-duration", func(t *testing.T) {
 		ts := newTagStats()
 		s := newTestSpan()
 		s.Start = 42
 		s.Duration = time.Now().UnixNano() * 2
-		before := s.Start
+		minStart := time.Now().UnixNano()
 		assert.NoError(t, normalize(ts, s))
 		assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: 1}), ts)
-		assert.True(t, s.Start > before, "start should have been reset to current time")
+		assert.True(t, s.Start >= minStart, "start should have been reset to current time")
+		assert.True(t, s.Start <= time.Now().UnixNano(), "start should have been reset to current time")
 	})
 }
 
