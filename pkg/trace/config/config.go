@@ -71,7 +71,8 @@ type AgentConfig struct {
 	// Receiver
 	ReceiverHost    string
 	ReceiverPort    int
-	ConnectionLimit int // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
+	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
 	ReceiverTimeout int
 
 	// Writers

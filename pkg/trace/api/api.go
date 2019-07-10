@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"os"
 	"runtime"
 	"sort"
 	"strconv"
@@ -140,11 +141,27 @@ func (r *HTTPReceiver) Start() {
 		Handler:      mux,
 	}
 
-	// expvar implicitly publishes "/debug/vars" on the same port
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
-	if err := r.Listen(addr, ""); err != nil {
-		log.Criticalf("Error creating listener: %v", err)
-		killProcess(err.Error())
+	ln, err := r.listenTCP(addr)
+	if err != nil {
+		killProcess("Error creating tcp listener: %v", err)
+	}
+	go func() {
+		defer watchdog.LogOnPanic()
+		r.server.Serve(ln)
+	}()
+	log.Infof("Listening for traces at http://%s", addr)
+
+	if path := r.conf.ReceiverSocket; path != "" {
+		ln, err := r.listenUnix(path)
+		if err != nil {
+			killProcess("Error creating UDS listener: %v", err)
+		}
+		go func() {
+			defer watchdog.LogOnPanic()
+			r.server.Serve(ln)
+		}()
+		log.Infof("Listening for traces at unix://%s", path)
 	}
 
 	go r.RateLimiter.Run()
@@ -188,29 +205,40 @@ func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
 	mux.Handle("/debug/vars", expvar.Handler())
 }
 
-// Listen creates a new HTTP server listening on the provided address.
-func (r *HTTPReceiver) Listen(addr, logExtra string) error {
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return fmt.Errorf("cannot listen on %s: %v", addr, err)
+// listenUnix returns a net.Listener listening on the given "unix" socket path.
+func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
+	fi, err := os.Stat(path)
+	if err == nil {
+		// already exists
+		if fi.Mode()&os.ModeSocket == 0 {
+			return nil, fmt.Errorf("cannot reuse %q; not a unix socket", path)
+		}
+		if err := os.Remove(path); err != nil {
+			return nil, fmt.Errorf("unable to remove stale socket: %v", err)
+		}
 	}
-	ln, err := newRateLimitedListener(listener, r.conf.ConnectionLimit)
+	ln, err := net.Listen("unix", path)
 	if err != nil {
-		return fmt.Errorf("cannot create listener: %v", err)
+		return nil, err
 	}
+	if err := os.Chmod(path, 0722); err != nil {
+		return nil, fmt.Errorf("error setting socket permissions: %v", err)
+	}
+	return ln, err
+}
 
-	log.Infof("Listening for traces at http://%s%s", addr, logExtra)
-
+// listenTCP creates a new net.Listener on the provided TCP address.
+func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
+	tcpln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	ln, err := newRateLimitedListener(tcpln, r.conf.ConnectionLimit)
 	go func() {
 		defer watchdog.LogOnPanic()
 		ln.Refresh(r.conf.ConnectionLimit)
 	}()
-	go func() {
-		defer watchdog.LogOnPanic()
-		r.server.Serve(ln)
-	}()
-
-	return nil
+	return ln, err
 }
 
 // Stop stops the receiver and shuts down the HTTP server.
@@ -433,7 +461,7 @@ func (r *HTTPReceiver) loop() {
 }
 
 // killProcess exits the process with the given msg; replaced in tests.
-var killProcess = func(msg string) { osutil.Exitf(msg) }
+var killProcess = func(format string, a ...interface{}) { osutil.Exitf(format, a...) }
 
 // watchdog checks the trace-agent's heap and CPU usage and updates the rate limiter using a correct
 // sampling rate to maintain resource usage within set thresholds. These thresholds are defined by
