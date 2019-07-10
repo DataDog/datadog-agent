@@ -15,11 +15,10 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
-
-const kubeEndpointsProviderName string = "kube_endpoints"
 
 // GetClusterChecks dumps the clustercheck dispatching state to the writer
 func GetClusterChecks(w io.Writer) error {
@@ -155,7 +154,7 @@ func GetEndpointsChecks(w io.Writer) error {
 
 func endpointschecksEnabled() bool {
 	for _, provider := range config.Datadog.GetStringSlice("extra_config_providers") {
-		if provider == kubeEndpointsProviderName {
+		if provider == providers.KubeEndpointsProviderName {
 			return true
 		}
 	}
