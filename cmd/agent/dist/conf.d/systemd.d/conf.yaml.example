@@ -13,7 +13,7 @@ instances:
     ## Regex pattern[s] matching the names of units to monitor.
     ## If `unit_names` and `unit_regexes` are both NOT specified, the check monitors all units.
     ## 
-    ## If the number of units managed by systemd is unbounded, it might infinitely increase
+    ## If the number of units managed by systemd is unbounded, it might increase
     ## the number of metrics.
     ## Learn more about custom metrics: https://docs.datadoghq.com/developers/metrics/custom_metrics/#how-is-a-custom-metric-defined
     #
