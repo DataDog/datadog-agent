@@ -14,7 +14,7 @@ static rtloader_free_t rt_free = free;
 static cb_memory_tracker_t cb_memory_tracker = NULL;
 
 void _set_memory_tracker_cb(cb_memory_tracker_t cb) {
-    cb_memory_tracker = NULL;
+    cb_memory_tracker = cb;
 }
 
 void *_malloc(size_t sz) {
