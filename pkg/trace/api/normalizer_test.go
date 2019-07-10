@@ -201,34 +201,33 @@ func TestNormalizeNoSpanID(t *testing.T) {
 	assert.Equal(t, tsDropped(&info.TracesDropped{SpanIDZero: 1}), ts)
 }
 
-func TestNormalizeStartPassThru(t *testing.T) {
-	ts := newTagStats()
-	s := newTestSpan()
-	before := s.Start
-	assert.NoError(t, normalize(ts, s))
-	assert.Equal(t, before, s.Start)
-	assert.Equal(t, newTagStats(), ts)
-}
-
-func TestNormalizeStartTooSmall(t *testing.T) {
-	ts := newTagStats()
-	s := newTestSpan()
-	s.Start = 42
-	before := s.Start
-	assert.NoError(t, normalize(ts, s))
-	assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: 1}), ts)
-	assert.True(t, s.Start > before, "start should have been reset to current time")
-}
-
-func TestNormalizeStartTooSmallWithLargeDuration(t *testing.T) {
-	ts := newTagStats()
-	s := newTestSpan()
-	s.Start = 42
-	s.Duration = time.Now().UnixNano() * 2
-	before := s.Start
-	assert.NoError(t, normalize(ts, s))
-	assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: 1}), ts)
-	assert.True(t, s.Start > before, "start should have been reset to current time")
+func TestNormalizeStart(t *testing.T) {
+	t.Run("pass-through", func(t *testing.T) {
+		ts := newTagStats()
+		s := newTestSpan()
+		before := s.Start
+		assert.NoError(t, normalize(ts, s))
+		assert.Equal(t, before, s.Start)
+		assert.Equal(t, newTagStats(), ts)
+	})
+	t.Run("too-small", func(t *testing.T) {
+		ts := newTagStats()
+		s := newTestSpan()
+		before := s.Start
+		assert.NoError(t, normalize(ts, s))
+		assert.Equal(t, before, s.Start)
+		assert.Equal(t, newTagStats(), ts)
+	})
+	t.Run("large-duration", func(t *testing.T) {
+		ts := newTagStats()
+		s := newTestSpan()
+		s.Start = 42
+		s.Duration = time.Now().UnixNano() * 2
+		before := s.Start
+		assert.NoError(t, normalize(ts, s))
+		assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: 1}), ts)
+		assert.True(t, s.Start > before, "start should have been reset to current time")
+	})
 }
 
 func TestNormalizeDurationPassThru(t *testing.T) {
