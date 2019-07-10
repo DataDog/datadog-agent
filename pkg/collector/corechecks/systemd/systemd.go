@@ -246,13 +246,13 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *dbus.Conn, unit dbus.UnitStatus, tags []string) {
 	unitProperties, err := c.stats.GetUnitTypeProperties(conn, unit.Name, dbusTypeMap[typeUnit])
 	if err != nil {
-		log.Errorf("Error getting unit unitProperties: %s", unit.Name)
+		log.Warnf("Error getting unit unitProperties: %s", unit.Name)
 		return
 	}
 
 	activeEnterTimestamp, err := getPropertyUint64(unitProperties, "ActiveEnterTimestamp")
 	if err != nil {
-		log.Errorf("Error getting property ActiveEnterTimestamp: %v", err)
+		log.Warnf("Error getting property ActiveEnterTimestamp: %v", err)
 		return
 	}
 	active := 0
@@ -292,7 +292,7 @@ func (c *SystemdCheck) submitPropertyMetricsAsGauge(sender aggregator.Sender, co
 		}
 		serviceProperties, err := c.stats.GetUnitTypeProperties(conn, unit.Name, dbusTypeMap[unitType])
 		if err != nil {
-			log.Errorf("Error getting serviceProperties for service: %s", unit.Name)
+			log.Warnf("Error getting detailed properties for unit %s", unit.Name)
 			return
 		}
 		for _, service := range metricConfigs[unitType] {
@@ -302,7 +302,7 @@ func (c *SystemdCheck) submitPropertyMetricsAsGauge(sender aggregator.Sender, co
 				if service.optional {
 					log.Debugf(msg)
 				} else {
-					log.Errorf(msg)
+					log.Warnf(msg)
 				}
 			}
 		}
@@ -428,7 +428,7 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 	for _, regexString := range c.config.instance.UnitRegexStrings {
 		pattern, err := regexp.Compile(regexString)
 		if err != nil {
-			log.Errorf("Failed to parse systemd check option unit_regexes: %s", err)
+			c.Warnf("Failed to parse systemd check option unit_regexes: %s", err)
 			continue
 		}
 		c.config.instance.UnitRegexPatterns = append(c.config.instance.UnitRegexPatterns, pattern)
