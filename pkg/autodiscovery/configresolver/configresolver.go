@@ -24,8 +24,50 @@ var templateVariables = map[string]variableGetter{
 	"host":     getHost,
 	"pid":      getPid,
 	"port":     getPort,
-	"env":      getEnvvar,
 	"hostname": getHostname,
+}
+
+// SubstituteTemplateVariables replaces %%VARIABLES%% using the variableGetters passed in
+func SubstituteTemplateVariables(config *integration.Config, getters map[string]variableGetter, svc listeners.Service) error {
+	for i := 0; i < len(config.Instances); i++ {
+		vars := config.GetTemplateVariablesForInstance(i)
+		for _, v := range vars {
+			if f, found := getters[string(v.Name)]; found {
+				resolvedVar, err := f(v.Key, svc)
+				if err != nil {
+					return err
+				}
+				// init config vars are replaced by the first found
+				config.InitConfig = bytes.Replace(config.InitConfig, v.Raw, resolvedVar, -1)
+				config.Instances[i] = bytes.Replace(config.Instances[i], v.Raw, resolvedVar, -1)
+			}
+		}
+	}
+	return nil
+}
+
+// SubstituteTemplateEnvVars replaces %%ENV_VARIABLE%% from environment variables
+func SubstituteTemplateEnvVars(config *integration.Config) error {
+	var retErr error
+	for i := 0; i < len(config.Instances); i++ {
+		vars := config.GetTemplateVariablesForInstance(i)
+		for _, v := range vars {
+			if "env" == string(v.Name) {
+				resolvedVar, err := getEnvvar(v.Key)
+				if err != nil {
+					log.Warnf("variable not replaced: %s", err)
+					if retErr == nil {
+						retErr = err
+					}
+					continue
+				}
+				// init config vars are replaced by the first found
+				config.InitConfig = bytes.Replace(config.InitConfig, v.Raw, resolvedVar, -1)
+				config.Instances[i] = bytes.Replace(config.Instances[i], v.Raw, resolvedVar, -1)
+			}
+		}
+	}
+	return retErr
 }
 
 // Resolve takes a template and a service and generates a config with
@@ -56,20 +98,19 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 	if err != nil {
 		return resolvedConfig, err
 	}
-	for i := 0; i < len(tpl.Instances); i++ {
-		// Copy original content from template
-		vars := tpl.GetTemplateVariablesForInstance(i)
-		for _, v := range vars {
-			if f, found := templateVariables[string(v.Name)]; found {
-				resolvedVar, err := f(v.Key, svc)
-				if err != nil {
-					return integration.Config{}, err
-				}
-				// init config vars are replaced by the first found
-				resolvedConfig.InitConfig = bytes.Replace(resolvedConfig.InitConfig, v.Raw, resolvedVar, -1)
-				resolvedConfig.Instances[i] = bytes.Replace(resolvedConfig.Instances[i], v.Raw, resolvedVar, -1)
-			}
-		}
+
+	err = SubstituteTemplateVariables(&resolvedConfig, templateVariables, svc)
+	if err != nil {
+		return resolvedConfig, err
+	}
+
+	err = SubstituteTemplateEnvVars(&resolvedConfig)
+	if err != nil {
+		// We add the service name to the error here, since SubstituteTemplateEnvVars doesn't know about that
+		return resolvedConfig, fmt.Errorf("%s, skipping service %s", err, svc.GetEntity())
+	}
+
+	for i := 0; i < len(resolvedConfig.Instances); i++ {
 		err = resolvedConfig.Instances[i].MergeAdditionalTags(tags)
 		if err != nil {
 			return resolvedConfig, err
@@ -171,13 +212,13 @@ func getHostname(tplVar []byte, svc listeners.Service) ([]byte, error) {
 }
 
 // getEnvvar returns a system environment variable if found
-func getEnvvar(tplVar []byte, svc listeners.Service) ([]byte, error) {
-	if len(tplVar) == 0 {
-		return nil, fmt.Errorf("envvar name is missing, skipping service %s", svc.GetEntity())
+func getEnvvar(envVar []byte) ([]byte, error) {
+	if len(envVar) == 0 {
+		return nil, fmt.Errorf("envvar name is missing")
 	}
-	value, found := os.LookupEnv(string(tplVar))
+	value, found := os.LookupEnv(string(envVar))
 	if !found {
-		return nil, fmt.Errorf("failed to retrieve envvar %s, skipping service %s", tplVar, svc.GetEntity())
+		return nil, fmt.Errorf("failed to retrieve envvar %s", envVar)
 	}
 	return []byte(value), nil
 }
