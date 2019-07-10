@@ -32,14 +32,14 @@ const defaultCloseTimeout = 60 * time.Second
 
 // Tailer tails one file and sends messages to an output channel
 type Tailer struct {
+	readOffset    int64
+	decodedOffset int64
+
 	path           string
 	fullpath       string
 	file           *os.File
 	isWildcardPath bool
 	tags           []string
-
-	readOffset    int64
-	decodedOffset int64
 
 	outputChan  chan *message.Message
 	decoder     *decoder.Decoder
