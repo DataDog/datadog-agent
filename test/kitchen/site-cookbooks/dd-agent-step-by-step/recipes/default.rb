@@ -9,6 +9,16 @@
 
 case node['platform_family']
 when 'debian'
+  execute 'install dirmngr' do
+    command <<-EOF
+      sudo apt-get update
+      cache_output=`apt-cache search dirmngr`
+      if [ ! -z "$cache_output" ]; then
+        sudo apt-get install -y dirmngr
+      fi
+    EOF
+  end
+
   execute 'install debian' do
     command <<-EOF
       sudo sh -c "echo \'deb http://#{node['dd-agent-step-by-step']['repo_domain_apt']}/ #{node['dd-agent-step-by-step']['repo_branch_apt']} main\' > /etc/apt/sources.list.d/datadog.list"
