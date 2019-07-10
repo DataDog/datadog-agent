@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -113,7 +114,7 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 		log.Debugf("Fixing malformed trace. Duration is invalid (reason:invalid_duration), setting span.duration=0: %s", s)
 		s.Duration = 0
 	}
-	if s.Start+s.Duration < s.Start {
+	if s.Duration > math.MaxInt64 - s.Start {
 		atomic.AddInt64(&ts.SpansMalformed.InvalidDuration, 1)
 		log.Debugf("Fixing malformed trace. Duration is too large and causes overflow (reason:invalid_duration), setting span.duration=0: %s", s)
 		s.Duration = 0
