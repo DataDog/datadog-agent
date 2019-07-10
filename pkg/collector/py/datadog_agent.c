@@ -257,7 +257,7 @@ static PyMethodDef _utilMethods[] = {
   {"get_subprocess_output", (PyCFunction)get_subprocess_output,
       METH_VARARGS, "Run subprocess and return its output. "
                     "This is a private method and should not be called directly. "
-                    "Please use the datadog_checks.utils.subprocess_output.get_subprocess_output wrapper."},
+                    "Please use the stackstate_checks.utils.subprocess_output.get_subprocess_output wrapper."},
   {NULL, NULL}
 };
 

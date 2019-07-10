@@ -6,7 +6,7 @@
 require './lib/ostools.rb'
 require 'json'
 
-name 'datadog-agent-integrations'
+name 'stackstate-agent-integrations'
 
 dependency 'pip'
 dependency 'datadog-agent'
@@ -26,7 +26,7 @@ end
 relative_path 'integrations-core'
 whitelist_file "embedded/lib/python2.7"
 
-source git: 'https://github.com/DataDog/integrations-core.git'
+source git: 'https://github.com/StackVista/stackstate-agent-integrations.git'
 
 PIPTOOLS_VERSION = "2.0.2"
 UNINSTALL_PIPTOOLS_DEPS = ['six', 'click', 'first', 'pip-tools']
@@ -118,10 +118,10 @@ build do
     python_pip_uninstall = "pip uninstall -y"
 
     if windows?
-      static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\#{agent_requirements_in}"
+      static_reqs_in_file = "#{windows_safe_path(project_dir)}\\stackstate_checks_base\\stackstate_checks\\base\\data\\#{agent_requirements_in}"
       static_reqs_filtered_file = "#{windows_safe_path(project_dir)}\\#{agent_requirements_in}"
     else
-      static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/#{agent_requirements_in}"
+      static_reqs_in_file = "#{project_dir}/stackstate_checks_base/stackstate_checks/base/data/#{agent_requirements_in}"
       static_reqs_filtered_file = "#{project_dir}/#{agent_requirements_in}"
     end
 
@@ -148,12 +148,12 @@ build do
 
     # Install the static environment requirements that the Agent and all checks will use
     if windows?
-      command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_base")
-      #[VS] command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_downloader --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\"")
+      command("#{python_bin} -m #{python_pip_no_deps}\\stackstate_checks_base")
+      #[VS] command("#{python_bin} -m #{python_pip_no_deps}\\stackstate_checks_downloader --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\"")
       command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_filtered_file}")
     else
-      #[VS] pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :cwd => "#{project_dir}/datadog_checks_downloader"
-      pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      #[VS] pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :cwd => "#{project_dir}/stackstate_checks_downloader"
+      pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/stackstate_checks_base"
       command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_filtered_file}")
     end
 
@@ -180,7 +180,7 @@ build do
     pip "freeze > #{install_dir}/#{final_constraints_file}"
 
     # Ship requirements-agent-release.txt file containing the versions of every check shipped with the agent
-    # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
+    # Used by the `stackstate-agent integration` command to prevent downgrading a check to a version
     # older than the one shipped in the agent
     copy "#{project_dir}/requirements-agent-release.txt", "#{install_dir}/"
 
@@ -207,21 +207,21 @@ build do
       # wrote it first. In that case, since the agent's confs take precedence, skip the conf
 
       # Copy the check config to the conf directories
-      conf_file_example = "#{check_dir}/datadog_checks/#{check}/data/conf.yaml.example"
+      conf_file_example = "#{check_dir}/stackstate_checks/#{check}/data/conf.yaml.example"
       if File.exist? conf_file_example
         mkdir check_conf_dir
         copy conf_file_example, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.example"
       end
 
       # Copy the default config, if it exists
-      conf_file_default = "#{check_dir}/datadog_checks/#{check}/data/conf.yaml.default"
+      conf_file_default = "#{check_dir}/stackstate_checks/#{check}/data/conf.yaml.default"
       if File.exist? conf_file_default
         mkdir check_conf_dir
         copy conf_file_default, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.default"
       end
 
       # Copy the metric file, if it exists
-      metrics_yaml = "#{check_dir}/datadog_checks/#{check}/data/metrics.yaml"
+      metrics_yaml = "#{check_dir}/stackstate_checks/#{check}/data/metrics.yaml"
       if File.exist? metrics_yaml
         mkdir check_conf_dir
         copy metrics_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/metrics.yaml"
@@ -229,7 +229,7 @@ build do
 
       # We don't have auto_conf on windows yet
       if os != 'windows'
-        auto_conf_yaml = "#{check_dir}/datadog_checks/#{check}/data/auto_conf.yaml"
+        auto_conf_yaml = "#{check_dir}/stackstate_checks/#{check}/data/auto_conf.yaml"
         if File.exist? auto_conf_yaml
           mkdir check_conf_dir
           copy auto_conf_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"

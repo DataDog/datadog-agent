@@ -123,7 +123,7 @@ dependency 'datadog-agent'
 
 # Additional software
 dependency 'pip'
-dependency 'datadog-agent-integrations'
+dependency 'stackstate-agent-integrations'
 dependency 'datadog-a7'
 dependency 'datadog-agent-env-check'
 dependency 'jmxfetch'

@@ -207,6 +207,19 @@ def apply_branding(ctx):
     do_sed_rename(ctx, camel_replace, "./cmd/agent/gui/views/templates/index.tmpl")
     do_sed_rename(ctx, camel_replace, "./cmd/agent/gui/views/private/js/javascript.js")
 
+    # stackstate_checks
+    do_go_rename(ctx, '"\\"datadog_checks\\" -> \\"stackstate_checks\\""', "./cmd/agent/app")
+    do_sed_rename(ctx, 's/datadog_checks_base/stackstate_checks_base/g', "cmd/agent/app/integrations.go")
+    do_go_rename(ctx, '"\\"datadog_checks\\" -> \\"stackstate_checks\\""', "./pkg/collector/py")
+
+    # This part we renamed in-tree because it is used by unit tests and we do not apply branding before unit tests,
+    # nor do we want to when developing. We do want to check all renames are there though, whihc is what this code does.
+    grepResult = ctx.run('grep  -R datadog_checks ./cmd/agent/dist/', warn=True)
+
+    if grepResult.exited != 1:
+        raise Exception("Found datadog_check in ./cmd/agent/dist/, this should be renamed")
+
+
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,

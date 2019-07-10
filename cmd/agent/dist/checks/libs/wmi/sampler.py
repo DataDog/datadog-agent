@@ -24,4 +24,4 @@ Please refer to `checks.lib.wmi.counter_type` for more information*
 Original discussion thread: https://github.com/DataDog/dd-agent/issues/1952
 Credits to @TheCloudlessSky (https://github.com/TheCloudlessSky)
 """
-from datadog_checks.checks.win.wmi.sampler import WMISampler
+from stackstate_checks.checks.win.wmi.sampler import WMISampler
