@@ -6,19 +6,20 @@
 
 set -x
 
-VENV_PATH=$CI_PROJECT_DIR/venv
+SETUP_DIR=${CI_PROJECT_DIR:-"."}
+VENV_PATH=$SETUP_DIR/venv
 
 cd /go/src/github.com/StackVista/stackstate-agent
 
 if [ ! -d $VENV_PATH ]; then
-  virtualenv --python=python2.7 $CI_PROJECT_DIR/venv
-  source $CI_PROJECT_DIR/venv/bin/activate
+  virtualenv --python=python2.7 $SETUP_DIR/venv
+  source $SETUP_DIR/venv/bin/activate
   pip install -r requirements.txt
 else
-  source $CI_PROJECT_DIR/venv/bin/activate
+  source $SETUP_DIR/venv/bin/activate
 fi
 
-if [ ! -d $CI_PROJECT_DIR/vendor ]; then
+if [ ! -d $SETUP_DIR/vendor ]; then
   inv deps
 fi
 
