@@ -50,19 +50,19 @@ type Version string
 const (
 	// v01 DEPRECATED, FIXME[1.x]
 	// Traces: JSON, slice of spans
-	// Services: JSON, map[string]map[string][string]
+	// Services: deprecated
 	v01 Version = "v0.1"
 	// v02 DEPRECATED, FIXME[1.x]
 	// Traces: JSON, slice of traces
-	// Services: JSON, map[string]map[string][string]
+	// Services: deprecated
 	v02 Version = "v0.2"
 	// v03
 	// Traces: msgpack/JSON (Content-Type) slice of traces
-	// Services: msgpack/JSON, map[string]map[string][string]
+	// Services: deprecated
 	v03 Version = "v0.3"
 	// v04
 	// Traces: msgpack/JSON (Content-Type) slice of traces + returns service sampling ratios
-	// Services: msgpack/JSON, map[string]map[string][string]
+	// Services: deprecated
 	v04 Version = "v0.4"
 )
 
@@ -350,31 +350,7 @@ func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
 
 // handleServices handle a request with a list of several services
 func (r *HTTPReceiver) handleServices(v Version, w http.ResponseWriter, req *http.Request) {
-	var servicesMeta pb.ServicesMetadata
-	if err := decodeRequest(req, &servicesMeta); err != nil {
-		log.Errorf("Cannot decode %s services payload: %v", v, err)
-		httpDecodingError(err, []string{tagServiceHandler, fmt.Sprintf("v:%s", v)}, w)
-		return
-	}
-
 	httpOK(w)
-
-	// We parse the tags from the header
-	tags := info.Tags{
-		Lang:          req.Header.Get("Datadog-Meta-Lang"),
-		LangVersion:   req.Header.Get("Datadog-Meta-Lang-Version"),
-		Interpreter:   req.Header.Get("Datadog-Meta-Lang-Interpreter"),
-		TracerVersion: req.Header.Get("Datadog-Meta-Tracer-Version"),
-	}
-
-	// We get the address of the struct holding the stats associated to the tags
-	ts := r.Stats.GetTagStats(tags)
-
-	atomic.AddInt64(&ts.ServicesReceived, int64(len(servicesMeta)))
-	bytesRead := req.Body.(*LimitedReader).Count
-	if bytesRead > 0 {
-		atomic.AddInt64(&ts.ServicesBytes, int64(bytesRead))
-	}
 
 	// Do nothing, services are no longer being sent to Datadog as of July 2019
 	// and are now automatically extracted from traces.

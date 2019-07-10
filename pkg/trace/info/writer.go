@@ -14,15 +14,6 @@ type TraceWriterInfo struct {
 	SingleMaxSize     int64
 }
 
-// ServiceWriterInfo represents statistics from the service writer.
-type ServiceWriterInfo struct {
-	Payloads int64
-	Services int64
-	Errors   int64
-	Retries  int64
-	Bytes    int64
-}
-
 // StatsWriterInfo represents statistics from the stats writer.
 type StatsWriterInfo struct {
 	Payloads     int64
@@ -57,17 +48,4 @@ func publishStatsWriterInfo() interface{} {
 	infoMu.RLock()
 	defer infoMu.RUnlock()
 	return statsWriterInfo
-}
-
-// UpdateServiceWriterInfo updates internal service writer stats
-func UpdateServiceWriterInfo(sws ServiceWriterInfo) {
-	infoMu.Lock()
-	defer infoMu.Unlock()
-	serviceWriterInfo = sws
-}
-
-func publishServiceWriterInfo() interface{} {
-	infoMu.RLock()
-	defer infoMu.RUnlock()
-	return serviceWriterInfo
 }
