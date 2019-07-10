@@ -11,7 +11,7 @@ instances:
 
     ## @param unit_regexes - list of strings - optional
     ## Regex pattern[s] matching the names of units to monitor.
-    ## If unit_names and unit_regexes are both NOT specified, the check will monitor all units.
+    ## If `unit_names` and `unit_regexes` are both NOT specified, the check monitors all units.
     ## 
     ## If the number of units managed by systemd is unbounded, it might infinitely increase
     ## the number of metrics.
