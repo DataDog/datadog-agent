@@ -132,8 +132,6 @@ func (ts *TagStats) publish() {
 	spansReceived := atomic.LoadInt64(&ts.SpansReceived)
 	spansDropped := atomic.LoadInt64(&ts.SpansDropped)
 	spansFiltered := atomic.LoadInt64(&ts.SpansFiltered)
-	servicesReceived := atomic.LoadInt64(&ts.ServicesReceived)
-	servicesBytes := atomic.LoadInt64(&ts.ServicesBytes)
 	eventsExtracted := atomic.LoadInt64(&ts.EventsExtracted)
 	eventsSampled := atomic.LoadInt64(&ts.EventsSampled)
 	requestsMade := atomic.LoadInt64(&ts.PayloadAccepted)
@@ -153,8 +151,6 @@ func (ts *TagStats) publish() {
 	metrics.Count("datadog.trace_agent.receiver.spans_received", spansReceived, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.spans_dropped", spansDropped, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.spans_filtered", spansFiltered, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.services_received", servicesReceived, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.services_bytes", servicesBytes, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.events_extracted", eventsExtracted, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.payload_accepted", requestsMade, tags, 1)
@@ -294,10 +290,6 @@ type Stats struct {
 	SpansDropped int64
 	// SpansFiltered is the number of spans filtered.
 	SpansFiltered int64
-	// ServicesReceived is the number of services received.
-	ServicesReceived int64
-	// ServicesBytes is the amount of data received on the services endpoint (raw data, encoded, compressed).
-	ServicesBytes int64
 	// EventsExtracted is the total number of APM events extracted from traces.
 	EventsExtracted int64
 	// EventsSampled is the total number of APM events sampled.
@@ -337,8 +329,6 @@ func (s *Stats) update(recent *Stats) {
 	atomic.AddInt64(&s.SpansReceived, atomic.LoadInt64(&recent.SpansReceived))
 	atomic.AddInt64(&s.SpansDropped, atomic.LoadInt64(&recent.SpansDropped))
 	atomic.AddInt64(&s.SpansFiltered, atomic.LoadInt64(&recent.SpansFiltered))
-	atomic.AddInt64(&s.ServicesReceived, atomic.LoadInt64(&recent.ServicesReceived))
-	atomic.AddInt64(&s.ServicesBytes, atomic.LoadInt64(&recent.ServicesBytes))
 	atomic.AddInt64(&s.EventsExtracted, atomic.LoadInt64(&recent.EventsExtracted))
 	atomic.AddInt64(&s.EventsSampled, atomic.LoadInt64(&recent.EventsSampled))
 	atomic.AddInt64(&s.PayloadAccepted, atomic.LoadInt64(&recent.PayloadAccepted))
@@ -373,8 +363,6 @@ func (s *Stats) reset() {
 	atomic.StoreInt64(&s.SpansReceived, 0)
 	atomic.StoreInt64(&s.SpansDropped, 0)
 	atomic.StoreInt64(&s.SpansFiltered, 0)
-	atomic.StoreInt64(&s.ServicesReceived, 0)
-	atomic.StoreInt64(&s.ServicesBytes, 0)
 	atomic.StoreInt64(&s.EventsExtracted, 0)
 	atomic.StoreInt64(&s.EventsSampled, 0)
 	atomic.StoreInt64(&s.PayloadAccepted, 0)
@@ -393,17 +381,12 @@ func (s *Stats) infoString() string {
 	tracesFiltered := atomic.LoadInt64(&s.TracesFiltered)
 	// Omitting priority information, use expvar or metrics for debugging purpose
 	tracesBytes := atomic.LoadInt64(&s.TracesBytes)
-	servicesReceived := atomic.LoadInt64(&s.ServicesReceived)
-	servicesBytes := atomic.LoadInt64(&s.ServicesBytes)
 	eventsExtracted := atomic.LoadInt64(&s.EventsExtracted)
 	eventsSampled := atomic.LoadInt64(&s.EventsSampled)
 
 	return fmt.Sprintf("traces received: %d, traces filtered: %d, "+
-		"traces amount: %d bytes, services received: %d, services amount: %d bytes, "+
-		"events extracted: %d, events sampled: %d",
-		tracesReceived, tracesFiltered,
-		tracesBytes, servicesReceived, servicesBytes,
-		eventsExtracted, eventsSampled)
+		"traces amount: %d bytes, events extracted: %d, events sampled: %d",
+		tracesReceived, tracesFiltered, tracesBytes, eventsExtracted, eventsSampled)
 }
 
 // WarnString returns a string representation of the Stats struct containing only issues which we should be warning on
@@ -431,7 +414,7 @@ func (ts *TagStats) WarnString() string {
 
 // Tags holds the tags we parse when we handle the header of the payload.
 type Tags struct {
-	Lang, LangVersion, Interpreter, TracerVersion string
+	Lang, LangVersion, LangVendor, Interpreter, TracerVersion string
 }
 
 // toArray will transform the Tags struct into a slice of string.
@@ -444,6 +427,9 @@ func (t *Tags) toArray() []string {
 	}
 	if t.LangVersion != "" {
 		tags = append(tags, "lang_version:"+t.LangVersion)
+	}
+	if t.LangVendor != "" {
+		tags = append(tags, "lang_vendor:"+t.LangVendor)
 	}
 	if t.Interpreter != "" {
 		tags = append(tags, "interpreter:"+t.Interpreter)

@@ -40,6 +40,7 @@ func loadEnv() {
 		{"DD_APM_MAX_TPS", "apm_config.max_traces_per_second"},
 		{"DD_APM_MAX_MEMORY", "apm_config.max_memory"},
 		{"DD_APM_MAX_CPU_PERCENT", "apm_config.max_cpu_percent"},
+		{"DD_APM_RECEIVER_SOCKET", "apm_config.receiver_socket"},
 	} {
 		if v := os.Getenv(override.env); v != "" {
 			config.Datadog.Set(override.key, v)

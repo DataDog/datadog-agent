@@ -73,7 +73,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 		// Running cold, all spans in the past should end up in the current time bucket.
 		flushTime := now
 		c := NewConcentrator([]string{}, testBucketInterval, statsChan)
-		c.Add(testTrace)
+		c.addNow(testTrace, time.Now().UnixNano())
 
 		for i := 0; i < c.bufferLen; i++ {
 			stats := c.flushNow(flushTime)
@@ -104,7 +104,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 		flushTime := now
 		c := NewConcentrator([]string{}, testBucketInterval, statsChan)
 		c.oldestTs = alignTs(now, c.bsize) - int64(c.bufferLen-1)*c.bsize
-		c.Add(testTrace)
+		c.addNow(testTrace, time.Now().UnixNano())
 
 		for i := 0; i < c.bufferLen-1; i++ {
 			stats := c.flushNow(flushTime)
@@ -178,7 +178,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 		Env:   "none",
 		Trace: wt,
 	}
-	c.Add(testTrace)
+	c.addNow(testTrace, time.Now().UnixNano())
 
 	var hits float64
 	var duration float64
@@ -283,7 +283,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		Env:   "none",
 		Trace: wt,
 	}
-	c.Add(testTrace)
+	c.addNow(testTrace, time.Now().UnixNano())
 
 	// flush every testBucketInterval
 	flushTime := now
@@ -363,7 +363,7 @@ func TestConcentratorSublayersStatsCounts(t *testing.T) {
 		Sublayers: sublayers,
 	}
 
-	c.Add(testTrace)
+	c.addNow(testTrace, time.Now().UnixNano())
 	stats := c.flushNow(alignedNow + int64(c.bufferLen)*c.bsize)
 
 	if !assert.Equal(1, len(stats), "We should get exactly 1 Bucket") {

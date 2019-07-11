@@ -73,9 +73,6 @@ func (s *Sender) send(payload []byte) error {
 			}
 			return err
 		}
-
-		// payload sent successfully
-		metrics.LogsSent.Add(1)
 		break
 	}
 

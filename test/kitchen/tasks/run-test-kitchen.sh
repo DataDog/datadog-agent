@@ -6,8 +6,6 @@
 IFS=$'\n\t'
 set -euxo pipefail
 
-rm -rf .kitchen
-
 # Ensure that the ssh key is never reused between tests
 if [ -f $(pwd)/ssh-key ]; then
   rm ssh-key
@@ -97,4 +95,4 @@ kitchen diagnose --no-instances --loader
 rm -rf cookbooks
 rm -f Berksfile.lock
 
-rake dd-agent-azure-parallel[20]
+rake dd-agent-azure-parallel

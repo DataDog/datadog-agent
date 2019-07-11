@@ -466,6 +466,7 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.apm_dd_url")
 	config.SetKnown("apm_config.max_cpu_percent")
 	config.SetKnown("apm_config.receiver_port")
+	config.SetKnown("apm_config.receiver_socket")
 	config.SetKnown("apm_config.connection_limit")
 	config.SetKnown("apm_config.ignore_resources")
 	config.SetKnown("apm_config.replace_tags")

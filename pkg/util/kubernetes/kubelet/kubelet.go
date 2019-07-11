@@ -199,6 +199,15 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 		return nil, err
 	}
 
+	// ensure we dont have nil pods
+	tmpSlice := make([]*Pod, 0, len(pods.Items))
+	for _, pod := range pods.Items {
+		if pod != nil {
+			tmpSlice = append(tmpSlice, pod)
+		}
+	}
+	pods.Items = tmpSlice
+
 	// cache the podList to reduce pressure on the kubelet
 	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
 

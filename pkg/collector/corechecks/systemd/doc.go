@@ -3,12 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// +build linux windows darwin
+/*
+Package systemd provides core checks for systemd
 
-package status
-
-import "github.com/DataDog/gohai/platform"
-
-func getPlatformPayload() (result interface{}, err error) {
-	return new(platform.Platform).Collect()
-}
+*/
+package systemd

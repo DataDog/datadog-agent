@@ -45,9 +45,9 @@ DEFAULT_BUILD_TAGS = [
 ]
 
 AGENT_CORECHECKS = [
+    "containerd",
     "cpu",
     "cri",
-    "containerd",
     "docker",
     "file_handle",
     "go_expvar",
@@ -57,6 +57,7 @@ AGENT_CORECHECKS = [
     "load",
     "memory",
     "ntp",
+    "systemd",
     "uptime",
     "winproc",
 ]

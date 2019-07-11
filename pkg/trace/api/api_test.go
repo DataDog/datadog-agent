@@ -41,9 +41,8 @@ var headerFields = map[string]string{
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig("none")
 
-	rawTraceChan := make(chan pb.Trace, 5000)
-	serviceChan := make(chan pb.ServicesMetadata, 50)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, serviceChan)
+	rawTraceChan := make(chan *Trace, 5000)
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan)
 
 	return receiver
 }
@@ -58,8 +57,8 @@ func newTestReceiverConfig() *config.AgentConfig {
 func TestMain(m *testing.M) {
 	seelog.UseLogger(seelog.Disabled)
 
-	defer func(old func(string)) { killProcess = old }(killProcess)
-	killProcess = func(_ string) {}
+	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
+	killProcess = func(_ string, _ ...interface{}) {}
 
 	os.Exit(m.Run())
 }
@@ -146,8 +145,8 @@ func TestLegacyReceiver(t *testing.T) {
 			// now we should be able to read the trace data
 			select {
 			case rt := <-tc.r.Out:
-				assert.Len(rt, 1)
-				span := rt[0]
+				assert.Len(rt.Spans, 1)
+				span := rt.Spans[0]
 				assert.Equal(uint64(42), span.TraceID)
 				assert.Equal(uint64(52), span.SpanID)
 				assert.Equal("fennel_is_amazing", span.Service)
@@ -209,8 +208,8 @@ func TestReceiverJSONDecoder(t *testing.T) {
 			// now we should be able to read the trace data
 			select {
 			case rt := <-tc.r.Out:
-				assert.Len(rt, 1)
-				span := rt[0]
+				assert.Len(rt.Spans, 1)
+				span := rt.Spans[0]
 				assert.Equal(uint64(42), span.TraceID)
 				assert.Equal(uint64(52), span.SpanID)
 				assert.Equal("fennel_is_amazing", span.Service)
@@ -276,8 +275,8 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 				// now we should be able to read the trace data
 				select {
 				case rt := <-tc.r.Out:
-					assert.Len(rt, 1)
-					span := rt[0]
+					assert.Len(rt.Spans, 1)
+					span := rt.Spans[0]
 					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(52), span.SpanID)
 					assert.Equal("fennel_is_amazing", span.Service)
@@ -298,8 +297,8 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 				// now we should be able to read the trace data
 				select {
 				case rt := <-tc.r.Out:
-					assert.Len(rt, 1)
-					span := rt[0]
+					assert.Len(rt.Spans, 1)
+					span := rt.Spans[0]
 					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(52), span.SpanID)
 					assert.Equal("fennel_is_amazing", span.Service)
@@ -357,176 +356,6 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.Equal(400, resp.StatusCode)
 		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{}).TracesDropped.DecodingError)
 	})
-}
-
-func TestReceiverServiceJSONDecoder(t *testing.T) {
-	// testing traces without content-type in agent endpoints, it should use JSON decoding
-	assert := assert.New(t)
-	conf := newTestReceiverConfig()
-	testCases := []struct {
-		name        string
-		r           *HTTPReceiver
-		apiVersion  Version
-		contentType string
-	}{
-		{"v01 with empty content-type", newTestReceiverFromConfig(conf), v01, ""},
-		{"v02 with empty content-type", newTestReceiverFromConfig(conf), v02, ""},
-		{"v03 with empty content-type", newTestReceiverFromConfig(conf), v03, ""},
-		{"v04 with empty content-type", newTestReceiverFromConfig(conf), v04, ""},
-		{"v01 with application/json", newTestReceiverFromConfig(conf), v01, "application/json"},
-		{"v02 with application/json", newTestReceiverFromConfig(conf), v02, "application/json"},
-		{"v03 with application/json", newTestReceiverFromConfig(conf), v03, "application/json"},
-		{"v04 with application/json", newTestReceiverFromConfig(conf), v04, "application/json"},
-		{"v01 with text/json", newTestReceiverFromConfig(conf), v01, "text/json"},
-		{"v02 with text/json", newTestReceiverFromConfig(conf), v02, "text/json"},
-		{"v03 with text/json", newTestReceiverFromConfig(conf), v03, "text/json"},
-		{"v04 with text/json", newTestReceiverFromConfig(conf), v04, "text/json"},
-	}
-
-	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
-			// start testing server
-			server := httptest.NewServer(
-				http.HandlerFunc(tc.r.httpHandleWithVersion(tc.apiVersion, tc.r.handleServices)),
-			)
-
-			// send service to that endpoint using the JSON content-type
-			services := pb.ServicesMetadata{
-				"backend": map[string]string{
-					"app":      "django",
-					"app_type": "web",
-				},
-				"database": map[string]string{
-					"app":      "postgres",
-					"app_type": "db",
-				},
-			}
-
-			data, err := json.Marshal(services)
-			assert.Nil(err)
-			req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
-			assert.Nil(err)
-			req.Header.Set("Content-Type", tc.contentType)
-
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			assert.Nil(err)
-
-			assert.Equal(200, resp.StatusCode)
-
-			// now we should be able to read the trace data
-			select {
-			case rt := <-tc.r.services:
-				assert.Len(rt, 2)
-				assert.Equal(rt["backend"]["app"], "django")
-				assert.Equal(rt["backend"]["app_type"], "web")
-				assert.Equal(rt["database"]["app"], "postgres")
-				assert.Equal(rt["database"]["app_type"], "db")
-			default:
-				t.Fatalf("no data received")
-			}
-
-			resp.Body.Close()
-			server.Close()
-		})
-	}
-}
-
-func TestReceiverServiceMsgpackDecoder(t *testing.T) {
-	// testing traces without content-type in agent endpoints, it should use Msgpack decoding
-	// or it should raise a 415 Unsupported media type
-	assert := assert.New(t)
-	conf := newTestReceiverConfig()
-	testCases := []struct {
-		name        string
-		r           *HTTPReceiver
-		apiVersion  Version
-		contentType string
-	}{
-		{"v01 with application/msgpack", newTestReceiverFromConfig(conf), v01, "application/msgpack"},
-		{"v02 with application/msgpack", newTestReceiverFromConfig(conf), v02, "application/msgpack"},
-		{"v03 with application/msgpack", newTestReceiverFromConfig(conf), v03, "application/msgpack"},
-		{"v04 with application/msgpack", newTestReceiverFromConfig(conf), v04, "application/msgpack"},
-	}
-
-	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
-			// start testing server
-			server := httptest.NewServer(
-				http.HandlerFunc(tc.r.httpHandleWithVersion(tc.apiVersion, tc.r.handleServices)),
-			)
-
-			// send service to that endpoint using the JSON content-type
-			services := pb.ServicesMetadata{
-				"backend": map[string]string{
-					"app":      "django",
-					"app_type": "web",
-				},
-				"database": map[string]string{
-					"app":      "postgres",
-					"app_type": "db",
-				},
-			}
-
-			// send traces to that endpoint using the Msgpack content-type
-			var buf bytes.Buffer
-			err := msgp.Encode(&buf, services)
-			assert.Nil(err)
-			req, err := http.NewRequest("POST", server.URL, &buf)
-			assert.Nil(err)
-			req.Header.Set("Content-Type", tc.contentType)
-
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			assert.Nil(err)
-
-			switch tc.apiVersion {
-			case v01:
-				assert.Equal(415, resp.StatusCode)
-			case v02:
-				assert.Equal(415, resp.StatusCode)
-			case v03:
-				assert.Equal(200, resp.StatusCode)
-
-				// now we should be able to read the trace data
-				select {
-				case rt := <-tc.r.services:
-					assert.Len(rt, 2)
-					assert.Equal(rt["backend"]["app"], "django")
-					assert.Equal(rt["backend"]["app_type"], "web")
-					assert.Equal(rt["database"]["app"], "postgres")
-					assert.Equal(rt["database"]["app_type"], "db")
-				default:
-					t.Fatalf("no data received")
-				}
-
-				body, err := ioutil.ReadAll(resp.Body)
-				assert.Nil(err)
-				assert.Equal("OK\n", string(body))
-			case v04:
-				assert.Equal(200, resp.StatusCode)
-
-				// now we should be able to read the trace data
-				select {
-				case rt := <-tc.r.services:
-					assert.Len(rt, 2)
-					assert.Equal(rt["backend"]["app"], "django")
-					assert.Equal(rt["backend"]["app_type"], "web")
-					assert.Equal(rt["database"]["app"], "postgres")
-					assert.Equal(rt["database"]["app_type"], "db")
-				default:
-					t.Fatalf("no data received")
-				}
-
-				body, err := ioutil.ReadAll(resp.Body)
-				assert.Nil(err)
-				assert.Equal("OK\n", string(body))
-			}
-
-			resp.Body.Close()
-			server.Close()
-		})
-	}
 }
 
 func TestHandleTraces(t *testing.T) {
@@ -775,7 +604,7 @@ func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil, nil)
+	r := NewHTTPReceiver(conf, nil, nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -887,10 +716,10 @@ func TestWatchdog(t *testing.T) {
 func TestOOMKill(t *testing.T) {
 	var kills uint64
 
-	defer func(old func(string)) { killProcess = old }(killProcess)
-	killProcess = func(msg string) {
-		if msg != "OOM" {
-			t.Fatalf("wrong message: %s", msg)
+	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
+	killProcess = func(format string, a ...interface{}) {
+		if format != "OOM" {
+			t.Fatalf("wrong message: %s", fmt.Sprintf(format, a...))
 		}
 		atomic.AddUint64(&kills, 1)
 	}

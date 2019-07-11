@@ -33,6 +33,7 @@
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/util/clusteragent/                 @DataDog/container-integrations
 /pkg/util/containers/                   @DataDog/container-integrations
@@ -50,7 +51,10 @@
 
 /Dockerfiles/                           @DataDog/container-integrations
 /docs/trace-agent                       @DataDog/apm-agent
+
 /omnibus/                               @DataDog/agent-core
+/omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
+
 /tasks/trace.py                         @DataDog/apm-agent
 
 /Makefile.trace                         @DataDog/apm-agent

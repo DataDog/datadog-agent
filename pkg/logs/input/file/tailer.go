@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/input/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/tag"
@@ -31,14 +32,14 @@ const defaultCloseTimeout = 60 * time.Second
 
 // Tailer tails one file and sends messages to an output channel
 type Tailer struct {
+	readOffset    int64
+	decodedOffset int64
+
 	path           string
 	fullpath       string
 	file           *os.File
 	isWildcardPath bool
 	tags           []string
-
-	readOffset    int64
-	decodedOffset int64
 
 	outputChan  chan *message.Message
 	decoder     *decoder.Decoder
@@ -58,9 +59,12 @@ type Tailer struct {
 func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration, isWildcardPath bool) *Tailer {
 	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
 	var parser lineParser.Parser
-	if source.GetSourceType() == config.KubernetesSourceType {
+	switch source.GetSourceType() {
+	case config.KubernetesSourceType:
 		parser = kubernetes.Parser
-	} else {
+	case config.DockerSourceType:
+		parser = docker.JSONParser
+	default:
 		parser = lineParser.NoopParser
 	}
 	var tagProvider tag.Provider

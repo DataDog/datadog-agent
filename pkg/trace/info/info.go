@@ -26,9 +26,8 @@ var (
 
 	// TODO: move from package globals to a clean single struct
 
-	traceWriterInfo   TraceWriterInfo
-	statsWriterInfo   StatsWriterInfo
-	serviceWriterInfo ServiceWriterInfo
+	traceWriterInfo TraceWriterInfo
+	statsWriterInfo StatsWriterInfo
 
 	watchdogInfo        watchdog.Info
 	samplerInfo         SamplerInfo
@@ -65,7 +64,6 @@ const (
   From {{if $ts.Tags.Lang}}{{ $ts.Tags.Lang }} {{ $ts.Tags.LangVersion }} ({{ $ts.Tags.Interpreter }}), client {{ $ts.Tags.TracerVersion }}{{else}}unknown clients{{end}}
     Traces received: {{ $ts.Stats.TracesReceived }} ({{ $ts.Stats.TracesBytes }} bytes)
     Spans received: {{ $ts.Stats.SpansReceived }}
-    Services received: {{ $ts.Stats.ServicesReceived }} ({{ $ts.Stats.ServicesBytes }} bytes)
     {{ with $ts.WarnString }}
     WARNING: {{ . }}
     {{end}}
@@ -84,8 +82,6 @@ const (
   {{if gt .Status.TraceWriter.Errors 0}}WARNING: Traces API errors (1 min): {{.Status.TraceWriter.Errors}}{{end}}
   Stats: {{.Status.StatsWriter.Payloads}} payloads, {{.Status.StatsWriter.StatsBuckets}} stats buckets, {{.Status.StatsWriter.Bytes}} bytes
   {{if gt .Status.StatsWriter.Errors 0}}WARNING: Stats API errors (1 min): {{.Status.StatsWriter.Errors}}{{end}}
-  Services: {{.Status.ServiceWriter.Payloads}} payloads, {{.Status.ServiceWriter.Services}} services, {{.Status.ServiceWriter.Bytes}} bytes
-  {{if gt .Status.ServiceWriter.Errors 0}}WARNING: Services API errors (1 min): {{.Status.ServiceWriter.Errors}}{{end}}
 `
 
 	notRunningTmplSrc = `{{.Banner}}
@@ -261,7 +257,6 @@ func InitInfo(conf *config.AgentConfig) error {
 		expvar.Publish("sampler", expvar.Func(publishSamplerInfo))
 		expvar.Publish("trace_writer", expvar.Func(publishTraceWriterInfo))
 		expvar.Publish("stats_writer", expvar.Func(publishStatsWriterInfo))
-		expvar.Publish("service_writer", expvar.Func(publishServiceWriterInfo))
 		expvar.Publish("prioritysampler", expvar.Func(publishPrioritySamplerInfo))
 		expvar.Publish("errorssampler", expvar.Func(publishErrorsSamplerInfo))
 		expvar.Publish("ratebyservice", expvar.Func(publishRateByService))
@@ -322,7 +317,6 @@ type StatusInfo struct {
 	RateByService map[string]float64 `json:"ratebyservice"`
 	TraceWriter   TraceWriterInfo    `json:"trace_writer"`
 	StatsWriter   StatsWriterInfo    `json:"stats_writer"`
-	ServiceWriter ServiceWriterInfo  `json:"service_writer"`
 	Watchdog      watchdog.Info      `json:"watchdog"`
 	RateLimiter   RateLimiterStats   `json:"ratelimiter"`
 	Config        config.AgentConfig `json:"config"`
