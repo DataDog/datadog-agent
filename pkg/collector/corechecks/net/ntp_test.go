@@ -359,7 +359,8 @@ func TestNTPPortConfig(t *testing.T) {
 offset_threshold: 60
 port: %d
 `, expectedPort))
-	ntpCheck.Configure(ntpCfg, []byte(""))
+	err := ntpCheck.Configure(ntpCfg, []byte(""))
+	assert.Nil(t, err)
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 	mockSender.SetupAcceptAll()
@@ -369,4 +370,14 @@ port: %d
 	for _, port := range detectedPorts {
 		assert.Equal(t, expectedPort, port)
 	}
+}
+
+func TestNTPPortNotInt(t *testing.T) {
+	ntpCheck := new(NTPCheck)
+	ntpCfg := []byte(`
+offset_threshold: 60 
+port: ntp`)
+
+	err := ntpCheck.Configure(ntpCfg, []byte(""))
+	assert.EqualError(t, err, "yaml: unmarshal errors:\n  line 3: cannot unmarshal !!str `ntp` into int")
 }
