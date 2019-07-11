@@ -63,6 +63,8 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 				log.Warnf("untracked memory was attempted to be freed")
 				return
 			}
+			defer pointerCache.Delete(ptr)
+
 			frees.Add(1)
 			freedBytes.Add(int64(bytes.(C.size_t)))
 			inuseBytes.Add(-1 * int64(bytes.(C.size_t)))
