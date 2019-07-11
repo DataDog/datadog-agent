@@ -194,9 +194,9 @@ func parseContainerReadiness(status ContainerStatus, pod *Pod) string {
 // KubeContainerIDToEntityID builds an entity ID from a container ID coming from
 // the pod status (i.e. including the <runtime>:// prefix).
 func KubeContainerIDToEntityID(ctrID string) (string, error) {
-	sep := strings.LastIndex(ctrID, "://")
-	if sep != -1 && len(ctrID) > sep+3 {
-		return containers.ContainerEntityPrefix + ctrID[sep+3:], nil
+	sep := strings.LastIndex(ctrID, containers.EntitySeparator)
+	if sep != -1 && len(ctrID) > sep+len(containers.EntitySeparator) {
+		return containers.ContainerEntityName + ctrID[sep:], nil
 	}
 	return "", fmt.Errorf("can't extract an entity ID from container ID %s", ctrID)
 }

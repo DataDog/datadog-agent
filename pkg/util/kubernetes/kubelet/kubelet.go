@@ -283,7 +283,11 @@ func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) 
 	}
 	for _, pod := range podList {
 		for _, container := range pod.Status.GetAllContainers() {
-			if container.ID == containerID {
+			cid, err := KubeContainerIDToEntityID(container.ID)
+			if err != nil {
+				continue
+			}
+			if cid == containerID {
 				return pod, nil
 			}
 		}
@@ -335,7 +339,8 @@ func (ku *KubeUtil) GetPodForEntityID(entityID string) (*Pod, error) {
 		uid := strings.TrimPrefix(entityID, KubePodPrefix)
 		return ku.GetPodFromUID(uid)
 	}
-	return ku.GetPodForContainerID(entityID)
+	cid := strings.TrimPrefix(entityID, containers.ContainerEntityPrefix)
+	return ku.GetPodForContainerID(cid)
 }
 
 // setupKubeletApiClient will try to setup the http(s) client to query the kubelet

@@ -11,10 +11,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Scheduler creates and deletes new sources and services to start or stop
@@ -83,7 +83,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 		case s.newSources(config):
 			log.Infof("New source to remove: entity: %v", config.Entity)
 
-			_, identifier, err := s.parseEntity(config.Entity)
+			identifier, err := s.parseEntity(config.Entity)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
@@ -189,20 +189,21 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 
 // toService creates a new service for an integrationConfig.
 func (s *Scheduler) toService(config integration.Config) (*service.Service, error) {
-	provider, identifier, err := s.parseEntity(config.Entity)
+	provider := config.Provider
+	identifier, err := s.parseEntity(config.Entity)
 	if err != nil {
 		return nil, err
 	}
 	return service.NewService(provider, identifier, s.getCreationTime(config)), nil
 }
 
-// parseEntity breaks down an entity into a service provider and a service identifier.
-func (s *Scheduler) parseEntity(entity string) (string, string, error) {
-	components := strings.Split(entity, "://")
+// parseEntity breaks down an entity to retrieve the service identifier.
+func (s *Scheduler) parseEntity(entity string) (string, error) {
+	components := strings.Split(entity, containers.EntitySeparator)
 	if len(components) != 2 {
-		return "", "", fmt.Errorf("entity is malformed : %v", entity)
+		return "", fmt.Errorf("entity is malformed : %v", entity)
 	}
-	return components[0], components[1], nil
+	return components[1], nil
 }
 
 // integrationToServiceCRTime maps an integration creation time to a service creation time.

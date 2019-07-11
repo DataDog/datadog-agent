@@ -10,10 +10,15 @@ import (
 	"strings"
 )
 
+// ContainerEntityName is the entity name applied to all containers
+const ContainerEntityName = "container_id"
+
+// EntitySeparator is used to separate the entity name from its ID
+const EntitySeparator = "://"
+
 // ContainerEntityPrefix is the prefix that any entity corresponding to a container must have
 // It replaces any prior prefix like <runtime>:// in a pod container status.
-const ContainerEntityPrefix = "container_id://"
-const entitySeparator = "://"
+const ContainerEntityPrefix = ContainerEntityName + EntitySeparator
 
 // BuildEntityName builds a valid entity name for a given container runtime and cid.
 // An empty runtime is fine since we hardcode container_id anyway.
@@ -31,7 +36,7 @@ func SplitEntityName(name string) (string, string) {
 	if !IsEntityName(name) {
 		return "", ""
 	}
-	parts := strings.SplitN(name, entitySeparator, 2)
+	parts := strings.SplitN(name, EntitySeparator, 2)
 	return parts[0], parts[1]
 }
 
@@ -43,5 +48,5 @@ func ContainerIDForEntity(name string) string {
 
 // IsEntityName tests whether a given entity name is valid
 func IsEntityName(name string) bool {
-	return strings.Contains(name, entitySeparator)
+	return strings.Contains(name, EntitySeparator)
 }

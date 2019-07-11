@@ -906,11 +906,9 @@ func TestSearchPodForContainerID(t *testing.T) {
 	}
 
 	serviceFoo := &service.Service{
-		Type:       "docker",
 		Identifier: "fooID",
 	}
 	serviceBaz := &service.Service{
-		Type:       "docker",
 		Identifier: "bazID",
 	}
 
