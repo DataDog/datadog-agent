@@ -2,6 +2,18 @@
 Release Notes
 =============
 
+1.3.2
+=====
+2019-07-09
+
+- Fix Cluster-agent failure with `cluster-agent flare` command.
+
+1.3.1
+=====
+2019-06-19
+
+- Fix "Kube Services" service: `kube service` tags attached to pod are not consistent.
+
 .. _Release Notes_1.3.0:
 
 1.3.0

@@ -12,7 +12,7 @@ when 'debian'
   execute 'install debian' do
     command <<-EOF
       sudo sh -c "echo \'deb http://#{node['dd-agent-step-by-step']['repo_domain_apt']}/ #{node['dd-agent-step-by-step']['repo_branch_apt']} main\' > /etc/apt/sources.list.d/datadog.list"
-      sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 382E94DE
+      sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A2923DFF56EDA6E76E55E492D3A80E30382E94DE
       sudo apt-get update
       sudo apt-get install #{node['dd-agent-step-by-step']['package_name']} -y -q
     EOF

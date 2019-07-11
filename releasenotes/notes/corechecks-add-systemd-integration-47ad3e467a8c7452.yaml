@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Add new systemd integration to monitor systemd itself 
+    and the units managed by systemd.

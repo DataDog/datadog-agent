@@ -2,7 +2,10 @@ package config
 
 import (
 	"bytes"
+	"crypto/tls"
 	"errors"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -11,10 +14,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/legacy"
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
-	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -67,13 +71,13 @@ type AgentConfig struct {
 	// Receiver
 	ReceiverHost    string
 	ReceiverPort    int
-	ConnectionLimit int // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
+	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
 	ReceiverTimeout int
 
 	// Writers
-	ServiceWriterConfig writerconfig.ServiceWriterConfig
-	StatsWriterConfig   writerconfig.StatsWriterConfig
-	TraceWriterConfig   writerconfig.TraceWriterConfig
+	StatsWriter *WriterConfig
+	TraceWriter *WriterConfig
 
 	// internal telemetry
 	StatsdHost string
@@ -129,9 +133,8 @@ func New() *AgentConfig {
 		ReceiverPort:    8126,
 		ConnectionLimit: 2000,
 
-		ServiceWriterConfig: writerconfig.DefaultServiceWriterConfig(),
-		StatsWriterConfig:   writerconfig.DefaultStatsWriterConfig(),
-		TraceWriterConfig:   writerconfig.DefaultTraceWriterConfig(),
+		StatsWriter: new(WriterConfig),
+		TraceWriter: new(WriterConfig),
 
 		StatsdHost: "localhost",
 		StatsdPort: 8125,
@@ -142,7 +145,7 @@ func New() *AgentConfig {
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%
-		WatchdogInterval: 20 * time.Second,
+		WatchdogInterval: 10 * time.Second,
 
 		Ignore:                      make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
@@ -197,6 +200,32 @@ func (c *AgentConfig) acquireHostname() error {
 		err = ErrMissingHostname
 	}
 	return err
+}
+
+// HTTPClient returns a new http.Client to be used for outgoing connections to the
+// Datadog API.
+func (c *AgentConfig) HTTPClient() *http.Client {
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.SkipSSLValidation},
+		// below field values are from http.DefaultTransport (go1.12)
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	if p := coreconfig.GetProxies(); p != nil {
+		transport.Proxy = util.GetProxyTransportFunc(p)
+	}
+	return &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: transport,
+	}
 }
 
 // Load returns a new configuration based on the given path. The path must not necessarily exist

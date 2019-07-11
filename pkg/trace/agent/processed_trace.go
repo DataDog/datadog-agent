@@ -13,7 +13,6 @@ type ProcessedTrace struct {
 	Root          *pb.Span
 	Env           string
 	Sublayers     stats.SublayerMap
-	Sampled       bool
 }
 
 // Weight returns the weight at the root span.

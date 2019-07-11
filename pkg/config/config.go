@@ -27,6 +27,8 @@ import (
 // the user-provided value is invalid.
 const DefaultForwarderRecoveryInterval = 2
 
+const megaByte = 1024 * 1024
+
 // DefaultSite is the default site the Agent sends data to.
 const DefaultSite = "datadoghq.com"
 
@@ -105,7 +107,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("log_level", "info")
 	config.BindEnvAndSetDefault("log_to_syslog", false)
 	config.BindEnvAndSetDefault("log_to_console", true)
-	config.BindEnvAndSetDefault("logging_frequency", int64(20))
+	config.BindEnvAndSetDefault("logging_frequency", int64(500))
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")
 	config.BindEnvAndSetDefault("syslog_rfc", false)
@@ -185,6 +187,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
 	// Serializer
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
+	// Warning: do not change the two following values. Your payloads will get dropped by Datadog's intake.
+	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
+	config.BindEnvAndSetDefault("serializer_max_uncompressed_payload_size", 4*megaByte)
 	config.BindEnvAndSetDefault("use_v2_api.series", false)
 	config.BindEnvAndSetDefault("use_v2_api.events", false)
 	config.BindEnvAndSetDefault("use_v2_api.service_checks", false)
@@ -363,6 +368,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
+	config.SetKnown("logs_config.additional_endpoints")
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
@@ -428,6 +434,8 @@ func initConfig(config Config) {
 	config.SetKnown("process_config.additional_endpoints.*")
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
+	config.SetKnown("process_config.expvar_port")
+
 	// System probe
 	config.SetKnown("system_probe_config.enabled")
 	config.SetKnown("system_probe_config.log_file")
@@ -458,6 +466,7 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.apm_dd_url")
 	config.SetKnown("apm_config.max_cpu_percent")
 	config.SetKnown("apm_config.receiver_port")
+	config.SetKnown("apm_config.receiver_socket")
 	config.SetKnown("apm_config.connection_limit")
 	config.SetKnown("apm_config.ignore_resources")
 	config.SetKnown("apm_config.replace_tags")
@@ -473,32 +482,18 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.extra_sample_rate")
 	config.SetKnown("apm_config.dd_agent_bin")
 	config.SetKnown("apm_config.max_events_per_second")
-	config.SetKnown("apm_config.trace_writer.flush_period_seconds")
-	config.SetKnown("apm_config.trace_writer.update_info_period_seconds")
-	config.SetKnown("apm_config.trace_writer.queue.max_age_seconds")
-	config.SetKnown("apm_config.trace_writer.queue.max_bytes")
-	config.SetKnown("apm_config.trace_writer.queue.max_payloads")
-	config.SetKnown("apm_config.trace_writer.queue.exp_backoff_max_duration_seconds")
-	config.SetKnown("apm_config.trace_writer.queue.exp_backoff_base_milliseconds")
-	config.SetKnown("apm_config.trace_writer.queue.exp_backoff_growth_base")
-	config.SetKnown("apm_config.service_writer.flush_period_seconds")
-	config.SetKnown("apm_config.service_writer.update_info_period_seconds")
-	config.SetKnown("apm_config.service_writer.queue.max_age_seconds")
-	config.SetKnown("apm_config.service_writer.queue.max_bytes")
-	config.SetKnown("apm_config.service_writer.queue.max_payloads")
-	config.SetKnown("apm_config.service_writer.queue.exp_backoff_max_duration_seconds")
-	config.SetKnown("apm_config.service_writer.queue.exp_backoff_base_milliseconds")
-	config.SetKnown("apm_config.service_writer.queue.exp_backoff_growth_base")
-	config.SetKnown("apm_config.stats_writer.max_entries_per_payload")
-	config.SetKnown("apm_config.stats_writer.update_info_period_seconds")
-	config.SetKnown("apm_config.stats_writer.queue.max_age_seconds")
-	config.SetKnown("apm_config.stats_writer.queue.max_bytes")
-	config.SetKnown("apm_config.stats_writer.queue.max_payloads")
-	config.SetKnown("apm_config.stats_writer.queue.exp_backoff_max_duration_seconds")
-	config.SetKnown("apm_config.stats_writer.queue.exp_backoff_base_milliseconds")
-	config.SetKnown("apm_config.stats_writer.queue.exp_backoff_growth_base")
+	config.SetKnown("apm_config.trace_writer.connection_limit")
+	config.SetKnown("apm_config.trace_writer.queue_size")
+	config.SetKnown("apm_config.service_writer.connection_limit")
+	config.SetKnown("apm_config.service_writer.queue_size")
+	config.SetKnown("apm_config.stats_writer.connection_limit")
+	config.SetKnown("apm_config.stats_writer.queue_size")
 	config.SetKnown("apm_config.analyzed_rate_by_service.*")
 	config.SetKnown("apm_config.analyzed_spans.*")
+	config.SetKnown("apm_config.log_throttling")
+	config.SetKnown("apm_config.bucket_size_seconds")
+	config.SetKnown("apm_config.receiver_timeout")
+	config.SetKnown("apm_config.watchdog_check_delay")
 
 	setAssetFs(config)
 }

@@ -197,6 +197,10 @@
           <RegistryValue Name="trace_dd_url"
                          Type="string"
                          Value="[TRACE_DD_URL]" />
+          <RegistryValue Name="py_version"
+                         Type="string"
+                         Value="[PYVER]" />
+
         </RegistryKey>
 
       </Component>
@@ -226,7 +230,7 @@
 
 
         </Component>
-        <Component Id="SIXDLLS" Guid="E81FBBB0-7BB9-4D52-A5F1-36A2123E6979">
+        <Component Id="RTLOADERDLLS" Guid="E81FBBB0-7BB9-4D52-A5F1-36A2123E6979">
           <?if $(var.IncludePython2) = true ?>
           <File Id="twodll"
                 Name="libdatadog-agent-two.dll"
@@ -381,7 +385,12 @@
         </Component>
       </Directory>
     </DirectoryRef>
-
+    <DirectoryRef Id="TARGETDIR">
+        <Merge Id="VCRedist141" SourceFile="$(var.BinFiles)/Microsoft_VC141_CRT_x64.msm" DiskId="1" Language="0"/>
+    </DirectoryRef>
+    <Feature Id="VCRedist141" Title="Visual C++ 2015 Runtime" AllowAdvertise="no" Display="hidden" Level="1">
+        <MergeRef Id="VCRedist141"/>
+    </Feature>
     <InstallExecuteSequence>
       <Custom Action='WixCloseApplications' Before='RemoveFiles'> </Custom>
 
@@ -420,7 +429,7 @@
       <ComponentRef Id="REGISTRYDIRECTORY" />
       <ComponentRef Id="ApplicationShortcut" />
       <ComponentRef Id="DATADOGAGENTSERVICE" />
-      <ComponentRef Id="SIXDLLS" />
+      <ComponentRef Id="RTLOADERDLLS" />
       <ComponentRef Id="DATADOGAPMSERVICE" />
       <ComponentRef Id="DATADOGPROCESSSERVICE" />
       <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />

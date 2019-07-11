@@ -16,9 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// FIXME: Changed chanSize to a constant once we refactor packages
 const (
-	chanSize      = 100
 	warningPeriod = 1000
 )
 
@@ -28,7 +26,7 @@ type Destination struct {
 	delimiter           Delimiter
 	connManager         *ConnectionManager
 	destinationsContext *client.DestinationsContext
-	conn                net.Conn
+	connPool            sync.Pool
 	inputChan           chan []byte
 	once                sync.Once
 	warningCounter      int
@@ -48,28 +46,40 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 // Send transforms a message into a frame and sends it to a remote server,
 // returns an error if the operation failed.
 func (d *Destination) Send(payload []byte) error {
-	if d.conn == nil {
-		var err error
-
-		// We work only if we have a started destination context
-		ctx := d.destinationsContext.Context()
-		if d.conn, err = d.connManager.NewConnection(ctx); err != nil {
-			return err
-		}
-	}
+	var err error
 
 	content := d.prefixer.apply(payload)
 	frame, err := d.delimiter.delimit(content)
 	if err != nil {
-		return client.NewFramingError(err)
-	}
-
-	_, err = d.conn.Write(frame)
-	if err != nil {
-		d.connManager.CloseConnection(d.conn)
-		d.conn = nil
+		// the delimiter can fail when the payload can not be framed correctly.
 		return err
 	}
+
+	// reuse an existing connection from the pool or
+	// create a new one if none is available, this can
+	// happen when this method is called concurrently
+	// from different places ; in such a case,
+	// the size of the pool will be the maximum size
+	// of concurrent calls and objects that are not used
+	// will be automatically deallocated
+	conn, available := d.connPool.Get().(net.Conn)
+	if !available {
+		ctx := d.destinationsContext.Context()
+		conn, err = d.connManager.NewConnection(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = conn.Write(frame)
+	if err != nil {
+		d.connManager.CloseConnection(conn)
+		return client.NewRetryableError(err)
+	}
+
+	// make sure the connection is put back to the pool
+	// for later reuse
+	d.connPool.Put(conn)
 
 	return nil
 }
@@ -79,7 +89,7 @@ func (d *Destination) Send(payload []byte) error {
 func (d *Destination) SendAsync(payload []byte) {
 	host := d.connManager.endpoint.Host
 	d.once.Do(func() {
-		inputChan := make(chan []byte, chanSize)
+		inputChan := make(chan []byte, config.ChanSize)
 		d.inputChan = inputChan
 		metrics.DestinationLogsDropped.Set(host, &expvar.Int{})
 		go d.runAsync()

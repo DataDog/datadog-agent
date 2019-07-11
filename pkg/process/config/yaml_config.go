@@ -286,7 +286,7 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 		a.StatsdPort = config.Datadog.GetInt(k)
 	}
 
-	if bindHost := config.Datadog.GetString(key(ns, "bind_host")); bindHost != "" {
+	if bindHost := config.Datadog.GetString("bind_host"); bindHost != "" {
 		a.StatsdHost = bindHost
 	}
 

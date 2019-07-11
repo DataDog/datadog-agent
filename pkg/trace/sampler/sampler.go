@@ -26,7 +26,7 @@ const (
 	// KeySamplingRateClient is a metric key holding the client-set sampling rate for APM events.
 	KeySamplingRateClient = "_dd1.sr.rcusr"
 
-	// KeySamplingRatePreSampler is a metric key holding the pre-sampler rate for APM events.
+	// KeySamplingRatePreSampler is a metric key holding the API rate limiter's rate for APM events.
 	KeySamplingRatePreSampler = "_dd1.sr.rapre"
 
 	// KeySamplingRateEventExtraction is the key of the metric storing the event extraction rate on an APM event.

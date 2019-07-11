@@ -66,39 +66,23 @@ platforms:
     # TEST_PLATFORMS syntax is `short_name1,parent vhd folder,parent_vhd_name|...`
     azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
 
-    chef_versions = %w(
-      13.6.4
-    )
-
     sizes = [
-      "Standard_D1",
-      "Standard_A1",
+      "Standard_D1_v2",
+      "Standard_A1_v2",
     ]
 
     windows_sizes = [
-      "Standard_D1"
+      "Standard_D1_v2"
     ]
 
-    # we wanna spread out our quotas
-    locations = [
-      "North Central US",
-      "South Central US",
-      "Central US",
-    ]
-
-    drivers = %w(
-      azurerm
-    )
-
-    platforms_x64 = azure_test_platforms.product(chef_versions, drivers).select{|p, c, d| not p[0].include? "i386"}.collect{|p, c, d| p[0] + "-" + c + "-" + d}
+    location = "North Central US"
 
     exclude_platforms = []
     windows_platforms = []
 
     idx = 0
-    azure_test_platforms.product(chef_versions).each do |platform, chef_version|
+    azure_test_platforms.each do |platform|
     idx += 1
-    location = locations[idx % locations.length]
 
     host = "azure"
     if ENV['KITCHEN_DRIVER'] && ENV['KITCHEN_DRIVER'] == "hyperv"
@@ -108,7 +92,6 @@ platforms:
     windows = platform_name.include?("win")
     if windows
       windows_platforms << platform_name
-      size = "Standard_D1"
       size = windows_sizes[idx % windows_sizes.length]
     else
       size = sizes[idx % sizes.length]
@@ -220,24 +203,13 @@ suites:
       # Get the latest release agents. The upgrade recipe will take care of
       # adding the staging repo and upgrading to the latest candidate
       agent6: true
-      aptrepo: http://apt.datadoghq.com/
-      aptrepo_dist: stable
-      yumrepo: http://yum.datadoghq.com/beta/x86_64/
-      agent6_yumrepo: http://yum.datadoghq.com/beta/x86_64/
-      agent6_yumrepo_suse: http://yum.datadoghq.com/suse/beta/x86_64/
+      agent6_aptrepo: http://apt.datadoghq.com/
+      agent6_aptrepo_dist: stable
+      agent6_yumrepo: http://yum.datadoghq.com/stable/6/x86_64/
+      agent6_yumrepo_suse: http://yum.datadoghq.com/suse/stable/6/x86_64/
       windows_agent_url: https://s3.amazonaws.com/ddagent-windows-stable/
     dd-agent-install:
-      <% dd_agent_config.each do |key, value| %>
-      <%= key %>: <%= value %>
-      <% end %>
-      # Get the latest release agents. The upgrade recipe will take care of
-      # adding the staging repo and upgrading to the latest candidate
       agent6: true
-      aptrepo: http://apt.datadoghq.com/
-      aptrepo_dist: stable
-      yumrepo: http://yum.datadoghq.com/beta/x86_64/
-      agent6_yumrepo: http://yum.datadoghq.com/beta/x86_64/
-      agent6_yumrepo_suse: http://yum.datadoghq.com/suse/beta/x86_64/
       windows_agent_url: https://s3.amazonaws.com/ddagent-windows-stable/
       windows_agent_filename: datadog-agent-6-latest.amd64
     dd-agent-upgrade:

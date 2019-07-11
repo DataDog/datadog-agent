@@ -1,6 +1,7 @@
 [Unit]
-Description="Datadog System Probe"
-After=network.target
+Description=Datadog System Probe
+Requires=sys-kernel-debug.mount
+After=network.target sys-kernel-debug.mount
 
 [Service]
 Type=simple

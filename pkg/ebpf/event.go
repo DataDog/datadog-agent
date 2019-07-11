@@ -63,6 +63,11 @@ __u32 retransmits;
 */
 type TCPStats C.tcp_stats_t
 
+/*
+__u32 tcp_sent_miscounts;
+*/
+type kernelTelemetry C.telemetry_t
+
 func (cs *ConnStatsWithTimestamp) isExpired(latestTime uint64, timeout uint64) bool {
 	return latestTime > timeout+uint64(cs.timestamp)
 }

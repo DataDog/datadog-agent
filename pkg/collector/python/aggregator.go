@@ -15,9 +15,9 @@ import (
 )
 
 /*
-#include <datadog_agent_six.h>
-#cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
-#cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
+#include <datadog_agent_rtloader.h>
+#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 */
 import "C"
 
@@ -38,19 +38,19 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 	_tags := cStringArrayToSlice(tags)
 
 	switch metricType {
-	case C.DATADOG_AGENT_SIX_GAUGE:
+	case C.DATADOG_AGENT_RTLOADER_GAUGE:
 		sender.Gauge(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_SIX_RATE:
+	case C.DATADOG_AGENT_RTLOADER_RATE:
 		sender.Rate(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_SIX_COUNT:
+	case C.DATADOG_AGENT_RTLOADER_COUNT:
 		sender.Count(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_SIX_MONOTONIC_COUNT:
+	case C.DATADOG_AGENT_RTLOADER_MONOTONIC_COUNT:
 		sender.MonotonicCount(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_SIX_COUNTER:
+	case C.DATADOG_AGENT_RTLOADER_COUNTER:
 		sender.Counter(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_SIX_HISTOGRAM:
+	case C.DATADOG_AGENT_RTLOADER_HISTOGRAM:
 		sender.Histogram(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_SIX_HISTORATE:
+	case C.DATADOG_AGENT_RTLOADER_HISTORATE:
 		sender.Historate(_name, _value, _hostname, _tags)
 	}
 }
@@ -103,12 +103,7 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 		AlertType:      metrics.EventAlertType(eventParseString(event.alert_type, "alert_type")),
 		AggregationKey: eventParseString(event.aggregation_key, "aggregation_key"),
 		SourceTypeName: eventParseString(event.source_type_name, "source_type_name"),
-	}
-
-	if event.ts == 0 {
-		log.Errorf("Can't cast timestamp to integer in event submitted from python check")
-	} else {
-		_event.Ts = int64(event.ts)
+		Ts:             int64(event.ts),
 	}
 
 	sender.Event(_event)

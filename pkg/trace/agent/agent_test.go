@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -88,7 +89,10 @@ func TestProcess(t *testing.T) {
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
-		agnt.Process(pb.Trace{span})
+		agnt.Process(&api.Trace{
+			Spans:  pb.Trace{span},
+			Source: &info.Tags{},
+		})
 
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
@@ -120,11 +124,17 @@ func TestProcess(t *testing.T) {
 		stats := agnt.Receiver.Stats.GetTagStats(info.Tags{})
 		assert := assert.New(t)
 
-		agnt.Process(pb.Trace{spanValid})
+		agnt.Process(&api.Trace{
+			Spans:  pb.Trace{spanValid},
+			Source: &info.Tags{},
+		})
 		assert.EqualValues(0, stats.TracesFiltered)
 		assert.EqualValues(0, stats.SpansFiltered)
 
-		agnt.Process(pb.Trace{spanInvalid, spanInvalid})
+		agnt.Process(&api.Trace{
+			Spans:  pb.Trace{spanInvalid, spanInvalid},
+			Source: &info.Tags{},
+		})
 		assert.EqualValues(1, stats.TracesFiltered)
 		assert.EqualValues(2, stats.SpansFiltered)
 	})
@@ -164,7 +174,10 @@ func TestProcess(t *testing.T) {
 			if key != sampler.PriorityNone {
 				sampler.SetSamplingPriority(span, key)
 			}
-			agnt.Process(pb.Trace{span})
+			agnt.Process(&api.Trace{
+				Spans:  pb.Trace{span},
+				Source: &info.Tags{},
+			})
 		}
 
 		stats := agnt.Receiver.Stats.GetTagStats(info.Tags{})
@@ -302,7 +315,7 @@ func TestSampling(t *testing.T) {
 				sampler.SetSamplingPriority(pt.Root, 1)
 			}
 
-			sampled, rate := a.sample(pt)
+			sampled, rate := a.runSamplers(pt)
 			assert.EqualValues(t, tt.wantRate, rate)
 			assert.EqualValues(t, tt.wantSampled, sampled)
 		})
@@ -496,7 +509,10 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		ta.Process(testutil.RandomTrace(10, 8))
+		ta.Process(&api.Trace{
+			Spans:  testutil.RandomTrace(10, 8),
+			Source: &info.Tags{},
+		})
 	}
 }
 
@@ -545,7 +561,7 @@ func benchThroughput(file string) func(*testing.B) {
 		// start the agent without the trace and stats writers; we will be draining
 		// these channels ourselves in the benchmarks, plus we don't want the writers
 		// resource usage to show up in the results.
-		agnt.tracePkgChan = make(chan *writer.TracePackage)
+		agnt.spansOut = make(chan *writer.SampledSpans)
 		go agnt.Run()
 
 		// wait for receiver to start:
@@ -566,8 +582,7 @@ func benchThroughput(file string) func(*testing.B) {
 			defer close(exit)
 			for {
 				select {
-				case <-agnt.ServiceExtractor.outServices:
-				case <-agnt.Concentrator.OutStats:
+				case <-agnt.Concentrator.Out:
 				case <-exit:
 					return
 				}
@@ -599,7 +614,7 @@ func benchThroughput(file string) func(*testing.B) {
 		loop:
 			for {
 				select {
-				case <-agnt.tracePkgChan:
+				case <-agnt.spansOut:
 					got++
 					if got == count {
 						// processed everything!

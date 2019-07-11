@@ -65,7 +65,7 @@ func init() {
 }
 
 func NewKubeletListener() (ServiceListener, error) {
-	watcher, err := kubelet.NewPodWatcher(15 * time.Second)
+	watcher, err := kubelet.NewPodWatcher(15*time.Second, false)
 	if err != nil {
 		return nil, err
 	}

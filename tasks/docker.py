@@ -145,6 +145,11 @@ def publish(ctx, src, dst, signed_pull=False, signed_push=False):
     )
 
 @task
+def delete(ctx, org, image, tag, token):
+    print("Deleting {org}/{image}:{tag}".format(org=org, image=image, tag=tag))
+    ctx.run("curl 'https://hub.docker.com/v2/repositories/{org}/{image}/tags/{tag}/' -X DELETE -H 'Authorization: JWT {token}' &>/dev/null".format(org=org, image=image, tag=tag, token=token))
+
+@task
 def pull_base_images(ctx, dockerfile, signed_pull=True):
     """
     Pulls the base images for a given Dockerfile, with

@@ -87,12 +87,3 @@ func TestTruncateMetaValueTooLong(t *testing.T) {
 		assert.True(t, len(v) < MaxMetaValLen+4)
 	}
 }
-func TestTruncateString(t *testing.T) {
-	assert.Equal(t, "", truncateString("", 5))
-	assert.Equal(t, "télé", truncateString("télé", 5))
-	assert.Equal(t, "t", truncateString("télé", 2))
-	assert.Equal(t, "éé", truncateString("ééééé", 5))
-	assert.Equal(t, "ééééé", truncateString("ééééé", 18))
-	assert.Equal(t, "ééééé", truncateString("ééééé", 10))
-	assert.Equal(t, "ééé", truncateString("ééééé", 6))
-}

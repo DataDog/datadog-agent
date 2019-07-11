@@ -17,19 +17,19 @@ import (
 )
 
 /*
-#include <datadog_agent_six.h>
+#include <datadog_agent_rtloader.h>
 
 int get_class_calls = 0;
 int get_class_return = 0;
 int get_class_dd_wheel_return = 0;
 const char *get_class_name = NULL;
 const char *get_class_dd_wheel_name = NULL;
-six_pyobject_t *get_class_py_module = NULL;
-six_pyobject_t *get_class_py_class = NULL;
-six_pyobject_t *get_class_dd_wheel_py_module = NULL;
-six_pyobject_t *get_class_dd_wheel_py_class = NULL;
+rtloader_pyobject_t *get_class_py_module = NULL;
+rtloader_pyobject_t *get_class_py_class = NULL;
+rtloader_pyobject_t *get_class_dd_wheel_py_module = NULL;
+rtloader_pyobject_t *get_class_dd_wheel_py_class = NULL;
 
-int get_class(six_t *six, const char *name, six_pyobject_t **py_module, six_pyobject_t **py_class) {
+int get_class(rtloader_t *rtloader, const char *name, rtloader_pyobject_t **py_module, rtloader_pyobject_t **py_class) {
 
 	get_class_calls++;
 
@@ -48,11 +48,11 @@ int get_class(six_t *six, const char *name, six_pyobject_t **py_module, six_pyob
 }
 
 int get_attr_string_return = 0;
-six_pyobject_t *get_attr_string_py_class = NULL;
+rtloader_pyobject_t *get_attr_string_py_class = NULL;
 const char *get_attr_string_attr_name = NULL;
 char *get_attr_string_attr_value = NULL;
 
-int get_attr_string(six_t *six, six_pyobject_t *py_class, const char *attr_name, char **value) {
+int get_attr_string(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *attr_name, char **value) {
 	get_attr_string_py_class = py_class;
 	get_attr_string_attr_name = strdup(attr_name);
 	*value = get_attr_string_attr_value;
@@ -60,7 +60,7 @@ int get_attr_string(six_t *six, six_pyobject_t *py_class, const char *attr_name,
 	return get_attr_string_return;
 }
 
-py_info_t *get_py_info(six_t *sic) {
+py_info_t *get_py_info(rtloader_t *sic) {
 	py_info_t *i = malloc(sizeof(py_info_t));
 	i->version = "fake python";
 	i->path = "/fake/path";
@@ -97,17 +97,17 @@ func testLoadCustomCheck(t *testing.T) {
 		InitConfig: integration.Data("{}"),
 	}
 
-	// init six
-	six = &C.six_t{}
-	defer func() { six = nil }()
+	// init rtloader
+	rtloader = &C.rtloader_t{}
+	defer func() { rtloader = nil }()
 
 	loader, err := NewPythonCheckLoader()
 	assert.Nil(t, err)
 
 	// testing loading custom checks
 	C.get_class_return = 1
-	C.get_class_py_module = &C.six_pyobject_t{}
-	C.get_class_py_class = &C.six_pyobject_t{}
+	C.get_class_py_module = &C.rtloader_pyobject_t{}
+	C.get_class_py_class = &C.rtloader_pyobject_t{}
 	C.get_attr_string_return = 0
 
 	checks, err := loader.Load(conf)
@@ -133,17 +133,17 @@ func testLoadWheelCheck(t *testing.T) {
 		InitConfig: integration.Data("{}"),
 	}
 
-	// init six
-	six = &C.six_t{}
-	defer func() { six = nil }()
+	// init rtloader
+	rtloader = &C.rtloader_t{}
+	defer func() { rtloader = nil }()
 
 	loader, err := NewPythonCheckLoader()
 	assert.Nil(t, err)
 
 	// testing loading dd wheels
 	C.get_class_dd_wheel_return = 1
-	C.get_class_dd_wheel_py_module = &C.six_pyobject_t{}
-	C.get_class_dd_wheel_py_class = &C.six_pyobject_t{}
+	C.get_class_dd_wheel_py_module = &C.rtloader_pyobject_t{}
+	C.get_class_dd_wheel_py_class = &C.rtloader_pyobject_t{}
 	C.get_attr_string_return = 1
 	C.get_attr_string_attr_value = C.CString("1.2.3")
 

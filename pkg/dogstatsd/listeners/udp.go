@@ -20,11 +20,13 @@ var (
 	udpExpvars             = expvar.NewMap("dogstatsd-udp")
 	udpPacketReadingErrors = expvar.Int{}
 	udpPackets             = expvar.Int{}
+	udpBytes               = expvar.Int{}
 )
 
 func init() {
 	udpExpvars.Set("PacketReadingErrors", &udpPacketReadingErrors)
 	udpExpvars.Set("Packets", &udpPackets)
+	udpExpvars.Set("Bytes", &udpBytes)
 }
 
 // UDPListener implements the StatsdListener interface for UDP protocol.
@@ -89,7 +91,7 @@ func (l *UDPListener) Listen() {
 			udpPacketReadingErrors.Add(1)
 			continue
 		}
-
+		udpBytes.Add(int64(n))
 		packet.Contents = packet.buffer[:n]
 
 		// packetBuffer handles the forwarding of the packets to the dogstatsd server intake channel

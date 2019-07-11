@@ -31,7 +31,7 @@ func Exitf(format string, args ...interface{}) {
 		fmt.Printf(format, args...)
 		fmt.Print("")
 	} else {
-		log.Errorf(format, args...)
+		log.Criticalf(format, args...)
 		log.Flush()
 	}
 	os.Exit(1)

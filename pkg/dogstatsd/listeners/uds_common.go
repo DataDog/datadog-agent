@@ -23,12 +23,14 @@ var (
 	udsOriginDetectionErrors = expvar.Int{}
 	udsPacketReadingErrors   = expvar.Int{}
 	udsPackets               = expvar.Int{}
+	udsBytes                 = expvar.Int{}
 )
 
 func init() {
 	udsExpvars.Set("OriginDetectionErrors", &udsOriginDetectionErrors)
 	udsExpvars.Set("PacketReadingErrors", &udsPacketReadingErrors)
 	udsExpvars.Set("Packets", &udsPackets)
+	udsExpvars.Set("Bytes", &udsBytes)
 }
 
 // UDSListener implements the StatsdListener interface for Unix Domain
@@ -151,6 +153,7 @@ func (l *UDSListener) Listen() {
 			continue
 		}
 
+		udsBytes.Add(int64(n))
 		packet.Contents = packet.buffer[:n]
 
 		// packetBuffer handles the forwarding of the packets to the dogstatsd server intake channel

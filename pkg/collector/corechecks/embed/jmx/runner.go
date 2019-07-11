@@ -38,15 +38,9 @@ type checkInitCfg struct {
 	JavaOptions    string   `yaml:"java_options,omitempty"`
 }
 
-const windowsExitFile = "jmxfetch_exit"
-
 func (r *runner) initRunner() {
 	r.jmxfetch = &jmxfetch.JMXFetch{}
 	r.jmxfetch.LogLevel = config.Datadog.GetString("log_level")
-
-	if runtime.GOOS == "windows" {
-		r.jmxfetch.JmxExitFile = windowsExitFile
-	}
 }
 
 func (r *runner) startRunner() error {

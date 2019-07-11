@@ -9,6 +9,8 @@
 package jmxfetch
 
 import (
+	"os"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -60,4 +62,38 @@ func (j *JMXFetch) Monitor() {
 	}
 
 	<-j.shutdown
+}
+
+// Stop stops the JMXFetch process
+func (j *JMXFetch) Stop() error {
+	var stopChan chan struct{}
+
+	err := j.cmd.Process.Signal(syscall.SIGTERM)
+	if err != nil {
+		return err
+	}
+
+	if j.managed {
+		stopChan = j.stopped
+		close(j.shutdown)
+	} else {
+		stopChan = make(chan struct{})
+
+		go func() {
+			j.Wait()
+			close(stopChan)
+		}()
+	}
+
+	select {
+	case <-time.After(time.Millisecond * 500):
+		log.Warnf("Jmxfetch did not exit during it's grace period, killing it")
+		err = j.cmd.Process.Signal(os.Kill)
+		if err != nil {
+			log.Warnf("Could not kill jmxfetch: %v", err)
+		}
+	case <-stopChan:
+	}
+	return nil
+
 }

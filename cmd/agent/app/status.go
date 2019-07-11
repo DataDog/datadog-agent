@@ -67,7 +67,7 @@ func requestStatus() error {
 	r, e := util.DoGet(c, urlstr)
 	if e != nil {
 		var errMap = make(map[string]string)
-		json.Unmarshal(r, errMap)
+		json.Unmarshal(r, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if err, found := errMap["error"]; found {
 			e = fmt.Errorf(err)

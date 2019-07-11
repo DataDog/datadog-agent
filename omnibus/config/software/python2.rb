@@ -25,6 +25,7 @@ if ohai["platform"] != "windows"
   dependency "openssl"
   dependency "bzip2"
   dependency "libsqlite3"
+  dependency "libyaml"
 
   source :url => "http://python.org/ftp/python/#{version}/Python-#{version}.tgz",
          :sha256 => "01da813a3600876f03f46db11cc5c408175e99f03af2ba942ef324389a83bad5"
