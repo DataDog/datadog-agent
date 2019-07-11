@@ -41,7 +41,7 @@ var headerFields = map[string]string{
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig("none")
 
-	rawTraceChan := make(chan pb.Trace, 5000)
+	rawTraceChan := make(chan *Trace, 5000)
 	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan)
 
 	return receiver
@@ -145,8 +145,8 @@ func TestLegacyReceiver(t *testing.T) {
 			// now we should be able to read the trace data
 			select {
 			case rt := <-tc.r.Out:
-				assert.Len(rt, 1)
-				span := rt[0]
+				assert.Len(rt.Spans, 1)
+				span := rt.Spans[0]
 				assert.Equal(uint64(42), span.TraceID)
 				assert.Equal(uint64(52), span.SpanID)
 				assert.Equal("fennel_is_amazing", span.Service)
@@ -208,8 +208,8 @@ func TestReceiverJSONDecoder(t *testing.T) {
 			// now we should be able to read the trace data
 			select {
 			case rt := <-tc.r.Out:
-				assert.Len(rt, 1)
-				span := rt[0]
+				assert.Len(rt.Spans, 1)
+				span := rt.Spans[0]
 				assert.Equal(uint64(42), span.TraceID)
 				assert.Equal(uint64(52), span.SpanID)
 				assert.Equal("fennel_is_amazing", span.Service)
@@ -275,8 +275,8 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 				// now we should be able to read the trace data
 				select {
 				case rt := <-tc.r.Out:
-					assert.Len(rt, 1)
-					span := rt[0]
+					assert.Len(rt.Spans, 1)
+					span := rt.Spans[0]
 					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(52), span.SpanID)
 					assert.Equal("fennel_is_amazing", span.Service)
@@ -297,8 +297,8 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 				// now we should be able to read the trace data
 				select {
 				case rt := <-tc.r.Out:
-					assert.Len(rt, 1)
-					span := rt[0]
+					assert.Len(rt.Spans, 1)
+					span := rt.Spans[0]
 					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(52), span.SpanID)
 					assert.Equal("fennel_is_amazing", span.Service)
