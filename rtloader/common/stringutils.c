@@ -4,8 +4,7 @@
 // Copyright 2019 Datadog, Inc.
 #include <stdlib.h>
 
-#include <rtloader_types.h>
-
+#include "rtloader_types.h"
 #include "stringutils.h"
 
 

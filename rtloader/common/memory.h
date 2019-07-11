@@ -40,6 +40,13 @@ void *_malloc(size_t sz);
 */
 void _free(void *ptr);
 
+#undef strdup
+#ifdef __cplusplus
+char *strdup(const char *s1) __THROW;
+#else
+char *strdup(const char *s1);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

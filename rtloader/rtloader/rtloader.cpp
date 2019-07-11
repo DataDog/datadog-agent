@@ -12,6 +12,7 @@
 // handler stuff
 #include <execinfo.h>
 #include <csignal>
+#include <cstring>
 #include <sys/types.h>
 #include <unistd.h>
 

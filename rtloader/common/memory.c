@@ -5,6 +5,7 @@
 #include "memory.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 // default memory management functions
 static rtloader_malloc_t rt_malloc = malloc;
@@ -34,4 +35,14 @@ void _free(void *ptr) {
     if (ptr && cb_memory_tracker) {
         cb_memory_tracker(ptr, 0, DATADOG_AGENT_RTLOADER_FREE);
     }
+}
+
+char *strdup(const char *s1) {
+    char * s2 = NULL;
+
+    if (!(s2 = (char *)_malloc(strlen(s1)+1))) {
+        return NULL;
+    }
+
+    return strcpy(s2, s1);
 }

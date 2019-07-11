@@ -5,7 +5,7 @@
 // Copyright 2019 Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_TYPES_H
 #define DATADOG_AGENT_RTLOADER_TYPES_H
-#include <string.h>
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
