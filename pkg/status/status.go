@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -57,15 +58,11 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["config"] = getPartialConfig()
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
 
-	platformPayload, err := getPlatformPayload()
-	if err != nil {
-		return nil, err
-	}
 	stats["pid"] = os.Getpid()
+	stats["go_version"] = runtime.Version()
 	pythonVersion := host.GetPythonVersion()
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
 	stats["agent_start"] = startTime.Format(timeFormat)
-	stats["platform"] = platformPayload
 	stats["hostinfo"] = host.GetStatusInformation()
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
