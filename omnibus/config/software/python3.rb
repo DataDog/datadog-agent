@@ -68,7 +68,7 @@ else
   dependency "vc_redist_14"
   default_version "3.7.1"
 
-  source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-novcr-amd64.zip",
+  source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
          :sha256 => "2ebd2eb2155f7c82ec3d2ba5203e0a250b6bbf60c7c5404f1e03f4bc71a096e1"
 
   build do
