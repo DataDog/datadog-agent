@@ -36,12 +36,10 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool
 			tags := utils.NewTagList()
 
 			// global tags
-			if len(globalTags) > 0 {
-				for _, value := range globalTags {
-					if strings.Contains(value, ":") {
-						tag := strings.SplitN(value, ":", 2)
-						tags.AddLow(tag[0], tag[1])
-					}
+			for _, value := range globalTags {
+				if strings.Contains(value, ":") {
+					tag := strings.SplitN(value, ":", 2)
+					tags.AddLow(tag[0], tag[1])
 				}
 			}
 
