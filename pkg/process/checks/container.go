@@ -4,6 +4,7 @@ package checks
 
 import (
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -23,9 +24,12 @@ var Container = &ContainerCheck{}
 
 // ContainerCheck is a check that returns container metadata and stats.
 type ContainerCheck struct {
-	sysInfo   *model.SystemInfo
-	lastRates map[string]util.ContainerRateMetrics
-	lastRun   time.Time
+	sync.Mutex
+
+	sysInfo         *model.SystemInfo
+	lastRates       map[string]util.ContainerRateMetrics
+	lastRun         time.Time
+	lastCtrIDForPID map[int32]string
 }
 
 // Init initializes a ContainerCheck instance.
@@ -45,6 +49,9 @@ func (c *ContainerCheck) RealTime() bool { return false }
 // Run runs the ContainerCheck to collect a list of running ctrList and the
 // stats for each container.
 func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+	c.Lock()
+	defer c.Unlock()
+
 	start := time.Now()
 	ctrList, err := util.GetContainers()
 	if err != nil {
@@ -55,6 +62,7 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	if c.lastRates == nil {
 		c.lastRates = util.ExtractContainerRateMetric(ctrList)
 		c.lastRun = time.Now()
+		c.lastCtrIDForPID = ctrIDForPID(ctrList)
 		return nil, nil
 	}
 
@@ -78,10 +86,25 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 
 	c.lastRates = util.ExtractContainerRateMetric(ctrList)
 	c.lastRun = time.Now()
+	c.lastCtrIDForPID = ctrIDForPID(ctrList)
 
 	statsd.Client.Gauge("datadog.process.containers.host_count", totalContainers, []string{}, 1)
 	log.Debugf("collected %d containers in %s", int(totalContainers), time.Now().Sub(start))
 	return messages, nil
+}
+
+// filterCtrIDsByPIDs uses lastCtrIDForPID and filter down only the pid -> cid that we need
+func (c *ContainerCheck) filterCtrIDsByPIDs(pids []int32) map[int32]string {
+	c.Lock()
+	defer c.Unlock()
+
+	ctrByPid := make(map[int32]string)
+	for _, pid := range pids {
+		if cid, ok := c.lastCtrIDForPID[pid]; ok {
+			ctrByPid[pid] = cid
+		}
+	}
+	return ctrByPid
 }
 
 // fmtContainers loops through container list and converts them to a list of container objects
