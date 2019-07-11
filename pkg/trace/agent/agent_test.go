@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -88,7 +89,10 @@ func TestProcess(t *testing.T) {
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
-		agnt.Process(pb.Trace{span})
+		agnt.Process(&api.Trace{
+			Spans:  pb.Trace{span},
+			Source: &info.Tags{},
+		})
 
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
@@ -120,11 +124,17 @@ func TestProcess(t *testing.T) {
 		stats := agnt.Receiver.Stats.GetTagStats(info.Tags{})
 		assert := assert.New(t)
 
-		agnt.Process(pb.Trace{spanValid})
+		agnt.Process(&api.Trace{
+			Spans:  pb.Trace{spanValid},
+			Source: &info.Tags{},
+		})
 		assert.EqualValues(0, stats.TracesFiltered)
 		assert.EqualValues(0, stats.SpansFiltered)
 
-		agnt.Process(pb.Trace{spanInvalid, spanInvalid})
+		agnt.Process(&api.Trace{
+			Spans:  pb.Trace{spanInvalid, spanInvalid},
+			Source: &info.Tags{},
+		})
 		assert.EqualValues(1, stats.TracesFiltered)
 		assert.EqualValues(2, stats.SpansFiltered)
 	})
@@ -164,7 +174,10 @@ func TestProcess(t *testing.T) {
 			if key != sampler.PriorityNone {
 				sampler.SetSamplingPriority(span, key)
 			}
-			agnt.Process(pb.Trace{span})
+			agnt.Process(&api.Trace{
+				Spans:  pb.Trace{span},
+				Source: &info.Tags{},
+			})
 		}
 
 		stats := agnt.Receiver.Stats.GetTagStats(info.Tags{})
@@ -496,7 +509,10 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		ta.Process(testutil.RandomTrace(10, 8))
+		ta.Process(&api.Trace{
+			Spans:  testutil.RandomTrace(10, 8),
+			Source: &info.Tags{},
+		})
 	}
 }
 

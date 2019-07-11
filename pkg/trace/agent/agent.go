@@ -55,12 +55,10 @@ type Agent struct {
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 
-	// inter-component channels
-	rawTraceChan := make(chan pb.Trace, 5000)
+	rawTraceChan := make(chan *api.Trace, 5000)
 	spansOut := make(chan *writer.SampledSpans, 1000)
 	statsChan := make(chan []stats.Bucket)
 
-	// create components
 	r := api.NewHTTPReceiver(conf, dynConf, rawTraceChan)
 	c := stats.NewConcentrator(
 		conf.ExtraAggregators,
@@ -153,8 +151,8 @@ func (a *Agent) loop() {
 
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
-func (a *Agent) Process(t pb.Trace) {
-	if len(t) == 0 {
+func (a *Agent) Process(t *api.Trace) {
+	if len(t.Spans) == 0 {
 		log.Debugf("Skipping received empty trace")
 		return
 	}
@@ -162,11 +160,10 @@ func (a *Agent) Process(t pb.Trace) {
 	defer timing.Since("datadog.trace_agent.internal.process_trace_ms", time.Now())
 
 	// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
-	root := traceutil.GetRoot(t)
+	root := traceutil.GetRoot(t.Spans)
 
 	// We get the address of the struct holding the stats associated to no tags.
-	// TODO: get the real tagStats related to this trace payload (per lang/version).
-	ts := a.Receiver.Stats.GetTagStats(info.Tags{})
+	ts := a.Receiver.Stats.GetTagStats(*t.Source)
 
 	// Extract priority early, as later goroutines might manipulate the Metrics map in parallel which isn't safe.
 	priority, hasPriority := sampler.GetSamplingPriority(root)
@@ -189,16 +186,16 @@ func (a *Agent) Process(t pb.Trace) {
 	if !a.Blacklister.Allows(root) {
 		log.Debugf("Trace rejected by blacklister. root: %v", root)
 		atomic.AddInt64(&ts.TracesFiltered, 1)
-		atomic.AddInt64(&ts.SpansFiltered, int64(len(t)))
+		atomic.AddInt64(&ts.SpansFiltered, int64(len(t.Spans)))
 		return
 	}
 
 	// Extra sanitization steps of the trace.
-	for _, span := range t {
+	for _, span := range t.Spans {
 		a.obfuscator.Obfuscate(span)
 		Truncate(span)
 	}
-	a.Replacer.Replace(&t)
+	a.Replacer.Replace(t.Spans)
 
 	// Extract the client sampling rate.
 	clientSampleRate := sampler.GetGlobalRate(root)
@@ -211,9 +208,9 @@ func (a *Agent) Process(t pb.Trace) {
 
 	// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
 	// which is not thread-safe while samplers and Concentrator might modify it too.
-	traceutil.ComputeTopLevel(t)
+	traceutil.ComputeTopLevel(t.Spans)
 
-	subtraces := stats.ExtractTopLevelSubtraces(t, root)
+	subtraces := stats.ExtractTopLevelSubtraces(t.Spans, root)
 	sublayers := make(map[*pb.Span][]stats.SublayerValue)
 	for _, subtrace := range subtraces {
 		subtraceSublayers := stats.ComputeSublayers(subtrace.Trace)
@@ -222,13 +219,13 @@ func (a *Agent) Process(t pb.Trace) {
 	}
 
 	pt := ProcessedTrace{
-		Trace:         t,
-		WeightedTrace: stats.NewWeightedTrace(t, root),
+		Trace:         t.Spans,
+		WeightedTrace: stats.NewWeightedTrace(t.Spans, root),
 		Root:          root,
 		Env:           a.conf.DefaultEnv,
 		Sublayers:     sublayers,
 	}
-	if tenv := traceutil.GetEnv(t); tenv != "" {
+	if tenv := traceutil.GetEnv(t.Spans); tenv != "" {
 		// this trace has a user defined env.
 		pt.Env = tenv
 	}
