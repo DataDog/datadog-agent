@@ -19,9 +19,9 @@ char **get_tags(char *id, int highCard)
     printf("highCard: %d\n", highCard);
 
     char **data = _malloc(sizeof(*data) * 4);
-    data[0] = strdup("tag1");
-    data[1] = strdup("tag2");
-    data[2] = strdup("tag3");
+    data[0] = strdupe("tag1");
+    data[1] = strdupe("tag2");
+    data[2] = strdupe("tag3");
     data[3] = NULL;
     return data;
 }

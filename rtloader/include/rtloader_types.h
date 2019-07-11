@@ -26,7 +26,7 @@ extern "C" {
 #endif
 
 #ifndef WIN32
-#    define _strdup(x) strdup(x)
+#    define _strdup(x) strdupe(x)
 #endif
 
 typedef enum rtloader_gilstate_e {

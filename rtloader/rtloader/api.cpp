@@ -66,7 +66,7 @@ create_t *loadAndCreate(const char *dll, const char *python_home, char **error)
         int err = GetLastError();
         std::ostringstream err_msg;
         err_msg << "Unable to open library " << dll << ", error code: " << err;
-        *error = strdup(err_msg.str().c_str());
+        *error = strdupe(err_msg.str().c_str());
         return NULL;
     }
 
@@ -77,7 +77,7 @@ create_t *loadAndCreate(const char *dll, const char *python_home, char **error)
         int err = GetLastError();
         std::ostringstream err_msg;
         err_msg << "Unable to open factory GPA: " << err;
-        *error = strdup(err_msg.str().c_str());
+        *error = strdupe(err_msg.str().c_str());
         return NULL;
     }
     return create;
@@ -87,7 +87,7 @@ rtloader_t *make2(const char *python_home, char **error)
 {
 
     if (rtloader_backend != NULL) {
-        *error = strdup("RtLoader already initialized!");
+        *error = strdupe("RtLoader already initialized!");
         return NULL;
     }
 
@@ -101,7 +101,7 @@ rtloader_t *make2(const char *python_home, char **error)
 rtloader_t *make3(const char *python_home, char **error)
 {
     if (rtloader_backend != NULL) {
-        *error = strdup("RtLoader already initialized!");
+        *error = strdupe("RtLoader already initialized!");
         return NULL;
     }
 
@@ -137,7 +137,7 @@ rtloader_t *make2(const char *python_home, char **error)
 {
     if (rtloader_backend != NULL) {
         std::string err_msg = "RtLoader already initialized!";
-        *error = strdup(err_msg.c_str());
+        *error = strdupe(err_msg.c_str());
         return NULL;
     }
     // load library
@@ -145,7 +145,7 @@ rtloader_t *make2(const char *python_home, char **error)
     if (!rtloader_backend) {
         std::ostringstream err_msg;
         err_msg << "Unable to open two library: " << dlerror();
-        *error = strdup(err_msg.str().c_str());
+        *error = strdupe(err_msg.str().c_str());
         return NULL;
     }
 
@@ -158,7 +158,7 @@ rtloader_t *make2(const char *python_home, char **error)
     if (dlsym_error) {
         std::ostringstream err_msg;
         err_msg << "Unable to open two factory: " << dlsym_error;
-        *error = strdup(err_msg.str().c_str());
+        *error = strdupe(err_msg.str().c_str());
         return NULL;
     }
 
@@ -169,7 +169,7 @@ rtloader_t *make3(const char *python_home, char **error)
 {
     if (rtloader_backend != NULL) {
         std::string err_msg = "RtLoader already initialized!";
-        *error = strdup(err_msg.c_str());
+        *error = strdupe(err_msg.c_str());
         return NULL;
     }
 
@@ -178,7 +178,7 @@ rtloader_t *make3(const char *python_home, char **error)
     if (!rtloader_backend) {
         std::ostringstream err_msg;
         err_msg << "Unable to open three library: " << dlerror();
-        *error = strdup(err_msg.str().c_str());
+        *error = strdupe(err_msg.str().c_str());
         return NULL;
     }
 
@@ -191,7 +191,7 @@ rtloader_t *make3(const char *python_home, char **error)
     if (dlsym_error) {
         std::ostringstream err_msg;
         err_msg << "Unable to open three factory: " << dlsym_error;
-        *error = strdup(err_msg.str().c_str());
+        *error = strdupe(err_msg.str().c_str());
         return NULL;
     }
 

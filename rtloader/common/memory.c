@@ -37,7 +37,7 @@ void _free(void *ptr) {
     }
 }
 
-char *strdup(const char *s1) {
+char *strdupe(const char *s1) {
     char * s2 = NULL;
 
     if (!(s2 = (char *)_malloc(strlen(s1)+1))) {

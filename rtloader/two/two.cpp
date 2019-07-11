@@ -54,9 +54,9 @@ void Two::initPythonHome(const char *pythonHome)
 {
     char *oldPythonHome = _pythonHome;
     if (pythonHome == NULL || strlen(pythonHome) == 0) {
-        _pythonHome = _strdup(_defaultPythonHome);
+        _pythonHome = strdupe(_defaultPythonHome);
     } else {
-        _pythonHome = _strdup(pythonHome);
+        _pythonHome = strdupe(pythonHome);
     }
 
     // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
@@ -409,7 +409,7 @@ const char *Two::runCheck(RtLoaderPyObject *check)
         goto done;
     }
 
-    ret_copy = _strdup(ret);
+    ret_copy = strdupe(ret);
 
 done:
     Py_XDECREF(result);

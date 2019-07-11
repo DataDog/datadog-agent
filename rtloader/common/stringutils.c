@@ -4,6 +4,7 @@
 // Copyright 2019 Datadog, Inc.
 #include <stdlib.h>
 
+#include "memory.h"
 #include "rtloader_types.h"
 #include "stringutils.h"
 
@@ -15,9 +16,9 @@ PyObject * dumper = NULL;
 
 /**
  * returns a C (NULL terminated UTF-8) string from a python string.
- * 
+ *
  * \param object  A Python string to be converted to C-string.
- * 
+ *
  * \return A standard C string (NULL terminated character pointer)
  *  The returned pointer is allocated from the heap and must be
  * deallocated (free()ed) by the caller
@@ -43,7 +44,7 @@ char *as_string(PyObject *object)
         PyErr_Clear();
         return  NULL;
     }
-    retval = _strdup(tmp);
+    retval = strdupe(tmp);
 #else
     if (!PyUnicode_Check(object)) {
         return NULL;
@@ -57,7 +58,7 @@ char *as_string(PyObject *object)
         return NULL;
     }
 
-    retval = _strdup(PyBytes_AS_STRING(temp_bytes));
+    retval = strdupe(PyBytes_AS_STRING(temp_bytes));
     Py_XDECREF(temp_bytes);
 #endif
 
