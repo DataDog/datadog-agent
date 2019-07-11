@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 )
@@ -114,6 +115,86 @@ func TestParseMetadata(t *testing.T) {
 		},
 	}
 
+	expectedUpdatesParseAll := []*TagInfo{
+		{
+			Source: "ecs_fargate",
+			Entity: "docker://3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c",
+			LowCardTags: []string{
+				"docker_image:fg-proxy:tinyproxy",
+				"image_name:fg-proxy",
+				"short_image:fg-proxy",
+				"image_tag:tinyproxy",
+				"cluster_name:xvello-fargate",
+				"task_family:redis-datadog",
+				"task_version:3",
+				"ecs_container_name:~internal~ecs~pause",
+				"region:eu-central-1",
+				"tag1:value1",
+				"tag3:value:2:value:3",
+			},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
+			},
+			HighCardTags: []string{
+				"container_id:3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c",
+				"container_name:ecs-redis-datadog-3-internalecspause-da86ad89d2bee7ba8501",
+			},
+			DeleteEntity: false,
+		},
+		{
+			Source: "ecs_fargate",
+			Entity: "docker://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
+			LowCardTags: []string{
+				"docker_image:datadog/agent-dev:xvello-process-kubelet",
+				"image_name:datadog/agent-dev",
+				"short_image:agent-dev",
+				"image_tag:xvello-process-kubelet",
+				"cluster_name:xvello-fargate",
+				"task_family:redis-datadog",
+				"task_version:3",
+				"ecs_container_name:datadog-agent",
+				"region:eu-central-1",
+				"tag1:value1",
+				"tag3:value:2:value:3",
+			},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
+			},
+			HighCardTags: []string{
+				"container_id:1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
+				"container_name:ecs-redis-datadog-3-datadog-agent-c2a8fffa8ee8d1f6a801",
+			},
+			DeleteEntity: false,
+		},
+		{
+			Source: "ecs_fargate",
+			Entity: "docker://0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
+			LowCardTags: []string{
+				"docker_image:redis:latest",
+				"image_name:redis",
+				"short_image:redis",
+				"image_tag:latest",
+				"cluster_name:xvello-fargate",
+				"task_family:redis-datadog",
+				"task_version:3",
+				"ecs_container_name:redis",
+				"lowtag:myvalue",
+				"region:eu-central-1",
+				"tag1:value1",
+				"tag3:value:2:value:3",
+			},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
+			},
+			HighCardTags: []string{
+				"container_name:ecs-redis-datadog-3-redis-f6eedfd8b18a8fbe1d00",
+				"hightag:value2",
+				"container_id:0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
+			},
+			DeleteEntity: false,
+		},
+	}
+
 	// Diff parsing should show 2 containers
 	updates, err := collector.parseMetadata(meta, false)
 	assert.NoError(t, err)
@@ -129,10 +210,16 @@ func TestParseMetadata(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, updates, 0)
 
+	// Global tags should be applied
+	mockConfig := config.Mock()
+	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3:value:2:value:3", "tag4:"})
+	defer mockConfig.Set("tags", nil)
+
 	// Full parsing should show 3 containers
 	updates, err = collector.parseMetadata(meta, true)
 	assert.NoError(t, err)
 	assert.Len(t, updates, 3)
+	assertTagInfoListEqual(t, expectedUpdatesParseAll, updates)
 }
 
 func TestParseMetadataV10(t *testing.T) {
