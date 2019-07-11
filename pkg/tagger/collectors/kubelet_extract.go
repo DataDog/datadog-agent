@@ -90,9 +90,15 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			case "StatefulSet":
 				tags.AddLow("kube_stateful_set", owner.Name)
 			case "Job":
-				tags.AddOrchestrator("kube_job", owner.Name) // TODO detect if no from cronjob, then low card
+				cronjob := parseCronJobForJob(owner.Name)
+				if cronjob != "" {
+					tags.AddOrchestrator("kube_job", owner.Name)
+					tags.AddLow("kube_cronjob", cronjob)
+				} else {
+					tags.AddLow("kube_job", owner.Name)
+				}
 			case "ReplicaSet":
-				deployment := c.parseDeploymentForReplicaset(owner.Name)
+				deployment := parseDeploymentForReplicaset(owner.Name)
 				if len(deployment) > 0 {
 					tags.AddOrchestrator("kube_replica_set", owner.Name)
 					tags.AddLow("kube_deployment", deployment)
@@ -171,7 +177,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 // parseDeploymentForReplicaset gets the deployment name from a replicaset,
 // or returns an empty string if no parent deployment is found.
-func (c *KubeletCollector) parseDeploymentForReplicaset(name string) string {
+func parseDeploymentForReplicaset(name string) string {
 	lastDash := strings.LastIndexAny(name, "-")
 	if lastDash == -1 {
 		// No dash
@@ -184,6 +190,29 @@ func (c *KubeletCollector) parseDeploymentForReplicaset(name string) string {
 	}
 
 	if !utils.StringInRuneset(suffix, Digits) && !utils.StringInRuneset(suffix, KubeAllowedEncodeStringAlphaNums) {
+		// Invalid suffix
+		return ""
+	}
+
+	return name[:lastDash]
+}
+
+// parseCronJobForJob gets the cronjob name from a job,
+// or returns an empty string if no parent cronjob is found.
+// https://github.com/kubernetes/kubernetes/blob/b4e3bd381bd4d7c0db1959341b39558b45187345/pkg/controller/cronjob/utils.go#L156
+func parseCronJobForJob(name string) string {
+	lastDash := strings.LastIndexAny(name, "-")
+	if lastDash == -1 {
+		// No dash
+		return ""
+	}
+	suffix := name[lastDash+1:]
+	if len(suffix) < 3 {
+		// Suffix is variable length but we cutoff at 3+ characters
+		return ""
+	}
+
+	if !utils.StringInRuneset(suffix, Digits) {
 		// Invalid suffix
 		return ""
 	}
