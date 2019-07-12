@@ -66,7 +66,7 @@ public:
                   const char *check_id_str, const char *check_name, const char *agent_config_str,
                   RtLoaderPyObject *&check);
 
-    const char *runCheck(RtLoaderPyObject *check);
+    char *runCheck(RtLoaderPyObject *check);
     char **getCheckWarnings(RtLoaderPyObject *check);
     void decref(RtLoaderPyObject *obj);
     void incref(RtLoaderPyObject *obj);
