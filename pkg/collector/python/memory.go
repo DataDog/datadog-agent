@@ -20,6 +20,7 @@ import (
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 
 #include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
 */
 import (
 	"C"
@@ -70,4 +71,11 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 			inuseBytes.Add(-1 * int64(bytes.(C.size_t)))
 		}
 	}()
+}
+
+func TrackedCString(str string) *C.char {
+	cstr := C.CString(str)
+	MemoryTracker(unsafe.Pointer(cstr), C.size_t(len(str)+1), C.DATADOG_AGENT_RTLOADER_ALLOCATION)
+
+	return cstr
 }

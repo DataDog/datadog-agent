@@ -26,7 +26,9 @@ import (
 
 /*
 #include <stdlib.h>
-#include <datadog_agent_rtloader.h>
+
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
 
 char *getStringAddr(char **array, unsigned int idx);
 */
@@ -178,15 +180,14 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 		}
 	}
 
-	cInitConfig := C.CString(string(initConfig))
-
-	cInstance := C.CString(string(data))
-	cCheckID := C.CString(string(c.id))
-	cCheckName := C.CString(c.ModuleName)
-	defer C.free(unsafe.Pointer(cInitConfig))
-	defer C.free(unsafe.Pointer(cInstance))
-	defer C.free(unsafe.Pointer(cCheckID))
-	defer C.free(unsafe.Pointer(cCheckName))
+	cInitConfig := TrackedCString(string(initConfig))
+	cInstance := TrackedCString(string(data))
+	cCheckID := TrackedCString(string(c.id))
+	cCheckName := TrackedCString(c.ModuleName)
+	defer C._free(unsafe.Pointer(cInitConfig))
+	defer C._free(unsafe.Pointer(cInstance))
+	defer C._free(unsafe.Pointer(cCheckID))
+	defer C._free(unsafe.Pointer(cCheckName))
 
 	var check *C.rtloader_pyobject_t
 	res := C.get_check(rtloader, c.class, cInitConfig, cInstance, cCheckID, cCheckName, &check)
@@ -200,8 +201,8 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 			log.Errorf("error serializing agent config: %s", err)
 			return err
 		}
-		cAgentConfig := C.CString(string(agentConfig))
-		defer C.free(unsafe.Pointer(cAgentConfig))
+		cAgentConfig := TrackedCString(string(agentConfig))
+		defer C._free(unsafe.Pointer(cAgentConfig))
 
 		res := C.get_check_deprecated(rtloader, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, &check)
 		if res == 0 {

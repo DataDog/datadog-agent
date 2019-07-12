@@ -19,7 +19,10 @@ import (
 
 /*
 #include <stdlib.h>
-#include <datadog_agent_rtloader.h>
+
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
+
 char *getStringAddr(char **array, unsigned int idx);
 */
 import "C"
@@ -168,12 +171,12 @@ func SetPythonPsutilProcPath(procPath string) error {
 	glock := newStickyLock()
 	defer glock.unlock()
 
-	module := C.CString(psutilModule)
-	defer C.free(unsafe.Pointer(module))
-	attrName := C.CString(psutilProcPath)
-	defer C.free(unsafe.Pointer(attrName))
-	attrValue := C.CString(procPath)
-	defer C.free(unsafe.Pointer(attrValue))
+	module := TrackedCString(psutilModule)
+	defer C._free(unsafe.Pointer(module))
+	attrName := TrackedCString(psutilProcPath)
+	defer C._free(unsafe.Pointer(attrName))
+	attrValue := TrackedCString(procPath)
+	defer C._free(unsafe.Pointer(attrValue))
 
 	C.set_module_attr_string(rtloader, module, attrName, attrValue)
 	return getRtLoaderError()
