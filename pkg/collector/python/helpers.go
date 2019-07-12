@@ -177,18 +177,18 @@ func GetPythonIntegrationList() ([]string, error) {
 
 // GetIntepreterMemoryUsage collects a python interpreter memory usage snapshot
 func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
-	if six == nil {
-		return nil, fmt.Errorf("six is not initialized")
+	if rtloader == nil {
+		return nil, fmt.Errorf("rtloader is not initialized")
 	}
 
 	glock := newStickyLock()
 	defer glock.unlock()
 
-	usage := C.get_interpreter_memory_usage(six)
+	usage := C.get_interpreter_memory_usage(rtloader)
 	if usage == nil {
-		return nil, fmt.Errorf("Could not collect interpreter memory snapshot: %s", getSixError())
+		return nil, fmt.Errorf("Could not collect interpreter memory snapshot: %s", getRtLoaderError())
 	}
-	defer C.six_free(six, unsafe.Pointer(usage))
+	defer C.rtloader_free(rtloader, unsafe.Pointer(usage))
 	payload := C.GoString(usage)
 
 	log.Infof("Interpreter stats received: %v", payload)

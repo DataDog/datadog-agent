@@ -877,7 +877,7 @@ char *Three::getInterpreterMemoryUsage()
     PyObject *summary = NULL;
     char *memUsage = NULL;
 
-    six_gilstate_t state = GILEnsure();
+    rtloader_gilstate_t state = GILEnsure();
 
     pyMemory = PyImport_ImportModule(_PY_MEM_MODULE);
     if (pyMemory == NULL) {
