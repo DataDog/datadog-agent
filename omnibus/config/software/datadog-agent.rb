@@ -83,7 +83,7 @@ build do
   ## build the custom action library required for the install
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
-    command "invoke customaction.build --arch=" + platform
+    command "invoke -e customaction.build --arch=" + platform
   end
 
   # move around bin and config files

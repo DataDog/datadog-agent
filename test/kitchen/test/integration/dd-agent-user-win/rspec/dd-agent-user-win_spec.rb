@@ -61,7 +61,9 @@ A;ID;FA;;;#{dd_user_id} grants the ddagentuser FileAllAccess, this ACE is inheri
 =end
 
 shared_examples_for 'an Agent with valid permissions' do
-  dd_user_sid = get_user_sid('ddagentuser')
+  #dd_user_sid = get_service_sid('datadogagent')
+  datadogagent_sid = get_service_sid('datadogagent')
+  traceagent_sid = get_service_sid('datadog-trace-agent')
   #datadog_yaml_sddl = get_sddl_for_object("c:\\programdata\\datadog\\datadog.yaml")
   it 'has proper permissions on programdata\datadog' do
     # should have a sddl like so 
@@ -70,8 +72,8 @@ shared_examples_for 'an Agent with valid permissions' do
     # on server 2016, it doesn't have the assigned system right, only the inherited.
     # allow either
     #expected_sddl = "O:SYG:SYD:(A;;FA;;;SY)(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
-    expected_sddl = "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
-    expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
+    expected_sddl = "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{datadogagent_sid})(A;OICI;FA;;;#{traceagent_sid})"
+    expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{datadogagent_sid})(A;ID;FA;;;#{traceagent_sid})"
     actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog")
     equal_base = equal_sddl?(expected_sddl, actual_sddl)
     equal_2016 = equal_sddl?(expected_sddl_2016, actual_sddl)
@@ -84,8 +86,8 @@ shared_examples_for 'an Agent with valid permissions' do
     # on server 2016, it doesn't have the assigned system right, only the inherited.
     # allow either
     #expected_sddl =   "O:SYG:SYD:(A;;FA;;;SY)(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
-    expected_sddl = "O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;#{dd_user_sid})"
-    expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
+    expected_sddl = "O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;#{datadogagent_sid})(A;;FA;;;#{traceagent_sid})"
+    expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{datadogagent_sid})(A;ID;FA;;;#{traceagent_sid})"
     actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog\\datadog.yaml")
     equal_base = equal_sddl?(expected_sddl, actual_sddl)
     equal_2016 = equal_sddl?(expected_sddl_2016, actual_sddl)
@@ -98,7 +100,7 @@ shared_examples_for 'an Agent with valid permissions' do
     # A,OICIID;FA;;;SY = Inherited right of OI, CI, (FA) to LocalSystem
     # A,OICIID;FA;;;dd_user_sid = explicit right assignment of OI, CI, FA to the dd-agent user, inherited from the parent
 
-    expected_sddl =      "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
+    expected_sddl =      "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{datadogagent_sid})(A;OICI;FA;;;#{traceagent_sid})"
     actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog\\conf.d")
 
     sddl_result = equal_sddl?(expected_sddl, actual_sddl)
@@ -127,9 +129,11 @@ shared_examples_for 'an Agent with valid permissions' do
     # A;CIID;KA;;;SY  =                                       Keyallaccess  (local system)
     # A;CIIOID;KA;;;CO= container inherit, inherit only, inherited ace, keyallAccess, to creator/owner
     # A;CIID;KR;;;AC = allow container inherit/inherited ace  Key Read to AC ()
-    expected_sddl =           "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;OICIIO;CCDCLCSWRPWPSDRCWDWOGA;;;#{dd_user_sid})(A;CIID;KR;;;BU)(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)(A;CIIOID;KA;;;CO)(A;CIID;KR;;;AC)"
-    expected_sddl_2008 =      "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;OICIIO;CCDCLCSWRPWPSDRCWDWOGA;;;#{dd_user_sid})(A;ID;KR;;;BU)(A;CIIOID;GR;;;BU)(A;ID;KA;;;BA)(A;CIIOID;GA;;;BA)(A;ID;KA;;;SY)(A;CIIOID;GA;;;SY)(A;CIIOID;GA;;;CO)"
-    expected_sddl_with_edge = "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;OICIIO;CCDCLCSWRPWPSDRCWDWOGA;;;#{dd_user_sid})(A;CIID;KR;;;BU)(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)(A;CIIOID;KA;;;CO)(A;CIID;KR;;;AC)(A;CIID;KR;;;S-1-15-3-1024-1065365936-1281604716-3511738428-1654721687-432734479-3232135806-4053264122-3456934681)"
+    ddagent_sdl = "(A;;KA;;;#{datadogagent_sid})(A;OICIIO;CCDCLCSWRPWPSDRCWDWOGA;;;#{datadogagent_sid})"
+    trace_sdl = "(A;;KA;;;#{traceagent_sid})(A;OICIIO;CCDCLCSWRPWPSDRCWDWOGA;;;#{traceagent_sid})"
+    expected_sddl =           "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)#{ddagent_sdl}#{trace_sdl}(A;CIID;KR;;;BU)(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)(A;CIIOID;KA;;;CO)(A;CIID;KR;;;AC)"
+    expected_sddl_2008 =      "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)#{ddagent_sdl}#{trace_sdl}(A;ID;KR;;;BU)(A;CIIOID;GR;;;BU)(A;ID;KA;;;BA)(A;CIIOID;GA;;;BA)(A;ID;KA;;;SY)(A;CIIOID;GA;;;SY)(A;CIIOID;GA;;;CO)"
+    expected_sddl_with_edge = "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)#{ddagent_sdl}#{trace_sdl}(A;CIID;KR;;;BU)(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)(A;CIIOID;KA;;;CO)(A;CIID;KR;;;AC)(A;CIID;KR;;;S-1-15-3-1024-1065365936-1281604716-3511738428-1654721687-432734479-3232135806-4053264122-3456934681)"
     
     ## sigh.  M$ added a mystery sid some time back, that Edge/IE use for sandboxing,
     ## and it's an inherited ace.  Allow that one, too
@@ -142,25 +146,17 @@ shared_examples_for 'an Agent with valid permissions' do
     expect(sddl_result | equal_2008 | edge_result).to be_truthy
   end
 
-  it 'has agent.exe running as ddagentuser' do
+  it 'has agent.exe running as local service' do
     uname = get_username_from_tasklist("agent.exe")
-    expect(get_username_from_tasklist("agent.exe")).to eq("ddagentuser")
+    expect(get_username_from_tasklist("agent.exe")).to eq("LOCAL_SERVICE")
   end
-  it 'has trace agent running as ddagentuser' do
-    expect(get_username_from_tasklist("trace-agent.exe")).to eq("ddagentuser")
+  it 'has trace agent running as local service' do
+    expect(get_username_from_tasklist("trace-agent.exe")).to eq("LOCAL_SERVICE")
   end
   it 'has process agent running as local_system' do
     expect(get_username_from_tasklist("process-agent.exe")).to eq("SYSTEM")
   end
-  secdata = get_security_settings
-  it 'has proper security rights assigned' do
-    expect(check_has_security_right(secdata, "SeDenyInteractiveLogonRight", "ddagentuser")).to be_truthy
-    expect(check_has_security_right(secdata, "SeDenyNetworkLogonRight", "ddagentuser")).to be_truthy
-    expect(check_has_security_right(secdata, "SeDenyRemoteInteractiveLogonRight", "ddagentuser")).to be_truthy
-  end
-  it 'is in proper groups' do
-    expect(check_is_user_in_group("ddagentuser", "Performance Monitor Users")).to be_truthy
-  end
+  
 end
 describe 'dd-agent-user-win' do
 #  it_behaves_like 'an installed Agent'
