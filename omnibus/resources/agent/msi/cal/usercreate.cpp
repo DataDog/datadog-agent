@@ -72,7 +72,7 @@ bool generatePassword(wchar_t* passbuf, int passbuflen) {
     return true;
 
 }
-DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
+DWORD changeRegistryAcls(const wchar_t** usernames, const wchar_t* name) {
 
     std::string namestr;
     toMbcs(namestr, name);
@@ -86,18 +86,27 @@ DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
     //ExplicitAccess suser;
     //suser.BuildGrantUser(secretUserUsername.c_str(), GENERIC_READ | GENERIC_EXECUTE | READ_CONTROL | KEY_READ);
 
-    PSID  usersid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
-    ExplicitAccess dduser;
-    dduser.BuildGrantUser((SID *)usersid, GENERIC_ALL | KEY_ALL_ACCESS,
-        SUB_CONTAINERS_AND_OBJECTS_INHERIT);
+   
 
 
     WinAcl acl;
     acl.AddToArray(localsystem);
     //acl.AddToArray(suser);
     acl.AddToArray(localAdmins);
-    acl.AddToArray(dduser);
 
+    int usercount = 0;
+    for (int i = 0; usernames[i] != NULL; i++)
+    {
+        usercount++;
+    }
+    ExplicitAccess * storedEas = new ExplicitAccess[usercount];
+    for (int i = 0; usernames[i] != NULL; i++)
+    {
+        PSID  usersid = GetSidForUser(NULL, usernames[i]);
+        
+        storedEas[i].BuildGrantUser((SID *)usersid, GENERIC_ALL | KEY_ALL_ACCESS,SUB_CONTAINERS_AND_OBJECTS_INHERIT);
+        acl.AddToArray(storedEas[i]);
+    }
 
     PACL newAcl = NULL;
     PACL oldAcl = NULL;
@@ -112,11 +121,18 @@ DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
     if (0 != ret) {
         WcaLog(LOGMSG_STANDARD, "Failed to set named security info %d", ret);
     }
+    if(newAcl) {
+        LocalFree((HLOCAL) newAcl);
+    }
+    if (storedEas) {
+        delete[] storedEas;
+    }
+
     return ret;
 
 }
 
-DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename)
+DWORD addDdUserPermsToFile(const wchar_t** usernames, std::wstring &filename)
 {
     std::string shortfile;
     toMbcs(shortfile, (LPCWSTR)filename.c_str());
@@ -128,10 +144,6 @@ DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename)
         return 0;
     }
     WcaLog(LOGMSG_STANDARD, "Changing file permissions on %s", shortfile.c_str());
-    PSID  usersid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
-    ExplicitAccess dduser;
-    dduser.BuildGrantUser((SID *)usersid, FILE_ALL_ACCESS,
-                          SUB_CONTAINERS_AND_OBJECTS_INHERIT);
 
     // get the current ACLs and append, rather than just set; if the file exists,
     // the user may have already set custom ACLs on the file, and we don't want
@@ -141,7 +153,19 @@ DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename)
     PACL pOldDACL = NULL, pNewDACL = NULL;
     PSECURITY_DESCRIPTOR pSD = NULL;
     WinAcl acl;
-    acl.AddToArray(dduser);
+    int usercount = 0;
+    for (int i = 0; usernames[i] != NULL; i++)
+    {
+        usercount++;
+    }
+    ExplicitAccess * storedEas = new ExplicitAccess[usercount];
+    for (int i = 0; usernames[i] != NULL; i++)
+    {
+        PSID  usersid = GetSidForUser(NULL, usernames[i]);
+        
+        storedEas[i].BuildGrantUser((SID *)usersid, GENERIC_ALL | KEY_ALL_ACCESS,SUB_CONTAINERS_AND_OBJECTS_INHERIT);
+        acl.AddToArray(storedEas[i]);
+    }
 
     dwRes = GetNamedSecurityInfo(filename.c_str(), SE_FILE_OBJECT, 
           DACL_SECURITY_INFORMATION,
@@ -163,6 +187,9 @@ DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename)
     }
     if(pNewDACL) {
         LocalFree((HLOCAL) pNewDACL);
+    }
+    if (storedEas) {
+        delete[] storedEas;
     }
     return dwRes;
 }
@@ -224,30 +251,6 @@ doneRemove:
     }
     
     return ;
-}
-
-int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring& comment, const wchar_t* passbuf)
-{
-    
-    USER_INFO_1 ui;
-    memset(&ui, 0, sizeof(USER_INFO_1));
-    WcaLog(LOGMSG_STANDARD, "entered createuser");
-    ui.usri1_name = (LPWSTR)name.c_str();
-    ui.usri1_password = (LPWSTR)passbuf;
-    ui.usri1_priv = USER_PRIV_USER;
-    ui.usri1_comment = (LPWSTR)comment.c_str();
-    ui.usri1_flags = UF_DONT_EXPIRE_PASSWD;
-    DWORD ret = 0;
-    
-
-    WcaLog(LOGMSG_STANDARD, "Calling NetUserAdd.");
-    ret = NetUserAdd(NULL, // LOCAL_MACHINE
-        1, // indicates we're using a USER_INFO_1
-        (LPBYTE)&ui,
-        NULL);
-    WcaLog(LOGMSG_STANDARD, "NetUserAdd. %d", ret);
-    return ret;
-
 }
 
 

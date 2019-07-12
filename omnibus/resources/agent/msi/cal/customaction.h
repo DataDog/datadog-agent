@@ -4,8 +4,8 @@
 // usercreate.cpp
 bool generatePassword(wchar_t* passbuf, int passbuflen);
 int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring& comment, const wchar_t* passbuf);
-DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name);
-DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename);
+DWORD changeRegistryAcls(const wchar_t**, const wchar_t* name);
+DWORD addDdUserPermsToFile(const wchar_t** name, std::wstring &filename);
 bool isDomainController(MSIHANDLE hInstall);
 int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data, bool isDC = false);
 
@@ -13,22 +13,19 @@ void removeUserPermsFromFile(std::wstring &filename, PSID sidremove);
 
 DWORD DeleteUser(const wchar_t* host, const wchar_t* name);
 
-
+//userrights.cpp
+PSID GetSidForUser(LPCWSTR host, LPCWSTR user);
+bool GetNameForSid(LPCWSTR host, PSID sid, std::wstring& namestr);
 bool AddPrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd);
 bool RemovePrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd);
-int EnableServiceForUser(CustomActionData& data, const std::wstring& service);
-DWORD AddUserToGroup(PSID userSid, wchar_t* groupSidString, wchar_t* defaultGroupName);
-DWORD DelUserFromGroup(PSID userSid, wchar_t* groupSidString, wchar_t* defaultGroupName);
+LSA_HANDLE GetPolicyHandle();
 bool InitLsaString(
 	PLSA_UNICODE_STRING pLsaString,
 	LPCWSTR pwszString);
+//int EnableServiceForUser(CustomActionData& data, const std::wstring& service);
+int EnableServiceForUser(const wchar_t* username, const std::wstring& service);
 
-PSID GetSidForUser(LPCWSTR host, LPCWSTR user);
-bool GetNameForSid(LPCWSTR host, PSID sid, std::wstring& namestr);
-
-LSA_HANDLE GetPolicyHandle();
-
-
+DWORD AddUserToGroup(PSID userSid, wchar_t* groupSidString, wchar_t* defaultGroupName);
 
 //stopservices.cpp
 VOID  DoStopSvc(MSIHANDLE hInstall, std::wstring &svcName);
@@ -38,8 +35,17 @@ int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *p
 int uninstallServices(MSIHANDLE hInstall, CustomActionData& data);
 int verifyServices(MSIHANDLE hInstall, CustomActionData& data);
 
+int SetServiceSIDUnrestricted(wchar_t* svcName);
+
 //delfiles.cpp
 BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext);
+
+// doUninstall.cpp
+typedef enum _uninstall_type {
+    UNINSTALL_UNINSTALL,
+    UNINSTALL_ROLLBACK
+} UNINSTALL_TYPE;
+UINT doDDUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t);
 
 extern HMODULE hDllModule;
 // rights we might be interested in

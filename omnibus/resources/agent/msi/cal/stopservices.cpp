@@ -731,7 +731,7 @@ public:
 
     }
 };
-
+#if 0
 int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *password) {
     SC_HANDLE hScManager = NULL;
     SC_HANDLE hService = NULL;
@@ -795,6 +795,8 @@ int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *p
     return retval;
 
 }
+#endif
+
 int uninstallServices(MSIHANDLE hInstall, CustomActionData& data) {
     SC_HANDLE hScManager = NULL;
     SC_HANDLE hService = NULL;
@@ -877,5 +879,48 @@ int verifyServices(MSIHANDLE hInstall, CustomActionData& data)
    
     CloseServiceHandle(hScManager);
     return retval;
+
+}
+
+//! SetServiceSIDUnrestricted
+/*!
+ \param svcName  (unicode) name of service to update
+ 
+ Sets the service configuration for the given service.  Causes the service SID
+to be added to the service process token.  By doing this, we can restrict
+access to config files, etc. only to the service SID rather than all processes
+running under LOCAL_SYSTEM
+  */
+int SetServiceSIDUnrestricted(wchar_t* svcName)
+{
+    int ret = 0;
+    SC_HANDLE hScManager = OpenSCManager(
+        NULL,                    // local computer
+        NULL,                    // ServicesActive database 
+        SC_MANAGER_ALL_ACCESS);  // full access rights 
+
+    if (NULL == hScManager)
+    {
+        WcaLog(LOGMSG_STANDARD, "OpenSCManager failed (%d)\n", GetLastError());
+        return GetLastError();
+    }
+    SC_HANDLE hService = OpenService(hScManager, svcName, SC_MANAGER_ALL_ACCESS);
+    if (!hService) {
+        ret = GetLastError();
+        goto done_csc;
+    }
+    SERVICE_SID_INFO sinfo;
+    sinfo.dwServiceSidType = SERVICE_SID_TYPE_UNRESTRICTED;
+    if(!ChangeServiceConfig2W(hService,SERVICE_CONFIG_SERVICE_SID_INFO, (LPVOID) &sinfo )){
+        ret = GetLastError();
+    }
+  done_csc:
+    if(hService) {
+        CloseServiceHandle(hService);
+    }
+    if(hScManager){
+        CloseServiceHandle(hScManager);
+    }
+    return 0;
 
 }

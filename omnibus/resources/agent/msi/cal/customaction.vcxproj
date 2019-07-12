@@ -148,10 +148,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="cleanupgrade.cpp" />
     <ClCompile Include="CustomAction.cpp" />
     <ClCompile Include="customactiondata.cpp" />
     <ClCompile Include="ddreg.cpp" />
     <ClCompile Include="delfiles.cpp" />
+    <ClCompile Include="doUninstall.cpp" />
     <ClCompile Include="rollback.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
