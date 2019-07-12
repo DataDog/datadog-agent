@@ -379,7 +379,7 @@ done:
     return true;
 }
 
-const char *Two::runCheck(RtLoaderPyObject *check)
+char *Two::runCheck(RtLoaderPyObject *check)
 {
     if (check == NULL) {
         return NULL;
