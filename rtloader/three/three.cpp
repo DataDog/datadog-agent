@@ -13,7 +13,7 @@
 #include "containers.h"
 #include "datadog_agent.h"
 #include "kubeutil.h"
-#include "memory.h"
+#include "rtloader_mem.h"
 #include "stringutils.h"
 #include "tagger.h"
 #include "util.h"

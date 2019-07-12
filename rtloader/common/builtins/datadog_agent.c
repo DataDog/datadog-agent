@@ -4,7 +4,7 @@
 // Copyright 2019 Datadog, Inc.
 #include "datadog_agent.h"
 #include "cgo_free.h"
-#include "memory.h"
+#include "rtloader_mem.h"
 #include "stringutils.h"
 
 // these must be set by the Agent

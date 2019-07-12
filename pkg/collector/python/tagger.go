@@ -20,7 +20,7 @@ import (
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 
 #include "datadog_agent_rtloader.h"
-#include "memory.h"
+#include "rtloader_mem.h"
 */
 import "C"
 

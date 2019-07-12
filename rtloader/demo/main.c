@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 #include "datadog_agent_rtloader.h"
-#include "memory.h"
+#include "rtloader_mem.h"
 
 #include <assert.h>
 #include <stdio.h>

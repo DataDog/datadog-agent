@@ -13,7 +13,7 @@
 #include <sstream>
 
 #include "datadog_agent_rtloader.h"
-#include "memory.h"
+#include "rtloader_mem.h"
 #include "rtloader.h"
 
 #if __linux__

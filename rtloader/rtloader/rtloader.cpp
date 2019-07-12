@@ -5,7 +5,7 @@
 // Copyright 2019 Datadog, Inc.
 
 #include "rtloader.h"
-#include "memory.h"
+#include "rtloader_mem.h"
 
 #ifndef _WIN32
 // clang-format off

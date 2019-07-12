@@ -4,7 +4,7 @@
 // Copyright 2019 Datadog, Inc.
 #include "_util.h"
 #include "cgo_free.h"
-#include "memory.h"
+#include "rtloader_mem.h"
 #include "stringutils.h"
 
 #include <stdio.h>
