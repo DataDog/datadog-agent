@@ -344,9 +344,9 @@ extern "C" UINT __stdcall PostStartServices(MSIHANDLE hInstall) {
     WcaLog(LOGMSG_STANDARD, "Waiting for start to complete");
     Sleep(5000);
     WcaLog(LOGMSG_STANDARD, "start complete");
-    //if (ERROR_SUCCESS != er) {
-    //    hr = -1;
-    //}
+    if (ERROR_SUCCESS != er) {
+        hr = -1;
+    }
 LExit:
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     return WcaFinalize(er);

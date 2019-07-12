@@ -9,11 +9,9 @@
     Name is made of localized product name and version number.
   -->
   <?if $(var.Platform) = x64 ?>
-    <?define ProductName = "Product Name (64 bit)" ?>
     <?define Win64 = "yes" ?>
     <?define PlatformProgramFilesFolder = "ProgramFiles64Folder" ?>
   <?else ?>
-    <?define ProductName = "Product Name" ?>
     <?define Win64 = "no" ?>
     <?define PlatformProgramFilesFolder = "ProgramFilesFolder" ?>
   <?endif ?>
