@@ -287,7 +287,7 @@
   revision = "c7c5070e6f6e090ab93b0a61eb921f2196fc3383"
 
 [[projects]]
-  digest = "1:fad169c38819ea1278f413abbc6b8c5dc9c2e33ff92d79446211a1ab0c0852f5"
+  digest = "1:3bc276f1f7b8b1ec876ddaad0aba0671003c47feac2cdf6c74554c9d1631a4b1"
   name = "github.com/containerd/cri"
   packages = ["pkg/util"]
   pruneopts = ""
@@ -311,7 +311,7 @@
   revision = "a93fcdb778cd272c6e9b3028b2f42d813e785d40"
 
 [[projects]]
-  digest = "1:6804589b70f53b250250ee867da4731f4f40a2e235dec8f73d63548705934bfd"
+  digest = "1:652b604fcce4f12cb6a53823aeacf9e166136d415e0cd55788a14c26503ded88"
   name = "github.com/coreos/etcd"
   packages = [
     "auth/authpb",
@@ -378,7 +378,7 @@
   revision = "83389a148052d74ac602f5f1d62f86ff2f3c4aa5"
 
 [[projects]]
-  digest = "1:577f411de1bb123e61cdebd59cb51124bb68b9e22b28a869829a30e8e8ce7ec6"
+  digest = "1:a60acfb78bd12ce7b2101f0cc0bca8cd83db6aa60bf1e6ddfd33e83013083ddf"
   name = "github.com/docker/docker"
   packages = [
     "api/types",
@@ -726,7 +726,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:e1c91a91cc738cebecbf12fc98f554f6f932c8b97e2052ad63ea43948df5bcb0"
+  digest = "1:ff65bf6fc4d1116f94ac305342725c21b55c16819c2606adc8f527755716937f"
   name = "github.com/hashicorp/go-rootcerts"
   packages = ["."]
   pruneopts = ""
@@ -1872,7 +1872,7 @@
   revision = "b742be413d0a6f781c123bed504c8fb39264c57d"
 
 [[projects]]
-  digest = "1:744d443c1aba8ab54c8d46c6e4d635bd9a756ee83243f846de6e48714fbf28e9"
+  digest = "1:13614139aef760b502fe057a8d34e9c4257d1581fb85498b0053267596e0514c"
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/api/legacyscheme",
