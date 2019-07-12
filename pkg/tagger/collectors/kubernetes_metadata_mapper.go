@@ -46,9 +46,14 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		// We cannot define if a hostNetwork Pod is a member of a service
 		if po.Spec.HostNetwork == true {
 			for _, container := range po.Status.Containers {
+				entityID, err := kubelet.KubeContainerIDToEntityID(container.ID)
+				if err != nil {
+					log.Warnf("Unable to parse container: %s", err)
+					continue
+				}
 				info := &TagInfo{
 					Source:               kubeMetadataCollectorName,
-					Entity:               container.ID,
+					Entity:               entityID,
 					HighCardTags:         []string{},
 					OrchestratorCardTags: []string{},
 					LowCardTags:          []string{},
@@ -92,9 +97,14 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		}
 		// Register the tags for all its containers
 		for _, container := range po.Status.Containers {
+			entityID, err := kubelet.KubeContainerIDToEntityID(container.ID)
+			if err != nil {
+				log.Warnf("Unable to parse container: %s", err)
+				continue
+			}
 			info := &TagInfo{
 				Source:               kubeMetadataCollectorName,
-				Entity:               container.ID,
+				Entity:               entityID,
 				HighCardTags:         high,
 				OrchestratorCardTags: orchestrator,
 				LowCardTags:          low,

@@ -118,7 +118,7 @@ func TestParseMetadata(t *testing.T) {
 	expectedUpdatesParseAll := []*TagInfo{
 		{
 			Source: "ecs_fargate",
-			Entity: "docker://3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c",
+			Entity: "container_id://3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c",
 			LowCardTags: []string{
 				"docker_image:fg-proxy:tinyproxy",
 				"image_name:fg-proxy",
@@ -143,7 +143,7 @@ func TestParseMetadata(t *testing.T) {
 		},
 		{
 			Source: "ecs_fargate",
-			Entity: "docker://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
+			Entity: "container_id://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
 			LowCardTags: []string{
 				"docker_image:datadog/agent-dev:xvello-process-kubelet",
 				"image_name:datadog/agent-dev",
@@ -168,7 +168,7 @@ func TestParseMetadata(t *testing.T) {
 		},
 		{
 			Source: "ecs_fargate",
-			Entity: "docker://0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
+			Entity: "container_id://0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
 			LowCardTags: []string{
 				"docker_image:redis:latest",
 				"image_name:redis",

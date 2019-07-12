@@ -285,6 +285,7 @@ func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) 
 		for _, container := range pod.Status.GetAllContainers() {
 			cid, err := KubeContainerIDToEntityID(container.ID)
 			if err != nil {
+				log.Warnf("Unable to parse container: %s", err)
 				continue
 			}
 			if cid == containerID {
@@ -882,4 +883,14 @@ func isPodStatic(pod *Pod) bool {
 		return len(pod.Status.Containers) == 0
 	}
 	return false
+}
+
+// KubeContainerIDToEntityID builds an entity ID from a container ID coming from
+// the pod status (i.e. including the <runtime>:// prefix).
+func KubeContainerIDToEntityID(ctrID string) (string, error) {
+	sep := strings.LastIndex(ctrID, containers.EntitySeparator)
+	if sep != -1 && len(ctrID) > sep+len(containers.EntitySeparator) {
+		return containers.ContainerEntityName + ctrID[sep:], nil
+	}
+	return "", fmt.Errorf("can't extract an entity ID from container ID %s", ctrID)
 }

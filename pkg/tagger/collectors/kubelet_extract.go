@@ -162,9 +162,14 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			}
 
 			cLow, cOrch, cHigh := cTags.Compute()
+			entityID, err := kubelet.KubeContainerIDToEntityID(container.ID)
+			if err != nil {
+				log.Warnf("Unable to parse container: %s", err)
+				continue
+			}
 			info := &TagInfo{
 				Source:               kubeletCollectorName,
-				Entity:               container.ID,
+				Entity:               entityID,
 				HighCardTags:         cHigh,
 				OrchestratorCardTags: cOrch,
 				LowCardTags:          cLow,

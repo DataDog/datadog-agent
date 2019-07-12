@@ -180,10 +180,10 @@ func TestProcessNewPod(t *testing.T) {
 
 	select {
 	case service := <-services:
-		assert.Equal(t, "rkt://bar-random-hash", string(service.GetEntity()))
+		assert.Equal(t, "container_id://bar-random-hash", string(service.GetEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
-		assert.Equal(t, []string{"rkt://bar-random-hash", "datadoghq.com/bar:latest", "bar"}, adIdentifiers)
+		assert.Equal(t, []string{"container_id://bar-random-hash", "datadoghq.com/bar:latest", "bar"}, adIdentifiers)
 		hosts, err := service.GetHosts()
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)

@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // configPath refers to the configuration that can be passed over a docker label or a pod annotation,
@@ -38,7 +39,12 @@ func ContainsADIdentifier(c *Container) bool {
 		return false
 	}
 	for _, container := range pod.Status.GetAllContainers() {
-		if container.ID == entityID {
+		cid, err := kubelet.KubeContainerIDToEntityID(container.ID)
+		if err != nil {
+			log.Warnf("Unable to parse container: %s", err)
+			continue
+		}
+		if cid == entityID {
 			// looks for the container name specified in the pod manifest as it's different from the name of the container
 			// returns by a docker inspect which is a concatenation of the container name specified in the pod manifest and a hash
 			_, exists = pod.Metadata.Annotations[annotationConfigPath(container.Name)]

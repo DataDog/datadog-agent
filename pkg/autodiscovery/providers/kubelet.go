@@ -90,7 +90,12 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
 		}
 
 		for _, container := range pod.Status.GetAllContainers() {
-			c, errors := extractTemplatesFromMap(container.ID, pod.Metadata.Annotations,
+			entityID, err := kubelet.KubeContainerIDToEntityID(container.ID)
+			if err != nil {
+				log.Warnf("Unable to parse container: %s", err)
+				continue
+			}
+			c, errors := extractTemplatesFromMap(entityID, pod.Metadata.Annotations,
 				fmt.Sprintf(adExtractFormat, container.Name))
 
 			for _, err := range errors {

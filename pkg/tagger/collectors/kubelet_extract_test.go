@@ -66,7 +66,7 @@ func TestParsePods(t *testing.T) {
 		},
 	}
 
-	criEntityId := "cri-containerd://acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1"
+	criEntityId := "container_id://acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1"
 	criContainerStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
 			{

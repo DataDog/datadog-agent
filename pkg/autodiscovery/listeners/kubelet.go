@@ -134,7 +134,12 @@ func (l *KubeletListener) processNewPods(pods []*kubelet.Pod, firstRun bool) {
 		// into consideration (not pending)
 		for _, container := range pod.Status.GetAllContainers() {
 			if !container.IsPending() {
-				l.createService(container.ID, pod, firstRun)
+				entityID, err := kubelet.KubeContainerIDToEntityID(container.ID)
+				if err != nil {
+					log.Warnf("Unable to parse container: %s", err)
+					continue
+				}
+				l.createService(entityID, pod, firstRun)
 			}
 		}
 		l.createPodService(pod, firstRun)
@@ -206,7 +211,12 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 	// AD Identifiers
 	var containerName string
 	for _, container := range pod.Status.GetAllContainers() {
-		if container.ID == svc.entity {
+		cid, err := kubelet.KubeContainerIDToEntityID(container.ID)
+		if err != nil {
+			log.Warnf("Unable to parse container: %s", err)
+			continue
+		}
+		if cid == svc.entity {
 			if l.filter.IsExcluded(container.Name, container.Image) {
 				log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, container.Image)
 				return
@@ -214,7 +224,7 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 			containerName = container.Name
 
 			// Add container uid as ID
-			svc.adIdentifiers = append(svc.adIdentifiers, container.ID)
+			svc.adIdentifiers = append(svc.adIdentifiers, entity)
 
 			// Stop here if we find an AD template annotation
 			if podHasADTemplate(pod.Metadata.Annotations, containerName) {

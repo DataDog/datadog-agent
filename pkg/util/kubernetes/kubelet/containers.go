@@ -10,7 +10,6 @@ package kubelet
 import (
 	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -189,14 +188,4 @@ func parseContainerReadiness(status ContainerStatus, pod *Pod) string {
 		return containers.ContainerStartingHealth
 	}
 	return containers.ContainerUnhealthy
-}
-
-// KubeContainerIDToEntityID builds an entity ID from a container ID coming from
-// the pod status (i.e. including the <runtime>:// prefix).
-func KubeContainerIDToEntityID(ctrID string) (string, error) {
-	sep := strings.LastIndex(ctrID, containers.EntitySeparator)
-	if sep != -1 && len(ctrID) > sep+len(containers.EntitySeparator) {
-		return containers.ContainerEntityName + ctrID[sep:], nil
-	}
-	return "", fmt.Errorf("can't extract an entity ID from container ID %s", ctrID)
 }

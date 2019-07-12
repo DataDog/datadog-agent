@@ -102,12 +102,12 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 		for _, container := range pod.Status.GetAllContainers() {
 			// We don't check container readiness as init containers are never ready
 			// We check if the container has an ID instead (has run or is running)
-			ctrEntity, err = KubeContainerIDToEntityID(container.ID)
-			if err != nil {
-				log.Errorf("Failed to build an entity ID from container ID %s: %s", container.ID, err)
-				continue
-			}
 			if !container.IsPending() {
+				ctrEntity, err = KubeContainerIDToEntityID(container.ID)
+				if err != nil {
+					log.Errorf("Failed to build an entity ID from container ID %s: %s", container.ID, err)
+					continue
+				}
 				// new container are always sent ignoring the pod state
 				if _, found := w.lastSeen[ctrEntity]; !found {
 					updatedContainer = true
