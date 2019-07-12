@@ -36,14 +36,10 @@ execute 'run agent install script' do
   live_stream true
 end
 
-agent_config_file = ::File.join(node['datadog']['config_dir'], 'datadog.conf')
+agent_config_file = ::File.join(node['dd-agent-5']['config_dir'], 'datadog.conf')
 template agent_config_file do
   def template_vars
-    # Default value of node['datadog']['url'] is now nil for an Agent 6
-    # but for compatibility with Agent 5, we still need to have the value
-    # set. It's set here.
     dd_url = 'https://app.datadoghq.com'
-    dd_url = node['datadog']['url'] unless node['datadog']['url'].nil?
 
     api_keys = [node['dd-agent-5']['api_key']]
     dd_urls = [dd_url]
