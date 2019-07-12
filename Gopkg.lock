@@ -875,7 +875,6 @@
   digest = "1:d9e483f4b9e306facf126bd90b02d512bd22ea4471e1568867e32221a8abbb16"
   name = "github.com/mailru/easyjson"
   packages = [
-    ".",
     "buffer",
     "jlexer",
     "jwriter",
@@ -2027,10 +2026,6 @@
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider",
     "github.com/lxn/walk",
     "github.com/lxn/win",
-    "github.com/mailru/easyjson",
-    "github.com/mailru/easyjson/buffer",
-    "github.com/mailru/easyjson/jlexer",
-    "github.com/mailru/easyjson/jwriter",
     "github.com/mholt/archiver",
     "github.com/openshift/api/quota/v1",
     "github.com/patrickmn/go-cache",
