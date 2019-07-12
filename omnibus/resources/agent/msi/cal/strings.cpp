@@ -152,7 +152,7 @@ void getOsStrings()
     confddir = programdataroot + confdsuffix;
     logdir = programdataroot + logsdirsuffix;
 
-    agent_exe = installdir + L"bin\\agent.exe";
+    agent_exe = L"\"" + installdir + L"bin\\agent.exe\"";
     process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=" + programdataroot + L"datadog.yaml" ;
     trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=" + programdataroot + L"datadog.yaml" ;
 
