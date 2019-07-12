@@ -3,8 +3,8 @@ LIBRARY customaction
 EXPORTS
 	DllMain
     FinalizeInstall
-	PreStopServices
-	PostStartServices
-	DoUninstall
+; 	PreStopServices
+;	DoUninstall
     DoRollback
+    RemoveDDAgentUser
 	

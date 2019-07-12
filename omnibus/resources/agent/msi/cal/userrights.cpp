@@ -234,7 +234,7 @@ void BuildExplicitAccessWithSid(EXPLICIT_ACCESS_W &data, PSID pSID, DWORD perms,
 	data.Trustee.ptstrName = (LPTSTR)pSID;
 }
 
-int EnableServiceForUser(CustomActionData& data, const std::wstring& service)
+int EnableServiceForUser(const wchar_t* username, const std::wstring& service)
 {
     int ret = 0;
     SC_HANDLE hscm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS | GENERIC_ALL | READ_CONTROL);
@@ -271,7 +271,7 @@ int EnableServiceForUser(CustomActionData& data, const std::wstring& service)
 		WcaLog(LOGMSG_STANDARD,"Failed to query security info %d\n", GetLastError());
 		goto cleanAndReturn;
 	}
-	if ((sid = GetSidForUser(NULL, data.getQualifiedUsername().c_str())) == NULL) {
+	if ((sid = GetSidForUser(NULL, username)) == NULL) {
 		WcaLog(LOGMSG_STANDARD,"Failed to get sid\n");
 		goto cleanAndReturn;
 	}
@@ -336,7 +336,6 @@ cleanAndReturn:
 	}
     return ret;
 }
-
 void getGroupNameFromSidString(wchar_t* groupSidString, wchar_t* defaultGroupName, std::wstring &groupname)
 {
     // need to look up the group name by SID; the group name can be localized
@@ -373,34 +372,6 @@ DWORD AddUserToGroup(PSID userSid, wchar_t* groupSidString, wchar_t* defaultGrou
     }
     else if (nErr == ERROR_MEMBER_IN_GROUP || nErr == ERROR_MEMBER_IN_ALIAS) {
         WcaLog(LOGMSG_STANDARD, "User already in group, continuing %d", nErr);
-        nErr = NERR_Success; // treat as success
-    }
-    else {
-        WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
-    }
-    return nErr;
-
-}
-
-DWORD DelUserFromGroup(PSID userSid, wchar_t* groupSidString, wchar_t* defaultGroupName)
-{
-    DWORD nErr  = 0;
-    std::wstring groupname;
-    std::string asciiname;
-
-    LOCALGROUP_MEMBERS_INFO_0 lmi0;
-    memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_0));
-    lmi0.lgrmi0_sid = userSid;
-
-    getGroupNameFromSidString(groupSidString, defaultGroupName, groupname);
-    toMbcs(asciiname, groupname.c_str());
-    WcaLog(LOGMSG_STANDARD, "Attempting to add to group %s", asciiname.c_str());
-    nErr = NetLocalGroupDelMembers(NULL, L"Performance Monitor Users", 0, (LPBYTE)&lmi0, 1);
-    if (nErr == NERR_Success) {
-        WcaLog(LOGMSG_STANDARD, "Added ddagentuser to %s", asciiname.c_str());
-    }
-    else if (nErr == ERROR_NO_SUCH_MEMBER || nErr == ERROR_MEMBER_NOT_IN_ALIAS) {
-        WcaLog(LOGMSG_STANDARD, "User wasn't in group, continuing %d", nErr);
         nErr = NERR_Success; // treat as success
     }
     else {
