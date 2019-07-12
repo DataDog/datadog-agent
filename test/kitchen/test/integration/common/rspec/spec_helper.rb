@@ -214,7 +214,8 @@ def is_port_bound(port)
     port_regex = Regexp.new(port.to_s)
     port_regex.match(`netstat -n -b -a -p TCP 2>&1`)
   else
-    system("sudo netstat -lntp | grep #{port} 1>/dev/null")
+    # If netstat is not found (eg. on SUSE >= 15), use ss to get the list of ports used.
+    system("sudo netstat -lntp | grep #{port} 1>/dev/null") || system("sudo ss -lntp | grep #{port} 1>/dev/null")
   end
 end
 
