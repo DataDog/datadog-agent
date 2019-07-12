@@ -68,8 +68,8 @@ const (
 type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
-	Out         chan *Trace
 
+	out     chan *Trace
 	conf    *config.AgentConfig
 	dynConf *sampler.DynamicConfig
 	server  *http.Server
@@ -91,7 +91,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	return &HTTPReceiver{
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
-		Out:         out,
+		out:         out,
 
 		conf:    conf,
 		dynConf: dynConf,
@@ -246,7 +246,7 @@ func (r *HTTPReceiver) Stop() error {
 		return err
 	}
 	r.wg.Wait()
-	close(r.Out)
+	close(r.out)
 	return nil
 }
 
@@ -403,7 +403,7 @@ func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
 			continue
 		}
 
-		r.Out <- &Trace{
+		r.out <- &Trace{
 			Source: &ts.Tags,
 			Spans:  trace,
 		}
@@ -438,7 +438,7 @@ func (r *HTTPReceiver) loop() {
 			r.watchdog(now)
 		case now := <-t.C:
 			metrics.Gauge("datadog.trace_agent.heartbeat", 1, nil, 1)
-			metrics.Gauge("datadog.trace_agent.receiver.out_chan_fill", float64(len(r.Out))/float64(cap(r.Out)), nil, 1)
+			metrics.Gauge("datadog.trace_agent.receiver.out_chan_fill", float64(len(r.out))/float64(cap(r.out)), nil, 1)
 
 			// We update accStats with the new stats we collected
 			accStats.Acc(r.Stats)
