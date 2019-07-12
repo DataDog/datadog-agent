@@ -14,6 +14,6 @@ instances:
     #  - 1.europe.pool.ntp.org
     #  - 2.europe.pool.ntp.org
     #  - 3.europe.pool.ntp.org
-    # port: ntp
+    # port: 123
     # version: 3
     # timeout: 5
