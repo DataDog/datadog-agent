@@ -6,6 +6,7 @@
 package providers
 
 import (
+	"os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -120,8 +121,38 @@ func TestCollect(t *testing.T) {
 	assert.Equal(t, 1, len(get("logs-agent_only")))
 
 	// total number of configurations found
-	assert.Equal(t, 14, len(configs))
+	assert.Equal(t, 15, len(configs))
 
 	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml & ad_deprecated.yaml)
 	assert.Equal(t, 3, len(provider.Errors))
+}
+
+func TestEnvVarReplacement(t *testing.T) {
+	err := os.Setenv("test_envvar_key", "test_value")
+	require.NoError(t, err)
+	os.Unsetenv("test_envvar_not_set")
+	defer os.Unsetenv("test_envvar_key")
+
+	paths := []string{"tests"}
+	provider := NewFileConfigProvider(paths)
+	configs, err := provider.Collect()
+
+	assert.Nil(t, err)
+
+	get := func(name string) []integration.Config {
+		out := []integration.Config{}
+		for _, c := range configs {
+			if c.Name == name {
+				out = append(out, c)
+			}
+		}
+		return out
+	}
+
+	rc := get("envvars")
+	assert.Len(t, rc, 1)
+	assert.Contains(t, string(rc[0].InitConfig), "test_value")
+	assert.Contains(t, string(rc[0].Instances[0]), "test_value")
+	assert.Len(t, rc[0].Instances, 2)
+	assert.Contains(t, string(rc[0].Instances[1]), "test_envvar_not_set")
 }

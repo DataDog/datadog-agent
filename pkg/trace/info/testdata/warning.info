@@ -16,7 +16,6 @@ Trace Agent (v 0.99.0)
   From python 2.7.6 (CPython), client 0.9.0
     Traces received: 70 (10679 bytes)
     Spans received: 984
-    Services received: 0 (0 bytes)
     WARNING: traces_dropped(empty_trace:3), spans_malformed(span_name_empty:3, type_truncate:2)
 
   WARNING: Rate-limiter keep percentage: 42.1 %
@@ -27,5 +26,3 @@ Trace Agent (v 0.99.0)
   WARNING: Traces API errors (1 min): 3
   Stats: 6 payloads, 12 stats buckets, 8329 bytes
   WARNING: Stats API errors (1 min): 1
-  Services: 1 payloads, 2 services, 1234 bytes
-  WARNING: Services API errors (1 min): 1

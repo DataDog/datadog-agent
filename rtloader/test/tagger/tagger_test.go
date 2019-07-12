@@ -60,7 +60,7 @@ func TestGetTagsUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "null" {
+	if out != "[]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 }
@@ -146,7 +146,7 @@ func TestTagsUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "null" {
+	if out != "[]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 }

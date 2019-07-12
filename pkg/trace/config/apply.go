@@ -174,6 +174,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("apm_config.receiver_port") {
 		c.ReceiverPort = config.Datadog.GetInt("apm_config.receiver_port")
 	}
+	if config.Datadog.IsSet("apm_config.receiver_socket") {
+		c.ReceiverSocket = config.Datadog.GetString("apm_config.receiver_socket")
+	}
 	if config.Datadog.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = config.Datadog.GetInt("apm_config.connection_limit")
 	}

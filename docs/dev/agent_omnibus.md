@@ -82,6 +82,12 @@ at each Omnibus run:
  * `/tmp/opt/datadog-agent`, containing the Omnibus installation dir
  * `/tmp/gems`, containing all the ruby gems installed with Bundler
 
+The builder images are also available in DocherHub. You can use them instead of
+building your own by using `datadog/agent-buildimages-rpm_x64` or `datadog/agent-buildimages-deb_x64`.
+
+If the build images crash when you run them on modern Linux distributions, you might be 
+affected by [this bug](https://github.com/moby/moby/issues/28705).
+
 ### Windows
 
 TODO.

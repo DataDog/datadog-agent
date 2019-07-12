@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,10 +34,7 @@ type Agent struct {
 	PrioritySampler    *Sampler
 	EventProcessor     *event.Processor
 	TraceWriter        *writer.TraceWriter
-	ServiceWriter      *writer.ServiceWriter
 	StatsWriter        *writer.StatsWriter
-	ServiceExtractor   *TraceServiceExtractor
-	ServiceMapper      *ServiceMapper
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -59,15 +55,11 @@ type Agent struct {
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 
-	// inter-component channels
-	rawTraceChan := make(chan pb.Trace, 5000)
+	rawTraceChan := make(chan *api.Trace, 5000)
 	spansOut := make(chan *writer.SampledSpans, 1000)
 	statsChan := make(chan []stats.Bucket)
-	serviceChan := make(chan pb.ServicesMetadata, 50)
-	filteredServiceChan := make(chan pb.ServicesMetadata, 50)
 
-	// create components
-	r := api.NewHTTPReceiver(conf, dynConf, rawTraceChan, serviceChan)
+	r := api.NewHTTPReceiver(conf, dynConf, rawTraceChan)
 	c := stats.NewConcentrator(
 		conf.ExtraAggregators,
 		conf.BucketInterval.Nanoseconds(),
@@ -79,11 +71,8 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	ess := NewErrorsSampler(conf)
 	ps := NewPrioritySampler(conf, dynConf)
 	ep := eventProcessorFromConf(conf)
-	se := NewTraceServiceExtractor(serviceChan)
-	sm := NewServiceMapper(serviceChan, filteredServiceChan)
 	tw := writer.NewTraceWriter(conf, spansOut)
 	sw := writer.NewStatsWriter(conf, statsChan)
-	svcW := writer.NewServiceWriter(conf, filteredServiceChan)
 
 	return &Agent{
 		Receiver:           r,
@@ -96,9 +85,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		EventProcessor:     ep,
 		TraceWriter:        tw,
 		StatsWriter:        sw,
-		ServiceWriter:      svcW,
-		ServiceExtractor:   se,
-		ServiceMapper:      sm,
 		obfuscator:         obf,
 		spansOut:           spansOut,
 		conf:               conf,
@@ -111,7 +97,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 func (a *Agent) Run() {
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
-		a.ServiceMapper,
 		a.Concentrator,
 		a.ScoreSampler,
 		a.ErrorsScoreSampler,
@@ -123,13 +108,8 @@ func (a *Agent) Run() {
 
 	go a.TraceWriter.Run()
 	go a.StatsWriter.Run()
-	go a.ServiceWriter.Run()
 
-	n := 1
-	if config.HasFeature("parallel_process") {
-		n = runtime.NumCPU()
-	}
-	for i := 0; i < n; i++ {
+	for i := 0; i < runtime.NumCPU(); i++ {
 		go a.work()
 	}
 
@@ -160,8 +140,6 @@ func (a *Agent) loop() {
 			a.Concentrator.Stop()
 			a.TraceWriter.Stop()
 			a.StatsWriter.Stop()
-			a.ServiceMapper.Stop()
-			a.ServiceWriter.Stop()
 			a.ScoreSampler.Stop()
 			a.ErrorsScoreSampler.Stop()
 			a.PrioritySampler.Stop()
@@ -173,8 +151,8 @@ func (a *Agent) loop() {
 
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
-func (a *Agent) Process(t pb.Trace) {
-	if len(t) == 0 {
+func (a *Agent) Process(t *api.Trace) {
+	if len(t.Spans) == 0 {
 		log.Debugf("Skipping received empty trace")
 		return
 	}
@@ -182,11 +160,10 @@ func (a *Agent) Process(t pb.Trace) {
 	defer timing.Since("datadog.trace_agent.internal.process_trace_ms", time.Now())
 
 	// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
-	root := traceutil.GetRoot(t)
+	root := traceutil.GetRoot(t.Spans)
 
 	// We get the address of the struct holding the stats associated to no tags.
-	// TODO: get the real tagStats related to this trace payload (per lang/version).
-	ts := a.Receiver.Stats.GetTagStats(info.Tags{})
+	ts := a.Receiver.Stats.GetTagStats(*t.Source)
 
 	// Extract priority early, as later goroutines might manipulate the Metrics map in parallel which isn't safe.
 	priority, hasPriority := sampler.GetSamplingPriority(root)
@@ -209,16 +186,16 @@ func (a *Agent) Process(t pb.Trace) {
 	if !a.Blacklister.Allows(root) {
 		log.Debugf("Trace rejected by blacklister. root: %v", root)
 		atomic.AddInt64(&ts.TracesFiltered, 1)
-		atomic.AddInt64(&ts.SpansFiltered, int64(len(t)))
+		atomic.AddInt64(&ts.SpansFiltered, int64(len(t.Spans)))
 		return
 	}
 
 	// Extra sanitization steps of the trace.
-	for _, span := range t {
+	for _, span := range t.Spans {
 		a.obfuscator.Obfuscate(span)
 		Truncate(span)
 	}
-	a.Replacer.Replace(&t)
+	a.Replacer.Replace(t.Spans)
 
 	// Extract the client sampling rate.
 	clientSampleRate := sampler.GetGlobalRate(root)
@@ -231,9 +208,9 @@ func (a *Agent) Process(t pb.Trace) {
 
 	// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
 	// which is not thread-safe while samplers and Concentrator might modify it too.
-	traceutil.ComputeTopLevel(t)
+	traceutil.ComputeTopLevel(t.Spans)
 
-	subtraces := stats.ExtractTopLevelSubtraces(t, root)
+	subtraces := stats.ExtractTopLevelSubtraces(t.Spans, root)
 	sublayers := make(map[*pb.Span][]stats.SublayerValue)
 	for _, subtrace := range subtraces {
 		subtraceSublayers := stats.ComputeSublayers(subtrace.Trace)
@@ -242,65 +219,53 @@ func (a *Agent) Process(t pb.Trace) {
 	}
 
 	pt := ProcessedTrace{
-		Trace:         t,
-		WeightedTrace: stats.NewWeightedTrace(t, root),
+		Trace:         t.Spans,
+		WeightedTrace: stats.NewWeightedTrace(t.Spans, root),
 		Root:          root,
 		Env:           a.conf.DefaultEnv,
 		Sublayers:     sublayers,
 	}
-	// Replace Agent-configured environment with `env` coming from span tag.
-	if tenv := traceutil.GetEnv(t); tenv != "" {
+	if tenv := traceutil.GetEnv(t.Spans); tenv != "" {
+		// this trace has a user defined env.
 		pt.Env = tenv
 	}
 
-	go func() {
-		defer watchdog.LogOnPanic()
-		a.ServiceExtractor.Process(pt.WeightedTrace)
-	}()
-
-	go func(pt ProcessedTrace) {
-		defer watchdog.LogOnPanic()
-		defer timing.Since("datadog.trace_agent.internal.concentrator_ms", time.Now())
-		// Everything is sent to concentrator for stats, regardless of sampling.
-		a.Concentrator.Add(&stats.Input{
-			Trace:     pt.WeightedTrace,
-			Sublayers: pt.Sublayers,
-			Env:       pt.Env,
-		})
-	}(pt)
-
-	// Don't go through sampling for < 0 priority traces
-	if priority < 0 {
-		return
+	if priority >= 0 {
+		a.sample(ts, pt)
 	}
-	// Run both full trace sampling and transaction extraction in another goroutine.
-	go func(pt ProcessedTrace) {
-		defer watchdog.LogOnPanic()
-		defer timing.Since("datadog.trace_agent.internal.sample_ms", time.Now())
 
-		var sampledSpans writer.SampledSpans
-
-		sampled, rate := a.sample(pt)
-		if sampled {
-			pt.Sampled = sampled
-			sampler.AddGlobalRate(pt.Root, rate)
-			sampledSpans.Trace = pt.Trace
-		}
-
-		// NOTE: Events can be processed on non-sampled traces.
-		events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
-		sampledSpans.Events = events
-
-		atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
-		atomic.AddInt64(&ts.EventsSampled, int64(len(sampledSpans.Events)))
-
-		if !sampledSpans.Empty() {
-			a.spansOut <- &sampledSpans
-		}
-	}(pt)
+	a.Concentrator.In <- &stats.Input{
+		Trace:     pt.WeightedTrace,
+		Sublayers: pt.Sublayers,
+		Env:       pt.Env,
+	}
 }
 
-func (a *Agent) sample(pt ProcessedTrace) (sampled bool, rate float64) {
+// sample decides whether the trace will be kept and extracts any APM events
+// from it.
+func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) {
+	var ss writer.SampledSpans
+
+	sampled, rate := a.runSamplers(pt)
+	if sampled {
+		sampler.AddGlobalRate(pt.Root, rate)
+		ss.Trace = pt.Trace
+	}
+
+	events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
+	ss.Events = events
+
+	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
+	atomic.AddInt64(&ts.EventsSampled, int64(len(events)))
+
+	if !ss.Empty() {
+		a.spansOut <- &ss
+	}
+}
+
+// runSamplers runs all the agent's samplers on pt and returns the sampling decision
+// along with the sampling rate.
+func (a *Agent) runSamplers(pt ProcessedTrace) (sampled bool, rate float64) {
 	var sampledPriority, sampledScore bool
 	var ratePriority, rateScore float64
 

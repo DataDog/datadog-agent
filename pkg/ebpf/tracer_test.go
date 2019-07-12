@@ -39,32 +39,67 @@ func TestTracerExpvar(t *testing.T) {
 
 	<-time.After(time.Second)
 
-	expectedExpvars := []map[string]float64{
-		{
-			"NoopConntracker": 0,
+	expected := map[string][]string{
+		"conntrack": {"NoopConntracker"},
+		"state": {
+			"UnorderedConns",
+			"ConnDropped",
+			"ClosedConnDropped",
+			"StatsResets",
+			"TimeSyncCollisions",
 		},
-		{
-			"UnorderedConns":     0,
-			"ConnDropped":        0,
-			"ClosedConnDropped":  0,
-			"StatsResets":        0,
-			"TimeSyncCollisions": 0,
+		"tracer": {
+			"ClosedConnPollingLost",
+			"ClosedConnPollingReceived",
+			"ConnValidSkipped",
+			"ExpiredTcpConns",
 		},
-		{
-			"ClosedConnPollingLost":     0,
-			"ClosedConnPollingReceived": 0,
-			"ConnValidSkipped":          0,
-			"ExpiredTcpConns":           0,
+		"ebpf": {
+			"TcpSentMiscounts",
 		},
-		{
-			"TcpSentMiscounts": 0,
+		"kprobes": {
+			"PtcpCleanupRbufHits",
+			"PtcpCleanupRbufMisses",
+			"PtcpCloseHits",
+			"PtcpCloseMisses",
+			"PtcpRetransmitSkbHits",
+			"PtcpRetransmitSkbMisses",
+			"PtcpSendmsgHits",
+			"PtcpSendmsgMisses",
+			"PtcpVConnectHits",
+			"PtcpVConnectMisses",
+			"PtcpVDestroySockHits",
+			"PtcpVDestroySockMisses",
+			"PudpRecvmsgHits",
+			"PudpRecvmsgMisses",
+			"PudpSendmsgHits",
+			"PudpSendmsgMisses",
+			"RInetCskAcceptHits",
+			"RInetCskAcceptMisses",
+			"RTcpSendmsgHits",
+			"RTcpSendmsgMisses",
+			"RTcpVConnectHits",
+			"RTcpVConnectMisses",
+			"RUdpRecvmsgHits",
+			"RUdpRecvmsgMisses",
+			"RinetCskAcceptHits",
+			"RinetCskAcceptMisses",
+			"RtcpSendmsgHits",
+			"RtcpSendmsgMisses",
+			"RtcpVConnectHits",
+			"RtcpVConnectMisses",
+			"RudpRecvmsgHits",
+			"RudpRecvmsgMisses",
 		},
 	}
 
-	for i, et := range expvarTypes {
+	for _, et := range expvarTypes {
 		expvar := map[string]float64{}
 		require.NoError(t, json.Unmarshal([]byte(expvarEndpoints[et].String()), &expvar))
-		assert.Equal(t, expectedExpvars[i], expvar)
+		assert.Len(t, expvar, len(expected[et]))
+		for _, name := range expected[et] {
+			assert.Contains(t, expvar, name)
+		}
 	}
 }
 
@@ -731,20 +766,19 @@ func TestTCPMiscount(t *testing.T) {
 
 	fd := int(file.Fd())
 
-	// Set a really low sendtimeout of 100us to trigger EAGAIN errors in `tcp_sendmsg`
+	// Set a really low sendtimeout of 1us to trigger EAGAIN errors in `tcp_sendmsg`
 	err = syscall.SetsockoptTimeval(fd, syscall.SOL_SOCKET, syscall.SO_SNDTIMEO, &syscall.Timeval{
 		Sec:  0,
-		Usec: 100,
+		Usec: 1,
 	})
 	assert.NoError(t, err)
 
-	// 10 MB payload
-	x := make([]byte, 10*1024*1024)
+	// 100 MB payload
+	x := make([]byte, 100*1024*1024)
 
 	n, err := c.Write(x)
 	assert.NoError(t, err)
 	assert.EqualValues(t, len(x), n)
-	fmt.Printf("n = %+v\n", n)
 
 	doneChan <- struct{}{}
 

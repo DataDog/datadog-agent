@@ -71,12 +71,12 @@ else
     source :url => "http://dbs-laptop/pkg/python-windows-#{version}-x86.zip",
             :sha256 => "27b8712d98251e861698f3282598001d2e52cbc8dd3743f14313b9c9afedd545"
   else
+    dependency "vc_redist_14"
     default_version "3.7.1"
 
     source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-            :sha256 => "c9da8a6890ce7df603724abebcd893c63616f499b9a619bb39399a09f382269a"
+           :sha256 => "2ebd2eb2155f7c82ec3d2ba5203e0a250b6bbf60c7c5404f1e03f4bc71a096e1"
   end
-
   build do
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""
   end
