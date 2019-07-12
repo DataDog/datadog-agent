@@ -40,7 +40,8 @@ type Agent struct {
 	// tags based on their type.
 	obfuscator *obfuscate.Obfuscator
 
-	spansOut chan *writer.SampledSpans
+	In  chan *api.Trace
+	Out chan *writer.SampledSpans
 
 	// config
 	conf    *config.AgentConfig
@@ -54,39 +55,24 @@ type Agent struct {
 // which may be cancelled in order to gracefully stop the agent.
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
-
-	rawTraceChan := make(chan *api.Trace, 5000)
-	spansOut := make(chan *writer.SampledSpans, 1000)
+	in := make(chan *api.Trace, 5000)
+	out := make(chan *writer.SampledSpans, 1000)
 	statsChan := make(chan []stats.Bucket)
 
-	r := api.NewHTTPReceiver(conf, dynConf, rawTraceChan)
-	c := stats.NewConcentrator(
-		conf.ExtraAggregators,
-		conf.BucketInterval.Nanoseconds(),
-		statsChan,
-	)
-
-	obf := obfuscate.NewObfuscator(conf.Obfuscation)
-	ss := NewScoreSampler(conf)
-	ess := NewErrorsSampler(conf)
-	ps := NewPrioritySampler(conf, dynConf)
-	ep := eventProcessorFromConf(conf)
-	tw := writer.NewTraceWriter(conf, spansOut)
-	sw := writer.NewStatsWriter(conf, statsChan)
-
 	return &Agent{
-		Receiver:           r,
-		Concentrator:       c,
+		Receiver:           api.NewHTTPReceiver(conf, dynConf, in),
+		Concentrator:       stats.NewConcentrator(conf.ExtraAggregators, conf.BucketInterval.Nanoseconds(), statsChan),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
-		ScoreSampler:       ss,
-		ErrorsScoreSampler: ess,
-		PrioritySampler:    ps,
-		EventProcessor:     ep,
-		TraceWriter:        tw,
-		StatsWriter:        sw,
-		obfuscator:         obf,
-		spansOut:           spansOut,
+		ScoreSampler:       NewScoreSampler(conf),
+		ErrorsScoreSampler: NewErrorsSampler(conf),
+		PrioritySampler:    NewPrioritySampler(conf, dynConf),
+		EventProcessor:     eventProcessorFromConf(conf),
+		TraceWriter:        writer.NewTraceWriter(conf, out),
+		StatsWriter:        writer.NewStatsWriter(conf, statsChan),
+		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
+		In:                 in,
+		Out:                out,
 		conf:               conf,
 		dynConf:            dynConf,
 		ctx:                ctx,
@@ -119,7 +105,7 @@ func (a *Agent) Run() {
 func (a *Agent) work() {
 	for {
 		select {
-		case t, ok := <-a.Receiver.Out:
+		case t, ok := <-a.In:
 			if !ok {
 				return
 			}
@@ -259,7 +245,7 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) {
 	atomic.AddInt64(&ts.EventsSampled, int64(len(events)))
 
 	if !ss.Empty() {
-		a.spansOut <- &ss
+		a.Out <- &ss
 	}
 }
 
