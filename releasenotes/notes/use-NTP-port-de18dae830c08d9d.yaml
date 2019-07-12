@@ -1,7 +1,7 @@
 ---
 upgrade:
   - |
-    The port defined in the NTP configuration is no longer a string. Now, it is an integer.
+    The ``port`` option in the NTP check configuration is now parsed as an integer instead of a string.
 fixes:
   - |
     Use NTP port.
