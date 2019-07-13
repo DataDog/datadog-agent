@@ -214,7 +214,7 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 			containerName = container.Name
 
 			// Add container uid as ID
-			svc.adIdentifiers = append(svc.adIdentifiers, container.ID)
+			svc.adIdentifiers = append(svc.adIdentifiers, entity)
 
 			// Stop here if we find an AD template annotation
 			if podHasADTemplate(pod.Metadata.Annotations, containerName) {
@@ -301,6 +301,15 @@ func (s *KubeContainerService) GetEntity() string {
 	return s.entity
 }
 
+// GetEntity returns the unique entity name linked to that service
+func (s *KubeContainerService) GetTaggerEntity() string {
+	taggerEntity, err := kubelet.KubeContainerIDToTaggerEntityID(s.entity)
+	if err != nil {
+		return s.entity
+	}
+	return taggerEntity
+}
+
 // GetADIdentifiers returns the service AD identifiers
 func (s *KubeContainerService) GetADIdentifiers() ([]string, error) {
 	return s.adIdentifiers, nil
@@ -323,7 +332,7 @@ func (s *KubeContainerService) GetPorts() ([]ContainerPort, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *KubeContainerService) GetTags() ([]string, error) {
-	return tagger.Tag(string(s.entity), tagger.ChecksCardinality)
+	return tagger.Tag(string(s.GetTaggerEntity()), tagger.ChecksCardinality)
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
@@ -344,6 +353,15 @@ func (s *KubeContainerService) IsReady() bool {
 // GetEntity returns the unique entity name linked to that service
 func (s *KubePodService) GetEntity() string {
 	return s.entity
+}
+
+// GetEntity returns the unique entity name linked to that service
+func (s *KubePodService) GetTaggerEntity() string {
+	taggerEntity, err := kubelet.KubePodUIDToTaggerEntityID(s.entity)
+	if err != nil {
+		return s.entity
+	}
+	return taggerEntity
 }
 
 // GetADIdentifiers returns the service AD identifiers
@@ -368,7 +386,7 @@ func (s *KubePodService) GetPorts() ([]ContainerPort, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *KubePodService) GetTags() ([]string, error) {
-	return tagger.Tag(string(s.entity), tagger.ChecksCardinality)
+	return tagger.Tag(string(s.GetTaggerEntity()), tagger.ChecksCardinality)
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet

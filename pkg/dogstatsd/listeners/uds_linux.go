@@ -6,6 +6,7 @@
 package listeners
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -15,12 +16,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 )
 
 const (
 	pidToEntityCacheKeyPrefix = "pid_to_entity"
 	pidToEntityCacheDuration  = time.Minute
 )
+
+// ErrNoContainerMatch is returned when no container ID can be matched
+var errNoContainerMatch = errors.New("cannot match a container ID")
 
 // getUDSAncillarySize gets the needed buffer size to retrieve the ancillary data
 // from the out of band channel. We only get the header + 1 credentials struct
@@ -80,13 +85,13 @@ func getEntityForPID(pid int32) (string, error) {
 		return x.(string), nil
 	}
 
-	entity, err := containers.EntityForPID(pid)
+	entity, err := entityForPID(pid)
 	switch err {
 	case nil:
 		// No error, yay!
 		cache.Cache.Set(key, entity, pidToEntityCacheDuration)
 		return entity, nil
-	case containers.ErrNoRuntimeMatch, containers.ErrNoContainerMatch:
+	case errNoContainerMatch:
 		// No runtime detected, cache the `NoOrigin` result
 		cache.Cache.Set(key, NoOrigin, pidToEntityCacheDuration)
 		return NoOrigin, nil
@@ -94,4 +99,18 @@ func getEntityForPID(pid int32) (string, error) {
 		// Other lookup error, retry next time
 		return NoOrigin, err
 	}
+}
+
+// entityForPID returns the entity ID for a given PID. It can return
+// errNoContainerMatch if no match is found for the PID.
+func entityForPID(pid int32) (string, error) {
+	cID, err := metrics.ContainerIDForPID(int(pid))
+	if err != nil {
+		return "", err
+	}
+	if cID == "" {
+		return "", errNoContainerMatch
+	}
+
+	return containers.BuildTaggerEntityName(cID), nil
 }

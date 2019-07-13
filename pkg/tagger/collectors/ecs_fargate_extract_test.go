@@ -67,7 +67,7 @@ func TestParseMetadata(t *testing.T) {
 	expectedUpdates := []*TagInfo{
 		{
 			Source: "ecs_fargate",
-			Entity: "docker://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
+			Entity: "container_id://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
 			LowCardTags: []string{
 				"docker_image:datadog/agent-dev:xvello-process-kubelet",
 				"image_name:datadog/agent-dev",
@@ -90,7 +90,7 @@ func TestParseMetadata(t *testing.T) {
 		},
 		{
 			Source: "ecs_fargate",
-			Entity: "docker://0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
+			Entity: "container_id://0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
 			LowCardTags: []string{
 				"docker_image:redis:latest",
 				"image_name:redis",
@@ -118,7 +118,7 @@ func TestParseMetadata(t *testing.T) {
 	expectedUpdatesParseAll := []*TagInfo{
 		{
 			Source: "ecs_fargate",
-			Entity: "docker://3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c",
+			Entity: "container_id://3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c",
 			LowCardTags: []string{
 				"docker_image:fg-proxy:tinyproxy",
 				"image_name:fg-proxy",
@@ -143,7 +143,7 @@ func TestParseMetadata(t *testing.T) {
 		},
 		{
 			Source: "ecs_fargate",
-			Entity: "docker://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
+			Entity: "container_id://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
 			LowCardTags: []string{
 				"docker_image:datadog/agent-dev:xvello-process-kubelet",
 				"image_name:datadog/agent-dev",
@@ -168,7 +168,7 @@ func TestParseMetadata(t *testing.T) {
 		},
 		{
 			Source: "ecs_fargate",
-			Entity: "docker://0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
+			Entity: "container_id://0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
 			LowCardTags: []string{
 				"docker_image:redis:latest",
 				"image_name:redis",
@@ -237,7 +237,7 @@ func TestParseMetadataV10(t *testing.T) {
 	expectedUpdates := []*TagInfo{
 		{
 			Source: "ecs_fargate",
-			Entity: "docker://e8d4a9a20a0d931f8f632ec166b3f71a6ff00450aa7e99607f650e586df7d068",
+			Entity: "container_id://e8d4a9a20a0d931f8f632ec166b3f71a6ff00450aa7e99607f650e586df7d068",
 			LowCardTags: []string{
 				"docker_image:datadog/docker-dd-agent:latest",
 				"image_name:datadog/docker-dd-agent",
@@ -259,7 +259,7 @@ func TestParseMetadataV10(t *testing.T) {
 		},
 		{
 			Source: "ecs_fargate",
-			Entity: "docker://c912d0f0f204360ee90ce67c0d083c3514975f149b854f38a48deac611e82e48",
+			Entity: "container_id://c912d0f0f204360ee90ce67c0d083c3514975f149b854f38a48deac611e82e48",
 			LowCardTags: []string{
 				"docker_image:redis:latest",
 				"image_name:redis",
@@ -281,7 +281,7 @@ func TestParseMetadataV10(t *testing.T) {
 		},
 		{
 			Source: "ecs_fargate",
-			Entity: "docker://39e13ccc425e7777187a603fe33f466a18515030707c4063de1dc1b63d14d411",
+			Entity: "container_id://39e13ccc425e7777187a603fe33f466a18515030707c4063de1dc1b63d14d411",
 			LowCardTags: []string{
 				"docker_image:amazon/amazon-ecs-pause:0.1.0",
 				"image_name:amazon/amazon-ecs-pause",
@@ -319,12 +319,12 @@ func TestParseExpires(t *testing.T) {
 	expected := []*TagInfo{
 		{
 			Source:       "ecs_fargate",
-			Entity:       "docker://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
+			Entity:       "container_id://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
 			DeleteEntity: true,
 		},
 		{
 			Source:       "ecs_fargate",
-			Entity:       "docker://0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
+			Entity:       "container_id://0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
 			DeleteEntity: true,
 		},
 	}

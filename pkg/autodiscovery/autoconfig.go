@@ -112,10 +112,10 @@ func (ac *AutoConfig) checkTagFreshness() {
 	// check if services tags are up to date
 	var servicesToRefresh []listeners.Service
 	for _, service := range ac.store.getServices() {
-		previousHash := ac.store.getTagsHashForService(service.GetEntity())
-		currentHash := tagger.GetEntityHash(service.GetEntity())
+		previousHash := ac.store.getTagsHashForService(service.GetTaggerEntity())
+		currentHash := tagger.GetEntityHash(service.GetTaggerEntity())
 		if currentHash != previousHash {
-			ac.store.setTagsHashForService(service.GetEntity(), currentHash)
+			ac.store.setTagsHashForService(service.GetTaggerEntity(), currentHash)
 			if previousHash != "" {
 				// only refresh service if we already had a hash to avoid resetting it
 				servicesToRefresh = append(servicesToRefresh, service)
@@ -123,7 +123,7 @@ func (ac *AutoConfig) checkTagFreshness() {
 		}
 	}
 	for _, service := range servicesToRefresh {
-		log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetEntity())
+		log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetTaggerEntity())
 		ac.processDelService(service)
 		ac.processNewService(service)
 	}
@@ -532,8 +532,8 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 	ac.store.addConfigForService(svc.GetEntity(), resolvedConfig)
 	ac.store.addConfigForTemplate(tpl.Digest(), resolvedConfig)
 	ac.store.setTagsHashForService(
-		svc.GetEntity(),
-		tagger.GetEntityHash(svc.GetEntity()),
+		svc.GetTaggerEntity(),
+		tagger.GetEntityHash(svc.GetTaggerEntity()),
 	)
 	errorStats.removeResolveWarnings(tpl.Name)
 	return resolvedConfig, nil
@@ -601,6 +601,7 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 		{
 			LogsConfig:   integration.Data{},
 			Entity:       svc.GetEntity(),
+			TaggerEntity: svc.GetTaggerEntity(),
 			CreationTime: svc.GetCreationTime(),
 		},
 	})
@@ -609,16 +610,17 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 
 // processDelService takes a service, stops its associated checks, and updates the cache
 func (ac *AutoConfig) processDelService(svc listeners.Service) {
-	ac.store.removeServiceForEntity(svc.GetEntity())
-	configs := ac.store.getConfigsForService(svc.GetEntity())
-	ac.store.removeConfigsForService(svc.GetEntity())
+	ac.store.removeServiceForEntity(svc.GetTaggerEntity())
+	configs := ac.store.getConfigsForService(svc.GetTaggerEntity())
+	ac.store.removeConfigsForService(svc.GetTaggerEntity())
 	ac.processRemovedConfigs(configs)
-	ac.store.removeTagsHashForService(svc.GetEntity())
+	ac.store.removeTagsHashForService(svc.GetTaggerEntity())
 	// FIXME: unschedule remove services as well
 	ac.unschedule([]integration.Config{
 		{
 			LogsConfig:   integration.Data{},
 			Entity:       svc.GetEntity(),
+			TaggerEntity: svc.GetTaggerEntity(),
 			CreationTime: svc.GetCreationTime(),
 		},
 	})

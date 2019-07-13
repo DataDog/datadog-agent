@@ -136,7 +136,7 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.C
 			continue
 		}
 
-		entityID := ContainerIDToEntityName(c.ID)
+		entityID := ContainerIDToTaggerEntityName(c.ID)
 		container := &containers.Container{
 			Type:        "Docker",
 			ID:          c.ID,

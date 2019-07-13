@@ -17,7 +17,7 @@ import (
 )
 
 func TestParsePods(t *testing.T) {
-	dockerEntityID := "docker://d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
+	dockerEntityID := "container_id://d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
 	dockerContainerStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
 			{
@@ -37,7 +37,7 @@ func TestParsePods(t *testing.T) {
 		},
 	}
 
-	dockerEntityID2 := "docker://ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
+	dockerEntityID2 := "container_id://ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
 	dockerTwoContainersStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
 			{
@@ -66,7 +66,7 @@ func TestParsePods(t *testing.T) {
 		},
 	}
 
-	criEntityId := "cri-containerd://acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1"
+	criEntityId := "container_id://acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1"
 	criContainerStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
 			{
@@ -160,7 +160,7 @@ func TestParsePods(t *testing.T) {
 			expectedInfo: []*TagInfo{
 				{
 					Source: "kubelet",
-					Entity: "kubernetes_pod://5e8e05",
+					Entity: "kubernetes_pod_uid://5e8e05",
 					LowCardTags: []string{
 						"kube_namespace:default",
 						"kube_daemon_set:dd-agent-rc",
