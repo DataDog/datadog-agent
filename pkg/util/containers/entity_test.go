@@ -23,12 +23,29 @@ func TestBuildEntityName(t *testing.T) {
 		// Empty cID
 		{"docker", "", ""},
 		// Empty runtime
-		{"", "5bef08742407ef", "container_id://5bef08742407ef"},
+		{"", "5bef08742407ef", ""},
 		// OK
-		{"docker", "5bef08742407ef", "container_id://5bef08742407ef"},
+		{"docker", "5bef08742407ef", "docker://5bef08742407ef"},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.expected), func(t *testing.T) {
 			out := BuildEntityName(tc.runtime, tc.cID)
+			assert.Equal(t, tc.expected, out)
+		})
+	}
+}
+
+func TestBuildTaggerEntityName(t *testing.T) {
+	for nb, tc := range []struct {
+		cID      string
+		expected string
+	}{
+		// Empty
+		{"", ""},
+		// Empty runtime
+		{"5bef08742407ef", "container_id://5bef08742407ef"},
+	} {
+		t.Run(fmt.Sprintf("case %d: %s", nb, tc.expected), func(t *testing.T) {
+			out := BuildTaggerEntityName(tc.cID)
 			assert.Equal(t, tc.expected, out)
 		})
 	}

@@ -169,7 +169,7 @@ func TestGenerateConfigs(t *testing.T) {
 				{
 					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.1",
 					Name:          "http_check",
-					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.1", "kubernetes_pod_uid://pod-uid-1"},
+					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.1", "kubernetes_pod://pod-uid-1"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 					ClusterCheck:  true,
@@ -178,7 +178,7 @@ func TestGenerateConfigs(t *testing.T) {
 				{
 					Entity:        "kube_endpoint_uid://default/myservice/10.0.0.2",
 					Name:          "http_check",
-					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.2", "kubernetes_pod_uid://pod-uid-2"},
+					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.2", "kubernetes_pod://pod-uid-2"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 					ClusterCheck:  true,

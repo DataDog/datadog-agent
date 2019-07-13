@@ -45,7 +45,8 @@ type Config struct {
 	LogsConfig    Data         `json:"logs"`           // the logs config in Yaml (logs-agent only)
 	ADIdentifiers []string     `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
 	Provider      string       `json:"provider"`       // the provider that issued the config
-	Entity        string       `json:"-"`              // the id of the entity (optional)
+	Entity        string       `json:"-"`              // the entity ID (optional)
+	TaggerEntity  string       `json:"-"`              // the tagger entity ID (optional)
 	ClusterCheck  bool         `json:"cluster_check"`  // cluster-check configuration flag
 	NodeName      string       `json:"-"`              // Node name in case of an endpoint check backed by a pod
 	CreationTime  CreationTime `json:"-"`              // creation time of service

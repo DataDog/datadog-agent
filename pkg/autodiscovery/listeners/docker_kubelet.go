@@ -17,7 +17,6 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // DockerKubeletService overrides some methods when a container is
@@ -74,12 +73,7 @@ func (s *DockerKubeletService) GetPorts() ([]ContainerPort, error) {
 	searchedId := s.GetEntity()
 	var searchedContainerName string
 	for _, container := range pod.Status.Containers {
-		cid, err := kubelet.KubeContainerIDToEntityID(container.ID)
-		if err != nil {
-			log.Warnf("Unable to parse container: %s", err)
-			continue
-		}
-		if cid == searchedId {
+		if container.ID == searchedId {
 			searchedContainerName = container.Name
 		}
 	}

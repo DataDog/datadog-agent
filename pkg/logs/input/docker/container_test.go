@@ -206,6 +206,6 @@ func TestIsIdentifierMatch(t *testing.T) {
 	container := NewContainer(types.Container{ID: "1234567890"}, nil)
 	assert.True(t, container.isIdentifierMatch("1234567890"))
 	assert.False(t, container.isNameMatch(""))
-	assert.False(t, container.isNameMatch("container_id://1234567890"))
+	assert.False(t, container.isNameMatch("docker://1234567890"))
 	assert.False(t, container.isNameMatch("0987654321"))
 }

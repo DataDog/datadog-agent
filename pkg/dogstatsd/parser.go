@@ -87,7 +87,7 @@ func parseTags(rawTags []byte, defaultHostname string) ([]string, string) {
 			host = string(tag[lenHostTagPrefix:])
 		} else if bytes.HasPrefix(tag, entityIDTagPrefix) {
 			// currently only supported for pods
-			entity := kubelet.KubePodPrefix + string(tag[lenEntityIDTagPrefix:])
+			entity := kubelet.KubePodTaggerEntityPrefix + string(tag[lenEntityIDTagPrefix:])
 			entityTags, err := getTags(entity, tagger.DogstatsdCardinality)
 			if err != nil {
 				log.Tracef("Cannot get tags for entity %s: %s", entity, err)

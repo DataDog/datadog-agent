@@ -8,7 +8,6 @@
 package kubelet
 
 import (
-	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -159,23 +158,4 @@ func (suite *ContainersTestSuite) TestParseContainerReadiness() {
 
 func TestContainersTestSuite(t *testing.T) {
 	suite.Run(t, new(ContainersTestSuite))
-}
-
-func TestKubeContainerIDToEntityID(t *testing.T) {
-	for in, out := range map[string]string{
-		"container_id://deadbeef": "container_id://deadbeef",
-		"containerd://deadbeef":   "container_id://deadbeef",
-		"cri-o://deadbeef":        "container_id://deadbeef",
-		"cri-o://d":               "container_id://d",
-		"runtime://deadbeef":      "container_id://deadbeef",
-		"container_id://":         "",
-		"deadbeef":                "",
-		"/deadbeef":               "",
-		"runtime://foo/bar":       "container_id://foo/bar",
-	} {
-		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
-			res, _ := KubeContainerIDToEntityID(in)
-			assert.Equal(t, out, res)
-		})
-	}
 }

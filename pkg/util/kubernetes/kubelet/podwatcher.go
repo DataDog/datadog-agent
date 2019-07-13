@@ -72,8 +72,6 @@ func (w *PodWatcher) PullChanges() ([]*Pod, error) {
 func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 	now := time.Now()
 	var updatedPods []*Pod
-	var ctrEntity string
-	var err error
 
 	w.Lock()
 	defer w.Unlock()
@@ -103,19 +101,14 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 			// We don't check container readiness as init containers are never ready
 			// We check if the container has an ID instead (has run or is running)
 			if !container.IsPending() {
-				ctrEntity, err = KubeContainerIDToEntityID(container.ID)
-				if err != nil {
-					log.Errorf("Failed to build an entity ID from container ID %s: %s", container.ID, err)
-					continue
-				}
 				// new container are always sent ignoring the pod state
-				if _, found := w.lastSeen[ctrEntity]; !found {
+				if _, found := w.lastSeen[container.ID]; !found {
 					updatedContainer = true
 				}
-				w.lastSeen[ctrEntity] = now
+				w.lastSeen[container.ID] = now
 
 				// for existing ones we look at the readiness state
-				if _, found := w.lastSeenReady[ctrEntity]; !found && isPodReady {
+				if _, found := w.lastSeenReady[container.ID]; !found && isPodReady {
 					// the pod has never been seen ready or was removed when
 					// reaching the unreadinessTimeout
 					updatedContainer = true
@@ -123,7 +116,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 
 				// update the readiness expiry cache
 				if isPodReady {
-					w.lastSeenReady[ctrEntity] = now
+					w.lastSeenReady[container.ID] = now
 				}
 			}
 		}
@@ -151,7 +144,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 // that are not listed in the podlist anymore. It must be called
 // immediately after a PullChanges.
 // For containers, string is kubernetes container ID (with runtime name)
-// For pods, string is "kubernetes_pod_uid://uid" format
+// For pods, string is "kubernetes_pod://uid" format
 func (w *PodWatcher) Expire() ([]string, error) {
 	now := time.Now()
 	w.Lock()

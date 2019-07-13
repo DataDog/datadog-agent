@@ -25,6 +25,11 @@ func (s *dummyService) GetEntity() string {
 	return s.ID
 }
 
+// GetEntity returns the service entity name
+func (s *dummyService) GetTaggerEntity() string {
+	return s.ID
+}
+
 // GetADIdentifiers returns dummy identifiers
 func (s *dummyService) GetADIdentifiers() ([]string, error) {
 	return s.ADIdentifiers, nil

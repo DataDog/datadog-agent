@@ -8,7 +8,6 @@
 package clusterchecks
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -49,7 +48,7 @@ func getServiceUID(config integration.Config) string {
 
 // getPodEntity returns pod entity
 func getPodEntity(podUID string) string {
-	return fmt.Sprintf("%s%s", kubelet.KubePodPrefix, podUID)
+	return kubelet.KubePodPrefix + podUID
 }
 
 // getNameAndNamespaceFromADIDs extracts namespace

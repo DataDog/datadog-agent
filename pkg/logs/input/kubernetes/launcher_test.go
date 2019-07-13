@@ -135,12 +135,12 @@ func TestContainerCollectAll(t *testing.T) {
 	containerFoo := kubelet.ContainerStatus{
 		Name:  "fooName",
 		Image: "fooImage",
-		ID:    "container_id://fooID",
+		ID:    "docker://fooID",
 	}
 	containerBar := kubelet.ContainerStatus{
 		Name:  "barName",
 		Image: "barImage",
-		ID:    "container_id://barID",
+		ID:    "docker://barID",
 	}
 	podFoo := &kubelet.Pod{
 		Metadata: kubelet.PodMetadata{
@@ -168,14 +168,14 @@ func TestContainerCollectAll(t *testing.T) {
 
 	source, err := launcherCollectAll.getSource(podFoo, containerFoo)
 	assert.Nil(t, err)
-	assert.Equal(t, "container_id://fooID", source.Config.Identifier)
+	assert.Equal(t, "docker://fooID", source.Config.Identifier)
 	source, err = launcherCollectAll.getSource(podBar, containerBar)
 	assert.Nil(t, err)
-	assert.Equal(t, "container_id://barID", source.Config.Identifier)
+	assert.Equal(t, "docker://barID", source.Config.Identifier)
 
 	source, err = launcherCollectAllDisabled.getSource(podFoo, containerFoo)
 	assert.Nil(t, err)
-	assert.Equal(t, "container_id://fooID", source.Config.Identifier)
+	assert.Equal(t, "docker://fooID", source.Config.Identifier)
 	source, err = launcherCollectAllDisabled.getSource(podBar, containerBar)
 	assert.Equal(t, collectAllDisabledError, err)
 	assert.Nil(t, source)

@@ -24,9 +24,9 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
-		ADIdentifiers: []string{"container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
+		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
 		Provider:      providers.Kubernetes,
-		Entity:        "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
 		CreationTime:  0,
 	}
@@ -51,7 +51,7 @@ func TestScheduleConfigCreatesNewService(t *testing.T) {
 
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
-		Entity:       "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		Entity:       "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck: false,
 		CreationTime: 0,
 	}
@@ -69,9 +69,9 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
-		ADIdentifiers: []string{"container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
+		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
 		Provider:      providers.Kubernetes,
-		Entity:        "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
 		CreationTime:  0,
 	}
@@ -99,7 +99,7 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
-		Entity:       "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		Entity:       "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck: false,
 		CreationTime: 0,
 	}

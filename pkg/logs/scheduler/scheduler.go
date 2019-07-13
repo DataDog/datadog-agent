@@ -83,7 +83,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 		case s.newSources(config):
 			log.Infof("New source to remove: entity: %v", config.Entity)
 
-			identifier, err := s.parseEntity(config.Entity)
+			_, identifier, err := s.parseEntity(config.Entity)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
@@ -189,21 +189,20 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 
 // toService creates a new service for an integrationConfig.
 func (s *Scheduler) toService(config integration.Config) (*service.Service, error) {
-	provider := config.Provider
-	identifier, err := s.parseEntity(config.Entity)
+	provider, identifier, err := s.parseEntity(config.Entity)
 	if err != nil {
 		return nil, err
 	}
 	return service.NewService(provider, identifier, s.getCreationTime(config)), nil
 }
 
-// parseEntity breaks down an entity to retrieve the service identifier.
-func (s *Scheduler) parseEntity(entity string) (string, error) {
+// parseEntity breaks down an entity into a service provider and a service identifier.
+func (s *Scheduler) parseEntity(entity string) (string, string, error) {
 	components := strings.Split(entity, containers.EntitySeparator)
 	if len(components) != 2 {
-		return "", fmt.Errorf("entity is malformed : %v", entity)
+		return "", "", fmt.Errorf("entity is malformed : %v", entity)
 	}
-	return components[1], nil
+	return components[0], components[1], nil
 }
 
 // integrationToServiceCRTime maps an integration creation time to a service creation time.

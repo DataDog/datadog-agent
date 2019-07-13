@@ -6,7 +6,6 @@
 package containers
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -21,14 +20,19 @@ const EntitySeparator = "://"
 const ContainerEntityPrefix = ContainerEntityName + EntitySeparator
 
 // BuildEntityName builds a valid entity name for a given container runtime and cid.
-// An empty runtime is fine since we hardcode container_id anyway.
-// TODO: We stopped using the runtime as a prefix as of 6.13, but keep it in the function signature in case we need it back
-// if this doesn't cause any issue in the few coming versions let's remove it
 func BuildEntityName(runtime, id string) string {
+	if id == "" || runtime == "" {
+		return ""
+	}
+	return runtime + EntitySeparator + id
+}
+
+// BuildTaggerEntityName builds a valid tagger entity name for a given cid.
+func BuildTaggerEntityName(id string) string {
 	if id == "" {
 		return ""
 	}
-	return fmt.Sprintf("%s%s", ContainerEntityPrefix, id)
+	return ContainerEntityPrefix + id
 }
 
 // SplitEntityName returns the prefix and container cid parts of a valid entity name

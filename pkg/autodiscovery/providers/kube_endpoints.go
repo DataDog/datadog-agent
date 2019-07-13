@@ -25,7 +25,7 @@ import (
 const (
 	kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
 	kubePodKind                  = "Pod"
-	KubePodPrefix                = "kubernetes_pod_uid://"
+	KubePodPrefix                = "kubernetes_pod://"
 )
 
 // KubeEndpointsConfigProvider implements the ConfigProvider interface for the apiserver.
@@ -204,7 +204,7 @@ func generateConfigs(tpl integration.Config, kep *v1.Endpoints) []integration.Co
 
 // getPodEntity returns pod entity
 func getPodEntity(podUID string) string {
-	return fmt.Sprintf("%s%s", KubePodPrefix, podUID)
+	return KubePodPrefix + podUID
 }
 
 func init() {

@@ -112,5 +112,5 @@ func entityForPID(pid int32) (string, error) {
 		return "", errNoContainerMatch
 	}
 
-	return containers.BuildEntityName("", cID), nil
+	return containers.BuildTaggerEntityName(cID), nil
 }

@@ -30,3 +30,8 @@ var (
 func ContainerIDToEntityName(cid string) string {
 	return containers.BuildEntityName(containers.RuntimeNameDocker, cid)
 }
+
+// ContainerIDToTaggerEntityName returns a prefixed entity name from a container ID
+func ContainerIDToTaggerEntityName(cid string) string {
+	return containers.BuildTaggerEntityName(cid)
+}
