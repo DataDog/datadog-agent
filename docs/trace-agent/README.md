@@ -3,35 +3,13 @@
 An agent that collects traces from various sources, normalizes, pre-processes, samples them and computes
 statistics before sending them to the Datadog API.
 
-## Run on Linux
+## Run on Linux or macOS
 
 The Trace Agent is packaged with the standard Datadog Agent.
 Just [run the Datadog Agent](http://docs.datadoghq.com/guides/basic_agent_usage/).
 
 To install the trace agent from source, follow the instructions in the [development](#development)
 section of this document.
-
-## Run on macOS
-
-The Trace Agent isn't part of the macOS Datadog Agent yet and it needs to be run manually,
-on the side.
-
-- Have the [macOS Agent](https://app.datadoghq.com/account/settings#agent/mac) installed.
-- Download the latest macOS Trace Agent release from [here](https://github.com/DataDog/datadog-agent/releases). Older
-versions (pre-6.10.0) can be found in the [archive repository](https://github.com/DataDog/datadog-trace-agent/releases/).
-- Run the Trace Agent along the main agent:
-
-    `./trace-agent-X.Y.Z-darwin-amd64 -config /opt/datadog-agent/etc/datadog.yaml`
-
-- The Trace Agent should now be running in the foreground. You should see something like this:
-
-```
-2017-04-24 13:46:35 INFO (main.go:166) - Loaded configuration: /opt/datadog-agent/etc/datadog.yaml
-2017-04-24 13:46:36 INFO (agent.go:200) - Failed to parse hostname from dd-agent config
-2017-04-24 13:46:36 DEBUG (agent.go:288) - No aggregator configuration, using defaults
-2017-04-24 13:46:36 INFO (main.go:220) - trace-agent running on host My-MacBook-Pro.local
-2017-04-24 13:46:36 INFO (receiver.go:137) - listening for traces at http://localhost:8126
-```
 
 ## Run on Windows
 
