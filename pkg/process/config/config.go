@@ -87,6 +87,7 @@ type AgentConfig struct {
 	EnableConntrack              bool
 	ConntrackShortTermBufferSize int
 	SystemProbeDebugPort         int
+	ClosedChannelSize            int
 	MaxClosedConnectionsBuffered int
 	MaxConnectionsStateBuffered  int
 
@@ -179,6 +180,7 @@ func NewDefaultAgentConfig() *AgentConfig {
 		SystemProbeLogFile:           defaultSystemProbeFilePath,
 		MaxTrackedConnections:        maxMaxTrackedConnections,
 		EnableConntrack:              true,
+		ClosedChannelSize:            100,
 		ConntrackShortTermBufferSize: defaultConntrackShortTermBufferSize,
 
 		// Check config

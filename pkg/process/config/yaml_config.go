@@ -105,6 +105,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		}
 	}
 
+	if ccs := config.Datadog.GetInt(key(spNS, "closed_channel_size")); ccs > 0 {
+		a.ClosedChannelSize = ccs
+	}
+
 	// Pull additional parameters from the global config file.
 	a.LogLevel = config.Datadog.GetString("log_level")
 	a.StatsdPort = config.Datadog.GetInt("dogstatsd_port")
