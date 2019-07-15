@@ -25,6 +25,7 @@ The agent is highly customizable, here are the most used environment variables:
 - `DD_API_KEY`: your API key (**required**)
 - `DD_SITE`: Destination site for your metrics, traces, and logs. Valid options are datadoghq.com for the Datadog US site, and datadoghq.eu for the Datadog EU site.
 - `DD_HOSTNAME`: hostname to use for metrics (if autodetection fails)
+- `DD_DD_URL`: optional setting to override the url for metric submission
 - `DD_TAGS`: host tags, separated by spaces. For example: `simple-tag-0 tag-key-1:tag-value-1`
 - `DD_CHECK_RUNNERS`: the agent runs all checks concurrently by default (default value = `4` runners). To run the checks sequentially, set the value to `1`. If you need to run a high number of checks (or slow checks) the `collector-queue` component might fall behind and fail the healthcheck. You can increase the number of runners to run checks in parallel
 
