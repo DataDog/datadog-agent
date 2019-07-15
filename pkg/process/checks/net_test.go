@@ -100,7 +100,7 @@ func TestCountConnectionsPerPID(t *testing.T) {
 		expected map[int32]ConnectionsCounts
 		desc     string
 	}{
-		{in: []*model.Connection{}, desc: "empty list"},
+		{in: []*model.Connection{}, expected: map[int32]ConnectionsCounts{}, desc: "empty list"},
 		{
 			in:       []*model.Connection{cp1tcp, cp1tcp, cp1tcp},
 			expected: map[int32]ConnectionsCounts{1: ConnectionsCounts{TCP: 3}},
