@@ -443,8 +443,8 @@ message CPUInfo {
 }
 
 message ConnsStat {
-	uint32 openedTcp = 1;
-	uint32 openedUdp = 2;
+	int32 openedTcp = 1;
+	int32 openedUdp = 2;
 }
 
 // Host and HostTags are used in backend post-resolution

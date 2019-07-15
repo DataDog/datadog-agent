@@ -25,8 +25,8 @@ var (
 
 // ConnectionsCounts counts the number of opened connections
 type ConnectionsCounts struct {
-	UDP uint32
-	TCP uint32
+	UDP int32
+	TCP int32
 }
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
@@ -154,6 +154,16 @@ func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model
 func (c *ConnectionsCheck) connectionsCountsForPids(pids ...int32) ConnectionsCounts {
 	c.Lock()
 	defer c.Unlock()
+
+	// Check if we collected any connections first
+	// if not, default to -1
+	if len(c.lastConnsForPID) == 0 {
+		return ConnectionsCounts{
+			TCP: -1,
+			UDP: -1,
+		}
+	}
+
 	res := ConnectionsCounts{}
 	for _, p := range pids {
 		res.TCP += c.lastConnsForPID[p].TCP
