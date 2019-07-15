@@ -103,21 +103,21 @@ func TestCountConnectionsPerPID(t *testing.T) {
 		{in: []*model.Connection{}, expected: map[int32]ConnectionsCounts{}, desc: "empty list"},
 		{
 			in:       []*model.Connection{cp1tcp, cp1tcp, cp1tcp},
-			expected: map[int32]ConnectionsCounts{1: ConnectionsCounts{TCP: 3}},
+			expected: map[int32]ConnectionsCounts{1: {TCP: 3}},
 			desc:     "only one PID, tcp",
 		},
 
 		{
 			in:       []*model.Connection{cp3udp, cp3udp},
-			expected: map[int32]ConnectionsCounts{3: ConnectionsCounts{UDP: 2}},
+			expected: map[int32]ConnectionsCounts{3: {UDP: 2}},
 			desc:     "only one PID, udp",
 		},
 		{
 			in: []*model.Connection{cp1tcp, cp2tcp, cp2udp, cp3udp},
 			expected: map[int32]ConnectionsCounts{
-				1: ConnectionsCounts{TCP: 1},
-				2: ConnectionsCounts{TCP: 1, UDP: 1},
-				3: ConnectionsCounts{UDP: 1},
+				1: {TCP: 1},
+				2: {TCP: 1, UDP: 1},
+				3: {UDP: 1},
 			},
 			desc: "multiple PIDs",
 		},
