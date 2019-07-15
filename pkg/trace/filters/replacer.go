@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package filters
 
 import (
@@ -17,10 +22,10 @@ func NewReplacer(rules []*config.ReplaceRule) *Replacer {
 }
 
 // Replace replaces all tags matching the Replacer's rules.
-func (f Replacer) Replace(trace *pb.Trace) {
+func (f Replacer) Replace(trace pb.Trace) {
 	for _, rule := range f.rules {
 		key, str, re := rule.Name, rule.Repl, rule.Re
-		for _, s := range *trace {
+		for _, s := range trace {
 			switch key {
 			case "*":
 				for k := range s.Meta {

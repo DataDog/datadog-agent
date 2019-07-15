@@ -21,6 +21,7 @@ const (
 	File            = "file"
 	Kubernetes      = "kubernetes"
 	KubeServices    = "kubernetes-services"
+	KubeEndpoints   = "kubernetes-endpoints"
 	Zookeeper       = "zookeeper"
 )
 

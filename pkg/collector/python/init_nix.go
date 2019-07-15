@@ -9,13 +9,15 @@
 package python
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 /*
-#cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
+#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 
-#include <datadog_agent_six.h>
+#include <datadog_agent_rtloader.h>
 */
 import "C"
 
@@ -28,7 +30,10 @@ func initializePlatform() error {
 		if config.Datadog.GetBool("c_core_dump") {
 			cCoreDump = 1
 		}
-		C.handle_crashes(six, C.int(cCoreDump))
+
+		if C.handle_crashes(rtloader, C.int(cCoreDump)) == 0 {
+			log.Errorf("Unable to install crash handler, C-land stacktraces and dumps will be unavailable")
+		}
 	}
 
 	return nil

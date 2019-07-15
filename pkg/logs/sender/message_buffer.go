@@ -9,71 +9,50 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// MessageBuffer accumulates messages and the bytes for batch sending.
+// MessageBuffer accumulates messages to a buffer until the max capacity is reached.
 type MessageBuffer struct {
-	messageBuffer []*message.Message
-	byteBuffer    []byte
+	messageBuffer    []*message.Message
+	contentSize      int
+	contentSizeLimit int
 }
 
 // NewMessageBuffer returns a new MessageBuffer.
-func NewMessageBuffer(maxBatchCount, maxRequestSize int) *MessageBuffer {
+func NewMessageBuffer(batchSizeLimit int, contentSizeLimit int) *MessageBuffer {
 	return &MessageBuffer{
-		messageBuffer: make([]*message.Message, 0, maxBatchCount),
-		byteBuffer:    make([]byte, 1, maxRequestSize),
+		messageBuffer:    make([]*message.Message, 0, batchSizeLimit),
+		contentSizeLimit: contentSizeLimit,
 	}
 }
 
-// TryAddMessage attempts to add a new message,
-// returns false if it failed.
-func (mb *MessageBuffer) TryAddMessage(m *message.Message) bool {
-	if len(mb.messageBuffer) < cap(mb.messageBuffer) && mb.hasSpaceInByteBuffer(m.Content) {
-		mb.messageBuffer = append(mb.messageBuffer, m)
-		mb.appendByteBuffer(m.Content)
+// AddMessage adds a message to the buffer if there is still some free space,
+// returns true if the message was added.
+func (p *MessageBuffer) AddMessage(message *message.Message) bool {
+	contentSize := len(message.Content)
+	if len(p.messageBuffer) < cap(p.messageBuffer) && p.contentSize+contentSize <= p.contentSizeLimit {
+		p.messageBuffer = append(p.messageBuffer, message)
+		p.contentSize += contentSize
 		return true
 	}
 	return false
 }
 
-// IsEmpty returns true if the buffer is empty.
-func (mb *MessageBuffer) IsEmpty() bool {
-	return len(mb.messageBuffer) == 0
+// Clear reinitializes the buffer.
+func (p *MessageBuffer) Clear() {
+	p.messageBuffer = p.messageBuffer[:0]
+	p.contentSize = 0
+}
+
+// GetMessages returns the messages stored in the buffer.
+func (p *MessageBuffer) GetMessages() []*message.Message {
+	return p.messageBuffer
 }
 
 // IsFull returns true if the buffer is full.
-func (mb *MessageBuffer) IsFull() bool {
-	return len(mb.messageBuffer) == cap(mb.messageBuffer)
+func (p *MessageBuffer) IsFull() bool {
+	return len(p.messageBuffer) == cap(p.messageBuffer) || p.contentSize == p.contentSizeLimit
 }
 
-// Clear removes all elements from the buffer.
-func (mb *MessageBuffer) Clear() {
-	mb.messageBuffer = mb.messageBuffer[:0]
-	mb.byteBuffer = mb.byteBuffer[:1] // keep the first byte, it's used for : '['
-}
-
-// GetPayload returns the concatanated messages in JSON encoded format.
-func (mb *MessageBuffer) GetPayload() []byte {
-	// here we write the json '[' and ']'
-	mb.byteBuffer[0] = '['
-	if len(mb.messageBuffer) > 0 {
-		mb.byteBuffer[len(mb.byteBuffer)-1] = ']'
-	}
-	return mb.byteBuffer
-}
-
-// GetMessages returns the buffered messages.
-func (mb *MessageBuffer) GetMessages() []*message.Message {
-	return mb.messageBuffer
-}
-
-// hasSpaceInByteBuffer returns if there is still some room in the buffer
-// for the content.
-func (mb *MessageBuffer) hasSpaceInByteBuffer(content []byte) bool {
-	return len(mb.byteBuffer)+len(content)+1 < cap(mb.byteBuffer)
-}
-
-// appendByteBuffer appends the content to the buffer.
-func (mb *MessageBuffer) appendByteBuffer(content []byte) {
-	// increase the slice length, TODO can optimized this by not using append
-	mb.byteBuffer = append(mb.byteBuffer, content...)
-	mb.byteBuffer = append(mb.byteBuffer, ',')
+// IsEmpty returns true if the buffer is empty.
+func (p *MessageBuffer) IsEmpty() bool {
+	return len(p.messageBuffer) == 0
 }

@@ -7,8 +7,6 @@ package pipeline
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
@@ -19,36 +17,21 @@ import (
 type Pipeline struct {
 	InputChan chan *message.Message
 	processor *processor.Processor
-	sender    sender.Sender
+	sender    *sender.Sender
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
-	var destinations *client.Destinations
-	if endpoints.UseHTTP {
-		main := http.NewDestination(endpoints.Main, destinationsContext)
-		additionals := []client.Destination{}
-		for _, endpoint := range endpoints.Additionals {
-			additionals = append(additionals, http.NewDestination(endpoint, destinationsContext))
-		}
-		destinations = client.NewDestinations(main, additionals)
-	} else {
-		main := tcp.NewDestination(endpoints.Main, endpoints.UseProto, destinationsContext)
-		additionals := []client.Destination{}
-		for _, endpoint := range endpoints.Additionals {
-			additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
-		}
-		destinations = client.NewDestinations(main, additionals)
-	}
-
+func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinations *client.Destinations) *Pipeline {
+	inputChan := make(chan *message.Message, config.ChanSize)
 	senderChan := make(chan *message.Message, config.ChanSize)
 
-	var newSender sender.Sender
+	var strategy sender.Strategy
 	if endpoints.UseHTTP {
-		newSender = sender.NewBatchSender(senderChan, outputChan, destinations)
+		strategy = sender.NewBatchStrategy(sender.NewArraySerializer())
 	} else {
-		newSender = sender.NewStreamSender(senderChan, outputChan, destinations)
+		strategy = sender.StreamStrategy
 	}
+	sender := sender.NewSender(senderChan, outputChan, destinations, strategy)
 
 	var encoder processor.Encoder
 	if endpoints.UseHTTP {
@@ -58,14 +41,12 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	} else {
 		encoder = processor.RawEncoder
 	}
-
-	inputChan := make(chan *message.Message, config.ChanSize)
 	processor := processor.New(inputChan, senderChan, processingRules, encoder)
 
 	return &Pipeline{
 		InputChan: inputChan,
 		processor: processor,
-		sender:    newSender,
+		sender:    sender,
 	}
 }
 

@@ -180,7 +180,7 @@ func (l *ECSListener) createService(c ecs.Container, firstRun bool) (ECSService,
 	svc.hosts = ips
 
 	// Tags
-	tags, err := tagger.Tag(svc.GetEntity(), tagger.ChecksCardinality)
+	tags, err := tagger.Tag(svc.GetTaggerEntity(), tagger.ChecksCardinality)
 	if err != nil {
 		log.Errorf("Failed to extract tags for container %s - %s", c.DockerID[:12], err)
 	}
@@ -192,6 +192,10 @@ func (l *ECSListener) createService(c ecs.Container, firstRun bool) (ECSService,
 // GetEntity returns the unique entity name linked to that service
 func (s *ECSService) GetEntity() string {
 	return containers.BuildEntityName(s.runtime, s.cID)
+}
+
+func (s *ECSService) GetTaggerEntity() string {
+	return containers.BuildTaggerEntityName(s.cID)
 }
 
 // GetADIdentifiers returns a set of AD identifiers for a container.

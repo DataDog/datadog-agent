@@ -9,25 +9,32 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
 
 const (
-	pythonBin = "python2"
+	pythonBin = "python"
 )
 
-var (
-	relPyPath              = filepath.Join("..", "..", "embedded", "bin", pythonBin)
-	relChecksPath          = filepath.Join("..", "..", "embedded", "lib", "python2.7", "site-packages", "datadog_checks")
-	relReqAgentReleasePath = filepath.Join("..", "..", reqAgentReleaseFile)
-	relConstraintsPath     = filepath.Join("..", "..", constraintsFile)
-)
-
-func authorizedUser() bool {
-	return (os.Geteuid() != 0)
+func getRelPyPath() string {
+	return filepath.Join("embedded", "bin", fmt.Sprintf("%s%s", pythonBin, pythonMajorVersion))
 }
 
-func isIntegrationUser() bool {
-	return true
+func getRelChecksPath() (string, error) {
+	err := detectPythonMinorVersion()
+	if err != nil {
+		return "", err
+	}
+
+	pythonDir := fmt.Sprintf("%s%s.%s", pythonBin, pythonMajorVersion, pythonMinorVersion)
+	return filepath.Join("embedded", "lib", pythonDir, "site-packages", "datadog_checks"), nil
+}
+
+func validateUser(allowRoot bool) error {
+	if os.Geteuid() == 0 && !allowRoot {
+		return fmt.Errorf("Operation is disabled for root user. Please run this tool with the agent-running user or add '--allow-root/-r' to force.")
+	}
+	return nil
 }

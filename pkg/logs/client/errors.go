@@ -21,21 +21,3 @@ func NewRetryableError(err error) *RetryableError {
 func (e *RetryableError) Error() string {
 	return e.err.Error()
 }
-
-// FramingError represents a kind of error that can occur when a log can not properly
-// be transformed into a frame.
-type FramingError struct {
-	err error
-}
-
-// NewFramingError returns a new framing error.
-func NewFramingError(err error) *FramingError {
-	return &FramingError{
-		err: err,
-	}
-}
-
-// Error returns the message of the error.
-func (e *FramingError) Error() string {
-	return e.err.Error()
-}

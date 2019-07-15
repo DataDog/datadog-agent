@@ -88,8 +88,8 @@ func (c *DockerCollector) Stop() error {
 
 // Fetch inspect a given container to get its tags on-demand (cache miss)
 func (c *DockerCollector) Fetch(entity string) ([]string, []string, []string, error) {
-	runtime, cID := containers.SplitEntityName(entity)
-	if runtime != containers.RuntimeNameDocker || len(cID) == 0 {
+	_, cID := containers.SplitEntityName(entity)
+	if len(cID) == 0 {
 		return nil, nil, nil, nil
 	}
 	return c.fetchForDockerID(cID)

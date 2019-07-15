@@ -20,6 +20,11 @@ import (
 
 const (
 	initializationTimeout = time.Second * 10
+
+	compactInterval = time.Minute * 4
+
+	// generationLength must be greater than compactInterval to ensure we have  multiple compactions per generation
+	generationLength = compactInterval + time.Minute
 )
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
@@ -35,6 +40,11 @@ type connKey struct {
 	port uint16
 }
 
+type connValue struct {
+	*IPTranslation
+	expGeneration uint8
+}
+
 type realConntracker struct {
 	sync.Mutex
 
@@ -42,7 +52,7 @@ type realConntracker struct {
 	nfct    *ct.Nfct
 	nfctDel *ct.Nfct
 
-	state map[connKey]*IPTranslation
+	state map[connKey]*connValue
 
 	// a short term buffer of connections to IPTranslations. Since we cannot make sure that tracer.go
 	// will try to read the translation for an IP before the delete callback happens, we will
@@ -64,6 +74,7 @@ type realConntracker struct {
 		registersTotalTime   int64
 		unregisters          int64
 		unregistersTotalTime int64
+		expiresTotal         int64
 	}
 }
 
@@ -110,8 +121,8 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	ctr := &realConntracker{
 		nfct:                nfct,
 		nfctDel:             nfctDel,
-		compactTicker:       time.NewTicker(time.Hour),
-		state:               make(map[connKey]*IPTranslation),
+		compactTicker:       time.NewTicker(compactInterval),
+		state:               make(map[connKey]*connValue),
 		shortLivedBuffer:    make(map[connKey]*IPTranslation),
 		maxShortLivedBuffer: deleteBufferSize,
 		maxStateSize:        maxStateSize,
@@ -153,9 +164,13 @@ func (ctr *realConntracker) GetTranslationForConn(ip util.Address, port uint16) 
 	defer ctr.Unlock()
 
 	k := connKey{ip, port}
-	result, ok := ctr.state[k]
+	var result *IPTranslation
+	value, ok := ctr.state[k]
 	if !ok {
 		result = ctr.shortLivedBuffer[k]
+	} else {
+		value.expGeneration = getNthGeneration(generationLength, then, 3)
+		result = value.IPTranslation
 	}
 
 	now := time.Now().UnixNano()
@@ -181,6 +196,7 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 	m := map[string]int64{
 		"state_size":             int64(size),
 		"short_term_buffer_size": int64(stBufSize),
+		"expires":                int64(ctr.stats.expiresTotal),
 	}
 
 	if ctr.stats.gets != 0 {
@@ -205,9 +221,10 @@ func (ctr *realConntracker) Close() {
 }
 
 func (ctr *realConntracker) loadInitialState(sessions []ct.Conn) {
+	gen := getNthGeneration(generationLength, time.Now().UnixNano(), 3)
 	for _, c := range sessions {
 		if isNAT(c) {
-			ctr.state[formatKey(c)] = formatIPTranslation(c)
+			ctr.state[formatKey(c)] = formatIPTranslation(c, gen)
 		}
 	}
 }
@@ -229,7 +246,8 @@ func (ctr *realConntracker) register(c ct.Conn) int {
 		return 0
 	}
 
-	ctr.state[formatKey(c)] = formatIPTranslation(c)
+	generation := getNthGeneration(generationLength, now, 3)
+	ctr.state[formatKey(c)] = formatIPTranslation(c, generation)
 
 	then := time.Now().UnixNano()
 	atomic.AddInt64(&ctr.stats.registers, 1)
@@ -252,11 +270,11 @@ func (ctr *realConntracker) unregister(c ct.Conn) int {
 
 	// move the mapping from the permanent to "short lived" connection
 	k := formatKey(c)
-	translation, _ := ctr.state[k]
+	translation, ok := ctr.state[k]
 
 	delete(ctr.state, k)
-	if len(ctr.shortLivedBuffer) < ctr.maxShortLivedBuffer {
-		ctr.shortLivedBuffer[k] = translation
+	if len(ctr.shortLivedBuffer) < ctr.maxShortLivedBuffer && ok {
+		ctr.shortLivedBuffer[k] = translation.IPTranslation
 	} else {
 		log.Warn("exceeded maximum tracked short lived connections")
 	}
@@ -278,10 +296,16 @@ func (ctr *realConntracker) compact() {
 	ctr.Lock()
 	defer ctr.Unlock()
 
+	gen := getCurrentGeneration(generationLength, time.Now().UnixNano())
+
 	// https://github.com/golang/go/issues/20135
-	copied := make(map[connKey]*IPTranslation, len(ctr.state))
+	copied := make(map[connKey]*connValue, len(ctr.state))
 	for k, v := range ctr.state {
-		copied[k] = v
+		if v.expGeneration != gen {
+			copied[k] = v
+		} else {
+			atomic.AddInt64(&ctr.stats.expiresTotal, 1)
+		}
 	}
 	ctr.state = copied
 }
@@ -336,7 +360,7 @@ func ReplDstIP(c ct.Conn) net.IP {
 	return nil
 }
 
-func formatIPTranslation(c ct.Conn) *IPTranslation {
+func formatIPTranslation(c ct.Conn, generation uint8) *connValue {
 	replSrcIP := ReplSrcIP(c)
 	replDstIP := ReplDstIP(c)
 
@@ -350,11 +374,14 @@ func formatIPTranslation(c ct.Conn) *IPTranslation {
 		return nil
 	}
 
-	return &IPTranslation{
-		ReplSrcIP:   replSrcIP.String(),
-		ReplDstIP:   replDstIP.String(),
-		ReplSrcPort: NtohsU16(replSrcPort),
-		ReplDstPort: NtohsU16(replDstPort),
+	return &connValue{
+		IPTranslation: &IPTranslation{
+			ReplSrcIP:   util.AddressFromNetIP(replSrcIP),
+			ReplDstIP:   util.AddressFromNetIP(replDstIP),
+			ReplSrcPort: NtohsU16(replSrcPort),
+			ReplDstPort: NtohsU16(replDstPort),
+		},
+		expGeneration: generation,
 	}
 }
 

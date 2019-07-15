@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package osutil
 
 import (
@@ -31,7 +36,7 @@ func Exitf(format string, args ...interface{}) {
 		fmt.Printf(format, args...)
 		fmt.Print("")
 	} else {
-		log.Errorf(format, args...)
+		log.Criticalf(format, args...)
 		log.Flush()
 	}
 	os.Exit(1)

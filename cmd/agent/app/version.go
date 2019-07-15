@@ -7,6 +7,7 @@ package app
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -34,11 +35,12 @@ var versionCmd = &cobra.Command{
 		}
 		fmt.Fprintln(
 			color.Output,
-			fmt.Sprintf("Agent %s %s- Commit: %s - Serialization version: %s",
+			fmt.Sprintf("Agent %s %s- Commit: %s - Serialization version: %s - Go version: %s",
 				color.CyanString(av.GetNumberAndPre()),
 				meta,
 				color.GreenString(av.Commit),
 				color.MagentaString(serializer.AgentPayloadVersion),
+				color.BlueString(runtime.Version()),
 			),
 		)
 	},

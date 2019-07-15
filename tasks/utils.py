@@ -28,20 +28,26 @@ def bin_name(name, android=False):
         return "{}.exe".format(name)
     return name
 
+def get_gopath(ctx):
+    gopath = os.environ.get("GOPATH")
+    if not gopath:
+        gopath = ctx.run("go env GOPATH", hide=True).stdout.strip()
 
-def get_multi_python_location(embedded_path=None, six_root=None):
-    if six_root is None:
-        six_lib = "{}/lib".format(six_root or embedded_path)
-        six_headers = "{}/include".format(six_root or embedded_path)
-    # if six_root is specified we're working in dev mode from the six folder
+    return gopath
+
+def get_multi_python_location(embedded_path=None, rtloader_root=None):
+    if rtloader_root is None:
+        rtloader_lib = "{}/lib".format(rtloader_root or embedded_path)
+        rtloader_headers = "{}/include".format(rtloader_root or embedded_path)
+    # if rtloader_root is specified we're working in dev mode from the rtloader folder
     else:
-        six_lib = "{}/six".format(six_root)
-        six_headers = "{}/include".format(six_root)
+        rtloader_lib = "{}/rtloader".format(rtloader_root)
+        rtloader_headers = "{}/include".format(rtloader_root)
 
-    return six_lib, six_headers
+    return rtloader_lib, rtloader_headers
 
 def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
-                    six_root=None, python_home_2=None, python_home_3=None):
+                    rtloader_root=None, python_home_2=None, python_home_3=None):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -57,9 +63,9 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
 
     if embedded_path is None:
         # fall back to local dev path
-        embedded_path = "{}/src/github.com/DataDog/datadog-agent/dev".format(os.environ.get('GOPATH'))
+        embedded_path = "{}/src/github.com/DataDog/datadog-agent/dev".format(get_gopath(ctx))
 
-    six_lib, six_headers = get_multi_python_location(embedded_path, six_root)
+    rtloader_lib, rtloader_headers = get_multi_python_location(embedded_path, rtloader_root)
 
     # setting python homes in the code
     if python_home_2:
@@ -67,11 +73,11 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     if python_home_3:
         ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, python_home_3)
 
-    # adding six libs and headers to the env
-    env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + ":{}".format(six_lib) # OSX
-    env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + ":{}".format(six_lib) # linux
-    env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + " -L{}".format(six_lib)
-    env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + " -w -I{}".format(six_headers)
+    # adding rtloader libs and headers to the env
+    env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + ":{}".format(rtloader_lib) # OSX
+    env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + ":{}".format(rtloader_lib) # linux
+    env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + " -L{}".format(rtloader_lib)
+    env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + " -w -I{}".format(rtloader_headers)
 
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:

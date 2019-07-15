@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package testsuite
 
 import (
@@ -7,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -37,11 +43,12 @@ func TestSecrets(t *testing.T) {
 	}
 
 	// run the trace-agent
-	var buf bytes.Buffer
-	cmd = exec.Command("/tmp/trace-agent.test")
+	var buf safeWriter
+	cmd = exec.Command(binTraceAgent)
 	cmd.Env = []string{
 		"DD_SECRET_BACKEND_COMMAND=" + binSecrets,
 		"DD_HOSTNAME=ENC[secret1]",
+		"DD_API_KEY=123",
 	}
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
@@ -69,4 +76,23 @@ func TestSecrets(t *testing.T) {
 			time.Sleep(5 * time.Millisecond)
 		}
 	}
+}
+
+// safeWriter is an io.Writer implementation which allows the retrieval of what was written
+// to it, as a string. It is safe for concurrent use.
+type safeWriter struct {
+	mu  sync.RWMutex
+	buf bytes.Buffer
+}
+
+func (sb *safeWriter) Write(p []byte) (n int, err error) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.Write(p)
+}
+
+func (sb *safeWriter) String() string {
+	sb.mu.RLock()
+	defer sb.mu.RUnlock()
+	return sb.buf.String()
 }

@@ -91,6 +91,7 @@ func (c *Config) EnabledKProbes() map[KProbeName]struct{} {
 
 	if c.CollectTCPConns {
 		enabled[TCPSendMsg] = struct{}{}
+		enabled[TCPSendMsgReturn] = struct{}{}
 		enabled[TCPCleanupRBuf] = struct{}{}
 		enabled[TCPClose] = struct{}{}
 		enabled[TCPRetransmit] = struct{}{}

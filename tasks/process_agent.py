@@ -7,7 +7,7 @@ import sys
 from invoke import task
 from subprocess import check_output
 
-from .utils import bin_name, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only
+from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only
 from .build_tags import get_default_build_tags
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
@@ -65,6 +65,11 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
     build_tags = get_default_build_tags(puppy=puppy)
 
+    ## secrets is not supported on windows because the process agent still runs as
+    ## root.  No matter what `get_default_build_tags()` returns, take secrets out.
+    if sys.platform == 'win32' and "secrets" in build_tags:
+        build_tags.remove("secrets")
+
     # TODO static option
     cmd = 'go build {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/process-agent'
@@ -103,4 +108,4 @@ def protobuf(ctx):
     cmd = "protoc {proto_dir}/agent.proto -I {gopath}/src -I vendor -I {proto_dir} --gogofaster_out {gopath}/src"
     proto_dir = os.path.join(".", "pkg", "process", "proto")
 
-    ctx.run(cmd.format(gopath=os.environ["GOPATH"], proto_dir=proto_dir))
+    ctx.run(cmd.format(gopath=get_gopath(ctx), proto_dir=proto_dir))

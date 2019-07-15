@@ -163,6 +163,7 @@ func TestProcessNewPod(t *testing.T) {
 	select {
 	case service := <-services:
 		assert.Equal(t, "docker://foorandomhash", string(service.GetEntity()))
+		assert.Equal(t, "container_id://foorandomhash", string(service.GetTaggerEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"docker://foorandomhash", "datadoghq.com/foo:latest", "foo"}, adIdentifiers)
@@ -181,6 +182,7 @@ func TestProcessNewPod(t *testing.T) {
 	select {
 	case service := <-services:
 		assert.Equal(t, "rkt://bar-random-hash", string(service.GetEntity()))
+		assert.Equal(t, "container_id://bar-random-hash", string(service.GetTaggerEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"rkt://bar-random-hash", "datadoghq.com/bar:latest", "bar"}, adIdentifiers)
@@ -199,6 +201,7 @@ func TestProcessNewPod(t *testing.T) {
 	select {
 	case service := <-services:
 		assert.Equal(t, "docker://containerid", string(service.GetEntity()))
+		assert.Equal(t, "container_id://containerid", string(service.GetTaggerEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"docker://containerid"}, adIdentifiers)
@@ -217,6 +220,7 @@ func TestProcessNewPod(t *testing.T) {
 	select {
 	case service := <-services:
 		assert.Equal(t, "docker://clustercheck", string(service.GetEntity()))
+		assert.Equal(t, "container_id://clustercheck", string(service.GetTaggerEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"docker://clustercheck", "k8s.gcr.io/pause:latest", "pause"}, adIdentifiers)
@@ -236,6 +240,7 @@ func TestProcessNewPod(t *testing.T) {
 	select {
 	case service := <-services:
 		assert.Equal(t, "kubernetes_pod://mock-pod-uid", string(service.GetEntity()))
+		assert.Equal(t, "kubernetes_pod_uid://mock-pod-uid", string(service.GetTaggerEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"kubernetes_pod://mock-pod-uid"}, adIdentifiers)

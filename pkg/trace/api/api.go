@@ -1,16 +1,24 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package api
 
 import (
 	"context"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"io"
 	"io/ioutil"
 	stdlog "log"
+	"math"
 	"mime"
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"os"
 	"runtime"
 	"sort"
 	"strconv"
@@ -44,63 +52,58 @@ type Version string
 const (
 	// v01 DEPRECATED, FIXME[1.x]
 	// Traces: JSON, slice of spans
-	// Services: JSON, map[string]map[string][string]
+	// Services: deprecated
 	v01 Version = "v0.1"
 	// v02 DEPRECATED, FIXME[1.x]
 	// Traces: JSON, slice of traces
-	// Services: JSON, map[string]map[string][string]
+	// Services: deprecated
 	v02 Version = "v0.2"
 	// v03
 	// Traces: msgpack/JSON (Content-Type) slice of traces
-	// Services: msgpack/JSON, map[string]map[string][string]
+	// Services: deprecated
 	v03 Version = "v0.3"
 	// v04
 	// Traces: msgpack/JSON (Content-Type) slice of traces + returns service sampling ratios
-	// Services: msgpack/JSON, map[string]map[string][string]
+	// Services: deprecated
 	v04 Version = "v0.4"
 )
 
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
 // a chan where the spans received are sent one by one
 type HTTPReceiver struct {
-	Stats      *info.ReceiverStats
-	PreSampler *sampler.PreSampler
-	Out        chan pb.Trace
+	Stats       *info.ReceiverStats
+	RateLimiter *rateLimiter
 
-	services chan pb.ServicesMetadata
-	conf     *config.AgentConfig
-	dynConf  *sampler.DynamicConfig
-	server   *http.Server
+	out     chan *Trace
+	conf    *config.AgentConfig
+	dynConf *sampler.DynamicConfig
+	server  *http.Server
 
 	maxRequestBodyLength int64
 	debug                bool
-	presamplerResponse   int // HTTP status code when refusing
+	rateLimiterResponse  int // HTTP status code when refusing
 
 	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
-func NewHTTPReceiver(
-	conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan pb.Trace, services chan pb.ServicesMetadata,
-) *HTTPReceiver {
-	presamplerResponse := http.StatusOK
+func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Trace) *HTTPReceiver {
+	rateLimiterResponse := http.StatusOK
 	if config.HasFeature("429") {
-		presamplerResponse = http.StatusTooManyRequests
+		rateLimiterResponse = http.StatusTooManyRequests
 	}
-	// use buffered channels so that handlers are not waiting on downstream processing
 	return &HTTPReceiver{
-		Stats:      info.NewReceiverStats(),
-		PreSampler: sampler.NewPreSampler(),
-		Out:        out,
+		Stats:       info.NewReceiverStats(),
+		RateLimiter: newRateLimiter(),
+		out:         out,
 
-		conf:     conf,
-		dynConf:  dynConf,
-		services: services,
+		conf:    conf,
+		dynConf: dynConf,
 
 		maxRequestBodyLength: maxRequestBodyLength,
 		debug:                strings.ToLower(conf.LogLevel) == "debug",
-		presamplerResponse:   presamplerResponse,
+		rateLimiterResponse:  rateLimiterResponse,
 
 		exit: make(chan struct{}),
 	}
@@ -134,14 +137,30 @@ func (r *HTTPReceiver) Start() {
 		Handler:      mux,
 	}
 
-	// expvar implicitly publishes "/debug/vars" on the same port
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
-	if err := r.Listen(addr, ""); err != nil {
-		log.Criticalf("Error creating listener: %v", err)
-		killProcess(err.Error())
+	ln, err := r.listenTCP(addr)
+	if err != nil {
+		killProcess("Error creating tcp listener: %v", err)
+	}
+	go func() {
+		defer watchdog.LogOnPanic()
+		r.server.Serve(ln)
+	}()
+	log.Infof("Listening for traces at http://%s", addr)
+
+	if path := r.conf.ReceiverSocket; path != "" {
+		ln, err := r.listenUnix(path)
+		if err != nil {
+			killProcess("Error creating UDS listener: %v", err)
+		}
+		go func() {
+			defer watchdog.LogOnPanic()
+			r.server.Serve(ln)
+		}()
+		log.Infof("Listening for traces at unix://%s", path)
 	}
 
-	go r.PreSampler.Run()
+	go r.RateLimiter.Run()
 
 	go func() {
 		defer watchdog.LogOnPanic()
@@ -178,31 +197,44 @@ func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
 		pprof.Handler("block").ServeHTTP(w, r)
 		runtime.SetBlockProfileRate(0)
 	})
+
+	mux.Handle("/debug/vars", expvar.Handler())
 }
 
-// Listen creates a new HTTP server listening on the provided address.
-func (r *HTTPReceiver) Listen(addr, logExtra string) error {
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return fmt.Errorf("cannot listen on %s: %v", addr, err)
+// listenUnix returns a net.Listener listening on the given "unix" socket path.
+func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
+	fi, err := os.Stat(path)
+	if err == nil {
+		// already exists
+		if fi.Mode()&os.ModeSocket == 0 {
+			return nil, fmt.Errorf("cannot reuse %q; not a unix socket", path)
+		}
+		if err := os.Remove(path); err != nil {
+			return nil, fmt.Errorf("unable to remove stale socket: %v", err)
+		}
 	}
-	ln, err := newRateLimitedListener(listener, r.conf.ConnectionLimit)
+	ln, err := net.Listen("unix", path)
 	if err != nil {
-		return fmt.Errorf("cannot create listener: %v", err)
+		return nil, err
 	}
+	if err := os.Chmod(path, 0722); err != nil {
+		return nil, fmt.Errorf("error setting socket permissions: %v", err)
+	}
+	return ln, err
+}
 
-	log.Infof("Listening for traces at http://%s%s", addr, logExtra)
-
+// listenTCP creates a new net.Listener on the provided TCP address.
+func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
+	tcpln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	ln, err := newRateLimitedListener(tcpln, r.conf.ConnectionLimit)
 	go func() {
 		defer watchdog.LogOnPanic()
 		ln.Refresh(r.conf.ConnectionLimit)
 	}()
-	go func() {
-		defer watchdog.LogOnPanic()
-		r.server.Serve(ln)
-	}()
-
-	return nil
+	return ln, err
 }
 
 // Stop stops the receiver and shuts down the HTTP server.
@@ -210,7 +242,7 @@ func (r *HTTPReceiver) Stop() error {
 	r.exit <- struct{}{}
 	<-r.exit
 
-	r.PreSampler.Stop()
+	r.RateLimiter.Stop()
 
 	expiry := time.Now().Add(5 * time.Second) // give it 5 seconds
 	ctx, cancel := context.WithDeadline(context.Background(), expiry)
@@ -219,7 +251,7 @@ func (r *HTTPReceiver) Stop() error {
 		return err
 	}
 	r.wg.Wait()
-	close(r.Out)
+	close(r.out)
 	return nil
 }
 
@@ -236,7 +268,7 @@ func (r *HTTPReceiver) httpHandleWithVersion(v Version, f func(Version, http.Res
 	return r.httpHandle(func(w http.ResponseWriter, req *http.Request) {
 		mediaType := getMediaType(req)
 		if mediaType == "application/msgpack" && (v == v01 || v == v02) {
-			// msgpack is only supported for versions 0.3
+			// msgpack is only supported for versions >= 0.3
 			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
 			return
 		}
@@ -245,44 +277,98 @@ func (r *HTTPReceiver) httpHandleWithVersion(v Version, f func(Version, http.Res
 	})
 }
 
-func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
+func traceCount(req *http.Request) int64 {
+	str := req.Header.Get(headerTraceCount)
+	if str == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(str)
+	if err != nil {
+		log.Errorf("Error parsing %q HTTP header: %s", headerTraceCount, err)
+	}
+	return int64(n)
+}
+
+const (
+	// headerTraceCount is the header client implementation should fill
+	// with the number of traces contained in the payload.
+	headerTraceCount = "X-Datadog-Trace-Count"
+
+	// headerLang specifies the name of the header which contains the language from
+	// which the traces originate.
+	headerLang = "Datadog-Meta-Lang"
+
+	// headerLangVersion specifies the name of the header which contains the origin
+	// language's version.
+	headerLangVersion = "Datadog-Meta-Lang-Version"
+
+	// headerLangInterpreter specifies the name of the HTTP header containing information
+	// about the language interpreter, where applicable.
+	headerLangInterpreter = "Datadog-Meta-Lang-Interpreter"
+
+	// headerLangInterpreterVendor specifies the name of the HTTP header containing information
+	// about the language interpreter vendor, where applicable.
+	headerLangInterpreterVendor = "Datadog-Meta-Lang-Interpreter-Vendor"
+
+	// headerTracerVersion specifies the name of the header which contains the version
+	// of the tracer sending the payload.
+	headerTracerVersion = "Datadog-Meta-Tracer-Version"
+)
+
+func (r *HTTPReceiver) tagStats(req *http.Request) *info.TagStats {
+	return r.Stats.GetTagStats(info.Tags{
+		Lang:          req.Header.Get(headerLang),
+		LangVersion:   req.Header.Get(headerLangVersion),
+		Interpreter:   req.Header.Get(headerLangInterpreter),
+		LangVendor:    req.Header.Get(headerLangInterpreterVendor),
+		TracerVersion: req.Header.Get(headerTracerVersion),
+	})
+}
+
+func (r *HTTPReceiver) decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
+	if v == v01 {
+		var spans []pb.Span
+		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
+			return nil, err
+		}
+		return tracesFromSpans(spans), nil
+	}
+	var traces pb.Traces
+	if err := decodeRequest(req, &traces); err != nil {
+		return nil, err
+	}
+	return traces, nil
+}
+
+func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) {
 	switch v {
-	case v01:
-		fallthrough
-	case v02:
-		fallthrough
-	case v03:
-		// Simple response, simply acknowledge with "OK"
+	case v01, v02, v03:
 		httpOK(w)
 	case v04:
-		// Return the recommended sampling rate for each service as a JSON.
 		httpRateByService(w, r.dynConf)
 	}
 }
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
-	if !r.PreSampler.Sample(req) {
+	traceCount := traceCount(req)
+	if !r.RateLimiter.Permits(traceCount) {
 		io.Copy(ioutil.Discard, req.Body)
-		w.WriteHeader(r.presamplerResponse)
-		r.replyTraces(v, w)
+		w.WriteHeader(r.rateLimiterResponse)
+		r.replyOK(v, w)
 		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, nil, 1)
 		return
 	}
 
-	traces, ok := getTraces(v, w, req)
-	if !ok {
+	ts := r.tagStats(req)
+	traces, err := r.decodeTraces(v, req)
+	if err != nil {
+		httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
+		atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
+		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return
 	}
-
-	r.replyTraces(v, w)
-
-	ts := r.Stats.GetTagStats(info.Tags{
-		Lang:          req.Header.Get("Datadog-Meta-Lang"),
-		LangVersion:   req.Header.Get("Datadog-Meta-Lang-Version"),
-		Interpreter:   req.Header.Get("Datadog-Meta-Lang-Interpreter"),
-		TracerVersion: req.Header.Get("Datadog-Meta-Tracer-Version"),
-	})
+	r.replyOK(v, w)
 
 	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
 	atomic.AddInt64(&ts.TracesBytes, int64(req.Body.(*LimitedReader).Count))
@@ -298,6 +384,16 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}()
 }
 
+// Trace specifies information about a trace received by the API.
+type Trace struct {
+	// Source specifies information about the source of these traces, such as:
+	// language, interpreter, tracer version, etc.
+	Source *info.Tags
+
+	// Spans holds the spans of this trace.
+	Spans pb.Trace
+}
+
 func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
 	defer timing.Since("datadog.trace_agent.internal.normalize_ms", time.Now())
 	for _, trace := range traces {
@@ -305,56 +401,26 @@ func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
 
 		atomic.AddInt64(&ts.SpansReceived, int64(spans))
 
-		err := normalizeTrace(trace)
+		err := normalizeTrace(ts, trace)
 		if err != nil {
-			atomic.AddInt64(&ts.TracesDropped, 1)
+			log.Debug("Dropping invalid trace: %s", err)
 			atomic.AddInt64(&ts.SpansDropped, int64(spans))
-
-			msg := fmt.Sprintf("Dropping trace; reason: %s", err)
-			if len(msg) > 150 && !r.debug {
-				// we're not in DEBUG log level, truncate long messages.
-				msg = msg[:150] + "... (set DEBUG log level for more info)"
-			}
-			log.Errorf(msg)
 			continue
 		}
 
-		r.Out <- trace
+		r.out <- &Trace{
+			Source: &ts.Tags,
+			Spans:  trace,
+		}
 	}
 }
 
 // handleServices handle a request with a list of several services
 func (r *HTTPReceiver) handleServices(v Version, w http.ResponseWriter, req *http.Request) {
-	var servicesMeta pb.ServicesMetadata
-
-	mediaType := getMediaType(req)
-	if err := decodeReceiverPayload(req.Body, &servicesMeta, v, mediaType); err != nil {
-		log.Errorf("Cannot decode %s services payload: %v", v, err)
-		httpDecodingError(err, []string{tagServiceHandler, fmt.Sprintf("v:%s", v)}, w)
-		return
-	}
-
 	httpOK(w)
 
-	// We parse the tags from the header
-	tags := info.Tags{
-		Lang:          req.Header.Get("Datadog-Meta-Lang"),
-		LangVersion:   req.Header.Get("Datadog-Meta-Lang-Version"),
-		Interpreter:   req.Header.Get("Datadog-Meta-Lang-Interpreter"),
-		TracerVersion: req.Header.Get("Datadog-Meta-Tracer-Version"),
-	}
-
-	// We get the address of the struct holding the stats associated to the tags
-	ts := r.Stats.GetTagStats(tags)
-
-	atomic.AddInt64(&ts.ServicesReceived, int64(len(servicesMeta)))
-
-	bytesRead := req.Body.(*LimitedReader).Count
-	if bytesRead > 0 {
-		atomic.AddInt64(&ts.ServicesBytes, int64(bytesRead))
-	}
-
-	r.services <- servicesMeta
+	// Do nothing, services are no longer being sent to Datadog as of July 2019
+	// and are now automatically extracted from traces.
 }
 
 // loop periodically submits stats about the receiver to statsd
@@ -377,7 +443,7 @@ func (r *HTTPReceiver) loop() {
 			r.watchdog(now)
 		case now := <-t.C:
 			metrics.Gauge("datadog.trace_agent.heartbeat", 1, nil, 1)
-			metrics.Gauge("datadog.trace_agent.receiver.out_chan_fill", float64(len(r.Out))/float64(cap(r.Out)), nil, 1)
+			metrics.Gauge("datadog.trace_agent.receiver.out_chan_fill", float64(len(r.out))/float64(cap(r.out)), nil, 1)
 
 			// We update accStats with the new stats we collected
 			accStats.Acc(r.Stats)
@@ -392,9 +458,7 @@ func (r *HTTPReceiver) loop() {
 				// We expose the stats accumulated to expvar
 				info.UpdateReceiverStats(accStats)
 
-				for _, logStr := range accStats.Strings() {
-					log.Info(logStr)
-				}
+				accStats.LogStats()
 
 				// We reset the stats accumulated during the last minute
 				accStats.Reset()
@@ -409,52 +473,50 @@ func (r *HTTPReceiver) loop() {
 }
 
 // killProcess exits the process with the given msg; replaced in tests.
-var killProcess = func(msg string) { osutil.Exitf(msg) }
+var killProcess = func(format string, a ...interface{}) { osutil.Exitf(format, a...) }
 
+// watchdog checks the trace-agent's heap and CPU usage and updates the rate limiter using a correct
+// sampling rate to maintain resource usage within set thresholds. These thresholds are defined by
+// the configuration MaxMemory and MaxCPU. If these values are 0, all limits are disabled and the rate
+// limiter will accept everything.
 func (r *HTTPReceiver) watchdog(now time.Time) {
 	wi := watchdog.Info{
 		Mem: watchdog.Mem(),
 		CPU: watchdog.CPU(now),
 	}
-
-	if current, allowed := float64(wi.Mem.Alloc), r.conf.MaxMemory*1.5; current > allowed {
-		// This is a safety mechanism: if the agent is using more than 1.5x max. memory, there
-		// is likely a leak somewhere; we'll kill the process to avoid polluting host memory.
-		metrics.Count("datadog.trace_agent.receiver.oom_kill", 1, nil, 1)
-		metrics.Flush()
-		log.Criticalf("Killing process. Memory threshold exceeded: %.2fM / %.2fM", current/1024/1024, allowed/1024/1024)
-		killProcess("OOM")
+	rateMem := 1.0
+	if r.conf.MaxMemory > 0 {
+		if current, allowed := float64(wi.Mem.Alloc), r.conf.MaxMemory*1.5; current > allowed {
+			// This is a safety mechanism: if the agent is using more than 1.5x max. memory, there
+			// is likely a leak somewhere; we'll kill the process to avoid polluting host memory.
+			metrics.Count("datadog.trace_agent.receiver.oom_kill", 1, nil, 1)
+			metrics.Flush()
+			log.Criticalf("Killing process. Memory threshold exceeded: %.2fM / %.2fM", current/1024/1024, allowed/1024/1024)
+			killProcess("OOM")
+		}
+		rateMem = computeRateLimitingRate(r.conf.MaxMemory, float64(wi.Mem.Alloc), r.RateLimiter.RealRate())
+		if rateMem < 1 {
+			log.Warnf("Memory threshold exceeded (apm_config.max_memory: %.0f bytes): %d", r.conf.MaxMemory, wi.Mem.Alloc)
+		}
+	}
+	rateCPU := 1.0
+	if r.conf.MaxCPU > 0 {
+		rateCPU = computeRateLimitingRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.RateLimiter.RealRate())
+		if rateCPU < 1 {
+			log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg)
+		}
 	}
 
-	rateCPU, err := sampler.CalcPreSampleRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.PreSampler.RealRate())
-	if err != nil {
-		log.Warnf("Problem computing cpu pre-sample rate: %v", err)
-	}
-	rateMem, err := sampler.CalcPreSampleRate(r.conf.MaxMemory, float64(wi.Mem.Alloc), r.PreSampler.RealRate())
-	if err != nil {
-		log.Warnf("Problem computing mem pre-sample rate: %v", err)
-	}
-	r.PreSampler.SetError(err)
-	if rateCPU < 1 {
-		log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg)
-	}
-	if rateMem < 1 {
-		log.Warnf("Memory threshold exceeded (apm_config.max_memory: %.0f bytes): %d", r.conf.MaxMemory, wi.Mem.Alloc)
-	}
-	if rateCPU < rateMem {
-		r.PreSampler.SetRate(rateCPU)
-	} else {
-		r.PreSampler.SetRate(rateMem)
-	}
+	r.RateLimiter.SetTargetRate(math.Min(rateCPU, rateMem))
 
-	stats := r.PreSampler.Stats()
+	stats := r.RateLimiter.Stats()
 
-	info.UpdatePreSampler(*stats)
+	info.UpdateRateLimiter(*stats)
 	info.UpdateWatchdogInfo(wi)
 
 	metrics.Gauge("datadog.trace_agent.heap_alloc", float64(wi.Mem.Alloc), nil, 1)
 	metrics.Gauge("datadog.trace_agent.cpu_percent", wi.CPU.UserAvg*100, nil, 1)
-	metrics.Gauge("datadog.trace_agent.presampler_rate", stats.Rate, nil, 1)
+	metrics.Gauge("datadog.trace_agent.receiver.ratelimit", stats.TargetRate, nil, 1)
 }
 
 // Languages returns the list of the languages used in the traces the agent receives.
@@ -476,60 +538,24 @@ func (r *HTTPReceiver) Languages() string {
 	return strings.Join(str, "|")
 }
 
-func getTraces(v Version, w http.ResponseWriter, req *http.Request) (pb.Traces, bool) {
-	var traces pb.Traces
-	mediaType := getMediaType(req)
-	switch v {
-	case v01:
-		// We cannot use decodeReceiverPayload because []model.Span does not
-		// implement msgp.Decodable. This hack can be removed once we
-		// drop v01 support.
-		switch mediaType {
-		case "application/json", "text/json", "":
-			// ok
-		default:
-			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
-			return nil, false
-		}
-
-		// in v01 we actually get spans that we have to transform in traces
-		var spans []pb.Span
-		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
-			log.Errorf("Cannot decode %s traces payload: %v", v, err)
-			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-			return nil, false
-		}
-		traces = tracesFromSpans(spans)
-	case v02:
-		fallthrough
-	case v03:
-		fallthrough
-	case v04:
-		if err := decodeReceiverPayload(req.Body, &traces, v, mediaType); err != nil {
-			log.Errorf("Cannot decode %s traces payload: %v", v, err)
-			httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-			return nil, false
-		}
-	default:
-		httpEndpointNotSupported([]string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-		return nil, false
-	}
-
-	return traces, true
-}
-
-func decodeReceiverPayload(r io.Reader, dest msgp.Decodable, v Version, mediaType string) error {
-	switch mediaType {
+func decodeRequest(req *http.Request, dest msgp.Decodable) error {
+	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
-		return msgp.Decode(r, dest)
+		return msgp.Decode(req.Body, dest)
 	case "application/json":
 		fallthrough
 	case "text/json":
 		fallthrough
 	case "":
-		return json.NewDecoder(r).Decode(dest)
+		return json.NewDecoder(req.Body).Decode(dest)
 	default:
-		return fmt.Errorf("unknown content type: %q", mediaType)
+		// do our best
+		if err1 := json.NewDecoder(req.Body).Decode(dest); err1 != nil {
+			if err2 := msgp.Decode(req.Body, dest); err2 != nil {
+				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
+			}
+		}
+		return nil
 	}
 }
 

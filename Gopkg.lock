@@ -42,7 +42,7 @@
   revision = "43b075bb9705588cd89c71363d6d72937e3020c7"
 
 [[projects]]
-  digest = "1:f5a67538206ad242703731b55fb4abc6cf7b44de436d4b989572bd82cf3c3e12"
+  digest = "1:84c22eb14ecdebefff6a3764e5d3769739a775095f31d90919dfd10e887170fb"
   name = "github.com/DataDog/gopsutil"
   packages = [
     "cpu",
@@ -53,7 +53,7 @@
     "process",
   ]
   pruneopts = ""
-  revision = "fe7986fb54b7a36afebec4610af9daa8e5f34f89"
+  revision = "3ca45fa2b07679737219be93796a178822ff878f"
 
 [[projects]]
   branch = "master"
@@ -806,7 +806,8 @@
     "pkg/cpuonline",
   ]
   pruneopts = ""
-  revision = "98ebf56442afb10e1b43145127de3c1777ed7e95"
+  revision = "dfb11c17a0746e78b1bd96b6eea766f2a4a2ce8a"
+  source = "github.com/DataDog/gobpf"
 
 [[projects]]
   digest = "1:6f49eae0c1e5dab1dafafee34b207aeb7a42303105960944828c2079b92fc88e"
@@ -1992,6 +1993,7 @@
     "github.com/containerd/typeurl",
     "github.com/coreos/etcd/client",
     "github.com/coreos/go-semver/semver",
+    "github.com/coreos/go-systemd/dbus",
     "github.com/coreos/go-systemd/sdjournal",
     "github.com/docker/docker/api/types",
     "github.com/docker/docker/api/types/container",
@@ -2009,11 +2011,11 @@
     "github.com/florianl/go-conntrack",
     "github.com/go-ini/ini",
     "github.com/go-ole/go-ole",
+    "github.com/godbus/dbus",
     "github.com/gogo/protobuf/gogoproto",
     "github.com/gogo/protobuf/jsonpb",
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/types",
-    "github.com/golang/protobuf/proto",
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
     "github.com/hectane/go-acl",
@@ -2065,6 +2067,7 @@
     "gopkg.in/zorkian/go-datadog-api.v2",
     "k8s.io/api/autoscaling/v2beta1",
     "k8s.io/api/core/v1",
+    "k8s.io/apimachinery/pkg/api/equality",
     "k8s.io/apimachinery/pkg/api/errors",
     "k8s.io/apimachinery/pkg/api/meta",
     "k8s.io/apimachinery/pkg/api/resource",

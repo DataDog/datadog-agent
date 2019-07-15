@@ -66,51 +66,41 @@ platforms:
     # TEST_PLATFORMS syntax is `short_name1,parent vhd folder,parent_vhd_name|...`
     azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
 
-    chef_versions = %w(
-      13.6.4
-    )
-
     sizes = [
-      "Standard_D1",
-      "Standard_A1",
+      "Standard_D1_v2",
+      "Standard_A1_v2",
     ]
 
     windows_sizes = [
-      "Standard_D1"
+      "Standard_D1_v2"
     ]
 
-    # we wanna spread out our quotas
-    locations = [
-      "North Central US",
-      "South Central US",
-      "Central US",
-    ]
+    location = "North Central US"
 
-    drivers = %w(
-      azurerm
-    )
-
-    platforms_x64 = azure_test_platforms.product(chef_versions, drivers).select{|p, c, d| not p[0].include? "i386"}.collect{|p, c, d| p[0] + "-" + c + "-" + d}
-
-    exclude_platforms = []
     windows_platforms = []
+    sles15_platforms = []
 
     idx = 0
-    azure_test_platforms.product(chef_versions).each do |platform, chef_version|
+    azure_test_platforms.each do |platform|
     idx += 1
-    location = locations[idx % locations.length]
 
     host = "azure"
     if ENV['KITCHEN_DRIVER'] && ENV['KITCHEN_DRIVER'] == "hyperv"
       host = "hyperv"
     end
     platform_name = platform[0] + "-#{host}"
+
     windows = platform_name.include?("win")
+    sles15 = platform_name.include?("sles-15")
+    windows2008 = windows && platform_name.include?("2008")
+
     if windows
       windows_platforms << platform_name
-      size = "Standard_D1"
       size = windows_sizes[idx % windows_sizes.length]
     else
+      if sles15
+        sles15_platforms << platform_name
+      end
       size = sizes[idx % sizes.length]
     end
 
@@ -133,6 +123,15 @@ platforms:
     location: <%= location %>
     <% if windows %>
     vm_name: ddat<%= platform[0] %>
+    <% if windows2008 %>
+    winrm_powershell_script: |-
+      winrm quickconfig -q
+      winrm set winrm/config/winrs '@{MaxMemoryPerShellMB="512"}'
+      winrm set winrm/config '@{MaxTimeoutms="1800000"}'
+      winrm set winrm/config/service '@{AllowUnencrypted="true"}'
+      winrm set winrm/config/service/auth '@{Basic="true"}'
+      netsh advfirewall firewall set rule name="Windows Remote Management (HTTP-In)" profile=public protocol=tcp localport=5985 remoteip=localsubnet new remoteip=any
+    <% end %>
     <% else %>
     vm_name: dd-agent-testing-<%= platform[0] %>-azure
     <% end %>
@@ -150,6 +149,8 @@ platforms:
     username: <%= vm_username %>
     password: <%= vm_password %>
     <% else %>
+    connection_retries: 30
+    connection_retry_sleep: 2
     ssh_key: <%= ENV['AZURE_SSH_KEY_PATH'] %>
     <% end %>
 
@@ -220,24 +221,13 @@ suites:
       # Get the latest release agents. The upgrade recipe will take care of
       # adding the staging repo and upgrading to the latest candidate
       agent6: true
-      aptrepo: http://apt.datadoghq.com/
-      aptrepo_dist: stable
-      yumrepo: http://yum.datadoghq.com/beta/x86_64/
-      agent6_yumrepo: http://yum.datadoghq.com/beta/x86_64/
-      agent6_yumrepo_suse: http://yum.datadoghq.com/suse/beta/x86_64/
+      agent6_aptrepo: http://apt.datadoghq.com/
+      agent6_aptrepo_dist: stable
+      agent6_yumrepo: http://yum.datadoghq.com/stable/6/x86_64/
+      agent6_yumrepo_suse: http://yum.datadoghq.com/suse/stable/6/x86_64/
       windows_agent_url: https://s3.amazonaws.com/ddagent-windows-stable/
     dd-agent-install:
-      <% dd_agent_config.each do |key, value| %>
-      <%= key %>: <%= value %>
-      <% end %>
-      # Get the latest release agents. The upgrade recipe will take care of
-      # adding the staging repo and upgrading to the latest candidate
       agent6: true
-      aptrepo: http://apt.datadoghq.com/
-      aptrepo_dist: stable
-      yumrepo: http://yum.datadoghq.com/beta/x86_64/
-      agent6_yumrepo: http://yum.datadoghq.com/beta/x86_64/
-      agent6_yumrepo_suse: http://yum.datadoghq.com/suse/beta/x86_64/
       windows_agent_url: https://s3.amazonaws.com/ddagent-windows-stable/
       windows_agent_filename: datadog-agent-6-latest.amd64
     dd-agent-upgrade:
@@ -263,6 +253,10 @@ suites:
 # Installs the latest release Agent 5, then updates it to the latest release
 # candidate
 - name: dd-agent-upgrade-agent5
+  excludes: <% if sles15_platforms.nil? || sles15_platforms.empty? %>[]<% end %> # Agent 5 package doesn't work on SLES 15
+    <% sles15_platforms.each do |p| %>
+    - <%= p %>
+    <% end %>
   run_list:
     #- "recipe[datadog::dd-agent]" # Setup Agent 5
     - "recipe[dd-agent-5]"  # Setup agent 5
@@ -278,12 +272,14 @@ suites:
       <% end %>
       # Get the latest release agents. The upgrade recipe will take care of
       # adding the staging repo and upgrading to the latest candidate
-      agent6: false
+      agent6: true
       aptrepo: http://apt.datadoghq.com/
       aptrepo_dist: stable
       yumrepo: http://yum.datadoghq.com/rpm/x86_64/
       yumrepo_suse: http://yum.datadoghq.com/suse/rpm/x86_64/
       windows_agent_url: https://s3.amazonaws.com/ddagent-windows-stable/
+    dd-agent-5:
+      api_key: <%= api_key %>
     dd-agent-upgrade:
       add_new_repo: true
       aptrepo: <%= aptrepo %>
@@ -335,6 +331,8 @@ suites:
     apt:
       unattended_upgrades:
         enable: false
+    datadog:
+      agent6: true
     dd-agent-step-by-step:
       <% dd_agent_config.each do |key, value| %>
       <%= key %>: <%= value %>

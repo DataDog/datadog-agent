@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -14,9 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
-const contentType = "application/json"
+// ContentType options,
+const (
+	TextContentType = "text/plain"
+	JSONContentType = "application/json"
+)
 
-// HTTP errors
+// HTTP errors.
 var (
 	errClient = errors.New("client error")
 	errServer = errors.New("server error")
@@ -25,15 +30,19 @@ var (
 // Destination sends a payload over HTTP.
 type Destination struct {
 	url                 string
+	contentType         string
 	client              *http.Client
 	destinationsContext *client.DestinationsContext
+	once                sync.Once
+	payloadChan         chan []byte
 }
 
 // NewDestination returns a new Destination.
 // TODO: add support for SOCKS5
-func NewDestination(endpoint config.Endpoint, destinationsContext *client.DestinationsContext) *Destination {
+func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext) *Destination {
 	return &Destination{
-		url: buildURL(endpoint),
+		url:         buildURL(endpoint),
+		contentType: contentType,
 		client: &http.Client{
 			Timeout: time.Second * 10,
 			// reusing core agent HTTP transport to benefit from proxy settings.
@@ -53,7 +62,7 @@ func (d *Destination) Send(payload []byte) error {
 		// this can happen when the method or the url are valid.
 		return err
 	}
-	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Content-Type", d.contentType)
 	req = req.WithContext(ctx)
 
 	resp, err := d.client.Do(req)
@@ -86,12 +95,32 @@ func (d *Destination) Send(payload []byte) error {
 	}
 }
 
-// SendAsync is not implemented for HTTP.
+// SendAsync sends a payload in background.
 func (d *Destination) SendAsync(payload []byte) {
-	return
+	d.once.Do(func() {
+		payloadChan := make(chan []byte, config.ChanSize)
+		d.sendInBackground(payloadChan)
+		d.payloadChan = payloadChan
+	})
+	d.payloadChan <- payload
 }
 
-// builURL buils a url from a config endpoint.
+// sendInBackground sends all payloads from payloadChan in background.
+func (d *Destination) sendInBackground(payloadChan chan []byte) {
+	ctx := d.destinationsContext.Context()
+	go func() {
+		for {
+			select {
+			case payload := <-payloadChan:
+				d.Send(payload)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+}
+
+// buildURL buils a url from a config endpoint.
 func buildURL(endpoint config.Endpoint) string {
 	var scheme string
 	if endpoint.UseSSL {

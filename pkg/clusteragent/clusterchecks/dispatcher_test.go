@@ -20,14 +20,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-	v1 "k8s.io/api/core/v1"
-	ktypes "k8s.io/apimachinery/pkg/types"
 )
 
 func generateIntegration(name string) integration.Config {
 	return integration.Config{
 		Name:         name,
 		ClusterCheck: true,
+	}
+}
+
+func generateEndpointsIntegration(name, nodename string) integration.Config {
+	return integration.Config{
+		Name:         name,
+		ClusterCheck: true,
+		NodeName:     nodename,
 	}
 }
 
@@ -71,6 +77,22 @@ func TestScheduleUnschedule(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
+func TestScheduleUnscheduleEndpoints(t *testing.T) {
+	dispatcher := newDispatcher()
+
+	config1 := generateIntegration("cluster-check")
+	config2 := generateEndpointsIntegration("endpoints-check1", "node1")
+
+	// Should schedule config2 only
+	dispatcher.Schedule([]integration.Config{config1, config2})
+	assert.Equal(t, 1, len(dispatcher.store.endpointsConfigs["node1"]))
+
+	dispatcher.Unschedule([]integration.Config{config1, config2})
+	assert.Equal(t, 0, len(dispatcher.store.endpointsConfigs["node1"]))
+
+	requireNotLocked(t, dispatcher.store)
+}
+
 func TestScheduleReschedule(t *testing.T) {
 	dispatcher := newDispatcher()
 	config := generateIntegration("cluster-check")
@@ -99,6 +121,37 @@ func TestScheduleReschedule(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, stored, 1)
 	assert.Contains(t, stored, config)
+
+	requireNotLocked(t, dispatcher.store)
+}
+
+func TestScheduleRescheduleEndpoints(t *testing.T) {
+	dispatcher := newDispatcher()
+	config := generateEndpointsIntegration("endpoints-check1", "node1")
+
+	// Register to node1
+	dispatcher.addEndpointConfig(config, "node1")
+	configs1, err := dispatcher.getEndpointsConfigs("node1")
+	assert.NoError(t, err)
+	assert.Len(t, configs1, 1)
+	assert.Contains(t, configs1, config)
+
+	// Register another config to node1
+	config = generateEndpointsIntegration("endpoints-check2", "node1")
+	dispatcher.addEndpointConfig(config, "node1")
+	configs2, err := dispatcher.getEndpointsConfigs("node1")
+	assert.NoError(t, err)
+	assert.Len(t, configs2, 2)
+	assert.Len(t, dispatcher.store.endpointsConfigs["node1"], 2)
+	assert.Contains(t, configs2, config)
+
+	// Register config to node2
+	config = generateEndpointsIntegration("endpoints-check3", "node3")
+	dispatcher.addEndpointConfig(config, "node3")
+	configs2, err = dispatcher.getEndpointsConfigs("node3")
+	assert.NoError(t, err)
+	assert.Len(t, configs2, 1)
+	assert.Contains(t, configs2, config)
 
 	requireNotLocked(t, dispatcher.store)
 }
@@ -401,6 +454,36 @@ func TestPatchConfiguration(t *testing.T) {
 	assert.Equal(t, true, rawConfig["empty_default_hostname"])
 }
 
+func TestPatchEndpointsConfiguration(t *testing.T) {
+	checkConfig := integration.Config{
+		Name:          "test",
+		ADIdentifiers: []string{"redis"},
+		ClusterCheck:  true,
+		InitConfig:    integration.Data("{foo}"),
+		Instances:     []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
+		LogsConfig:    integration.Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
+	}
+
+	mockConfig := config.Mock()
+	mockConfig.Set("cluster_name", "testing")
+	clustername.ResetClusterName()
+	dispatcher := newDispatcher()
+
+	out, err := dispatcher.patchEndpointsConfiguration(checkConfig)
+	assert.NoError(t, err)
+
+	assert.False(t, out.ClusterCheck)
+	assert.Len(t, out.ADIdentifiers, 1)
+	require.Len(t, out.Instances, 1)
+
+	rawConfig := integration.RawMap{}
+	err = yaml.Unmarshal(out.Instances[0], &rawConfig)
+	assert.NoError(t, err)
+	assert.Contains(t, rawConfig["tags"], "foo:bar")
+	assert.Contains(t, rawConfig["tags"], "cluster_name:testing")
+	assert.Equal(t, nil, rawConfig["empty_default_hostname"])
+}
+
 func TestExtraTags(t *testing.T) {
 	for _, tc := range []struct {
 		extraTagsConfig   []string
@@ -426,97 +509,4 @@ func TestExtraTags(t *testing.T) {
 			assert.EqualValues(t, tc.expected, dispatcher.extraTags)
 		})
 	}
-}
-
-func TestBuildEndpointsChecks(t *testing.T) {
-	nodename1 := "nodename1"
-	nodename2 := "nodename2"
-	nodename3 := "nodename3"
-	kendpoints1 := &v1.Endpoints{
-		Subsets: []v1.EndpointSubset{
-			{
-				Addresses: []v1.EndpointAddress{
-					{IP: "10.0.0.1", Hostname: "testhost1", NodeName: &nodename1, TargetRef: &v1.ObjectReference{
-						UID: ktypes.UID("pod-uid-1"),
-					}},
-					{IP: "10.0.0.2", Hostname: "testhost2", NodeName: &nodename2, TargetRef: &v1.ObjectReference{
-						UID: ktypes.UID("pod-uid-2"),
-					}},
-					{IP: "10.0.0.3", Hostname: "testhost3", NodeName: &nodename3, TargetRef: &v1.ObjectReference{
-						UID: ktypes.UID("pod-uid-3"),
-					}},
-				},
-			},
-		},
-	}
-	kendpoints2 := &v1.Endpoints{
-		Subsets: []v1.EndpointSubset{
-			{
-				Addresses: []v1.EndpointAddress{
-					{IP: "10.0.0.1", Hostname: "testhost1", NodeName: &nodename1, TargetRef: &v1.ObjectReference{
-						UID: ktypes.UID("pod-uid-1"),
-					}},
-					{IP: "10.0.0.2", Hostname: "testhost2", NodeName: &nodename2, TargetRef: &v1.ObjectReference{
-						UID: ktypes.UID("pod-uid-2"),
-					}},
-					{IP: "10.0.0.3", Hostname: "testhost3", NodeName: &nodename2, TargetRef: &v1.ObjectReference{
-						UID: ktypes.UID("pod-uid-3"),
-					}},
-				},
-			},
-		},
-	}
-	endpointsInfo := &types.EndpointsInfo{
-		Namespace:     "default",
-		Name:          "myservice",
-		ServiceEntity: "kube_service://myservice-uid",
-		Configs: []integration.Config{
-			{
-				ADIdentifiers: []string{"kube_endpoint://default/myservice"},
-			},
-		},
-	}
-	expectedResult1 := map[string][]integration.Config{
-		"nodename1": {
-			{
-				ADIdentifiers: []string{"kube_endpoint://default/myservice", "kubernetes_pod://pod-uid-1", "kube_service://myservice-uid"},
-			},
-		},
-		"nodename2": {
-			{
-				ADIdentifiers: []string{"kube_endpoint://default/myservice", "kubernetes_pod://pod-uid-2", "kube_service://myservice-uid"},
-			},
-		},
-		"nodename3": {
-			{
-				ADIdentifiers: []string{"kube_endpoint://default/myservice", "kubernetes_pod://pod-uid-3", "kube_service://myservice-uid"},
-			},
-		},
-	}
-	expectedResult2 := map[string][]integration.Config{
-		"nodename1": {
-			{
-				ADIdentifiers: []string{"kube_endpoint://default/myservice", "kubernetes_pod://pod-uid-1", "kube_service://myservice-uid"},
-			},
-		},
-		"nodename2": {
-			{
-				ADIdentifiers: []string{"kube_endpoint://default/myservice", "kubernetes_pod://pod-uid-2", "kube_service://myservice-uid"},
-			},
-			{
-				ADIdentifiers: []string{"kube_endpoint://default/myservice", "kubernetes_pod://pod-uid-3", "kube_service://myservice-uid"},
-			},
-		},
-	}
-
-	result := buildEndpointsChecks(kendpoints1, endpointsInfo)
-	assert.Len(t, result, len(expectedResult1))
-	assert.Equal(t, expectedResult1["nodename1"], result["nodename1"])
-	assert.Equal(t, expectedResult1["nodename2"], result["nodename2"])
-	assert.Equal(t, expectedResult1["nodename3"], result["nodename3"])
-
-	result = buildEndpointsChecks(kendpoints2, endpointsInfo)
-	assert.Len(t, result, len(expectedResult2))
-	assert.Equal(t, expectedResult2["nodename1"], result["nodename1"])
-	assert.Equal(t, expectedResult2["nodename2"], result["nodename2"])
 }

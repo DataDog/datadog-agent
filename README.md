@@ -46,7 +46,7 @@ To start working on the Agent, you can build the `master` branch:
 2. cd into the project folder: `cd $GOPATH/src/github.com/DataDog/datadog-agent`.
 3. Install project's dependencies: `invoke deps`.
    Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
-4. Build the `six` dependency with `invoke six.build && invoke six.install`. You will need CMake installed and a C++ compiler for this to work.
+4. Build the `rtloader` dependency with `invoke rtloader.build && invoke rtloader.install`. You will need CMake installed and a C++ compiler for this to work.
 5. Build the agent with `invoke agent.build --build-exclude=systemd`
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.

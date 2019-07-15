@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package info
 
 // TraceWriterInfo represents statistics from the trace writer.
@@ -12,15 +17,6 @@ type TraceWriterInfo struct {
 	BytesUncompressed int64
 	BytesEstimated    int64
 	SingleMaxSize     int64
-}
-
-// ServiceWriterInfo represents statistics from the service writer.
-type ServiceWriterInfo struct {
-	Payloads int64
-	Services int64
-	Errors   int64
-	Retries  int64
-	Bytes    int64
 }
 
 // StatsWriterInfo represents statistics from the stats writer.
@@ -57,17 +53,4 @@ func publishStatsWriterInfo() interface{} {
 	infoMu.RLock()
 	defer infoMu.RUnlock()
 	return statsWriterInfo
-}
-
-// UpdateServiceWriterInfo updates internal service writer stats
-func UpdateServiceWriterInfo(sws ServiceWriterInfo) {
-	infoMu.Lock()
-	defer infoMu.Unlock()
-	serviceWriterInfo = sws
-}
-
-func publishServiceWriterInfo() interface{} {
-	infoMu.RLock()
-	defer infoMu.RUnlock()
-	return serviceWriterInfo
 }

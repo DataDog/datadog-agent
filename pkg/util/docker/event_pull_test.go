@@ -190,6 +190,6 @@ func TestContainerEntityName(t *testing.T) {
 	ev = &ContainerEvent{
 		ContainerID: "ada5d83e6c2d3dfaaf7dd9ff83e735915da1174dc56880c06a6c99a9a58d5c73",
 	}
-	assert.Equal(t, "docker://ada5d83e6c2d3dfaaf7dd9ff83e735915da1174dc56880c06a6c99a9a58d5c73", ev.ContainerEntityName())
+	assert.Equal(t, "container_id://ada5d83e6c2d3dfaaf7dd9ff83e735915da1174dc56880c06a6c99a9a58d5c73", ev.ContainerEntityName())
 
 }
