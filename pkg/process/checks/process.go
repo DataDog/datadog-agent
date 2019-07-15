@@ -199,6 +199,8 @@ func fmtProcesses(
 			continue
 		}
 
+		connsCounts := Connections.connectionsCountsForPids(fp.Pid)
+
 		// Hide blacklisted args if the Scrubber is enabled
 		fp.Cmdline = cfg.Scrubber.ScrubProcessCommand(fp)
 
@@ -215,6 +217,10 @@ func fmtProcesses(
 			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
 			ContainerId:            ctrIDForPID[fp.Pid],
+			Conns: &model.ConnsStat{
+				OpenedTcp: connsCounts.TCP,
+				OpenedUdp: connsCounts.UDP,
+			},
 		}
 		_, ok := procsByCtr[proc.ContainerId]
 		if !ok {

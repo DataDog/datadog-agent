@@ -93,6 +93,8 @@ func fmtContainerStats(
 			lastCtr = util.NullContainerRates
 		}
 
+		connsCounts := countConnectionsForCtr(ctr)
+
 		// Just in case the container is found, but refs are nil
 		ctr = fillNilContainer(ctr)
 		lastCtr = fillNilRates(lastCtr)
@@ -120,6 +122,10 @@ func fmtContainerStats(
 			State:       model.ContainerState(model.ContainerState_value[ctr.State]),
 			Health:      model.ContainerHealth(model.ContainerHealth_value[ctr.Health]),
 			Started:     ctr.StartedAt,
+			Conns: &model.ConnsStat{
+				OpenedTcp: connsCounts.TCP,
+				OpenedUdp: connsCounts.UDP,
+			},
 		})
 		if len(chunk) == perChunk {
 			chunked[i] = chunk

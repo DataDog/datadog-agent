@@ -88,3 +88,41 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		assert.Equal(t, tc.expectedTotal, total, "total test %d", i)
 	}
 }
+
+func TestCountConnectionsPerPID(t *testing.T) {
+	cp1tcp := &model.Connection{Pid: 1, Type: model.ConnectionType_tcp}
+	cp2tcp := &model.Connection{Pid: 2, Type: model.ConnectionType_tcp}
+	cp2udp := &model.Connection{Pid: 2, Type: model.ConnectionType_udp}
+	cp3udp := &model.Connection{Pid: 3, Type: model.ConnectionType_udp}
+
+	for _, tc := range []struct {
+		in       []*model.Connection
+		expected map[int32]ConnectionsCounts
+		desc     string
+	}{
+		{in: []*model.Connection{}, desc: "empty list"},
+		{
+			in:       []*model.Connection{cp1tcp, cp1tcp, cp1tcp},
+			expected: map[int32]ConnectionsCounts{1: ConnectionsCounts{TCP: 3}},
+			desc:     "only one PID, tcp",
+		},
+
+		{
+			in:       []*model.Connection{cp3udp, cp3udp},
+			expected: map[int32]ConnectionsCounts{3: ConnectionsCounts{UDP: 2}},
+			desc:     "only one PID, udp",
+		},
+		{
+			in: []*model.Connection{cp1tcp, cp2tcp, cp2udp, cp3udp},
+			expected: map[int32]ConnectionsCounts{
+				1: ConnectionsCounts{TCP: 1},
+				2: ConnectionsCounts{TCP: 1, UDP: 1},
+				3: ConnectionsCounts{UDP: 1},
+			},
+			desc: "multiple PIDs",
+		},
+	} {
+		out := countConnectionsPerPID(tc.in)
+		assert.Equal(t, tc.expected, out, tc.desc)
+	}
+}

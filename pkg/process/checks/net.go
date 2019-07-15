@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -22,12 +23,22 @@ var (
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
 )
 
+// ConnectionsCounts counts the number of opened connections
+type ConnectionsCounts struct {
+	UDP uint32
+	TCP uint32
+}
+
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
+	sync.Mutex
+
 	// Local system probe
 	useLocalTracer bool
 	localTracer    *ebpf.Tracer
 	tracerClientID string
+
+	lastConnsForPID map[int32]ConnectionsCounts
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -79,6 +90,8 @@ func (c *ConnectionsCheck) RealTime() bool { return false }
 // that will be bundled up into a `CollectorConnections`.
 // See agent.proto for the schema of the message and models.
 func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+	c.Lock()
+	defer c.Unlock()
 	// If local tracer failed to initialize, so we shouldn't be doing any checks
 	if c.useLocalTracer && c.localTracer == nil {
 		return nil, nil
@@ -94,6 +107,8 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 		}
 		return nil, err
 	}
+
+	c.lastConnsForPID = countConnectionsPerPID(conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
 	return batchConnections(cfg, groupID, c.enrichConnections(conns)), nil
@@ -134,6 +149,17 @@ func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model
 		conn.PidCreateTime = createTimeForPID[conn.Pid]
 	}
 	return conns
+}
+
+func (c *ConnectionsCheck) connectionsCountsForPids(pids ...int32) ConnectionsCounts {
+	c.Lock()
+	defer c.Unlock()
+	res := ConnectionsCounts{}
+	for _, p := range pids {
+		res.TCP += c.lastConnsForPID[p].TCP
+		res.UDP += c.lastConnsForPID[p].UDP
+	}
+	return res
 }
 
 // Connections are split up into a chunks of at most 100 connections per message to
@@ -193,4 +219,26 @@ func getCtrIDsByPIDs(pids []int32) map[int32]string {
 		return Container.filterCtrIDsByPIDs(pids)
 	}
 	return Process.filterCtrIDsByPIDs(pids)
+}
+
+// countConnectionsPerPID counts the number of connections by type by PID
+func countConnectionsPerPID(conns []*model.Connection) map[int32]ConnectionsCounts {
+	res := map[int32]ConnectionsCounts{}
+
+	for _, conn := range conns {
+		if _, ok := res[conn.Pid]; !ok {
+			res[conn.Pid] = ConnectionsCounts{}
+		}
+
+		counts := res[conn.Pid]
+		if conn.Type == model.ConnectionType_tcp {
+			counts.TCP++
+		} else if conn.Type == model.ConnectionType_udp {
+			counts.UDP++
+		}
+
+		res[conn.Pid] = counts
+	}
+
+	return res
 }

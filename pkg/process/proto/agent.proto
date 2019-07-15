@@ -139,6 +139,7 @@ message Process {
 	uint64 involuntaryCtxSwitches = 17;
 	bytes byteKey = 18;
 	bytes containerByteKey = 19;
+	ConnsStat conns = 20;
 }
 
 message Command {
@@ -219,6 +220,7 @@ message Container {
 	repeated ContainerAddr addresses = 27;
 	uint64 threadCount = 28;
 	uint64 threadLimit = 29;
+	ConnsStat conns = 30;
 }
 
 // Process state codes in http://wiki.preshweb.co.uk/doku.php?id=linux:psflags
@@ -270,6 +272,7 @@ message ProcessStat {
 	uint64 involuntaryCtxSwitches = 25;
 	bytes byteKey = 26;
 	bytes containerByteKey = 27;
+	ConnsStat conns = 28;
 }
 
 // ContainerStat is used for real-time container messages. It should only contain
@@ -299,6 +302,7 @@ message ContainerStat {
 	bytes byteKey = 19;
 	uint64 threadCount = 20;
 	uint64 threadLimit = 21;
+	ConnsStat conns = 22;
 }
 
 // ContainerMetadata only holds enough information to identify a container in connection data
@@ -436,6 +440,11 @@ message CPUInfo {
 	int32 cores = 7;
 	int64 mhz = 8;
 	int32 cacheSize = 9;
+}
+
+message ConnsStat {
+	uint32 openedTcp = 1;
+	uint32 openedUdp = 2;
 }
 
 // Host and HostTags are used in backend post-resolution

@@ -114,6 +114,8 @@ func fmtProcessStats(
 			continue
 		}
 
+		connsCounts := Connections.connectionsCountsForPids(fp.Pid)
+
 		chunk = append(chunk, &model.ProcessStat{
 			Pid:                    fp.Pid,
 			CreateTime:             fp.CreateTime,
@@ -127,6 +129,10 @@ func fmtProcessStats(
 			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
 			ContainerId:            cidByPid[fp.Pid],
+			Conns: &model.ConnsStat{
+				OpenedTcp: connsCounts.TCP,
+				OpenedUdp: connsCounts.UDP,
+			},
 		})
 		if len(chunk) == cfg.MaxPerMessage {
 			chunked = append(chunked, chunk)

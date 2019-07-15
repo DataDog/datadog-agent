@@ -117,6 +117,8 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			lastCtr = util.NullContainerRates
 		}
 
+		connsCounts := countConnectionsForCtr(ctr)
+
 		// Just in case the container is found, but refs are nil
 		ctr = fillNilContainer(ctr)
 		lastCtr = fillNilRates(lastCtr)
@@ -156,6 +158,10 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			Addresses:   convertAddressList(ctr),
 			Started:     ctr.StartedAt,
 			Tags:        tags,
+			Conns: &model.ConnsStat{
+				OpenedTcp: connsCounts.TCP,
+				OpenedUdp: connsCounts.UDP,
+			},
 		})
 	}
 	return containers
@@ -226,4 +232,8 @@ func fillNilRates(rates util.ContainerRateMetrics) util.ContainerRateMetrics {
 		r.NetworkSum = util.NullContainerRates.NetworkSum
 	}
 	return *r
+}
+
+func countConnectionsForCtr(ctr *containers.Container) ConnectionsCounts {
+	return Connections.connectionsCountsForPids(ctr.Pids...)
 }
