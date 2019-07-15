@@ -180,7 +180,7 @@ func NewDefaultAgentConfig() *AgentConfig {
 		SystemProbeLogFile:           defaultSystemProbeFilePath,
 		MaxTrackedConnections:        maxMaxTrackedConnections,
 		EnableConntrack:              true,
-		ClosedChannelSize:            100,
+		ClosedChannelSize:            500,
 		ConntrackShortTermBufferSize: defaultConntrackShortTermBufferSize,
 
 		// Check config

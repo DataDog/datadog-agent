@@ -80,7 +80,7 @@ func NewDefaultConfig() *Config {
 		MaxClosedConnectionsBuffered: 50000,
 		MaxConnectionsStateBuffered:  75000,
 		ClientStateExpiry:            2 * time.Minute,
-		ClosedChannelSize:            100,
+		ClosedChannelSize:            500,
 	}
 }
 

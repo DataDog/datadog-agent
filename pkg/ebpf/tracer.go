@@ -73,7 +73,7 @@ const (
 	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
 	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
 	maxActive                = 128
-	defaultClosedChannelSize = 100
+	defaultClosedChannelSize = 500
 )
 
 // CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
