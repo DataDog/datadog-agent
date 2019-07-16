@@ -29,7 +29,7 @@ at each Omnibus run:
  * `/tmp/opt/datadog-agent`, containing the Omnibus installation dir
  * `/tmp/gems`, containing all the ruby gems installed with Bundler
 
-Note that youu can change `deb_x64` for `rpm_x64` to get an RPM package instead.
+Note that you can change `deb_x64` for `rpm_x64` to get an RPM package instead.
 
 If you want to find the Dockerfiles for these images, they are available in the
 [datadog-agent-buildimages](https://github.com/DataDog/datadog-agent-buildimages) git repo.
