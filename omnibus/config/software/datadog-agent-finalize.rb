@@ -104,6 +104,11 @@ build do
                 link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
             end
 
+
+        # removing the man pages from the embedded folder to reduce package size by ~4MB
+        delete "#{install_dir}/embedded/man"
+        delete "#{install_dir}/embedded/share/man"
+
         elsif osx?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
