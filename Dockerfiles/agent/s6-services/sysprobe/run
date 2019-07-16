@@ -2,11 +2,12 @@
 
 # Check if the system-probe exists before running it
 ifthenelse
-    { s6-test -x "$(command -v system-probe)" }
+    { s6-test -x "/opt/datadog-agent/embedded/bin/system-probe" }
     {
         foreground { /initlog.sh "starting system-probe" }
         system-probe --config=/etc/datadog-agent/system-probe.yaml
     }
     {
-        foreground { /initlog.sh "system-probe not bundled, it will not start" }
+        foreground { /initlog.sh "system-probe not bundled, disabling" }
+        foreground { /bin/s6-svc -d /var/run/s6/services/sysprobe/ }
     }
