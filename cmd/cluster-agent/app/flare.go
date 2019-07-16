@@ -39,6 +39,11 @@ var flareCmd = &cobra.Command{
 	Short: "Collect a flare and send it to Datadog",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if flagNoColor {
+			color.NoColor = true
+		}
+
 		// we'll search for a config file named `datadog-cluster.yaml`
 		config.Datadog.SetConfigName("datadog-cluster")
 		err := common.SetupConfig(confPath)
@@ -46,13 +51,18 @@ var flareCmd = &cobra.Command{
 			return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)
 		}
 
+		// The flare command should not log anything, all errors should be reported directly to the console without the log format
+		err = config.SetupLogger(loggerName, "off", "", "", false, true, false)
+		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
+		}
+
 		caseID := ""
 		if len(args) > 0 {
 			caseID = args[0]
 		}
 
-		// The flare command should not log anything, all errors should be reported directly to the console without the log format
-		config.SetupLogger(loggerName, "off", "", "", false, true, false)
 		if customerEmail == "" {
 			var err error
 			customerEmail, err = input.AskForEmail()
@@ -62,16 +72,12 @@ var flareCmd = &cobra.Command{
 			}
 		}
 
-		if flagNoColor {
-			color.NoColor = true
-		}
-
 		return requestFlare(caseID)
 	},
 }
 
 func requestFlare(caseID string) error {
-	fmt.Println("Asking the Cluster Agent to build the flare archive.")
+	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("https://localhost:%v/flare", config.Datadog.GetInt("cluster_agent.cmd_port"))
@@ -96,8 +102,11 @@ func requestFlare(caseID string) error {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be mising."))
-
 		filePath, e = flare.CreateDCAArchive(true, common.GetDistPath(), logFile)
+		// enable back color output
+		if flagNoColor {
+			color.NoColor = true
+		}
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e
@@ -106,11 +115,11 @@ func requestFlare(caseID string) error {
 		filePath = string(r)
 	}
 
-	fmt.Printf("%s is going to be uploaded to Datadog\n", filePath)
+	fmt.Fprintln(color.Output, fmt.Sprintf("%s is going to be uploaded to Datadog", color.YellowString(filePath)))
 	if !autoconfirm {
 		confirmation := input.AskForConfirmation("Are you sure you want to upload a flare? [Y/N]")
 		if !confirmation {
-			fmt.Printf("Aborting. (You can still use %s) \n", filePath)
+			fmt.Fprintln(color.Output, fmt.Sprintf("Aborting. (You can still use %s)", color.YellowString(filePath)))
 			return nil
 		}
 	}
