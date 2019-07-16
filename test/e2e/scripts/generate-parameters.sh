@@ -14,8 +14,8 @@ source utils.sh
 
 usage()
 {
-    echo 'Usage: ./generate_parameters.sh [[-w workflow -g workflow_group] | [-h]]
-Example: ./generate_parameters.sh -g workflow_group -w workflow
+    echo 'Usage: ./generate-parameters.sh [[-w workflow -g workflow_group] | [-h]]
+Example: ./generate-parameters.sh -g workflow_group -w workflow
 Flags:
 -w, --workflow         workflow name
 -g, --workflow-group   workflow group name
@@ -40,7 +40,7 @@ validate_input()
 
 # Usage: generate_parameters <namespace>
 generate_parameters()
-{   
+{
     # Merging parameters
     echo 'Info: Merging parameters...'
     YK_MERGE_COMMAND='yq merge --overwrite --allow-empty'
@@ -49,13 +49,13 @@ generate_parameters()
     WORKFLOW_PARAM="$WORKFLOWS_DIR/$WORKFLOW_GROUP/$WORKFLOW/parameters.yaml"
     TMP_YAML_PATH="$1.tmp.yaml"
     $YK_MERGE_COMMAND $DEFAULT_GLOBAL_PARAM $DEFAULT_GROUP_PARAM $WORKFLOW_PARAM > $TMP_YAML_PATH
-    
+
     # Rendering namespace
     echo 'Info: Parameters merged, rendering namespace and saving file...'
     NAMESPACE_TEMPLATE_VAR="{{ namespace }}"
     sed -e "s/$NAMESPACE_TEMPLATE_VAR/$1/g" $TMP_YAML_PATH > $OUTPUT_YAML_FILE
     echo "Info: Generated parameters, yaml file saved: $OUTPUT_YAML_FILE"
-    
+
     # Cleanup temp file
     rm $TMP_YAML_PATH
 }
