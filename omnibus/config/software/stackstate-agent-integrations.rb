@@ -149,10 +149,8 @@ build do
     # Install the static environment requirements that the Agent and all checks will use
     if windows?
       command("#{python_bin} -m #{python_pip_no_deps}\\stackstate_checks_base")
-      #[VS] command("#{python_bin} -m #{python_pip_no_deps}\\stackstate_checks_downloader --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\"")
       command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_filtered_file}")
     else
-      #[VS] pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :cwd => "#{project_dir}/stackstate_checks_downloader"
       pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/stackstate_checks_base"
       command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_filtered_file}")
     end
