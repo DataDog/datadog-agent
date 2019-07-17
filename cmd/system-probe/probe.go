@@ -28,9 +28,8 @@ var ErrTracerUnsupported = errors.New("tracer unsupported")
 type SystemProbe struct {
 	cfg *config.AgentConfig
 
-	supported bool
-	tracer    *ebpf.Tracer
-	conn      net.Conn
+	tracer *ebpf.Tracer
+	conn   net.Conn
 }
 
 // CreateSystemProbe creates a SystemProbe as well as it's UDS socket after confirming that the OS supports BPF-based
@@ -40,8 +39,11 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 	nt := &SystemProbe{}
 
 	// Checking whether the current OS + kernel version is supported by the tracer
-	if nt.supported, err = ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); err != nil {
+	if supported, err := ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); err != nil {
 		return nil, fmt.Errorf("%s: %s", ErrTracerUnsupported, err)
+	} else if !supported {
+		platform, _ := util.GetPlatform()
+		return nil, fmt.Errorf("%s: please check your current kernel version: %s", ErrTracerUnsupported, platform)
 	}
 
 	// make sure debugfs is mounted
