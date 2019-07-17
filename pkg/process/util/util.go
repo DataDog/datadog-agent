@@ -120,9 +120,23 @@ func GetPlatform() (string, error) {
 }
 
 // IsDebugfsMounted would test the existence of file /sys/kernel/debug/tracing/kprobe_events to determine if debugfs is mounted or not
-func IsDebugfsMounted() error {
+// returns a boolean and a possible error message
+func IsDebugfsMounted() (mounted bool, msg string) {
 	_, err := os.Stat("/sys/kernel/debug/tracing/kprobe_events")
-	return err
+
+	if err != nil {
+		if os.IsPermission(err) {
+			msg = "system-probe does not have permission to access debugfs"
+		} else if os.IsNotExist(err) {
+			msg = "debugfs is not mounted and is needed for eBPF-based checks, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs"
+		} else {
+			msg = fmt.Sprintf("an error occurred while accessing debugfs: %s", err)
+		}
+	} else {
+		mounted = true
+	}
+
+	return
 }
 
 func execCmd(head string, args ...string) (string, error) {
