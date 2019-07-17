@@ -186,18 +186,24 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 	}
 	cfg.Type = config.FileType
 	cfg.Path = l.getPath(basePath, pod, container)
-	taggerEntityID, err := kubelet.KubeContainerIDToTaggerEntityID(container.ID)
-	if err != nil {
-		log.Warnf("Could not get tagger entity ID: %v", err)
-		cfg.Identifier = container.ID
-	} else {
-		cfg.Identifier = taggerEntityID
-	}
+	cfg.Identifier = getTaggerEntityID(container.ID)
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid kubernetes annotation: %v", err)
 	}
 
 	return config.NewLogSource(l.getSourceName(pod, container), cfg), nil
+}
+
+// getTaggerEntityID builds an entity ID from a kubernetes container ID
+// Transforms the <runtime>:// prefix into container_id://
+// Returns the original container ID if an error occurred
+func getTaggerEntityID(ctrID string) string {
+	taggerEntityID, err := kubelet.KubeContainerIDToTaggerEntityID(ctrID)
+	if err != nil {
+		log.Warnf("Could not get tagger entity ID: %v", err)
+		return ctrID
+	}
+	return taggerEntityID
 }
 
 // configPath refers to the configuration that can be passed over a pod annotation,
