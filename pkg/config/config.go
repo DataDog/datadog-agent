@@ -334,12 +334,6 @@ func initConfig(config Config) {
 	// Process agent
 	config.BindEnv("process_config.process_dd_url", "")
 
-	// system-probe agent
-	config.BindEnvAndSetDefault("system_probe_config.enabled", false)
-	config.BindEnvAndSetDefault("system_probe_config.debug_port", 0)
-	config.BindEnvAndSetDefault("system_probe_config.enable_conntrack", false)
-	config.BindEnvAndSetDefault("system_probe_config.max_tracked_connections", 0)
-
 	// Logs Agent
 
 	// External Use: modify those parameters to configure the logs-agent.
@@ -443,16 +437,20 @@ func initConfig(config Config) {
 	config.SetKnown("process_config.expvar_port")
 
 	// System probe
+	config.SetKnown("system_probe_config.enabled")
 	config.SetKnown("system_probe_config.log_file")
+	config.SetKnown("system_probe_config.debug_port")
 	config.SetKnown("system_probe_config.bpf_debug")
 	config.SetKnown("system_probe_config.disable_tcp")
 	config.SetKnown("system_probe_config.disable_udp")
 	config.SetKnown("system_probe_config.disable_ipv6")
 	config.SetKnown("system_probe_config.collect_local_dns")
 	config.SetKnown("system_probe_config.use_local_system_probe")
+	config.SetKnown("system_probe_config.enable_conntrack")
 	config.SetKnown("system_probe_config.sysprobe_socket")
 	config.SetKnown("system_probe_config.conntrack_short_term_buffer_size")
 	config.SetKnown("system_probe_config.max_conns_per_message")
+	config.SetKnown("system_probe_config.max_tracked_connections")
 	config.SetKnown("system_probe_config.max_closed_connections_buffered")
 	config.SetKnown("system_probe_config.max_connection_state_buffered")
 	config.SetKnown("system_probe_config.excluded_linux_versions")
