@@ -395,18 +395,9 @@ func (t *Tracer) getTCPStats(mp *bpflib.Map, tuple *ConnTuple, seen map[ConnTupl
 
 	stats := &TCPStats{retransmits: 0}
 
-	// Since we can't reliably use the PID for tracking TCPStats, we only report retransmits for
-	// for the first connection to call `getTCPStats`. This only affects multiple connections sharing
-	// the same socket.
-	if _, ok := seen[*tuple]; ok {
-		tuple.pid = pid
-		return stats
-	}
-
-	// Don't bother looking in the map if the connection is UDP, there will never be data for that and we will avoid
-	// the overhead of the syscall and creating the resultant error
-	if tuple.isTCP() {
+	if _, reported := seen[*tuple]; !reported && tuple.isTCP() {
 		_ = t.m.LookupElement(mp, unsafe.Pointer(tuple), unsafe.Pointer(stats))
+		// This is required to avoid (over)reporting stats for connections sharing the same socket.
 		seen[*tuple] = struct{}{}
 	}
 
