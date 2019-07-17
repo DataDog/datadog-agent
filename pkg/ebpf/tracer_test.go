@@ -8,6 +8,7 @@ import (
 	json "encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/url"
@@ -352,6 +353,66 @@ func TestTCPRetransmit(t *testing.T) {
 	assert.True(t, int(conn.MonotonicRetransmits) > 0)
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
+
+	doneChan <- struct{}{}
+}
+
+func TestTCPRetransmitSharedSocket(t *testing.T) {
+	// Enable BPF-based system probe
+	tr, err := NewTracer(NewDefaultConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Create TCP Server that simply "drains" connection until receiving an EOF
+	server := NewTCPServer(func(c net.Conn) {
+		io.Copy(ioutil.Discard, c)
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	// Connect to server
+	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	require.NoError(t, err)
+	socketFile, err := c.(*net.TCPConn).File()
+	require.NoError(t, err)
+	const numProcesses = 10
+	iptablesWrapper(t, func() {
+		for i := 0; i < numProcesses; i++ {
+			// Establish one connection per process, all sharing the same socket represented by fd=3
+			// https://github.com/golang/go/blob/release-branch.go1.10/src/os/exec/exec.go#L111-L114
+			msg := genPayload(clientMessageSize)
+			cmd := exec.Command("bash", "-c", fmt.Sprintf("echo -ne %q >&3", msg))
+			cmd.ExtraFiles = []*os.File{socketFile}
+			err := cmd.Run()
+			require.NoError(t, err)
+		}
+		time.Sleep(time.Second)
+	})
+	socketFile.Close()
+	c.Close()
+
+	// Fetch all connections matching source and target address
+	allConnections := getConnections(t, tr)
+	conns := searchConnections(allConnections, byAddress(c.LocalAddr(), c.RemoteAddr()))
+	require.Len(t, conns, numProcesses)
+
+	totalSent := 0
+	for _, c := range conns {
+		totalSent += int(c.MonotonicSentBytes)
+	}
+	assert.Equal(t, numProcesses*clientMessageSize, totalSent)
+
+	// Since we can't reliably identify the PID associated to a retransmit, we have opted
+	// to report the total number of retransmits for *one* of the conneections sharing the
+	// same socket
+	connsWithRetransmits := 0
+	for _, c := range conns {
+		if c.MonotonicRetransmits > 0 {
+			connsWithRetransmits++
+		}
+	}
+	assert.Equal(t, 1, connsWithRetransmits)
 
 	doneChan <- struct{}{}
 }
@@ -793,13 +854,28 @@ func TestTCPMiscount(t *testing.T) {
 	assert.NotZero(t, tel["tcp_sent_miscounts"])
 }
 
+func byAddress(l, r net.Addr) func(c ConnectionStats) bool {
+	return func(c ConnectionStats) bool {
+		return addrMatches(l, c.Source.String(), c.SPort) && addrMatches(r, c.Dest.String(), c.DPort)
+	}
+}
+
 func findConnection(l, r net.Addr, c *Connections) (*ConnectionStats, bool) {
+	if result := searchConnections(c, byAddress(l, r)); len(result) > 0 {
+		return &result[0], true
+	}
+
+	return nil, false
+}
+
+func searchConnections(c *Connections, predicate func(ConnectionStats) bool) []ConnectionStats {
+	var results []ConnectionStats
 	for _, conn := range c.Conns {
-		if addrMatches(l, conn.Source.String(), conn.SPort) && addrMatches(r, conn.Dest.String(), conn.DPort) {
-			return &conn, true
+		if predicate(conn) {
+			results = append(results, conn)
 		}
 	}
-	return nil, false
+	return results
 }
 
 func addrMatches(addr net.Addr, host string, port uint16) bool {
@@ -1078,14 +1154,16 @@ func iptablesWrapper(t *testing.T, f func()) {
 	err = createCmd.Wait()
 	assert.Nil(t, err)
 
-	f()
+	defer func() {
+		// Remove the iptable rule
+		removeCmd := exec.Command(iptables, remove...)
+		err = removeCmd.Start()
+		assert.Nil(t, err)
+		err = removeCmd.Wait()
+		assert.Nil(t, err)
+	}()
 
-	// Remove the iptable rule
-	removeCmd := exec.Command(iptables, remove...)
-	err = removeCmd.Start()
-	assert.Nil(t, err)
-	err = removeCmd.Wait()
-	assert.Nil(t, err)
+	f()
 }
 
 func addrPort(addr string) int {

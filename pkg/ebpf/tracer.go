@@ -305,6 +305,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 	// Iterate through all key-value pairs in map
 	key, nextKey, stats := &ConnTuple{}, &ConnTuple{}, &ConnStatsWithTimestamp{}
+	seen := make(map[ConnTuple]struct{})
 	var expired []*ConnTuple
 	for {
 		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
@@ -316,7 +317,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 				atomic.AddInt64(&t.expiredTCPConns, 1)
 			}
 		} else {
-			conn := connStats(nextKey, stats, t.getTCPStats(tcpMp, nextKey))
+			conn := connStats(nextKey, stats, t.getTCPStats(tcpMp, nextKey, seen))
 			conn.Direction = t.determineConnectionDirection(&conn)
 
 			if t.shouldSkipConnection(&conn) {
@@ -387,17 +388,26 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 }
 
 // getTCPStats reads tcp related stats for the given ConnTuple
-func (t *Tracer) getTCPStats(mp *bpflib.Map, tuple *ConnTuple) *TCPStats {
+func (t *Tracer) getTCPStats(mp *bpflib.Map, tuple *ConnTuple, seen map[ConnTuple]struct{}) *TCPStats {
 	// The PID isn't used as a key in the stats map, we will temporarily set it to 0 here and reset it when we're done
 	pid := tuple.pid
 	tuple.pid = 0
 
 	stats := &TCPStats{retransmits: 0}
 
+	// Since we can't reliably use the PID for tracking TCPStats, we only report retransmits for
+	// for the first connection to call `getTCPStats`. This only affects multiple connections sharing
+	// the same socket.
+	if _, ok := seen[*tuple]; ok {
+		tuple.pid = pid
+		return stats
+	}
+
 	// Don't bother looking in the map if the connection is UDP, there will never be data for that and we will avoid
 	// the overhead of the syscall and creating the resultant error
 	if tuple.isTCP() {
 		_ = t.m.LookupElement(mp, unsafe.Pointer(tuple), unsafe.Pointer(stats))
+		seen[*tuple] = struct{}{}
 	}
 
 	tuple.pid = pid
