@@ -65,6 +65,6 @@ func TestVerifyKernelFuncs(t *testing.T) {
 	assert.NotEmpty(t, missing)
 	assert.Empty(t, err)
 
-	missing, err = verifyKernelFuncs("./testdata/kallsyms.d_o_n_o_t_e_x_i_s_t")
+	_, err = verifyKernelFuncs("./testdata/kallsyms.d_o_n_o_t_e_x_i_s_t")
 	assert.NotEmpty(t, err)
 }
