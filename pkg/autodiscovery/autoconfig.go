@@ -610,9 +610,9 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 
 // processDelService takes a service, stops its associated checks, and updates the cache
 func (ac *AutoConfig) processDelService(svc listeners.Service) {
-	ac.store.removeServiceForEntity(svc.GetTaggerEntity())
-	configs := ac.store.getConfigsForService(svc.GetTaggerEntity())
-	ac.store.removeConfigsForService(svc.GetTaggerEntity())
+	ac.store.removeServiceForEntity(svc.GetEntity())
+	configs := ac.store.getConfigsForService(svc.GetEntity())
+	ac.store.removeConfigsForService(svc.GetEntity())
 	ac.processRemovedConfigs(configs)
 	ac.store.removeTagsHashForService(svc.GetTaggerEntity())
 	// FIXME: unschedule remove services as well
