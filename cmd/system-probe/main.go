@@ -116,7 +116,7 @@ func main() {
 	}
 
 	sysprobe, err := CreateSystemProbe(cfg)
-	if err != nil && strings.HasPrefix(err.Error(), ErrTracerUnsupported.Error()) {
+	if err != nil && strings.HasPrefix(err.Error(), ErrSysprobeUnsupported.Error()) {
 		// If tracer is unsupported by this operating system, then exit gracefully
 		log.Infof("%s, exiting.", err)
 		gracefulExit()

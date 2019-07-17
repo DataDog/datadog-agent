@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
 
-// ErrTracerUnsupported is the unsupported error prefix, for error-class matching from callers
-var ErrTracerUnsupported = errors.New("tracer unsupported")
+// ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
+var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 
 // SystemProbe maintains and starts the underlying network connection collection process as well as
 // exposes these connections over HTTP (via UDS)
@@ -39,17 +39,14 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 	nt := &SystemProbe{}
 
 	// Checking whether the current OS + kernel version is supported by the tracer
-	if supported, err := ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); err != nil {
-		return nil, fmt.Errorf("%s: %s", ErrTracerUnsupported, err)
-	} else if !supported {
-		platform, _ := util.GetPlatform()
-		return nil, fmt.Errorf("%s: please check your current kernel version: %s", ErrTracerUnsupported, platform)
+	if supported, msg := ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); !supported {
+		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
 	}
 
 	// make sure debugfs is mounted
 	mounted := util.IsDebugfsMounted()
 	if !mounted {
-		return nil, fmt.Errorf("%s: debugfs is not mounted and is needed for eBPF-based checks, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs", ErrTracerUnsupported)
+		return nil, fmt.Errorf("%s: debugfs is not mounted and is needed for eBPF-based checks, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs", ErrSysprobeUnsupported)
 	}
 
 	log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
