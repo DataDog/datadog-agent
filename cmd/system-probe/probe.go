@@ -44,9 +44,8 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 	}
 
 	// make sure debugfs is mounted
-	mounted := util.IsDebugfsMounted()
-	if !mounted {
-		return nil, fmt.Errorf("%s: debugfs is not mounted and is needed for eBPF-based checks, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs", ErrSysprobeUnsupported)
+	if mounted, msg := util.IsDebugfsMounted(); !mounted {
+		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
 	}
 
 	log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
