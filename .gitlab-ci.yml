@@ -1,6 +1,6 @@
 stages:
   #- source_test
-  #- binary_build
+  - binary_build
   #- integration_test
   - package_build
   #- internal_deploy
@@ -231,63 +231,63 @@ before_script:
 #
 
 # build dogstatsd static for deb-x64
-# build_dogstatsd_static-deb_x64:
-#   stage: binary_build
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:v1482658-809bfc9
-#   tags: [ "runner:main", "size:large" ]
-#   script:
-#     - inv -e dogstatsd.build --static
-#     - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/static/dogstatsd
+build_dogstatsd_static-deb_x64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:v1482658-809bfc9
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - inv -e dogstatsd.build --static
+    - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/static/dogstatsd
 
-# # build puppy agent for deb-x64, to make sure the build is not broken because of build flags
-# build_puppy_agent-deb_x64:
-#   stage: binary_build
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:v1482658-809bfc9
-#   tags: [ "runner:main", "size:large" ]
-#   script:
-#     - inv -e agent.build --puppy
-#     - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTEFACTS_URI/puppy/agent
+# build puppy agent for deb-x64, to make sure the build is not broken because of build flags
+build_puppy_agent-deb_x64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:v1482658-809bfc9
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - inv -e agent.build --puppy
+    - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTEFACTS_URI/puppy/agent
 
-# # build puppy agent for ARM, to make sure the build is not broken because of build targets
-# build_puppy_agent-deb_x64_arm:
-#   stage: binary_build
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:v1482658-809bfc9
-#   tags: [ "runner:main", "size:large" ]
-#   script:
-#     - GOOS=linux GOARCH=arm inv -e agent.build --puppy
+# build puppy agent for ARM, to make sure the build is not broken because of build targets
+build_puppy_agent-deb_x64_arm:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:v1482658-809bfc9
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - GOOS=linux GOARCH=arm inv -e agent.build --puppy
 
-# # build dogstatsd for deb-x64
-# build_dogstatsd-deb_x64:
-#   stage: binary_build
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:v1482658-809bfc9
-#   tags: [ "runner:main", "size:large" ]
-#   script:
-#     - inv -e dogstatsd.build
-#     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/dogstatsd/dogstatsd
+# build dogstatsd for deb-x64
+build_dogstatsd-deb_x64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:v1482658-809bfc9
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - inv -e dogstatsd.build
+    - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/dogstatsd/dogstatsd
 
-# # build cluster-agent bin
-# cluster_agent-build:
-#   stage: binary_build
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:v1482658-809bfc9
-#   tags: [ "runner:main", "size:large" ]
-#   script:
-#     - inv -e cluster-agent.build
-#     - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTEFACTS_URI/datadog-cluster-agent
-#     - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTEFACTS_URI/datadog-cluster.yaml
-#     - $S3_CP_CMD --recursive $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/dist/templates $S3_ARTEFACTS_URI/dist/templates
+# build cluster-agent bin
+cluster_agent-build:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:v1482658-809bfc9
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - inv -e cluster-agent.build
+    - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTEFACTS_URI/datadog-cluster-agent
+    - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTEFACTS_URI/datadog-cluster.yaml
+    - $S3_CP_CMD --recursive $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/dist/templates $S3_ARTEFACTS_URI/dist/templates
 
-# # build system-probe bin
-# system_probe-build:
-#   stage: binary_build
-#   # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
-#   before_script:
-#     - cd $SRC_PATH
-#     - inv -e deps --verbose --dep-vendor-only
-#   tags: [ "runner:main", "size:large" ]
-#   script:
-#     - inv -e system-probe.build
-#     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTEFACTS_URI/system-probe
+# build system-probe bin
+system_probe-build:
+  stage: binary_build
+  # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
+  before_script:
+    - cd $SRC_PATH
+    - inv -e deps --verbose --dep-vendor-only
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - inv -e system-probe.build
+    - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTEFACTS_URI/system-probe
 
 # #
 # # integration_test
