@@ -16,6 +16,7 @@ DEFAULT_BUILD_TAGS = [
     "secrets",
     "kubeapiserver",
     "kubelet",
+    "containerd",
     "ec2",
     "docker",
 ]
