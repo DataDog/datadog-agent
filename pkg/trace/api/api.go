@@ -589,14 +589,12 @@ func tracesFromSpans(spans []pb.Span) pb.Traces {
 // getContainerTags returns container and orchestrator tags belonging to containerID. If containerID
 // is empty or no tags are found, an empty map is returned.
 func getContainerTags(containerID string) map[string]string {
-	if containerID == "" {
-		return map[string]string{}
-	}
-	// for now, only Kubernetes is supported
 	list, err := tagger.Tag("container_id://"+containerID, collectors.HighCardinality)
 	if err != nil {
+		log.Tracef("Getting container tags for ID %q: %v", containerID, err)
 		return map[string]string{}
 	}
+	log.Tracef("Getting container tags for ID %q: %v", containerID, list)
 	tags := make(map[string]string, len(list))
 	for _, tag := range list {
 		// this is a metrics product style tag; either a "key:value" pair,
