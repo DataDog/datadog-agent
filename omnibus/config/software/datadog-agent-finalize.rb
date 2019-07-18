@@ -98,6 +98,16 @@ build do
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.py_compiled_files.txt"
             command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print >> #{install_dir}/embedded/.py_compiled_files.txt"
 
+            # removing the doc from the embedded folder to reduce package size by ~3MB
+            delete "#{install_dir}/embedded/share/doc"
+
+            # removing the terminfo db from the embedded folder to reduce package size by ~7MB
+            delete "#{install_dir}/embedded/share/terminfo"
+
+            # removing useless folder
+            delete "#{install_dir}/embedded/share/aclocal"
+            delete "#{install_dir}/embedded/share/examples"
+
             # Setup pip aliases: `/opt/datadog-agent/embedded/bin/pip` will default to `pip2`
             if with_python_runtime? "2"
                 delete "#{install_dir}/embedded/bin/pip"
