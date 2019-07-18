@@ -19,6 +19,7 @@ DEFAULT_BUILD_TAGS = [
     "containerd",
     "ec2",
     "docker",
+    "cri",
 ]
 
 @task
