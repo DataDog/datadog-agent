@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -54,6 +55,7 @@ func TestTracerExpvar(t *testing.T) {
 			"ClosedConnPollingReceived",
 			"ConnValidSkipped",
 			"ExpiredTcpConns",
+			"PidCollisions",
 		},
 		"ebpf": {
 			"TcpSentMiscounts",
@@ -404,7 +406,7 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	assert.Equal(t, numProcesses*clientMessageSize, totalSent)
 
 	// Since we can't reliably identify the PID associated to a retransmit, we have opted
-	// to report the total number of retransmits for *one* of the conneections sharing the
+	// to report the total number of retransmits for *one* of the connections sharing the
 	// same socket
 	connsWithRetransmits := 0
 	for _, c := range conns {
@@ -413,6 +415,9 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, connsWithRetransmits)
+
+	// Test if telemetry measuring PID collisions is correct
+	assert.Equal(t, int64(numProcesses-1), atomic.LoadInt64(&tr.pidCollisions))
 
 	doneChan <- struct{}{}
 }
