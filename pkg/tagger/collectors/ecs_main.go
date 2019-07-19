@@ -57,9 +57,9 @@ func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 }
 
 // Fetch fetches ECS tags
-func (c *ECSCollector) Fetch(container string) ([]string, []string, []string, error) {
-	_, cID := containers.SplitEntityName(container)
-	if len(cID) == 0 {
+func (c *ECSCollector) Fetch(entity string) ([]string, []string, []string, error) {
+	entityType, cID := containers.SplitEntityName(entity)
+	if entityType != containers.ContainerEntityName || len(cID) == 0 {
 		return nil, nil, nil, nil
 	}
 
@@ -82,12 +82,12 @@ func (c *ECSCollector) Fetch(container string) ([]string, []string, []string, er
 	}
 
 	for _, info := range updates {
-		if info.Entity == container {
+		if info.Entity == entity {
 			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, nil
 		}
 	}
 	// container not found in updates
-	return []string{}, []string{}, []string{}, errors.NewNotFound(container)
+	return []string{}, []string{}, []string{}, errors.NewNotFound(entity)
 }
 
 func ecsFactory() Collector {
