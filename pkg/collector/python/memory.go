@@ -35,6 +35,7 @@ var (
 	freedBytes      = expvar.Int{}
 	allocations     = expvar.Int{}
 	frees           = expvar.Int{}
+	untrackedFrees  = expvar.Int{}
 )
 
 func init() {
@@ -43,6 +44,7 @@ func init() {
 	rtLoaderExpvars.Set("FreedBytes", &freedBytes)
 	rtLoaderExpvars.Set("Allocations", &allocations)
 	rtLoaderExpvars.Set("Frees", &frees)
+	rtLoaderExpvars.Set("UntrackedFrees", &untrackedFrees)
 }
 
 // MemoryTracker is the method exposed to the RTLoader for memory tracking
@@ -62,6 +64,7 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 			bytes, ok := pointerCache.Load(ptr)
 			if !ok {
 				log.Warnf("untracked memory was attempted to be freed")
+				untrackedFrees.Add(1)
 				return
 			}
 			defer pointerCache.Delete(ptr)
