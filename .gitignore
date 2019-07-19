@@ -112,4 +112,4 @@ version.txt
 Pipfile*
 
 # molecule local json files
-/test/molecule-role/molecule/default/topic-*.json
+/test/molecule-role/molecule/*/topic-*.json

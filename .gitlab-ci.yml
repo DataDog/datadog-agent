@@ -405,21 +405,36 @@ pre_release_image:
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
-    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/outcomes/pkg
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/outcomes/pkg
 
-molecule_tests:
+molecule_tests_vms:
   stage: acceptance
   dependencies: []
   before_script: []
   script:
    - export MOLECULE_RUN_ID=${CI_JOB_ID}
    - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
-   - cd $CI_PROJECT_DIR/test && ./molecule.sh test
+   - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s vms
   artifacts:
     when: always
     paths:
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/default/topic-*.json
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/default/*.log
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/*.log
+    expire_in: 1 week
+
+molecule_tests_compose:
+  stage: acceptance
+  dependencies: []
+  before_script: []
+  script:
+   - export MOLECULE_RUN_ID=${CI_JOB_ID}
+   - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
+   - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s compose
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
     expire_in: 1 week
 
 release_deb:

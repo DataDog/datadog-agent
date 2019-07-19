@@ -1,0 +1,32 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: ec2
+lint:
+  name: yamllint
+  options:
+    config-file: .yamllint
+platforms:
+  - name: trace-java-demo
+    image: ami-0da760e590e7de0e8    # Ubuntu 18.04 (EBS-Backed x86_64)
+    instance_type: t3.large
+    vpc_subnet_id: subnet-41c8f224  # eu-west-1a
+    region: eu-west-1
+    groups:
+      - compose_linux_vm
+    ssh_user: ubuntu
+provisioner:
+  name: ansible
+  playbooks:
+    create: create.yml
+    prepare: prepare.yml
+    destroy: destroy.yml
+  lint:
+    name: ansible-lint
+scenario:
+  name: compose
+verifier:
+  name: testinfra
+  lint:
+    name: flake8
