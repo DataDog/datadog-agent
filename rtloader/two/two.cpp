@@ -453,7 +453,12 @@ char **Two::getCheckWarnings(RtLoaderPyObject *check)
         PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
         if (warn == NULL) {
             setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
+
+            for (int jdx=0 ; jdx<numWarnings && warnings[jdx] ; jdx++) {
+                _free(warnings[jdx]);
+            }
             _free(warnings);
+
             warnings = NULL;
             goto done;
         }
