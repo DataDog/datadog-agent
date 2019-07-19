@@ -29,6 +29,11 @@ Upgrade Notes
   performance issues. Instead, the trace is kept in a queue awaiting to
   be processed.
 
+- On Windows, the path of the embedded ``python.exe`` binary has changed from
+  ``%ProgramFiles%\Datadog\Datadog Agent\embedded\python.exe`` to ``%ProgramFiles%\Datadog\Datadog Agent\embedded2\python.exe``.
+  If you use this path from your provisioning scripts, please update it accordingly.
+  Note: on Windows, to call the embedded pip directly, please use ``%ProgramFiles%\Datadog\Datadog Agent\embedded2\python.exe -m pip``.
+
 - Logs: Breaking Change for Kubernetes log collection - In the version 6.11.2 logic was added in the Agent to first look for K8s container files if `/var/log/pods` was not available and then to go for the Docker socket.
   This created some permission issues as `/var/log/pods` can be a symlink in some configuration and the Agent also needed access to the symlink directory.
 
