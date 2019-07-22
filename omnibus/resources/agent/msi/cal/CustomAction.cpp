@@ -164,7 +164,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             keyInstall.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
         }
     }
-    if(!ddUserExists || !ddServiceExists)
+    if(!ddUserExists)
     {
         // since we just created the user, fix up all the rights we want
         DWORD nErr = NERR_Success;
