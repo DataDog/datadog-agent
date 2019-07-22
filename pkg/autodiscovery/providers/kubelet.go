@@ -97,6 +97,10 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
 				log.Errorf("Can't parse template for pod %s: %s", pod.Metadata.Name, err)
 			}
 
+			for idx := range c {
+				c[idx].Source = "kubelet:" + container.ID
+			}
+
 			configs = append(configs, c...)
 		}
 	}

@@ -50,6 +50,7 @@ type Config struct {
 	ClusterCheck  bool         `json:"cluster_check"`  // cluster-check configuration flag
 	NodeName      string       `json:"-"`              // Node name in case of an endpoint check backed by a pod
 	CreationTime  CreationTime `json:"-"`              // creation time of service
+	Source        string       `json:"source"`         // the source of the configuration
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data

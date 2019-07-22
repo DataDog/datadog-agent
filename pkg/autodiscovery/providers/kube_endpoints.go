@@ -182,6 +182,7 @@ func generateConfigs(tpl integration.Config, kep *v1.Endpoints) []integration.Co
 				ADIdentifiers: []string{entity},
 				ClusterCheck:  true,
 				Provider:      tpl.Provider,
+				Source:        tpl.Source,
 			}
 			if targetRef := kep.Subsets[i].Addresses[j].TargetRef; targetRef != nil {
 				if targetRef.Kind == kubePodKind {

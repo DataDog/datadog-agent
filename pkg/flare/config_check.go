@@ -103,10 +103,15 @@ func PrintConfig(w io.Writer, c integration.Config) {
 		fmt.Fprintln(w, fmt.Sprintf("\n=== %s cluster check ===", color.GreenString(c.Name)))
 	}
 
-	if len(c.Provider) > 0 {
-		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Source"), color.CyanString(c.Provider)))
+	if c.Provider != "" {
+		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Configuration provider"), color.CyanString(c.Provider)))
 	} else {
-		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Source"), color.RedString("Unknown provider")))
+		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Configuration provider"), color.RedString("Unknown provider")))
+	}
+	if c.Source != "" {
+		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Configuration source"), color.CyanString(c.Source)))
+	} else {
+		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Configuration source"), color.RedString("Unknown configuration source")))
 	}
 	for _, inst := range c.Instances {
 		ID := string(check.BuildID(c.Name, inst, c.InitConfig))

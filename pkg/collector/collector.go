@@ -121,7 +121,7 @@ func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 }
 
 // ReloadCheck stops and restart a check with a new configuration
-func (c *Collector) ReloadCheck(id check.ID, config, initConfig integration.Data) error {
+func (c *Collector) ReloadCheck(id check.ID, config, initConfig integration.Data, newSource string) error {
 	if !c.started() {
 		return fmt.Errorf("the collector is not running")
 	}
@@ -150,7 +150,7 @@ func (c *Collector) ReloadCheck(id check.ID, config, initConfig integration.Data
 
 	// re-configure
 	check := c.checks[id]
-	err = check.Configure(config, initConfig)
+	err = check.Configure(config, initConfig, newSource)
 	if err != nil {
 		return fmt.Errorf("error configuring the check with ID %s", id)
 	}
