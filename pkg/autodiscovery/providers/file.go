@@ -310,5 +310,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 	// Interpolate env vars. Returns an error a variable wasn't subsituted, ignore it.
 	_ = configresolver.SubstituteTemplateEnvVars(&config)
 
+	config.Source = "file:" + fpath
+
 	return config, err
 }

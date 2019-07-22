@@ -20,7 +20,7 @@ func TestWinprocCheckWindows(t *testing.T) {
 	pdhtest.SetQueryReturnValue("\\\\.\\System\\Processes", 32.0)
 
 	winprocCheck := new(processChk)
-	winprocCheck.Configure(nil, nil)
+	winprocCheck.Configure(nil, nil, "test")
 
 	mock := mocksender.NewMockSender(winprocCheck.ID())
 

@@ -21,16 +21,18 @@ type JMXCheck struct {
 	name   string
 	config integration.Config
 	stop   chan struct{}
+	source string
 }
 
-func newJMXCheck(config integration.Config) *JMXCheck {
+func newJMXCheck(config integration.Config, source string) *JMXCheck {
 	check := &JMXCheck{
 		config: config,
 		stop:   make(chan struct{}),
 		name:   config.Name,
 		id:     check.ID(fmt.Sprintf("%v_%v", config.Name, config.Digest())),
+		source: source,
 	}
-	check.Configure(config.InitConfig, config.MetricConfig)
+	check.Configure(config.InitConfig, config.MetricConfig, source)
 
 	return check
 }
@@ -64,7 +66,11 @@ func (c *JMXCheck) Version() string {
 	return ""
 }
 
-func (c *JMXCheck) Configure(config integration.Data, initConfig integration.Data) error {
+func (c *JMXCheck) ConfigSource() string {
+	return c.source
+}
+
+func (c *JMXCheck) Configure(config integration.Data, initConfig integration.Data, source string) error {
 	return nil
 }
 

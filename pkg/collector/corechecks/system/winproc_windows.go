@@ -39,8 +39,8 @@ func (c *processChk) Run() error {
 	return nil
 }
 
-func (c *processChk) Configure(data integration.Data, initConfig integration.Data) error {
-	err := c.CommonConfigure(data)
+func (c *processChk) Configure(data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(data, source)
 	if err != nil {
 		return err
 	}

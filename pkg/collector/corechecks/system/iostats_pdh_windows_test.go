@@ -64,7 +64,7 @@ func TestIoCheckWindows(t *testing.T) {
 	addDefaultQueryReturnValues()
 
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil)
+	ioCheck.Configure(nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
@@ -103,7 +103,7 @@ func TestIoCheckInstanceAdded(t *testing.T) {
 	addDriveDReturnValues()
 
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil)
+	ioCheck.Configure(nil, nil, "test")
 
 	pdhtest.AddCounterInstance("LogicalDisk", "Y:")
 	pdhtest.AddCounterInstance("LogicalDisk", "HarddiskVolume2")
@@ -165,7 +165,7 @@ func TestIoCheckInstanceRemoved(t *testing.T) {
 	addDriveDReturnValues()
 
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil)
+	ioCheck.Configure(nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
