@@ -326,7 +326,32 @@ func zipExpVar(tempDir, hostname string) error {
 		}
 	}
 
-	return nil
+	apmPort := "8126"
+	if config.Datadog.IsSet("apm_config.receiver_port") {
+		apmPort = config.Datadog.GetString("apm_config.receiver_port")
+	}
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s/debug/vars", apmPort))
+	if err != nil || resp.StatusCode != http.StatusOK {
+		// trace-agent may not be running
+		return nil
+	}
+	defer resp.Body.Close()
+	var all map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&all); err != nil {
+		return fmt.Errorf("error decoding trace-agent /debug/vars response: %v", err)
+	}
+	f := filepath.Join(tempDir, hostname, "expvar", "trace-agent")
+	w, err := newRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+	v, err := yaml.Marshal(all)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(v)
+	return err
 }
 
 func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
