@@ -12,7 +12,7 @@ int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data, bool isDC = 
 void removeUserPermsFromFile(std::wstring &filename, PSID sidremove);
 
 DWORD DeleteUser(const wchar_t* host, const wchar_t* name);
-
+int getUserHomeDirectory(const wchar_t* name, std::wstring &path);
 
 bool AddPrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd);
 bool RemovePrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd);

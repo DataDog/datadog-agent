@@ -250,7 +250,17 @@ int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring&
 
 }
 
-
+int getUserHomeDirectory(const wchar_t* name, std::wstring &path)
+{
+    DWORD ret = 0;
+    USER_INFO_2 *ui = NULL;
+    ret = NetUserGetInfo(NULL, name, 2, (LPBYTE*) &ui);
+    if (NERR_Success == ret) {
+        path = ui->usri2_home_dir;
+        NetApiBufferFree((LPVOID)ui);
+    }
+    return ret;
+}
 
 DWORD DeleteUser(const wchar_t* host, const wchar_t* name){
     NET_API_STATUS ret = NetUserDel(NULL, name);

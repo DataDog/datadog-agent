@@ -501,9 +501,21 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
                 WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
             }
         }
+        // get the home directory for deleting later
+        std::wstring homedir;
+        er = getUserHomeDirectory(installedUser.c_str(), homedir);
+        if(NERR_Success != er) {
+            WcaLog(LOGMSG_STANDARD, "Failed to retrieve home directory, can't delete");
+        }
         // delete the user
         er = DeleteUser(NULL, installedUser.c_str());
-        if (0 != er) {
+        if ( 0 == er ) {
+            if(!installedUser.empty()) {
+                WcaLog(LOGMSG_STANDARD, "Deleting home directory");
+                RemoveDirectory(homedir.c_str());
+            }
+        }
+        else  {
             // don't actually fail on failure.  We're doing an uninstall,
             // and failing will just leave the system in a more confused state
             WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog user %d", er);
