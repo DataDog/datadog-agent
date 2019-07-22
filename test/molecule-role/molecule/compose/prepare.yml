@@ -1,0 +1,94 @@
+---
+- name: Prepare Trace Java
+  hosts: trace-java-demo
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Install python for Ansible
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream)
+      become: true
+      changed_when: false
+    - name: Install python-pip
+      become: true
+      apt:
+        name: [python-pip, virtualenv, libyajl2]  # venv and yajl2 if you wanna run the simulator
+        state: present
+        update_cache: yes
+      retries: 20
+      delay: 10
+      register: pip_result
+      until: pip_result is not failed
+    - name: Installing python boto packages
+      pip:
+        name: boto,boto3
+    - name: Add Docker GPG APT key
+      become: true
+      apt_key: url=https://download.docker.com/linux/ubuntu/gpg
+    - name: Add Docker APT repository
+      become: true
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable
+    - name: Install APT packages
+      become: true
+      apt:
+        name: [apt-transport-https, ca-certificates, curl, software-properties-common, docker-ce, awscli, postgresql-client-10]
+        state: present
+        update_cache: yes
+      register: apt_res
+      retries: 5
+      delay: 5
+      until: apt_res is success
+    - name: Add user to docker group
+      become: true
+      user:
+        name: ubuntu
+        groups: docker
+        append: True
+    - name: Restart sshd to apply group change
+      shell: sleep 1; pkill -u {{ ansible_ssh_user }} sshd
+      async: 3
+      poll: 2
+    - name: Ensure .aws config directory exists
+      file:
+        path: /home/ubuntu/.aws/
+        recurse: yes
+        state: directory
+    - name: Configure aws credentials
+      copy:
+        content: |
+          [default]
+          aws_access_key_id = {{ lookup("env", "AWS_ACCESS_KEY_ID")}}
+          aws_secret_access_key = {{ lookup("env", "AWS_SECRET_ACCESS_KEY")}}
+        dest: /home/ubuntu/.aws/credentials
+    - name: Configure aws config
+      copy:
+        content: |
+          [default]
+          region=eu-west-1
+          output=json
+        dest: /home/ubuntu/.aws/config
+    - name: Run Docker login
+      shell: eval $(aws ecr get-login --no-include-email)
+    - name: Install Docker Compose
+      become: true
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/1.22.0/docker-compose-Linux-x86_64"
+        dest: "/usr/local/bin/docker-compose"
+        force: True
+        mode: "0755"
+    - name: Copy Configuration files
+      copy:
+        src: "files/{{ item }}"
+        dest: "/home/ubuntu/{{ item }}"
+      with_items:
+        - docker-compose.yml
+    - name: Gather facts (we need docker network interface ip)
+      setup:
+    - name: Run Docker compose
+      command: docker-compose up --scale stackstate-books-app=2 --scale stackstate-authors-app=2 -d
+      args:
+        chdir: /home/ubuntu/
+      environment:
+        AGENT_VERSION: "{{ agent_current_branch }}"
+        DOCKER_HOST_IP: "{{ ansible_docker0['ipv4']['address'] }}"

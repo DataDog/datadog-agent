@@ -1,0 +1,115 @@
+---
+version: '2.4'
+
+services:
+  kafka:
+    image: spotify/kafka:latest
+    environment:
+      ADVERTISED_HOST: kafka
+      ADVERTISED_PORT: 9092
+  receiver:
+    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-receiver:master"
+    command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
+    ports:
+      - 7077:7077
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    mem_limit: 1G
+  correlate:
+    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-correlate:master"
+    entrypoint: "bin/stackstate-correlate -J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
+    depends_on:
+      - receiver
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    mem_limit: 1G
+  topic-api:
+    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-topic-api:master"
+    command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
+    ports:
+      - 7070:7070
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      ZOOKEEPER_QUORUM: kafka
+    mem_limit: 1G
+  db:
+    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-trace-java-demo:db"
+    environment:
+      POSTGRES_USER: 'app'
+      POSTGRES_PASSWORD: 'app'
+      POSTGRES_DB: 'app'
+    healthcheck:
+      test: psql -U app app -c "select 1" || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    ports:
+      - 5432:5432
+    labels:
+      - "traefik.frontend.rule=Host:stackstate-demo-db.docker.localhost"
+  stackstate-books-app:
+    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-trace-java-demo:books-app"
+    ports:
+      - '8081-8091:8081'
+    depends_on:
+      - db
+      - stackstate-agent
+    labels:
+      - "traefik.frontend.rule=Host:stackstate-books-app"
+    environment:
+      MAVEN_OPTS: "-Dsts.service.name=stackstate-books-app -Dsts.agent.host=${DOCKER_HOST_IP} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
+  stackstate-authors-app:
+    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-trace-java-demo:authors-app"
+    ports:
+      - '8092-8099:8081'
+    depends_on:
+      - db
+      - stackstate-agent
+    labels:
+      - "traefik.frontend.rule=Host:stackstate-authors-app"
+    environment:
+      MAVEN_OPTS: "-Dsts.service.name=stackstate-authors-app -Dsts.agent.host=${DOCKER_HOST_IP} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
+  traefik:
+    image: traefik:v1.7.12
+    command: --api --docker --loglevel=INFO --tracing=TRUE --tracing.backend="datadog" --tracing.datadog.debug=TRUE --tracing.datadog.localagenthostport="${DOCKER_HOST_IP}:8126" --tracing.datadog.globaltag="source:traefik"  # Enables the web UI and tells Traefik to listen to docker
+    ports:
+      - 80:80      # The HTTP port
+      - 8080:8080  # The Web UI (enabled by --api)
+    depends_on:
+      - stackstate-books-app
+      - stackstate-authors-app
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+  stackstate-agent:
+    image: stackstate/stackstate-agent-2-test:${AGENT_VERSION}
+    network_mode: "host"
+    pid: "host"
+    privileged: true
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/proc/:/host/proc/:ro"
+      - "/sys/fs/cgroup/:/host/sys/fs/cgroup:ro"
+      - "/etc/passwd:/etc/passwd:ro"
+      - "/sys/kernel/debug:/sys/kernel/debug"
+    environment:
+      STS_API_KEY: "API_KEY"
+      STS_STS_URL: "http:/localhost:7077/stsAgent"
+      STS_PROCESS_AGENT_URL: "http://localhost:7077/stsAgent"
+      STS_PROCESS_AGENT_ENABLED: "true"
+      STS_NETWORK_TRACING_ENABLED: "true"
+      STS_PROCESS_BLACKLIST_PATTERNS: "^s6-,^docker-,^/sbin/,^/usr/sbin,^/pause,^/usr/bin/dbus-daemon,^-bash,^su$$,^/bin/bash,/lib/systemd/,agent"
+      STS_APM_URL: "http://localhost:7077/stsAgent"
+      STS_APM_ENABLED: "true"
+      HOST_PROC: "/host/proc"
+      HOST_SYS: "/host/sys"
+      STS_LOG_LEVEL: "debug"
+      STS_LOG_TO_CONSOLE: "true"
+#    healthcheck:
+#      test: curl --fail -s http://localhost:5000/ || exit 1
+#      interval: 1m30s
+#      timeout: 10s
+#      retries: 3

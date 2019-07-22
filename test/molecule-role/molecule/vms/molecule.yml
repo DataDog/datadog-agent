@@ -92,7 +92,7 @@ provisioner:
   lint:
     name: ansible-lint
 scenario:
-  name: default
+  name: vms
 verifier:
   name: testinfra
   lint:

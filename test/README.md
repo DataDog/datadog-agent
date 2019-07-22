@@ -15,17 +15,27 @@ Prerequisites:
 * export AWS_SECRET_ACCESS_KEY=
 * export AWS_REGION=eu-west-1
 
-Make sure if you change the AWS_REGION to find the correct vpc subnet and replace it in `default/molecule.yml`.
+Make sure if you change the AWS_REGION to find the correct vpc subnet and replace it in `molecule.yml`.
 
 Now execute `./molecule.sh`, this will show you the help.
 
-To run a single ansible command use:
+### Test
+
+Test are organized by scenarios, they are directories located under `molecule-role/molecule` and all molecule commands need to target a scenario, like:
+
+    ./molecule.sh test -s <scenario>
+    ./molecule.sh create -s <scenario>
+    ./molecule.sh verify -s <scenario>
+
+### Troubleshooting
+
+To run a single ansible command use you can use the scenario inventory:
 
     $ source p-env/bin/activate
-    $ ansible agent-ubuntu -i /tmp/molecule/molecule-role/default/ansible_inventory.yml -m debug -a msg="{{ ansible_facts }}"
+    $ ansible agent-ubuntu -i /tmp/molecule/molecule-role/vms/inventory/ansible_inventory.yml -m setup
     
     or on MacOS X:
-    $ ansible agent-ubuntu -i /var/folders/.../molecule/molecule-role/default/ansible_inventory.yml -m debug -a msg="{{ ansible_facts }}"
+    $ ansible agent-ubuntu -i /var/folders/.../molecule/molecule-role/vms/inventory/ansible_inventory.yml -m setup
 
 
 ## Windows image for molecule

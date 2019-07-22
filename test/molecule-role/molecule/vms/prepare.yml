@@ -19,7 +19,7 @@
       delay: 5
       register: pip_result
       until: pip_result is not failed
-    - name: Installing multiple python packages in Ansible
+    - name: Installing python boto packages
       pip:
         name: boto,boto3
     - name: Add Docker GPG APT key
