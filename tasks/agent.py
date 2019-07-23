@@ -206,6 +206,11 @@ def apply_branding(ctx):
     do_sed_rename(ctx, camel_replace, "./cmd/agent/gui/views/templates/index.tmpl")
     do_sed_rename(ctx, camel_replace, "./cmd/agent/gui/views/private/js/javascript.js")
 
+    # stackstate_checks
+    do_go_rename(ctx, '"\\"datadog_checks\\" -> \\"stackstate_checks\\""', "./cmd/agent/app")
+    do_sed_rename(ctx, 's/datadog_checks_base/stackstate_checks_base/g', "cmd/agent/app/integrations.go")
+    do_go_rename(ctx, '"\\"datadog_checks\\" -> \\"stackstate_checks\\""', "./pkg/collector/py")
+
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,

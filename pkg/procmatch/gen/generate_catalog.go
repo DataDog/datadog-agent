@@ -48,10 +48,10 @@ func failIf(err error, format string, args ...interface{}) {
 }
 
 func main() {
-	rootDir := os.Getenv("INTEGRATIONS_CORE_DIR")
+	rootDir := os.Getenv("STACKSTATE_INTEGRATIONS_DIR")
 
 	if len(rootDir) == 0 {
-		fmt.Fprintln(os.Stderr, "Please set INTEGRATIONS_CORE_DIR env variable")
+		fmt.Fprintln(os.Stderr, "Please set STACKSTATE_INTEGRATIONS_DIR env variable")
 		os.Exit(1)
 	}
 

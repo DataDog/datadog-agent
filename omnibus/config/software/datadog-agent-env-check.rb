@@ -5,7 +5,7 @@ description "Execute pip check on the python environment of the agent to make su
 # Run the check after all the definitions touching the python environment of the agent.
 dependency "pip"
 dependency "datadog-agent"
-dependency "datadog-agent-integrations"
+dependency "stackstate-agent-integrations"
 
 build do
     # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
