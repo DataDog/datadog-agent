@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -151,13 +150,6 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	if env, ok := s.Meta["env"]; ok {
 		s.Meta["env"] = normalizeTag(env)
 	}
-	if sc, ok := s.Meta["http.status_code"]; ok {
-		if !isValidStatusCode(sc) {
-			atomic.AddInt64(&ts.SpansMalformed.InvalidHTTPStatusCode, 1)
-			log.Debugf("Fixing malformed trace. HTTP status code is invalid (reason:invalid_http_status_code), dropping invalid http.status_code=%s: %s", sc, s)
-			delete(s.Meta, "http.status_code")
-		}
-	}
 	return nil
 }
 
@@ -194,13 +186,6 @@ func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	}
 
 	return nil
-}
-
-func isValidStatusCode(sc string) bool {
-	if code, err := strconv.ParseUint(sc, 10, 64); err == nil {
-		return 100 <= code && code < 600
-	}
-	return false
 }
 
 // This code is borrowed from dd-go metric normalization

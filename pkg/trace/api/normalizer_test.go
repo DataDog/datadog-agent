@@ -413,15 +413,6 @@ func TestNormalizeTrace(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestIsValidStatusCode(t *testing.T) {
-	assert := assert.New(t)
-	assert.True(isValidStatusCode("100"))
-	assert.True(isValidStatusCode("599"))
-	assert.False(isValidStatusCode("99"))
-	assert.False(isValidStatusCode("600"))
-	assert.False(isValidStatusCode("Invalid status code"))
-}
-
 func TestNormalizeInvalidUTF8(t *testing.T) {
 	invalidUTF8 := "test\x99\x8f"
 

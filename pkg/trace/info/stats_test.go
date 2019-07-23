@@ -45,18 +45,17 @@ func TestSpansMalformed(t *testing.T) {
 
 	t.Run("tagValues", func(t *testing.T) {
 		assert.Equal(t, map[string]int64{
-			"span_name_invalid":        0,
-			"span_name_empty":          0,
-			"service_truncate":         0,
-			"invalid_start_date":       0,
-			"invalid_http_status_code": 0,
-			"invalid_duration":         0,
-			"duplicate_span_id":        0,
-			"service_empty":            1,
-			"resource_empty":           1,
-			"service_invalid":          1,
-			"span_name_truncate":       1,
-			"type_truncate":            1,
+			"span_name_invalid":  0,
+			"span_name_empty":    0,
+			"service_truncate":   0,
+			"invalid_start_date": 0,
+			"invalid_duration":   0,
+			"duplicate_span_id":  0,
+			"service_empty":      1,
+			"resource_empty":     1,
+			"service_invalid":    1,
+			"span_name_truncate": 1,
+			"type_truncate":      1,
 		}, s.tagValues())
 	})
 

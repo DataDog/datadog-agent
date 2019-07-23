@@ -240,25 +240,22 @@ type SpansMalformed struct {
 	InvalidStartDate int64
 	// InvalidDuration is when a span's Duration is invalid
 	InvalidDuration int64
-	// InvalidHTTPStatusCode is when a span's metadata contains an invalid http status code
-	InvalidHTTPStatusCode int64
 }
 
 // tagValues converts SpansMalformed into a map representation with keys matching standardized names for all reasons
 func (s *SpansMalformed) tagValues() map[string]int64 {
 	return map[string]int64{
-		"duplicate_span_id":        atomic.LoadInt64(&s.DuplicateSpanID),
-		"service_empty":            atomic.LoadInt64(&s.ServiceEmpty),
-		"service_truncate":         atomic.LoadInt64(&s.ServiceTruncate),
-		"service_invalid":          atomic.LoadInt64(&s.ServiceInvalid),
-		"span_name_empty":          atomic.LoadInt64(&s.SpanNameEmpty),
-		"span_name_truncate":       atomic.LoadInt64(&s.SpanNameTruncate),
-		"span_name_invalid":        atomic.LoadInt64(&s.SpanNameInvalid),
-		"resource_empty":           atomic.LoadInt64(&s.ResourceEmpty),
-		"type_truncate":            atomic.LoadInt64(&s.TypeTruncate),
-		"invalid_start_date":       atomic.LoadInt64(&s.InvalidStartDate),
-		"invalid_duration":         atomic.LoadInt64(&s.InvalidDuration),
-		"invalid_http_status_code": atomic.LoadInt64(&s.InvalidHTTPStatusCode),
+		"duplicate_span_id":  atomic.LoadInt64(&s.DuplicateSpanID),
+		"service_empty":      atomic.LoadInt64(&s.ServiceEmpty),
+		"service_truncate":   atomic.LoadInt64(&s.ServiceTruncate),
+		"service_invalid":    atomic.LoadInt64(&s.ServiceInvalid),
+		"span_name_empty":    atomic.LoadInt64(&s.SpanNameEmpty),
+		"span_name_truncate": atomic.LoadInt64(&s.SpanNameTruncate),
+		"span_name_invalid":  atomic.LoadInt64(&s.SpanNameInvalid),
+		"resource_empty":     atomic.LoadInt64(&s.ResourceEmpty),
+		"type_truncate":      atomic.LoadInt64(&s.TypeTruncate),
+		"invalid_start_date": atomic.LoadInt64(&s.InvalidStartDate),
+		"invalid_duration":   atomic.LoadInt64(&s.InvalidDuration),
 	}
 }
 
@@ -322,7 +319,6 @@ func (s *Stats) update(recent *Stats) {
 	atomic.AddInt64(&s.SpansMalformed.TypeTruncate, atomic.LoadInt64(&recent.SpansMalformed.TypeTruncate))
 	atomic.AddInt64(&s.SpansMalformed.InvalidStartDate, atomic.LoadInt64(&recent.SpansMalformed.InvalidStartDate))
 	atomic.AddInt64(&s.SpansMalformed.InvalidDuration, atomic.LoadInt64(&recent.SpansMalformed.InvalidDuration))
-	atomic.AddInt64(&s.SpansMalformed.InvalidHTTPStatusCode, atomic.LoadInt64(&recent.SpansMalformed.InvalidHTTPStatusCode))
 
 	atomic.AddInt64(&s.TracesFiltered, atomic.LoadInt64(&recent.TracesFiltered))
 	atomic.AddInt64(&s.TracesPriorityNone, atomic.LoadInt64(&recent.TracesPriorityNone))
@@ -357,7 +353,6 @@ func (s *Stats) reset() {
 	atomic.StoreInt64(&s.SpansMalformed.TypeTruncate, 0)
 	atomic.StoreInt64(&s.SpansMalformed.InvalidStartDate, 0)
 	atomic.StoreInt64(&s.SpansMalformed.InvalidDuration, 0)
-	atomic.StoreInt64(&s.SpansMalformed.InvalidHTTPStatusCode, 0)
 	atomic.StoreInt64(&s.TracesFiltered, 0)
 	atomic.StoreInt64(&s.TracesPriorityNone, 0)
 	atomic.StoreInt64(&s.TracesPriorityNeg, 0)
