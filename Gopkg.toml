@@ -201,3 +201,12 @@
 [[override]]
   name = "golang.org/x/sys"
   revision = "61b9204099cb1bebc803c9ffb9b2d3acd9d457d9"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/benesch/cgosymbolizer"
+
+[[override]]
+  name = "github.com/ianlancetaylor/cgosymbolizer"
+  source = "github.com/ianlancetaylor/cgosymbolizer"
+  revision = "f5072df9c550dc687157e5d7efb50825cdf8f0eb"

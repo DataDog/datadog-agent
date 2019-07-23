@@ -9,10 +9,13 @@ package python
 
 import (
 	"expvar"
+	// "log"
+	"runtime/debug"
 	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	_ "github.com/benesch/cgosymbolizer"
 )
 
 /*
@@ -51,7 +54,10 @@ func init() {
 //export MemoryTracker
 func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 	// run async for performance reasons
+	stack := string(debug.Stack())
 	go func() {
+		// log.Printf("Memory Tracker - stacktrace: \n%s", stack)
+		// log.Printf("Memory Tracker - ptr: %v, sz: %v, op: %v", ptr, sz, op)
 		log.Debugf("Memory Tracker - ptr: %v, sz: %v, op: %v", ptr, sz, op)
 		switch op {
 		case C.DATADOG_AGENT_RTLOADER_ALLOCATION:
@@ -63,7 +69,9 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 		case C.DATADOG_AGENT_RTLOADER_FREE:
 			bytes, ok := pointerCache.Load(ptr)
 			if !ok {
+				// log.Printf("untracked memory was attempted to be freed")
 				log.Warnf("untracked memory was attempted to be freed")
+				log.Debugf("Memory Tracker - stacktrace: \n%s", string(debug.Stack()))
 				untrackedFrees.Add(1)
 				return
 			}
