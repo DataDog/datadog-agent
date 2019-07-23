@@ -1,19 +1,45 @@
-# This file is overwritten upon Agent upgrade.
-# To make modifications to the check configuration, please copy this file
-# to `ntp.yaml` and make your changes on that file.
+## This file is overwritten upon Agent upgrade.
+## To make modifications to the check configuration, please copy this file
+## to `ntp.yaml` and make your changes on that file.
 
 init_config:
 
 instances:
-  - offset_threshold: 60
 
-    # Optional params:
+  -
+    ## @param offset_threshold - integer - optional - default: 60
+    ## Offset threshold above which a CRITICAL service check is sent.
     #
-    # hosts:
-    #  - 0.europe.pool.ntp.org
-    #  - 1.europe.pool.ntp.org
-    #  - 2.europe.pool.ntp.org
-    #  - 3.europe.pool.ntp.org
-    # port: 123
+    # offset_threshold: 60
+
+    ## @param host - string - optional - default: <X>.datadog.pool.ntp.org
+    ## NTP host to connect to, default is `<X>.datadog.pool.ntp.org` where
+    ## <X> is a number between 0 and 3.
+    #
+    # host: <X>.datadog.pool.ntp.org
+
+    ## @param port - string - optional - default: ntp
+    ## Port to use when reaching the NTP server.
+    ## default port is the name of the service but lookup would fail if the /etc/services file
+    ## is missing. The ntp port then falls back to the numeric port 123.
+    #
+    # port: ntp
+
+    ## @param version - integer - optional - default: 3
+    ## Version of NTP to use.
+    #
     # version: 3
+
+    ## @param timeout - integer - optional - default: 5
+    ## The timeout for connecting to the NTP server in second.
+    #
     # timeout: 5
+
+    ## @param tags - list of key:value elements - optional
+    ## List of tags to attach to every metric, event, and service check emitted by this Integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>

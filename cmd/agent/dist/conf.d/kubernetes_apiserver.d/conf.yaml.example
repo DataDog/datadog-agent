@@ -1,16 +1,25 @@
 init_config:
-instances:
-  - ## Tagging
-    ##
 
-    # You can add extra tags to your Kubernetes API Server metrics, events and Service Checks with the tags list option.
+instances:
+
+  -
+    ## @param tags - list of key:value elements - optional
+    ## List of tags to attach to every metric, event and service check emitted by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
     #
-    # tags: ["foo:bar"]
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
+
+    ## @param filtered_event_types - array of strings - optional
+    ## Specify a filter over the event types you want the check to ignore.
+    ## See https://github.com/kubernetes/kubernetes/blob/638822fd0f30d9c78e78b91e918cb7364f86b8ab/pkg/kubelet/events/event.go#L20 to see the full
+    ## list of event.
     #
-    #
-    # You can specify a filter over the event types you want the check to ignore.
-    # See https://github.com/kubernetes/kubernetes/blob/638822fd0f30d9c78e78b91e918cb7364f86b8ab/pkg/kubelet/events/event.go#L20
     # filtered_event_types: ["MissingClusterDNS"]
+
+    ## @param kubernetes_event_read_timeout_ms - integer - optional - default: 100
+    ## If the API Server is slow to respond under load, the event collection might fail. Increase the read timeout (in second) here.
     #
-    # If the API Server is slow to respond under load, the event collection might fail. You can increase the read timeout here.
     # kubernetes_event_read_timeout_ms: 100

@@ -1,33 +1,91 @@
-# This file is overwritten upon Agent upgrade.
-# To make modifications to the check configuration, please copy this file
-# to `network.yaml` and make your changes on that file.
+## This file is overwritten upon Agent upgrade.
+## To make modifications to the check configuration, please copy this file
+## to `network.yaml` and make your changes on that file.
 
 init_config:
 
+## Network check only supports one configured instance
+
 instances:
-  # Network check only supports one configured instance
+
+    ## @param collect_connection_state - boolean - required
+    ## Set to true to collect connection states for your interfaces
+    #
   - collect_connection_state: false
-    excluded_interfaces:
-      - lo
-      - lo0
-    # Optionally completely ignore any network interface
-    # matching the given regex:
-    # excluded_interface_re: my-network-interface.*
 
-    # Do not combine connection states
-    # By default we combine states like fin_wait_1 and fin_wait_2
-    # together into one state: 'closing'
-    # For some people, this is fine, but others need more granular data
-    # enable this option to get more granular data
-    # combine_connection_states: no
+    ## @param excluded_interfaces - list of strings - optional
+    ## List of interface to exclude from the check.
+    #
+    # excluded_interfaces:
+    #   - lo
+    #   - lo0
 
-    # By default, most metrics are submitted as rates.
-    # However, some metrics like tcp/udp retransmissions and errors are
-    # better handled as counts.
-    # You can choose to enable either or both types of metrics.
-    # Count metrics will have '.count' added to the metric name.
+    ## @param excluded_interface_re - string - optional
+    ## Completely ignore any network interface matching the given regex.
+    #
+    # excluded_interface_re: <NETWORK_INTERFACE_NAME>.*
+
+    ## @param combine_connection_states - boolean - optional - default: true
+    ## Set to false to not combine connection states.
+    ## By default we combine states like fin_wait_1 and fin_wait_2
+    ## together into one state: 'closing' disable this option to get more granular data.
+    #
+    # combine_connection_states: true
+
+    ## @param collect_rate_metrics - boolean - optional - default: true
+    ## By default, most metrics are submitted as rates.
+    ## However, some metrics like tcp/udp retransmissions and errors are
+    ## better handled as counts.
+    ## Choose to disable rate metrics by setting collect_rate_metrics to false.
+    #
     # collect_rate_metrics: true
+
+    ## @param collect_count_metrics - boolean - optional - default: false
+    ## By default, most metrics are submitted as rates.
+    ## However, some metrics like tcp/udp retransmissions and errors are
+    ## better handled as counts.
+    ## Choose to enable count metrics by setting collect_count_metrics to true.
+    ## Count metrics have '.count' added to the metric name.
+    #
     # collect_count_metrics: false
 
+    ## @param conntrack_path - string - optional
+    ## Linux only.
+    ## The location of the conntrack executable in order to get the stats from conntrack -S.
+    ## It will be run with sudo, so an entry needs to be added to the sudoers file.
+    ## By default, these metrics will not be sent.
+    #
+    # conntrack_path: /usr/sbin/conntrack
+
+    ## @param whitelist_conntrack_metrics - list of string - optional - default: ["max", "count"]
+    ## Linux only.
+    ## Names of the conntrack metrics to whitelist for monitoring. The metric value is in the file
+    ## /${proc}/sys/net/netfilter/nf_conntrack_${metric_name}.
+    ## By default the agent collects only max and count.
+    ## Regex expressions for the project names are supported.
+    ## Blacklist takes precedence over whitelist in case of overlap.
+    #
+    # whitelist_conntrack_metrics:
+    #   - <METRIC_NAME>
+    #   - <METRIC_PREFIX>*
+
+    ## @param blacklist_conntrack_metrics - list of strings - optional - default: []
+    ## Linux only.
+    ## Names of the conntrack metrics to blacklist for monitoring. The metric value is in the file
+    ## /${proc}/sys/net/netfilter/nf_conntrack_${metric_name}.
+    ## If set, whitelist default value is reset to []
+    ## Regex expressions for the project names are supported.
+    ## Blacklist takes precedence over whitelist in case of overlap.
+    #
+    # blacklist_conntrack_metrics:
+    #   - <METRIC_NAME>
+    #   - <METRIC_PREFIX>*
+
+    ## @param tags - list of key:value elements - optional
+    ## List of tags to attach to every metric, event and service check emitted by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
     # tags:
-    #   - optional:tag1
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>

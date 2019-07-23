@@ -12,7 +12,7 @@ instances:
     ## @param unit_regexes - list of strings - optional
     ## Regex pattern[s] matching the names of units to monitor.
     ## If `unit_names` and `unit_regexes` are both NOT specified, the check monitors all units.
-    ## 
+    ##
     ## If the number of units managed by systemd is unbounded, it might increase
     ## the number of custom metrics send by this check which may impact your billing.
     ## Learn more about custom metrics: https://docs.datadoghq.com/developers/metrics/custom_metrics/#how-is-a-custom-metric-defined
@@ -20,10 +20,10 @@ instances:
     # unit_regexes:
     #   - ^<UNIT_NAME>$        # match exactly the unit name "<UNIT_NAME>"
 
-    ## @param tags  - list of key:value elements - optional
-    ## List of tags to attach to every metric, event, and service check emitted by this integration.
+    ## @param tags - list of key:value elements - optional
+    ## List of tags to attach to every metric, event and service check emitted by this integration.
     ##
-    ## Learn more about tagging at https://docs.datadoghq.com/tagging
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
     #
     # tags:
     #   - <KEY_1>:<VALUE_1>
