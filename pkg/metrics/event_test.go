@@ -6,7 +6,10 @@
 package metrics
 
 import (
+	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -120,4 +123,95 @@ func TestSplitEvents(t *testing.T) {
 	newEvents, err = events.SplitPayload(3)
 	require.Nil(t, err)
 	require.Len(t, newEvents, 2)
+}
+
+func buildPayload(t *testing.T, events Events) [][]byte {
+	builder := jsonstream.NewPayloadBuilder()
+	payloads, err := builder.Build(events)
+	assert.NoError(t, err)
+	var uncompressedPayloads [][]byte
+
+	for _, compressedPayload := range payloads {
+		payload, err := decompressPayload(*compressedPayload)
+		assert.NoError(t, err)
+
+		uncompressedPayloads = append(uncompressedPayloads, payload)
+	}
+	return uncompressedPayloads
+}
+
+func assertEqualToMarshalJSON(t *testing.T, events Events) {
+	payloads := buildPayload(t, events)
+	json, err := events.MarshalJSON()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(payloads))
+	assert.Equal(t, strings.TrimSpace(string(json)), string(payloads[0]))
+}
+
+func createEvent(sourceTypeName string) *Event {
+	return &Event{
+		Title:          "1",
+		Text:           "2",
+		Ts:             3,
+		Priority:       EventPriorityNormal,
+		Host:           "5",
+		Tags:           []string{"6", "7"},
+		AlertType:      EventAlertTypeError,
+		AggregationKey: "9",
+		SourceTypeName: sourceTypeName,
+		EventType:      "10"}
+}
+
+func TestEventsDescribeItem(t *testing.T) {
+	events := Events{createEvent("sourceTypeName")}
+	assert.Equal(t, `Title:"1", Text:"2"`, events.DescribeItem(0))
+}
+
+func TestPayloadsNoEvent(t *testing.T) {
+	assertEqualToMarshalJSON(t, Events{})
+}
+
+func TestPayloadsSingleEvent(t *testing.T) {
+	events := Events{createEvent("sourceTypeName")}
+	assertEqualToMarshalJSON(t, events)
+}
+
+func TestPayloadsEmptyEvent(t *testing.T) {
+	assertEqualToMarshalJSON(t, Events{&Event{}})
+}
+
+func TestPayloadsEvents(t *testing.T) {
+	events := Events{
+		createEvent("3"),
+		createEvent("1"),
+		createEvent("2"),
+		createEvent("2"),
+		createEvent("1"),
+		createEvent("3")}
+
+	assertEqualToMarshalJSON(t, events)
+}
+
+func TestPayloadsEventsSeveralPayloads(t *testing.T) {
+	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
+	config.Datadog.SetDefault("serializer_max_payload_size", 400)
+	defer config.Datadog.SetDefault("serializer_max_payload_size", maxPayloadSize)
+
+	eventsCollection := []Events{
+		{createEvent("1"), createEvent("1"), createEvent("2")},
+		{createEvent("2"), createEvent("3"), createEvent("3")},
+		{createEvent("4"), createEvent("4")}}
+	var allEvents Events
+	for _, event := range eventsCollection {
+		allEvents = append(allEvents, event...)
+	}
+
+	payloads := buildPayload(t, allEvents)
+
+	for index, events := range eventsCollection {
+		json, err := events.MarshalJSON()
+		assert.NoError(t, err)
+
+		assert.Equal(t, strings.TrimSpace(string(json)), string(payloads[index]))
+	}
 }

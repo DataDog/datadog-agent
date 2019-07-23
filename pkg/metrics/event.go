@@ -8,12 +8,16 @@ package metrics
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"expvar"
 	"fmt"
+	"sort"
 
 	"github.com/gogo/protobuf/proto"
+	jsoniter "github.com/json-iterator/go"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
@@ -23,8 +27,12 @@ type EventPriority string
 
 // Enumeration of the existing event priorities, and their values
 const (
-	EventPriorityNormal EventPriority = "normal"
-	EventPriorityLow    EventPriority = "low"
+	EventPriorityNormal       EventPriority = "normal"
+	EventPriorityLow          EventPriority = "low"
+	apiKeyJSONField                         = "apiKey"
+	eventsJSONField                         = "events"
+	internalHostnameJSONField               = "internalHostname"
+	defaultSourceType                       = "api"
 )
 
 var eventExpvar = expvar.NewMap("Event")
@@ -128,7 +136,7 @@ func (events Events) MarshalJSON() ([]byte, error) {
 	for _, e := range events {
 		sourceTypeName := e.SourceTypeName
 		if sourceTypeName == "" {
-			sourceTypeName = "api"
+			sourceTypeName = defaultSourceType
 		}
 
 		eventsBySourceType[sourceTypeName] = append(eventsBySourceType[sourceTypeName], e)
@@ -137,9 +145,9 @@ func (events Events) MarshalJSON() ([]byte, error) {
 	hostname, _ := util.GetHostname()
 	// Build intake payload containing events and serialize
 	data := map[string]interface{}{
-		"apiKey":           "", // legacy field, it isn't actually used by the backend
-		"events":           eventsBySourceType,
-		"internalHostname": hostname,
+		apiKeyJSONField:           "", // legacy field, it isn't actually used by the backend
+		eventsJSONField:           eventsBySourceType,
+		internalHostnameJSONField: hostname,
 	}
 	reqBody := &bytes.Buffer{}
 	err := json.NewEncoder(reqBody).Encode(data)
@@ -174,4 +182,145 @@ func (events Events) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 		n += batchSize
 	}
 	return splitPayloads, nil
+}
+
+//// The following methods implement the StreamJSONMarshaler interface
+//// for support of the enable_stream_payload_serialization option.
+
+// Initialize the data for serialization. Call once before any other methods.
+func (events Events) Initialize() error {
+
+	// Sort because events are aggregated by SourceTypeName. See WriteItem.
+	sort.Slice(events, func(i, j int) bool { return events[i].SourceTypeName < events[j].SourceTypeName })
+	return nil
+}
+
+// WriteHeader writes the payload header for this type
+func (events Events) WriteHeader(stream *jsoniter.Stream) error {
+	stream.WriteObjectStart()
+	stream.WriteObjectField(apiKeyJSONField)
+	stream.WriteString("")
+	stream.WriteMore()
+
+	stream.WriteObjectField(eventsJSONField)
+	stream.WriteObjectStart()
+
+	return stream.Flush()
+}
+
+// WriteFooter prints the payload footer for this type
+func (events Events) WriteFooter(stream *jsoniter.Stream) error {
+	// We have at least one event and so we need to close the array
+	stream.WriteArrayEnd()
+	return events.writeNoEventFooter(stream)
+}
+
+// WriteLastFooter writes the last footer. Call once after any other methods.
+func (events Events) WriteLastFooter(stream *jsoniter.Stream, itemWrittenCount int) error {
+	// If we do not write anything we should not close the JSON array.
+	if itemWrittenCount == 0 {
+		return events.writeNoEventFooter(stream)
+	}
+
+	return events.WriteFooter(stream)
+}
+
+func (events Events) writeNoEventFooter(stream *jsoniter.Stream) error {
+	stream.WriteObjectEnd()
+	stream.WriteMore()
+
+	hostname, _ := util.GetHostname()
+	stream.WriteObjectField(internalHostnameJSONField)
+	stream.WriteString(hostname)
+	
+	stream.WriteObjectEnd()
+	return stream.Flush()
+}
+
+// WriteItem prints the json representation of an item
+func (events Events) WriteItem(stream *jsoniter.Stream, i int, itemIndexInPayload int) error {
+	if i < 0 || i > len(events)-1 {
+		return errors.New("out of range")
+	}
+
+	event := events[i]
+	isFirstInPayLoad := itemIndexInPayload == 0
+	var startNewSourceType bool
+
+	if isFirstInPayLoad {
+		startNewSourceType = true
+	} else if i > 0 && events[i].SourceTypeName != events[i-1].SourceTypeName {
+		// Close previous source type and open a new one
+		stream.WriteArrayEnd()
+		stream.WriteMore()
+		startNewSourceType = true
+	} else {
+		// As SupportJSONSeparatorInsertion returns false, we need the separator between items
+		stream.WriteMore()
+	}
+
+	if startNewSourceType {
+		sourceTypeName := event.SourceTypeName
+		if sourceTypeName == "" {
+			sourceTypeName = defaultSourceType
+		}
+
+		stream.WriteObjectField(sourceTypeName)
+		stream.WriteArrayStart()
+	}
+
+	if err := writeEvent(event, stream); err != nil {
+		return err
+	}
+	return stream.Flush()
+}
+
+// SupportJSONSeparatorInsertion returns true to add JSON separator automatically between two calls of WriteItem, false otherwise.
+func (events Events) SupportJSONSeparatorInsertion() bool {
+	// If SupportJSONSeparatorInsertion returns true, it leads to this output
+	//
+	// 	"events": {
+	// 		"SourceTypeName1": [  	// First WriteItem
+	// 			{ ... } 			// First WriteItem
+	//		, 						// ',' added by compressor
+	//		],						// Second WriteItem
+	//		"SourceTypeName1": [	// Second WriteItem
+
+	return false
+}
+
+// Len returns the number of items to marshal
+func (events Events) Len() int {
+	return len(events)
+}
+
+// DescribeItem returns a text description for logs
+func (events Events) DescribeItem(i int) string {
+	if i < 0 || i > len(events)-1 {
+		return "out of range"
+	}
+	return fmt.Sprintf("Title:%q, Text:%q", events[i].Title, events[i].Text)
+}
+
+func writeEvent(event *Event, stream *jsoniter.Stream) error {
+	writer := jsonstream.NewJSONRawObjectWriter(stream)
+	writer.AddStringField("msg_title", event.Title, jsonstream.AllowEmpty)
+	writer.AddStringField("msg_text", event.Text, jsonstream.AllowEmpty)
+	writer.AddInt64Field("timestamp", event.Ts)
+	writer.AddStringField("priority", string(event.Priority), jsonstream.OmitEmpty)
+	writer.AddStringField("host", event.Host, jsonstream.AllowEmpty)
+
+	if len(event.Tags) != 0 {
+		writer.StartArrayField("tags")
+		for _, tag := range event.Tags {
+			writer.AddStringValue(tag)
+		}
+		writer.FinishArrayField()
+	}
+
+	writer.AddStringField("alert_type", string(event.AlertType), jsonstream.OmitEmpty)
+	writer.AddStringField("aggregation_key", event.AggregationKey, jsonstream.OmitEmpty)
+	writer.AddStringField("source_type_name", event.SourceTypeName, jsonstream.OmitEmpty)
+	writer.AddStringField("event_type", event.EventType, jsonstream.OmitEmpty)
+	return writer.Close()
 }

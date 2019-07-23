@@ -68,7 +68,7 @@ func (writer *JSONRawObjectWriter) AddStringValue(value string) {
 	writer.stream.WriteString(value)
 }
 
-// Close closes the JSON object and flush the stream
+// Close closes the JSON object and flushes the stream
 func (writer *JSONRawObjectWriter) Close() error {
 	writer.stream.WriteObjectEnd()
 	return writer.stream.Flush()
