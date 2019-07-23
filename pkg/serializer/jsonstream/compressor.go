@@ -56,35 +56,37 @@ var jsonSeparator = []byte(",")
 
 // compressor is in charge of compressing items for a single payload
 type compressor struct {
-	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
-	compressed          *bytes.Buffer // output buffer containing the compressed payload
-	zipper              *zlib.Writer
-	header              []byte // json header to print at the beginning of the payload
-	footer              []byte // json footer to append at the end of the payload
-	uncompressedWritten int    // uncompressed bytes written
-	firstItem           bool   // tells if the first item has been written
-	repacks             int    // numbers of time we had to pack this payload
-	maxUnzippedItemSize int
-	maxZippedItemSize   int
-	maxPayloadSize      int
-	maxUncompressedSize int
+	input                 *bytes.Buffer // temporary buffer for data that has not been compressed yet
+	compressed            *bytes.Buffer // output buffer containing the compressed payload
+	zipper                *zlib.Writer
+	header                []byte // json header to print at the beginning of the payload
+	footer                []byte // json footer to append at the end of the payload
+	uncompressedWritten   int    // uncompressed bytes written
+	firstItem             bool   // tells if the first item has been written
+	repacks               int    // numbers of time we had to pack this payload
+	maxUnzippedItemSize   int
+	maxZippedItemSize     int
+	maxPayloadSize        int
+	maxUncompressedSize   int
+	insertSepBetweenItems bool
 }
 
-func newCompressor(input, output *bytes.Buffer, header, footer []byte) (*compressor, error) {
+func newCompressor(input, output *bytes.Buffer, header, footer []byte, insertSepBetweenItems bool) (*compressor, error) {
 	// the backend accepts payloads up to 3MB compressed / 50MB uncompressed but
 	// prefers small uncompressed payloads of ~4MB
 	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
 	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
 	c := &compressor{
-		header:              header,
-		footer:              footer,
-		input:               input,
-		compressed:          output,
-		firstItem:           true,
-		maxPayloadSize:      maxPayloadSize,
-		maxUncompressedSize: maxUncompressedSize,
-		maxUnzippedItemSize: maxPayloadSize - len(footer) - len(header),
-		maxZippedItemSize:   maxUncompressedSize - compression.CompressBound(len(footer)+len(header)),
+		header:                header,
+		footer:                footer,
+		input:                 input,
+		compressed:            output,
+		firstItem:             true,
+		maxPayloadSize:        maxPayloadSize,
+		maxUncompressedSize:   maxUncompressedSize,
+		maxUnzippedItemSize:   maxPayloadSize - len(footer) - len(header),
+		maxZippedItemSize:     maxUncompressedSize - compression.CompressBound(len(footer)+len(header)),
+		insertSepBetweenItems: insertSepBetweenItems,
 	}
 
 	c.zipper = zlib.NewWriter(c.compressed)
@@ -150,17 +152,19 @@ func (c *compressor) addItem(data []byte) error {
 	}
 
 	// Write the separator between items
-	if c.firstItem {
-		c.firstItem = false
-	} else {
-		c.input.Write(jsonSeparator)
+	if c.insertSepBetweenItems {
+		if c.firstItem {
+			c.firstItem = false
+		} else {
+			c.input.Write(jsonSeparator)
+		}
 	}
 
 	c.input.Write(data)
 	return nil
 }
 
-func (c *compressor) close() ([]byte, error) {
+func (c *compressor) close(footerOverride []byte) ([]byte, error) {
 	// Flush remaining uncompressed data
 	if c.input.Len() > 0 {
 		n, err := c.input.WriteTo(c.zipper)
@@ -170,7 +174,15 @@ func (c *compressor) close() ([]byte, error) {
 		}
 	}
 	// Add json footer
-	n, err := c.zipper.Write(c.footer)
+	if footerOverride == nil || len(footerOverride) == 0 {
+		return nil, errors.New("footerOverride is empty")
+	}
+
+	if len(footerOverride) > len(c.footer) {
+		return nil, errors.New("footerOverride size should not be greater than footer")
+	}
+
+	n, err := c.zipper.Write(footerOverride)
 	c.uncompressedWritten += int(n)
 	if err != nil {
 		return nil, err

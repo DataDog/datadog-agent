@@ -37,6 +37,8 @@ func resetDefaults() {
 	config.Datadog.SetDefault("serializer_max_payload_size", maxPayloadSizeDefault)
 }
 
+func (p *dummyMarshaller) Initialize() error { return nil }
+
 func (d *dummyMarshaller) WriteHeader(stream *jsoniter.Stream) error {
 	_, err := stream.Write([]byte(d.header))
 	return err
@@ -65,6 +67,11 @@ func (d *dummyMarshaller) DescribeItem(i int) string {
 func (d *dummyMarshaller) WriteFooter(stream *jsoniter.Stream) error {
 	_, err := stream.Write([]byte(d.footer))
 	return err
+}
+
+func (p *dummyMarshaller) SupportJSONSeparatorInsertion() bool { return true }
+func (p *dummyMarshaller) WriteLastFooter(stream *jsoniter.Stream, itemWrittenCount int) error {
+	return p.WriteFooter(stream)
 }
 
 func (d *dummyMarshaller) MarshalJSON() ([]byte, error) {
@@ -102,14 +109,15 @@ func payloadToString(payload []byte) string {
 }
 
 func TestCompressorSimple(t *testing.T) {
-	c, err := newCompressor(&bytes.Buffer{}, &bytes.Buffer{}, []byte("{["), []byte("]}"))
+	footer := []byte("]}")
+	c, err := newCompressor(&bytes.Buffer{}, &bytes.Buffer{}, []byte("{["), footer, true)
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
 		c.addItem([]byte("A"))
 	}
 
-	p, err := c.close()
+	p, err := c.close(footer)
 	require.NoError(t, err)
 	require.Equal(t, "{[A,A,A,A,A]}", payloadToString(p))
 }

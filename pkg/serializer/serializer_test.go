@@ -108,6 +108,8 @@ func (p *testPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return []marshaler.Marshaler{}, nil
 }
 
+func (p *testPayload) Initialize() error { return nil }
+
 func (p *testPayload) WriteHeader(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonHeader)
 	return err
@@ -116,6 +118,13 @@ func (p *testPayload) WriteFooter(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonFooter)
 	return err
 }
+
+func (p *testPayload) WriteLastFooter(stream *jsoniter.Stream, itemWrittenCount int) error {
+	return p.WriteFooter(stream)
+}
+
+func (p *testPayload) SupportJSONSeparatorInsertion() bool { return true }
+
 func (p *testPayload) WriteItem(stream *jsoniter.Stream, i int, itemIndexInPayload int) error {
 	_, err := stream.Write(jsonItem)
 	return err
@@ -125,8 +134,11 @@ func (p *testPayload) DescribeItem(i int) string { return "description" }
 
 type testErrorPayload struct{}
 
-func (p *testErrorPayload) MarshalJSON() ([]byte, error) { return nil, fmt.Errorf("some error") }
-func (p *testErrorPayload) Marshal() ([]byte, error)     { return nil, fmt.Errorf("some error") }
+func (p *testErrorPayload) Initialize() error { return fmt.Errorf("some error") }
+
+func (p *testErrorPayload) SupportJSONSeparatorInsertion() bool { return true }
+func (p *testErrorPayload) MarshalJSON() ([]byte, error)        { return nil, fmt.Errorf("some error") }
+func (p *testErrorPayload) Marshal() ([]byte, error)            { return nil, fmt.Errorf("some error") }
 func (p *testErrorPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return []marshaler.Marshaler{}, fmt.Errorf("some error")
 }
@@ -139,6 +151,11 @@ func (p *testErrorPayload) WriteFooter(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonFooter)
 	return err
 }
+
+func (p *testErrorPayload) WriteLastFooter(stream *jsoniter.Stream, itemWrittenCount int) error {
+	return fmt.Errorf("some error")
+}
+
 func (p *testErrorPayload) WriteItem(stream *jsoniter.Stream, i int, itemIndexInPayload int) error {
 	return fmt.Errorf("some error")
 }

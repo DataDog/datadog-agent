@@ -212,6 +212,9 @@ func (e Serie) String() string {
 //// The following methods implement the StreamJSONMarshaler interface
 //// for support of the enable_stream_payload_serialization option.
 
+// Initialize the data for serialization. Call once before any other methods.
+func (series Series) Initialize() error { return nil }
+
 // WriteHeader writes the payload header for this type
 func (series Series) WriteHeader(stream *jsoniter.Stream) error {
 	stream.WriteObjectStart()
@@ -226,6 +229,14 @@ func (series Series) WriteFooter(stream *jsoniter.Stream) error {
 	stream.WriteObjectEnd()
 	return stream.Flush()
 }
+
+// WriteLastFooter writes the last footer. Call once after any other methods.
+func (series Series) WriteLastFooter(stream *jsoniter.Stream, itemWrittenCount int) error {
+	return series.WriteFooter(stream)
+}
+
+// SupportJSONSeparatorInsertion returns true to add JSON separator automatically between two calls of WriteItem, false otherwise.
+func (series Series) SupportJSONSeparatorInsertion() bool { return true }
 
 // WriteItem prints the json representation of an item
 func (series Series) WriteItem(stream *jsoniter.Stream, i int, itemIndexInPayload int) error {

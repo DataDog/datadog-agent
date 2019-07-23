@@ -10,7 +10,7 @@ package jsonstream
 import (
 	"bytes"
 
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -52,6 +52,10 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 	var header, footer bytes.Buffer
 	jsonStream := jsoniter.NewStream(jsonConfig, &header, 4096)
 
+	if err := m.Initialize(); err != nil {
+		return nil, err
+	}
+
 	err := m.WriteHeader(jsonStream)
 	if err != nil {
 		return nil, err
@@ -62,8 +66,8 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 	if err != nil {
 		return nil, err
 	}
-
-	compressor, err := newCompressor(input, output, header.Bytes(), footer.Bytes())
+	insertSepBetweenItems := m.SupportJSONSeparatorInsertion()
+	compressor, err := newCompressor(input, output, header.Bytes(), footer.Bytes(), insertSepBetweenItems)
 	if err != nil {
 		return nil, err
 	}
@@ -83,14 +87,14 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 		switch compressor.addItem(jsonStream.Buffer()) {
 		case errPayloadFull:
 			// payload is full, we need to create a new one
-			payload, err := compressor.close()
+			payload, err := compressor.close(footer.Bytes())
 			if err != nil {
 				return payloads, err
 			}
 			payloads = append(payloads, &payload)
 			input.Reset()
 			output.Reset()
-			compressor, err = newCompressor(input, output, header.Bytes(), footer.Bytes())
+			compressor, err = newCompressor(input, output, header.Bytes(), footer.Bytes(), insertSepBetweenItems)
 			if err != nil {
 				return nil, err
 			}
@@ -111,7 +115,9 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 	}
 
 	// Close last payload
-	payload, err := compressor.close()
+	jsonStream.Reset(nil)
+	m.WriteLastFooter(jsonStream, itemIndexInPayload)
+	payload, err := compressor.close(jsonStream.Buffer())
 	if err != nil {
 		return payloads, err
 	}
