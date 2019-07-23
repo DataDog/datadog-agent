@@ -47,14 +47,16 @@ func BenchmarkLogFormatShortFilePath(b *testing.B) {
 }
 
 func TestExtractContextString(t *testing.T) {
-	assert.Equal(t, `,"foo":"bar"`, extractContextString([]interface{}{"foo", "bar"}))
-	assert.Equal(t, `,"foo":"bar","bar":"buzz"`, extractContextString([]interface{}{"foo", "bar", "bar", "buzz"}))
-	assert.Equal(t, `,"foo":"b\"a\"r"`, extractContextString([]interface{}{"foo", "b\"a\"r"}))
-	assert.Equal(t, `,"foo":3`, extractContextString([]interface{}{"foo", 3}))
-	assert.Equal(t, `,"foo":4.1313`, extractContextString([]interface{}{"foo", float64(4.131313131)}))
-	assert.Equal(t, "", extractContextString(nil))
-	assert.Equal(t, ",", extractContextString([]interface{}{2, 3}))
-	assert.Equal(t, `,"foo":"bar","bar":"buzz"`, extractContextString([]interface{}{"foo", "bar", 2, 3, "bar", "buzz"}))
+	assert.Equal(t, `,"foo":"bar"`, extractContextString(jsonFormat, []interface{}{"foo", "bar"}))
+	assert.Equal(t, `foo:bar`, extractContextString(textFormat, []interface{}{"foo", "bar"}))
+	assert.Equal(t, `,"foo":"bar","bar":"buzz"`, extractContextString(jsonFormat, []interface{}{"foo", "bar", "bar", "buzz"}))
+	assert.Equal(t, `foo:bar bar:buzz`, extractContextString(textFormat, []interface{}{"foo", "bar", "bar", "buzz"}))
+	assert.Equal(t, `,"foo":"b\"a\"r"`, extractContextString(jsonFormat, []interface{}{"foo", "b\"a\"r"}))
+	assert.Equal(t, `,"foo":3`, extractContextString(jsonFormat, []interface{}{"foo", 3}))
+	assert.Equal(t, `,"foo":4.1313`, extractContextString(jsonFormat, []interface{}{"foo", float64(4.131313131)}))
+	assert.Equal(t, "", extractContextString(jsonFormat, nil))
+	assert.Equal(t, ",", extractContextString(jsonFormat, []interface{}{2, 3}))
+	assert.Equal(t, `,"foo":"bar","bar":"buzz"`, extractContextString(jsonFormat, []interface{}{"foo", "bar", 2, 3, "bar", "buzz"}))
 }
 
 func benchmarkLogFormatWithContext(logFormat string, b *testing.B) {
@@ -76,5 +78,5 @@ func BenchmarkLogFormatWithoutContextFormatting(b *testing.B) {
 }
 
 func BenchmarkLogFormatWithContextFormatting(b *testing.B) {
-	benchmarkLogFormatWithContext("%Date(%s) | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %Msg %ExtraContext", b)
+	benchmarkLogFormatWithContext("%Date(%s) | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %Msg %ExtraJSONContext", b)
 }
