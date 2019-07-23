@@ -68,11 +68,12 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 		return nil, err
 	}
 
+	itemIndexInPayload := 0
 	for i < itemCount {
 		// We keep reusing the same small buffer in the jsoniter stream. Note that we can do so
 		// because compressor.addItem copies given buffer.
 		jsonStream.Reset(nil)
-		err := m.WriteItem(jsonStream, i)
+		err := m.WriteItem(jsonStream, i, itemIndexInPayload)
 		if err != nil {
 			log.Warnf("error marshalling an item, skipping: %s", err)
 			i++
@@ -93,9 +94,11 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 			if err != nil {
 				return nil, err
 			}
+			itemIndexInPayload = 0
 		case nil:
 			// All good, continue to next item
 			i++
+			itemIndexInPayload++
 			expvarsTotalItems.Add(1)
 			continue
 		default:

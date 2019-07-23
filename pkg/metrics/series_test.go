@@ -312,15 +312,15 @@ func TestStreamJSONMarshaler(t *testing.T) {
 	stream.Reset(nil)
 
 	// Access an out-of-bounds item
-	err := series.WriteItem(stream, 10)
+	err := series.WriteItem(stream, 10, 0)
 	assert.EqualError(t, err, "out of range")
-	err = series.WriteItem(stream, -10)
+	err = series.WriteItem(stream, -10, 0)
 	assert.EqualError(t, err, "out of range")
 
 	// Test each item type
 	for i := range series {
 		stream.Reset(nil)
-		err = series.WriteItem(stream, i)
+		err = series.WriteItem(stream, i, 0)
 		assert.NoError(t, err)
 
 		// Make sure the output is valid and matches the original item
@@ -348,7 +348,7 @@ func TestStreamJSONMarshalerWithDevice(t *testing.T) {
 
 	stream := jsoniter.NewStream(jsoniter.ConfigDefault, nil, 0)
 
-	err := series.WriteItem(stream, 0)
+	err := series.WriteItem(stream, 0, 0)
 	assert.NoError(t, err)
 
 	// Make sure the output is valid and fields are as expected

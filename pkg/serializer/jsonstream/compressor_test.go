@@ -27,9 +27,10 @@ var (
 )
 
 type dummyMarshaller struct {
-	items  []string
-	header string
-	footer string
+	items               []string
+	header              string
+	footer              string
+	itemIndexInPayloads []int
 }
 
 func resetDefaults() {
@@ -45,10 +46,11 @@ func (d *dummyMarshaller) Len() int {
 	return len(d.items)
 }
 
-func (d *dummyMarshaller) WriteItem(stream *jsoniter.Stream, i int) error {
+func (d *dummyMarshaller) WriteItem(stream *jsoniter.Stream, i int, itemIndexInPayload int) error {
 	if i < 0 || i > d.Len()-1 {
 		return errors.New("out of range")
 	}
+	d.itemIndexInPayloads = append(d.itemIndexInPayloads, itemIndexInPayload)
 	_, err := stream.Write([]byte(d.items[i]))
 	return err
 }
@@ -160,4 +162,5 @@ func TestTwoPayload(t *testing.T) {
 
 	require.Equal(t, "{[A,B,C]}", payloadToString(*payloads[0]))
 	require.Equal(t, "{[D,E,F]}", payloadToString(*payloads[1]))
+	require.Equal(t, []int{0, 1, 2, 3, 0, 1, 2}, m.itemIndexInPayloads)
 }

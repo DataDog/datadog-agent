@@ -19,7 +19,7 @@ type StreamJSONMarshaler interface {
 	Marshaler
 	WriteHeader(*jsoniter.Stream) error
 	WriteFooter(*jsoniter.Stream) error
-	WriteItem(*jsoniter.Stream, int) error
+	WriteItem(stream *jsoniter.Stream, index int, itemIndexInPayload int) error
 	Len() int
 	DescribeItem(i int) string
 }

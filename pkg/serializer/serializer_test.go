@@ -116,7 +116,7 @@ func (p *testPayload) WriteFooter(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonFooter)
 	return err
 }
-func (p *testPayload) WriteItem(stream *jsoniter.Stream, i int) error {
+func (p *testPayload) WriteItem(stream *jsoniter.Stream, i int, itemIndexInPayload int) error {
 	_, err := stream.Write(jsonItem)
 	return err
 }
@@ -139,7 +139,7 @@ func (p *testErrorPayload) WriteFooter(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonFooter)
 	return err
 }
-func (p *testErrorPayload) WriteItem(stream *jsoniter.Stream, i int) error {
+func (p *testErrorPayload) WriteItem(stream *jsoniter.Stream, i int, itemIndexInPayload int) error {
 	return fmt.Errorf("some error")
 }
 func (p *testErrorPayload) Len() int                  { return 1 }

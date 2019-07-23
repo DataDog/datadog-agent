@@ -228,7 +228,7 @@ func (series Series) WriteFooter(stream *jsoniter.Stream) error {
 }
 
 // WriteItem prints the json representation of an item
-func (series Series) WriteItem(stream *jsoniter.Stream, i int) error {
+func (series Series) WriteItem(stream *jsoniter.Stream, i int, itemIndexInPayload int) error {
 	if i < 0 || i > len(series)-1 {
 		return errors.New("out of range")
 	}
