@@ -71,7 +71,7 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 			if !ok {
 				// log.Printf("untracked memory was attempted to be freed")
 				log.Warnf("untracked memory was attempted to be freed")
-				log.Debugf("Memory Tracker - stacktrace: \n%s", string(debug.Stack()))
+				log.Debugf("Memory Tracker - stacktrace: \n%s", stack)
 				untrackedFrees.Add(1)
 				return
 			}
