@@ -27,8 +27,6 @@ const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format sy
 
 var syslogTLSConfig *tls.Config
 
-var builder strings.Builder
-
 // BuildCommonFormat returns the log common format seelog string
 func BuildCommonFormat(loggerName LoggerName) string {
 	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg %%ExtraContext%%n", logDateFormat, loggerName)
@@ -360,7 +358,7 @@ func createExtraContext(params string) seelog.FormatterFunc {
 }
 
 func extractContextString(contextList []interface{}) string {
-	builder.Reset()
+	builder := strings.Builder{}
 	if len(contextList) > 0 {
 		builder.WriteString(",")
 	}
@@ -377,14 +375,27 @@ func extractContextString(contextList []interface{}) string {
 			i += 2
 			continue
 		}
-		if i == len(contextList)-2 {
-			fmt.Fprintf(&builder, "\"%s\": \"%v\"", keyStr, val)
-		} else {
-			fmt.Fprintf(&builder, "\"%s\": \"%v\",", keyStr, val)
-		}
+		addToBuilder(&builder, keyStr, val, i == len(contextList)-2)
 		i += 2
 	}
 	return builder.String()
+}
+
+func addToBuilder(builder *strings.Builder, key string, value interface{}, isLast bool) {
+	builder.WriteString(strconv.Quote(key) + ":")
+	switch val := value.(type) {
+	case string:
+		builder.WriteString(strconv.Quote(val))
+	case int:
+		builder.WriteString(strconv.Itoa(val))
+	case float64:
+		builder.WriteString(strconv.FormatFloat(val, 'f', 4, 32))
+	default:
+		builder.WriteString(strconv.Quote("non supported field"))
+	}
+	if !isLast {
+		builder.WriteString(",")
+	}
 }
 
 func init() {
