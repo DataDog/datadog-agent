@@ -1,9 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package writer
 
 import (
 	"compress/gzip"
 	"math"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -54,6 +60,8 @@ type TraceWriter struct {
 	senders  []*sender
 	stop     chan struct{}
 	stats    *info.TraceWriterInfo
+	wg       sync.WaitGroup // waits for gzippers
+	tick     time.Duration  // flush frequency
 
 	traces       []*pb.APITrace // traces buffered
 	events       []*pb.Span     // events buffered
@@ -69,6 +77,7 @@ func NewTraceWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceWrit
 		env:      cfg.DefaultEnv,
 		stats:    &info.TraceWriterInfo{},
 		stop:     make(chan struct{}),
+		tick:     5 * time.Second,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -80,6 +89,9 @@ func NewTraceWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceWrit
 		// default to 50% of maximum memory.
 		qsize = int(math.Max(1, cfg.MaxMemory/2/float64(maxPayloadSize)))
 	}
+	if s := cfg.TraceWriter.FlushPeriodSeconds; s != 0 {
+		tw.tick = time.Duration(s*1000) * time.Millisecond
+	}
 	log.Debugf("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
 	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize)
 	return tw
@@ -90,12 +102,13 @@ func (w *TraceWriter) Stop() {
 	log.Debug("Exiting trace writer. Trying to flush whatever is left...")
 	w.stop <- struct{}{}
 	<-w.stop
+	w.wg.Wait()
 	stopSenders(w.senders)
 }
 
 // Run starts the TraceWriter.
 func (w *TraceWriter) Run() {
-	t := time.NewTicker(5 * time.Second)
+	t := time.NewTicker(w.tick)
 	defer t.Stop()
 	defer close(w.stop)
 	for {
@@ -172,27 +185,33 @@ func (w *TraceWriter) flush() {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
 		return
 	}
-	p := newPayload(map[string]string{
-		"Content-Type":     "application/x-protobuf",
-		"Content-Encoding": "gzip",
-		headerLanguages:    strings.Join(info.Languages(), "|"),
-	})
-	gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
-	if err != nil {
-		// it will never happen, unless an invalid compression is chosen;
-		// we know gzip.BestSpeed is valid.
-		log.Errorf("gzip.NewWriterLevel: %d", err)
-		return
-	}
-	gzipw.Write(b)
-	gzipw.Close()
 
 	atomic.AddInt64(&w.stats.BytesUncompressed, int64(len(b)))
 	atomic.AddInt64(&w.stats.BytesEstimated, int64(w.bufferedSize))
 
-	for _, sender := range w.senders {
-		sender.Push(p)
-	}
+	w.wg.Add(1)
+	go func() {
+		defer timing.Since("datadog.trace_agent.trace_writer.compress_ms", time.Now())
+		defer w.wg.Done()
+		p := newPayload(map[string]string{
+			"Content-Type":     "application/x-protobuf",
+			"Content-Encoding": "gzip",
+			headerLanguages:    strings.Join(info.Languages(), "|"),
+		})
+		gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
+		if err != nil {
+			// it will never happen, unless an invalid compression is chosen;
+			// we know gzip.BestSpeed is valid.
+			log.Errorf("gzip.NewWriterLevel: %d", err)
+			return
+		}
+		gzipw.Write(b)
+		gzipw.Close()
+
+		for _, sender := range w.senders {
+			sender.Push(p)
+		}
+	}()
 }
 
 func (w *TraceWriter) report() {

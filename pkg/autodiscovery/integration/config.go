@@ -38,17 +38,18 @@ const (
 
 // Config is a generic container for configuration files
 type Config struct {
-	Name            string       `json:"check_name"`     // the name of the check
-	Instances       []Data       `json:"instances"`      // array of Yaml configurations
-	InitConfig      Data         `json:"init_config"`    // the init_config in Yaml (python check only)
-	MetricConfig    Data         `json:"metric_config"`  // the metric config in Yaml (jmx check only)
-	LogsConfig      Data         `json:"logs"`           // the logs config in Yaml (logs-agent only)
-	ADIdentifiers   []string     `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
-	Provider        string       `json:"provider"`       // the provider that issued the config
-	Entity          string       `json:"-"`              // the id of the entity (optional)
-	ClusterCheck    bool         `json:"cluster_check"`  // cluster-check configuration flag
-	EndpointsChecks []Config     `json:"-"`              // endpoints check configs related to a service
-	CreationTime    CreationTime `json:"-"`              // creation time of service
+	Name          string       `json:"check_name"`     // the name of the check
+	Instances     []Data       `json:"instances"`      // array of Yaml configurations
+	InitConfig    Data         `json:"init_config"`    // the init_config in Yaml (python check only)
+	MetricConfig  Data         `json:"metric_config"`  // the metric config in Yaml (jmx check only)
+	LogsConfig    Data         `json:"logs"`           // the logs config in Yaml (logs-agent only)
+	ADIdentifiers []string     `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
+	Provider      string       `json:"provider"`       // the provider that issued the config
+	Entity        string       `json:"-"`              // the entity ID (optional)
+	TaggerEntity  string       `json:"-"`              // the tagger entity ID (optional)
+	ClusterCheck  bool         `json:"cluster_check"`  // cluster-check configuration flag
+	NodeName      string       `json:"-"`              // Node name in case of an endpoint check backed by a pod
+	CreationTime  CreationTime `json:"-"`              // creation time of service
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data
@@ -270,9 +271,7 @@ func (c *Config) Digest() string {
 	for _, i := range c.ADIdentifiers {
 		h.Write([]byte(i))
 	}
-	for _, i := range c.EndpointsChecks {
-		h.Write([]byte(i.Digest()))
-	}
+	h.Write([]byte(c.NodeName))
 	h.Write([]byte(c.LogsConfig))
 
 	return strconv.FormatUint(h.Sum64(), 16)

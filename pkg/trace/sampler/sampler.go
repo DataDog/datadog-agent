@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 // Package sampler contains all the logic of the agent-side trace sampling
 //
 // Currently implementation is based on the scoring of the "signature" of each trace
@@ -26,7 +31,7 @@ const (
 	// KeySamplingRateClient is a metric key holding the client-set sampling rate for APM events.
 	KeySamplingRateClient = "_dd1.sr.rcusr"
 
-	// KeySamplingRatePreSampler is a metric key holding the pre-sampler rate for APM events.
+	// KeySamplingRatePreSampler is a metric key holding the API rate limiter's rate for APM events.
 	KeySamplingRatePreSampler = "_dd1.sr.rapre"
 
 	// KeySamplingRateEventExtraction is the key of the metric storing the event extraction rate on an APM event.

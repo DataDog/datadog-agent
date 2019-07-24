@@ -72,6 +72,11 @@ static const __u8 TRACER_STATE_READY = 3;
 static const __u8 TRACER_IPV6_DISABLED = 0;
 static const __u8 TRACER_IPV6_ENABLED = 1;
 
+// Telemetry names
+typedef struct {
+    __u64 tcp_sent_miscounts;
+} telemetry_t;
+
 typedef struct {
     __u64 state;
 

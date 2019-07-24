@@ -96,6 +96,10 @@ func (c *Config) EnabledKProbes() map[KProbeName]struct{} {
 		enabled[TCPRetransmit] = struct{}{}
 		enabled[InetCskAcceptReturn] = struct{}{}
 		enabled[TCPv4DestroySock] = struct{}{}
+
+		if c.BPFDebug {
+			enabled[TCPSendMsgReturn] = struct{}{}
+		}
 	}
 
 	if c.CollectUDPConns {

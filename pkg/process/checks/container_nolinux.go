@@ -51,3 +51,7 @@ func chunkContainers(ctrList []*containers.Container, lastRates map[string]util.
 func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.ContainerRateMetrics, lastRun time.Time) []*model.Container {
 	return make([]*model.Container, 0)
 }
+
+func (c *ContainerCheck) filterCtrIDsByPIDs(pids []int32) map[int32]string {
+	return map[int32]string{}
+}

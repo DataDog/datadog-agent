@@ -765,7 +765,7 @@ func TestEntityOriginDetectionNoTags(t *testing.T) {
 
 func TestEntityOriginDetectionTags(t *testing.T) {
 	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
-		if entity == "kubernetes_pod://foo" {
+		if entity == "kubernetes_pod_uid://foo" {
 			return []string{"foo:bar", "bar:buz"}, nil
 		}
 		return []string{}, nil

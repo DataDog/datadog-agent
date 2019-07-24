@@ -224,15 +224,15 @@ func Initialize(paths ...string) error {
 
 	var pyErr *C.char = nil
 	if pythonVersion == "2" {
-		// Do not free this CString which stores the path of the python home: it is passed to `Py_SetPythonHome`,
-		// which explicitly needs it to be kept around until the interpreter exits.
-		rtloader = C.make2(C.CString(pythonHome2), &pyErr)
+		csPythonHome2 := C.CString(pythonHome2)
+		rtloader = C.make2(csPythonHome2, &pyErr)
+		C.free(unsafe.Pointer(csPythonHome2))
 		log.Infof("Initializing rtloader with python2 %s", pythonHome2)
 		PythonHome = pythonHome2
 	} else if pythonVersion == "3" {
-		// Do not free this CString which stores the path of the python home: it is passed to `Py_SetPythonHome`,
-		// which explicitly needs it to be kept around until the interpreter exits.
-		rtloader = C.make3(C.CString(pythonHome3), &pyErr)
+		csPythonHome3 := C.CString(pythonHome3)
+		rtloader = C.make3(csPythonHome3, &pyErr)
+		C.free(unsafe.Pointer(csPythonHome3))
 		log.Infof("Initializing rtloader with python3 %s", pythonHome3)
 		PythonHome = pythonHome3
 	} else {

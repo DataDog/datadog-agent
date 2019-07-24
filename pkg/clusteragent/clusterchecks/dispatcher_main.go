@@ -13,13 +13,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	ktypes "k8s.io/apimachinery/pkg/types"
-	v1 "k8s.io/client-go/listers/core/v1"
 )
 
 // dispatcher holds the management logic for cluster-checks
@@ -27,7 +24,6 @@ type dispatcher struct {
 	store                 *clusterStore
 	nodeExpirationSeconds int64
 	extraTags             []string
-	endpointsLister       v1.EndpointsLister
 }
 
 func newDispatcher() *dispatcher {
@@ -41,11 +37,6 @@ func newDispatcher() *dispatcher {
 	clusterTagName := config.Datadog.GetString("cluster_checks.cluster_tag_name")
 	if clusterTagName != "" && clusterTagValue != "" {
 		d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
-	}
-	var err error
-	d.endpointsLister, err = newEndpointsLister()
-	if err != nil {
-		log.Errorf("Cannot create endpoints lister: %s", err)
 	}
 
 	return d
@@ -62,12 +53,15 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}
-		if isKubeServiceCheck(c) && len(c.EndpointsChecks) > 0 {
-			// A kube service that requires endpoints checks will be scheduled,
-			// endpoints cache must be updated with the new checks.
-			d.store.Lock()
-			d.store.endpointsCache[ktypes.UID(getServiceUID(c))] = newEndpointsInfo(c)
-			d.store.Unlock()
+		if c.NodeName != "" {
+			// An endpoint check backed by a pod
+			patched, err := d.patchEndpointsConfiguration(c)
+			if err != nil {
+				log.Warnf("Cannot patch endpoint configuration %s: %s", c.Digest(), err)
+				continue
+			}
+			d.addEndpointConfig(patched, c.NodeName)
+			continue
 		}
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
@@ -84,11 +78,14 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}
-		if isKubeServiceCheck(c) && len(c.EndpointsChecks) > 0 {
-			d.store.Lock()
-			// Remove the cached endpoints checks of the service
-			delete(d.store.endpointsCache, ktypes.UID(getServiceUID(c)))
-			d.store.Unlock()
+		if c.NodeName != "" {
+			patched, err := d.patchEndpointsConfiguration(c)
+			if err != nil {
+				log.Warnf("Cannot patch endpoint configuration %s: %s", c.Digest(), err)
+				continue
+			}
+			d.removeEndpointConfig(patched, c.NodeName)
+			continue
 		}
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
@@ -165,21 +162,5 @@ func (d *dispatcher) run(ctx context.Context) {
 				d.reschedule(danglingConfs)
 			}
 		}
-	}
-}
-
-// newEndpointsInfo initializes an EndpointsInfo struct from a service config.
-// Needed by the endpoints configs dispatching logic to validate the checks.
-func newEndpointsInfo(c integration.Config) *types.EndpointsInfo {
-	var namespace string
-	var name string
-	if len(c.EndpointsChecks) > 0 {
-		namespace, name = getNameAndNamespaceFromADIDs(c.EndpointsChecks)
-	}
-	return &types.EndpointsInfo{
-		ServiceEntity: c.Entity,
-		Namespace:     namespace,
-		Name:          name,
-		Configs:       c.EndpointsChecks,
 	}
 }

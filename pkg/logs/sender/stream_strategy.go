@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 // StreamStrategy is a shared stream strategy.
@@ -27,6 +28,7 @@ func (s *streamStrategy) Send(inputChan chan *message.Message, outputChan chan *
 			}
 			log.Warnf("Could not send payload: %v", err)
 		}
+		metrics.LogsSent.Add(1)
 		outputChan <- message
 	}
 }

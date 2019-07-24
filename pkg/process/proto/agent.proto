@@ -378,6 +378,10 @@ message Connection {
 	IPTranslation ipTranslation = 21;
 }
 
+message Connections {
+  repeated Connection conns = 1;
+}
+
 message Addr {
 	reserved 1, 4;
 

@@ -42,6 +42,7 @@ MISSPELL_IGNORED_TARGETS = [
     os.path.join("cmd", "agent", "dist", "checks", "prometheus_check"),
     os.path.join("cmd", "agent", "gui", "views", "private"),
     os.path.join("pkg", "collector", "corechecks", "system", "testfiles"),
+    os.path.join("pkg", "ebpf", "testdata"),
 ]
 
 @task
@@ -197,11 +198,10 @@ def misspell(ctx, targets):
         print("misspell found no issues")
 
 @task
-def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
+def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_vendor_only=False, no_dep_ensure=False):
     """
     Setup Go dependencies
     """
-    verbosity = ' -v' if verbose else ''
     deps = get_deps('deps')
     order = deps.get("order", deps.keys())
     for dependency in order:
@@ -228,36 +228,39 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
         print("gomobile command {}". format(cmd))
         ctx.run(cmd)
 
-    # source level deps
-    print("calling dep ensure")
-    start = datetime.datetime.now()
-    ctx.run("dep ensure{}".format(verbosity))
-    dep_done = datetime.datetime.now()
+    if not no_dep_ensure:
+        # source level deps
+        print("calling dep ensure")
+        start = datetime.datetime.now()
+        verbosity = ' -v' if verbose else ''
+        vendor_only = ' --vendor-only' if dep_vendor_only else ''
+        ctx.run("dep ensure{}{}".format(verbosity, vendor_only))
+        dep_done = datetime.datetime.now()
 
-    # If github.com/DataDog/datadog-agent gets vendored too - nuke it
-    #
-    # This may happen as a result of having to introduce DEPPROJECTROOT
-    # in our builders to get around a known-issue with go dep, and the
-    # strange GOPATH situation in our builders.
-    #
-    # This is only a workaround, we should eliminate the need to resort
-    # to DEPPROJECTROOT.
-    if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
-        print("Removing vendored github.com/DataDog/datadog-agent")
-        shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
+        # If github.com/DataDog/datadog-agent gets vendored too - nuke it
+        #
+        # This may happen as a result of having to introduce DEPPROJECTROOT
+        # in our builders to get around a known-issue with go dep, and the
+        # strange GOPATH situation in our builders.
+        #
+        # This is only a workaround, we should eliminate the need to resort
+        # to DEPPROJECTROOT.
+        if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
+            print("Removing vendored github.com/DataDog/datadog-agent")
+            shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
 
-    # make sure PSUTIL is gone on windows; the dep ensure above will vendor it
-    # in because it's necessary on other platforms
-    if not android and sys.platform == 'win32':
-        print("Removing PSUTIL on Windows")
-        ctx.run("rd /s/q vendor\\github.com\\shirou\\gopsutil")
+        # make sure PSUTIL is gone on windows; the dep ensure above will vendor it
+        # in because it's necessary on other platforms
+        if not android and sys.platform == 'win32':
+            print("Removing PSUTIL on Windows")
+            ctx.run("rd /s/q vendor\\github.com\\shirou\\gopsutil")
 
-    # Make sure that golang.org/x/mobile is deleted.  It will get vendored in
-    # because we use it, and there's no way to exclude; however, we must use
-    # the version from $GOPATH
-    if os.path.exists('vendor/golang.org/x/mobile'):
-        print("Removing vendored golang.org/x/mobile")
-        shutil.rmtree('vendor/golang.org/x/mobile')
+        # Make sure that golang.org/x/mobile is deleted.  It will get vendored in
+        # because we use it, and there's no way to exclude; however, we must use
+        # the version from $GOPATH
+        if os.path.exists('vendor/golang.org/x/mobile'):
+            print("Removing vendored golang.org/x/mobile")
+            shutil.rmtree('vendor/golang.org/x/mobile')
 
     checks_start = datetime.datetime.now()
     if not no_checks:
@@ -266,18 +269,17 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
 
         if core_dir:
             checks_base = os.path.join(os.path.abspath(core_dir), 'datadog_checks_base')
-            ctx.run('pip install -{} -e {}'.format(verbosity, checks_base))
-            ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
+            ctx.run('pip install -{} -e "{}[deps]"'.format(verbosity, checks_base))
         else:
             core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
             checks_base = os.path.join(core_dir, 'datadog_checks_base')
             if not os.path.isdir(core_dir):
                 ctx.run('git clone -{} https://github.com/DataDog/integrations-core {}'.format(verbosity, core_dir))
-            ctx.run('pip install -{} {}'.format(verbosity, checks_base))
-            ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
+            ctx.run('pip install -{} "{}[deps]"'.format(verbosity, checks_base))
     checks_done = datetime.datetime.now()
 
-    print("dep ensure, elapsed:    {}".format(dep_done - start))
+    if not no_dep_ensure:
+        print("dep ensure, elapsed:    {}".format(dep_done - start))
     print("checks install elapsed: {}".format(checks_done - checks_start))
 
 @task

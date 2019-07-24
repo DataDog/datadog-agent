@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package config
 
 import (
@@ -71,12 +76,13 @@ type AgentConfig struct {
 	// Receiver
 	ReceiverHost    string
 	ReceiverPort    int
-	ConnectionLimit int // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
+	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
 	ReceiverTimeout int
 
 	// Writers
-	StatsWriter *SenderConfig
-	TraceWriter *SenderConfig
+	StatsWriter *WriterConfig
+	TraceWriter *WriterConfig
 
 	// internal telemetry
 	StatsdHost string
@@ -132,8 +138,8 @@ func New() *AgentConfig {
 		ReceiverPort:    8126,
 		ConnectionLimit: 2000,
 
-		StatsWriter: new(SenderConfig),
-		TraceWriter: new(SenderConfig),
+		StatsWriter: new(WriterConfig),
+		TraceWriter: new(WriterConfig),
 
 		StatsdHost: "localhost",
 		StatsdPort: 8125,
@@ -144,7 +150,7 @@ func New() *AgentConfig {
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%
-		WatchdogInterval: 20 * time.Second,
+		WatchdogInterval: 10 * time.Second,
 
 		Ignore:                      make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),

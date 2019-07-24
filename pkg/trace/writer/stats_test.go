@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package writer
 
 import (
@@ -16,25 +21,32 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	testHostname = "agent-test-host"
+	testEnv      = "testing"
+)
+
 func TestStatsWriter(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		assert := assert.New(t)
 		sw, statsChannel, srv := testStatsWriter()
 		go sw.Run()
 
-		testStats1 := []stats.Bucket{
-			testutil.RandomBucket(3),
-			testutil.RandomBucket(3),
-			testutil.RandomBucket(3),
-		}
-		testStats2 := []stats.Bucket{
-			testutil.RandomBucket(3),
-			testutil.RandomBucket(3),
-			testutil.RandomBucket(3),
+		testSets := [][]stats.Bucket{
+			{
+				testutil.RandomBucket(3),
+				testutil.RandomBucket(3),
+				testutil.RandomBucket(3),
+			},
+			{
+				testutil.RandomBucket(3),
+				testutil.RandomBucket(3),
+				testutil.RandomBucket(3),
+			},
 		}
 
-		statsChannel <- testStats1
-		statsChannel <- testStats2
+		statsChannel <- testSets[0]
+		statsChannel <- testSets[1]
 
 		sw.Stop()
 
@@ -44,9 +56,7 @@ func TestStatsWriter(t *testing.T) {
 			"Content-Encoding":             "gzip",
 			"Dd-Api-Key":                   "123",
 		}
-		payloads := srv.Payloads()
-		assertPayload(assert, expectedHeaders, testStats1, payloads[0])
-		assertPayload(assert, expectedHeaders, testStats2, payloads[1])
+		assertPayload(assert, expectedHeaders, testSets, srv.Payloads())
 	})
 
 	t.Run("buildPayloads", func(t *testing.T) {
@@ -179,7 +189,7 @@ func testStatsWriter() (*StatsWriter, chan []stats.Bucket, *testServer) {
 		Hostname:    testHostname,
 		DefaultEnv:  testEnv,
 		Endpoints:   []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
-		StatsWriter: &config.SenderConfig{ConnectionLimit: 20, QueueSize: 20},
+		StatsWriter: &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 	}
 	return NewStatsWriter(cfg, in), in, srv
 }
@@ -232,18 +242,19 @@ func assertCountByEntries(assert *assert.Assertions, expectedCounts map[string]f
 	assert.Equal(expectedCounts, actualCounts)
 }
 
-func assertPayload(assert *assert.Assertions, headers map[string]string, buckets []stats.Bucket, p *payload) {
-	var statsPayload stats.Payload
+func assertPayload(assert *assert.Assertions, headers map[string]string, bucketsSet [][]stats.Bucket, payloads []*payload) {
+	for _, p := range payloads {
+		var statsPayload stats.Payload
+		r, err := gzip.NewReader(p.body)
+		assert.NoError(err)
+		err = json.NewDecoder(r).Decode(&statsPayload)
+		assert.NoError(err)
 
-	r, err := gzip.NewReader(p.body)
-	assert.NoError(err)
-
-	err = json.NewDecoder(r).Decode(&statsPayload)
-	assert.NoError(err)
-	for k, v := range headers {
-		assert.Equal(v, p.headers[k])
+		for k, v := range headers {
+			assert.Equal(v, p.headers[k])
+		}
+		assert.Equal(testHostname, statsPayload.HostName)
+		assert.Equal(testEnv, statsPayload.Env)
+		assert.Contains(bucketsSet, statsPayload.Stats)
 	}
-	assert.Equal(testHostname, statsPayload.HostName)
-	assert.Equal(testEnv, statsPayload.Env)
-	assert.Equal(buckets, statsPayload.Stats)
 }

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 // Package timing is used to aggregate timing calls within hotpaths to avoid using
 // repeated statsd calls. The package has a default set that reports at 10 second
 // intervals and can be used directly. If a different behaviour or reporting pattern

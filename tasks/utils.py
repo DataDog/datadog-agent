@@ -28,6 +28,12 @@ def bin_name(name, android=False):
         return "{}.exe".format(name)
     return name
 
+def get_gopath(ctx):
+    gopath = os.environ.get("GOPATH")
+    if not gopath:
+        gopath = ctx.run("go env GOPATH", hide=True).stdout.strip()
+
+    return gopath
 
 def get_multi_python_location(embedded_path=None, rtloader_root=None):
     if rtloader_root is None:
@@ -57,7 +63,7 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
 
     if embedded_path is None:
         # fall back to local dev path
-        embedded_path = "{}/src/github.com/DataDog/datadog-agent/dev".format(os.environ.get('GOPATH'))
+        embedded_path = "{}/src/github.com/DataDog/datadog-agent/dev".format(get_gopath(ctx))
 
     rtloader_lib, rtloader_headers = get_multi_python_location(embedded_path, rtloader_root)
 
