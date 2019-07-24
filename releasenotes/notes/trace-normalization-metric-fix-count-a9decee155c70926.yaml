@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    APM: Fix endlessly growing `traces_dropped` and `spans_malformed` metric counts.
+    APM: Fix incorrect `traces_dropped` and `spans_malformed` metric counts.
 
