@@ -3,7 +3,7 @@
 Agent packages for all the supported platforms are built using
 [Omnibus](https://github.com/chef/omnibus), which can be run via `invoke` tasks.
 
-Omnibus will create a package for your operating system, so you'll get a DEB
+Omnibus creates a package for your operating system, so you'll get a DEB
 package on Debian-based distros, an RPM package on distros that use RPM, an MSI
 installer on Windows, or a `.pkg` package bundled in a DMG archive on Mac.
 
@@ -12,7 +12,7 @@ with the build dependencies installed, so you don't have to install them on your
 
 ## Building inside Docker (Linux only, recommended)
 
-Let's see in detail how to use the provided Docker images to build a DEB or RPM
+Use the provided Docker images to build a DEB or RPM
 package for Linux. You need to have Docker already running on your machine.
 
 From the `datadog-agent` source folder, use the following command to run the
