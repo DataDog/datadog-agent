@@ -174,7 +174,7 @@ func (c *compressor) close(footerOverride []byte) ([]byte, error) {
 		}
 	}
 	// Add json footer
-	if footerOverride == nil || len(footerOverride) == 0 {
+	if len(footerOverride) == 0 {
 		return nil, errors.New("footerOverride is empty")
 	}
 

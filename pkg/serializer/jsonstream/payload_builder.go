@@ -116,7 +116,10 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 
 	// Close last payload
 	jsonStream.Reset(nil)
-	m.WriteLastFooter(jsonStream, itemIndexInPayload)
+	if err = m.WriteLastFooter(jsonStream, itemIndexInPayload); err != nil {
+		return nil, err
+	}
+
 	payload, err := compressor.close(jsonStream.Buffer())
 	if err != nil {
 		return payloads, err
