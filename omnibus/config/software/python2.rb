@@ -73,8 +73,8 @@ else
   default_version "2.7.16"
 
   dependency "vc_redist"
-  source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-         :sha256 => "6b9fdc51dde1ba6ae4cb698451900e1f8f1900ff1d56d9166dbeab06b10a4dce",
+  source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-nopip-amd64.zip",
+         :sha256 => "528c33b78be915731f3cb9e6e1f9328abd58e43911ea7941e3e4057a2ec130df",
          :extract => :seven_zip
 
   build do
