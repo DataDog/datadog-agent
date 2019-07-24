@@ -23,5 +23,6 @@ type PDH_FMT_COUNTERVALUE_LARGE struct {
 // Union specialization for long values
 type PDH_FMT_COUNTERVALUE_LONG struct {
 	CStatus   uint32
+	floatpadding uint32
 	LongValue int32
 }
