@@ -88,13 +88,16 @@ uninstall_integrations()
 
     echo "Uninstalling integrations..."
 
-    # Since 6.13.0, a file containing all integrations which have been installed by
-    # the package is available, use it to remove only the files which have *NOT*
-    # be installed by the package.
+    # Since 6.13.0, a file containing all integrations files which have been installed by
+    # the package is available. We use it to remove only the files which have *NOT*
+    # been installed by the package.
 
     if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
-        find $INSTALL_DIR/embedded/lib/python2.7/site-packages > $INSTALL_DIR/embedded/.all-integrations.txt
+        # List all files available on the filesystem
+        find $INSTALL_DIR/embedded/lib/python*/site-packages > $INSTALL_DIR/embedded/.all-integrations.txt
+        # List all files available on the filesystem which were not installed by the package
         grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt > $INSTALL_DIR/embedded/.extra-integrations.txt
+        # Delete all those extra files
         if [ -f "$INSTALL_DIR/embedded/.extra-integrations.txt" ]; then
             cat $INSTALL_DIR/embedded/.extra-integrations.txt | grep -v '^#' | xargs rm -rf
         fi

@@ -102,7 +102,7 @@ build do
             # have been setup by the installer, this way, on removal, we'll be able to delete only files
             # which have not been created by the package.
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.installed_by_pkg.txt"
-            command "find #{install_dir}/embedded/lib/python2.7/site-packages >> #{install_dir}/embedded/.installed_by_pkg.txt"
+            command "find #{install_dir}/embedded/lib/python*/site-packages >> #{install_dir}/embedded/.installed_by_pkg.txt"
 
             # Setup pip aliases: `/opt/datadog-agent/embedded/bin/pip` will default to `pip2`
             if with_python_runtime? "2"
