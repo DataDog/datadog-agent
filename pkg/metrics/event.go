@@ -185,7 +185,7 @@ func (events Events) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 }
 
 //// The following methods implement the StreamJSONMarshaler interface
-//// for support of the enable_stream_payload_serialization option.
+//// for support of the enable_events_stream_payload_serialization option.
 
 // Initialize the data for serialization. Call once before any other methods.
 func (events Events) Initialize() error {
