@@ -119,7 +119,7 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 const (
 	defaultEndpoint          = "https://process.datadoghq.com"
 	maxMessageBatch          = 100
-	maxConnsMessageBatch     = 300
+	maxConnsMessageBatch     = 1000
 	maxMaxTrackedConnections = 65536
 )
 
