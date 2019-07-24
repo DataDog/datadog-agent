@@ -86,6 +86,19 @@ struct bpf_map_def SEC("maps/tcp_close_events") tcp_close_event = {
     .namespace = "",
 };
 
+/* This map is used to count the tcp_connect/open events
+ * The keys are the cpu number and the values a perf file descriptor for a perf event
+ * and the values being a pid
+ */
+struct bpf_map_def SEC("maps/tcp_open_events") tcp_open_events = {
+    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(__u32),
+    .max_entries = 0, // This will get overridden at runtime
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* These maps are used to match the kprobe & kretprobe of connect for IPv4 */
 /* This is a key/value store with the keys being a pid
  * and the values being a struct sock *.
@@ -489,6 +502,21 @@ static int read_conn_tuple(conn_tuple_t* tuple, tracer_status_t* status, struct 
 }
 
 __attribute__((always_inline))
+static void handle_tcp_connect(struct pt_regs* ctx, u64 pid) {
+
+    // check status
+    tracer_status_t* status;
+    u64 zero = 0;
+    status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL || status->state != TRACER_STATE_READY) {
+        return;
+    }
+
+    u32 cpu = bpf_get_smp_processor_id();
+    bpf_perf_event_output(ctx, &tcp_open_events, cpu, &pid, sizeof(pid));
+}
+
+__attribute__((always_inline))
 static void update_conn_stats(
     struct sock* sk,
     tracer_status_t* status,
@@ -636,6 +664,10 @@ int kprobe__tcp_v4_connect(struct pt_regs* ctx) {
 
     bpf_map_update_elem(&connectsock_ipv4, &pid, &sk, BPF_ANY);
 
+    log_debug("tcp_v4_connect from pid: %d\n", pid >> 32);
+    // TODO: connect is likely not enough to count this, we should use set_state or also accept
+    handle_tcp_connect(ctx, pid >> 32);
+
     return 0;
 }
 
@@ -669,7 +701,9 @@ int kretprobe__tcp_v4_connect(struct pt_regs* ctx) {
     }
 
     // We should figure out offsets if they're not already figured out
-    are_offsets_ready_v4(status, skp);
+    if (!are_offsets_ready_v4(status, skp)) {
+        return 0;
+    }
 
     return 0;
 }
@@ -683,6 +717,9 @@ int kprobe__tcp_v6_connect(struct pt_regs* ctx) {
     sk = (struct sock*)PT_REGS_PARM1(ctx);
 
     bpf_map_update_elem(&connectsock_ipv6, &pid, &sk, BPF_ANY);
+
+    log_debug("tcp_v6_connect from pid: %d\n", pid >> 32);
+    handle_tcp_connect(ctx, pid >> 32);
 
     return 0;
 }

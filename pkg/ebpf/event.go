@@ -118,6 +118,11 @@ func connFamily(m uint) ConnectionFamily {
 	return AFINET6
 }
 
+func decodeRawPID(data []byte) uint32 {
+	pid := uint32(*(*C.int)(unsafe.Pointer(&data[0])))
+	return pid
+}
+
 func decodeRawTCPConn(data []byte) ConnectionStats {
 	ct := TCPConn(*(*C.tcp_conn_t)(unsafe.Pointer(&data[0])))
 	tup := ConnTuple(ct.tup)

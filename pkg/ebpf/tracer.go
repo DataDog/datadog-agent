@@ -42,7 +42,8 @@ type Tracer struct {
 
 	conntracker netlink.Conntracker
 
-	perfMap *bpflib.PerfMap
+	perfClosedMap *bpflib.PerfMap
+	perfOpenMap   *bpflib.PerfMap
 
 	// Telemetry
 	perfReceived int64
@@ -134,7 +135,12 @@ func NewTracer(config *Config) (*Tracer, error) {
 		conntracker:    conntracker,
 	}
 
-	tr.perfMap, err = tr.initPerfPolling()
+	tr.perfClosedMap, err = tr.initClosedConnsPolling()
+	if err != nil {
+		return nil, fmt.Errorf("could not start polling bpf events: %s", err)
+	}
+
+	tr.perfOpenMap, err = tr.initOpenedConnPolling()
 	if err != nil {
 		return nil, fmt.Errorf("could not start polling bpf events: %s", err)
 	}
@@ -187,8 +193,42 @@ func (t *Tracer) expvarStats() {
 	}
 }
 
-// initPerfPolling starts the listening on perf buffer events to grab closed connections
-func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
+// initOpenedConnPolling starts the listening on perf buffer events to grab conn open events
+func (t *Tracer) initOpenedConnPolling() (*bpflib.PerfMap, error) {
+	ch := make(chan []byte, 100)
+	lostCh := make(chan uint64, 10)
+
+	pm, err := bpflib.InitPerfMap(t.m, string(tcpOpenEventMap), ch, lostCh)
+	if err != nil {
+		return nil, fmt.Errorf("error initializing perf map: %s, %s", tcpOpenEventMap, err)
+	}
+
+	pm.PollStart()
+
+	go func() {
+		for {
+			select {
+			case conn, ok := <-ch:
+				if !ok {
+					log.Infof("Exiting connection open polling")
+					return
+				}
+				pid := decodeRawPID(conn)
+				t.state.StoreOpenedConnection(pid)
+			case lostCount, ok := <-lostCh:
+				if !ok {
+					return
+				}
+				atomic.AddInt64(&t.perfLost, int64(lostCount))
+			}
+		}
+	}()
+
+	return pm, nil
+}
+
+// initClosedConnsPolling starts the listening on perf buffer events to grab closed connections
+func (t *Tracer) initClosedConnsPolling() (*bpflib.PerfMap, error) {
 	closedChannel := make(chan []byte, 100)
 	lostChannel := make(chan uint64, 10)
 
@@ -215,6 +255,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				cs.Direction = t.determineConnectionDirection(&cs)
 				if t.shouldSkipConnection(&cs) {
 					atomic.AddInt64(&t.skippedConns, 1)
+					// TODO we should still count this as a connection close !
 				} else {
 					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort)
 					t.state.StoreClosedConnection(cs)
@@ -248,7 +289,8 @@ func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 
 func (t *Tracer) Stop() {
 	_ = t.m.Close()
-	t.perfMap.PollStop()
+	t.perfClosedMap.PollStop()
+	t.perfOpenMap.PollStop()
 	t.conntracker.Close()
 }
 
@@ -268,7 +310,12 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)/2)
 	}
 
-	return &Connections{Conns: t.state.Connections(clientID, latestTime, latestConns)}, nil
+	cs := &Connections{
+		Conns:  t.state.Connections(clientID, latestTime, latestConns),
+		Churns: t.state.Churn(clientID),
+	}
+
+	return cs, nil
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
@@ -618,6 +665,7 @@ func readLocalAddresses() map[util.Address]struct{} {
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)
 func SectionsFromConfig(c *Config) map[string]bpflib.SectionParams {
+	const maxCpus = 1024
 	return map[string]bpflib.SectionParams{
 		connMap.sectionName(): {
 			MapMaxEntries: int(c.MaxTrackedConnections),
@@ -629,7 +677,10 @@ func SectionsFromConfig(c *Config) map[string]bpflib.SectionParams {
 			MapMaxEntries: int(c.MaxTrackedConnections),
 		},
 		tcpCloseEventMap.sectionName(): {
-			MapMaxEntries: 1024,
+			MapMaxEntries: maxCpus,
+		},
+		tcpOpenEventMap.sectionName(): {
+			MapMaxEntries: maxCpus,
 		},
 	}
 }

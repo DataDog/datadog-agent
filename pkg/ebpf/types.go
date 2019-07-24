@@ -55,6 +55,7 @@ const (
 	tracerStatusMap    bpfMapName = "tracer_status"
 	portBindingsMap    bpfMapName = "port_bindings"
 	telemetryMap       bpfMapName = "telemetry"
+	tcpOpenEventMap    bpfMapName = "tcp_open_events"
 )
 
 // sectionName returns the sectionName for the given BPF map

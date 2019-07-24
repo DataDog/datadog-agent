@@ -1132,6 +1132,56 @@ func TestAggregateClosedConnectionsTimestamp(t *testing.T) {
 	assert.Equal(t, conn.LastUpdateEpoch, state.Connections(client, latestEpochTime(), nil)[0].LastUpdateEpoch)
 }
 
+func TestTrackConnChurn(t *testing.T) {
+	conn := ConnectionStats{
+		Pid:                123,
+		Type:               TCP,
+		Family:             AFINET,
+		Source:             util.AddressFromString("127.0.0.1"),
+		Dest:               util.AddressFromString("127.0.0.1"),
+		MonotonicSentBytes: 3,
+	}
+	conn2 := conn
+	conn2.Pid++
+
+	assert := assert.New(t)
+
+	client := "client"
+	state := NewDefaultNetworkState()
+	state.StoreOpenedConnection(conn.Pid)
+
+	// Should be empty since client hasn't registered yet
+	assert.Empty(state.Churn(client))
+
+	state.StoreOpenedConnection(conn.Pid)
+
+	// Now client should be registered
+	assert.Equal(map[uint32]ConnectionChurn{conn.Pid: {TCPOpen: 1}}, state.Churn(client))
+
+	// 2 opens / 1 close for conn2 pid, 1 close 1 open for conn pid
+	state.StoreOpenedConnection(conn2.Pid)
+	state.StoreClosedConnection(conn)
+	state.StoreClosedConnection(conn2)
+	state.StoreOpenedConnection(conn2.Pid)
+	state.StoreOpenedConnection(conn.Pid)
+
+	assert.Equal(map[uint32]ConnectionChurn{
+		conn.Pid:  {TCPOpen: 1, TCPClose: 1},
+		conn2.Pid: {TCPOpen: 2, TCPClose: 1},
+	}, state.Churn(client))
+
+	// Simulate expired connection
+	buf := &bytes.Buffer{}
+	bk, err := conn2.ByteKey(buf)
+	assert.NoError(err)
+
+	state.RemoveConnections([]string{string(bk)})
+
+	assert.Equal(map[uint32]ConnectionChurn{
+		conn2.Pid: {TCPClose: 1},
+	}, state.Churn(client))
+}
+
 func generateRandConnections(n int) []ConnectionStats {
 	cs := make([]ConnectionStats, 0, n)
 	for i := 0; i < n; i++ {

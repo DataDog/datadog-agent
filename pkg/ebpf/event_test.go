@@ -24,11 +24,7 @@ var (
 		MonotonicSentBytes: 123123,
 		MonotonicRecvBytes: 312312,
 	}
-)
-
-func TestBeautifyKey(t *testing.T) {
-	buf := &bytes.Buffer{}
-	for _, c := range []ConnectionStats{
+	testConns = []ConnectionStats{
 		testConn,
 		{
 			Pid:    345,
@@ -49,7 +45,21 @@ func TestBeautifyKey(t *testing.T) {
 			SPort:     52012,
 			DPort:     443,
 		},
-	} {
+	}
+)
+
+func TestPidFromByteKey(t *testing.T) {
+	buf := &bytes.Buffer{}
+	for _, c := range testConns {
+		bk, err := c.ByteKey(buf)
+		require.NoError(t, err)
+		assert.EqualValues(t, c.Pid, PidFromByteKey(bk))
+	}
+}
+
+func TestBeautifyKey(t *testing.T) {
+	buf := &bytes.Buffer{}
+	for _, c := range testConns {
 		bk, err := c.ByteKey(buf)
 		require.NoError(t, err)
 		expected := fmt.Sprintf(keyFmt, c.Pid, c.Source.String(), c.SPort, c.Dest.String(), c.DPort, c.Family, c.Type)

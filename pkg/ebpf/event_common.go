@@ -63,9 +63,16 @@ func (d ConnectionDirection) String() string {
 	}
 }
 
-// Connections wraps a collection of ConnectionStats
+// ConnectionChurn includes stats about the # of opened / closed connections
+type ConnectionChurn struct {
+	TCPOpen  uint32
+	TCPClose uint32
+}
+
+// Connections wraps a collection of ConnectionStats and ConnectionChurn
 type Connections struct {
-	Conns []ConnectionStats
+	Conns  []ConnectionStats
+	Churns map[uint32]ConnectionChurn
 }
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
@@ -145,6 +152,11 @@ func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 	}
 
 	return buffer.Bytes(), nil
+}
+
+// PidFromByteKey extracts the pid from the given byte key
+func PidFromByteKey(key []byte) uint32 {
+	return uint32(binary.LittleEndian.Uint64(key) >> 32)
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"

@@ -24,6 +24,9 @@ type NetworkState interface {
 	// Connections returns the list of connections for the given client when provided the latest set of active connections
 	Connections(clientID string, latestTime uint64, latestConns []ConnectionStats) []ConnectionStats
 
+	// Churn returns a map of pid -> ConnectionChurn for the given client and resets the stats
+	Churn(clientID string) map[uint32]ConnectionChurn
+
 	// StoreClosedConnection stores a new closed connection
 	StoreClosedConnection(conn ConnectionStats)
 
@@ -38,6 +41,9 @@ type NetworkState interface {
 
 	// GetStats returns a map of statistics about the current network state
 	GetStats() map[string]interface{}
+
+	// StoreOpenedConnection stores an open connection event
+	StoreOpenedConnection(pid uint32)
 
 	// DebugNetworkState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
@@ -62,6 +68,7 @@ type client struct {
 
 	closedConnections map[string]ConnectionStats
 	stats             map[string]*stats
+	connChurn         map[uint32]ConnectionChurn
 }
 
 type networkState struct {
@@ -156,6 +163,21 @@ func (ns *networkState) Connections(id string, latestTime uint64, latestConns []
 	return conns
 }
 
+func (ns *networkState) Churn(id string) map[uint32]ConnectionChurn {
+	ns.Lock()
+	defer ns.Unlock()
+
+	client, ok := ns.newClient(id)
+	if !ok {
+		return nil
+	}
+
+	res := client.connChurn
+	client.connChurn = map[uint32]ConnectionChurn{}
+
+	return res
+}
+
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
 func getConnsByKey(conns []ConnectionStats, buf *bytes.Buffer) map[string]*ConnectionStats {
 	connsByKey := make(map[string]*ConnectionStats, len(conns))
@@ -170,6 +192,18 @@ func getConnsByKey(conns []ConnectionStats, buf *bytes.Buffer) map[string]*Conne
 	return connsByKey
 }
 
+// StoreOpenedConnection stores an open connection for the given pid
+func (ns *networkState) StoreOpenedConnection(pid uint32) {
+	ns.Lock()
+	defer ns.Unlock()
+
+	for _, client := range ns.clients {
+		cc := client.connChurn[pid]
+		cc.TCPOpen++
+		client.connChurn[pid] = cc
+	}
+}
+
 // StoreClosedConnection stores the given connection for every client
 func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 	ns.Lock()
@@ -182,6 +216,11 @@ func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 	}
 
 	for _, client := range ns.clients {
+		// Increment the # of close events for this pid
+		cc := client.connChurn[conn.Pid]
+		cc.TCPClose++
+		client.connChurn[conn.Pid] = cc
+
 		// If we've seen this closed connection already, lets combine the two
 		if prev, ok := client.closedConnections[string(key)]; ok {
 			// We received either the connections either out of order, or it's the same one we've already seen.
@@ -216,6 +255,7 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 		lastFetch:         time.Now(),
 		stats:             map[string]*stats{},
 		closedConnections: map[string]ConnectionStats{},
+		connChurn:         map[uint32]ConnectionChurn{},
 	}
 	ns.clients[clientID] = c
 	return c, false
@@ -374,6 +414,11 @@ func (ns *networkState) RemoveConnections(keys []string) {
 
 	for _, c := range ns.clients {
 		for _, key := range keys {
+			// Also increment the count of TCP Close
+			pid := PidFromByteKey([]byte(key))
+			cc := c.connChurn[pid]
+			cc.TCPClose++
+			c.connChurn[pid] = cc
 			delete(c.stats, key)
 		}
 	}
