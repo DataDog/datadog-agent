@@ -40,14 +40,14 @@ New Features
 - APM: API emitted metrics now have a lang_vendor tag when the Datadog-Meta-Lang-Vendor
   HTTP header is sent by clients.
 
-- APM: Resource-based rate limiting in the API can now be completely 
+- APM: Resource-based rate limiting in the API can now be completely
   disabled by setting `apm_config.max_memory` and/or `apm_config.max_cpu_percent`
   to the value 0.
 
 - Add support for environment variables in checks' config files
   using the format "%%env_XXXX%%".
 
-- Add new systemd integration to monitor systemd itself 
+- Add new systemd integration to monitor systemd itself
   and the units managed by systemd.
 
 - The total number of bytes received by dogstatsd is now reported by the
@@ -119,7 +119,7 @@ Security Issues
 ---------------
 
 - On Windows, quote the service name when registering service.  Mitigates
-  CVE-2014-5455. Note that since the Agent is not running as admin, even 
+  CVE-2014-5455. Note that since the Agent is not running as admin, even
   a successful attack would not give admin rights as specified in the CVE.
 
 
@@ -149,7 +149,7 @@ Bug Fixes
 
 - Fix TLS connection handshake that hang forever making the whole logs
   pipeline to be stucked resulting in logs not being tailed and file
-  descriptor not being closed. 
+  descriptor not being closed.
 
 - On Windows, fixes bug in which Agent can't start if the Go runtime can't
   determine the ddagentuser's profile directory.  This information isn't
