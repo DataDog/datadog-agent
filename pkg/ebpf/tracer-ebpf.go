@@ -206,8 +206,8 @@ type bintree struct {
 }
 
 var _bintree = &bintree{nil, map[string]*bintree{
-	"tracer-ebpf-debug.o": &bintree{tracerEbpfDebugO, map[string]*bintree{}},
-	"tracer-ebpf.o":       &bintree{tracerEbpfO, map[string]*bintree{}},
+	"tracer-ebpf-debug.o": {tracerEbpfDebugO, map[string]*bintree{}},
+	"tracer-ebpf.o":       {tracerEbpfO, map[string]*bintree{}},
 }}
 
 // RestoreAsset restores an asset under the given directory
