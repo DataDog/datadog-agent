@@ -505,7 +505,8 @@ release_image:
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
-    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO $CI_PROJECT_DIR/outcomes/pkg
+    - export PUSH_LATEST=true
+    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO $CI_PROJECT_DIR/outcomes/pkg $PUSH_LATEST
   when: manual
   only:
     - tags
