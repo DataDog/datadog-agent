@@ -69,26 +69,16 @@ func init() {
 	checkCmd.Flags().BoolVarP(&profileMemory, "profile-memory", "m", false, "run the memory profiler (Python checks only)")
 
 	// Power user flags - mark as hidden
-	checkCmd.Flags().StringVar(&profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
-	checkCmd.Flags().StringVar(&profileMemoryFrames, "m-frames", "", "the number of stack frames to consider")
-	checkCmd.Flags().StringVar(&profileMemoryGC, "m-gc", "", "whether or not to run the garbage collector to remove noise")
-	checkCmd.Flags().StringVar(&profileMemoryCombine, "m-combine", "", "whether or not to aggregate over all traceback frames")
-	checkCmd.Flags().StringVar(&profileMemorySort, "m-sort", "", "what to sort by between: lineno | filename | traceback")
-	checkCmd.Flags().StringVar(&profileMemoryLimit, "m-limit", "", "the maximum number of sorted results to show")
-	checkCmd.Flags().StringVar(&profileMemoryDiff, "m-diff", "", "how to order diff results between: absolute | positive")
-	checkCmd.Flags().StringVar(&profileMemoryFilters, "m-filters", "", "comma-separated list of file path glob patterns to filter by")
-	checkCmd.Flags().StringVar(&profileMemoryUnit, "m-unit", "", "the binary unit to represent memory usage (kib, mb, etc.). the default is dynamic")
-	checkCmd.Flags().StringVar(&profileMemoryVerbose, "m-verbose", "", "whether or not to include potentially noisy sources")
-	checkCmd.Flags().MarkHidden("m-dir")
-	checkCmd.Flags().MarkHidden("m-frames")
-	checkCmd.Flags().MarkHidden("m-gc")
-	checkCmd.Flags().MarkHidden("m-combine")
-	checkCmd.Flags().MarkHidden("m-sort")
-	checkCmd.Flags().MarkHidden("m-limit")
-	checkCmd.Flags().MarkHidden("m-diff")
-	checkCmd.Flags().MarkHidden("m-filters")
-	checkCmd.Flags().MarkHidden("m-unit")
-	checkCmd.Flags().MarkHidden("m-verbose")
+	createHiddenStringFlag(&profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
+	createHiddenStringFlag(&profileMemoryFrames, "m-frames", "", "the number of stack frames to consider")
+	createHiddenStringFlag(&profileMemoryGC, "m-gc", "", "whether or not to run the garbage collector to remove noise")
+	createHiddenStringFlag(&profileMemoryCombine, "m-combine", "", "whether or not to aggregate over all traceback frames")
+	createHiddenStringFlag(&profileMemorySort, "m-sort", "", "what to sort by between: lineno | filename | traceback")
+	createHiddenStringFlag(&profileMemoryLimit, "m-limit", "", "the maximum number of sorted results to show")
+	createHiddenStringFlag(&profileMemoryDiff, "m-diff", "", "how to order diff results between: absolute | positive")
+	createHiddenStringFlag(&profileMemoryFilters, "m-filters", "", "comma-separated list of file path glob patterns to filter by")
+	createHiddenStringFlag(&profileMemoryUnit, "m-unit", "", "the binary unit to represent memory usage (kib, mb, etc.). the default is dynamic")
+	createHiddenStringFlag(&profileMemoryVerbose, "m-verbose", "", "whether or not to include potentially noisy sources")
 
 	checkCmd.SetArgs([]string{"checkName"})
 }
@@ -172,7 +162,11 @@ var checkCmd = &cobra.Command{
 
 				var data map[string]interface{}
 
-				yaml.Unmarshal(conf.InitConfig, &data)
+				err = yaml.Unmarshal(conf.InitConfig, &data)
+				if err != nil {
+					return err
+				}
+
 				if data == nil {
 					data = make(map[string]interface{})
 				}
@@ -203,7 +197,11 @@ var checkCmd = &cobra.Command{
 
 				var data map[string]interface{}
 
-				yaml.Unmarshal(conf.InitConfig, &data)
+				err = yaml.Unmarshal(conf.InitConfig, &data)
+				if err != nil {
+					return err
+				}
+
 				if data == nil {
 					data = make(map[string]interface{})
 				}
@@ -260,7 +258,10 @@ var checkCmd = &cobra.Command{
 				var collectorData map[string]interface{}
 
 				collectorJSON, _ := status.GetCheckStatusJSON(c, s)
-				json.Unmarshal(collectorJSON, &collectorData)
+				err = json.Unmarshal(collectorJSON, &collectorData)
+				if err != nil {
+					return err
+				}
 
 				checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})[checkName].(map[string]interface{})
 
@@ -450,6 +451,11 @@ func printWindowsUserWarning(op string) {
 
 func singleCheckRun() bool {
 	return checkRate == false && checkTimes < 2
+}
+
+func createHiddenStringFlag(p *string, name string, value string, usage string) {
+	checkCmd.Flags().StringVar(p, name, value, usage)
+	checkCmd.Flags().MarkHidden(name)
 }
 
 func populateMemoryProfileConfig(initConfig map[string]interface{}) error {
