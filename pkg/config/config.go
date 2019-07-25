@@ -332,6 +332,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("apm_config.enabled", true)
 
 	// Process agent
+	config.SetDefault("process_config.enabled", "false")
 	config.BindEnv("process_config.process_dd_url", "")
 
 	// Logs Agent
