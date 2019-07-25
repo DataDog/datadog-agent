@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -125,9 +126,9 @@ func TestSplitEvents(t *testing.T) {
 	require.Len(t, newEvents, 2)
 }
 
-func buildPayload(t *testing.T, events Events) [][]byte {
+func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
 	builder := jsonstream.NewPayloadBuilder()
-	payloads, err := builder.Build(events)
+	payloads, err := builder.Build(m)
 	assert.NoError(t, err)
 	var uncompressedPayloads [][]byte
 
@@ -140,9 +141,9 @@ func buildPayload(t *testing.T, events Events) [][]byte {
 	return uncompressedPayloads
 }
 
-func assertEqualToMarshalJSON(t *testing.T, events Events) {
-	payloads := buildPayload(t, events)
-	json, err := events.MarshalJSON()
+func assertEqualToMarshalJSON(t *testing.T, m marshaler.StreamJSONMarshaler) {
+	payloads := buildPayload(t, m)
+	json, err := m.MarshalJSON()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(payloads))
 	assert.Equal(t, strings.TrimSpace(string(json)), string(payloads[0]))
@@ -207,7 +208,8 @@ func TestPayloadsEventsSeveralPayloads(t *testing.T) {
 	}
 
 	payloads := buildPayload(t, allEvents)
-
+	assert.Equal(t, 3, len(payloads))
+	
 	for index, events := range eventsCollection {
 		json, err := events.MarshalJSON()
 		assert.NoError(t, err)

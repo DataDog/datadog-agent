@@ -8,12 +8,15 @@ package metrics
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"expvar"
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
+	jsoniter "github.com/json-iterator/go"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
@@ -140,4 +143,81 @@ func (sc ServiceCheck) String() string {
 		return ""
 	}
 	return string(s)
+}
+
+//// The following methods implement the StreamJSONMarshaler interface
+//// for support of the enable_services_checks_stream_payload_serialization option.
+
+// Initialize the data for serialization. Call once before any other methods.
+func (sc ServiceChecks) Initialize() error { return nil }
+
+// WriteHeader writes the payload header for this type
+func (sc ServiceChecks) WriteHeader(stream *jsoniter.Stream) error {
+	stream.WriteArrayStart()
+	return stream.Flush()
+}
+
+// WriteFooter prints the payload footer for this type
+func (sc ServiceChecks) WriteFooter(stream *jsoniter.Stream) error {
+	stream.WriteArrayEnd()
+	return stream.Flush()
+}
+
+// WriteLastFooter writes the last footer. Call once after any other methods.
+func (sc ServiceChecks) WriteLastFooter(stream *jsoniter.Stream, itemWrittenCount int) error {
+	return sc.WriteFooter(stream)
+}
+
+// WriteItem prints the json representation of an item
+func (sc ServiceChecks) WriteItem(stream *jsoniter.Stream, i int, itemIndexInPayload int) error {
+	if i < 0 || i > len(sc)-1 {
+		return errors.New("out of range")
+	}
+
+	if err := writeServiceCheck(sc[i], stream); err != nil {
+		return err
+	}
+	return stream.Flush()
+}
+
+// SupportJSONSeparatorInsertion returns true to add JSON separator automatically between two calls of WriteItem, false otherwise.
+func (sc ServiceChecks) SupportJSONSeparatorInsertion() bool { return true }
+
+// Len returns the number of items to marshal
+func (sc ServiceChecks) Len() int {
+	return len(sc)
+}
+
+// DescribeItem returns a text description for logs
+func (sc ServiceChecks) DescribeItem(i int) string {
+	if i < 0 || i > len(sc)-1 {
+		return "out of range"
+	}
+	return fmt.Sprintf("CheckName:%q, Message:%q", sc[i].CheckName, sc[i].Message)
+}
+
+func writeServiceCheck(sc *ServiceCheck, stream *jsoniter.Stream) error {
+	writer := jsonstream.NewJSONRawObjectWriter(stream)
+
+	writer.AddStringField("check", sc.CheckName, jsonstream.AllowEmpty)
+	writer.AddStringField("host_name", sc.Host, jsonstream.AllowEmpty)
+	writer.AddInt64Field("timestamp", sc.Ts)
+	writer.AddInt64Field("status", int64(sc.Status))
+	writer.AddStringField("message", sc.Message, jsonstream.AllowEmpty)
+
+	tagsField := "tags"
+
+	if len(sc.Tags) == 0 {
+		stream.WriteMore()
+		stream.WriteObjectField(tagsField)
+		stream.WriteNil()
+	} else {
+		writer.StartArrayField(tagsField)
+		for _, tag := range sc.Tags {
+			writer.AddStringValue(tag)
+		}
+		writer.FinishArrayField()
+	}
+
+	return writer.Close()
 }

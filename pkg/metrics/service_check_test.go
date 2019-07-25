@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestMarshalServiceChecks(t *testing.T) {
@@ -82,4 +84,58 @@ func TestSplitServiceChecks(t *testing.T) {
 	newSC, err = serviceChecks.SplitPayload(3)
 	require.Nil(t, err)
 	require.Len(t, newSC, 2)
+}
+
+func createServiceCheck(checkName string) *ServiceCheck {
+	return &ServiceCheck{
+		CheckName: checkName,
+		Host:      "2",
+		Ts:        3,
+		Status:    ServiceCheckUnknown,
+		Message:   "4",
+		Tags:      []string{"5", "6"}}
+}
+
+func TestServiceCheckDescribeItem(t *testing.T) {
+	serviceChecks := ServiceChecks{createServiceCheck("check")}
+	assert.Equal(t, `CheckName:"check", Message:"4"`, serviceChecks.DescribeItem(0))
+}
+
+func TestPayloadsNoServiceCheck(t *testing.T) {
+	assertEqualToMarshalJSON(t, ServiceChecks{})
+}
+
+func TestPayloadsSingleServiceCheck(t *testing.T) {
+	serviceChecks := ServiceChecks{createServiceCheck("checkName")}
+	assertEqualToMarshalJSON(t, serviceChecks)
+}
+
+func TestPayloadsEmptyServiceCheck(t *testing.T) {
+	assertEqualToMarshalJSON(t, ServiceChecks{&ServiceCheck{}})
+}
+
+func TestPayloadsServiceChecks(t *testing.T) {
+
+	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
+	config.Datadog.SetDefault("serializer_max_payload_size", 200)
+	defer config.Datadog.SetDefault("serializer_max_payload_size", maxPayloadSize)
+
+	serviceCheckCollection := []ServiceChecks{
+		{createServiceCheck("1"), createServiceCheck("2"), createServiceCheck("3")},
+		{createServiceCheck("4"), createServiceCheck("5"), createServiceCheck("6")},
+		{createServiceCheck("7"), createServiceCheck("8")}}
+	var allServiceChecks ServiceChecks
+	for _, serviceCheck := range serviceCheckCollection {
+		allServiceChecks = append(allServiceChecks, serviceCheck...)
+	}
+
+	payloads := buildPayload(t, allServiceChecks)
+	assert.Equal(t, 3, len(payloads))
+
+	for index, serviceChecks := range serviceCheckCollection {
+		json, err := serviceChecks.MarshalJSON()
+		assert.NoError(t, err)
+
+		assert.Equal(t, strings.TrimSpace(string(json)), string(payloads[index]))
+	}
 }
