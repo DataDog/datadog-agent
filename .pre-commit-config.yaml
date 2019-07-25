@@ -1,0 +1,14 @@
+repos:
+- repo: git://github.com/pre-commit/pre-commit-hooks
+  rev: v2.2.3
+  hooks:
+    - id: check-added-large-files
+    - id: check-case-conflict
+    - id: check-executables-have-shebangs
+    - id: check-merge-conflict
+    - id: detect-private-key
+    - id: end-of-file-fixer
+    - id: trailing-whitespace
+    - id: detect-aws-credentials
+      args:
+        - --allow-missing-credentials

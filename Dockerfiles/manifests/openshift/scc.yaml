@@ -1,14 +1,14 @@
 #
 # This SCC is required to enable the full featureset of the
-# Datadog Agent. The kubelet-only variant can run with the
+# Stackstate Agent. The kubelet-only variant can run with the
 # default restricted SCC
 #
 kind: SecurityContextConstraints
 apiVersion: v1
 metadata:
-  name: datadog-agent
+  name: stackstate-agent
 users:
-- system:serviceaccount:default:datadog-agent
+- system:serviceaccount:default:stackstate-agent
 priority: 10
 # Allow host ports for dsd / trace / logs intake
 allowHostPorts: true
@@ -35,8 +35,8 @@ seLinuxContext:
 #
 allowHostDirVolumePlugin: true
 allowHostIPC: false
-allowHostNetwork: false
-allowPrivilegedContainer: false
+allowHostNetwork: true
+allowPrivilegedContainer: true
 allowedFlexVolumes: []
 defaultAddCapabilities: []
 fsGroup:

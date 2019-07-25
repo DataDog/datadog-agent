@@ -1,0 +1,13 @@
+# Infrastructure ignores.
+.terraform
+
+# The generated inventory file.
+inventory.cfg
+*.lock.info
+.private.env
+
+# The ssh key
+okd_rsa*
+
+# Terraform plan
+openshift.deploy

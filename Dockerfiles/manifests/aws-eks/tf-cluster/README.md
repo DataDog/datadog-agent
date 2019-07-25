@@ -24,10 +24,10 @@ Set the following environment variables:
 ```
 export AWS_ACCESS_KEY_ID=
 export AWS_SECRET_ACCESS_KEY=
-export TF_VAR_AWS_SECRET_ACCESS_KEY=...
-export TF_VAR_AWS_ACCESS_KEY_ID=...
+export TF_VAR_AWS_SECRET_ACCESS_KEY=
+export TF_VAR_AWS_ACCESS_KEY_ID=
 export TF_VAR_AWS_REGION=us-east-1
-export TF_VAR_CLUSTER_NAME=...
+export TF_VAR_CLUSTER_NAME=
 ```
 
 ## Deploy
