@@ -26,9 +26,10 @@ import (
 )
 
 const (
-	authTokenName                 = "auth_token"
-	authTokenMinimalLen           = 32
-	clusterAgentAuthTokenFilename = "cluster_agent.auth_token"
+	authTokenName                            = "auth_token"
+	authTokenMinimalLen                      = 32
+	clusterAgentAuthTokenFilename            = "cluster_agent.auth_token"
+	clusterLevelCheckRunnerAuthTokenFilename = "cluster_check_runner_auth_token"
 )
 
 // GenerateKeyPair create a public/private keypair
@@ -202,9 +203,56 @@ func GetClusterAgentAuthToken() (string, error) {
 	return authToken, validateAuthToken(authToken)
 }
 
+// GetCLCRunnerAuthToken load the authentication token from:
+// 1st. the configuration value of "cluster_check_runner_auth_token" in datadog.yaml
+// 2nd. from the filesystem
+// If using the token from the filesystem, the token file must be next to the datadog.yaml
+// with the filename: cluster_check_runner_auth_token
+func GetCLCRunnerAuthToken() (string, error) {
+	authToken := config.Datadog.GetString("cluster_check_runner_auth_token")
+	if authToken != "" {
+		log.Infof("Using configured cluster_check_runner_auth_token")
+		return authToken, validateAuthToken(authToken)
+	}
+
+	// load the cluster check runner auth token from filesystem
+	tokenAbsPath := filepath.Join(config.FileUsedDir(), clusterLevelCheckRunnerAuthTokenFilename)
+	log.Debugf("Empty cluster_check_runner_auth_token, loading from %s", tokenAbsPath)
+
+	// Create a new token if it doesn't exist
+	if _, e := os.Stat(tokenAbsPath); os.IsNotExist(e) {
+		key := make([]byte, authTokenMinimalLen)
+		_, e = rand.Read(key)
+		if e != nil {
+			return "", fmt.Errorf("error creating authentication token: %s", e)
+		}
+
+		// Write the auth token to the auth token file (platform-specific)
+		e = saveAuthToken(hex.EncodeToString(key), tokenAbsPath)
+		if e != nil {
+			return "", fmt.Errorf("error creating authentication token: %s", e)
+		}
+		log.Infof("Saved a new authentication token for the Cluster Level Check Runner at %s", tokenAbsPath)
+	}
+
+	_, err := os.Stat(tokenAbsPath)
+	if err != nil {
+		return "", fmt.Errorf("empty cluster_check_runner_auth_token and cannot find %q: %s", tokenAbsPath, err)
+	}
+	b, err := ioutil.ReadFile(tokenAbsPath)
+	if err != nil {
+		return "", fmt.Errorf("empty cluster_check_runner_auth_token and cannot read %s: %s", tokenAbsPath, err)
+	}
+	log.Debugf("cluster_check_runner_auth_token loaded from %s", tokenAbsPath)
+
+	authToken = string(b)
+	return authToken, validateAuthToken(authToken)
+}
+
+// validateAuthToken validates tokens for the Cluster Agent and Cluster Level Check runners
 func validateAuthToken(authToken string) error {
 	if len(authToken) < authTokenMinimalLen {
-		return fmt.Errorf("cluster agent authentication token length must be greater than %d, curently: %d", authTokenMinimalLen, len(authToken))
+		return fmt.Errorf("authentication token length must be greater than %d, curently: %d", authTokenMinimalLen, len(authToken))
 	}
 	return nil
 }

@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	token    string
-	dcaToken string
+	token          string
+	dcaToken       string
+	clcRunnerToken string
 )
 
 // SetAuthToken sets the session token
@@ -54,6 +55,25 @@ func SetDCAAuthToken() error {
 // GetDCAAuthToken gets the session token
 func GetDCAAuthToken() string {
 	return dcaToken
+}
+
+// SetCLCRunnerAuthToken sets the session token for the Cluster Level Check Runner
+// Requires that the config has been set up before calling
+func SetCLCRunnerAuthToken() error {
+	// Noop if clcRunnerToken is already set
+	if clcRunnerToken != "" {
+		return nil
+	}
+
+	// clcRunnerToken is only set once, no need to mutex protect
+	var err error
+	clcRunnerToken, err = security.GetCLCRunnerAuthToken()
+	return err
+}
+
+// GetCLCRunnerAuthToken gets the session token
+func GetCLCRunnerAuthToken() string {
+	return clcRunnerToken
 }
 
 // Validate validates an http request
@@ -104,6 +124,34 @@ func ValidateDCARequest(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if len(tok) != 2 || tok[1] != GetDCAAuthToken() {
+		err = fmt.Errorf("invalid session token")
+		http.Error(w, err.Error(), 403)
+	}
+
+	return err
+}
+
+// ValidateCLCRunnerRequest is used for the exposed endpoints of the CLC Runner to the DCA.
+// It is different from Validate as we want to have different validations.
+func ValidateCLCRunnerRequest(w http.ResponseWriter, r *http.Request) error {
+	var err error
+	auth := r.Header.Get("Authorization")
+	if auth == "" {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
+		err = fmt.Errorf("no session token provided")
+		http.Error(w, err.Error(), 401)
+		return err
+	}
+
+	tok := strings.Split(auth, " ")
+	if tok[0] != "Bearer" {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
+		err = fmt.Errorf("unsupported authorization scheme: %s", tok[0])
+		http.Error(w, err.Error(), 401)
+		return err
+	}
+
+	if len(tok) != 2 || tok[1] != GetCLCRunnerAuthToken() {
 		err = fmt.Errorf("invalid session token")
 		http.Error(w, err.Error(), 403)
 	}
