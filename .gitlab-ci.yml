@@ -412,7 +412,7 @@ agent_rpm-x64:
     - $S3_CP_CMD $S3_ARTEFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
     # use --skip-deps since the deps are installed by `before_script`
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
-    - rpm -i $OMNIBUS_BASE_DIR/pkg/*.rpm
+    - rpm -ivvh $OMNIBUS_BASE_DIR/pkg/*.rpm
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
