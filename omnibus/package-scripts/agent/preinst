@@ -82,6 +82,10 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
             # List all integrations files available on the filesystem
             find $INSTALL_DIR/embedded/lib/python*/site-packages > $INSTALL_DIR/embedded/.all-integrations.txt
+
+            wc -l $INSTALL_DIR/embedded/.installed_by_pkg.txt
+            wc -l $INSTALL_DIR/embedded/.all-integrations.txt
+
             # List all files available on the filesystem which were not installed by the package
             grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt > $INSTALL_DIR/embedded/.extra-integrations.txt
             # Delete all those extra files
