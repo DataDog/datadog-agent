@@ -52,7 +52,7 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 	indexTag := (*[1<<29 - 1]*C.char)(cTags)[: length+1 : length+1]
 	indexTag[length] = nil
 	for idx, tag := range tags {
-		indexTag[idx] = C.CString(tag)
+		indexTag[idx] = TrackedCString(tag)
 	}
 
 	return (**C.char)(cTags)
