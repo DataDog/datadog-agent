@@ -146,7 +146,7 @@ func (sc ServiceCheck) String() string {
 }
 
 //// The following methods implement the StreamJSONMarshaler interface
-//// for support of the enable_services_checks_stream_payload_serialization option.
+//// for support of the enable_services_check_stream_payload_serialization option.
 
 // Initialize the data for serialization. Call once before any other methods.
 func (sc ServiceChecks) Initialize() error { return nil }
