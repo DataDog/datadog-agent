@@ -97,6 +97,8 @@ typedef void (*cb_submit_metric_t)(char *, metric_type_t, char *, float, char **
 typedef void (*cb_submit_service_check_t)(char *, char *, int, char **, char *, char *);
 // (id, event)
 typedef void (*cb_submit_event_t)(char *, event_t *);
+// (id, metric_name, value, lower_bound, upper_bound, monotonic, hostname, tags)
+typedef void (*cb_submit_histogram_bucket_t)(char *, char *, int, float, float, int, char *, char **);
 
 // datadog_agent
 //

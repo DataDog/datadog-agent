@@ -79,20 +79,21 @@ var (
 	flushTimeStats    = make(map[string]*Stats)
 	flushCountStats   = make(map[string]*Stats)
 
-	aggregatorSeriesFlushed           = expvar.Int{}
-	aggregatorSeriesFlushErrors       = expvar.Int{}
-	aggregatorServiceCheckFlushErrors = expvar.Int{}
-	aggregatorServiceCheckFlushed     = expvar.Int{}
-	aggregatorSketchesFlushErrors     = expvar.Int{}
-	aggregatorSketchesFlushed         = expvar.Int{}
-	aggregatorEventsFlushErrors       = expvar.Int{}
-	aggregatorEventsFlushed           = expvar.Int{}
-	aggregatorNumberOfFlush           = expvar.Int{}
-	aggregatorDogstatsdMetricSample   = expvar.Int{}
-	aggregatorChecksMetricSample      = expvar.Int{}
-	aggregatorServiceCheck            = expvar.Int{}
-	aggregatorEvent                   = expvar.Int{}
-	aggregatorHostnameUpdate          = expvar.Int{}
+	aggregatorSeriesFlushed                    = expvar.Int{}
+	aggregatorSeriesFlushErrors                = expvar.Int{}
+	aggregatorServiceCheckFlushErrors          = expvar.Int{}
+	aggregatorServiceCheckFlushed              = expvar.Int{}
+	aggregatorSketchesFlushErrors              = expvar.Int{}
+	aggregatorSketchesFlushed                  = expvar.Int{}
+	aggregatorEventsFlushErrors                = expvar.Int{}
+	aggregatorEventsFlushed                    = expvar.Int{}
+	aggregatorNumberOfFlush                    = expvar.Int{}
+	aggregatorDogstatsdMetricSample            = expvar.Int{}
+	aggregatorChecksMetricSample               = expvar.Int{}
+	aggregatorCheckHistogramBucketMetricSample = expvar.Int{}
+	aggregatorServiceCheck                     = expvar.Int{}
+	aggregatorEvent                            = expvar.Int{}
+	aggregatorHostnameUpdate                   = expvar.Int{}
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
@@ -161,7 +162,8 @@ type BufferedAggregator struct {
 	eventIn        chan metrics.Event
 	serviceCheckIn chan metrics.ServiceCheck
 
-	checkMetricIn chan senderMetricSample
+	checkMetricIn          chan senderMetricSample
+	checkHistogramBucketIn chan senderHistogramBucket
 
 	sampler            TimeSampler
 	checkSamplers      map[check.ID]*CheckSampler
@@ -189,7 +191,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName st
 		serviceCheckIn: make(chan metrics.ServiceCheck, 100),  // TODO make buffer size configurable
 		eventIn:        make(chan metrics.Event, 100),         // TODO make buffer size configurable
 
-		checkMetricIn: make(chan senderMetricSample, 100), // TODO make buffer size configurable
+		checkMetricIn:          make(chan senderMetricSample, 100),    // TODO make buffer size configurable
+		checkHistogramBucketIn: make(chan senderHistogramBucket, 100), // TODO make buffer size configurable
 
 		sampler:            *NewTimeSampler(bucketSize),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
@@ -232,7 +235,7 @@ func AddRecurrentSeries(newSerie *metrics.Serie) {
 // IsInputQueueEmpty returns true if every input channel for the aggregator are
 // empty. This is mainly useful for tests and benchmark
 func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
-	if len(agg.checkMetricIn)+len(agg.serviceCheckIn)+len(agg.eventIn) == 0 {
+	if len(agg.checkMetricIn)+len(agg.serviceCheckIn)+len(agg.eventIn)+len(agg.checkHistogramBucketIn) == 0 {
 		return true
 	}
 	return false
@@ -307,6 +310,22 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 		}
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle senderMetricSample", ss.id)
+	}
+}
+
+func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBucket) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+
+	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
+		if checkBucket.commit {
+			checkSampler.commit(timeNowNano())
+		} else {
+			checkBucket.bucket.Tags = deduplicateTags(checkBucket.bucket.Tags)
+			checkSampler.addBucket(checkBucket.bucket)
+		}
+	} else {
+		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle histogram bucket", checkBucket.id)
 	}
 }
 
@@ -553,6 +572,9 @@ func (agg *BufferedAggregator) run() {
 		case checkMetric := <-agg.checkMetricIn:
 			aggregatorChecksMetricSample.Add(1)
 			agg.handleSenderSample(checkMetric)
+		case checkHistogramBucket := <-agg.checkHistogramBucketIn:
+			aggregatorCheckHistogramBucketMetricSample.Add(1)
+			agg.handleSenderBucket(checkHistogramBucket)
 
 		case metric := <-agg.metricIn:
 			aggregatorDogstatsdMetricSample.Add(1)

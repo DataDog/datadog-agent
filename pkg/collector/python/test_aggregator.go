@@ -182,3 +182,22 @@ func testSubmitEvent(t *testing.T) {
 	}
 	sender.AssertEvent(t, expectedEvent, 0)
 }
+
+func testSubmitHistogramBucket(t *testing.T) {
+	sender := mocksender.NewMockSender(check.ID("testID"))
+	sender.SetupAcceptAll()
+
+	cTags := []*C.char{C.CString("tag1"), C.CString("tag2"), nil}
+	SubmitHistogramBucket(
+		C.CString("testID"),
+		C.CString("test_histogram"),
+		C.int(42),
+		C.float(1.0),
+		C.float(2.0),
+		C.int(1),
+		C.CString("my_hostname"),
+		&cTags[0],
+	)
+
+	sender.AssertHistogramBucket(t, "HistogramBucket", "test_histogram", 42, 1.0, 2.0, true, "my_hostname", []string{"tag1", "tag2"})
+}

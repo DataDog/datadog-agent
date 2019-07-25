@@ -59,6 +59,11 @@ func (m *MockSender) Event(e metrics.Event) {
 	m.Called(e)
 }
 
+//HistogramBucket enables the histogram bucket mock call.
+func (m *MockSender) HistogramBucket(metric string, value int, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string) {
+	m.Called(metric, value, lowerBound, upperBound, monotonic, hostname, tags)
+}
+
 //Commit enables the commit mock call.
 func (m *MockSender) Commit() {
 	m.Called()

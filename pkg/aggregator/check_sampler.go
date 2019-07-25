@@ -18,6 +18,7 @@ type CheckSampler struct {
 	series          []*metrics.Serie
 	contextResolver *ContextResolver
 	metrics         metrics.ContextMetrics
+	sketchMap       sketchMap
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -26,6 +27,7 @@ func newCheckSampler() *CheckSampler {
 		series:          make([]*metrics.Serie, 0),
 		contextResolver: newContextResolver(),
 		metrics:         metrics.MakeContextMetrics(),
+		sketchMap:       make(sketchMap),
 	}
 }
 
@@ -35,6 +37,10 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 	if err := cs.metrics.AddSample(contextKey, metricSample, metricSample.Timestamp, 1); err != nil {
 		log.Debug("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
 	}
+}
+
+func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
+	log.Errorf("Adding bucket %v", bucket)
 }
 
 func (cs *CheckSampler) commit(timestamp float64) {

@@ -22,16 +22,18 @@ import (
 // extern void submitMetric(char *, metric_type_t, char *, float, char **, char *);
 // extern void submitServiceCheck(char *, char *, int, char **, char *, char *);
 // extern void submitEvent(char*, event_t*);
+// extern void submitHistogramBucket(char *, char *, int, float, float, int, char *, char **);
 //
 // static void initAggregatorTests(rtloader_t *rtloader) {
 //    set_submit_metric_cb(rtloader, submitMetric);
 //    set_submit_service_check_cb(rtloader, submitServiceCheck);
 //    set_submit_event_cb(rtloader, submitEvent);
+//    set_submit_histogram_bucket_cb(rtloader, submitHistogramBucket);
 // }
 import "C"
 
 var (
-	rtloader        *C.rtloader_t
+	rtloader   *C.rtloader_t
 	checkID    string
 	metricType int
 	name       string
@@ -42,6 +44,10 @@ var (
 	scName     string
 	scMessage  string
 	_event     *event
+	intValue   int
+	lowerBound float64
+	upperBound float64
+	monotonic  bool
 )
 
 type event struct {
@@ -68,6 +74,10 @@ func resetOuputValues() {
 	scName = ""
 	scMessage = ""
 	_event = nil
+	intValue = -1
+	lowerBound = 1.0
+	upperBound = 1.0
+	monotonic = false
 }
 
 func setUp() error {
@@ -195,5 +205,19 @@ func submitEvent(id *C.char, ev *C.event_t) {
 
 	if ev.tags != nil {
 		_event.tags = append(_event.tags, charArrayToSlice(ev.tags)...)
+	}
+}
+
+//export submitHistogramBucket
+func submitHistogramBucket(id *C.char, cMetricName *C.char, cVal C.int, cLowerBound C.float, cUpperBound C.float, cMonotonic C.int, cHostname *C.char, t **C.char) {
+	checkID = C.GoString(id)
+	name = C.GoString(cMetricName)
+    intValue = int(cVal)
+    lowerBound = float64(cLowerBound)
+    upperBound = float64(cUpperBound)
+    monotonic = (cMonotonic != 0)
+    hostname = C.GoString(cHostname)
+    if t != nil {
+		tags = append(tags, charArrayToSlice(t)...)
 	}
 }
