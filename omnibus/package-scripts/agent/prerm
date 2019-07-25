@@ -101,6 +101,17 @@ uninstall_integrations()
         wc -l $INSTALL_DIR/embedded/.installed_by_pkg.txt
         wc -l $INSTALL_DIR/embedded/.all-integrations.txt
 
+        ls -lah $INSTALL_DIR
+
+        echo "test" > $INSTALL_DIR/embedded/.thisisatest
+        echo "a" > $INSTALL_DIR/embedded/.thisisatest2
+
+        grep --version
+
+        grep -Fxv -f $INSTALL_DIR/embedded/.thisisatest $INSTALL_DIR/embedded/.thisisatest2
+        grep -Fxv -f $INSTALL_DIR/embedded/.thisisatest $INSTALL_DIR/embedded/.thisisatest2 > $INSTALL_DIR/embedded/output
+        cat $INSTALL_DIR/embedded/output
+
         # List all files available on the filesystem which were not installed by the package
         grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt > $INSTALL_DIR/embedded/.extra-integrations.txt
         # Delete all those extra files
