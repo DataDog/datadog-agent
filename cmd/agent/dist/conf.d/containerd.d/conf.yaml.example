@@ -16,7 +16,7 @@ instances:
       - topic=="/tasks/delete"
 
     ## @param tags - list of key:value elements - optional
-    ## List of tags to attach to every metric, event and service check emitted by this integration.
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
     ##
     ## Learn more about tagging: https://docs.datadoghq.com/tagging/
     #

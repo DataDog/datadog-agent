@@ -1,7 +1,7 @@
 init_config:
 
   ## @param custom_jar_paths - string - optional
-  ## Allows specifying custom jars that will be added to the classpath of the agent's JVM.
+  ## Specify custom jars to add to the classpath of the Agent's JVM.
   ## BREAKING CHANGE NOTICE : Agent 5.x supported a string if there was only one custom JAR. Since Agent 6, this MUST be a list in all cases.
   #
   # custom_jar_paths:
@@ -42,21 +42,21 @@ instances:
     # password: <PASSWORD>
 
     ## @param process_name_regex - string - optional
-    ## Instead of specifying a host, and port. The agent can connect using the attach api.
-    ## This requires the JDK to be installed and the path to tools.jar to be set below in tools_jar_path parameter.
+    ## Instead of specifying a host and port, the Agent can connect using the attach API.
+    ## This requires the JDK to be installed and the tools_jar_path to be set below.
     #
     # process_name_regex: .*process_name.*
 
     ## @param tools_jar_path - string - optional
-    ## Instead of specifying a host, and port. The agent can connect using the attach api.
-    ## This requires the JDK to be installed and the path to tools.jar to be set below.
-    ## Note: It needs to be set when process_name_regex parameter is set
+    ## Instead of specifying a host and port, the Agent can connect using the attach API.
+    ## This requires the JDK to be installed and the tools_jar_path to be set below.
+    ## Note: The tools_jar_path must be set when process_name_regex parameter is set.
     #
     # tools_jar_path: /usr/lib/jvm/java-7-openjdk-amd64/lib/tools.jar
 
     ## @param jmx_url - string - optional
-    ## If the agent needs to connect to a non-default JMX URL, specify it here instead of a host and a port
-    ## If you use this you need to specify a 'name' for the instance, below
+    ## If the Agent needs to connect to a non-default JMX URL, specify it here instead of a host and a port.
+    ## If you use this you need to specify a 'name' for the instance below.
     #
     # jmx_url: "service:jmx:rmi:///jndi/rmi://<HOSTNAME>.host:9999/<PATH>"
 
@@ -66,7 +66,7 @@ instances:
     # name: <INSTANCE_NAME>
 
     ## @param java_bin_path - string - optional
-    ## java_bin_path should be set if the agent cannot find your java executable
+    ## java_bin_path should be set if the Agent cannot find your Java executable.
     #
     # java_bin_path: <JAVA_PATH>
 
@@ -76,31 +76,31 @@ instances:
     # java_options: "-Xmx200m -Xms50m"
 
     ## @param trust_store_path - string - optional
-    ## trust_store_path should be set if ssl is enabled.
-    ## path to your trusted store
+    ## trust_store_path should be set if SSL is enabled.
+    ## Path to your trusted store
     #
     # trust_store_path: <TRUSTSTORE.JKS_PATH>
 
     ## @param trust_store_password - string - optional
-    ## trust_store_password should be set if ssl is enabled
-    ## password for your TrustStore.jks file
+    ## trust_store_password should be set if SSL is enabled.
+    ## Password for your TrustStore.jks file
     #
     # trust_store_password: <PASSWORD>
 
     ## @param key_store_path - string - optional
     ## key_store_path should be set if client authentication is enabled on the target JVM.
-    ## path to your key store
+    ## Path to your key store
     #
     # key_store_path: <KEYSTORE.JKS_PATH>
 
     ## @param key_store_password - string - optional
     ## key_store_password should be set if client authentication is enabled on the target JVM.
-    ## password for your KeyStore.jks file
+    ## Password for your KeyStore.jks file
     #
     # key_store_password: <PASSWORD>
 
     ## @param rmi_registry_ssl - boolean - optional
-    ## Whether or not the agent should connect to the rmi registry using ssl.
+    ## Whether or not the Agent should connect to the RMI registry using SSL.
     #
     # rmi_registry_ssl: false
 
@@ -111,7 +111,7 @@ instances:
     # refresh_beans: 600
 
     ## @param tags - list of key:value elements - optional
-    ## List of tags to attach to every metric, event and service check emitted by this integration.
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
     ##
     ## Learn more about tagging: https://docs.datadoghq.com/tagging/
     #
@@ -121,7 +121,7 @@ instances:
 
     ## @param conf - object - optional
     ## List of metrics to be collected by the integration.
-    ## Read http://docs.datadoghq.com/integrations/java/ to learn how to customize it
+    ## See http://docs.datadoghq.com/integrations/java/ to learn how to customize it.
     #
     # conf:
     #   - include:

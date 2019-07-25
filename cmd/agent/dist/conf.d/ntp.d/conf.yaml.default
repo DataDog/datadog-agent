@@ -1,5 +1,5 @@
 ## This file is overwritten upon Agent upgrade.
-## To make modifications to the check configuration, please copy this file
+## To make modifications to the check configuration, copy this file
 ## to `ntp.yaml` and make your changes on that file.
 
 init_config:
@@ -20,7 +20,7 @@ instances:
 
     ## @param port - string - optional - default: ntp
     ## Port to use when reaching the NTP server.
-    ## default port is the name of the service but lookup would fail if the /etc/services file
+    ## The default port is the name of the service but lookup fails if the /etc/services file
     ## is missing. The ntp port then falls back to the numeric port 123.
     #
     # port: ntp
@@ -36,7 +36,7 @@ instances:
     # timeout: 5
 
     ## @param tags - list of key:value elements - optional
-    ## List of tags to attach to every metric, event, and service check emitted by this Integration.
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
     ##
     ## Learn more about tagging: https://docs.datadoghq.com/tagging/
     #

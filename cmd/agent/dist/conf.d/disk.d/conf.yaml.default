@@ -1,5 +1,5 @@
 ## This file is overwritten upon Agent upgrade.
-## To make modifications to the check configuration, please copy this file
+## To make modifications to the check configuration, copy this file
 ## to `disk.yaml` and make your changes on that file.
 
 init_config:
@@ -12,9 +12,9 @@ instances:
   - use_mount: false
 
     ## @param excluded_filesystems - list of strings - optional - default: tmpfs
-    ## This parameters instructs the check to ignore disks using these filesystems
-    ## Note: On some linux distributions, rootfs is found and tagged as a device,
-    ## add rootfs here to exclude.
+    ## This parameters instructs the check to ignore disks using these filesystems.
+    ## Note: On some linux distributions, rootfs is found and tagged as a device.
+    ## Add rootfs here to exclude.
     #
     # excluded_filesystems:
     #   - tmpfs
@@ -46,7 +46,7 @@ instances:
     # all_partitions: false
 
     ## @param tags - list of key:value string - optional
-    ## List of tags to attach to every metric and service check emitted by this integration.
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
     ##
     ## Learn more about tagging at https://docs.datadoghq.com/tagging
     #
@@ -57,9 +57,9 @@ instances:
     ## @param file_system_whitelist - list of regex - optional
     ## Instruct the check to only collect from matching file systems.
     ##
-    ## Character casing is ignored. For convenience, the regular expressions
-    ## start matching from the beginning and therefore to match anywhere you
-    ## must prepend `.*`. For exact matches append `$`.
+    ## Character casing is ignored. Regular expressions
+    ## start matching from the beginning. To match anywhere,
+    ## prepend `.*`. For exact matches, append `$`.
     #
     # file_system_whitelist:
     #   - ext[34]$
@@ -68,11 +68,11 @@ instances:
     ## @param file_system_blacklist - list of regex - optional
     ## Instruct the check to not collect from matching file systems.
     ##
-    ## Character casing is ignored. For convenience, the regular expressions
-    ## start matching from the beginning and therefore to match anywhere you
-    ## must prepend `.*`. For exact matches append `$`.
+    ## Character casing is ignored. Regular expressions
+    ## start matching from the beginning. To match anywhere,
+    ## prepend `.*`. For exact matches, append `$`.
     ##
-    ## When conflicts arise, this will override `file_system_whitelist`.
+    ## When conflicts arise, `file_system_whitelist` is overriden.
     #
     # file_system_blacklist:
     #   - tmpfs$
@@ -82,9 +82,9 @@ instances:
     ## @param device_whitelist - list of regex - optional
     ## Instruct the check to only collect from matching devices.
     ##
-    ## Character casing is ignored on Windows. For convenience, the regular
-    ## expressions start matching from the beginning and therefore to match
-    ## anywhere you must prepend `.*`. For exact matches append `$`.
+    ## Character casing is ignored on Windows. Regular
+    ## expressions start matching from the beginning. To match
+    ## anywhere, prepend `.*`. For exact matches, append `$`.
     #
     # device_whitelist:
     #   - /dev/sda[1-3]
@@ -93,11 +93,11 @@ instances:
     ## @param device_blacklist - list of regex - optional
     ## Instruct the check to not collect from matching devices.
     ##
-    ## Character casing is ignored on Windows. For convenience, the regular
-    ## expressions start matching from the beginning and therefore to match
-    ## anywhere you must prepend `.*`. For exact matches append `$`.
+    ## Character casing is ignored on Windows. Regular
+    ## expressions start matching from the beginning. To match
+    ## anywhere, prepend `.*`. For exact matches, append `$`.
     ##
-    ## When conflicts arise, this will override `device_whitelist`.
+    ## When conflicts arise, `device_whitelist` is overriden.
     #
     # device_blacklist:
     #   - /dev/sde
@@ -106,9 +106,9 @@ instances:
     ## @param mount_point_whitelist - list of regex - optional
     ## Instruct the check to only collect from matching mount points.
     ##
-    ## Character casing is ignored on Windows. For convenience, the regular
-    ## expressions start matching from the beginning and therefore to match
-    ## anywhere you must prepend `.*`. For exact matches append `$`.
+    ## Character casing is ignored on Windows. Regular
+    ## expressions start matching from the beginning. To match
+    ## anywhere, prepend `.*`. For exact matches, append `$`.
     #
     # mount_point_whitelist:
     #   - /dev/sda[1-3]
@@ -117,11 +117,11 @@ instances:
     ## @param mount_point_blacklist - list of regex - optional
     ## Instruct the check to not collect from matching mount points.
     ##
-    ## Character casing is ignored on Windows. For convenience, the regular
-    ## expressions start matching from the beginning and therefore to match
-    ## anywhere you must prepend `.*`. For exact matches append `$`.
+    ## Character casing is ignored on Windows. Regular
+    ## expressions start matching from the beginning. To match
+    ## anywhere, prepend `.*`. For exact matches, append `$`.
     ##
-    ## When conflicts arise, this will override `mount_point_whitelist`.
+    ## When conflicts arise, `mount_point_whitelist` is overriden.
     #
     # mount_point_blacklist:
     #   - /proc/sys/fs/binfmt_misc
