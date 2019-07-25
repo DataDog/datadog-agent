@@ -150,7 +150,10 @@ var checkCmd = &cobra.Command{
 				}
 
 				defer func() {
-					_ = os.RemoveAll(profileMemoryDir)
+					cleanupErr := os.RemoveAll(profileMemoryDir)
+					if cleanupErr != nil {
+						fmt.Printf("%s\n", cleanupErr)
+					}
 				}()
 			}
 
