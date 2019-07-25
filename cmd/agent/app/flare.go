@@ -99,10 +99,6 @@ func requestFlare(caseID string) error {
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
 		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
-		// enable back color output
-		if flagNoColor {
-			color.NoColor = true
-		}
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e
