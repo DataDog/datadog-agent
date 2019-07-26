@@ -40,6 +40,8 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 }
 
 func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
+	// contextKey := cs.contextResolver.trackContext(bucket, bucket.Timestamp)
+
 	log.Errorf("Adding bucket %v", bucket)
 }
 

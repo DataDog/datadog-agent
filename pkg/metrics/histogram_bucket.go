@@ -16,3 +16,20 @@ type HistogramBucket struct {
 	Host       string
 	Timestamp  float64
 }
+
+// Implement the MetricSampleContext interface
+
+// GetName returns the bucket name
+func (m *HistogramBucket) GetName() string {
+	return m.Name
+}
+
+// GetHost returns the bucket host
+func (m *HistogramBucket) GetHost() string {
+	return m.Host
+}
+
+// GetTags returns the bucket tags
+func (m *HistogramBucket) GetTags() []string {
+	return m.Tags
+}
