@@ -66,11 +66,11 @@ if ohai["platform"] != "windows"
 
 else
   dependency "vc_redist_14"
-  default_version "3.7.3"
+  default_version "3.7.4"
 
   # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
   source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-         :sha256 => "b539e29904969788dad8a377f0604c6e96eb62e0b8724e7272baedd94183e0ac"
+         :sha256 => "ce1782db64be81aa81e8a38102b4850ee03a0b30bf152a7d2b4b36a7a6e0c381"
 
   build do
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""
