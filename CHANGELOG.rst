@@ -22,10 +22,6 @@ Release on: 2019-07-24
 Upgrade Notes
 -------------
 
-- APM: Services are no longer aggreagated in the agent, nor written to the Datadog API.
-  Instead, they are now automatically extracted on the backend based on the received
-  traces.
-
 - The ``port`` option in the NTP check configuration is now parsed as an integer instead of a string.
 
 
@@ -70,6 +66,10 @@ Enhancement Notes
   without knowing what the container runtime is.
 
 - APM: reduce memory usage in high traffic by up to 10x.
+
+- APM: Services are no longer aggreagated in the agent, nor written to the Datadog API.
+  Instead, they are now automatically extracted on the backend based on the received
+  traces.
 
 - APM: The default interval at which the agent watches its resource usage has
   been reduced from 20s to 10s.
@@ -225,14 +225,8 @@ Upgrade Notes
 
 - APM: Log throttling is now automatically enabled by default when
   `log_level` differs from `debug`. A maximum of no more than 10 error
-  messages every 10 seconds will be displayed.
-
-- APM: the writer will now flush based on an estimated number of bytes
-  in accumulated buffer size, as opposed to a maximum number of spans.
-
-- APM: traces are not dropped anymore because or rate limiting due to
-  performance issues. Instead, the trace is kept in a queue awaiting to
-  be processed.
+  messages every 10 seconds will be displayed. If you had it enabled before,
+    it can now be removed from the config file.
 
 - On Windows, the path of the embedded ``python.exe`` binary has changed from
   ``%ProgramFiles%\Datadog\Datadog Agent\embedded\python.exe`` to ``%ProgramFiles%\Datadog\Datadog Agent\embedded2\python.exe``.
@@ -268,6 +262,14 @@ New Features
 
 Enhancement Notes
 -----------------
+
+- APM: the writer will now flush based on an estimated number of bytes
+  in accumulated buffer size, as opposed to a maximum number of spans,
+  resulting in better traffic and payload size management.
+
+- APM: traces are not dropped anymore because or rate limiting due to
+  performance issues. Instead, the trace is kept in a queue awaiting to
+  be processed.
 
 - Logs docker container ID when parse invalid docker log in DEBUG level.
 
