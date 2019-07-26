@@ -188,11 +188,17 @@ def build_object_files(ctx, install=True):
     set install to False to disable replacing the assets
     """
 
-    headers_dir = "/usr/src"
-    linux_headers = [
-        os.path.join(headers_dir, d) for d in os.listdir(headers_dir)
-        if "linux-headers" in d
-    ]
+    centos_headers_dir = "/usr/src/kernels"
+    debian_headers_dir = "/usr/src"
+    if os.path.isdir(centos_headers_dir):
+        linux_headers = [
+            os.path.join(centos_headers_dir, d) for d in os.listdir(centos_headers_dir)
+        ]
+    else:
+        linux_headers = [
+            os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir)
+            if d.startswith("linux-")
+        ]
 
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     c_dir = os.path.join(bpf_dir, "c")
