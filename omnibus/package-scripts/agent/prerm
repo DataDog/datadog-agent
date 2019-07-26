@@ -98,26 +98,9 @@ uninstall_integrations()
         # List all files available on the filesystem
         find $INSTALL_DIR/embedded/lib/python*/site-packages > $INSTALL_DIR/embedded/.all-integrations.txt
 
-        wc -l $INSTALL_DIR/embedded/.installed_by_pkg.txt
-        wc -l $INSTALL_DIR/embedded/.all-integrations.txt
-
-        ls -lah $INSTALL_DIR
-
-        echo "test" > $INSTALL_DIR/embedded/.thisisatest
-        echo "a" > $INSTALL_DIR/embedded/.thisisatest2
-
-        grep --version
-
-        grep -Fxv -f $INSTALL_DIR/embedded/.thisisatest $INSTALL_DIR/embedded/.thisisatest2
-        grep -Fxv -f $INSTALL_DIR/embedded/.thisisatest $INSTALL_DIR/embedded/.thisisatest2 > $INSTALL_DIR/embedded/output
-        cat $INSTALL_DIR/embedded/output
-
-        # List all files available on the filesystem which were not installed by the package
-        grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt > $INSTALL_DIR/embedded/.extra-integrations.txt
-        # Delete all those extra files
-        if [ -f "$INSTALL_DIR/embedded/.extra-integrations.txt" ]; then
-            cat $INSTALL_DIR/embedded/.extra-integrations.txt | grep -v '^#' | xargs rm -rf
-        fi
+        # List all files available on the filesystem which were not installed by
+        # the package and rm them.
+        grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt | grep -v '^#' | xargs rm -rf
 
         rm $INSTALL_DIR/embedded/.{extra,all}-integrations.txt
     else
