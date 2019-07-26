@@ -37,7 +37,7 @@ import (
 
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(r *mux.Router) {
-	r.HandleFunc("/version", getVersion).Methods("GET")
+	r.HandleFunc("/version", GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
@@ -62,7 +62,8 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func getVersion(w http.ResponseWriter, r *http.Request) {
+// GetVersion returns the version of the agent
+func GetVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, _ := version.New(version.AgentVersion, version.Commit)
 	j, _ := json.Marshal(av)

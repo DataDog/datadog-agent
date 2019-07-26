@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
@@ -19,6 +20,7 @@ import (
 
 // SetupHandlers adds the specific handlers for /api/v1 endpoints
 func SetupHandlers(r *mux.Router) {
+	r.HandleFunc("/clcrunner/version", agent.GetVersion).Methods("GET")
 	r.HandleFunc("/clcrunner/stats", getCLCRunnerStats).Methods("GET")
 }
 
