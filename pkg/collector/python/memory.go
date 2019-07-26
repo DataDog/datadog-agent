@@ -53,37 +53,36 @@ func init() {
 // MemoryTracker is the method exposed to the RTLoader for memory tracking
 //export MemoryTracker
 func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
-	// run async for performance reasons
+	// run sync for reliability reasons
+	// ~ run async for performance reasons ~
 	stack := string(debug.Stack())
-	go func() {
-		log.Debugf("Memory Tracker - ptr: %v, sz: %v, op: %v", ptr, sz, op)
-		// log.Printf("Memory Tracker - ptr: %v, sz: %v, op: %v", ptr, sz, op)
-		switch op {
-		case C.DATADOG_AGENT_RTLOADER_ALLOCATION:
-			pointerCache.Store(ptr, sz)
-			allocations.Add(1)
-			allocatedBytes.Add(int64(sz))
-			inuseBytes.Add(int64(sz))
+	log.Debugf("Memory Tracker - ptr: %v, sz: %v, op: %v", ptr, sz, op)
+	// log.Printf("Memory Tracker - ptr: %v, sz: %v, op: %v", ptr, sz, op)
+	switch op {
+	case C.DATADOG_AGENT_RTLOADER_ALLOCATION:
+		pointerCache.Store(ptr, sz)
+		allocations.Add(1)
+		allocatedBytes.Add(int64(sz))
+		inuseBytes.Add(int64(sz))
 
-		case C.DATADOG_AGENT_RTLOADER_FREE:
-			bytes, ok := pointerCache.Load(ptr)
-			if !ok {
-				log.Warnf("untracked memory was attempted to be freed")
-				log.Warnf("Risky, printing pointer C-string: %s\n", C.GoString((*C.char)(ptr)))
-				log.Debugf("Memory Tracker - stacktrace: \n%s", stack)
-				// log.Printf("untracked memory was attempted to be freed")
-				// log.Printf("Risky, printing pointer C-string: %s\n", C.GoString((*C.char)(ptr)))
-				// log.Printf("Memory Tracker - stacktrace: \n%s", stack)
-				untrackedFrees.Add(1)
-				return
-			}
-			defer pointerCache.Delete(ptr)
-
-			frees.Add(1)
-			freedBytes.Add(int64(bytes.(C.size_t)))
-			inuseBytes.Add(-1 * int64(bytes.(C.size_t)))
+	case C.DATADOG_AGENT_RTLOADER_FREE:
+		bytes, ok := pointerCache.Load(ptr)
+		if !ok {
+			log.Warnf("untracked memory was attempted to be freed")
+			log.Warnf("Risky, printing pointer C-string: %s\n", C.GoString((*C.char)(ptr)))
+			log.Debugf("Memory Tracker - stacktrace: \n%s", stack)
+			// log.Printf("untracked memory was attempted to be freed")
+			// log.Printf("Risky, printing pointer C-string: %s\n", C.GoString((*C.char)(ptr)))
+			// log.Printf("Memory Tracker - stacktrace: \n%s", stack)
+			untrackedFrees.Add(1)
+			return
 		}
-	}()
+		defer pointerCache.Delete(ptr)
+
+		frees.Add(1)
+		freedBytes.Add(int64(bytes.(C.size_t)))
+		inuseBytes.Add(-1 * int64(bytes.(C.size_t)))
+	}
 }
 
 func TrackedCString(str string) *C.char {
