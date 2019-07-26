@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -99,8 +100,10 @@ func Run(ctx context.Context) {
 
 	metrics.Count("datadog.trace_agent.started", 1, nil, 1)
 
-	// Seed rand
 	rand.Seed(time.Now().UTC().UnixNano())
+
+	tagger.Init()
+	defer tagger.Stop()
 
 	agnt := NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
