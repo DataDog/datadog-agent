@@ -204,9 +204,9 @@ func generateConfigs(tpl integration.Config, kep *v1.Endpoints) []integration.Co
 
 // getPodEntity returns pod entity
 func getPodEntity(podUID string) string {
-	return fmt.Sprintf("%s%s", KubePodPrefix, podUID)
+	return KubePodPrefix + podUID
 }
 
 func init() {
-	RegisterProvider("kube_endpoints", NewKubeEndpointsConfigProvider)
+	RegisterProvider(KubeEndpointsProviderName, NewKubeEndpointsConfigProvider)
 }

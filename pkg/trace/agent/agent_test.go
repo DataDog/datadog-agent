@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package agent
 
 import (
@@ -137,6 +142,33 @@ func TestProcess(t *testing.T) {
 		})
 		assert.EqualValues(1, stats.TracesFiltered)
 		assert.EqualValues(2, stats.SpansFiltered)
+	})
+
+	t.Run("ContainerTags", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg)
+		defer cancel()
+
+		span := &pb.Span{
+			Resource: "INSERT INTO db VALUES (1, 2, 3)",
+			Type:     "sql",
+			Start:    time.Now().Unix(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+
+		agnt.Process(&api.Trace{
+			Spans:  pb.Trace{span},
+			Source: &info.Tags{},
+			ContainerTags: map[string]string{
+				"A": "B",
+				"C": "",
+			},
+		})
+
+		assert.Equal(t, "B", span.Meta["A"])
+		assert.Equal(t, "", span.Meta["C"])
 	})
 
 	t.Run("Stats/Priority", func(t *testing.T) {
@@ -561,7 +593,7 @@ func benchThroughput(file string) func(*testing.B) {
 		// start the agent without the trace and stats writers; we will be draining
 		// these channels ourselves in the benchmarks, plus we don't want the writers
 		// resource usage to show up in the results.
-		agnt.spansOut = make(chan *writer.SampledSpans)
+		agnt.Out = make(chan *writer.SampledSpans)
 		go agnt.Run()
 
 		// wait for receiver to start:
@@ -614,7 +646,7 @@ func benchThroughput(file string) func(*testing.B) {
 		loop:
 			for {
 				select {
-				case <-agnt.spansOut:
+				case <-agnt.Out:
 					got++
 					if got == count {
 						// processed everything!

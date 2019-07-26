@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package agent
 
 import (
@@ -40,11 +45,11 @@ type Agent struct {
 	// tags based on their type.
 	obfuscator *obfuscate.Obfuscator
 
-	spansOut chan *writer.SampledSpans
+	In  chan *api.Trace
+	Out chan *writer.SampledSpans
 
 	// config
-	conf    *config.AgentConfig
-	dynConf *sampler.DynamicConfig
+	conf *config.AgentConfig
 
 	// Used to synchronize on a clean exit
 	ctx context.Context
@@ -54,41 +59,25 @@ type Agent struct {
 // which may be cancelled in order to gracefully stop the agent.
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
-
-	rawTraceChan := make(chan *api.Trace, 5000)
-	spansOut := make(chan *writer.SampledSpans, 1000)
+	in := make(chan *api.Trace, 5000)
+	out := make(chan *writer.SampledSpans, 1000)
 	statsChan := make(chan []stats.Bucket)
 
-	r := api.NewHTTPReceiver(conf, dynConf, rawTraceChan)
-	c := stats.NewConcentrator(
-		conf.ExtraAggregators,
-		conf.BucketInterval.Nanoseconds(),
-		statsChan,
-	)
-
-	obf := obfuscate.NewObfuscator(conf.Obfuscation)
-	ss := NewScoreSampler(conf)
-	ess := NewErrorsSampler(conf)
-	ps := NewPrioritySampler(conf, dynConf)
-	ep := eventProcessorFromConf(conf)
-	tw := writer.NewTraceWriter(conf, spansOut)
-	sw := writer.NewStatsWriter(conf, statsChan)
-
 	return &Agent{
-		Receiver:           r,
-		Concentrator:       c,
+		Receiver:           api.NewHTTPReceiver(conf, dynConf, in),
+		Concentrator:       stats.NewConcentrator(conf.ExtraAggregators, conf.BucketInterval.Nanoseconds(), statsChan),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
-		ScoreSampler:       ss,
-		ErrorsScoreSampler: ess,
-		PrioritySampler:    ps,
-		EventProcessor:     ep,
-		TraceWriter:        tw,
-		StatsWriter:        sw,
-		obfuscator:         obf,
-		spansOut:           spansOut,
+		ScoreSampler:       NewScoreSampler(conf),
+		ErrorsScoreSampler: NewErrorsSampler(conf),
+		PrioritySampler:    NewPrioritySampler(conf, dynConf),
+		EventProcessor:     eventProcessorFromConf(conf),
+		TraceWriter:        writer.NewTraceWriter(conf, out),
+		StatsWriter:        writer.NewStatsWriter(conf, statsChan),
+		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
+		In:                 in,
+		Out:                out,
 		conf:               conf,
-		dynConf:            dynConf,
 		ctx:                ctx,
 	}
 }
@@ -119,7 +108,7 @@ func (a *Agent) Run() {
 func (a *Agent) work() {
 	for {
 		select {
-		case t, ok := <-a.Receiver.Out:
+		case t, ok := <-a.In:
 			if !ok {
 				return
 			}
@@ -197,14 +186,19 @@ func (a *Agent) Process(t *api.Trace) {
 	}
 	a.Replacer.Replace(t.Spans)
 
-	// Extract the client sampling rate.
-	clientSampleRate := sampler.GetGlobalRate(root)
-	sampler.SetClientRate(root, clientSampleRate)
-	// Combine it with the pre-sampling rate.
-	rateLimiterRate := a.Receiver.RateLimiter.RealRate()
-	sampler.SetPreSampleRate(root, rateLimiterRate)
-	// Update root's global sample rate to include the presampler rate as well
-	sampler.AddGlobalRate(root, rateLimiterRate)
+	{
+		// this section sets up any necessary tags on the root:
+		clientSampleRate := sampler.GetGlobalRate(root)
+		rateLimiterRate := a.Receiver.RateLimiter.RealRate()
+
+		sampler.SetClientRate(root, clientSampleRate)
+		sampler.SetPreSampleRate(root, rateLimiterRate)
+		sampler.AddGlobalRate(root, rateLimiterRate)
+
+		for k, v := range t.ContainerTags {
+			root.Meta[k] = v
+		}
+	}
 
 	// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
 	// which is not thread-safe while samplers and Concentrator might modify it too.
@@ -259,7 +253,7 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) {
 	atomic.AddInt64(&ts.EventsSampled, int64(len(events)))
 
 	if !ss.Empty() {
-		a.spansOut <- &ss
+		a.Out <- &ss
 	}
 }
 

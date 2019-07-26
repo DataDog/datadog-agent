@@ -65,17 +65,21 @@ if ohai["platform"] != "windows"
   end
 
 else
+
   if windows_arch_i386?
     default_version "3.7.4"
 
-    source :url => "http://dbs-laptop/pkg/python-windows-#{version}-x86.zip",
+    source :url => "http://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-x86.zip",
             :sha256 => "c9ccf9cd81c06e49cb3186bef1e769a6b9da58d00dbb780f0185fbb2e8efba91"
   else
     dependency "vc_redist_14"
-    default_version "3.7.1"
+    default_version "3.7.4"
 
+    # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
     source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-           :sha256 => "2ebd2eb2155f7c82ec3d2ba5203e0a250b6bbf60c7c5404f1e03f4bc71a096e1"
+         :sha256 => "ce1782db64be81aa81e8a38102b4850ee03a0b30bf152a7d2b4b36a7a6e0c381"
+
+
   end
   build do
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""

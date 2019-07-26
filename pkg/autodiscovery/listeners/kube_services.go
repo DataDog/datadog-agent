@@ -238,6 +238,11 @@ func (s *KubeServiceService) GetEntity() string {
 	return s.entity
 }
 
+// GetEntity returns the unique entity name linked to that service
+func (s *KubeServiceService) GetTaggerEntity() string {
+	return s.entity
+}
+
 // GetADIdentifiers returns the service AD identifiers
 func (s *KubeServiceService) GetADIdentifiers() ([]string, error) {
 	// Only the entity for now, to match on annotation

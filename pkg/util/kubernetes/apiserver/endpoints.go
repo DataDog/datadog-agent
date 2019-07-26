@@ -16,7 +16,7 @@ import (
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 )
 
-const kubeEndpointIDPrefix = "kube_endpoint://"
+const kubeEndpointIDPrefix = "kube_endpoint_uid://"
 
 // SearchTargetPerName returns the endpoint matching a given target name. It allows
 // to retrieve a given pod's endpoint address from a service.

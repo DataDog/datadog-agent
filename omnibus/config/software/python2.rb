@@ -78,9 +78,9 @@ else
            :sha256 => "575093fd5748ccc22be6577fff15ae9ffe525b627888342bd43826053183e9da",
            :extract => :seven_zip
   else
-    source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-           :sha256 => "6b9fdc51dde1ba6ae4cb698451900e1f8f1900ff1d56d9166dbeab06b10a4dce",
-           :extract => :seven_zip
+    source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-nopip-amd64.zip",
+         :sha256 => "b9878cf2e64084c35a98ae1acd68f93bd7bc36e232e01088cba7692153068f67",
+         :extract => :seven_zip
   end
   build do
     #

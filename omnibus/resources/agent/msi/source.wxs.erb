@@ -392,12 +392,16 @@
         </Component>
       </Directory>
     </DirectoryRef>
-    <DirectoryRef Id="TARGETDIR">
-        <Merge Id="VCRedist141" SourceFile="$(var.BinFiles)/Microsoft_VC141_CRT_x64.msm" DiskId="1" Language="0"/>
-    </DirectoryRef>
-    <Feature Id="VCRedist141" Title="Visual C++ 2015 Runtime" AllowAdvertise="no" Display="hidden" Level="1">
-        <MergeRef Id="VCRedist141"/>
-    </Feature>
+
+    <?if $(var.IncludePython3) = true ?>
+        <DirectoryRef Id="TARGETDIR">
+            <Merge Id="VCRedist141" SourceFile="$(var.BinFiles)/Microsoft_VC141_CRT_x64.msm" DiskId="1" Language="0"/>
+        </DirectoryRef>
+
+        <Feature Id="VCRedist141" Title="Visual C++ 2015 Runtime" AllowAdvertise="no" Display="hidden" Level="1">
+            <MergeRef Id="VCRedist141"/>
+        </Feature>
+    <?endif ?>
     <InstallExecuteSequence>
       <Custom Action='WixCloseApplications' Before='RemoveFiles'> </Custom>
 

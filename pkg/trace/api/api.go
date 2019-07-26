@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package api
 
 import (
@@ -24,6 +29,8 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -68,8 +75,8 @@ const (
 type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
-	Out         chan *Trace
 
+	out     chan *Trace
 	conf    *config.AgentConfig
 	dynConf *sampler.DynamicConfig
 	server  *http.Server
@@ -91,7 +98,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	return &HTTPReceiver{
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
-		Out:         out,
+		out:         out,
 
 		conf:    conf,
 		dynConf: dynConf,
@@ -246,7 +253,7 @@ func (r *HTTPReceiver) Stop() error {
 		return err
 	}
 	r.wg.Wait()
-	close(r.Out)
+	close(r.out)
 	return nil
 }
 
@@ -288,6 +295,10 @@ const (
 	// headerTraceCount is the header client implementation should fill
 	// with the number of traces contained in the payload.
 	headerTraceCount = "X-Datadog-Trace-Count"
+
+	// headerContainerID specifies the name of the header which contains the ID of the
+	// container where the request originated.
+	headerContainerID = "Datadog-Container-ID"
 
 	// headerLang specifies the name of the header which contains the language from
 	// which the traces originate.
@@ -375,7 +386,8 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			r.wg.Done()
 			watchdog.LogOnPanic()
 		}()
-		r.processTraces(ts, traces)
+		containerID := req.Header.Get(headerContainerID)
+		r.processTraces(ts, containerID, traces)
 	}()
 }
 
@@ -385,12 +397,18 @@ type Trace struct {
 	// language, interpreter, tracer version, etc.
 	Source *info.Tags
 
+	// ContainerTags specifies orchestrator tags corresponding to the origin of this
+	// trace (e.g. K8S pod, Docker image, ECS, etc).
+	ContainerTags map[string]string
+
 	// Spans holds the spans of this trace.
 	Spans pb.Trace
 }
 
-func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
+func (r *HTTPReceiver) processTraces(ts *info.TagStats, containerID string, traces pb.Traces) {
 	defer timing.Since("datadog.trace_agent.internal.normalize_ms", time.Now())
+
+	containerTags := getContainerTags(containerID)
 	for _, trace := range traces {
 		spans := len(trace)
 
@@ -403,9 +421,10 @@ func (r *HTTPReceiver) processTraces(ts *info.TagStats, traces pb.Traces) {
 			continue
 		}
 
-		r.Out <- &Trace{
-			Source: &ts.Tags,
-			Spans:  trace,
+		r.out <- &Trace{
+			Source:        &ts.Tags,
+			ContainerTags: containerTags,
+			Spans:         trace,
 		}
 	}
 }
@@ -438,7 +457,7 @@ func (r *HTTPReceiver) loop() {
 			r.watchdog(now)
 		case now := <-t.C:
 			metrics.Gauge("datadog.trace_agent.heartbeat", 1, nil, 1)
-			metrics.Gauge("datadog.trace_agent.receiver.out_chan_fill", float64(len(r.Out))/float64(cap(r.Out)), nil, 1)
+			metrics.Gauge("datadog.trace_agent.receiver.out_chan_fill", float64(len(r.out))/float64(cap(r.out)), nil, 1)
 
 			// We update accStats with the new stats we collected
 			accStats.Acc(r.Stats)
@@ -565,6 +584,35 @@ func tracesFromSpans(spans []pb.Span) pb.Traces {
 	}
 
 	return traces
+}
+
+// getContainerTags returns container and orchestrator tags belonging to containerID. If containerID
+// is empty or no tags are found, an empty map is returned.
+func getContainerTags(containerID string) map[string]string {
+	list, err := tagger.Tag("container_id://"+containerID, collectors.HighCardinality)
+	if err != nil {
+		log.Tracef("Getting container tags for ID %q: %v", containerID, err)
+		return map[string]string{}
+	}
+	log.Tracef("Getting container tags for ID %q: %v", containerID, list)
+	tags := make(map[string]string, len(list))
+	for _, tag := range list {
+		// this is a metrics product style tag; either a "key:value" pair,
+		// or simply "key", without a value.
+		parts := strings.Split(tag, ":")
+		if parts[0] == "" {
+			continue
+		}
+		k := "container." + parts[0]
+		if len(parts) > 1 {
+			// key and value
+			tags[k] = parts[1]
+		} else {
+			// key only
+			tags[k] = ""
+		}
+	}
+	return tags
 }
 
 // getMediaType attempts to return the media type from the Content-Type MIME header. If it fails

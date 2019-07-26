@@ -162,10 +162,8 @@ platforms. The following, among other aspects, are *not* covered:
   `dd-agent-upgrade` suite
 * Not all supported operating systems are tested. Missing operating systems
   include:
-    - FreeBSD
     - Mac OS 10.x
     - Amazon Linux
-    - SmartOS
 * Memory leaks or any obscurities that result from the Agent running for a long time, and so short term tests like these will not catch them
 * Sending metrics/events over Dogstatsd via client libraries
 * Changes made to an environment by a user (no sudo present, system Python

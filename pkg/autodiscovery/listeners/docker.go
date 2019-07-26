@@ -332,6 +332,10 @@ func (s *DockerService) GetEntity() string {
 	return docker.ContainerIDToEntityName(s.cID)
 }
 
+func (s *DockerService) GetTaggerEntity() string {
+	return docker.ContainerIDToTaggerEntityName(s.cID)
+}
+
 func (l *DockerListener) isExcluded(co types.Container) bool {
 	image, err := l.dockerUtil.ResolveImageName(co.Image)
 	if err != nil {
@@ -492,7 +496,7 @@ func parseDockerPort(port nat.Port) ([]ContainerPort, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *DockerService) GetTags() ([]string, error) {
-	tags, err := tagger.Tag(s.GetEntity(), tagger.ChecksCardinality)
+	tags, err := tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality)
 	if err != nil {
 		return []string{}, err
 	}

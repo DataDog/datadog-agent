@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -58,12 +58,12 @@ func TestProcessEndpoints(t *testing.T) {
 		return keyi < keyj
 	})
 
-	assert.Equal(t, "kube_endpoint://default/myservice/10.0.0.1", eps[0].GetEntity())
+	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.1", eps[0].GetEntity())
 	assert.Equal(t, integration.Before, eps[0].GetCreationTime())
 
 	adID, err := eps[0].GetADIdentifiers()
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"kube_endpoint://default/myservice/10.0.0.1"}, adID)
+	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.1"}, adID)
 
 	hosts, err := eps[0].GetHosts()
 	assert.NoError(t, err)
@@ -77,12 +77,12 @@ func TestProcessEndpoints(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default", "kube_endpoint_ip:10.0.0.1"}, tags)
 
-	assert.Equal(t, "kube_endpoint://default/myservice/10.0.0.2", eps[1].GetEntity())
+	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.2", eps[1].GetEntity())
 	assert.Equal(t, integration.Before, eps[1].GetCreationTime())
 
 	adID, err = eps[1].GetADIdentifiers()
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"kube_endpoint://default/myservice/10.0.0.2"}, adID)
+	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.2"}, adID)
 
 	hosts, err = eps[1].GetHosts()
 	assert.NoError(t, err)

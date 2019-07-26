@@ -60,6 +60,7 @@ if node['dd-agent-upgrade']['add_new_repo']
       # Older versions of yum embed M2Crypto with SSL that doesn't support TLS1.2
       protocol = node['platform_version'].to_i < 6 ? 'http' : 'https'
       gpgkey "#{protocol}://yum.datadoghq.com/DATADOG_RPM_KEY.public"
+      gpgautoimportkeys false
     end
   end
 end

@@ -75,7 +75,7 @@ void rtloader_free(rtloader_t *s, void *p) {
 int run_check_calls = 0;
 char *run_check_return = NULL;
 rtloader_pyobject_t *run_check_instance = NULL;
-const char *run_check(rtloader_t *s, rtloader_pyobject_t *check) {
+char *run_check(rtloader_t *s, rtloader_pyobject_t *check) {
 	run_check_instance = check;
 	run_check_calls++;
 	return run_check_return;

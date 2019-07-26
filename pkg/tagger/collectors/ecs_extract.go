@@ -42,7 +42,7 @@ func (c *ECSCollector) parseTasks(tasks_list ecsutil.TasksV1Response, targetDock
 
 				info := &TagInfo{
 					Source:               ecsCollectorName,
-					Entity:               docker.ContainerIDToEntityName(container.DockerID),
+					Entity:               docker.ContainerIDToTaggerEntityName(container.DockerID),
 					HighCardTags:         high,
 					OrchestratorCardTags: orch,
 					LowCardTags:          low,

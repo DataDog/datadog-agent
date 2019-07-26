@@ -83,10 +83,14 @@ func (ku *KubeUtil) UpdateContainerMetrics(ctrList []*containers.Container) erro
 }
 
 func parseContainerInPod(status ContainerStatus, pod *Pod) (*containers.Container, error) {
+	entity, err := KubeContainerIDToTaggerEntityID(status.ID)
+	if err != nil {
+		return nil, fmt.Errorf("Skipping container %s from pod %s: %s", status.Name, pod.Metadata.Name, err)
+	}
 	c := &containers.Container{
 		Type:     "kubelet",
 		ID:       TrimRuntimeFromCID(status.ID),
-		EntityID: status.ID,
+		EntityID: entity,
 		Name:     fmt.Sprintf("%s-%s", pod.Metadata.Name, status.Name),
 		Image:    status.Image,
 	}

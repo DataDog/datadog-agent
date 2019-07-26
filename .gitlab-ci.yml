@@ -708,7 +708,8 @@ kitchen_windows:
     - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
+    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
@@ -758,7 +759,8 @@ kitchen_centos:
     - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - export TEST_PLATFORMS="centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
+    - export TEST_PLATFORMS="centos-69,OpenLogic:CentOS:6.9:6.9.20180530"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks
@@ -766,10 +768,11 @@ kitchen_centos:
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
 
-# run dd-agent-testing on ubuntu (FIXME: Allowed to fail until we resolve the issue with apt locks/azure agent)
+# run dd-agent-testing on ubuntu
+# Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 kitchen_ubuntu:
   stage: testkitchen_testing
-  allow_failure: true
+  allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   <<: *run_when_testkitchen_triggered
   before_script:
@@ -784,6 +787,7 @@ kitchen_ubuntu:
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,Canonical:UbuntuServer:16.04.0-LTS:16.04.201906170"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-18-04,Canonical:UbuntuServer:18.04-LTS:18.04.201906040"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks
@@ -808,6 +812,7 @@ kitchen_suse:
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP4:2019.06.17"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,SUSE:SLES-Standard:15:2019.06.17"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks
@@ -815,10 +820,11 @@ kitchen_suse:
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
 
-# run dd-agent-testing on debian (FIXME: Allowed to fail until we resolve the issue with apt locks/azure agent)
+# run dd-agent-testing on debian
+# Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 kitchen_debian:
   stage: testkitchen_testing
-  allow_failure: true
+  allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   <<: *run_when_testkitchen_triggered
   before_script:
@@ -832,6 +838,7 @@ kitchen_debian:
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.20190313.0"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,credativ:Debian:9:9.20190515.0"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks
