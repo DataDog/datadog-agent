@@ -66,10 +66,10 @@ if ohai["platform"] != "windows"
 
 else
   if windows_arch_i386?
-    default_version "3.7.3"
+    default_version "3.7.4"
 
     source :url => "http://dbs-laptop/pkg/python-windows-#{version}-x86.zip",
-            :sha256 => "27b8712d98251e861698f3282598001d2e52cbc8dd3743f14313b9c9afedd545"
+            :sha256 => "c9ccf9cd81c06e49cb3186bef1e769a6b9da58d00dbb780f0185fbb2e8efba91"
   else
     dependency "vc_redist_14"
     default_version "3.7.1"

@@ -107,7 +107,6 @@ package :msi do
     'EtcFiles' => "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent",
     'IncludePython2' => "#{with_python_runtime? '2'}",
     'IncludePython3' => "#{with_python_runtime? '3'}",
-    'TestVar' => "testVar",
     'Platform' => "#{arch}",
   })
 end

@@ -75,7 +75,7 @@ else
 
   if windows_arch_i386?
     source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-x86.zip",
-           :sha256 => "bd7cfc193972894dc5b8557eeed218e2baf24dc71c0523aee7da6a45e44cb298",
+           :sha256 => "575093fd5748ccc22be6577fff15ae9ffe525b627888342bd43826053183e9da",
            :extract => :seven_zip
   else
     source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
