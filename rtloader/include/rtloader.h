@@ -111,6 +111,15 @@ public:
     */
     virtual const char *runCheck(RtLoaderPyObject *check) = 0;
 
+    //! Pure virtual pickleCheckCheck member.
+    /*!
+      \param check The python object pointer to the check we wish to pickleCheck.
+      \return A C-string with the check result.
+    */
+#if 0
+    virtual const char *pickleCheck(RtLoaderPyObject *check) = 0;
+#endif
+
     //! Pure virtual getCheckWarnings member.
     /*!
       \param check The python object pointer to the check we wish to collect existing warnings for.
