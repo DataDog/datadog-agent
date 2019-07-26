@@ -4,75 +4,9 @@
 
 init_config:
 
-  ## @param docker_root - string - optional - default: /
-  ## Change the root directory for retrieving cgroup statistics. Useful when running inside a
-  ## container with host directories mounted on a different folder.
-  ## Example for the docker-dd-agent container:
-  ## docker_root: /host
-  #
-  # docker_root: /
-
-  ## @param timeout - integer - optional - default: 5
-  ## Timeout in seconds for the connection to the docker daemon
-  #
-  # timeout: 5
-
-  ## @param api_version - string - optional - default: auto
-  ## The version of the API the client uses.
-  ## 'auto' picks the API version provided by the server.
-  #
-  # api_version: auto
-
-  ## @param tls - boolean - optional - default: false
-  ## Set to true to enable TLS encryption while communicating
-  ## with the Docker API.
-  #
-  # tls: false
-
-  ## @param tls_client_cert - string - optional
-  ## Path to the client certificate file (client-cert.pem).
-  #
-  # tls_client_cert: <CLIENT_CERT_PATH>
-
-  ## @param tls_client_key - string - optional
-  ## Path to the TLS client key file (client-key.pem).
-  #
-  # tls_client_key: <CLIENT_KEY_PATH>
-
-  ## @param tls_cacert - string - optional
-  ## Path to the TLS CA certificate file (ca.pem).
-  #
-  # tls_cacert: <TLS_CA_CERT_PATH>
-
-  ## @param tls_verify - boolean - optional - default: true
-  ## Set this variable to false to disable TLS verification.
-  #
-  # tls_verify: true
-
-  ## @param init_retry_interval - integer - optional - default: 0
-  ## Initialization retries if the Agent is expected to start before Docker,
-  ## Use these settings to configure the retry policy.
-  ## init_retry_interval defines how long (in seconds) the Docker client
-  ## waits before retrying initialization.
-  #
-  # init_retry_interval: 0
-
-  ## @param init_retries - integer - optional - default: 0
-  ## init_retries configures how many retries are made before failing permanently.
-  #
-  # init_retries: 0
-
 instances:
 
-    ## @param url - string - required
-    ## URL of the Docker daemon socket to reach the Docker API. HTTP/HTTPS also works.
-    ## Warning: if that's a non-local daemon, Datadog cannot collect performance metrics.
-    #
-  - url: "unix://var/run/docker.sock"
-
-    ##
-    ## Data collection
-    ##
+  -
 
     ## @param collect_events - boolean - optional - default: true
     ## Create events whenever a container status changes.
@@ -102,33 +36,6 @@ instances:
     ## Set the collection frequency (once every X check runs) of disk user per container metrics.
     #
     # collect_container_size_frequency: 5
-
-    ## @param custom_cgroups - boolean - optional - default: false
-    ## Set to true if you use a custom cgroup hierarchy for this instance.
-    ## Enabling this option modifies how the Agent inspects containers and causes
-    ## some overhead - if you run a high volume of containers the Agent may timeout.
-    #
-    # custom_cgroups: false
-
-    ## @param health_service_check_whitelist - list of key:value elements - optional
-    ## Reports Docker container Healthcheck events as service checks.
-    ## Enabling this option modifies how the Agent inspects containers and causes
-    ## some overhead - if you run a high volume of containers the Agent may timeout.
-    ## Container health checks are available starting with Docker 1.12. Enabling it with older
-    ## versions results in an UNKNOWN state for the service check.
-    ##
-    ## You must white-list the containers you wish to submit health service checks for.
-    ## To white-list containers use the <TAG_NAME>:<VALUE> format.
-    ## For the list of supported tags, see the performance_tags option.
-    ## Example: "docker_image:tomcat" or "container_name:web_front_nginx"
-    #
-    # health_service_check_whitelist:
-    #   - <TAG_NAME>:<VALUE>
-
-    ## @param collect_container_count - boolean - optional - default: false
-    ## Set to true to collect the container count tagged by state (running, paused, exited, dead).
-    #
-    # collect_container_count: false
 
     ## @param collect_volume_count - boolean - optional - default: false
     ## Set to true to collect the volume count for attached and dangling volumes.
@@ -162,31 +69,6 @@ instances:
     #
     # collect_exit_codes: false
 
-    ## @param exclude - list of key:value element - optional
-    ## Exclude containers based on their tags. The parameter value is a regex on the tags.
-    ## An excluded container does not get any individual container metric reported for it.
-    ## However it still appears in the container count since ignoring it would give
-    ## a wrong impression about the Docker daemon load.
-    ## The rule is "exclude applies first, but include overrides exclude".
-    ## For example, if a tag matches an exclude rule, it won't be included unless it also matches an include rule.
-    ## To exclude containers use the <TAG_NAME>:<VALUE> format.
-    ##
-    ## Example - exclude all, except Ubuntu and Debian:
-    ## exclude: ["docker_image:.*"]
-    ## include: ["docker_image:ubuntu", "docker_image:debian"]
-    ##
-    ## By default, pause containers are excluded based on their image (Fargate, Kubernetes, OpenShift, etc.)
-    #
-    # exclude:
-    #   - <TYPE>:<VALUE>
-
-    ## @param include - list of key:value element - optional
-    ## Include containers based on their tags. The parameter value is a regex on the tags.
-    ## See the exclude option above for an example.
-    #
-    # include:
-    #   - <TAG_NAME>:<VALUE>
-
     ## @param tags - list of key:value element - optional
     ## List of tags to attach to every metric, event, and service check emitted by this integration.
     ##
@@ -195,44 +77,6 @@ instances:
     # tags:
     #   - <KEY_1>:<VALUE_1>
     #   - <KEY_2>:<VALUE_2>
-
-    ## @param ecs_tags - boolean - optional - default: true
-    ## If the Agent is running in an Amazon ECS task, the container metrics are tagged with the ECS task name and version.
-    #
-    # ecs_tags: true
-
-    ## @param performance_tags - list of string - optional
-    ## Define which Docker tags to apply on metrics.
-    ## Since it impacts the aggregation, modify it carefully (only if you really need it).
-    ##
-    ## Available tags for performance metrics:
-    ##   - image_name: Name of the image (example: "nginx")
-    ##   - image_tag: Tag of the image (example: "latest")
-    ##   - docker_image: LEGACY. The full image name:tag string (example: "nginx:latest")
-    ##   - container_name: Name of the container (example: "boring_euclid")
-    ##   - container_command: Command ran by the container (example: "echo 1")
-    ##   - container_id: Id of the container
-    #
-    # performance_tags: ["container_name", "image_name", "image_tag", "docker_image"]
-
-    ## @param container_tags - list of strings - optional - default: ["image_name", "image_tag", "docker_image"]
-    ## Tags for container count metrics.
-    ## Available:
-    ##   - image_name: Name of the image (example: "nginx")
-    ##   - image_tag: Tag of the image (example: "latest")
-    ##   - docker_image: LEGACY. The full image name:tag string (example: "nginx:latest")
-    ##   - container_command: Command ran by the container (example: "echo 1")
-    #
-    # container_tags: ["image_name", "image_tag", "docker_image"]
-
-    ## @param event_attributes_as_tags - list of strings - optional - default: none
-    ## Option to tag Docker metrics with container label names listed.
-    ## Takes precedence over docker_labels_as_tags for Docker metrics.
-    ## Only use if you want different labels tagged between Autodiscovery and Docker daemon metrics.
-    ## Example:
-    ##  event_attributes_as_tags: ["signal"]
-    #
-    # event_attributes_as_tags: ["LABEL_NAME"]
 
     ## @param capped_metrics - list of key:value elements - optional
     ## Allows ad-hoc spike filtering if the system reports incorrect metrics.
