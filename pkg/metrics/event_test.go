@@ -209,7 +209,7 @@ func TestPayloadsEventsSeveralPayloads(t *testing.T) {
 
 	payloads := buildPayload(t, allEvents)
 	assert.Equal(t, 3, len(payloads))
-	
+
 	for index, events := range eventsCollection {
 		json, err := events.MarshalJSON()
 		assert.NoError(t, err)

@@ -232,7 +232,7 @@ func (events Events) writeNoEventFooter(stream *jsoniter.Stream) error {
 	hostname, _ := util.GetHostname()
 	stream.WriteObjectField(internalHostnameJSONField)
 	stream.WriteString(hostname)
-	
+
 	stream.WriteObjectEnd()
 	return stream.Flush()
 }
