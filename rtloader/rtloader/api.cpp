@@ -13,8 +13,8 @@
 #include <sstream>
 
 #include "datadog_agent_rtloader.h"
-#include "rtloader_mem.h"
 #include "rtloader.h"
+#include "rtloader_mem.h"
 
 #if __linux__
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.so"
