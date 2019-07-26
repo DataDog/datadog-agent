@@ -1,4 +1,4 @@
-#!/bin/sh -x
+#!/bin/sh
 #
 # Perform necessary datadog-agent setup steps prior to remove the old package.
 #
@@ -14,8 +14,6 @@ SERVICE_NAME=datadog-agent
 if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
     DISTRIBUTION_FAMILY="Debian"
 fi
-
-set -x
 
 stop_agent()
 {
