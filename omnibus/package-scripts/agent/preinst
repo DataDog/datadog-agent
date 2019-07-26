@@ -75,7 +75,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # Starting with 6.10, integrations are also uninstalled on package removal
         #
 
-        # Since 6.13.0, a file containing all integrations files which have been installed by
+        # Since 6.14.0, a file containing all integrations files which have been installed by
         # the package is available. We use it to remove only the files which have *NOT*
         # been installed by the package.
 
