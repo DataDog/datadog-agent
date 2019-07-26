@@ -49,8 +49,7 @@ type Agent struct {
 	Out chan *writer.SampledSpans
 
 	// config
-	conf    *config.AgentConfig
-	dynConf *sampler.DynamicConfig
+	conf *config.AgentConfig
 
 	// Used to synchronize on a clean exit
 	ctx context.Context
@@ -79,7 +78,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		In:                 in,
 		Out:                out,
 		conf:               conf,
-		dynConf:            dynConf,
 		ctx:                ctx,
 	}
 }

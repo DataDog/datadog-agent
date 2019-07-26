@@ -768,10 +768,11 @@ kitchen_centos:
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
 
-# run dd-agent-testing on ubuntu (FIXME: Allowed to fail until we resolve the issue with apt locks/azure agent)
+# run dd-agent-testing on ubuntu
+# Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 kitchen_ubuntu:
   stage: testkitchen_testing
-  allow_failure: true
+  allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   <<: *run_when_testkitchen_triggered
   before_script:
@@ -819,10 +820,11 @@ kitchen_suse:
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
 
-# run dd-agent-testing on debian (FIXME: Allowed to fail until we resolve the issue with apt locks/azure agent)
+# run dd-agent-testing on debian
+# Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 kitchen_debian:
   stage: testkitchen_testing
-  allow_failure: true
+  allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   <<: *run_when_testkitchen_triggered
   before_script:

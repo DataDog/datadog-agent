@@ -1,6 +1,7 @@
 package encoding
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -126,5 +127,29 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 		assert.Equal(out, result)
+	})
+
+	t.Run("render default values with application/json", func(t *testing.T) {
+		assert := assert.New(t)
+		marshaler := GetMarshaler("application/json")
+		assert.Equal("application/json", marshaler.ContentType())
+
+		// Empty connection batch
+		blob, err := marshaler.Marshal(&ebpf.Connections{Conns: []ebpf.ConnectionStats{{}}})
+		require.NoError(t, err)
+
+		res := struct {
+			Conns []map[string]interface{} `json:"conns"`
+		}{}
+		require.NoError(t, json.Unmarshal(blob, &res))
+
+		require.Len(t, res.Conns, 1)
+		// Check that it contains fields even if they are zeroed
+		for _, field := range []string{
+			"type", "lastBytesSent", "lastBytesReceived", "lastRetransmits",
+			"netNS", "family", "direction", "pid",
+		} {
+			assert.Contains(res.Conns[0], field)
+		}
 	})
 }

@@ -208,5 +208,5 @@ func getPodEntity(podUID string) string {
 }
 
 func init() {
-	RegisterProvider("kube_endpoints", NewKubeEndpointsConfigProvider)
+	RegisterProvider(KubeEndpointsProviderName, NewKubeEndpointsConfigProvider)
 }

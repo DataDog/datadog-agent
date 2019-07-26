@@ -119,7 +119,7 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 const (
 	defaultEndpoint          = "https://process.datadoghq.com"
 	maxMessageBatch          = 100
-	maxConnsMessageBatch     = 300
+	maxConnsMessageBatch     = 1000
 	maxMaxTrackedConnections = 65536
 )
 
@@ -333,7 +333,7 @@ func loadEnvVariables() {
 		"DD_STRIP_PROCESS_ARGS":             "process_config.strip_proc_arguments",
 		"DD_PROCESS_AGENT_URL":              "process_config.process_dd_url",
 
-		// Note: this feature is in development and should not be used in production environments
+		// System probe specific configuration (Beta)
 		"DD_SYSTEM_PROBE_ENABLED":   "system_probe_config.enabled",
 		"DD_SYSPROBE_SOCKET":        "system_probe_config.sysprobe_socket",
 		"DD_DISABLE_TCP_TRACING":    "system_probe_config.disable_tcp",
