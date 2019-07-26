@@ -258,6 +258,43 @@ func TestGetSenderAddCheckCustomTagsEvent(t *testing.T) {
 	assert.Equal(t, append(checkTags, customTags...), e.Tags)
 }
 
+func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
+	resetAggregator()
+	InitAggregator(nil, "testhostname", "")
+
+	senderMetricSampleChan := make(chan senderMetricSample, 10)
+	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
+	eventChan := make(chan metrics.Event, 10)
+	bucketChan := make(chan senderHistogramBucket, 10)
+	checkSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan, bucketChan)
+
+	// no custom tags
+	checkSender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil)
+	bucketSample := <-bucketChan
+	assert.Nil(t, bucketSample.bucket.Tags)
+
+	// only tags added by the check
+	checkTags := []string{"check:tag1", "check:tag2"}
+	checkSender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags)
+	bucketSample = <-bucketChan
+	assert.Equal(t, checkTags, bucketSample.bucket.Tags)
+
+	// simulate tags in the configuration file
+	customTags := []string{"custom:tag1", "custom:tag2"}
+	checkSender.SetCheckCustomTags(customTags)
+	assert.Len(t, checkSender.checkTags, 2)
+
+	// only tags coming from the configuration file
+	checkSender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil)
+	bucketSample = <-bucketChan
+	assert.Equal(t, customTags, bucketSample.bucket.Tags)
+
+	// tags added by the check + tags coming from the configuration file
+	checkSender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags)
+	bucketSample = <-bucketChan
+	assert.Equal(t, append(checkTags, customTags...), bucketSample.bucket.Tags)
+}
+
 func TestCheckSenderInterface(t *testing.T) {
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
@@ -270,6 +307,7 @@ func TestCheckSenderInterface(t *testing.T) {
 	checkSender.MonotonicCount("my.monotonic_count_metric", 12.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Counter("my.counter_metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
+	checkSender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"foo", "bar"})
 	checkSender.Commit()
 	checkSender.ServiceCheck("my_service.can_connect", metrics.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
 	submittedEvent := metrics.Event{
@@ -329,6 +367,15 @@ func TestCheckSenderInterface(t *testing.T) {
 
 	event := <-eventChan
 	assert.Equal(t, submittedEvent, event)
+
+	histogramBucket := <-bucketChan
+	assert.Equal(t, "my.histogram_bucket", histogramBucket.bucket.Name)
+	assert.Equal(t, 42, histogramBucket.bucket.Value)
+	assert.Equal(t, 1.0, histogramBucket.bucket.LowerBound)
+	assert.Equal(t, 2.0, histogramBucket.bucket.UpperBound)
+	assert.Equal(t, true, histogramBucket.bucket.Monotonic)
+	assert.Equal(t, "my-hostname", histogramBucket.bucket.Host)
+	assert.Equal(t, []string{"foo", "bar"}, histogramBucket.bucket.Tags)
 }
 
 func TestCheckSenderHostname(t *testing.T) {

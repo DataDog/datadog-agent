@@ -269,7 +269,19 @@ func (s *checkSender) Histogram(metric string, value float64, hostname string, t
 
 // HistogramBucket should be called to directly send raw buckets to be submitted as distribution metrics
 func (s *checkSender) HistogramBucket(metric string, value int, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string) {
-	// todo
+	tags = append(tags, s.checkTags...)
+
+	log.Tracef(
+		"Histogram Bucket %s submitted: %v [%f-%f] monotonic: %v for host %s tags: %v",
+		metric,
+		value,
+		lowerBound,
+		upperBound,
+		monotonic,
+		hostname,
+		tags,
+	)
+
 	histogramBucket := &metrics.HistogramBucket{
 		Name:       metric,
 		Value:      value,
@@ -278,6 +290,7 @@ func (s *checkSender) HistogramBucket(metric string, value int, lowerBound, uppe
 		Monotonic:  monotonic,
 		Host:       hostname,
 		Tags:       tags,
+		Timestamp:  timeNowNano(),
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {
