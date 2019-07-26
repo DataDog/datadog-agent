@@ -22,10 +22,6 @@ Release on: 2019-07-24
 Upgrade Notes
 -------------
 
-- APM: Services are no longer aggreagated in the agent, nor written to the Datadog API.
-  Instead, they are now automatically extracted on the backend based on the received
-  traces.
-
 - The ``port`` option in the NTP check configuration is now parsed as an integer instead of a string.
 
 
@@ -70,6 +66,10 @@ Enhancement Notes
   without knowing what the container runtime is.
 
 - APM: reduce memory usage in high traffic by up to 10x.
+
+- APM: Services are no longer aggreagated in the agent, nor written to the Datadog API.
+  Instead, they are now automatically extracted on the backend based on the received
+  traces.
 
 - APM: The default interval at which the agent watches its resource usage has
   been reduced from 20s to 10s.
