@@ -118,18 +118,13 @@ if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIB
     uninstall_integrations
     remove_py_compiled_files
 elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
-    echo "Start of stop_agent"
     stop_agent
-    echo "Start of deregister_agent"
     deregister_agent
-    echo "End of deregister_agent"
 
     case "$*" in
         0)
             # We're uninstalling.
-            echo "Start of uninstall_integrations"
             uninstall_integrations
-            echo "Start of remove_py_compiled_files"
             remove_py_compiled_files
         ;;
         1)
