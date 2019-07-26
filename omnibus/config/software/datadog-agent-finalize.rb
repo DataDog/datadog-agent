@@ -104,11 +104,26 @@ build do
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.installed_by_pkg.txt"
             command "find #{install_dir}/embedded/lib/python*/site-packages >> #{install_dir}/embedded/.installed_by_pkg.txt"
 
+            # removing the doc from the embedded folder to reduce package size by ~3MB
+            delete "#{install_dir}/embedded/share/doc"
+
+            # removing the terminfo db from the embedded folder to reduce package size by ~7MB
+            delete "#{install_dir}/embedded/share/terminfo"
+
+            # removing useless folder
+            delete "#{install_dir}/embedded/share/aclocal"
+            delete "#{install_dir}/embedded/share/examples"
+
             # Setup pip aliases: `/opt/datadog-agent/embedded/bin/pip` will default to `pip2`
             if with_python_runtime? "2"
                 delete "#{install_dir}/embedded/bin/pip"
                 link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
             end
+
+
+        # removing the man pages from the embedded folder to reduce package size by ~4MB
+        delete "#{install_dir}/embedded/man"
+        delete "#{install_dir}/embedded/share/man"
 
         elsif osx?
             # Remove linux specific configs

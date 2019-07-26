@@ -108,7 +108,7 @@ public:
       \param check The python object pointer to the check we wish to run.
       \return A C-string with the check result.
     */
-    virtual const char *runCheck(RtLoaderPyObject *check) = 0;
+    virtual char *runCheck(RtLoaderPyObject *check) = 0;
 
     //! Pure virtual getCheckWarnings member.
     /*!
