@@ -167,7 +167,7 @@ run_tests_deb-x64:
 # run tests for rpm-x64
 run_test_rpm-x64:
   stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:v1482658-809bfc9
   tags: [ "runner:main", "size:2xlarge" ]
   script:
     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
@@ -394,7 +394,7 @@ puppy_deb-x64:
 # build Agent package for rpm-x64
 agent_rpm-x64:
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:v1482658-809bfc9
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
@@ -557,7 +557,7 @@ dogstatsd_deb-x64:
 # build Dogstastd package for rpm-x64
 dogstatsd_rpm-x64:
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:v1482658-809bfc9
   tags: [ "runner:main", "size:large" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
