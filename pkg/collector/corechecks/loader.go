@@ -58,7 +58,7 @@ func (gl *GoCheckLoader) Load(config integration.Config) ([]check.Check, error) 
 	checks := []check.Check{}
 
 	// If JMX check, just skip - coincidence
-	if check.IsJMXConfig(config.Name, config.InitConfig) {
+	if check.IsJMXConfig(config.Name, config.InitConfig, nil) {
 		return checks, fmt.Errorf("check %s appears to be a JMX check - skipping", config.Name)
 	}
 

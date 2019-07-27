@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/spf13/cobra"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -162,7 +164,7 @@ func runJmxCommand(command string) error {
 	runner.Command = command
 	runner.IPCPort = api.ServerAddress().Port
 
-	loadConfigs()
+	runner.JavaCustomJarPaths = loadConfigs()
 
 	err = runner.Start(false)
 	if err != nil {
@@ -181,18 +183,26 @@ func runJmxCommand(command string) error {
 	return nil
 }
 
-func loadConfigs() {
+func loadConfigs() []string {
 	fmt.Println("Loading configs :")
 
 	configs := common.AC.GetAllConfigs()
 	includeEverything := len(checks) == 0
+	var jarPaths []string
 
 	for _, c := range configs {
-		if check.IsJMXConfig(c.Name, c.InitConfig) && (includeEverything || configIncluded(c)) {
+		rawInitConfig := integration.RawMap{}
+		yaml.Unmarshal(c.InitConfig, &rawInitConfig)
+		if check.IsJMXConfig(c.Name, c.InitConfig, rawInitConfig) && (includeEverything || configIncluded(c)) {
 			fmt.Println("Config ", c.Name, " was loaded.")
 			jmx.AddScheduledConfig(c)
+			customJarPaths, _ := rawInitConfig["custom_jar_paths"].([]string)
+			if customJarPaths != nil {
+				jarPaths = append(jarPaths, customJarPaths...)
+			}
 		}
 	}
+	return jarPaths
 }
 
 func configIncluded(config integration.Config) bool {
