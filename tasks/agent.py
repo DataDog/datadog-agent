@@ -133,8 +133,7 @@ def apply_branding(ctx):
     do_go_rename(ctx, '"\\"Datadog Trace Agent\\" -> \\"Stackstate Trace Agent\\""', "./pkg/trace/writer/")
     do_go_rename(ctx, '"\\"https://github.com/DataDog/datadog-trace-agent\\" -> \\"https://github.com/Stackvista/stackstate-trace-agent\\""', "./pkg/trace/writer/")
 
-    # / Trace agent
-
+    # Trace agent
     apm_dd_url_replace = 's/apm_dd_url/apm_sts_url/g'
     do_sed_rename(ctx, apm_dd_url_replace, "./pkg/trace/config/apply.go")
     do_sed_rename(ctx, apm_dd_url_replace, "./pkg/trace/config/env.go")
@@ -168,6 +167,7 @@ def apply_branding(ctx):
 
     # Windows defaults
     do_sed_rename(ctx, camel_replace, "./cmd/agent/agent.rc")
+    do_sed_rename(ctx, camel_replace, "./cmd/trace-agent/windows_resources/trace-agent.rc")
     do_sed_rename(ctx, camel_replace, "./cmd/agent/app/install_service_windows.go")
     do_sed_rename(ctx, lower_replace, "./cmd/agent/app/dependent_services_windows.go")
     # replace strings NOT containing certain pattern

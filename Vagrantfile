@@ -54,10 +54,12 @@ machines = {
     :win16 => {
         :box => 'mwrock/Windows2016',
         :ip => '192.168.56.120',
+        :share_cwd => true,
     },
     :win12 => {
         :box => 'mwrock/Windows2012R2',
         :ip => '192.168.56.121',
+        :share_cwd => true,
     },
 }
 
@@ -77,16 +79,16 @@ Vagrant.configure("2") do |config|
       box.vm.synced_folder '.', '/vagrant', disabled: !properties[:share_cwd]
 
       # Configure winrm if booting windows machine
-      if "#{hostname}".start_with?("win")
-        # box.vm.communicator = "winrm"
-        box.winrm.username = "vagrant"
-        box.winrm.password = "vagrant"
-        # Allow to use basic auth for login
-        box.vm.provision "shell", inline: "Set-Item -Path WSMan:\\localhost\\Service\\Auth\\Basic -Value $true"
-        box.vm.provision "shell", inline: "choco feature enable -n=allowGlobalConfirmation"
-        # Install powershell 6 with linux remoting
-        box.vm.provision "shell", inline: "iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/softasap/sa-win/master/GetPowershell6LinuxRemoting.ps1'))"
-      end
+      # if "#{hostname}".start_with?("win")
+      #   # box.vm.communicator = "winrm"
+      #   box.winrm.username = "vagrant"
+      #   box.winrm.password = "vagrant"
+      #   # Allow to use basic auth for login
+      #   box.vm.provision "shell", inline: "Set-Item -Path WSMan:\\localhost\\Service\\Auth\\Basic -Value $true"
+      #   box.vm.provision "shell", inline: "choco feature enable -n=allowGlobalConfirmation"
+      #   # Install powershell 6 with linux remoting
+      #   box.vm.provision "shell", inline: "iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/softasap/sa-win/master/GetPowershell6LinuxRemoting.ps1'))"
+      # end
 
       # Installs the agent by default unless :install => false
       if !properties.key?(:install) or properties[:install]
