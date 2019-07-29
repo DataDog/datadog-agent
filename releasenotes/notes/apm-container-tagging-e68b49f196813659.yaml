@@ -6,8 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+features:
   - |
-    APM: Services are no longer aggreagated in the agent, nor written to the Datadog API.
-    Instead, they are now automatically extracted on the backend based on the received
-    traces.
+    APM: add support for container tagging. It can be used with any client tracer that supports it.

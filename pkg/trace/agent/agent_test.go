@@ -144,6 +144,33 @@ func TestProcess(t *testing.T) {
 		assert.EqualValues(2, stats.SpansFiltered)
 	})
 
+	t.Run("ContainerTags", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg)
+		defer cancel()
+
+		span := &pb.Span{
+			Resource: "INSERT INTO db VALUES (1, 2, 3)",
+			Type:     "sql",
+			Start:    time.Now().Unix(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+
+		agnt.Process(&api.Trace{
+			Spans:  pb.Trace{span},
+			Source: &info.Tags{},
+			ContainerTags: map[string]string{
+				"A": "B",
+				"C": "",
+			},
+		})
+
+		assert.Equal(t, "B", span.Meta["A"])
+		assert.Equal(t, "", span.Meta["C"])
+	})
+
 	t.Run("Stats/Priority", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"

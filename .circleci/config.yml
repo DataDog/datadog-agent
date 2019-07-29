@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:six-pip3
+      - image: datadog/datadog-agent-runner-circle:latest
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent

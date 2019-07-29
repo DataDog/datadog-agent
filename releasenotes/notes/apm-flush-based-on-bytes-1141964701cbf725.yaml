@@ -6,10 +6,11 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
+enhancements:
   - |
     APM: the writer will now flush based on an estimated number of bytes
-    in accumulated buffer size, as opposed to a maximum number of spans.
+    in accumulated buffer size, as opposed to a maximum number of spans,
+    resulting in better traffic and payload size management.
 deprecations:
   - |
     APM: the yaml setting `apm_config.trace_writer.max_spans_per_payload`

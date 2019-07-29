@@ -6,8 +6,8 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+fixes:
   - |
-    APM: Services are no longer aggreagated in the agent, nor written to the Datadog API.
-    Instead, they are now automatically extracted on the backend based on the received
-    traces.
+    On Windows, "ddagentuser" (the user context under which the Agent runs),
+    is now added to the "Event Log Readers" group, granting access to 
+    Security event logs.
