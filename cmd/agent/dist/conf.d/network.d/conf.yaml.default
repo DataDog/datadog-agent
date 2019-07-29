@@ -57,7 +57,7 @@ instances:
     #
     # conntrack_path: /usr/sbin/conntrack
 
-    ## @param whitelist_conntrack_metrics - list of string - optional - default: ["max", "count"]
+    ## @param whitelist_conntrack_metrics - list of strings - optional - default: ["max", "count"]
     ## Linux only.
     ## Names of the conntrack metrics to whitelist for monitoring. The metric value is in the file.
     ## /${proc}/sys/net/netfilter/nf_conntrack_${metric_name}.

@@ -20,7 +20,7 @@ instances:
     #   - tmpfs
 
     ## @param excluded_disks - list of strings - optional
-    ##  The `excluded_disks` parameter instructs the check to
+    ## The `excluded_disks` parameter instructs the check to
     ## ignore this list of disks.
     #
     # excluded_disks:
@@ -39,13 +39,13 @@ instances:
     #
     # excluded_mountpoint_re: <MOUNT_POINT_REGEX>
 
-    ## @param all_partitions - boolean - optional
+    ## @param all_partitions - boolean - optional - default: false
     ## Instruct the check to collect from partitions even without device names.
     ## Setting `use_mount` to true is strongly recommended in this case.
     #
     # all_partitions: false
 
-    ## @param tags - list of key:value string - optional
+    ## @param tags - list of key:value strings - optional
     ## List of tags to attach to every metric, event, and service check emitted by this integration.
     ##
     ## Learn more about tagging at https://docs.datadoghq.com/tagging
@@ -137,7 +137,7 @@ instances:
     #
     # service_check_rw: false
 
-    ## @param tag_by_filesystem - boolean - optional
+    ## @param tag_by_filesystem - boolean - optional - default: false
     ## Instruct the check to tag all disks with their file system e.g. filesystem:ntfs.
     #
     # tag_by_filesystem: false

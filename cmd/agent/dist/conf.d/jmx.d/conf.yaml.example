@@ -21,13 +21,13 @@ instances:
 
   -
 
-    ## @param host - string - optional
-    ## Cassandra host to connect to
+    ## @param host - string - optional - default: localhost
+    ## JMX host to connect to.
     #
     # host: localhost
 
     ## @param port - integer - required
-    ## Cassandra port to connect to
+    ## JMX port to connect to.
     #
     port: 7199
 
