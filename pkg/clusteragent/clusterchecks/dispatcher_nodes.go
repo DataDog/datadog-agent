@@ -32,14 +32,14 @@ func (d *dispatcher) getNodeConfigs(nodeName string) ([]integration.Config, int6
 
 // processNodeStatus keeps the node's status in the store, and returns true
 // if the last configuration change matches the one sent by the node agent.
-func (d *dispatcher) processNodeStatus(nodeName string, status types.NodeStatus) (bool, error) {
+func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.NodeStatus) (bool, error) {
 	var warmingUp bool
 
 	d.store.Lock()
 	if !d.store.active {
 		warmingUp = true
 	}
-	node := d.store.getOrCreateNodeStore(nodeName)
+	node := d.store.getOrCreateNodeStore(nodeName, clientIP)
 	d.store.Unlock()
 
 	node.Lock()
@@ -120,5 +120,27 @@ func (d *dispatcher) expireNodes() {
 
 	if initialNodeCount != 0 && len(d.store.nodes) == 0 {
 		log.Warn("No nodes reporting, cluster checks will not run")
+	}
+}
+
+// updateRunnersStats collects stats from the registred
+// Cluster Level Check runners and updates the stats cache
+func (d *dispatcher) updateRunnersStats() {
+	if d.clcRunnersClient == nil {
+		log.Debug("Couldn't instantiate a CLC Runner client")
+		return
+	}
+
+	d.store.Lock()
+	defer d.store.Unlock()
+	for name, node := range d.store.nodes {
+		node.Lock()
+		stats, err := d.clcRunnersClient.GetRunnerStats(node.clientIP, 5001)
+		if err != nil {
+			log.Debugf("Cannot get CLC Runner stats with IP %s on node %s: %v", node.clientIP, name, err)
+		}
+		node.clcRunnerStats = stats
+		log.Debugf("Updated CLC Runner stats with IP %s on node %s: %v", node.clientIP, name, stats)
+		node.Unlock()
 	}
 }

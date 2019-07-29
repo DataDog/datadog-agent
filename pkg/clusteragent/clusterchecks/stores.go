@@ -52,12 +52,16 @@ func (s *clusterStore) getNodeStore(nodeName string) (*nodeStore, bool) {
 
 // getOrCreateNodeStore retrieves the store struct for a given node name.
 // If the node is not yet in the store, an entry will be inserted and returned.
-func (s *clusterStore) getOrCreateNodeStore(nodeName string) *nodeStore {
+func (s *clusterStore) getOrCreateNodeStore(nodeName, clientIP string) *nodeStore {
 	node, ok := s.nodes[nodeName]
 	if ok {
+		if node.clientIP != clientIP && clientIP != "" {
+			log.Debugf("Client IP changed for node %s: updating %s to %s", nodeName, node.clientIP, clientIP)
+			node.clientIP = clientIP
+		}
 		return node
 	}
-	node = newNodeStore(nodeName)
+	node = newNodeStore(nodeName, clientIP)
 	nodeAgents.Inc()
 	s.nodes[nodeName] = node
 	return node
@@ -77,12 +81,16 @@ type nodeStore struct {
 	lastStatus       types.NodeStatus
 	lastConfigChange int64
 	digestToConfig   map[string]integration.Config
+	clientIP         string
+	clcRunnerStats   types.CLCRunnersStats
 }
 
-func newNodeStore(name string) *nodeStore {
+func newNodeStore(name, clientIP string) *nodeStore {
 	return &nodeStore{
 		name:           name,
+		clientIP:       clientIP,
 		digestToConfig: make(map[string]integration.Config),
+		clcRunnerStats: types.CLCRunnersStats{},
 	}
 }
 

@@ -9,13 +9,16 @@ package v1
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Install registers v1 API endpoints
@@ -36,6 +39,7 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 			return
 		}
 
+		log.Infof("RemoteAddr: %s", r.RemoteAddr)
 		vars := mux.Vars(r)
 		nodeName := vars["nodeName"]
 
@@ -48,7 +52,8 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 			return
 		}
 
-		response, err := sc.ClusterCheckHandler.PostStatus(nodeName, status)
+		clientIP := parseClientIP(r.RemoteAddr)
+		response, err := sc.ClusterCheckHandler.PostStatus(nodeName, clientIP, status)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			incrementRequestMetric("postCheckStatus", http.StatusInternalServerError)
@@ -148,4 +153,17 @@ func shouldHandle(w http.ResponseWriter, r *http.Request, h *clusterchecks.Handl
 func clusterChecksDisabledHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 	w.Write([]byte("Cluster-checks are not enabled"))
+}
+
+// parseClientIP retrieves the http client IP from the remoteAddr attribute
+func parseClientIP(remoteAddr string) string {
+	var clientIP string
+
+	if strings.ContainsRune(remoteAddr, ':') {
+		clientIP, _, _ = net.SplitHostPort(remoteAddr)
+	} else {
+		clientIP = remoteAddr
+	}
+
+	return clientIP
 }

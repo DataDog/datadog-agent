@@ -194,7 +194,7 @@ func TestProcessNodeStatus(t *testing.T) {
 	status1 := types.NodeStatus{LastChange: 10}
 
 	// Warmup phase, upToDate is unconditionally true
-	upToDate, err := dispatcher.processNodeStatus("node1", status1)
+	upToDate, err := dispatcher.processNodeStatus("node1", "10.0.0.1", status1)
 	assert.NoError(t, err)
 	assert.True(t, upToDate)
 	node1, found := dispatcher.store.getNodeStore("node1")
@@ -205,7 +205,7 @@ func TestProcessNodeStatus(t *testing.T) {
 
 	// Warmup is finished, timestamps differ
 	dispatcher.store.active = true
-	upToDate, err = dispatcher.processNodeStatus("node1", status1)
+	upToDate, err = dispatcher.processNodeStatus("node1", "10.0.0.1", status1)
 	assert.NoError(t, err)
 	assert.False(t, upToDate)
 
@@ -213,7 +213,7 @@ func TestProcessNodeStatus(t *testing.T) {
 	node1.lastConfigChange = timestampNow()
 	node1.heartbeat = node1.heartbeat - 50
 	status2 := types.NodeStatus{LastChange: node1.lastConfigChange - 2}
-	upToDate, err = dispatcher.processNodeStatus("node1", status2)
+	upToDate, err = dispatcher.processNodeStatus("node1", "10.0.0.1", status2)
 	assert.NoError(t, err)
 	assert.False(t, upToDate)
 	assert.True(t, timestampNow() >= node1.heartbeat)
@@ -221,9 +221,17 @@ func TestProcessNodeStatus(t *testing.T) {
 
 	// No change
 	status3 := types.NodeStatus{LastChange: node1.lastConfigChange}
-	upToDate, err = dispatcher.processNodeStatus("node1", status3)
+	upToDate, err = dispatcher.processNodeStatus("node1", "10.0.0.1", status3)
 	assert.NoError(t, err)
 	assert.True(t, upToDate)
+
+	// Change clientIP
+	upToDate, err = dispatcher.processNodeStatus("node1", "10.0.0.2", status3)
+	assert.NoError(t, err)
+	assert.True(t, upToDate)
+	node1, found = dispatcher.store.getNodeStore("node1")
+	assert.True(t, found)
+	assert.Equal(t, "10.0.0.2", node1.clientIP)
 
 	requireNotLocked(t, dispatcher.store)
 }
@@ -246,7 +254,7 @@ func TestGetLeastBusyNode(t *testing.T) {
 	assert.Equal(t, "node2", dispatcher.getLeastBusyNode())
 
 	// Add an empty node3
-	dispatcher.processNodeStatus("node3", types.NodeStatus{})
+	dispatcher.processNodeStatus("node3", "10.0.0.3", types.NodeStatus{})
 	assert.Equal(t, "node3", dispatcher.getLeastBusyNode())
 
 	requireNotLocked(t, dispatcher.store)
@@ -267,8 +275,8 @@ func TestExpireNodes(t *testing.T) {
 	dispatcher.addConfig(generateIntegration("A"), "nodeA")
 	dispatcher.addConfig(generateIntegration("B1"), "nodeB")
 	dispatcher.addConfig(generateIntegration("B2"), "nodeB")
-	dispatcher.processNodeStatus("nodeA", types.NodeStatus{})
-	dispatcher.processNodeStatus("nodeB", types.NodeStatus{})
+	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
+	dispatcher.processNodeStatus("nodeB", "10.0.0.2", types.NodeStatus{})
 	assert.Equal(t, 2, len(dispatcher.store.nodes))
 
 	// Fake the status report timestamps, nodeB should expire
@@ -288,7 +296,7 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	dispatcher := newDispatcher()
 
 	// Register a node with a correct status & schedule a Check
-	dispatcher.processNodeStatus("nodeA", types.NodeStatus{})
+	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
 	dispatcher.Schedule([]integration.Config{
 		generateIntegration("A")})
 
@@ -315,7 +323,7 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 
 	// Register new node as healthy
-	dispatcher.processNodeStatus("nodeB", types.NodeStatus{})
+	dispatcher.processNodeStatus("nodeB", "10.0.0.2", types.NodeStatus{})
 
 	// Ensure we have 1 dangling to schedule, as new available node is registered
 	assert.True(t, dispatcher.shouldDispatchDanling())
@@ -337,8 +345,8 @@ func TestDispatchFourConfigsTwoNodes(t *testing.T) {
 	dispatcher := newDispatcher()
 
 	// Register two nodes
-	dispatcher.processNodeStatus("nodeA", types.NodeStatus{})
-	dispatcher.processNodeStatus("nodeB", types.NodeStatus{})
+	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
+	dispatcher.processNodeStatus("nodeB", "10.0.0.2", types.NodeStatus{})
 	assert.Equal(t, 2, len(dispatcher.store.nodes))
 
 	dispatcher.Schedule([]integration.Config{
@@ -388,7 +396,7 @@ func TestDanglingConfig(t *testing.T) {
 	assert.False(t, dispatcher.shouldDispatchDanling())
 
 	// register a node, shouldDispatchDanling will become true
-	dispatcher.processNodeStatus("nodeA", types.NodeStatus{})
+	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
 	assert.True(t, dispatcher.shouldDispatchDanling())
 
 	// get the danglings and make sure they are removed from the store
