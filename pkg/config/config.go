@@ -812,6 +812,16 @@ func FileUsedDir() string {
 	return filepath.Dir(Datadog.ConfigFileUsed())
 }
 
+// GetEnv retrieves the value of the environment variable named by the key,
+// or def if the environment variable was not set.
+func GetEnv(key, def string) string {
+	value, found := os.LookupEnv(key)
+	if !found {
+		return def
+	}
+	return value
+}
+
 // IsKubernetes returns whether the Agent is running on a kubernetes cluster
 func IsKubernetes() bool {
 	// Injected by Kubernetes itself

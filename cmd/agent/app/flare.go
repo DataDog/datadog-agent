@@ -37,13 +37,21 @@ var flareCmd = &cobra.Command{
 	Short: "Collect a flare and send it to Datadog",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := common.SetupConfig(confFilePath)
-		if err != nil {
-			return err
-		}
 
 		if flagNoColor {
 			color.NoColor = true
+		}
+
+		err := common.SetupConfig(confFilePath)
+		if err != nil {
+			return fmt.Errorf("unable to set up global agent configuration: %v", err)
+		}
+
+		// The flare command should not log anything, all errors should be reported directly to the console without the log format
+		err = config.SetupLogger(loggerName, "off", "", "", false, true, false)
+		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
 		}
 
 		caseID := ""
@@ -51,8 +59,6 @@ var flareCmd = &cobra.Command{
 			caseID = args[0]
 		}
 
-		// The flare command should not log anything, all errors should be reported directly to the console without the log format
-		config.SetupLogger(loggerName, "off", "", "", false, true, false)
 		if customerEmail == "" {
 			var err error
 			customerEmail, err = input.AskForEmail()
@@ -93,10 +99,6 @@ func requestFlare(caseID string) error {
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
 		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
-		// enable back color output
-		if flagNoColor {
-			color.NoColor = true
-		}
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e
