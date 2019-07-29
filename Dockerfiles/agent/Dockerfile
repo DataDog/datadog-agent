@@ -34,8 +34,8 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
     usr/lib/x86_64-linux-gnu/libsystemd.so.0.21.0 \
     # self-test certificates that are detected (false positive) as private keys
     opt/datadog-agent/embedded/lib/python2.7/site-packages/Cryptodome/SelfTest \
- && if [ "$PYTHON_VERSION" = "2" ]; then rm -rf opt/datadog-agent/embedded/lib/python3.7; fi \
- && if [ "$PYTHON_VERSION" = "3" ]; then rm -rf opt/datadog-agent/embedded/lib/python2.7; fi \
+ && if [ "$PYTHON_VERSION" = "2" ]; then rm -rf opt/datadog-agent/embedded/lib/python3.*; fi \
+ && if [ "$PYTHON_VERSION" = "3" ]; then rm -rf opt/datadog-agent/embedded/lib/python2.*; fi \
  && find opt/datadog-agent/ -iname "*.a" -delete \
  && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
  && ln -s /opt/datadog-agent/embedded/ssl etc/ssl \
@@ -121,8 +121,8 @@ RUN tar xzf s6.tgz \
  && chmod 500 /readsecret.py
 
 # Update links to python binaries
-RUN ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION}.7 /opt/datadog-agent/embedded/bin/python \
- && ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION}.7-config /opt/datadog-agent/embedded/bin/python-config \
+RUN ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/python \
+ && ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION}-config /opt/datadog-agent/embedded/bin/python-config \
  && ln -sfn /opt/datadog-agent/embedded/bin/pip${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/pip
 
 # Override the exit script by ours to fix --pid=host operations
