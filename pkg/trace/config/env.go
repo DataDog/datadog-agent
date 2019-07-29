@@ -77,7 +77,7 @@ func loadEnv() {
 		if err == nil {
 			config.Datadog.Set("apm_config.replace_tags", replaceTags)
 		} else {
-			log.Errorf("Bad format for %s it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\",\"replace\":\"replace_str\"}]', error: %v", "DD_APM_REPLACE_TAGS", err)
+			log.Errorf("Bad format for %s it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\",\"repl\":\"replace_str\"}]', error: %v", "DD_APM_REPLACE_TAGS", err)
 		}
 	}
 }
