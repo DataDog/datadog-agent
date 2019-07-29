@@ -40,7 +40,7 @@ func getCLCRunnerStats(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
-// flattenCLCStats simplifies the status.CLCChecks struc by making it a map
+// flattenCLCStats simplifies the status.CLCChecks struct by making it a map
 func flattenCLCStats(stats status.CLCChecks) map[string]status.CLCStats {
 	flatened := make(map[string]status.CLCStats)
 	for _, checks := range stats.Checks {

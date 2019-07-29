@@ -117,7 +117,7 @@ func ServerAddress() *net.TCPAddr {
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.String()
-		var isValid bool
+		isValid := false
 		if !isExternalPath(path) {
 			if err := util.Validate(w, r); err == nil {
 				isValid = true
