@@ -407,7 +407,7 @@ done:
     return ret;
 }
 
-const char *Two::pickleCheck(RtLoaderPyObject *check)
+const char *Three::pickleCheck(RtLoaderPyObject *check)
 {
     if (check == NULL) {
         return NULL;
@@ -436,7 +436,7 @@ const char *Two::pickleCheck(RtLoaderPyObject *check)
     // result is a python string in python2.
     // `ret` points to the Python string internal storage and will be eventually
     // deallocated along with the corresponding Python object.
-    ret = PyString_AsString(result);
+    ret = as_string(result);
     if (ret == NULL) {
         setError("error converting 'pickle.dumps' result to string: " + _fetchPythonError());
         goto done;
