@@ -16,6 +16,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <iostream>
 
 #include <Python.h>
 #include <rtloader.h>
