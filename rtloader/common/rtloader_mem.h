@@ -41,7 +41,7 @@ void *_malloc(size_t sz);
 void _free(void *ptr);
 
 #ifdef __cplusplus
-#    elif _WIN32
+#    ifdef _WIN32
 #        define __THROW
 #    endif
 char *strdupe(const char *s1) __THROW;
