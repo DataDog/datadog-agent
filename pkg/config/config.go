@@ -293,6 +293,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.auth_token", "")
 	config.BindEnvAndSetDefault("cluster_agent.url", "")
 	config.BindEnvAndSetDefault("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
+	config.BindEnvAndSetDefault("cluster_agent.clc_runners_port", 5001)
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
 	// Metadata endpoints

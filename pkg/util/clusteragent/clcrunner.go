@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -31,14 +32,15 @@ var globalCLCRunnerClient *CLCRunnerClient
 
 // CLCRunnerClientInterface is required to query the API of Datadog Cluster Level Check Runner
 type CLCRunnerClientInterface interface {
-	GetVersion(IP string, port int) (version.Version, error)
-	GetRunnerStats(IP string, port int) (types.CLCRunnersStats, error)
+	GetVersion(IP string) (version.Version, error)
+	GetRunnerStats(IP string) (types.CLCRunnersStats, error)
 }
 
 // CLCRunnerClient is required to query the API of Datadog Cluster Level Check Runner
 type CLCRunnerClient struct {
 	clcRunnerAPIRequestHeaders http.Header
 	clcRunnerAPIClient         *http.Client
+	clcRunnerPort              int
 }
 
 // resetGlobalCLCRunnerClient is a helper to remove the current CLCRunnerClient global
@@ -75,16 +77,19 @@ func (c *CLCRunnerClient) init() error {
 	c.clcRunnerAPIClient = util.GetClient(false)
 	c.clcRunnerAPIClient.Timeout = 2 * time.Second
 
+	// Set http port used by the CLC Runners
+	c.clcRunnerPort = config.Datadog.GetInt("cluster_agent.clc_runners_port")
+
 	return nil
 }
 
 // GetVersion fetches the version of the CLC Runner
-func (c *CLCRunnerClient) GetVersion(IP string, port int) (version.Version, error) {
+func (c *CLCRunnerClient) GetVersion(IP string) (version.Version, error) {
 	const clcRunnerVersionPath = "version"
 	var version version.Version
 	var err error
 
-	rawURL := fmt.Sprintf("https://%s:%d/%s/%s", IP, port, clcRunnerPath, clcRunnerVersionPath)
+	rawURL := fmt.Sprintf("https://%s:%d/%s/%s", IP, c.clcRunnerPort, clcRunnerPath, clcRunnerVersionPath)
 
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
@@ -113,12 +118,12 @@ func (c *CLCRunnerClient) GetVersion(IP string, port int) (version.Version, erro
 }
 
 // GetRunnerStats fetches the runner stats exposed by the Cluster Level Check Runner
-func (c *CLCRunnerClient) GetRunnerStats(IP string, port int) (types.CLCRunnersStats, error) {
+func (c *CLCRunnerClient) GetRunnerStats(IP string) (types.CLCRunnersStats, error) {
 	const clcRunnerStatsPath = "stats"
 	var stats types.CLCRunnersStats
 	var err error
 
-	rawURL := fmt.Sprintf("https://%s:%d/%s/%s", IP, port, clcRunnerPath, clcRunnerStatsPath)
+	rawURL := fmt.Sprintf("https://%s:%d/%s/%s", IP, c.clcRunnerPort, clcRunnerPath, clcRunnerStatsPath)
 
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {

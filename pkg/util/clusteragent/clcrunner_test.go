@@ -125,6 +125,8 @@ func (suite *clcRunnerSuite) TestGetCLCRunnerStats() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	c, err := GetCLCRunnerClient()
+	c.(*CLCRunnerClient).clcRunnerPort = p
+
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	expected := types.CLCRunnersStats{
@@ -139,7 +141,7 @@ func (suite *clcRunnerSuite) TestGetCLCRunnerStats() {
 	}
 
 	suite.T().Run("", func(t *testing.T) {
-		stats, err := c.GetRunnerStats("127.0.0.1", p)
+		stats, err := c.GetRunnerStats("127.0.0.1")
 		t.Logf("stats: %v", stats)
 
 		require.Nil(t, err, fmt.Sprintf("%v", err))
@@ -156,6 +158,8 @@ func (suite *clcRunnerSuite) TestGetCLCRunnerVersion() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	c, err := GetCLCRunnerClient()
+	c.(*CLCRunnerClient).clcRunnerPort = p
+
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	expected := version.Version{
@@ -168,7 +172,7 @@ func (suite *clcRunnerSuite) TestGetCLCRunnerVersion() {
 	}
 
 	suite.T().Run("", func(t *testing.T) {
-		version, err := c.GetVersion("127.0.0.1", p)
+		version, err := c.GetVersion("127.0.0.1")
 		t.Logf("version: %v", version)
 
 		require.Nil(t, err, fmt.Sprintf("%v", err))

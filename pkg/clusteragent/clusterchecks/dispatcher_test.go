@@ -538,3 +538,5 @@ func TestGetAllEndpointsCheckConfigs(t *testing.T) {
 
 	requireNotLocked(t, dispatcher.store)
 }
+
+func TestUpdateRunnersStats(t *testing.T) {}
