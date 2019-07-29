@@ -116,9 +116,7 @@ public:
       \param check The python object pointer to the check we wish to pickleCheck.
       \return A C-string with the check result.
     */
-#if 0
     virtual const char *pickleCheck(RtLoaderPyObject *check) = 0;
-#endif
 
     //! Pure virtual getCheckWarnings member.
     /*!

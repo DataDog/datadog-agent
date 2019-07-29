@@ -293,12 +293,10 @@ const char *run_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
     return AS_TYPE(RtLoader, rtloader)->runCheck(AS_TYPE(RtLoaderPyObject, check));
 }
 
-#if 0
 const char *pickle_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
 {
     return AS_TYPE(RtLoader, rtloader)->pickleCheck(AS_TYPE(RtLoaderPyObject, check));
 }
-#endif
 
 char **get_checks_warnings(rtloader_t *rtloader, rtloader_pyobject_t *check)
 {
