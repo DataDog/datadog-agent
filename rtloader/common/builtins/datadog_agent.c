@@ -105,7 +105,7 @@ PyObject *get_version(PyObject *self, PyObject *args)
         Py_RETURN_NONE;
     }
 
-    char *v;
+    char *v = NULL;
     cb_get_version(&v);
 
     if (v != NULL) {
@@ -360,7 +360,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
     PyGILState_STATE gstate = PyGILState_Ensure();
 
     // function expects only one positional arg containing a list
-    // the reference count in the returned object (input list) is _not_ 
+    // the reference count in the returned object (input list) is _not_
     // incremented
     if (!PyArg_ParseTuple(args, "O", &input_list)) {
         PyGILState_Release(gstate);

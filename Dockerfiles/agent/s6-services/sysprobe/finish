@@ -4,7 +4,7 @@
 
 
 # First check if the system-probe exists
-if { s6-test -x "$(command -v system-probe)" }
+if { s6-test -x "/opt/datadog-agent/embedded/bin/system-probe" }
 
 ifthenelse
     { s6-test ${1} -eq 0 }

@@ -26,7 +26,7 @@ type Destination struct {
 	delimiter           Delimiter
 	connManager         *ConnectionManager
 	destinationsContext *client.DestinationsContext
-	connPool            sync.Pool
+	conn                net.Conn
 	inputChan           chan []byte
 	once                sync.Once
 	warningCounter      int
@@ -46,7 +46,17 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 // Send transforms a message into a frame and sends it to a remote server,
 // returns an error if the operation failed.
 func (d *Destination) Send(payload []byte) error {
-	var err error
+	if d.conn == nil {
+		var err error
+
+		// We work only if we have a started destination context
+		ctx := d.destinationsContext.Context()
+		if d.conn, err = d.connManager.NewConnection(ctx); err != nil {
+			// the connection manager is not meant to fail,
+			// this can happen only when the context is cancelled.
+			return err
+		}
+	}
 
 	content := d.prefixer.apply(payload)
 	frame, err := d.delimiter.delimit(content)
@@ -55,31 +65,12 @@ func (d *Destination) Send(payload []byte) error {
 		return err
 	}
 
-	// reuse an existing connection from the pool or
-	// create a new one if none is available, this can
-	// happen when this method is called concurrently
-	// from different places ; in such a case,
-	// the size of the pool will be the maximum size
-	// of concurrent calls and objects that are not used
-	// will be automatically deallocated
-	conn, available := d.connPool.Get().(net.Conn)
-	if !available {
-		ctx := d.destinationsContext.Context()
-		conn, err = d.connManager.NewConnection(ctx)
-		if err != nil {
-			return err
-		}
-	}
-
-	_, err = conn.Write(frame)
+	_, err = d.conn.Write(frame)
 	if err != nil {
-		d.connManager.CloseConnection(conn)
+		d.connManager.CloseConnection(d.conn)
+		d.conn = nil
 		return client.NewRetryableError(err)
 	}
-
-	// make sure the connection is put back to the pool
-	// for later reuse
-	d.connPool.Put(conn)
 
 	return nil
 }

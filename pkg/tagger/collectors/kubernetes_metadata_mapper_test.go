@@ -310,7 +310,7 @@ func TestKubeMetadataCollector_getTagInfos(t *testing.T) {
 			want: []*TagInfo{
 				{
 					Source:               kubeMetadataCollectorName,
-					Entity:               kubelet.PodUIDToEntityName("foouid"),
+					Entity:               kubelet.PodUIDToTaggerEntityName("foouid"),
 					HighCardTags:         []string{},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -333,7 +333,7 @@ func TestKubeMetadataCollector_getTagInfos(t *testing.T) {
 			want: []*TagInfo{
 				{
 					Source:               kubeMetadataCollectorName,
-					Entity:               kubelet.PodUIDToEntityName("foouid"),
+					Entity:               kubelet.PodUIDToTaggerEntityName("foouid"),
 					HighCardTags:         []string{},
 					OrchestratorCardTags: []string{},
 					LowCardTags:          []string{},

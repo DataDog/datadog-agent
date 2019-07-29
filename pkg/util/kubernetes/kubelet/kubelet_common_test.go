@@ -9,6 +9,7 @@ package kubelet
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"testing"
 
@@ -49,4 +50,40 @@ func loadPodsFixture(path string) ([]*Pod, error) {
 		return nil, err
 	}
 	return podList.Items, nil
+}
+
+func TestKubeContainerIDToTaggerEntityID(t *testing.T) {
+	for in, out := range map[string]string{
+		"container_id://deadbeef": "container_id://deadbeef",
+		"containerd://deadbeef":   "container_id://deadbeef",
+		"cri-o://deadbeef":        "container_id://deadbeef",
+		"cri-o://d":               "container_id://d",
+		"runtime://deadbeef":      "container_id://deadbeef",
+		"container_id://":         "",
+		"deadbeef":                "",
+		"/deadbeef":               "",
+		"runtime://foo/bar":       "container_id://foo/bar",
+	} {
+		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+			res, _ := KubeContainerIDToTaggerEntityID(in)
+			assert.Equal(t, out, res)
+		})
+	}
+}
+
+func TestKubePodUIDToTaggerEntityID(t *testing.T) {
+	for in, out := range map[string]string{
+		"kubernetes_pod_uid://deadbeef": "kubernetes_pod_uid://deadbeef",
+		"pod://deadbeef":                "kubernetes_pod_uid://deadbeef",
+		"kubernetes_pod://deadbeef":     "kubernetes_pod_uid://deadbeef",
+		"kubernetes_pod://d":            "kubernetes_pod_uid://d",
+		"kubernetes_pod_uid://":         "",
+		"deadbeef":                      "",
+		"/deadbeef":                     "",
+	} {
+		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+			res, _ := KubePodUIDToTaggerEntityID(in)
+			assert.Equal(t, out, res)
+		})
+	}
 }

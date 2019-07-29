@@ -164,13 +164,10 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             keyInstall.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
         }
     }
-    if(!ddUserExists || !ddServiceExists)
+    if(!ddUserExists)
     {
-        LOCALGROUP_MEMBERS_INFO_0 lmi0;
-        memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_0));
-        DWORD nErr  = 0;
-        std::wstring groupname;
         // since we just created the user, fix up all the rights we want
+        DWORD nErr = NERR_Success;
         hr = -1;
         sid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
         if (!sid) {
@@ -198,30 +195,13 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             WcaLog(LOGMSG_STANDARD, "failed to add service login right");
             goto LExit;
         }
-        // add the user to the "performance monitor users" group
-        lmi0.lgrmi0_sid = sid;
-        // need to look up the group name by SID; the group name can be localized
-        {
-            PSID groupsid = NULL;
-            if(!ConvertStringSidToSid(L"S-1-5-32-558", &groupsid)) {
-                WcaLog(LOGMSG_STANDARD, "failed to convert sid string to sid; attempting default");
-                groupname = L"Performance Monitor Users";
-            } else {
-                if(!GetNameForSid(NULL, groupsid, groupname)) {
-                    WcaLog(LOGMSG_STANDARD, "failed to get group name for sid; using default");
-                    groupname = L"Performance Monitor Users";
-                }
-                LocalFree((LPVOID) groupsid);
-            }
+        nErr = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
+        if (nErr != NERR_Success) {
+            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
+            goto LExit;
         }
-        nErr = NetLocalGroupAddMembers(NULL, groupname.c_str(), 0, (LPBYTE)&lmi0, 1);
-        if (nErr == NERR_Success) {
-            WcaLog(LOGMSG_STANDARD, "Added ddagentuser to Performance Monitor Users");
-        }
-        else if (nErr == ERROR_MEMBER_IN_GROUP || nErr == ERROR_MEMBER_IN_ALIAS) {
-            WcaLog(LOGMSG_STANDARD, "User already in group, continuing %d", nErr);
-        }
-        else {
+        nErr = AddUserToGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
+        if (nErr != NERR_Success) {
             WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
             goto LExit;
         }
@@ -469,17 +449,8 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
         removeUserPermsFromFile(datadogyamlfile, sid);
 
         // remove dd user from Performance monitor users
-        lmi0.lgrmi0_sid = sid;
-        nErr = NetLocalGroupDelMembers(NULL, L"Performance Monitor Users", 0, (LPBYTE)&lmi0, 1);
-        if (nErr == NERR_Success) {
-            WcaLog(LOGMSG_STANDARD, "removed ddagentuser from Performance Monitor Users");
-        }
-        else if (nErr == ERROR_NO_SUCH_MEMBER || nErr == ERROR_MEMBER_NOT_IN_ALIAS) {
-            WcaLog(LOGMSG_STANDARD, "User wasn't in group, continuing %d", nErr);
-        }
-        else {
-            WcaLog(LOGMSG_STANDARD, "Unexpected error removing user from group %d", nErr);
-        }
+        DelUserFromGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
+        DelUserFromGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
 
         // remove dd user right for
         //   SE_SERVICE_LOGON NAME

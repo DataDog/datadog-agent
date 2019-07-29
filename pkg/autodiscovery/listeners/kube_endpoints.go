@@ -251,6 +251,11 @@ func (s *KubeEndpointService) GetEntity() string {
 	return s.entity
 }
 
+// GetEntity returns the unique entity name linked to that service
+func (s *KubeEndpointService) GetTaggerEntity() string {
+	return s.entity
+}
+
 // GetADIdentifiers returns the service AD identifiers
 func (s *KubeEndpointService) GetADIdentifiers() ([]string, error) {
 	return []string{s.entity}, nil

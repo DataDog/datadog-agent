@@ -32,8 +32,6 @@ type ConnectionsCheck struct {
 
 // Init initializes a ConnectionsCheck instance.
 func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemInfo) {
-	var err error
-
 	// We use the current process PID as the local tracer client ID
 	c.tracerClientID = fmt.Sprintf("%d", os.Getpid())
 	if cfg.EnableLocalSystemProbe {
@@ -41,9 +39,9 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemIn
 		c.useLocalTracer = true
 
 		// Checking whether the current kernel version is supported by the tracer
-		if _, err = ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); err != nil {
+		if supported, msg := ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); !supported {
 			// err is always returned when false, so the above catches the !ok case as well
-			log.Warnf("system probe unsupported by OS: %s", err)
+			log.Warnf("system probe unsupported by OS: %s", msg)
 			return
 		}
 
@@ -144,7 +142,8 @@ func batchConnections(cfg *config.AgentConfig, groupID int32, cxs []*model.Conne
 
 	for len(cxs) > 0 {
 		batchSize := min(cfg.MaxConnsPerMessage, len(cxs))
-		ctrIDForPID := Process.filterCtrIDsByPIDs(connectionPIDs(cxs[:batchSize]))
+		// get the container and process relationship from either process check or container check
+		ctrIDForPID := getCtrIDsByPIDs(connectionPIDs(cxs[:batchSize]))
 		batches = append(batches, &model.CollectorConnections{
 			HostName:        cfg.HostName,
 			Connections:     cxs[:batchSize],
@@ -183,4 +182,13 @@ func connectionPIDs(conns []*model.Connection) []int32 {
 		pids = append(pids, pid)
 	}
 	return pids
+}
+
+// getCtrIDsByPIDs will fetch container id and pid relationship from either process check or container check, depend on which one is enabled and ran
+func getCtrIDsByPIDs(pids []int32) map[int32]string {
+	// process check is never run, use container check instead
+	if Process.lastRun.IsZero() {
+		return Container.filterCtrIDsByPIDs(pids)
+	}
+	return Process.filterCtrIDsByPIDs(pids)
 }

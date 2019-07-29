@@ -286,7 +286,7 @@ api_key:
 ## @param logs_config - custom object - optional
 ## Enter specific configurations for your Log collection.
 ## Uncomment this parameter and the one below to enable them.
-## See https://docs.datadoghq.com/logs/log_collection/
+## See https://docs.datadoghq.com/agent/logs/
 #
 # logs_config:
 
@@ -311,7 +311,7 @@ api_key:
   ## @param processing_rules - list of custom objects - optional
   ## Global processing rules that are applied to all logs. The available rules are
   ## "exclude_at_match", "include_at_match" and "mask_sequences". More information in Datadog documentation:
-  ## https://docs.datadoghq.com/logs/log_collection/#global-processing-rules
+  ## https://docs.datadoghq.com/agent/logs/advanced_log_collection/#global-processing-rules
   #
   # processing_rules:
   #   - type: <RULE_TYPE>

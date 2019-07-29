@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 // Package event contains functionality related to APM event extraction from traces.
 //
 // APM Events constitute the core of Datadog's Trace Search functionality. These are, in a nutshell, individual spans
