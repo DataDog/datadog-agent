@@ -318,12 +318,8 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 	defer agg.mu.Unlock()
 
 	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
-		if checkBucket.commit {
-			checkSampler.commit(timeNowNano())
-		} else {
-			checkBucket.bucket.Tags = deduplicateTags(checkBucket.bucket.Tags)
-			checkSampler.addBucket(checkBucket.bucket)
-		}
+		checkBucket.bucket.Tags = deduplicateTags(checkBucket.bucket.Tags)
+		checkSampler.addBucket(checkBucket.bucket)
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle histogram bucket", checkBucket.id)
 	}
@@ -361,7 +357,9 @@ func (agg *BufferedAggregator) GetSeriesAndSketches() (metrics.Series, metrics.S
 	series, sketches := agg.sampler.flush(timeNowNano())
 
 	for _, checkSampler := range agg.checkSamplers {
-		series = append(series, checkSampler.flush()...)
+		s, sk := checkSampler.flush()
+		series = append(series, s...)
+		sketches = append(sketches, sk...)
 	}
 	agg.mu.Unlock()
 	return series, sketches

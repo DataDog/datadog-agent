@@ -6,9 +6,9 @@
 package aggregator
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const checksSourceTypeName = "System"
@@ -16,6 +16,7 @@ const checksSourceTypeName = "System"
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
 	series          []*metrics.Serie
+	sketches        []metrics.SketchSeries
 	contextResolver *ContextResolver
 	metrics         metrics.ContextMetrics
 	sketchMap       sketchMap
@@ -25,6 +26,7 @@ type CheckSampler struct {
 func newCheckSampler() *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
+		sketches:        make([]metrics.SketchSeries, 0),
 		contextResolver: newContextResolver(),
 		metrics:         metrics.MakeContextMetrics(),
 		sketchMap:       make(sketchMap),
@@ -39,13 +41,41 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 	}
 }
 
+func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
+	ctx := cs.contextResolver.contextsByKey[ck]
+	ss := metrics.SketchSeries{
+		Name: ctx.Name,
+		Tags: ctx.Tags,
+		Host: ctx.Host,
+		// Interval: TODO: investigate
+		Points:     points,
+		ContextKey: ck,
+	}
+
+	return ss
+}
+
 func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
-	// contextKey := cs.contextResolver.trackContext(bucket, bucket.Timestamp)
+	contextKey := cs.contextResolver.trackContext(bucket, bucket.Timestamp)
+
+	// simple linear interpolation, TODO: optimize
+	bucketRange := bucket.UpperBound - bucket.LowerBound
+	if bucketRange < 0 {
+		log.Warnf("Negative bucket range [%f-%f] discarding", bucket.LowerBound, bucket.UpperBound)
+		return
+	}
+	linearIncr := bucketRange / float64(bucket.Value)
+	currentVal := bucket.LowerBound
+	for i := 0; i < bucket.Value; i++ {
+		cs.sketchMap.insert(int64(bucket.Timestamp), contextKey, currentVal)
+		currentVal += linearIncr
+	}
+	// TODO: store bucket diff if monotonic + garbage collect on timer
 
 	log.Errorf("Adding bucket %v", bucket)
 }
 
-func (cs *CheckSampler) commit(timestamp float64) {
+func (cs *CheckSampler) commitSeries(timestamp float64) {
 	series, errors := cs.metrics.Flush(timestamp)
 	for ckey, err := range errors {
 		context, ok := cs.contextResolver.contextsByKey[ckey]
@@ -69,12 +99,36 @@ func (cs *CheckSampler) commit(timestamp float64) {
 
 		cs.series = append(cs.series, serie)
 	}
+}
 
+func (cs *CheckSampler) commitSketches(timestamp float64) {
+	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
+
+	cs.sketchMap.flushBefore(int64(timestamp), func(ck ckey.ContextKey, p metrics.SketchPoint) {
+		if p.Sketch == nil {
+			return
+		}
+		pointsByCtx[ck] = append(pointsByCtx[ck], p)
+	})
+	for ck, points := range pointsByCtx {
+		cs.sketches = append(cs.sketches, cs.newSketchSeries(ck, points))
+	}
+}
+
+func (cs *CheckSampler) commit(timestamp float64) {
+	cs.commitSeries(timestamp)
+	cs.commitSketches(timestamp)
 	cs.contextResolver.expireContexts(timestamp - defaultExpiry)
 }
 
-func (cs *CheckSampler) flush() metrics.Series {
+func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
+	// series
 	series := cs.series
 	cs.series = make([]*metrics.Serie, 0)
-	return series
+
+	// sketches
+	sketches := cs.sketches
+	cs.sketches = make([]metrics.SketchSeries, 0)
+
+	return series, sketches
 }

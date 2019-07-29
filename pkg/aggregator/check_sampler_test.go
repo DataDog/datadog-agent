@@ -50,7 +50,8 @@ func TestCheckGaugeSampling(t *testing.T) {
 	checkSampler.addSample(&mSample3)
 
 	checkSampler.commit(12349.0)
-	orderedSeries := OrderedSeries{checkSampler.flush()}
+	s, _ := checkSampler.flush()
+	orderedSeries := OrderedSeries{s}
 	sort.Sort(orderedSeries)
 	series := orderedSeries.series
 
@@ -117,7 +118,7 @@ func TestCheckRateSampling(t *testing.T) {
 	checkSampler.addSample(&mSample3)
 
 	checkSampler.commit(12349.0)
-	series := checkSampler.flush()
+	series, _ := checkSampler.flush()
 
 	expectedSerie := &metrics.Serie{
 		Name:           "my.metric.name",
@@ -166,7 +167,7 @@ func TestHistogramIntervalSampling(t *testing.T) {
 	checkSampler.addSample(&mSample3)
 
 	checkSampler.commit(12349.0)
-	series := checkSampler.flush()
+	series, _ := checkSampler.flush()
 
 	// Check that the `.count` metric returns a raw count of the samples, with no interval normalization
 	expectedCountSerie := &metrics.Serie{

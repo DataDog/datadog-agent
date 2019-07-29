@@ -77,7 +77,6 @@ type senderMetricSample struct {
 type senderHistogramBucket struct {
 	id     check.ID
 	bucket *metrics.HistogramBucket
-	commit bool
 }
 
 type checkSenderPool struct {
@@ -170,9 +169,10 @@ func (s *checkSender) SetCheckCustomTags(tags []string) {
 	s.checkTags = tags
 }
 
-// Commit commits the metric samples that were added during a check run
+// Commit commits the metric samples & histogram buckets that were added during a check run
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
+	// we use a metric sample to commit both for metrics & sketches
 	s.smsOut <- senderMetricSample{s.id, &metrics.MetricSample{}, true}
 	s.cyclemetricStats()
 }
@@ -195,9 +195,11 @@ func (s *checkSender) cyclemetricStats() {
 	s.priormetricStats.MetricSamples = s.metricStats.MetricSamples
 	s.priormetricStats.Events = s.metricStats.Events
 	s.priormetricStats.ServiceChecks = s.metricStats.ServiceChecks
+	s.priormetricStats.HistogramBuckets = s.metricStats.HistogramBuckets
 	s.metricStats.MetricSamples = 0
 	s.metricStats.Events = 0
 	s.metricStats.ServiceChecks = 0
+	s.metricStats.HistogramBuckets = 0
 	s.metricStats.Lock.Unlock()
 	s.priormetricStats.Lock.Unlock()
 }
@@ -297,7 +299,7 @@ func (s *checkSender) HistogramBucket(metric string, value int, lowerBound, uppe
 		histogramBucket.Host = s.defaultHostname
 	}
 
-	s.histogramBucketOut <- senderHistogramBucket{s.id, histogramBucket, false}
+	s.histogramBucketOut <- senderHistogramBucket{s.id, histogramBucket}
 
 	s.metricStats.Lock.Lock()
 	s.metricStats.HistogramBuckets++
