@@ -16,7 +16,6 @@ import (
 var (
 	token          string
 	dcaToken       string
-	clcRunnerToken string
 )
 
 // SetAuthToken sets the session token
