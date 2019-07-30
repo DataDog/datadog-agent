@@ -237,7 +237,9 @@ def image_build(ctx, base_dir="omnibus", python_version=2, skip_tests=False):
 
     # Pull base image with content trust enabled
     pull_base_images(ctx, "Dockerfiles/agent/Dockerfile", signed_pull=True)
-    common_build_opts = "-t {} --build-arg PYTHON_VERSION={}".format(AGENT_TAG, python_version)
+    common_build_opts = "-t {}".format(AGENT_TAG)
+    if python_version:
+        common_build_opts = "{} --build-arg PYTHON_VERSION={}".format(common_build_opts, python_version)
 
     # Build with the testing target
     if not skip_tests:

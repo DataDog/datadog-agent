@@ -924,6 +924,16 @@ build_agent6_jmx:
     BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2
     TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2
 
+# build agent6 jmx unified image (including python3)
+build_agent6_jmx:
+  <<: *docker_build_job_definition
+  variables:
+    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -unified-jmx
+    BUILD_ARG: --target release --build-arg WITH_JMX=true
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true
+
 # build agent7 image
 build_agent7:
   <<: *docker_build_job_definition
