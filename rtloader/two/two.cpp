@@ -135,7 +135,10 @@ py_info_t *Two::getPyInfo()
         return NULL;
     }
 
-    info->version = Py_GetVersion();
+    const char* v = Py_GetVersion();
+    if(v){
+        info->version = strdup(v);
+    }
     info->path = NULL;
 
     sys = PyImport_ImportModule("sys");
@@ -163,6 +166,20 @@ done:
     Py_XDECREF(path);
     Py_XDECREF(str_path);
     return info;
+}
+/**
+ * freePyInfo()
+ */
+void Two::freePyInfo(py_info_t* info) {
+    if(info->version){
+        free(info->version);
+    }
+    if(info->path){
+        free(info->path);
+    }
+    free(info);
+    return;
+    
 }
 
 bool Two::runSimpleString(const char *code) const

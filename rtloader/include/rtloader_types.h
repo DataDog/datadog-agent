@@ -64,7 +64,9 @@ typedef struct event_s {
 } event_t;
 
 typedef struct py_info_s {
-    const char *version;
+    // all strings are owned by the structure.  Must be freed
+    // by calling freePyInfo()
+    char *version;
     char *path;
 } py_info_t;
 

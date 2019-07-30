@@ -248,10 +248,18 @@ DATADOG_AGENT_RTLOADER_API rtloader_pyobject_t *get_none(const rtloader_t *);
     error.
     \sa py_info_t, rtloader_t
 
-    Allocates memory for the returned `py_info_t` structure and should be freed accordingly.
+    Allocates memory for the returned `py_info_t` structure and should be freed by calling free_py_info()
 */
 DATADOG_AGENT_RTLOADER_API py_info_t *get_py_info(rtloader_t *);
 
+/*! \fn py_info_t *free_py_info(rtloader_t *)
+    \brief Routine to free structure returned from get_py_info
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param A py_info_t * pointer previously returned form get_py_info
+
+    Frees the structure and appropriate structure memebers.
+*/
+DATADOG_AGENT_RTLOADER_API void free_py_info(rtloader_t *, py_info_t*);
 /*! \fn int run_simple_string(const rtloader_t *, const char *code)
     \brief Routine to execute a simple piece of python code on the RtLoader python runtime
     implementation.

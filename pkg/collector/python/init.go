@@ -286,8 +286,7 @@ func Initialize(paths ...string) error {
 		cache.Cache.Set(key, PythonVersion, cache.NoExpiration)
 
 		PythonPath = C.GoString(pyInfo.path)
-		C.rtloader_free(rtloader, unsafe.Pointer(pyInfo.path))
-		C.rtloader_free(rtloader, unsafe.Pointer(pyInfo))
+		C.free_py_info(rtloader, pyInfo)
 	} else {
 		log.Errorf("Could not query python information: %s", C.GoString(C.get_error(rtloader)))
 	}

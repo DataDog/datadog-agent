@@ -74,6 +74,7 @@ public:
 
     // const API
     py_info_t *getPyInfo();
+    void freePyInfo(py_info_t *);
     bool runSimpleString(const char *path) const;
     RtLoaderPyObject *getNone() const
     {

@@ -111,8 +111,7 @@ int main(int argc, char *argv[])
     py_info_t *info = get_py_info(rtloader);
     if (info) {
         printf("Embedding Python version %s\n\tPath: %s\n\n", info->version, info->path);
-        rtloader_free(rtloader, info->path);
-        rtloader_free(rtloader, info);
+        free_py_info(rtloader, info);
     } else {
         printf("Error info is null %s\n", get_error(rtloader));
     }
