@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Install registers v1 API endpoints
@@ -39,7 +38,6 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 			return
 		}
 
-		log.Infof("RemoteAddr: %s", r.RemoteAddr)
 		vars := mux.Vars(r)
 		nodeName := vars["nodeName"]
 

@@ -28,6 +28,7 @@ type dispatcher struct {
 	nodeExpirationSeconds int64
 	extraTags             []string
 	clcRunnersClient      clusteragent.CLCRunnerClientInterface
+	advancedDispatching   bool
 }
 
 func newDispatcher() *dispatcher {
@@ -43,10 +44,17 @@ func newDispatcher() *dispatcher {
 		d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
 	}
 
-	var err error
-	d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
-	if err != nil {
-		log.Debugf("Cannot create CLC runners client: %v", err)
+	d.advancedDispatching = config.Datadog.GetBool("cluster_checks.advanced_dispatching_enabled")
+	if d.advancedDispatching {
+		var err error
+		d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
+		if err != nil {
+			log.Warnf("Cannot create CLC runners client, advanced dispatching will be disabled: %v", err)
+			d.advancedDispatching = false
+			d.clcRunnersClient = nil
+		}
+	} else {
+		d.clcRunnersClient = nil
 	}
 
 	return d
@@ -175,8 +183,11 @@ func (d *dispatcher) run(ctx context.Context) {
 				d.reschedule(danglingConfs)
 			}
 		case <-ruunnerStatsTicker.C:
-			// collect CLC runners stats and update cache
-			d.updateRunnersStats()
+			if d.advancedDispatching {
+				// collect CLC runners stats and update cache
+				// needed for the advanced dispatching logic
+				d.updateRunnersStats()
+			}
 		}
 	}
 }

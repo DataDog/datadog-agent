@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func generateIntegration(name string) integration.Config {
@@ -539,4 +540,98 @@ func TestGetAllEndpointsCheckConfigs(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
-func TestUpdateRunnersStats(t *testing.T) {}
+// dummyClcRunnerClient mocks the clcRunnersClient
+var dummyClcRunnerClient dummyClientStruct
+
+type dummyClientStruct struct{}
+
+func (d *dummyClientStruct) GetVersion(IP string) (version.Version, error) {
+	return version.Version{}, nil
+}
+
+func (d *dummyClientStruct) GetRunnerStats(IP string) (types.CLCRunnersStats, error) {
+	stats := map[string]types.CLCRunnersStats{
+		"10.0.0.1": {
+			"http_check:My Nginx Service:b0041608e66d20ba": {
+				AverageExecutionTime: 241,
+				MetricSamples:        3,
+			},
+		},
+		"10.0.0.2": {
+			"kube_apiserver_metrics:c5d2d20ccb4bb880": {
+				AverageExecutionTime: 858,
+				MetricSamples:        1562,
+			},
+		},
+	}
+	return stats[IP], nil
+}
+
+func TestUpdateRunnersStats(t *testing.T) {
+	dispatcher := newDispatcher()
+	status := types.NodeStatus{LastChange: 10}
+	dispatcher.store.active = true
+
+	dispatcher.clcRunnersClient = &dummyClcRunnerClient
+
+	stats1 := types.CLCRunnersStats{
+		"http_check:My Nginx Service:b0041608e66d20ba": {
+			AverageExecutionTime: 241,
+			MetricSamples:        3,
+		},
+	}
+
+	stats2 := types.CLCRunnersStats{
+		"kube_apiserver_metrics:c5d2d20ccb4bb880": {
+			AverageExecutionTime: 858,
+			MetricSamples:        1562,
+		},
+	}
+
+	_, err := dispatcher.processNodeStatus("node1", "10.0.0.1", status)
+	assert.NoError(t, err)
+	_, err = dispatcher.processNodeStatus("node2", "10.0.0.2", status)
+	assert.NoError(t, err)
+
+	node1, found := dispatcher.store.getNodeStore("node1")
+	assert.True(t, found)
+	assert.EqualValues(t, "10.0.0.1", node1.clientIP)
+	assert.EqualValues(t, types.CLCRunnersStats{}, node1.clcRunnerStats)
+
+	node2, found := dispatcher.store.getNodeStore("node2")
+	assert.True(t, found)
+	assert.EqualValues(t, "10.0.0.2", node2.clientIP)
+	assert.EqualValues(t, types.CLCRunnersStats{}, node2.clcRunnerStats)
+
+	dispatcher.updateRunnersStats()
+
+	node1, found = dispatcher.store.getNodeStore("node1")
+	assert.True(t, found)
+	assert.EqualValues(t, "10.0.0.1", node1.clientIP)
+	assert.EqualValues(t, stats1, node1.clcRunnerStats)
+
+	node2, found = dispatcher.store.getNodeStore("node2")
+	assert.True(t, found)
+	assert.EqualValues(t, "10.0.0.2", node2.clientIP)
+	assert.EqualValues(t, stats2, node2.clcRunnerStats)
+
+	// Switch node1 and node2 stats
+	_, err = dispatcher.processNodeStatus("node2", "10.0.0.1", status)
+	assert.NoError(t, err)
+	_, err = dispatcher.processNodeStatus("node1", "10.0.0.2", status)
+	assert.NoError(t, err)
+
+	dispatcher.updateRunnersStats()
+
+	node1, found = dispatcher.store.getNodeStore("node1")
+	assert.True(t, found)
+	assert.EqualValues(t, "10.0.0.2", node1.clientIP)
+	assert.EqualValues(t, stats2, node1.clcRunnerStats)
+
+	node2, found = dispatcher.store.getNodeStore("node2")
+	assert.True(t, found)
+	assert.EqualValues(t, "10.0.0.1", node2.clientIP)
+	assert.EqualValues(t, stats1, node2.clcRunnerStats)
+
+	requireNotLocked(t, dispatcher.store)
+}
