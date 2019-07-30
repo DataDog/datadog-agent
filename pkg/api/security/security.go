@@ -202,9 +202,10 @@ func GetClusterAgentAuthToken() (string, error) {
 	return authToken, validateAuthToken(authToken)
 }
 
+// validateAuthToken validates tokens for the Cluster Agent and Cluster Level Check runners
 func validateAuthToken(authToken string) error {
 	if len(authToken) < authTokenMinimalLen {
-		return fmt.Errorf("cluster agent authentication token length must be greater than %d, curently: %d", authTokenMinimalLen, len(authToken))
+		return fmt.Errorf("cluster agent authentication token length must be greater than %d, currently: %d", authTokenMinimalLen, len(authToken))
 	}
 	return nil
 }

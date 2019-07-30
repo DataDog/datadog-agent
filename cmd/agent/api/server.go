@@ -18,10 +18,12 @@ import (
 	stdLog "log"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
+	v1 "github.com/DataDog/datadog-agent/cmd/agent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -40,6 +42,7 @@ func StartServer() error {
 	// IPC REST API server
 	agent.SetupHandlers(r.PathPrefix("/agent").Subrouter())
 	check.SetupHandlers(r.PathPrefix("/check").Subrouter())
+	v1.SetupHandlers(r.PathPrefix("/api/v1").Subrouter())
 
 	// Validate token for every request
 	r.Use(validateToken)
@@ -57,6 +60,9 @@ func StartServer() error {
 	if err != nil {
 		return err
 	}
+
+	// CLC Runner client token
+	util.SetDCAAuthToken()
 
 	hosts := []string{"127.0.0.1", "localhost"}
 	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
@@ -106,11 +112,27 @@ func ServerAddress() *net.TCPAddr {
 	return listener.Addr().(*net.TCPAddr)
 }
 
+// We only want to maintain 1 API and expose an external route to serve the cluster level check runner stats.
+// As we have 2 different tokens for the validation, we need to validate accordingly.
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := util.Validate(w, r); err != nil {
-			return
+		path := r.URL.String()
+		isValid := false
+		if !isExternalPath(path) {
+			if err := util.Validate(w, r); err == nil {
+				isValid = true
+			}
+		}
+		if !isValid {
+			if err := util.ValidateDCARequest(w, r); err != nil {
+				return
+			}
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// isExternalPath returns whether the path is an endpoint queried by the Cluster Agent.
+func isExternalPath(path string) bool {
+	return strings.HasPrefix(path, "/api/v1/clcrunner/") && len(strings.Split(path, "/")) == 5
 }
