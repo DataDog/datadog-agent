@@ -69,10 +69,11 @@ type Tracer struct {
 	buf *bytes.Buffer
 }
 
-// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
-// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
 const (
-	maxActive = 128
+	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
+	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
+	maxActive                = 128
+	defaultClosedChannelSize = 500
 )
 
 // CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
@@ -189,7 +190,11 @@ func (t *Tracer) expvarStats() {
 
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
 func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
-	closedChannel := make(chan []byte, 100)
+	closedChannelSize := defaultClosedChannelSize
+	if t.config.ClosedChannelSize > 0 {
+		closedChannelSize = t.config.ClosedChannelSize
+	}
+	closedChannel := make(chan []byte, closedChannelSize)
 	lostChannel := make(chan uint64, 10)
 
 	pm, err := bpflib.InitPerfMap(t.m, string(tcpCloseEventMap), closedChannel, lostChannel)
