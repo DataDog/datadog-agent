@@ -132,10 +132,7 @@ py_info_t *Three::getPyInfo()
         setError("could not allocate a py_info_t struct");
         return NULL;
     }
-    const char* v = Py_GetVersion();
-    if(v){
-        info->version = strdup(v);
-    }
+    info->version = Py_GetVersion();
     info->path = NULL;
 
     sys = PyImport_ImportModule("sys");
@@ -169,11 +166,10 @@ done:
  */
 
 void Three::freePyInfo(py_info_t* info) {
-    if(info->version){
-        free(info->version);
-    }
+    info->version = NULL;
     if(info->path){
         free(info->path);
+        info->version = NULL;
     }
     free(info);
     return;

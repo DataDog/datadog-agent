@@ -64,10 +64,8 @@ typedef struct event_s {
 } event_t;
 
 typedef struct py_info_s {
-    // all strings are owned by the structure.  Must be freed
-    // by calling freePyInfo()
-    char *version;
-    char *path;
+    const char *version; // returned by Py_GetInfo(); is static string owned by python
+    char *path;          // allocated within getPyInfo()
 } py_info_t;
 
 /*
