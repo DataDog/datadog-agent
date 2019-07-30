@@ -42,6 +42,13 @@ build do
   # include embedded path (mostly for `pkg-config` binary)
   env = with_embedded_path(env)
 
+  # cgosymbolizer must be patched on SLES11 builders - PR upstream pending merge
+  if suse?
+    patch :source => "0001-sles-sys-types.h-must-be-included-here-to-build.patch", :plevel => 1,
+          :acceptable_output => "Reversed (or previously applied) patch detected",
+          :target => "#{gopath.to_path}/src/github.com/DataDog/datadog-agent/vendor/github.com/ianlancetaylor/cgosymbolizer/symbolizer.c"
+  end
+
   # we assume the go deps are already installed before running omnibus
   if windows?
     command "inv -e rtloader.build --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\"", :env => env
