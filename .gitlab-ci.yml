@@ -1065,23 +1065,6 @@ dca_dev_master_docker_hub:
   script:
     - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:master
 
-# deploys to quay
-# docker images are mirrored on quay.io
-# to run security scans on them
-dev_master_quay:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_nightly
-  variables:
-    <<: *quay_variables
-  script:
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-py2 quay.io/datawhale/agent-dev:master
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-py2 quay.io/datawhale/agent-dev:master-py2
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-py3 quay.io/datawhale/agent-dev:master-py3
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-py2-jmx quay.io/datawhale/agent-dev:master-jmx
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-py2-jmx quay.io/datawhale/agent-dev:master-py2-jmx
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-py3-jmx quay.io/datawhale/agent-dev:master-py3-jmx
-    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} quay.io/datawhale/dogstatsd-dev:master
-
 # deploys nightlies to agent-dev
 dev_nightly_docker_hub:
   <<: *docker_tag_job_definition
@@ -1335,8 +1318,8 @@ latest_release_7:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:latest
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:latest-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:latest-py3
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:latest-py3-jmx
 
 #
 # Use these steps to revert the latest tags to a previous release
@@ -1371,8 +1354,8 @@ latest_release_7:
     RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
   script:
     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
+    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest-py3
+    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-py3-jmx
 
 #
 # Use this step to delete a tag of a given image

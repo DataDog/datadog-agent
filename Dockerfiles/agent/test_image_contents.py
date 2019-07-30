@@ -4,6 +4,7 @@ import os
 import os.path
 import unittest
 from hashlib import sha256
+from six import iteritems
 
 EXPECTED_PRESENT = [
     "/etc/datadog-agent/datadog-docker.yaml",
@@ -34,7 +35,7 @@ class TestFiles(unittest.TestCase):
             self.assertFalse(os.path.isfile(file), file + " should NOT be present")
 
     def test_files_checksums(self):
-        for file, digest in EXPECTED_CHECKSUMS.items():
+        for file, digest in iteritems(EXPECTED_CHECKSUMS):
             sha = sha256()
             with open(file, 'rb') as f:
                 for chunk in iter(lambda: f.read(4096), b''):
