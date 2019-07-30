@@ -100,7 +100,7 @@ uninstall_integrations()
         # the package and rm them.
         grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt | grep -v '^#' | xargs rm -rf
 
-        rm $INSTALL_DIR/embedded/.{extra,all}-integrations.txt
+        rm $INSTALL_DIR/embedded/.all-integrations.txt
     else
         # If the file containing all integrations which have been installed by the
         # package is not available: uninstall every datadog integrations.
