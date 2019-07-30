@@ -62,7 +62,7 @@ func StartServer() error {
 	}
 
 	// CLC Runner client token
-	util.SetCLCRunnerAuthToken()
+	util.SetDCAAuthToken()
 
 	hosts := []string{"127.0.0.1", "localhost"}
 	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
@@ -124,7 +124,7 @@ func validateToken(next http.Handler) http.Handler {
 			}
 		}
 		if !isValid {
-			if err := util.ValidateCLCRunnerRequest(w, r); err != nil {
+			if err := util.ValidateDCARequest(w, r); err != nil {
 				return
 			}
 		}
