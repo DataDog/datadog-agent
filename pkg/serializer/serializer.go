@@ -244,7 +244,7 @@ func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 		return nil
 	}
 
-	compress := false // TODO: enable compression once the backend supports it on this endpoint
+	compress := true
 	useV1API := false // Sketches only have a v2 endpoint
 	splitSketches, extraHeaders, err := s.serializePayload(sketches, compress, useV1API)
 	if err != nil {
