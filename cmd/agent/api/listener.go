@@ -7,12 +7,11 @@ package api
 
 import (
 	"fmt"
-	"net"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"net"
 )
 
 // getListener returns a listening connection
 func getListener() (net.Listener, error) {
-	return net.Listen("tcp", fmt.Sprintf("%v:%v", config.Datadog.GetString("cmd_host"), config.Datadog.GetInt("cmd_port")))
+	return net.Listen("tcp", fmt.Sprintf("localhost:%v", config.Datadog.GetInt("cmd_port")))
 }

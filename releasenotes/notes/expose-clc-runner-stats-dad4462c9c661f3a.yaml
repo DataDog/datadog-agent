@@ -1,5 +1,0 @@
----
-features:
-  - |
-    The Agent can now expose runner stats via a public API.
-    The Cluster Agent can use these stats to optimize dispatching cluster level checks.

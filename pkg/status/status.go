@@ -320,12 +320,3 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 
 	return stats, err
 }
-
-// GetExpvarRunnerStats grabs the status of the runner from expvar
-// and puts it into a CLCChecks struct
-func GetExpvarRunnerStats() CLCChecks {
-	runnerStatsJSON := []byte(expvar.Get("runner").String())
-	runnerStats := CLCChecks{}
-	json.Unmarshal(runnerStatsJSON, &runnerStats)
-	return runnerStats
-}
