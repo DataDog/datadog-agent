@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	token          string
-	dcaToken       string
+	token    string
+	dcaToken string
 )
 
 // SetAuthToken sets the session token
