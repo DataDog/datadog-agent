@@ -266,7 +266,11 @@ func setupMetadataCollection(s *serializer.Serializer, hostname string) error {
 	if err != nil {
 		return log.Error("Host metadata is supposed to be always available in the catalog!")
 	}
-	err = common.MetadataScheduler.AddCollector("agent_checks", agentChecksMetadataCollectorInterval*time.Second)
+	agentChecksMetadataRefreshRate := config.Datadog.GetInt64("agent_checks_metadata_refresh_rate")
+	if agentChecksMetadataRefreshRate < 60 {
+		agentChecksMetadataRefreshRate = 60
+	}
+	err = common.MetadataScheduler.AddCollector("agent_checks", time.Duration(agentChecksMetadataRefreshRate)*time.Second)
 	if err != nil {
 		return log.Error("Agent Checks metadata is supposed to be always available in the catalog!")
 	}

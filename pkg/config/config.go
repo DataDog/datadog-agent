@@ -379,6 +379,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
 	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
 
+	config.BindEnvAndSetDefault("agent_checks_metadata_refresh_rate", 10*60)
+
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
 

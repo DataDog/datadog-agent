@@ -103,6 +103,15 @@ api_key:
 #
 # dogstatsd_tag_cardinality: low
 
+## @param agent_checks_metadata_refresh_rate - integer - optional - default: 600
+## Configure how often the agent submits the metadata and tags for external hosts collected by
+## the checks. You can decrease this value if some part of your infrastructure is monitored
+## from a single agent running a cluster check like Ambari, vSphere, Cisco ACI or OpenStack
+## and you need to see those host tags faster.
+## The value is in seconds and cannot be lower than 60.
+#
+# agent_checks_metadata_refresh_rate: 600
+
 ## @param histogram_aggregates - list of strings - optional - default: ["max", "median", "avg", "count"]
 ## Configure which aggregated value to compute.
 ## Possible values are: min, max, median, avg, sum and count.
