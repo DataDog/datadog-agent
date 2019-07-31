@@ -46,6 +46,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	a.CollectLocalDNS = config.Datadog.GetBool(key(spNS, "collect_local_dns"))
 
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
+		log.Info("enabling process-agent for connections check as the system-probe is enabled")
 		a.EnabledChecks = append(a.EnabledChecks, "connections")
 		a.Enabled = true
 		a.EnableSystemProbe = true
