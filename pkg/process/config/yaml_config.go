@@ -47,6 +47,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
 		a.EnabledChecks = append(a.EnabledChecks, "connections")
+		a.Enabled = true
 		a.EnableSystemProbe = true
 	}
 
