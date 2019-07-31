@@ -75,9 +75,7 @@ jobs:
       - run:
           name: lint rtloader
           command: |
-            inv rtloader.format
-            # only check for diff in rtloader folder since "inv deps" step might update Gopkg.lock
-            [[ $(git ls-files -m rtloader | wc -l) -eq 0 ]]
+            inv rtloader.format --raise-if-changed
       - run:
           name: test rtloader
           command: |

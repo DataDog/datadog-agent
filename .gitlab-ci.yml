@@ -158,7 +158,7 @@ run_tests_deb-x64:
     - go get gopkg.in/yaml.v2
     - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
     - inv -e rtloader.install
-    - inv -e rtloader.format
+    - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
     - inv deps --verbose --dep-vendor-only
   script:

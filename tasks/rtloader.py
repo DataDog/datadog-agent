@@ -4,6 +4,7 @@ RtLoader namespaced tasks
 import os
 
 from invoke import task
+from invoke.exceptions import Exit
 
 def get_rtloader_path():
     here = os.path.abspath(os.path.dirname(__file__))
@@ -68,5 +69,13 @@ def test(ctx):
     ctx.run("make -C {}/test run".format(get_rtloader_path()))
 
 @task
-def format(ctx):
+def format(ctx, raise_if_changed=False):
     ctx.run("make -C {} clang-format".format(get_rtloader_path()))
+
+    if raise_if_changed:
+        changed_files = [line for line in ctx.run("git ls-files -m rtloader").stdout.strip().split("\n") if line]
+        if len(changed_files) != 0:
+            print("Following files were not correctly formated:")
+            for f in changed_files:
+                print("  - {}".format(f))
+            raise Exit(code=1)
