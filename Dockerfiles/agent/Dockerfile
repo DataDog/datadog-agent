@@ -79,6 +79,10 @@ RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-8 from stable" \
  && rm /etc/apt/sources.list.d/stretch.list \
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*; fi
 
+# Install conntrack tool to get additionnal network infos
+# cf /etc/datadog-agent/conf.d/network.d/conf.yaml.default
+RUN apt-get install -y conntrack
+
 # make sure we have recent dependencies
 RUN apt-get update \
   # CVE-fixing time!
