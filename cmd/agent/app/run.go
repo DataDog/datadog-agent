@@ -38,9 +38,6 @@ var (
 // run the host metadata collector every 14400 seconds (4 hours)
 const hostMetadataCollectorInterval = 14400
 
-// run the agent checks metadata collector every 600 seconds (10 minutes)
-const agentChecksMetadataCollectorInterval = 600
-
 // run the resources metadata collector every 300 seconds (5 minutes) by default, configurable
 const defaultResourcesMetadataCollectorInterval = 300
 
