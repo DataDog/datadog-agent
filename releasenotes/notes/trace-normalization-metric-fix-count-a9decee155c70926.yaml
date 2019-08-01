@@ -6,6 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+fixes:
   - |
-    Add several system-probe configs to the environment variables.
+    APM: Fix incorrect `traces_dropped` and `spans_malformed` metric counts.
+

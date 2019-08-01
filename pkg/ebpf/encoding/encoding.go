@@ -3,13 +3,18 @@ package encoding
 import (
 	"strings"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
+	"github.com/gogo/protobuf/jsonpb"
 )
 
 var (
 	pSerializer = protoSerializer{}
-	jSerializer = jsonSerializer{}
+	jSerializer = jsonSerializer{
+		marshaller: jsonpb.Marshaler{
+			EmitDefaults: true,
+		},
+	}
 )
 
 // Marshaler is an interface implemented by all Connections serializers

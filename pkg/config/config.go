@@ -332,13 +332,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("apm_config.enabled", true)
 
 	// Process agent
+	config.SetDefault("process_config.enabled", "false")
 	config.BindEnv("process_config.process_dd_url", "")
-
-	// system-probe agent
-	config.BindEnvAndSetDefault("system_probe_config.enabled", false)
-	config.BindEnvAndSetDefault("system_probe_config.debug_port", 0)
-	config.BindEnvAndSetDefault("system_probe_config.enable_conntrack", false)
-	config.BindEnvAndSetDefault("system_probe_config.max_tracked_connections", 0)
 
 	// Logs Agent
 
@@ -443,16 +438,20 @@ func initConfig(config Config) {
 	config.SetKnown("process_config.expvar_port")
 
 	// System probe
+	config.SetKnown("system_probe_config.enabled")
 	config.SetKnown("system_probe_config.log_file")
+	config.SetKnown("system_probe_config.debug_port")
 	config.SetKnown("system_probe_config.bpf_debug")
 	config.SetKnown("system_probe_config.disable_tcp")
 	config.SetKnown("system_probe_config.disable_udp")
 	config.SetKnown("system_probe_config.disable_ipv6")
 	config.SetKnown("system_probe_config.collect_local_dns")
 	config.SetKnown("system_probe_config.use_local_system_probe")
+	config.SetKnown("system_probe_config.enable_conntrack")
 	config.SetKnown("system_probe_config.sysprobe_socket")
 	config.SetKnown("system_probe_config.conntrack_short_term_buffer_size")
 	config.SetKnown("system_probe_config.max_conns_per_message")
+	config.SetKnown("system_probe_config.max_tracked_connections")
 	config.SetKnown("system_probe_config.max_closed_connections_buffered")
 	config.SetKnown("system_probe_config.max_connection_state_buffered")
 	config.SetKnown("system_probe_config.excluded_linux_versions")
@@ -811,6 +810,16 @@ func IsContainerized() bool {
 // file used to populate the registry
 func FileUsedDir() string {
 	return filepath.Dir(Datadog.ConfigFileUsed())
+}
+
+// GetEnv retrieves the value of the environment variable named by the key,
+// or def if the environment variable was not set.
+func GetEnv(key, def string) string {
+	value, found := os.LookupEnv(key)
+	if !found {
+		return def
+	}
+	return value
 }
 
 // IsKubernetes returns whether the Agent is running on a kubernetes cluster
