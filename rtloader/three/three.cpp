@@ -407,50 +407,6 @@ done:
     return ret;
 }
 
-const char *Three::pickleCheck(RtLoaderPyObject *check)
-{
-    if (check == NULL) {
-        return NULL;
-    }
-
-    PyObject *py_check = reinterpret_cast<PyObject *>(check);
-
-    // result will be eventually returned as a copy and the corresponding Python
-    // string decref'ed, caller will be responsible for memory deallocation.
-    char *ret = NULL;
-    char *ret_copy = NULL;
-    char dumps[] = "dumps";
-    char format[] = "(O)";
-    PyObject *result = NULL, *pyPickle = NULL;
-
-    rtloader_gilstate_t state = GILEnsure();
-
-    pyPickle = PyImport_ImportModule("pickle");
-
-    result = PyObject_CallMethod(pyPickle, dumps, format, check);
-    if (result == NULL) {
-        setError("error invoking 'pickle.dumps' method: " + _fetchPythonError());
-        goto done;
-    }
-
-    // result is a python string in python2.
-    // `ret` points to the Python string internal storage and will be eventually
-    // deallocated along with the corresponding Python object.
-    ret = as_string(result);
-    if (ret == NULL) {
-        setError("error converting 'pickle.dumps' result to string: " + _fetchPythonError());
-        goto done;
-    }
-
-    ret_copy = strdupe(ret);
-
-done:
-    Py_XDECREF(result);
-    GILRelease(state);
-
-    return ret_copy;
-}
-
 char **Three::getCheckWarnings(RtLoaderPyObject *check)
 {
     if (check == NULL) {

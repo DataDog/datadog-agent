@@ -66,7 +66,6 @@ public:
                   RtLoaderPyObject *&check);
 
     const char *runCheck(RtLoaderPyObject *check);
-    const char *pickleCheck(RtLoaderPyObject *check);
     char **getCheckWarnings(RtLoaderPyObject *check);
     void decref(RtLoaderPyObject *obj);
     void incref(RtLoaderPyObject *obj);
