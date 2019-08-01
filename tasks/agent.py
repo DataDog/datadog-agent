@@ -18,7 +18,6 @@ from .utils import REPO_PATH
 from .utils import do_go_rename, do_sed_rename
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
 from .go import deps
-import cluster_agent
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -407,7 +406,6 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
         deps(ctx, no_checks=True)  # no_checks since the omnibus build installs checks with a dedicated software def
 
     apply_branding(ctx)
-    cluster_agent.apply_branding(ctx)
 
     # omnibus config overrides
     overrides = []

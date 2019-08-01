@@ -30,13 +30,20 @@ def apply_branding(ctx):
     """
     Apply stackstate branding
     """
-    sts_lower_replace = 's/datadog/stackstate/g'
+    sts_lower_replace = '/www/! s/datadog/stackstate/g'
 
+    do_sed_rename(ctx, sts_lower_replace, "./cmd/cluster-agent/main.go")
     do_sed_rename(ctx, sts_lower_replace, "./cmd/cluster-agent/app/*")
     do_sed_rename(ctx, 's/Datadog Cluster/StackState Cluster/g', "./cmd/cluster-agent/app/*")
     do_sed_rename(ctx, 's/Datadog Agent/StackState Agent/g', "./cmd/cluster-agent/app/*")
     do_sed_rename(ctx, 's/to Datadog/to StackState/g', "./cmd/cluster-agent/app/*")
 
+    do_sed_rename(ctx, 's/DD_/STS_/g', "Dockerfiles/cluster-agent/entrypoint.sh")
+    do_sed_rename(ctx, 's/Datadog Cluster/StackState Cluster/g', "Dockerfiles/cluster-agent/entrypoint.sh")
+    do_sed_rename(ctx, sts_lower_replace, "Dockerfiles/cluster-agent/entrypoint.sh")
+    do_sed_rename(ctx, 's/Datadog <package@datadoghq.com>/StackState <info@stackstate.com>/g', "Dockerfiles/cluster-agent/Dockerfile")
+    do_sed_rename(ctx, 's/dd-agent/sts-agent/g', "Dockerfiles/cluster-agent/Dockerfile")
+    do_sed_rename(ctx, sts_lower_replace, "Dockerfiles/cluster-agent/Dockerfile")
 
 @task
 def build(ctx, rebuild=False, build_include=None, build_exclude=None,
@@ -52,7 +59,7 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None,
     build_tags = get_build_tags(build_include, build_exclude)
 
     # We rely on the go libs embedded in the debian stretch image to build dynamically
-    ldflags, gcflags, env = get_build_flags(ctx, static=False, use_embedded_libs=use_embedded_libs, prefix='dca')
+    ldflags, gcflags, env = get_build_flags(ctx, static=False, use_embedded_libs=use_embedded_libs)
 
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent"
@@ -66,6 +73,7 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None,
         "REPO_PATH": REPO_PATH,
     }
 
+    apply_branding(ctx)
     ctx.run(cmd.format(**args), env=env)
     # Render the configuration file template
     #
@@ -179,4 +187,4 @@ def version(ctx, url_safe=False, git_sha_length=7):
                     use this to explicitly set the version
                     (the windows builder and the default ubuntu version have such an incompatibility)
     """
-    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length, prefix='dca'))
+    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length))
