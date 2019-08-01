@@ -422,6 +422,7 @@ pre_release_cluster_agent:
   stage: pre_release
   image: docker:18.06.0
   dependencies:
+    - deps_deb
     - build_cluster_agent
   variables:
     DOCKER_DRIVER: overlay
