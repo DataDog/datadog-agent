@@ -427,7 +427,6 @@ pre_release_cluster_agent:
     DOCKER_DRIVER: overlay
   services:
     - docker:dind
-  before_script: []
   script:
     - cd $CI_PROJECT_DIR
     - docker login -u $DOCKER_USER -p $DOCKER_PASS
