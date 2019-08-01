@@ -129,8 +129,11 @@ func (l *DockerListener) init() {
 	if err != nil {
 		log.Errorf("Couldn't retrieve container list - %s", err)
 	}
+	fmt.Printf("XXXXXXXXXXX Found %d containers %#v", len(containers))
 
 	for _, co := range containers {
+		fmt.Printf("XXXXXXXXXXX Adding service from container with ID %v", co.ID)
+
 		if l.isExcluded(co) {
 			continue // helper method already logs
 		}

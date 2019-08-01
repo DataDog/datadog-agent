@@ -190,12 +190,15 @@ func (c *APIClient) checkResourcesAuth() error {
 			return aggregateCheckResourcesErrors(errorMessages)
 		}
 	}
-	_, err = c.Cl.CoreV1().Pods("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
+	pods, err = c.Cl.CoreV1().Pods("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
 	if err != nil {
+		fmt.Printf("XXXXXXXXXXX Failed getting pods. Error: %s", err)
 		errorMessages = append(errorMessages, fmt.Sprintf("pod collection: %q", err.Error()))
 		if !isConnectVerbose {
 			return aggregateCheckResourcesErrors(errorMessages)
 		}
+	} else {
+		fmt.Printf("XXXXXXXXXXX Got %d pots %#v", len(pods.Items), pods.Items)
 	}
 	_, err = c.Cl.CoreV1().Nodes().List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
 

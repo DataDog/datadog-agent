@@ -196,10 +196,10 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 	containerID := container.service.Identifier
 	if _, isTailed := l.tailers[containerID]; isTailed {
-		fmt.Printf("Can't tail twice the same container: %v", ShortContainerID(containerID))
+		fmt.Printf("XXXXXXXXXXX  Can't tail twice the same container: %v", ShortContainerID(containerID))
 		return
 	} else {
-		fmt.Printf("Tailing container : %v", ShortContainerID(containerID))
+		fmt.Printf("XXXXXXXXXXX  Tailing container : %v", ShortContainerID(containerID))
 	}
 
 	// overridenSource == source if the containerCollectAll option is not activated or the container has AD labels
