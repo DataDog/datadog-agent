@@ -17,6 +17,8 @@ DWORD DeleteUser(const wchar_t* host, const wchar_t* name);
 bool AddPrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd);
 bool RemovePrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd);
 int EnableServiceForUser(CustomActionData& data, const std::wstring& service);
+DWORD AddUserToGroup(PSID userSid, wchar_t* groupSidString, wchar_t* defaultGroupName);
+DWORD DelUserFromGroup(PSID userSid, wchar_t* groupSidString, wchar_t* defaultGroupName);
 bool InitLsaString(
 	PLSA_UNICODE_STRING pLsaString,
 	LPCWSTR pwszString);

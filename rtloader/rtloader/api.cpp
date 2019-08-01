@@ -288,7 +288,7 @@ int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, co
         : 0;
 }
 
-const char *run_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
+char *run_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
 {
     return AS_TYPE(RtLoader, rtloader)->runCheck(AS_TYPE(RtLoaderPyObject, check));
 }

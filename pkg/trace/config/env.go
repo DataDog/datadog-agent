@@ -6,6 +6,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -71,6 +72,14 @@ func loadEnv() {
 			log.Errorf("Bad format for %s it should be of the form \"service_name|operation_name=rate,other_service|other_operation=rate\", error: %v", "DD_APM_ANALYZED_SPANS", err)
 		}
 	}
+	if v := os.Getenv("DD_APM_REPLACE_TAGS"); v != "" {
+		replaceTags, err := parseReplaceTags(v)
+		if err == nil {
+			config.Datadog.Set("apm_config.replace_tags", replaceTags)
+		} else {
+			log.Errorf("Bad format for %s it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\",\"repl\":\"replace_str\"}]', error: %v", "DD_APM_REPLACE_TAGS", err)
+		}
+	}
 }
 
 func parseNameAndRate(token string) (string, float64, error) {
@@ -101,4 +110,13 @@ func parseAnalyzedSpans(env string) (analyzedSpans map[string]float64, err error
 		analyzedSpans[name] = rate
 	}
 	return
+}
+
+func parseReplaceTags(env string) ([]map[string]string, error) {
+	var replaceTags []map[string]string
+	err := json.Unmarshal([]byte(env), &replaceTags)
+	if err != nil {
+		return nil, err
+	}
+	return replaceTags, nil
 }

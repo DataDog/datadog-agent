@@ -23,6 +23,19 @@ func (d *dispatcher) getEndpointsConfigs(nodeName string) ([]integration.Config,
 	return nodeConfigs, nil
 }
 
+// getAllEndpointsCheckConfigs provides all config templates of endpoints checks
+func (d *dispatcher) getAllEndpointsCheckConfigs() ([]integration.Config, error) {
+	configs := []integration.Config{}
+	d.store.RLock()
+	defer d.store.RUnlock()
+	for _, configMap := range d.store.endpointsConfigs {
+		for _, config := range configMap {
+			configs = append(configs, config)
+		}
+	}
+	return configs, nil
+}
+
 // addEndpointConfig stores a given endpoint configuration by node name
 func (d *dispatcher) addEndpointConfig(config integration.Config, nodename string) {
 	d.store.Lock()
@@ -51,6 +64,7 @@ func (d *dispatcher) patchEndpointsConfiguration(in integration.Config) (integra
 	// Deep copy the instances to avoid modifying the original
 	out.Instances = make([]integration.Data, len(in.Instances))
 	copy(out.Instances, in.Instances)
+	out.NodeName = in.NodeName
 
 	for i := range out.Instances {
 		// Inject extra tags if not empty

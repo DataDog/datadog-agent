@@ -375,7 +375,7 @@ done:
     return true;
 }
 
-const char *Three::runCheck(RtLoaderPyObject *check)
+char *Three::runCheck(RtLoaderPyObject *check)
 {
     if (check == NULL) {
         return NULL;

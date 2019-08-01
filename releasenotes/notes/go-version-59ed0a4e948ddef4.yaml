@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    The `datadog-agent` command now prints the version of Golang the agent was
-    compiled with.
+    The `datadog-agent version` command now prints the version of Golang the
+    agent was compiled with.

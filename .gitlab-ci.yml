@@ -150,7 +150,7 @@ before_script:
 # run tests for deb-x64
 run_tests_deb-x64:
   stage: source_test
-  image: datadog/datadog-agent-runner-circle:six-pip3
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:latest
   tags: [ "runner:main", "size:2xlarge" ]
   before_script:
     - pip install wheel
@@ -158,7 +158,7 @@ run_tests_deb-x64:
     - go get gopkg.in/yaml.v2
     - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
     - inv -e rtloader.install
-    - inv -e rtloader.format
+    - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
     - inv deps --verbose --dep-vendor-only
   script:
@@ -291,7 +291,7 @@ system_probe-build:
 
 #
 # integration_test
-
+#
 
 # run benchmarks on deb
 # run_benchmarks-deb_x64:
@@ -330,8 +330,7 @@ run_dogstatsd_size_test:
 
 #
 # package_build
-
-
+#
 
 # build Agent package for deb-x64
 agent_deb-x64:
@@ -768,10 +767,11 @@ kitchen_centos:
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
 
-# run dd-agent-testing on ubuntu (FIXME: Allowed to fail until we resolve the issue with apt locks/azure agent)
+# run dd-agent-testing on ubuntu
+# Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 kitchen_ubuntu:
   stage: testkitchen_testing
-  allow_failure: true
+  allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   <<: *run_when_testkitchen_triggered
   before_script:
@@ -819,10 +819,11 @@ kitchen_suse:
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
 
-# run dd-agent-testing on debian (FIXME: Allowed to fail until we resolve the issue with apt locks/azure agent)
+# run dd-agent-testing on debian
+# Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 kitchen_debian:
   stage: testkitchen_testing
-  allow_failure: true
+  allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   <<: *run_when_testkitchen_triggered
   before_script:
@@ -837,6 +838,7 @@ kitchen_debian:
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.20190313.0"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,credativ:Debian:9:9.20190515.0"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-10,Debian:debian-10:10:0.20190709.401"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks
@@ -897,29 +899,50 @@ testkitchen_cleanup_azure:
     - pip install -r requirements.txt
     - inv -e docker.pull-base-images --signed-pull $BUILD_CONTEXT/Dockerfile
     # Build testing stage if provided
-    - test "$TESTING_ARG" &&  docker build $TESTING_ARG $BUILD_CONTEXT
+    - test "$TESTING_ARG" && docker build $TESTING_ARG $BUILD_CONTEXT
     # Build release stage and push to ECR
     - docker build $BUILD_ARG --pull --tag $TARGET_TAG $BUILD_CONTEXT
     - docker push $TARGET_TAG
 
-# build the agent6 image
+# build agent6 image
 build_agent6:
   <<: *docker_build_job_definition
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
-    BUILD_ARG: --target release
-    TESTING_ARG:  --target testing
+    TAG_SUFFIX: -py2
+    BUILD_ARG: --target release --build-arg PYTHON_VERSION=2
+    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=2
 
-# build the agent6 jmx image
+# build agent6 jmx image
 build_agent6_jmx:
   <<: *docker_build_job_definition
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
-    TAG_SUFFIX: -jmx
-    BUILD_ARG: --target release --build-arg WITH_JMX=true
-    TESTING_ARG:  --target testing --build-arg WITH_JMX=true
+    TAG_SUFFIX: -py2-jmx
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2
+
+# build agent7 image
+build_agent7:
+  <<: *docker_build_job_definition
+  variables:
+    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -py3
+    BUILD_ARG: --target release --build-arg PYTHON_VERSION=3
+    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3
+
+# build agent7 jmx image
+build_agent7_jmx:
+  <<: *docker_build_job_definition
+  variables:
+    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -py3-jmx
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3
 
 # build the cluster-agent image
 build_cluster_agent:
@@ -955,8 +978,10 @@ twistlock_scan:
     - TWISTLOCK_PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.twistlock_password --with-decryption --query "Parameter.Value" --out text)
     - scan () { echo -e "\n==== Scanning $1 ====\n"; docker pull $1 > /dev/null; /twistcli images scan --address="$TWISTLOCK_URL" --user="$TWISTLOCK_USER" --password="$TWISTLOCK_PASS" --vulnerability-threshold=$THRESHOLD --details $1; }
   script:
-    - scan ${SRC_AGENT}:${SRC_TAG}
-    - scan ${SRC_AGENT}:${SRC_TAG}-jmx
+    - scan ${SRC_AGENT}:${SRC_TAG}-py2
+    - scan ${SRC_AGENT}:${SRC_TAG}-py3
+    - scan ${SRC_AGENT}:${SRC_TAG}-py2-jmx
+    - scan ${SRC_AGENT}:${SRC_TAG}-py3-jmx
     - scan ${SRC_DSD}:${SRC_TAG}
     - scan ${SRC_DCA}:${SRC_TAG}
 
@@ -1000,8 +1025,12 @@ dev_branch_docker_hub:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:${CI_COMMIT_REF_SLUG}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:${CI_COMMIT_REF_SLUG}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
 
 dev_master_docker_hub:
@@ -1011,8 +1040,12 @@ dev_master_docker_hub:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:master
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:master-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:master
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:master-py2
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent-dev:master-py3
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:master-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:master-py2-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent-dev:master-py3-jmx
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:master
 
 dca_dev_branch_docker_hub:
@@ -1034,19 +1067,6 @@ dca_dev_master_docker_hub:
   script:
     - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:master
 
-# deploys to quay
-# docker images are mirrored on quay.io
-# to run security scans on them
-dev_master_quay:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_nightly
-  variables:
-    <<: *quay_variables
-  script:
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} quay.io/datawhale/agent-dev:master
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx quay.io/datawhale/agent-dev:master-jmx
-    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} quay.io/datawhale/dogstatsd-dev:master
-
 # deploys nightlies to agent-dev
 dev_nightly_docker_hub:
   <<: *docker_tag_job_definition
@@ -1054,8 +1074,12 @@ dev_nightly_docker_hub:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:nightly-${CI_COMMIT_SHORT_SHA}
 
 #
@@ -1250,7 +1274,7 @@ deploy_process_and_sysprobe:
 # Docker releases
 #
 
-tag_release:
+tag_release_6:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_tag
   stage: deploy
@@ -1258,11 +1282,11 @@ tag_release:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent:${CI_COMMIT_TAG}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent:${CI_COMMIT_TAG}-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:${CI_COMMIT_TAG}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:${CI_COMMIT_TAG}-jmx
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:${CI_COMMIT_TAG}
 
-latest_release:
+tag_release_7:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_tag
   stage: deploy
@@ -1270,18 +1294,44 @@ latest_release:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent:latest
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent:latest-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:${CI_COMMIT_TAG}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:${CI_COMMIT_TAG}-jmx
+
+latest_release_6:
+  <<: *docker_tag_job_definition
+  <<: *run_when_triggered_on_tag
+  stage: deploy
+  when: manual
+  variables:
+    <<: *docker_hub_variables
+  script:
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:latest
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:latest-jmx
+    # TODO: remove previous lines and uncomment the following when agent 7 is released
+    #- inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:latest-py2
+    #- inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:latest-py2-jmx
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:latest
 
+latest_release_7:
+  <<: *docker_tag_job_definition
+  <<: *run_when_triggered_on_tag
+  stage: deploy
+  when: manual
+  variables:
+    <<: *docker_hub_variables
+  script:
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:latest-py3
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:latest-py3-jmx
+
 #
-# Use this step to revert the latest tag to a previous release
+# Use these steps to revert the latest tags to a previous release
 # while maintaining content trust signatures
 # - remove the leading dot from the name
 # - set the RELEASE envvar
 # - in the gitlab pipeline view, trigger the step (in the first column)
 #
-.latest_revert_to_previous_release:
+
+.latest_revert_to_previous_release_6:
   <<: *docker_tag_job_definition
   stage: source_test
   when: manual
@@ -1292,7 +1342,22 @@ latest_release:
     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
     - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest
     - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
+    # TODO: remove previous lines and uncomment the following when agent 7 is released
+    #- inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest-py2
+    #- inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-py2-jmx
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
+
+.latest_revert_to_previous_release_7:
+  <<: *docker_tag_job_definition
+  stage: source_test
+  when: manual
+  variables:
+    <<: *docker_hub_variables
+    RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
+  script:
+    - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
+    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest-py3
+    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-py3-jmx
 
 #
 # Use this step to delete a tag of a given image
