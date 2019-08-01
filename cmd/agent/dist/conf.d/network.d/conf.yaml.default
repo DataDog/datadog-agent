@@ -49,14 +49,6 @@ instances:
     #
     # collect_count_metrics: false
 
-    ## @param conntrack_path - string - optional
-    ## Linux only.
-    ## The location of the conntrack executable for collecting stats from conntrack -S.
-    ## This is run with sudo, so an entry needs to be added to the sudoers file.
-    ## By default, these metrics are not sent.
-    #
-    # conntrack_path: /usr/sbin/conntrack
-
     ## @param whitelist_conntrack_metrics - list of strings - optional - default: ["max", "count"]
     ## Linux only.
     ## Names of the conntrack metrics to whitelist for monitoring. The metric value is in the file.
@@ -80,12 +72,3 @@ instances:
     # blacklist_conntrack_metrics:
     #   - <METRIC_NAME>
     #   - <METRIC_PREFIX>*
-
-    ## @param tags - list of key:value elements - optional
-    ## List of tags to attach to every metric, event, and service check emitted by this integration.
-    ##
-    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
-    #
-    # tags:
-    #   - <KEY_1>:<VALUE_1>
-    #   - <KEY_2>:<VALUE_2>

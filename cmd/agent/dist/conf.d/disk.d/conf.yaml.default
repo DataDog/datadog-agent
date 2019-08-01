@@ -54,17 +54,6 @@ instances:
     #   - <KEY_1>:<VALUE_1>
     #   - <KEY_2>:<VALUE_2>
 
-    ## @param file_system_whitelist - list of regex - optional
-    ## Instruct the check to only collect from matching file systems.
-    ##
-    ## Character casing is ignored. Regular expressions
-    ## start matching from the beginning. To match anywhere,
-    ## prepend `.*`. For exact matches, append `$`.
-    #
-    # file_system_whitelist:
-    #   - ext[34]$
-    #   - ntfs$
-
     ## @param file_system_blacklist - list of regex - optional
     ## Instruct the check to not collect from matching file systems.
     ##
