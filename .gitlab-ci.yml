@@ -416,22 +416,23 @@ pre_release_image:
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
-    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/outcomes/pkg
+    - cp ./outcomes/pkg/*.deb ./Dockerfiles/agent
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent
 
-pre_release_cluster_agent:
+pre_release_cluster_agent_image:
   stage: pre_release
   image: docker:18.06.0
   dependencies:
-    - deps_deb
     - build_cluster_agent
   variables:
     DOCKER_DRIVER: overlay
   services:
     - docker:dind
+  before_script: []
   script:
     - cd $CI_PROJECT_DIR
-    - docker login -u $DOCKER_USER -p $DOCKER_PASS
-    - inv -e cluster-agent.image-build -t stackstate/$STS_DOCKER_RELEASE_REPO_CLUSTER:$CI_COMMIT_REF_NAME -p
+    - cp -r ./bin/stackstate-cluster-agent/* ./Dockerfiles/cluster-agent
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent
 
 molecule_tests_vms:
   stage: acceptance
@@ -532,7 +533,8 @@ release_image:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - export PUSH_LATEST=true
-    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO $CI_PROJECT_DIR/outcomes/pkg $PUSH_LATEST
+    - cp ./outcomes/pkg/*.deb Dockerfiles/agent
+    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO $CI_PROJECT_DIR/Dockerfiles/agent $PUSH_LATEST
   when: manual
   only:
     - tags
