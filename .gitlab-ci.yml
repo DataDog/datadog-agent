@@ -10,12 +10,14 @@ stages:
 variables:
   STS_AWS_RELEASE_BUCKET: stackstate-agent-2
   STS_AWS_TEST_BUCKET: stackstate-agent-2-test
-  STS_DOCKER_RELEASE_REPO: stackstate-agent-2
-  STS_DOCKER_TEST_REPO: stackstate-agent-2-test
   STS_AWS_RELEASE_BUCKET_YUM: stackstate-agent-2-rpm
   STS_AWS_TEST_BUCKET_YUM: stackstate-agent-2-rpm-test
   STS_AWS_RELEASE_BUCKET_WIN: stackstate-agent-2
   STS_AWS_TEST_BUCKET_WIN: stackstate-agent-2-test
+  STS_DOCKER_RELEASE_REPO: stackstate-agent-2
+  STS_DOCKER_TEST_REPO: stackstate-agent-2-test
+  STS_DOCKER_RELEASE_REPO_CLUSTER: stackstate-cluster-agent
+  STS_DOCKER_TEST_REPO_CLUSTER: stackstate-cluster-agent-test
 
 before_script:
  - mkdir -p /go/src/github.com/StackVista
@@ -188,6 +190,15 @@ build_puppy:
     - inv -e agent.build --puppy
     - ./bin/agent/agent -c ./bin/agent/dist check cpu
 
+build_cluster_agent:
+  stage: build_and_test
+  dependencies:
+    - deps_deb
+  script:
+    - inv -e cluster-agent.build
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/bin/stackstate-cluster-agent
 
 clear_build_deb_cache:
   stage: build_and_test
@@ -406,6 +417,21 @@ pre_release_image:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/outcomes/pkg
+
+pre_release_cluster_agent:
+  stage: pre_release
+  image: docker:18.06.0
+  dependencies:
+    - build_cluster_agent
+  variables:
+    DOCKER_DRIVER: overlay
+  services:
+    - docker:dind
+  before_script: []
+  script:
+    - cd $CI_PROJECT_DIR
+    - docker login -u $DOCKER_USER -p $DOCKER_PASS
+    - inv -e cluster-agent.image-build -t stackstate/$STS_DOCKER_RELEASE_REPO_CLUSTER:$CI_COMMIT_REF_NAME -p
 
 molecule_tests_vms:
   stage: acceptance
