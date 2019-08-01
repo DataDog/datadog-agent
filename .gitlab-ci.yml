@@ -924,6 +924,7 @@ build_agent6_jmx:
     BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2
     TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2
 
+# TESTING ONLY: This image is for internal testing purposes, not customer facing.
 # build agent6 jmx unified image (including python3)
 build_agent6_py2py3_jmx:
   <<: *docker_build_job_definition

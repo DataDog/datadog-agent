@@ -11,7 +11,7 @@ from distutils.dir_util import copy_tree
 
 import invoke
 from invoke import task
-from invoke.exceptions import Exit
+from invoke.exceptions import Exit, ParseError
 
 from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version
 from .utils import REPO_PATH
@@ -220,10 +220,15 @@ def system_tests(ctx):
 
 
 @task
-def image_build(ctx, base_dir="omnibus", python_version=2, skip_tests=False):
+def image_build(ctx, base_dir="omnibus", python_version="2", skip_tests=False):
     """
     Build the docker image
     """
+    BOTH_VERSIONS = ["both", "2+3"]
+    VALID_VERSIONS = ["2", "3"] + BOTH_VERSIONS
+    if python_version not in VALID_VERSIONS:
+        raise ParseError("provided python_version is invalid")
+
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
     pkg_dir = os.path.join(base_dir, 'pkg')
     list_of_files = glob.glob(os.path.join(pkg_dir, 'datadog-agent*_amd64.deb'))
@@ -238,7 +243,7 @@ def image_build(ctx, base_dir="omnibus", python_version=2, skip_tests=False):
     # Pull base image with content trust enabled
     pull_base_images(ctx, "Dockerfiles/agent/Dockerfile", signed_pull=True)
     common_build_opts = "-t {}".format(AGENT_TAG)
-    if python_version:
+    if python_version not in BOTH_VERSIONS:
         common_build_opts = "{} --build-arg PYTHON_VERSION={}".format(common_build_opts, python_version)
 
     # Build with the testing target
