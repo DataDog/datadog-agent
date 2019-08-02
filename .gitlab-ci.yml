@@ -16,6 +16,8 @@ variables:
   STS_AWS_TEST_BUCKET_YUM: stackstate-agent-2-rpm-test
   STS_AWS_RELEASE_BUCKET_WIN: stackstate-agent-2
   STS_AWS_TEST_BUCKET_WIN: stackstate-agent-2-test
+  STS_DOCKER_TEST_REPO_TRACE: stackstate-trace-agent-test 
+  STS_DOCKER_RELEASE_REPO_TRACE: stackstate-trace-agent
 
 before_script:
  - mkdir -p /go/src/github.com/StackVista
@@ -238,9 +240,11 @@ build_deb:
   - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign
 
     # Prepare outputs
-  - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles
+  - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles && mkdir -p $CI_PROJECT_DIR/outcomes/binary
   - cp -r /omnibus/pkg $CI_PROJECT_DIR/outcomes
   - cp -r /go/src/github.com/StackVista/stackstate-agent/Dockerfiles $CI_PROJECT_DIR/outcomes
+  - cp -r /opt/stackstate-agent/embedded/bin/trace-agent  $CI_PROJECT_DIR/outcomes/binary/
+
 
     # Prepare cache
     # Drop packages for cache
@@ -259,6 +263,8 @@ build_deb:
         - $CI_PROJECT_DIR/outcomes/Dockerfiles/dogstatsd
         - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
         - $CI_PROJECT_DIR/version.txt
+        - $CI_PROJECT_DIR/outcomes/binary/trace-agent
+        
     expire_in: 1 week
 
 build_rpm:
@@ -407,6 +413,21 @@ pre_release_image:
     - export VERSION=`cat version.txt`
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/outcomes/pkg
 
+pre_release_trace_agent_image:
+  stage: pre_release
+  image: docker:18.06.0
+  dependencies: 
+    - build_deb
+  variables:
+    DOCKER_DRIVER: overlay
+  services:
+    - docker:dind
+  before_script: []  
+  script:
+    - cd $CI_PROJECT_DIR
+    - export VERSION=`cat version.txt`
+    - ./omnibus/package-scripts/publish_trace_agent.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_TRACE $CI_PROJECT_DIR/outcomes/binary/trace-agent
+    
 molecule_tests_vms:
   stage: acceptance
   dependencies: []
@@ -497,6 +518,7 @@ release_image:
   image: docker:18.06.0
   dependencies:
     - build_deb
+
   variables:
     DOCKER_DRIVER: overlay
   services:
@@ -512,6 +534,25 @@ release_image:
     - tags
     - triggers
 
+release_trace-agent_image:
+  stage: release
+  image: docker:18.06.0
+  dependencies:
+    - build_deb
+  variables:
+    DOCKER_DRIVER: overlay
+  services:
+    - docker:dind
+  before_script: []  
+  script:
+    - cd $CI_PROJECT_DIR
+    - export VERSION=`cat version.txt`
+    - export PUSH_LATEST=true
+    - ./omnibus/package-scripts/publish_trace_agent.sh $VERSION $STS_DOCKER_TEST_REPO_TRACE $CI_PROJECT_DIR/outcomes/binary/trace-agent $PUSH_LATEST
+  when: manual
+  only:
+    - tags
+    - trigger    
 #docker_test:
 #  stage: docker_test
 #  image: docker:latest

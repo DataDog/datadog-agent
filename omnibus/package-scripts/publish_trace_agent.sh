@@ -11,9 +11,9 @@ echo $IMAGE_TAG
 echo $IMAGE_REPO
 echo $ARTIFACT_PATH
 
-cp $ARTIFACT_PATH/*.deb Dockerfiles/agent
+cp $ARTIFACT_PATH Dockerfiles/trace-agent
 
-docker build -t stackstate/${IMAGE_REPO}:${IMAGE_TAG} Dockerfiles/agent
+docker build -t stackstate/${IMAGE_REPO}:${IMAGE_TAG} Dockerfiles/trace-agent
 
 
 docker login -u $DOCKER_USER -p $DOCKER_PASS
