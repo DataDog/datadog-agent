@@ -199,6 +199,7 @@ build_cluster_agent:
   artifacts:
     paths:
       - $CI_PROJECT_DIR/bin/stackstate-cluster-agent
+      - $CI_PROJECT_DIR/Dockerfiles/cluster-agent/stackstate-cluster.yaml
 
 clear_build_deb_cache:
   stage: build_and_test
