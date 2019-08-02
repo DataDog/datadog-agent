@@ -22,6 +22,8 @@ void *_malloc(size_t sz) {
     void *ptr = NULL;
     ptr = rt_malloc(sz);
 
+    // This is currently thread-unsafe, so be sure to set the callback before
+    // running this code.
     if (ptr && cb_memory_tracker) {
         cb_memory_tracker(ptr, sz, DATADOG_AGENT_RTLOADER_ALLOCATION);
     }
@@ -32,6 +34,8 @@ void *_malloc(size_t sz) {
 void _free(void *ptr) {
     rt_free(ptr);
 
+    // This is currently thread-unsafe, so be sure to set the callback before
+    // running this code.
     if (ptr && cb_memory_tracker) {
         cb_memory_tracker(ptr, 0, DATADOG_AGENT_RTLOADER_FREE);
     }

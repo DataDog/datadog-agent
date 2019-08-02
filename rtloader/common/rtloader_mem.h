@@ -25,18 +25,26 @@ extern "C" {
     \param object A function pointer to the callback function.
 
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+    This function is thread unsafe, be sure to call it early on before multiple threads
+    may start using the allocator.
 */
 void _set_memory_tracker_cb(cb_memory_tracker_t);
 
 /*! \fn void *_malloc(size_t sz)
     \brief Basic malloc wrapper that will also keep memory stats if enabled.
     \param sz the number of bytes to allocate.
+
+    This function is thread unsafe in its access to the memory tracker. Onle, use this
+    logic once the memory tracker has be set (or tracking remains disabled).
 */
 void *_malloc(size_t sz);
 
 /*! \fn void _free(void *ptr)
     \brief Basic free wrapper that will also keep memory stats if enabled.
     \param ptr the pointer to the heap region you wish to free.
+
+    This function is thread unsafe in its access to the memory tracker. Onle, use this
+    logic once the memory tracker has be set (or tracking remains disabled).
 */
 void _free(void *ptr);
 
