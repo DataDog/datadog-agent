@@ -14,13 +14,10 @@ spec:
     spec:
       serviceAccountName: stackstate-agent
       containers:
-      - image: stackstate/stackstate-agent-2:latest
+      - image: stackstate/stackstate-agent-2-test:master
         imagePullPolicy: Always
         name: stackstate-agent
         ports:
-          - containerPort: 8125
-            name: dogstatsdport
-            protocol: UDP
           - containerPort: 8126
             name: traceport
             protocol: TCP
@@ -58,7 +55,7 @@ spec:
               fieldRef:
                 fieldPath: status.hostIP
 #          - name: STS_CLUSTER_AGENT_ENABLED
-#            value: 'true'
+#            value: "true"
 #          - name: STS_CLUSTER_AGENT_AUTH_TOKEN
 #            valueFrom:
 #              secretKeyRef:
