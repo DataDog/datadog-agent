@@ -598,6 +598,10 @@ release_cluster_agent_image:
     - export PUSH_LATEST=true
     - cp -r ./bin/stackstate-cluster-agent/* ./Dockerfiles/cluster-agent
     - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent
+  when: manual
+  only:
+    - tags
+    - trigger
 
 #docker_test:
 #  stage: docker_test
