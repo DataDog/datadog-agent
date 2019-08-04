@@ -1,0 +1,8 @@
+## Provides autodetected defaults, for vanilla Docker environments,
+## please see stackstate.yaml.example for all supported options
+
+# Enable APM by setting the STS_APM_ENABLED envvar to true, or override this configuration
+apm_config:
+  enabled: true
+  apm_non_local_traffic: true
+
