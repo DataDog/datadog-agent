@@ -3,40 +3,6 @@ kind: ClusterRole
 metadata:
   name: stackstate-agent
 rules:
-- apiGroups:
-  - ""
-  resources:
-  - services
-  - events
-  - endpoints
-  - pods
-  - nodes
-  - componentstatuses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  resourceNames:
-  - datadogtoken             # Kubernetes event collection state
-  - datadog-leader-election  # Leader election token
-  verbs:
-  - get
-  - update
-- apiGroups:  # To create the leader election token
-  - ""
-  resources:
-  - configmaps
-  verbs:
-  - create
-- nonResourceURLs:
-  - "/version"
-  - "/healthz"
-  verbs:
-  - get
 - apiGroups:  # Kubelet connectivity
   - ""
   resources:

@@ -1,0 +1,51 @@
+#
+# This SCC is required to enable the full featureset of the
+# Stackstate Agent. The kubelet-only variant can run with the
+# default restricted SCC
+#
+kind: SecurityContextConstraints
+apiVersion: v1
+metadata:
+  name: stackstate-agent
+users:
+- system:serviceaccount:default:stackstate-agent
+priority: 10
+# Allow host ports for dsd / trace / logs intake
+allowHostPorts: true
+# Allow host PID for dogstatsd origin detection
+allowHostPID: true
+# Allow hostPath for docker / process metrics
+volumes:
+- configMap
+- downwardAPI
+- emptyDir
+- hostPath
+- secret
+# Use the `spc_t` selinux type to access the
+# docker socket + proc and cgroup stats
+seLinuxContext:
+  type: MustRunAs
+  seLinuxOptions:
+    user: "system_u"
+    role: "system_r"
+    type: "spc_t"
+    level: "s0"
+#
+# The rest is copied from 3.7.0 restricted SCC
+#
+allowHostDirVolumePlugin: true
+allowHostIPC: false
+allowHostNetwork: true
+allowPrivilegedContainer: true
+allowedFlexVolumes: []
+defaultAddCapabilities: []
+fsGroup:
+  type: MustRunAs
+readOnlyRootFilesystem: false
+runAsUser:
+  type: MustRunAsRange
+supplementalGroups:
+  type: RunAsAny
+seccompProfiles: []
+requiredDropCapabilities: []
+allowedCapabilities: []

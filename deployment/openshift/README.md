@@ -1,7 +1,5 @@
 # OpenShift cluster setup
 
-<!-- TOC depthFrom:2 depthTo:6 withLinks:1 updateOnSave:1 orderedList:0 -->
-
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
 - [Creating the Cluster](#creating-the-cluster)
@@ -18,13 +16,11 @@
 - [Developer Guide](#developer-guide)
 	- [Linting](#linting)
 
-<!-- /TOC -->
-
 ## Overview
 
-Terraform is used to create infrastructure as shown:
+Terraform is used to create infrastructure based on EC2 instances as shown:
 
-![Network Diagram](./docs/network-diagram.png)
+![Network Diagram](./aws-ec2/tf-cluster/docs/network-diagram.png)
 
 Once the infrastructure is set up an inventory of the system is dynamically
 created, which is used to install the OpenShift Origin platform on the hosts.
@@ -178,7 +174,7 @@ In the example above, my registry url is `https://docker-registry-default.54.85.
 
 You will need to add this registry to the list of untrusted registries. The documentation for how to do this here https://docs.docker.com/registry/insecure/. On a Mac, the easiest way to do this is open the Docker Preferences, go to 'Daemon' and add the address to the list of insecure regsitries:
 
-![Docker Insecure Registries Screenshot](docs/insecure-registry.png)
+![Docker Insecure Registries Screenshot](./aws-ec2/tf-cluster/docs/insecure-registry.png)
 
 Finally you can log in. Your Docker Registry username is your OpenShift username (`admin` by default) and your password is your short-lived OpenShift login token, which you can get with `oc whoami -t`:
 
@@ -189,7 +185,7 @@ Login Succeeded
 
 You are now logged into the registry. You can also use the registry web interface, which in the example above is at: https://registry-console-default.54.85.76.73.xip.io
 
-![Atomic Registry Screenshot](./docs/atomic-registry.png)
+![Atomic Registry Screenshot](./aws-ec2/tf-cluster/docs/atomic-registry.png)
 
 ## Persistent Volumes
 
@@ -207,15 +203,15 @@ Note that dynamically provisioned EBS volumes will not be destroyed when running
 
 ## Additional Configuration
 
-The easiest way to configure is to change the settings in the [./inventory.template.cfg](./inventory.template.cfg) file, based on settings in the [OpenShift Origin - Advanced Installation](https://docs.openshift.org/latest/install_config/install/advanced_install.html) guide.
+The easiest way to configure is to change the settings in the [./inventory.template.cfg](./aws-ec2/tf-cluster/inventory.template.cfg) file, based on settings in the [OpenShift Origin - Advanced Installation](https://docs.openshift.org/latest/install_config/install/advanced_install.html) guide.
 
-When you run `make openshift`, all that happens is the `inventory.template.cfg` is turned copied to `inventory.cfg`, with the correct IP addresses loaded from terraform for each node. Then the inventory is copied to the master and the setup script runs. You can see the details in the [`makefile`](./makefile).
+When you run `make openshift`, all that happens is the `inventory.template.cfg` is turned copied to `inventory.cfg`, with the correct IP addresses loaded from terraform for each node. Then the inventory is copied to the master and the setup script runs. You can see the details in the [`makefile`](./aws-ec2/tf-cluster/makefile).
 
 ## Choosing the OpenShift Version
 
 Currently, OKD 3.11 is installed.
 
-To change the version, you can attempt to update the version identifier in this line of the [`./install-from-bastion.sh`](./install-from-bastion.sh) script:
+To change the version, you can attempt to update the version identifier in this line of the [`./aws-ec2/tf-cluster/install-from-bastion.sh`](./aws-ec2/tf-cluster/install-from-bastion.sh) script:
 
 ```bash
 git clone -b release-3.11 https://github.com/openshift/openshift-ansible

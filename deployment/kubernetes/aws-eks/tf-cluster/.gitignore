@@ -1,0 +1,10 @@
+# Infrastructure ignores.
+.terraform
+config-map-aws-auth.yaml
+kubeconfig
+
+# The ssh key
+eks_rsa*
+
+# Terraform plan
+eks.deploy
