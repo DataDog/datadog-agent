@@ -102,6 +102,7 @@ build do
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
     # We don't use the system-probe in macOS builds
     if !osx?
+      command "inv -e system-probe.build"
       copy 'bin/system-probe/system-probe', "#{install_dir}/embedded/bin"
       block { File.chmod(0755, "#{install_dir}/embedded/bin/system-probe") }
     end
