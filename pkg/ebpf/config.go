@@ -88,11 +88,6 @@ func NewDefaultConfig() *Config {
 func (c *Config) EnabledKProbes() map[KProbeName]struct{} {
 	enabled := make(map[KProbeName]struct{}, 0)
 
-	// Note: TCPv4Connect & TCPv4ConnectReturn are always included as they're needed for initialization
-	// and can be disabled after field offset guessing has completed.
-	enabled[TCPv4Connect] = struct{}{}
-	enabled[TCPv4ConnectReturn] = struct{}{}
-
 	if c.CollectTCPConns {
 		enabled[TCPSendMsg] = struct{}{}
 		enabled[TCPCleanupRBuf] = struct{}{}
@@ -110,11 +105,6 @@ func (c *Config) EnabledKProbes() map[KProbeName]struct{} {
 		enabled[UDPRecvMsgReturn] = struct{}{}
 		enabled[UDPRecvMsg] = struct{}{}
 		enabled[UDPSendMsg] = struct{}{}
-	}
-
-	if c.CollectIPv6Conns {
-		enabled[TCPv6Connect] = struct{}{}
-		enabled[TCPv6ConnectReturn] = struct{}{}
 	}
 
 	return enabled
