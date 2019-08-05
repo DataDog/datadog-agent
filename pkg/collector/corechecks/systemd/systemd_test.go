@@ -9,6 +9,7 @@ package systemd
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"testing"
 
@@ -49,7 +50,7 @@ func (s *mockSystemdStats) ListUnits(conn *dbus.Conn) ([]dbus.UnitStatus, error)
 	return args.Get(0).([]dbus.UnitStatus), args.Error(1)
 }
 
-func (s *mockSystemdStats) TimeNanoNow() int64 {
+func (s *mockSystemdStats) UnixNow() int64 {
 	args := s.Mock.Called()
 	return args.Get(0).(int64)
 }
@@ -78,10 +79,10 @@ func TestDefaultConfiguration(t *testing.T) {
 	assert.Equal(t, []string(nil), check.config.instance.UnitNames)
 	assert.Equal(t, []string(nil), check.config.instance.UnitRegexStrings)
 	assert.Equal(t, []*regexp.Regexp(nil), check.config.instance.UnitRegexPatterns)
+	assert.Equal(t, 50, check.config.instance.MaxUnits)
 }
 
-func TestConfiguration(t *testing.T) {
-	// setup data
+func TestBasicConfiguration(t *testing.T) {
 	check := SystemdCheck{}
 	rawInstanceConfig := []byte(`
 unit_names:
@@ -90,6 +91,7 @@ unit_names:
 unit_regexes:
  - lvm2-.*
  - cloud-.*
+max_units: 99
 `)
 	err := check.Configure(rawInstanceConfig, []byte(``))
 
@@ -100,10 +102,10 @@ unit_regexes:
 		regexp.MustCompile("cloud-.*"),
 	}
 	assert.Equal(t, regexes, check.config.instance.UnitRegexPatterns)
+	assert.Equal(t, 99, check.config.instance.MaxUnits)
 }
 
 func TestConfigurationSkipOnRegexErr(t *testing.T) {
-	// setup data
 	check := SystemdCheck{}
 	rawInstanceConfig := []byte(`
 unit_regexes:
@@ -118,6 +120,60 @@ unit_regexes:
 		regexp.MustCompile("abc"),
 	}
 	assert.Equal(t, regexes, check.config.instance.UnitRegexPatterns)
+}
+
+func TestMissingUnitNamesOrRegexShouldRaiseError(t *testing.T) {
+	check := SystemdCheck{}
+	err := check.Configure([]byte(``), []byte(``))
+
+	expectedErrorMsg := "`unit_names` and `unit_regexes` must not be both empty"
+	assert.EqualError(t, err, expectedErrorMsg)
+}
+
+func TestEnvConfiguration(t *testing.T) {
+	check := SystemdCheck{}
+	rawInstanceConfig := []byte(`
+unit_names:
+- ssh.service
+system_bus_socket: /tmp/foo
+`)
+	check.Configure(rawInstanceConfig, []byte(``))
+
+	check.Run()
+
+	assert.Equal(t, "/tmp/foo", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
+}
+
+func TestDefaultSocketConfiguration(t *testing.T) {
+	defer os.Unsetenv("DBUS_SYSTEM_BUS_ADDRESS")
+
+	check := SystemdCheck{}
+	rawInstanceConfig := []byte(`
+unit_names:
+- ssh.service
+`)
+	check.Configure(rawInstanceConfig, []byte(``))
+
+	check.Run()
+
+	assert.Equal(t, "/var/run/dbus/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
+}
+
+func TestDockerAgentDefaultSocketConfiguration(t *testing.T) {
+	os.Setenv("DOCKER_DD_AGENT", "true")
+	defer os.Unsetenv("DOCKER_DD_AGENT")
+	defer os.Unsetenv("DBUS_SYSTEM_BUS_ADDRESS")
+
+	check := SystemdCheck{}
+	rawInstanceConfig := []byte(`
+unit_names:
+- ssh.service
+`)
+	check.Configure(rawInstanceConfig, []byte(``))
+
+	check.Run()
+
+	assert.Equal(t, "/host/var/run/dbus/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
 }
 
 func TestDbusConnectionErr(t *testing.T) {
@@ -173,7 +229,6 @@ func TestListUnitErr(t *testing.T) {
 }
 
 func TestCountMetrics(t *testing.T) {
-	// setup data
 	stats := createDefaultMockSystemdStats()
 	stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{
 		{Name: "unit1.service", ActiveState: "active", LoadState: "loaded"},
@@ -207,7 +262,7 @@ unit_names:
 	err := check.Run()
 	assert.Nil(t, err)
 
-	// asssertions
+	// assertions
 	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, metrics.ServiceCheckOK, "", []string(nil), mock.Anything)
 	mockSender.AssertCalled(t, "ServiceCheck", systemStateServiceCheck, metrics.ServiceCheckOK, "", []string(nil), mock.Anything)
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.loaded.count", float64(6), "", []string(nil))
@@ -223,7 +278,6 @@ unit_names:
 }
 
 func TestMetricValues(t *testing.T) {
-	// setup data
 	rawInstanceConfig := []byte(`
 unit_names:
  - unit1.service
@@ -235,7 +289,7 @@ unit_names:
 		{Name: "unit1.service", ActiveState: "active", LoadState: "loaded"},
 		{Name: "unit2.service", ActiveState: "active", LoadState: "loaded"},
 	}, nil)
-	stats.On("TimeNanoNow").Return(int64(1000 * 1000))
+	stats.On("UnixNow").Return(int64(1000))
 	stats.On("GetUnitTypeProperties", mock.Anything, "unit1.service", dbusTypeMap[typeService]).Return(getCreatePropertieWithDefaults(map[string]interface{}{
 		"CPUUsageNSec":  uint64(10),
 		"MemoryCurrent": uint64(20),
@@ -249,10 +303,10 @@ unit_names:
 		"NRestarts":     uint64(140),
 	}), nil)
 	stats.On("GetUnitTypeProperties", mock.Anything, "unit1.service", dbusTypeMap[typeUnit]).Return(map[string]interface{}{
-		"ActiveEnterTimestamp": uint64(100),
+		"ActiveEnterTimestamp": uint64(100 * 1000 * 1000),
 	}, nil)
 	stats.On("GetUnitTypeProperties", mock.Anything, "unit2.service", dbusTypeMap[typeUnit]).Return(map[string]interface{}{
-		"ActiveEnterTimestamp": uint64(100),
+		"ActiveEnterTimestamp": uint64(100 * 1000 * 1000),
 	}, nil)
 
 	check := SystemdCheck{stats: stats}
@@ -267,18 +321,18 @@ unit_names:
 	// run
 	check.Run()
 
-	// asssertions
+	// assertions
 	tags := []string{"unit:unit1.service"}
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.uptime", float64(900), "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.active", float64(1), "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.loaded", float64(1), "", tags)
-	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_usage_n_sec", float64(10), "", tags)
-	mockSender.AssertCalled(t, "Gauge", "systemd.service.memory_current", float64(20), "", tags)
-	mockSender.AssertCalled(t, "Gauge", "systemd.service.tasks_current", float64(30), "", tags)
-	mockSender.AssertCalled(t, "Gauge", "systemd.service.n_restarts", float64(40), "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", float64(10), "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.memory_usage", float64(20), "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.task_count", float64(30), "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.restart_count", float64(40), "", tags)
 
 	tags = []string{"unit:unit2.service"}
-	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_usage_n_sec", float64(110), "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", float64(110), "", tags)
 
 	expectedGaugeCalls := 6     /* overall metrics */
 	expectedGaugeCalls += 2 * 7 /* unit/service metrics */
@@ -287,7 +341,6 @@ unit_names:
 }
 
 func TestSubmitMetricsConditionals(t *testing.T) {
-	// setup data
 	rawInstanceConfig := []byte(`
 unit_names:
  - unit1.service
@@ -304,7 +357,7 @@ unit_names:
 		{Name: "unit4.service", ActiveState: "active", LoadState: "loaded"},
 		{Name: "unit5.socket", ActiveState: "active", LoadState: "loaded"},
 	}, nil)
-	stats.On("TimeNanoNow").Return(int64(1))
+	stats.On("UnixNow").Return(int64(1))
 	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, dbusTypeMap[typeService]).Return(getCreatePropertieWithDefaults(map[string]interface{}{
 		"CPUUsageNSec":  uint64(1),
 		"MemoryCurrent": uint64(1),
@@ -332,37 +385,36 @@ unit_names:
 	// run
 	check.Run()
 
-	// asssertions
+	// assertions
 	tags := []string{"unit:unit1.service"}
 	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, metrics.ServiceCheckOK, "", tags, "")
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.active", float64(1), "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.loaded", float64(1), "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.uptime", mock.Anything, "", tags)
-	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_usage_n_sec", mock.Anything, "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", mock.Anything, "", tags)
 
 	tags = []string{"unit:unit2.service"}
 	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, metrics.ServiceCheckCritical, "", tags, "")
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.uptime", mock.Anything, "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.active", float64(0), "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.loaded", float64(0), "", tags)
-	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_usage_n_sec", mock.Anything, "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", mock.Anything, "", tags)
 
 	tags = []string{"unit:unit3.service"}
 	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, metrics.ServiceCheckCritical, "", tags, "")
-	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_usage_n_sec", mock.Anything, "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", mock.Anything, "", tags)
 
 	tags = []string{"unit:unit4.service"}
 	mockSender.AssertNotCalled(t, "ServiceCheck", unitStateServiceCheck, metrics.ServiceCheckCritical, "", tags, "")
-	mockSender.AssertNotCalled(t, "Gauge", "systemd.service.cpu_usage_n_sec", mock.Anything, "", tags)
+	mockSender.AssertNotCalled(t, "Gauge", "systemd.service.cpu_time_consumed", mock.Anything, "", tags)
 
 	tags = []string{"unit:unit5.socket"}
-	mockSender.AssertCalled(t, "Gauge", "systemd.socket.n_accepted", mock.Anything, "", tags)
-	mockSender.AssertCalled(t, "Gauge", "systemd.socket.n_connections", mock.Anything, "", tags)
-	mockSender.AssertCalled(t, "Gauge", "systemd.socket.n_refused", mock.Anything, "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.socket.connection_accepted_count", mock.Anything, "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.socket.connection_count", mock.Anything, "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.socket.connection_refused_count", mock.Anything, "", tags)
 }
 
 func TestSubmitMonitoredServiceMetrics(t *testing.T) {
-	// setup data
 	rawInstanceConfig := []byte(`
 unit_names:
  - unit1.service
@@ -374,7 +426,7 @@ unit_names:
 		{Name: "unit1.service", ActiveState: "active"},
 		{Name: "unit2.service", ActiveState: "active"},
 	}, nil)
-	stats.On("TimeNanoNow").Return(int64(1000 * 1000))
+	stats.On("UnixNow").Return(int64(1000 * 1000))
 	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, dbusTypeMap[typeUnit]).Return(map[string]interface{}{}, nil)
 
 	stats.On("GetUnitTypeProperties", mock.Anything, "unit1.service", dbusTypeMap[typeService]).Return(map[string]interface{}{
@@ -407,19 +459,19 @@ unit_names:
 	// run
 	check.Run()
 
-	// asssertions
+	// assertions
 	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, metrics.ServiceCheckOK, "", []string(nil), mock.Anything)
 
 	tags := []string{"unit:unit1.service"}
-	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_usage_n_sec", mock.Anything, "", tags)
-	mockSender.AssertCalled(t, "Gauge", "systemd.service.memory_current", mock.Anything, "", tags)
-	mockSender.AssertCalled(t, "Gauge", "systemd.service.tasks_current", mock.Anything, "", tags)
-	mockSender.AssertCalled(t, "Gauge", "systemd.service.n_restarts", mock.Anything, "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", mock.Anything, "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.memory_usage", mock.Anything, "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.task_count", mock.Anything, "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.restart_count", mock.Anything, "", tags)
 
 	tags = []string{"unit:unit2.service"}
-	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_usage_n_sec", mock.Anything, "", tags)
-	mockSender.AssertNotCalled(t, "Gauge", "systemd.service.memory_current", mock.Anything, "", tags)
-	mockSender.AssertNotCalled(t, "Gauge", "systemd.service.tasks_current", mock.Anything, "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", mock.Anything, "", tags)
+	mockSender.AssertNotCalled(t, "Gauge", "systemd.service.memory_usage", mock.Anything, "", tags)
+	mockSender.AssertNotCalled(t, "Gauge", "systemd.service.task_count", mock.Anything, "", tags)
 }
 
 func TestServiceCheckSystemStateAndCanConnect(t *testing.T) {
@@ -462,7 +514,6 @@ func TestServiceCheckSystemStateAndCanConnect(t *testing.T) {
 }
 
 func TestServiceCheckUnitState(t *testing.T) {
-	// setup data
 	rawInstanceConfig := []byte(`
 unit_names:
  - unit1.service
@@ -475,7 +526,7 @@ unit_names:
 		{Name: "unit2.service", ActiveState: "inactive"},
 		{Name: "unit3.service", ActiveState: "active"},
 	}, nil)
-	stats.On("TimeNanoNow").Return(int64(1000 * 1000))
+	stats.On("UnixNow").Return(int64(1000 * 1000))
 
 	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, dbusTypeMap[typeService]).Return(map[string]interface{}{
 		"CPUUsageNSec":  uint64(1),
@@ -502,7 +553,7 @@ unit_names:
 	// run
 	check.Run()
 
-	// asssertions
+	// assertions
 	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, metrics.ServiceCheckOK, "", []string(nil), mock.Anything)
 	mockSender.AssertCalled(t, "ServiceCheck", systemStateServiceCheck, metrics.ServiceCheckOK, "", []string(nil), mock.Anything)
 
@@ -542,8 +593,8 @@ func TestSendServicePropertyAsGaugeSkipAndWarnOnMissingProperty(t *testing.T) {
 	serviceProperties := getCreatePropertieWithDefaults(map[string]interface{}{
 		"CPUUsageNSec": uint64(110),
 	})
-	serviceUnitConfigCPU := metricConfigItem{metricName: "systemd.service.cpu_usage_n_sec", propertyName: "CPUUsageNSec", accountingProperty: "CPUAccounting", optional: false}
-	serviceUnitConfigNRestart := metricConfigItem{metricName: "systemd.service.n_restarts", propertyName: "NRestarts", accountingProperty: "", optional: false}
+	serviceUnitConfigCPU := metricConfigItem{metricName: "systemd.service.cpu_time_consumed", propertyName: "CPUUsageNSec", accountingProperty: "CPUAccounting", optional: false}
+	serviceUnitConfigNRestart := metricConfigItem{metricName: "systemd.service.restart_count", propertyName: "NRestarts", accountingProperty: "", optional: false}
 
 	check := SystemdCheck{}
 	mockSender := mocksender.NewMockSender(check.ID())
@@ -552,19 +603,18 @@ func TestSendServicePropertyAsGaugeSkipAndWarnOnMissingProperty(t *testing.T) {
 	sendServicePropertyAsGauge(mockSender, serviceProperties, serviceUnitConfigCPU, nil)
 	sendServicePropertyAsGauge(mockSender, serviceProperties, serviceUnitConfigNRestart, nil)
 
-	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_usage_n_sec", float64(110), "", []string(nil))
-	mockSender.AssertNotCalled(t, "Gauge", "systemd.service.n_restarts", mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", float64(110), "", []string(nil))
+	mockSender.AssertNotCalled(t, "Gauge", "systemd.service.restart_count", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestIsMonitored(t *testing.T) {
-	// setup data
 	rawInstanceConfig := []byte(`
 unit_names:
   - unit1.service
   - unit2.service
 unit_regexes:
   - docker-.*
-  - abc 
+  - abc
   - ^efg
   - ^zyz$
 `)
@@ -595,8 +645,7 @@ unit_regexes:
 	}
 }
 
-func TestIsMonitoredEmptyConfigShouldMonitorAll(t *testing.T) {
-	// setup data
+func TestIsMonitoredEmptyConfigShouldNone(t *testing.T) {
 	rawInstanceConfig := []byte(``)
 	check := SystemdCheck{}
 	check.Configure(rawInstanceConfig, nil)
@@ -605,8 +654,8 @@ func TestIsMonitoredEmptyConfigShouldMonitorAll(t *testing.T) {
 		unitName              string
 		expectedToBeMonitored bool
 	}{
-		{"unit1.service", true},
-		{"xyz.socket", true},
+		{"unit1.service", false},
+		{"xyz.socket", false},
 	}
 	for _, d := range data {
 		t.Run(fmt.Sprintf("check.isMonitored('%s') expected to be %v", d.unitName, d.expectedToBeMonitored), func(t *testing.T) {
@@ -622,10 +671,10 @@ func TestComputeUptime(t *testing.T) {
 		nanoNow         int64
 		expectedUptime  int64
 	}{
-		"active happy path":              {"active", 1000 * 1000, 2500 * 1000 * 1000, 1500 * 1000},
-		"inactive with valid enter time": {"inactive", 1000 * 1000, 2500 * 1000 * 1000, 0},
+		"active happy path":              {"active", 1000 * 1000 * 1000, 2500, 1500},
+		"inactive with valid enter time": {"inactive", 1000 * 1000 * 1000, 2500, 0},
 		"inactive zero":                  {"inactive", 0, 0, 0},
-		"invalid enter time after now":   {"active", 1000 * 1000, 500 * 1000 * 1000, 0},
+		"invalid enter time after now":   {"active", 1000 * 1000 * 1000, 500, 0},
 	}
 	for name, d := range data {
 		t.Run(name, func(t *testing.T) {
@@ -711,5 +760,53 @@ func TestGetPropertyBool(t *testing.T) {
 			assert.Equal(t, d.expectedBoolValue, num)
 			assert.Equal(t, d.expectedError, err)
 		})
+	}
+}
+
+func TestMaxUnitLimit(t *testing.T) {
+	rawInstanceConfig := []byte(`
+unit_names:
+ - unit1.service
+ - unit2.service
+ - unit3.service
+ - unit4.service
+ - unit5.service
+max_units: 3
+`)
+
+	stats := createDefaultMockSystemdStats()
+	stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{
+		{Name: "unit1.service", ActiveState: "active", LoadState: "loaded"},
+		{Name: "unit2.service", ActiveState: "active", LoadState: "loaded"},
+		{Name: "unit3.service", ActiveState: "active", LoadState: "loaded"},
+		{Name: "unit4.service", ActiveState: "active", LoadState: "loaded"},
+		{Name: "unit5.service", ActiveState: "active", LoadState: "loaded"},
+	}, nil)
+
+	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, mock.Anything).Return(map[string]interface{}{}, nil)
+
+	check := SystemdCheck{stats: stats}
+	check.Configure(rawInstanceConfig, nil)
+
+	// setup expectation
+	mockSender := mocksender.NewMockSender(check.ID())
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	// run
+	check.Run()
+
+	// assertions
+	calledUnits := []string{"unit1.service", "unit2.service", "unit3.service"}
+	for _, unitName := range calledUnits {
+		tags := []string{"unit:" + unitName}
+		mockSender.AssertMetricTaggedWith(t, "Gauge", "systemd.unit.active", tags)
+	}
+
+	notCalledUnits := []string{"unit4.service", "unit5.service"}
+	for _, unitName := range notCalledUnits {
+		tags := []string{"unit:" + unitName}
+		mockSender.AssertMetricNotTaggedWith(t, "Gauge", "systemd.unit.active", tags)
 	}
 }
