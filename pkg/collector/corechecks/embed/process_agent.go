@@ -17,14 +17,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/yaml.v2"
 )
 
 type processAgentInitConfig struct {
@@ -32,13 +32,11 @@ type processAgentInitConfig struct {
 }
 
 type processAgentCheckConf struct {
-	BinPath  string `yaml:"bin_path,omitempty"`
-	ConfPath string `yaml:"conf_path,omitempty"`
+	BinPath string `yaml:"bin_path,omitempty"`
 }
 
 // ProcessAgentCheck keeps track of the running command
 type ProcessAgentCheck struct {
-	enabled     bool
 	binPath     string
 	commandOpts []string
 	running     uint32
@@ -66,11 +64,6 @@ func (c *ProcessAgentCheck) Run() error {
 
 // run executes the check
 func (c *ProcessAgentCheck) run() error {
-	if !c.enabled {
-		log.Info("Not running process_agent because 'enabled' is false in init_config")
-		return nil
-	}
-
 	select {
 	// poll the stop channel once to make sure no stop was requested since the last call to `run`
 	case <-c.stop:
@@ -134,15 +127,9 @@ func (c *ProcessAgentCheck) run() error {
 // Configure the ProcessAgentCheck
 func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integration.Data) error {
 	// handle the case when the agent is disabled via the old `datadog.conf` file
-	if enabled := config.Datadog.GetBool("process_agent_enabled"); !enabled {
+	if enabled := config.Datadog.GetBool("process_config.enabled"); !enabled {
 		return fmt.Errorf("Process Agent disabled through main configuration file")
 	}
-
-	var initConf processAgentInitConfig
-	if err := yaml.Unmarshal(initConfig, &initConf); err != nil {
-		return err
-	}
-	c.enabled = initConf.Enabled
 
 	var checkConf processAgentCheckConf
 	if err := yaml.Unmarshal(data, &checkConf); err != nil {
@@ -164,6 +151,13 @@ func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integrat
 			return defaultBinPathErr
 		}
 		c.binPath = defaultBinPath
+	}
+
+	// be explicit about the config file location
+	configFile := config.Datadog.ConfigFileUsed()
+	c.commandOpts = []string{}
+	if _, err := os.Stat(configFile); !os.IsNotExist(err) {
+		c.commandOpts = append(c.commandOpts, fmt.Sprintf("-config=%s", configFile))
 	}
 
 	return nil
