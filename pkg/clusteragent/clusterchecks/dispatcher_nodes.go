@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const defaultBusynessValue int = -1
+
 // getNodeConfigs returns configurations dispatched to a given node
 func (d *dispatcher) getNodeConfigs(nodeName string) ([]integration.Config, int64, error) {
 	d.store.RLock()
@@ -69,6 +71,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 func (d *dispatcher) getLeastBusyNode() string {
 	var leastBusyNode string
 	minCheckCount := int(-1)
+	minBusyness := int(-1)
 
 	d.store.RLock()
 	defer d.store.RUnlock()
@@ -77,9 +80,20 @@ func (d *dispatcher) getLeastBusyNode() string {
 		if name == "" {
 			continue
 		}
-		if minCheckCount == -1 || len(store.digestToConfig) < minCheckCount {
-			leastBusyNode = name
-			minCheckCount = len(store.digestToConfig)
+		if d.advancedDispatching && store.busyness > defaultBusynessValue {
+			// dispatching based on clc runners stats
+			// only when advancedDispatching is true and
+			// started collecting busyness values
+			if minBusyness == -1 || store.busyness < minBusyness {
+				leastBusyNode = name
+				minBusyness = store.busyness
+			}
+		} else {
+			// round robin dispatching
+			if minCheckCount == -1 || len(store.digestToConfig) < minCheckCount {
+				leastBusyNode = name
+				minCheckCount = len(store.digestToConfig)
+			}
 		}
 	}
 	return leastBusyNode
@@ -140,7 +154,9 @@ func (d *dispatcher) updateRunnersStats() {
 			log.Debugf("Cannot get CLC Runner stats with IP %s on node %s: %v", node.clientIP, name, err)
 		} else {
 			node.clcRunnerStats = stats
+			node.busyness = calculateBusyness(stats)
 			log.Debugf("Updated CLC Runner stats with IP %s on node %s: %v", node.clientIP, name, stats)
+			log.Debugf("Updated busyness on node %s: %d", name, node.busyness)
 		}
 		node.Unlock()
 	}

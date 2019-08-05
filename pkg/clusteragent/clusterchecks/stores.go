@@ -83,6 +83,7 @@ type nodeStore struct {
 	digestToConfig   map[string]integration.Config
 	clientIP         string
 	clcRunnerStats   types.CLCRunnersStats
+	busyness         int
 }
 
 func newNodeStore(name, clientIP string) *nodeStore {
@@ -91,6 +92,7 @@ func newNodeStore(name, clientIP string) *nodeStore {
 		clientIP:       clientIP,
 		digestToConfig: make(map[string]integration.Config),
 		clcRunnerStats: types.CLCRunnersStats{},
+		busyness:       defaultBusynessValue,
 	}
 }
 
