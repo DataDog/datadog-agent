@@ -45,16 +45,15 @@ func newDispatcher() *dispatcher {
 	}
 
 	d.advancedDispatching = config.Datadog.GetBool("cluster_checks.advanced_dispatching_enabled")
-	if d.advancedDispatching {
-		var err error
-		d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
-		if err != nil {
-			log.Warnf("Cannot create CLC runners client, advanced dispatching will be disabled: %v", err)
-			d.advancedDispatching = false
-			d.clcRunnersClient = nil
-		}
-	} else {
-		d.clcRunnersClient = nil
+	if !d.advancedDispatching {
+		return d
+	}
+
+	var err error
+	d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
+	if err != nil {
+		log.Warnf("Cannot create CLC runners client, advanced dispatching will be disabled: %v", err)
+		d.advancedDispatching = false
 	}
 
 	return d
@@ -164,8 +163,8 @@ func (d *dispatcher) run(ctx context.Context) {
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()
 
-	ruunnerStatsTicker := time.NewTicker(time.Duration(runnerStatsSeconds) * time.Second)
-	defer ruunnerStatsTicker.Stop()
+	runnerStatsTicker := time.NewTicker(time.Duration(runnerStatsSeconds) * time.Second)
+	defer runnerStatsTicker.Stop()
 
 	for {
 		select {
@@ -182,7 +181,7 @@ func (d *dispatcher) run(ctx context.Context) {
 				danglingConfs := d.retrieveAndClearDangling()
 				d.reschedule(danglingConfs)
 			}
-		case <-ruunnerStatsTicker.C:
+		case <-runnerStatsTicker.C:
 			if d.advancedDispatching {
 				// collect CLC runners stats and update cache
 				// needed for the advanced dispatching logic

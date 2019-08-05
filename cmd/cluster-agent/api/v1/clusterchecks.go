@@ -11,13 +11,13 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
-	"strings"
 
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Install registers v1 API endpoints
@@ -155,12 +155,10 @@ func clusterChecksDisabledHandler(w http.ResponseWriter, r *http.Request) {
 
 // parseClientIP retrieves the http client IP from the remoteAddr attribute
 func parseClientIP(remoteAddr string) string {
-	var clientIP string
-
-	if strings.ContainsRune(remoteAddr, ':') {
-		clientIP, _, _ = net.SplitHostPort(remoteAddr)
-	} else {
-		clientIP = remoteAddr
+	clientIP, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		log.Debugf("Error while parsing CLC worker address %s: %v", remoteAddr, err)
+		clientIP = ""
 	}
 
 	return clientIP

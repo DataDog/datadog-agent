@@ -141,7 +141,7 @@ func (d *dispatcher) expireNodes() {
 // Cluster Level Check runners and updates the stats cache
 func (d *dispatcher) updateRunnersStats() {
 	if d.clcRunnersClient == nil {
-		log.Debug("Couldn't instantiate a CLC Runner client")
+		log.Debug("Cluster Level Check runner client was not correctly initialised")
 		return
 	}
 
@@ -154,8 +154,8 @@ func (d *dispatcher) updateRunnersStats() {
 			log.Debugf("Cannot get CLC Runner stats with IP %s on node %s: %v", node.clientIP, name, err)
 		} else {
 			node.clcRunnerStats = stats
-			node.busyness = calculateBusyness(stats)
 			log.Debugf("Updated CLC Runner stats with IP %s on node %s: %v", node.clientIP, name, stats)
+			node.busyness = calculateBusyness(stats)
 			log.Debugf("Updated busyness on node %s: %d", name, node.busyness)
 		}
 		node.Unlock()
