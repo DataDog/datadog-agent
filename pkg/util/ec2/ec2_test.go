@@ -107,3 +107,27 @@ func TestExtractClusterName(t *testing.T) {
 		})
 	}
 }
+
+func TestGetNetworkID(t *testing.T) {
+	mac := "00:00:00:00:00"
+	vpc := "vpc-12345"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.RequestURI {
+		case "/network/interfaces/macs":
+			io.WriteString(w, mac+"/")
+		case "/network/interfaces/macs/00:00:00:00:00/vpc-id":
+			io.WriteString(w, vpc)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Printf("error %v\n", r.RequestURI)
+		}
+	}))
+
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	val, err := GetNetworkID()
+	assert.NoError(t, err)
+	assert.Equal(t, vpc, val)
+}

@@ -86,3 +86,25 @@ func TestGetClusterName(t *testing.T) {
 	assert.Equal(t, expected, val)
 	assert.Equal(t, "/instance/attributes/cluster-name", lastRequest.URL.Path)
 }
+
+func TestGetNetwork(t *testing.T) {
+	expected := "projects/123456789/networks/my-network-name"
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.RequestURI {
+		case "/instance/network-interfaces/":
+			io.WriteString(w, "0/\n")
+		case "/instance/network-interfaces/0/network":
+			io.WriteString(w, expected)
+		default:
+			t.Errorf("unexpected request %s", r.RequestURI)
+		}
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	val, err := GetNetworkID()
+	assert.NoError(t, err)
+	assert.Equal(t, expected, val)
+}
