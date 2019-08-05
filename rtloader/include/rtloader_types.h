@@ -68,6 +68,15 @@ typedef struct py_info_s {
     char *path;
 } py_info_t;
 
+typedef enum {
+    DATADOG_AGENT_TRACE = 7,
+    DATADOG_AGENT_DEBUG = 10,
+    DATADOG_AGENT_INFO = 20,
+    DATADOG_AGENT_WARNING = 30,
+    DATADOG_AGENT_ERROR = 40,
+    DATADOG_AGENT_CRITICAL = 50
+} log_level_t;
+
 /*
  * custom builtins
  */
