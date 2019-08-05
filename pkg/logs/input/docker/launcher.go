@@ -23,8 +23,9 @@ import (
 )
 
 const (
-	backoffInitialDuration = 1 * time.Second
-	backoffMaxDuration     = 60 * time.Second
+	backoffInitialDuration     = 1 * time.Second
+	backoffMaxDuration         = 60 * time.Second
+	shortLivedContainerTimeout = 10 * time.Second
 )
 
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
@@ -115,12 +116,10 @@ func (l *Launcher) run() {
 				continue
 			}
 			container := NewContainer(dockerContainer, service)
-			source := container.FindSource(l.activeSources)
-			switch {
-			case source != nil:
+			if source := container.FindSource(l.activeSources); source != nil {
 				// a source matches with the container, start a new tailer
 				l.startTailer(container, source)
-			default:
+			} else {
 				// no source matches with the container but a matching source may not have been
 				// emitted yet or the container may contain an autodiscovery identifier
 				// so it's put in a cache until a matching source is found.
@@ -135,8 +134,20 @@ func (l *Launcher) run() {
 				if container.IsMatch(source) {
 					// found a container matching the new source, start a new tailer
 					l.startTailer(container, source)
+					if container.IsShortLived() {
+						// make sure to stop the tailer to avoid memory leaks
+						go func() {
+							time.Sleep(shortLivedContainerTimeout)
+							// schedule a remove service event to avoid concurrency issues
+							l.removedServices <- container.service
+						}()
+					}
 				} else {
-					// keep the container in cache until
+					// keep the container in cache until a source matches
+					if container.IsShortLived() && time.Now().After(container.DiscoveryTime().Add(shortLivedContainerTimeout)) {
+						// evict the short lived container to avoid memory leaks
+						continue
+					}
 					pendingContainers[container.service.Identifier] = container
 				}
 			}
@@ -152,10 +163,17 @@ func (l *Launcher) run() {
 				}
 			}
 		case service := <-l.removedServices:
-			// detected that a container has been stopped.
+			// detected that a container has been stopped
 			containerID := service.Identifier
-			l.stopTailer(containerID)
-			delete(l.pendingContainers, containerID)
+			if _, isTailed := l.tailers[containerID]; isTailed {
+				l.stopTailer(containerID)
+			}
+			if container, isPending := l.pendingContainers[containerID]; isPending {
+				// if the tailer does not exist, it means that the container is short lived
+				// and contains an auto-discovery label, in such a case,
+				// wait for the config to be provided by auto-discovery
+				container.SetShortLived(true)
+			}
 		case containerID := <-l.erroredContainerID:
 			go l.restartTailer(containerID)
 		case <-l.stop:

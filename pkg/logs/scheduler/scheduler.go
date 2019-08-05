@@ -49,7 +49,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 		}
 		switch {
 		case s.newSources(config):
-			log.Infof("Received a new logs config: %v", s.configName(config))
+			log.Debugf("Received a new logs config: %v", s.configName(config))
 			sources, err := s.toSources(config)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
@@ -81,7 +81,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 		}
 		switch {
 		case s.newSources(config):
-			log.Infof("New source to remove: entity: %v", config.Entity)
+			log.Debugf("New source to remove: entity: %v", config.Entity)
 
 			_, identifier, err := s.parseEntity(config.Entity)
 			if err != nil {
@@ -96,7 +96,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			}
 		case s.newService(config):
 			// new service to remove
-			log.Infof("New service to remove: entity: %v", config.Entity)
+			log.Debugf("New service to remove: entity: %v", config.Entity)
 			service, err := s.toService(config)
 			if err != nil {
 				log.Warnf("Invalid service: %v", err)

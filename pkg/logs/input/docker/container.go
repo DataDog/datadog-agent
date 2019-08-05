@@ -10,6 +10,7 @@ package docker
 import (
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -26,15 +27,18 @@ const configPath = "com.datadoghq.ad.logs"
 
 // Container represents a container to tail logs from.
 type Container struct {
-	container types.Container
-	service   *service.Service
+	container     types.Container
+	service       *service.Service
+	shortLived    bool
+	discoveryTime time.Time
 }
 
 // NewContainer returns a new Container
 func NewContainer(container types.Container, service *service.Service) *Container {
 	return &Container{
-		container: container,
-		service:   service,
+		container:     container,
+		service:       service,
+		discoveryTime: time.Now(),
 	}
 }
 
@@ -58,6 +62,21 @@ func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 		}
 	}
 	return bestMatch
+}
+
+// SetShortLived changes the short-lived state of the container.
+func (c *Container) SetShortLived(shortLived bool) {
+	c.shortLived = shortLived
+}
+
+// IsShortLived returns true if the container is short lived.
+func (c *Container) IsShortLived() bool {
+	return c.shortLived
+}
+
+// DiscoveryTime returns the discovery time of the container.
+func (c *Container) DiscoveryTime() time.Time {
+	return c.discoveryTime
 }
 
 // getShortImageName resolves the short image name of a container by calling the docker daemon
