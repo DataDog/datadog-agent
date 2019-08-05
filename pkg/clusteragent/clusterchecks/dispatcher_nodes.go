@@ -148,16 +148,20 @@ func (d *dispatcher) updateRunnersStats() {
 	d.store.Lock()
 	defer d.store.Unlock()
 	for name, node := range d.store.nodes {
-		node.Lock()
-		stats, err := d.clcRunnersClient.GetRunnerStats(node.clientIP)
+		node.RLock()
+		ip := node.clientIP
+		node.RUnlock()
+
+		stats, err := d.clcRunnersClient.GetRunnerStats(ip)
 		if err != nil {
 			log.Debugf("Cannot get CLC Runner stats with IP %s on node %s: %v", node.clientIP, name, err)
 		} else {
+			node.Lock()
 			node.clcRunnerStats = stats
 			log.Debugf("Updated CLC Runner stats with IP %s on node %s: %v", node.clientIP, name, stats)
 			node.busyness = calculateBusyness(stats)
 			log.Debugf("Updated busyness on node %s: %d", name, node.busyness)
+			node.Unlock()
 		}
-		node.Unlock()
 	}
 }
