@@ -10,7 +10,7 @@ RUN set -ex \
         libssl-dev libsnmp-base libsnmp-dev libpq-dev snmp-mibs-downloader libsystemd-dev
 
 # Golang
-ENV GIMME_GO_VERSION 1.11.5
+ENV GIMME_GO_VERSION 1.12.7
 ENV GOROOT /root/.gimme/versions/go$GIMME_GO_VERSION.linux.amd64
 ENV GOPATH /go
 ENV PATH $GOROOT/bin:$GOPATH/bin:$PATH
