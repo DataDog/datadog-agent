@@ -27,10 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type processAgentInitConfig struct {
-	Enabled bool `yaml:"enabled,omitempty"`
-}
-
 type processAgentCheckConf struct {
 	BinPath string `yaml:"bin_path,omitempty"`
 }
