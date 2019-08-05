@@ -9,6 +9,7 @@ package systemd
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/coreos/go-systemd/dbus"
@@ -37,6 +39,8 @@ const (
 	canConnectServiceCheck  = "systemd.can_connect"
 	systemStateServiceCheck = "systemd.system.state"
 	unitStateServiceCheck   = "systemd.unit.state"
+
+	defaultMaxUnits = 50
 )
 
 var dbusTypeMap = map[string]string{
@@ -58,40 +62,40 @@ var metricConfigs = map[string][]metricConfigItem{
 	typeService: {
 		{
 			// only present from systemd v220
-			metricName:         "systemd.service.cpu_usage_n_sec",
+			metricName:         "systemd.service.cpu_time_consumed",
 			propertyName:       "CPUUsageNSec",
 			accountingProperty: "CPUAccounting",
 			optional:           true,
 		},
 		{
-			metricName:         "systemd.service.memory_current",
+			metricName:         "systemd.service.memory_usage",
 			propertyName:       "MemoryCurrent",
 			accountingProperty: "MemoryAccounting",
 		},
 		{
-			metricName:         "systemd.service.tasks_current",
+			metricName:         "systemd.service.task_count",
 			propertyName:       "TasksCurrent",
 			accountingProperty: "TasksAccounting",
 		},
 		{
 			// only present from systemd v235
-			metricName:   "systemd.service.n_restarts",
+			metricName:   "systemd.service.restart_count",
 			propertyName: "NRestarts",
 			optional:     true,
 		},
 	},
 	typeSocket: {
 		{
-			metricName:   "systemd.socket.n_accepted",
+			metricName:   "systemd.socket.connection_accepted_count",
 			propertyName: "NAccepted",
 		},
 		{
-			metricName:   "systemd.socket.n_connections",
+			metricName:   "systemd.socket.connection_count",
 			propertyName: "NConnections",
 		},
 		{
 			// only present from systemd v239
-			metricName:   "systemd.socket.n_refused",
+			metricName:   "systemd.socket.connection_refused_count",
 			propertyName: "NRefused",
 			optional:     true,
 		},
@@ -109,7 +113,7 @@ var systemdStatusMapping = map[string]metrics.ServiceCheckStatus{
 	"stopping":     metrics.ServiceCheckCritical,
 }
 
-// SystemdCheck aggregates metrics from one Check instance
+// SystemdCheck aggregates metrics from one SystemdCheck instance
 type SystemdCheck struct {
 	core.CheckBase
 	stats  systemdStats
@@ -117,8 +121,10 @@ type SystemdCheck struct {
 }
 
 type systemdInstanceConfig struct {
+	SystemBusSocket   string   `yaml:"system_bus_socket"`
 	UnitNames         []string `yaml:"unit_names"`
 	UnitRegexStrings  []string `yaml:"unit_regexes"`
+	MaxUnits          int      `yaml:"max_units"`
 	UnitRegexPatterns []*regexp.Regexp
 }
 
@@ -140,13 +146,13 @@ type systemdStats interface {
 	GetUnitTypeProperties(c *dbus.Conn, unitName string, unitType string) (map[string]interface{}, error)
 
 	// Misc
-	TimeNanoNow() int64
+	UnixNow() int64
 }
 
 type defaultSystemdStats struct{}
 
 func (s *defaultSystemdStats) NewConn() (*dbus.Conn, error) {
-	return dbus.New()
+	return dbus.NewSystemConnection()
 }
 
 func (s *defaultSystemdStats) CloseConn(c *dbus.Conn) {
@@ -165,8 +171,8 @@ func (s *defaultSystemdStats) GetUnitTypeProperties(c *dbus.Conn, unitName strin
 	return c.GetUnitTypeProperties(unitName, unitType)
 }
 
-func (s *defaultSystemdStats) TimeNanoNow() int64 {
-	return time.Now().UnixNano()
+func (s *defaultSystemdStats) UnixNow() int64 {
+	return time.Now().Unix()
 }
 
 // Run executes the check
@@ -191,6 +197,7 @@ func (c *SystemdCheck) Run() error {
 }
 
 func (c *SystemdCheck) getDbusConn(sender aggregator.Sender) (*dbus.Conn, error) {
+
 	conn, err := c.stats.NewConn()
 	if err != nil {
 		newErr := fmt.Errorf("Cannot create a connection: %v", err)
@@ -227,11 +234,18 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 	c.submitCountMetrics(sender, units)
 
 	loadedCount := 0
+	monitoredCount := 0
 	for _, unit := range units {
 		if unit.LoadState == unitLoadedState {
 			loadedCount++
 		}
 		if !c.isMonitored(unit.Name) {
+			continue
+		}
+		monitoredCount++
+		if monitoredCount > c.config.instance.MaxUnits {
+			log.Warnf("Reporting more metrics than the allowed maximum. " +
+				"Please contact support@datadoghq.com for more information.")
 			continue
 		}
 		tags := []string{"unit:" + unit.Name}
@@ -246,17 +260,6 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 }
 
 func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *dbus.Conn, unit dbus.UnitStatus, tags []string) {
-	unitProperties, err := c.stats.GetUnitTypeProperties(conn, unit.Name, dbusTypeMap[typeUnit])
-	if err != nil {
-		log.Warnf("Error getting unit unitProperties: %s", unit.Name)
-		return
-	}
-
-	activeEnterTimestamp, err := getPropertyUint64(unitProperties, "ActiveEnterTimestamp")
-	if err != nil {
-		log.Warnf("Error getting property ActiveEnterTimestamp: %v", err)
-		return
-	}
 	active := 0
 	if unit.ActiveState == unitActiveState {
 		active = 1
@@ -267,7 +270,18 @@ func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *db
 	}
 	sender.Gauge("systemd.unit.active", float64(active), "", tags)
 	sender.Gauge("systemd.unit.loaded", float64(loaded), "", tags)
-	sender.Gauge("systemd.unit.uptime", float64(computeUptime(unit.ActiveState, activeEnterTimestamp, c.stats.TimeNanoNow())), "", tags)
+
+	unitProperties, err := c.stats.GetUnitTypeProperties(conn, unit.Name, dbusTypeMap[typeUnit])
+	if err != nil {
+		log.Warnf("Error getting unit unitProperties: %s", unit.Name)
+		return
+	}
+	activeEnterTimestamp, err := getPropertyUint64(unitProperties, "ActiveEnterTimestamp")
+	if err != nil {
+		log.Warnf("Error getting property ActiveEnterTimestamp: %v", err)
+		return
+	}
+	sender.Gauge("systemd.unit.uptime", float64(computeUptime(unit.ActiveState, activeEnterTimestamp, c.stats.UnixNow())), "", tags)
 }
 
 func (c *SystemdCheck) submitCountMetrics(sender aggregator.Sender, units []dbus.UnitStatus) {
@@ -331,11 +345,11 @@ func sendServicePropertyAsGauge(sender aggregator.Sender, properties map[string]
 }
 
 // computeUptime returns uptime in microseconds
-func computeUptime(activeState string, activeEnterTimestampMicroSec uint64, nanoNow int64) int64 {
+func computeUptime(activeState string, activeEnterTimestampMicroSec uint64, unitNow int64) int64 {
 	if activeState != unitActiveState {
 		return 0
 	}
-	uptime := nanoNow/1000 - int64(activeEnterTimestampMicroSec)
+	uptime := unitNow - int64(activeEnterTimestampMicroSec)/1000000
 	if uptime < 0 {
 		return 0
 	}
@@ -396,9 +410,6 @@ func getServiceCheckStatus(activeState string) metrics.ServiceCheckStatus {
 
 // isMonitored verifies if a unit should be monitored.
 func (c *SystemdCheck) isMonitored(unitName string) bool {
-	if len(c.config.instance.UnitNames) == 0 && len(c.config.instance.UnitRegexPatterns) == 0 {
-		return true
-	}
 	for _, name := range c.config.instance.UnitNames {
 		if name == unitName {
 			return true
@@ -427,6 +438,10 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 		return err
 	}
 
+	if c.config.instance.MaxUnits == 0 {
+		c.config.instance.MaxUnits = defaultMaxUnits
+	}
+
 	for _, regexString := range c.config.instance.UnitRegexStrings {
 		pattern, err := regexp.Compile(regexString)
 		if err != nil {
@@ -435,10 +450,26 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 		}
 		c.config.instance.UnitRegexPatterns = append(c.config.instance.UnitRegexPatterns, pattern)
 	}
+
+	if len(c.config.instance.UnitNames) == 0 && len(c.config.instance.UnitRegexPatterns) == 0 {
+		return fmt.Errorf("`unit_names` and `unit_regexes` must not be both empty")
+	}
+
+	socketPath := ""
+	if c.config.instance.SystemBusSocket != "" {
+		socketPath = c.config.instance.SystemBusSocket
+	} else if config.IsContainerized() {
+		socketPath = "/host/var/run/dbus/system_bus_socket"
+	} else {
+		socketPath = "/var/run/dbus/system_bus_socket"
+	}
+	os.Setenv("DBUS_SYSTEM_BUS_ADDRESS", socketPath)
+
 	return nil
 }
 
-func systemdFactory() check.Check {
+// SystemdFactory create systemd check instance
+func SystemdFactory() check.Check {
 	return &SystemdCheck{
 		stats:     &defaultSystemdStats{},
 		CheckBase: core.NewCheckBase(systemdCheckName),
@@ -446,5 +477,5 @@ func systemdFactory() check.Check {
 }
 
 func init() {
-	core.RegisterCheck(systemdCheckName, systemdFactory)
+	core.RegisterCheck(systemdCheckName, SystemdFactory)
 }
