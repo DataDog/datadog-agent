@@ -43,6 +43,7 @@ int verifyServices(MSIHANDLE hInstall, CustomActionData& data);
 
 //delfiles.cpp
 BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext);
+bool deleteDirectoryRecursively(const std::wstring& path);
 
 extern HMODULE hDllModule;
 // rights we might be interested in

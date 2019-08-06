@@ -485,8 +485,12 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
         er = DeleteUser(NULL, installedUser.c_str());
         if (0 == er) {
             if(!userProfileFolder.empty()) {
-                WcaLog(LOGMSG_STANDARD, "Deleting user profile: %S", userProfileFolder.c_str());
-				// TODO: Delete the folder
+				if (deleteDirectoryRecursively(userProfileFolder)) {
+					WcaLog(LOGMSG_STANDARD, "User profile folder %S deleted", userProfileFolder.c_str());
+				}
+				else {
+					WcaLog(LOGMSG_STANDARD, "Cannot delete user profile folder %S", userProfileFolder.c_str());
+				}
             }
         }
         else {
