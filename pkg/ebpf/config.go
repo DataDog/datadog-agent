@@ -84,7 +84,8 @@ func NewDefaultConfig() *Config {
 	}
 }
 
-// EnabledKProbes returns a map of kprobes that are enabled per config settings
+// EnabledKProbes returns a map of kprobes that are enabled per config settings.
+// This map does not include the probes used exclusively in the offset guessing process.
 func (c *Config) EnabledKProbes() map[KProbeName]struct{} {
 	enabled := make(map[KProbeName]struct{}, 0)
 

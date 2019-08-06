@@ -106,7 +106,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		}
 	}
 
-	if err := guess(m, config); err != nil {
+	if err := guessOffsets(m, config); err != nil {
 		return nil, fmt.Errorf("failed to init module: error guessing offsets: %v", err)
 	}
 

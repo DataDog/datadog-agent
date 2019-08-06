@@ -253,21 +253,21 @@ func setReadyState(m *elf.Module, mp *elf.Map, status *tracerStatus) error {
 	return nil
 }
 
-// guess expects elf.Module to hold a tracer-bpf object and initializes the
+// guessOffsets expects elf.Module to hold a tracer-bpf object and initializes the
 // tracer by guessing the right struct sock kernel struct offsets. Results are
 // stored in the `tracer_status` map as used by the module.
 //
 // To guess the offsets, we create connections from localhost (127.0.0.1) to
 // 127.0.0.2:$PORT, where we have a server listening. We store the current
-// possible offset and expected value of each field in a eBPF map. Each
-// connection will trigger the eBPF program attached to tcp_v{4,6}_connect
-// where, for each field to guess, we store the value of
+// possible offset and expected value of each field in a eBPF map. In kernel-space
+// we rely on two different kprobes: `tcp_get_info` and `tcp_connect_v6`. When they're
+// are triggered, we store the value of
 //     (struct sock *)skp + possible_offset
 // in the eBPF map. Then, back in userspace (checkAndUpdateCurrentOffset()), we
 // check that value against the expected value of the field, advancing the
 // offset and repeating the process until we find the value we expect. Then, we
 // guess the next field.
-func guess(m *elf.Module, cfg *Config) error {
+func guessOffsets(m *elf.Module, cfg *Config) error {
 	currentNetns, err := ownNetNS()
 	if err != nil {
 		return fmt.Errorf("error getting current netns: %v", err)
@@ -463,7 +463,7 @@ func acceptHandler(l net.Listener) {
 // The motivation for using this is twofold: 1) it is a way of triggering the kprobe
 // responsible for the V4 offset guessing in kernel-space and 2) using it we can obtain
 // in user-space TCP socket information such as RTT and use it for setting the expected
-//  values in the `fieldValues` struct.
+// values in the `fieldValues` struct.
 func tcpGetInfo(conn net.Conn) (*syscall.TCPInfo, error) {
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
@@ -476,13 +476,12 @@ func tcpGetInfo(conn net.Conn) (*syscall.TCPInfo, error) {
 	}
 	defer file.Close()
 
-	fd := file.Fd()
 	tcpInfo := new(syscall.TCPInfo)
 	size := uint32(unsafe.Sizeof(tcpInfo))
 
 	_, _, errno := syscall.Syscall6(
 		syscall.SYS_GETSOCKOPT,
-		uintptr(fd),
+		uintptr(file.Fd()),
 		uintptr(syscall.SOL_TCP),
 		uintptr(syscall.TCP_INFO),
 		uintptr(unsafe.Pointer(tcpInfo)),
