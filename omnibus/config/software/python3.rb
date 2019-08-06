@@ -10,6 +10,7 @@ if ohai["platform"] != "windows"
   dependency "bzip2"
   dependency "libsqlite3"
   dependency "liblzma"
+  dependency "libyaml"
 
   version "3.6.7" do
     source :sha256 => "b7c36f7ed8f7143b2c46153b7332db2227669f583ea0cce753facf549d1a4239"
@@ -64,10 +65,12 @@ if ohai["platform"] != "windows"
   end
 
 else
-  default_version "3.7.1"
+  dependency "vc_redist_14"
+  default_version "3.7.4"
 
+  # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
   source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-         :sha256 => "c9da8a6890ce7df603724abebcd893c63616f499b9a619bb39399a09f382269a"
+         :sha256 => "ce1782db64be81aa81e8a38102b4850ee03a0b30bf152a7d2b4b36a7a6e0c381"
 
   build do
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""

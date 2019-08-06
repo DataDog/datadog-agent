@@ -1,4 +1,4 @@
-init_configs:
+init_config:
 instances:
   -
     ## @param filters - list of containerd filters - optional

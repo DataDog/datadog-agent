@@ -10,12 +10,15 @@
   source = "github.com/adjust/goautoneg"
 
 [[projects]]
-  digest = "1:b5c465c820ef1df848ddc2da97e7ebfc1e152fcc2bef8262f047522692e9fc6f"
+  digest = "1:4d058d0c70c840a711bc07a754f8585fd7a4d7fe4f17b5291daa94efb8fd8e63"
   name = "github.com/DataDog/agent-payload"
-  packages = ["gogen"]
+  packages = [
+    "gogen",
+    "process",
+  ]
   pruneopts = ""
-  revision = "c76e9d5be7457cafb7b3e056c6e8ae127b1f0431"
-  version = "4.7.1"
+  revision = "289e8fe7ace0255e45ff2e87704a39dc103b2f86"
+  version = "4.9.1"
 
 [[projects]]
   digest = "1:e64fddc819e2abc68792a743dd857c379449a56f2b9eaf030c03fb0ec19de884"
@@ -42,7 +45,7 @@
   revision = "43b075bb9705588cd89c71363d6d72937e3020c7"
 
 [[projects]]
-  digest = "1:f5a67538206ad242703731b55fb4abc6cf7b44de436d4b989572bd82cf3c3e12"
+  digest = "1:84c22eb14ecdebefff6a3764e5d3769739a775095f31d90919dfd10e887170fb"
   name = "github.com/DataDog/gopsutil"
   packages = [
     "cpu",
@@ -53,7 +56,7 @@
     "process",
   ]
   pruneopts = ""
-  revision = "fe7986fb54b7a36afebec4610af9daa8e5f34f89"
+  revision = "3ca45fa2b07679737219be93796a178822ff878f"
 
 [[projects]]
   branch = "master"
@@ -72,20 +75,20 @@
   version = "v1.7.0"
 
 [[projects]]
-  digest = "1:31631e8c076fdda45675347ac76f4e3466b65648064704f38c6e73b5d0f91c39"
+  digest = "1:f3662169bf21f0406cdad064a592c5a052e8ba32f64a360d755544cd5a98dba8"
   name = "github.com/DataDog/zstd"
   packages = ["."]
   pruneopts = ""
-  revision = "69c5189b6513b1503c9c5332fb2e96362e51d547"
-  version = "v1.3.8"
+  revision = "2b373cbe6ac0c8e6960bbd18026ceb269eef89f5"
 
 [[projects]]
-  digest = "1:f3662169bf21f0406cdad064a592c5a052e8ba32f64a360d755544cd5a98dba8"
-  name = "github.com/DataDog/zstd.v0.5"
+  digest = "1:31631e8c076fdda45675347ac76f4e3466b65648064704f38c6e73b5d0f91c39"
+  name = "github.com/DataDog/zstd.v1.3"
   packages = ["."]
   pruneopts = ""
-  revision = "2b373cbe6ac0c8e6960bbd18026ceb269eef89f5"
+  revision = "69c5189b6513b1503c9c5332fb2e96362e51d547"
   source = "github.com/DataDog/zstd"
+  version = "v1.3.8"
 
 [[projects]]
   digest = "1:a45cafbc9101cf1a3ce81f08296af380ece9c05b4acc92831eeeb0f61a5a7ef5"
@@ -806,7 +809,8 @@
     "pkg/cpuonline",
   ]
   pruneopts = ""
-  revision = "98ebf56442afb10e1b43145127de3c1777ed7e95"
+  revision = "dfb11c17a0746e78b1bd96b6eea766f2a4a2ce8a"
+  source = "github.com/DataDog/gobpf"
 
 [[projects]]
   digest = "1:6f49eae0c1e5dab1dafafee34b207aeb7a42303105960944828c2079b92fc88e"
@@ -1957,6 +1961,7 @@
   analyzer-version = 1
   input-imports = [
     "github.com/DataDog/agent-payload/gogen",
+    "github.com/DataDog/agent-payload/process",
     "github.com/DataDog/datadog-go/statsd",
     "github.com/DataDog/gohai/cpu",
     "github.com/DataDog/gohai/filesystem",
@@ -1970,8 +1975,7 @@
     "github.com/DataDog/gopsutil/process",
     "github.com/DataDog/mmh3",
     "github.com/DataDog/viper",
-    "github.com/DataDog/zstd",
-    "github.com/DataDog/zstd.v0.5",
+    "github.com/DataDog/zstd.v1.3",
     "github.com/Microsoft/go-winio",
     "github.com/StackExchange/wmi",
     "github.com/aws/aws-sdk-go/aws",
@@ -1992,6 +1996,7 @@
     "github.com/containerd/typeurl",
     "github.com/coreos/etcd/client",
     "github.com/coreos/go-semver/semver",
+    "github.com/coreos/go-systemd/dbus",
     "github.com/coreos/go-systemd/sdjournal",
     "github.com/docker/docker/api/types",
     "github.com/docker/docker/api/types/container",
@@ -2009,11 +2014,11 @@
     "github.com/florianl/go-conntrack",
     "github.com/go-ini/ini",
     "github.com/go-ole/go-ole",
+    "github.com/godbus/dbus",
     "github.com/gogo/protobuf/gogoproto",
     "github.com/gogo/protobuf/jsonpb",
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/types",
-    "github.com/golang/protobuf/proto",
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
     "github.com/hectane/go-acl",
@@ -2065,6 +2070,7 @@
     "gopkg.in/zorkian/go-datadog-api.v2",
     "k8s.io/api/autoscaling/v2beta1",
     "k8s.io/api/core/v1",
+    "k8s.io/apimachinery/pkg/api/equality",
     "k8s.io/apimachinery/pkg/api/errors",
     "k8s.io/apimachinery/pkg/api/meta",
     "k8s.io/apimachinery/pkg/api/resource",

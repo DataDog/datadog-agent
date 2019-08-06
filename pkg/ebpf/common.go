@@ -1,24 +1,31 @@
 package ebpf
 
 import (
+	"bufio"
 	"encoding/binary"
-	"errors"
 	"fmt"
+	"os"
+	"path"
 	"strings"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/pkg/errors"
 )
 
-var (
-	// Feature versions sourced from: https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
-	// Minimum kernel version -> max(3.15 - eBPF,
-	//                               3.18 - tables/maps,
-	//                               4.1 - kprobes,
-	//                               4.4 - perf events)
-	// 	                      -> 4.4
-	minRequiredKernelCode = linuxKernelVersionCode(4, 4, 0)
-)
+// Feature versions sourced from: https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
+var requiredKernelFuncs = []string{
+	// Maps (3.18)
+	"bpf_map_lookup_elem",
+	"bpf_map_update_elem",
+	"bpf_map_delete_elem",
+	// kprobes (4.1)
+	"bpf_probe_read",
+	// Perf events (4.4)
+	"bpf_perf_event_output",
+	"bpf_perf_event_read",
+}
 
 var (
 	// ErrNotImplemented will be returned on non-linux environments like Windows and Mac OSX
@@ -46,20 +53,24 @@ func linuxKernelVersionCode(major, minor, patch uint32) uint32 {
 }
 
 // IsTracerSupportedByOS returns whether or not the current kernel version supports tracer functionality
-func IsTracerSupportedByOS(exclusionList []string) (bool, error) {
+// along with some context on why it's not supported
+func IsTracerSupportedByOS(exclusionList []string) (bool, string) {
 	currentKernelCode, err := CurrentKernelVersion()
 	if err != nil {
-		return false, fmt.Errorf("could not get kernel version: %s", err)
+		return false, fmt.Sprintf("could not get kernel version: %s", err)
 	}
 
-	platform, _ := util.GetPlatform()
+	platform, err := util.GetPlatform()
+	if err != nil {
+		log.Warnf("error retrieving current platform: %s", err)
+	}
 	return verifyOSVersion(currentKernelCode, platform, exclusionList)
 }
 
-func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string) (bool, error) {
+func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string) (bool, string) {
 	for _, version := range exclusionList {
 		if code := stringToKernelCode(version); code == kernelCode {
-			return false, fmt.Errorf(
+			return false, fmt.Sprintf(
 				"current kernel version (%s) is in the exclusion list: %s (list: %+v)",
 				kernelCodeToString(kernelCode),
 				version,
@@ -68,29 +79,68 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 		}
 	}
 
-	if kernelCode < minRequiredKernelCode {
-		return false, fmt.Errorf(
-			"incompatible linux version. at least %s (%d) required, got %s (%d)",
-			kernelCodeToString(minRequiredKernelCode),
-			minRequiredKernelCode,
-			kernelCodeToString(kernelCode),
-			kernelCode,
-		)
-	}
-
 	// Hardcoded exclusion list
 	if platform == "" {
 		// If we can't retrieve the platform just return true to avoid blocking the tracer from running
-		return true, nil
+		return true, ""
 	}
 
 	if isUbuntu(platform) {
 		if kernelCode >= linuxKernelVersionCode(4, 4, 119) && kernelCode <= linuxKernelVersionCode(4, 4, 126) {
-			return false, fmt.Errorf("got ubuntu kernel %s with known bug on platform: %s, see: https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCodeToString(kernelCode), platform)
+			return false, fmt.Sprintf("got ubuntu kernel %s with known bug on platform: %s, see: https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCodeToString(kernelCode), platform)
 		}
 	}
 
-	return true, nil
+	missing, err := verifyKernelFuncs(path.Join(util.GetProcRoot(), "kallsyms"))
+	if err != nil {
+		log.Warnf("error reading /proc/kallsyms file: %s (check your kernel version, current is: %s)", err, kernelCodeToString(kernelCode))
+		// If we can't read the /proc/kallsyms file let's just return true to avoid blocking the tracer from running
+		return true, ""
+	}
+
+	if len(missing) == 0 {
+		return true, ""
+	}
+
+	return false, fmt.Sprintf("some required functions are missing: %s", strings.Join(missing, ", "))
+}
+
+func verifyKernelFuncs(path string) ([]string, error) {
+	// Will hold the found functions
+	found := make(map[string]bool, len(requiredKernelFuncs))
+	for _, f := range requiredKernelFuncs {
+		found[f] = false
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error reading kallsyms file from: %s", path)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Split(bufio.ScanLines)
+
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 3 {
+			continue
+		}
+
+		name := fields[2]
+		if _, ok := found[name]; ok {
+			found[name] = true
+		}
+	}
+
+	missing := []string{}
+	for probe, b := range found {
+		if !b {
+			missing = append(missing, probe)
+		}
+	}
+
+	return missing, nil
 }
 
 // In lack of binary.NativeEndian ...

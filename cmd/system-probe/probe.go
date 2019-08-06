@@ -20,17 +20,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
 
-// ErrTracerUnsupported is the unsupported error prefix, for error-class matching from callers
-var ErrTracerUnsupported = errors.New("tracer unsupported")
+// ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
+var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 
 // SystemProbe maintains and starts the underlying network connection collection process as well as
 // exposes these connections over HTTP (via UDS)
 type SystemProbe struct {
 	cfg *config.AgentConfig
 
-	supported bool
-	tracer    *ebpf.Tracer
-	conn      net.Conn
+	tracer *ebpf.Tracer
+	conn   net.Conn
 }
 
 // CreateSystemProbe creates a SystemProbe as well as it's UDS socket after confirming that the OS supports BPF-based
@@ -40,14 +39,13 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 	nt := &SystemProbe{}
 
 	// Checking whether the current OS + kernel version is supported by the tracer
-	if nt.supported, err = ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); err != nil {
-		return nil, fmt.Errorf("%s: %s", ErrTracerUnsupported, err)
+	if supported, msg := ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); !supported {
+		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
 	}
 
 	// make sure debugfs is mounted
-	mounted := util.IsDebugfsMounted()
-	if !mounted {
-		return nil, fmt.Errorf("%s: debugfs is not mounted and is needed for eBPF-based checks, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs", ErrTracerUnsupported)
+	if mounted, msg := util.IsDebugfsMounted(); !mounted {
+		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
 	}
 
 	log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
@@ -136,9 +134,13 @@ func (nt *SystemProbe) Run() {
 	})
 
 	go func() {
+		tags := []string{
+			fmt.Sprintf("version:%s", Version),
+			fmt.Sprintf("revision:%s", GitCommit),
+		}
 		heartbeat := time.NewTicker(15 * time.Second)
 		for range heartbeat.C {
-			statsd.Client.Gauge("datadog.system_probe.agent", 1, []string{"version:" + Version}, 1)
+			statsd.Client.Gauge("datadog.system_probe.agent", 1, tags, 1)
 		}
 	}()
 

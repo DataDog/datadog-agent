@@ -156,7 +156,7 @@ elif [ $OS = "Debian" ]; then
     fi
     printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
     $sudo_cmd sh -c "echo 'deb https://apt.${repo_url}/ stable 6' > /etc/apt/sources.list.d/datadog.list"
-    $sudo_cmd apt-key adv --recv-keys --keyserver ${keyserver} 382E94DE
+    $sudo_cmd apt-key adv --recv-keys --keyserver ${keyserver} A2923DFF56EDA6E76E55E492D3A80E30382E94DE
 
     printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
     ERROR_MESSAGE="ERROR
@@ -185,10 +185,11 @@ elif [ $OS = "SUSE" ]; then
   fi
 
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
-  $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://yum.${repo_url}/suse/stable/6/x86_64\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=https://yum.${repo_url}/DATADOG_RPM_KEY.public' > /etc/zypp/repos.d/datadog.repo"
+  $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://yum.${repo_url}/suse/stable/6/x86_64\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=https://yum.${repo_url}/DATADOG_RPM_KEY.public\n       https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public' > /etc/zypp/repos.d/datadog.repo"
 
-  echo -e "\033[34m\n* Importing the Datadog GPG Key\n\033[0m"
+  echo -e "\033[34m\n* Importing the Datadog GPG Keys\n\033[0m"
   $sudo_cmd rpm --import https://yum.${repo_url}/DATADOG_RPM_KEY.public
+  $sudo_cmd rpm --import https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public
 
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
   $sudo_cmd zypper --non-interactive --no-gpg-check refresh datadog
@@ -258,13 +259,13 @@ else
 fi
 
 
-# Use /usr/sbin/service by default. 
+# Use /usr/sbin/service by default.
 # Some distros usually include compatibility scripts with Upstart or Systemd. Check with: `command -v service | xargs grep -E "(upstart|systemd)"`
 restart_cmd="$sudo_cmd service datadog-agent restart"
 stop_instructions="$sudo_cmd service datadog-agent stop"
 start_instructions="$sudo_cmd service datadog-agent start"
 
-if command -v systemctl 2>&1; then 
+if command -v systemctl 2>&1; then
   # Use systemd if systemctl binary exists
   restart_cmd="$sudo_cmd systemctl restart datadog-agent.service"
   stop_instructions="$sudo_cmd systemctl stop datadog-agent"

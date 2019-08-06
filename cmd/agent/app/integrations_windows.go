@@ -9,6 +9,7 @@
 package app
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -18,19 +19,18 @@ const (
 	pythonBin = "python.exe"
 )
 
-var (
-	relPyPath              = filepath.Join("..", "embedded2", pythonBin)
-	relChecksPath          = filepath.Join("..", "embedded2", "Lib", "site-packages", "datadog_checks")
-	relReqAgentReleasePath = filepath.Join("..", reqAgentReleaseFile)
-	relConstraintsPath     = filepath.Join("..", constraintsFile)
-)
-
-func authorizedUser() bool {
-	// TODO: implement something useful
-	return true
+func getRelPyPath() string {
+	return filepath.Join(fmt.Sprintf("embedded%s", pythonMajorVersion), pythonBin)
 }
 
-func isIntegrationUser() bool {
+func getRelChecksPath() (string, error) {
+	return filepath.Join(fmt.Sprintf("embedded%s", pythonMajorVersion), "Lib", "site-packages", "datadog_checks"), nil
+}
+
+func validateUser(allowRoot bool) error {
 	elevated, _ := winutil.IsProcessElevated()
-	return elevated
+	if !elevated {
+		return fmt.Errorf("Operation is not possible for unelevated process.")
+	}
+	return nil
 }

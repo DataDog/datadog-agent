@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:six-pip3
+      - image: datadog/datadog-agent-runner-circle:latest
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -66,24 +66,22 @@ jobs:
       - run:
           name: grab go deps
           command: |
-            inv deps --verbose
+            inv deps --verbose --dep-vendor-only
       - run:
-          name: build six
+          name: build rtloader
           command: |
-            inv six.build --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
-            inv six.install
+            inv rtloader.build --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
+            inv rtloader.install
       - run:
-          name: lint six
+          name: lint rtloader
           command: |
-            inv six.format
-            # only check for diff in six folder since "inv deps" step might update Gopkg.lock
-            [[ $(git ls-files -m six | wc -l) -eq 0 ]]
+            inv rtloader.format --raise-if-changed
       - run:
-          name: test six
+          name: test rtloader
           command: |
             # remove base check before running tests, go on if pip fails
             pip uninstall datadog-checks-base -y || :
-            inv six.test
+            inv rtloader.test
       - run:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only

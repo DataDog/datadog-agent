@@ -45,9 +45,9 @@ DEFAULT_BUILD_TAGS = [
 ]
 
 AGENT_CORECHECKS = [
+    "containerd",
     "cpu",
     "cri",
-    "containerd",
     "docker",
     "file_handle",
     "go_expvar",
@@ -57,6 +57,7 @@ AGENT_CORECHECKS = [
     "load",
     "memory",
     "ntp",
+    "systemd",
     "uptime",
     "winproc",
 ]
@@ -75,7 +76,7 @@ PUPPY_CORECHECKS = [
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, development=True, precompile_only=False, skip_assets=False,
-          embedded_path=None, six_root=None, python_home_2=None, python_home_3=None):
+          embedded_path=None, rtloader_root=None, python_home_2=None, python_home_3=None):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -88,7 +89,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     ldflags, gcflags, env = get_build_flags(ctx, embedded_path=embedded_path,
-            six_root=six_root, python_home_2=python_home_2, python_home_3=python_home_3)
+            rtloader_root=rtloader_root, python_home_2=python_home_2, python_home_3=python_home_3)
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
@@ -219,7 +220,7 @@ def system_tests(ctx):
 
 
 @task
-def image_build(ctx, base_dir="omnibus", skip_tests=False):
+def image_build(ctx, base_dir="omnibus", python_version=2, skip_tests=False):
     """
     Build the docker image
     """
@@ -236,14 +237,16 @@ def image_build(ctx, base_dir="omnibus", skip_tests=False):
 
     # Pull base image with content trust enabled
     pull_base_images(ctx, "Dockerfiles/agent/Dockerfile", signed_pull=True)
+    common_build_opts = "-t {} --build-arg PYTHON_VERSION={}".format(AGENT_TAG, python_version)
 
     # Build with the testing target
     if not skip_tests:
-        ctx.run("docker build -t {} --target testing Dockerfiles/agent".format(AGENT_TAG))
+        ctx.run("docker build {} --target testing Dockerfiles/agent".format(common_build_opts))
 
     # Build with the release target
-    ctx.run("docker build -t {} --target release Dockerfiles/agent".format(AGENT_TAG))
+    ctx.run("docker build {} --target release Dockerfiles/agent".format(common_build_opts))
     ctx.run("rm Dockerfiles/agent/datadog-agent*_amd64.deb")
+
 
 @task
 def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):

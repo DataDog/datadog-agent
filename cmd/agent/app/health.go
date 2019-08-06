@@ -31,18 +31,27 @@ var healthCmd = &cobra.Command{
 	Long:         ``,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if flagNoColor {
+			color.NoColor = true
+		}
+
 		err := common.SetupConfigWithoutSecrets(confFilePath)
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
+
+		err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
+		}
+
 		return requestHealth()
 	},
 }
 
 func requestHealth() error {
-	if flagNoColor {
-		color.NoColor = true
-	}
 
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/status/health", config.Datadog.GetInt("cmd_port"))
@@ -56,7 +65,7 @@ func requestHealth() error {
 	r, err := util.DoGet(c, urlstr)
 	if err != nil {
 		var errMap = make(map[string]string)
-		json.Unmarshal(r, errMap)
+		json.Unmarshal(r, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
 			err = fmt.Errorf(e)

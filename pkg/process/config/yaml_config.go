@@ -105,6 +105,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		}
 	}
 
+	if ccs := config.Datadog.GetInt(key(spNS, "closed_channel_size")); ccs > 0 {
+		a.ClosedChannelSize = ccs
+	}
+
 	// Pull additional parameters from the global config file.
 	a.LogLevel = config.Datadog.GetString("log_level")
 	a.StatsdPort = config.Datadog.GetInt("dogstatsd_port")
@@ -157,12 +161,10 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 		//   If "true" we will collect containers and processes.
 		//   If "disabled" the agent will be disabled altogether and won't start.
 		enabled := config.Datadog.GetString(k)
-		if ok, err := isAffirmative(enabled); ok {
+		if ok, _ := isAffirmative(enabled); ok {
 			a.Enabled, a.EnabledChecks = true, processChecks
 		} else if enabled == "disabled" {
 			a.Enabled = false
-		} else if !ok && err == nil {
-			a.Enabled, a.EnabledChecks = true, containerChecks
 		}
 	}
 
@@ -286,7 +288,7 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 		a.StatsdPort = config.Datadog.GetInt(k)
 	}
 
-	if bindHost := config.Datadog.GetString(key(ns, "bind_host")); bindHost != "" {
+	if bindHost := config.Datadog.GetString("bind_host"); bindHost != "" {
 		a.StatsdHost = bindHost
 	}
 

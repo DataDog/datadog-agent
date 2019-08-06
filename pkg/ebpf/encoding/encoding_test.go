@@ -1,11 +1,12 @@
 package encoding
 
 import (
+	"encoding/json"
 	"testing"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -83,6 +84,21 @@ func TestSerialization(t *testing.T) {
 		assert.Equal(out, result)
 	})
 
+	t.Run("requesting empty serialization", func(t *testing.T) {
+		assert := assert.New(t)
+		marshaler := GetMarshaler("")
+		// in case we request empty serialization type, default to application/json
+		assert.Equal("application/json", marshaler.ContentType())
+
+		blob, err := marshaler.Marshal(in)
+		require.NoError(t, err)
+
+		unmarshaler := GetUnmarshaler("")
+		result, err := unmarshaler.Unmarshal(blob)
+		require.NoError(t, err)
+		assert.Equal(out, result)
+	})
+
 	t.Run("requesting application/protobuf serialization", func(t *testing.T) {
 		assert := assert.New(t)
 		marshaler := GetMarshaler("application/protobuf")
@@ -111,5 +127,29 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 		assert.Equal(out, result)
+	})
+
+	t.Run("render default values with application/json", func(t *testing.T) {
+		assert := assert.New(t)
+		marshaler := GetMarshaler("application/json")
+		assert.Equal("application/json", marshaler.ContentType())
+
+		// Empty connection batch
+		blob, err := marshaler.Marshal(&ebpf.Connections{Conns: []ebpf.ConnectionStats{{}}})
+		require.NoError(t, err)
+
+		res := struct {
+			Conns []map[string]interface{} `json:"conns"`
+		}{}
+		require.NoError(t, json.Unmarshal(blob, &res))
+
+		require.Len(t, res.Conns, 1)
+		// Check that it contains fields even if they are zeroed
+		for _, field := range []string{
+			"type", "lastBytesSent", "lastBytesReceived", "lastRetransmits",
+			"netNS", "family", "direction", "pid",
+		} {
+			assert.Contains(res.Conns[0], field)
+		}
 	})
 }

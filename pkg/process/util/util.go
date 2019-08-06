@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
@@ -97,7 +99,7 @@ func GetDockerSocketPath() (string, error) {
 	return sockPath, nil
 }
 
-// GetPlatform returns the current platform we are running on by calling "python -mplatform" then "lsb_release -a" if python fails
+// GetPlatform returns the current platform we are running on by calling "python -mplatform" then "lsb_release -a" if python fails and finally reading redhat-release if both python and lsb_release failed
 func GetPlatform() (string, error) {
 	pyOut, pyErr := execCmd("python", "-m", "platform")
 	if pyErr == nil {
@@ -109,13 +111,29 @@ func GetPlatform() (string, error) {
 		return lsbOut, nil
 	}
 
-	return "", fmt.Errorf("error retrieving platform, with python: %s, with lsb_release: %s", pyErr, lsbErr)
+	redhatRaw, redhatErr := ioutil.ReadFile("/etc/redhat-release")
+	if redhatErr == nil {
+		return strings.ToLower(string(redhatRaw)), nil
+	}
+
+	return "", fmt.Errorf("error retrieving platform, with python: %s, with lsb_release: %s, reading redhat-release: %s", pyErr, lsbErr, redhatErr)
 }
 
 // IsDebugfsMounted would test the existence of file /sys/kernel/debug/tracing/kprobe_events to determine if debugfs is mounted or not
-func IsDebugfsMounted() bool {
+// returns a boolean and a possible error message
+func IsDebugfsMounted() (bool, string) {
 	_, err := os.Stat("/sys/kernel/debug/tracing/kprobe_events")
-	return err == nil
+
+	if err != nil {
+		if os.IsPermission(err) {
+			return false, "system-probe does not have permission to access debugfs"
+		} else if os.IsNotExist(err) {
+			return false, "debugfs is not mounted and is needed for eBPF-based checks, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs"
+		} else {
+			return false, fmt.Sprintf("an error occurred while accessing debugfs: %s", err)
+		}
+	}
+	return true, ""
 }
 
 func execCmd(head string, args ...string) (string, error) {
@@ -134,4 +152,17 @@ func execCmd(head string, args ...string) (string, error) {
 	}
 
 	return strings.ToLower(strings.TrimSpace(stdout.String())), nil
+}
+
+// GetProcRoot retrieves the current procfs dir we should use
+func GetProcRoot() string {
+	if v := os.Getenv("HOST_PROC"); v != "" {
+		return v
+	}
+
+	if config.IsContainerized() && PathExists("/host") {
+		return "/host/proc"
+	}
+
+	return "/proc"
 }

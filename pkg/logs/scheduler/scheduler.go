@@ -11,10 +11,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Scheduler creates and deletes new sources and services to start or stop
@@ -198,7 +198,7 @@ func (s *Scheduler) toService(config integration.Config) (*service.Service, erro
 
 // parseEntity breaks down an entity into a service provider and a service identifier.
 func (s *Scheduler) parseEntity(entity string) (string, string, error) {
-	components := strings.Split(entity, "://")
+	components := strings.Split(entity, containers.EntitySeparator)
 	if len(components) != 2 {
 		return "", "", fmt.Errorf("entity is malformed : %v", entity)
 	}

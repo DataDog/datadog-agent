@@ -1,23 +1,48 @@
 # Build the Agent packages
 
 Agent packages for all the supported platforms are built using
-[Omnibus](https://github.com/chef/omnibus).
+[Omnibus](https://github.com/chef/omnibus), which can be run via `invoke` tasks.
 
-## Prepare the dev environment
+Omnibus creates a package for your operating system, so you'll get a DEB
+package on Debian-based distros, an RPM package on distros that use RPM, an MSI
+installer on Windows, or a `.pkg` package bundled in a DMG archive on Mac.
 
-To run Omnibus you need the following:
+For Linux, we provide Docker images (one to build DEB packages and one for RPM),
+with the build dependencies installed, so you don't have to install them on your system.
 
- * Ruby 2.2 or later
- * Bundler
+## Building inside Docker (Linux only, recommended)
 
-Omnibus will be invoked through `invoke` and most of the details will be handled
-by the specific tasks for the Agent. Unless you [use Docker][#docker] to build
-the packages, Omnibus will use the specific format for the local operating system,
-e.g. you'll get a Deb package on Debian-based distros, an RPM package on RedHat
-based distros, an MSI installer on Windows, a `.pkg` package bundled in a DMG
-archive on Mac.
+Use the provided Docker images to build a DEB or RPM
+package for Linux. You need to have Docker already running on your machine.
 
-### Linux and Mac
+From the `datadog-agent` source folder, use the following command to run the
+`agent.omnibus-build` task in a Docker container:
+
+```
+docker run -v "$PWD:/go/src/github.com/DataDog/datadog-agent" -v "/tmp/omnibus:/omnibus" -v "/tmp/opt/datadog-agent:/opt/datadog-agent" -v"/tmp/gems:/gems" --workdir=/go/src/github.com/DataDog/datadog-agent datadog/agent-buildimages-deb_x64 inv -e agent.omnibus-build --base-dir=/omnibus --gem-path=/gems
+```
+
+The container will share 3 volumes with the host to avoid starting from scratch
+at each Omnibus run:
+
+ * `/tmp/omnibus`, containing the Omnibus base dir
+ * `/tmp/opt/datadog-agent`, containing the Omnibus installation dir
+ * `/tmp/gems`, containing all the ruby gems installed with Bundler
+
+Note that you can change `deb_x64` for `rpm_x64` to get an RPM package instead.
+
+If you want to find the Dockerfiles for these images, they are available in the
+[datadog-agent-buildimages](https://github.com/DataDog/datadog-agent-buildimages) git repo.
+To build them from scratch, you can do so like this:
+
+```
+docker build -t datadog-agent-buildimages:deb_x64 -f deb-x64/Dockerfile .
+```
+
+If the build images crash when you run them on modern Linux distributions, you might be
+affected by [this bug](https://github.com/moby/moby/issues/28705).
+
+## Building on your system (Linux and Mac)
 
 The project will be built locally then compressed in the final deb/rpm/dmg artifact.
 Most of the files will be copied or created under the same installation path of
@@ -33,11 +58,13 @@ virtual machine or a Docker container where Omnibus can safely move things aroun
 the filesystem without disrupting anything.
 
 To run Omnibus and build the package, make the `/opt` folder world readable and run:
+
 ```
 inv agent.omnibus-build --base-dir=$HOME/.omnibus
 ```
 
 On Mac, you might want to skip the signing step by running:
+
 ```
 inv agent.omnibus-build --base-dir=$HOME/.omnibus --skip-sign
 ```
@@ -53,35 +80,6 @@ outside the Agent repo. By default Omnibus stores packages in the project folder
 itself: running the task multiple times would recursively add those artifacts to
 the source files for the `datadog-agent` software definition.
 
-### Docker
-
-Let's see in detail how to use Docker to build a Debian package, you need to run
-Docker on your local machine before moving on.
-
-Clone the repo containing the Dockerfiles Datadog uses to build the official
-packages:
-```
-git clone https://github.com/DataDog/datadog-agent-buildimages && cd datadog-agent-buildimages
-```
-
-Depending on which kind of package you want, you should build the relevant image,
-in this case, since we want a Deb package, we'll build `deb-x64`:
-```
-docker build -t datadog-agent-buildimages:deb_x64 -f deb-x64/Dockerfile .
-```
-
-From the Agent source folder, start a Docker container like this:
-```
-docker run -v "$PWD:/datadog-agent" -v "/tmp/omnibus:/omnibus" -v "/tmp/opt/datadog-agent:/opt/datadog-agent" -v"/tmp/gems:/gems" --workdir=/datadog-agent datadog-agent-buildimages:deb_x64 inv -e agent.omnibus-build --base-dir=/omnibus --gem-path=/gems
-```
-
-The container will share 3 volumes with the host to avoid starting from scratch
-at each Omnibus run:
-
- * `/tmp/omnibus`, containing the Omnibus base dir
- * `/tmp/opt/datadog-agent`, containing the Omnibus installation dir
- * `/tmp/gems`, containing all the ruby gems installed with Bundler
-
-### Windows
+## Building on Windows
 
 TODO.

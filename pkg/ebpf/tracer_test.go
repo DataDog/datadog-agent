@@ -8,18 +8,20 @@ import (
 	json "encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/url"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 	"unsafe"
-
-	"os"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,23 +41,69 @@ func TestTracerExpvar(t *testing.T) {
 
 	<-time.After(time.Second)
 
-	expected := map[string]float64{
-		"ClosedConnDropped":         0,
-		"ClosedConnPollingLost":     0,
-		"ClosedConnPollingReceived": 0,
-		"ConnDropped":               0,
-		"ConntrackNoopConntracker":  0,
-		"ExpiredTcpConns":           0,
-		"OkConnsSkipped":            0,
-		"StatsResets":               0,
-		"UnorderedConns":            0,
-		"TimeSyncCollisions":        0,
+	expected := map[string][]string{
+		"conntrack": {"NoopConntracker"},
+		"state": {
+			"UnorderedConns",
+			"ConnDropped",
+			"ClosedConnDropped",
+			"StatsResets",
+			"TimeSyncCollisions",
+		},
+		"tracer": {
+			"ClosedConnPollingLost",
+			"ClosedConnPollingReceived",
+			"ConnValidSkipped",
+			"ExpiredTcpConns",
+			"PidCollisions",
+		},
+		"ebpf": {
+			"TcpSentMiscounts",
+		},
+		"kprobes": {
+			"PtcpCleanupRbufHits",
+			"PtcpCleanupRbufMisses",
+			"PtcpCloseHits",
+			"PtcpCloseMisses",
+			"PtcpRetransmitSkbHits",
+			"PtcpRetransmitSkbMisses",
+			"PtcpSendmsgHits",
+			"PtcpSendmsgMisses",
+			"PtcpVConnectHits",
+			"PtcpVConnectMisses",
+			"PtcpVDestroySockHits",
+			"PtcpVDestroySockMisses",
+			"PudpRecvmsgHits",
+			"PudpRecvmsgMisses",
+			"PudpSendmsgHits",
+			"PudpSendmsgMisses",
+			"RInetCskAcceptHits",
+			"RInetCskAcceptMisses",
+			"RTcpSendmsgHits",
+			"RTcpSendmsgMisses",
+			"RTcpVConnectHits",
+			"RTcpVConnectMisses",
+			"RUdpRecvmsgHits",
+			"RUdpRecvmsgMisses",
+			"RinetCskAcceptHits",
+			"RinetCskAcceptMisses",
+			"RtcpSendmsgHits",
+			"RtcpSendmsgMisses",
+			"RtcpVConnectHits",
+			"RtcpVConnectMisses",
+			"RudpRecvmsgHits",
+			"RudpRecvmsgMisses",
+		},
 	}
 
-	res := map[string]float64{}
-	require.NoError(t, json.Unmarshal([]byte(probeExpvar.String()), &res))
-
-	assert.Equal(t, expected, res)
+	for _, et := range expvarTypes {
+		expvar := map[string]float64{}
+		require.NoError(t, json.Unmarshal([]byte(expvarEndpoints[et].String()), &expvar))
+		assert.Len(t, expvar, len(expected[et]))
+		for _, name := range expected[et] {
+			assert.Contains(t, expvar, name)
+		}
+	}
 }
 
 func TestSnakeToCamel(t *testing.T) {
@@ -307,6 +355,69 @@ func TestTCPRetransmit(t *testing.T) {
 	assert.True(t, int(conn.MonotonicRetransmits) > 0)
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
+
+	doneChan <- struct{}{}
+}
+
+func TestTCPRetransmitSharedSocket(t *testing.T) {
+	// Enable BPF-based system probe
+	tr, err := NewTracer(NewDefaultConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Create TCP Server that simply "drains" connection until receiving an EOF
+	server := NewTCPServer(func(c net.Conn) {
+		io.Copy(ioutil.Discard, c)
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	// Connect to server
+	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	require.NoError(t, err)
+	socketFile, err := c.(*net.TCPConn).File()
+	require.NoError(t, err)
+	const numProcesses = 10
+	iptablesWrapper(t, func() {
+		for i := 0; i < numProcesses; i++ {
+			// Establish one connection per process, all sharing the same socket represented by fd=3
+			// https://github.com/golang/go/blob/release-branch.go1.10/src/os/exec/exec.go#L111-L114
+			msg := genPayload(clientMessageSize)
+			cmd := exec.Command("bash", "-c", fmt.Sprintf("echo -ne %q >&3", msg))
+			cmd.ExtraFiles = []*os.File{socketFile}
+			err := cmd.Run()
+			require.NoError(t, err)
+		}
+		time.Sleep(time.Second)
+	})
+	socketFile.Close()
+	c.Close()
+
+	// Fetch all connections matching source and target address
+	allConnections := getConnections(t, tr)
+	conns := searchConnections(allConnections, byAddress(c.LocalAddr(), c.RemoteAddr()))
+	require.Len(t, conns, numProcesses)
+
+	totalSent := 0
+	for _, c := range conns {
+		totalSent += int(c.MonotonicSentBytes)
+	}
+	assert.Equal(t, numProcesses*clientMessageSize, totalSent)
+
+	// Since we can't reliably identify the PID associated to a retransmit, we have opted
+	// to report the total number of retransmits for *one* of the connections sharing the
+	// same socket
+	connsWithRetransmits := 0
+	for _, c := range conns {
+		if c.MonotonicRetransmits > 0 {
+			connsWithRetransmits++
+		}
+	}
+	assert.Equal(t, 1, connsWithRetransmits)
+
+	// Test if telemetry measuring PID collisions is correct
+	assert.Equal(t, int64(numProcesses-1), atomic.LoadInt64(&tr.pidCollisions))
 
 	doneChan <- struct{}{}
 }
@@ -692,13 +803,84 @@ func TestIsExpired(t *testing.T) {
 	}
 }
 
+func TestTCPMiscount(t *testing.T) {
+	tr, err := NewTracer(NewDefaultConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Create a dummy TCP Server
+	server := NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		for {
+			if _, err := r.ReadBytes(byte('\n')); err != nil { // indicates that EOF has been reached,
+				break
+			}
+		}
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	file, err := c.(*net.TCPConn).File()
+	require.NoError(t, err)
+
+	fd := int(file.Fd())
+
+	// Set a really low sendtimeout of 1us to trigger EAGAIN errors in `tcp_sendmsg`
+	err = syscall.SetsockoptTimeval(fd, syscall.SOL_SOCKET, syscall.SO_SNDTIMEO, &syscall.Timeval{
+		Sec:  0,
+		Usec: 1,
+	})
+	assert.NoError(t, err)
+
+	// 100 MB payload
+	x := make([]byte, 100*1024*1024)
+
+	n, err := c.Write(x)
+	assert.NoError(t, err)
+	assert.EqualValues(t, len(x), n)
+
+	doneChan <- struct{}{}
+
+	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+	assert.True(t, ok)
+
+	// TODO this should not happen but is expected for now
+	// we don't have the correct count since retries happened
+	assert.False(t, uint64(len(x)) == conn.MonotonicSentBytes)
+
+	tel := tr.getEbpfTelemetry()
+	assert.NotZero(t, tel["tcp_sent_miscounts"])
+}
+
+func byAddress(l, r net.Addr) func(c ConnectionStats) bool {
+	return func(c ConnectionStats) bool {
+		return addrMatches(l, c.Source.String(), c.SPort) && addrMatches(r, c.Dest.String(), c.DPort)
+	}
+}
+
 func findConnection(l, r net.Addr, c *Connections) (*ConnectionStats, bool) {
+	if result := searchConnections(c, byAddress(l, r)); len(result) > 0 {
+		return &result[0], true
+	}
+
+	return nil, false
+}
+
+func searchConnections(c *Connections, predicate func(ConnectionStats) bool) []ConnectionStats {
+	var results []ConnectionStats
 	for _, conn := range c.Conns {
-		if addrMatches(l, conn.Source.String(), conn.SPort) && addrMatches(r, conn.Dest.String(), conn.DPort) {
-			return &conn, true
+		if predicate(conn) {
+			results = append(results, conn)
 		}
 	}
-	return nil, false
+	return results
 }
 
 func addrMatches(addr net.Addr, host string, port uint16) bool {
@@ -977,14 +1159,16 @@ func iptablesWrapper(t *testing.T, f func()) {
 	err = createCmd.Wait()
 	assert.Nil(t, err)
 
-	f()
+	defer func() {
+		// Remove the iptable rule
+		removeCmd := exec.Command(iptables, remove...)
+		err = removeCmd.Start()
+		assert.Nil(t, err)
+		err = removeCmd.Wait()
+		assert.Nil(t, err)
+	}()
 
-	// Remove the iptable rule
-	removeCmd := exec.Command(iptables, remove...)
-	err = removeCmd.Start()
-	assert.Nil(t, err)
-	err = removeCmd.Wait()
-	assert.Nil(t, err)
+	f()
 }
 
 func addrPort(addr string) int {

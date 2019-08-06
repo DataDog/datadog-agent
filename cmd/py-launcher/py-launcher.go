@@ -19,9 +19,9 @@ import (
 )
 
 /*
-#include "datadog_agent_six.h"
-#cgo !windows LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
-#cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
+#include "datadog_agent_rtloader.h"
+#cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
 */
 import "C"
 
@@ -55,18 +55,18 @@ func main() {
 	paths := strings.Split(*pythonPath, ",")
 	python.Initialize(paths...)
 
-	pySix := python.GetSix()
-	six := (*C.six_t)(pySix)
+	pyRtLoader := python.GetRtLoader()
+	rtloader := (*C.rtloader_t)(pyRtLoader)
 	pythonCode, err := ioutil.ReadFile(*pythonScript)
 	if err != nil {
 		fmt.Printf("Could not read %s: %s\n", *pythonScript, err)
 		os.Exit(1)
 	}
-	state := C.ensure_gil(six)
-	res := C.run_simple_string(six, C.CString(string(pythonCode)))
-	C.release_gil(six, state)
+	state := C.ensure_gil(rtloader)
+	res := C.run_simple_string(rtloader, C.CString(string(pythonCode)))
+	C.release_gil(rtloader, state)
 	if res == 0 {
-		fmt.Printf("Error while running python script: %s\n", C.GoString(C.get_error(six)))
+		fmt.Printf("Error while running python script: %s\n", C.GoString(C.get_error(rtloader)))
 	}
 
 	python.Destroy()

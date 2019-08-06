@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package config
 
 import (
@@ -8,8 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/writer/backoff"
-	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -192,56 +195,10 @@ func TestFullIniConfig(t *testing.T) {
 	assert.Equal(5*time.Second, c.WatchdogInterval)
 	assert.EqualValues([]string{"/health", "/500"}, c.Ignore["resource"])
 
-	assert.Equal(writerconfig.ServiceWriterConfig{
-		FlushPeriod:      time.Second,
-		UpdateInfoPeriod: time.Second,
-		SenderConfig: writerconfig.QueuablePayloadSenderConf{
-			MaxAge:            time.Second,
-			MaxQueuedBytes:    456,
-			MaxQueuedPayloads: 4,
-			MaxConnections:    1,
-			InChannelSize:     10,
-			ExponentialBackoff: backoff.ExponentialConfig{
-				MaxDuration: 4 * time.Second,
-				GrowthBase:  2,
-				Base:        1000000,
-			},
-		},
-	}, c.ServiceWriterConfig)
-
-	assert.Equal(writerconfig.StatsWriterConfig{
-		MaxEntriesPerPayload: 10,
-		UpdateInfoPeriod:     2 * time.Second,
-		SenderConfig: writerconfig.QueuablePayloadSenderConf{
-			MaxAge:            time.Second,
-			MaxQueuedBytes:    456,
-			MaxQueuedPayloads: 4,
-			MaxConnections:    20,
-			InChannelSize:     10,
-			ExponentialBackoff: backoff.ExponentialConfig{
-				MaxDuration: 4 * time.Second,
-				GrowthBase:  2,
-				Base:        1000000,
-			},
-		},
-	}, c.StatsWriterConfig)
-
-	assert.Equal(writerconfig.TraceWriterConfig{
-		FlushPeriod:      3 * time.Second,
-		UpdateInfoPeriod: 2 * time.Second,
-		SenderConfig: writerconfig.QueuablePayloadSenderConf{
-			InChannelSize:     10,
-			MaxAge:            time.Second,
-			MaxQueuedBytes:    456,
-			MaxQueuedPayloads: 4,
-			MaxConnections:    200,
-			ExponentialBackoff: backoff.ExponentialConfig{
-				MaxDuration: 4 * time.Second,
-				GrowthBase:  2,
-				Base:        1000000,
-			},
-		},
-	}, c.TraceWriterConfig)
+	assert.Equal(5, c.TraceWriter.ConnectionLimit)
+	assert.Equal(6, c.TraceWriter.QueueSize)
+	assert.Equal(3, c.StatsWriter.ConnectionLimit)
+	assert.Equal(4, c.StatsWriter.QueueSize)
 }
 
 func TestFullYamlConfig(t *testing.T) {
@@ -352,22 +309,10 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	assert.Equal(30e6, c.MaxMemory)
 
 	// Assert Trace Writer
-	assert.Equal(22*time.Second, c.TraceWriterConfig.FlushPeriod)
-	assert.Equal(33*time.Second, c.TraceWriterConfig.UpdateInfoPeriod)
-	assert.Equal(15*time.Second, c.TraceWriterConfig.SenderConfig.MaxAge)
-	assert.Equal(int64(2048), c.TraceWriterConfig.SenderConfig.MaxQueuedBytes)
-	assert.Equal(100, c.TraceWriterConfig.SenderConfig.MaxQueuedPayloads)
-	// Assert Service Writer
-	assert.Equal(55*time.Second, c.ServiceWriterConfig.FlushPeriod)
-	assert.Equal(44*time.Second, c.ServiceWriterConfig.UpdateInfoPeriod)
-	assert.Equal(15*time.Second, c.ServiceWriterConfig.SenderConfig.MaxAge)
-	assert.Equal(int64(2048), c.ServiceWriterConfig.SenderConfig.MaxQueuedBytes)
-	assert.Equal(100, c.ServiceWriterConfig.SenderConfig.MaxQueuedPayloads)
-	// Assert Stats Writer
-	assert.Equal(66*time.Second, c.StatsWriterConfig.UpdateInfoPeriod)
-	assert.Equal(15*time.Second, c.StatsWriterConfig.SenderConfig.MaxAge)
-	assert.Equal(int64(2048), c.StatsWriterConfig.SenderConfig.MaxQueuedBytes)
-	assert.Equal(100, c.StatsWriterConfig.SenderConfig.MaxQueuedPayloads)
+	assert.Equal(1, c.TraceWriter.ConnectionLimit)
+	assert.Equal(2, c.TraceWriter.QueueSize)
+	assert.Equal(5, c.StatsWriter.ConnectionLimit)
+	assert.Equal(6, c.StatsWriter.QueueSize)
 	// analysis legacy
 	assert.Equal(1.0, c.AnalyzedRateByServiceLegacy["db"])
 	assert.Equal(0.9, c.AnalyzedRateByServiceLegacy["web"])

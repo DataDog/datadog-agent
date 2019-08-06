@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 // Package quantile implements "Space-Efficient Online Computation of Quantile
 // Summaries" (Greenwald, Khanna 2001):
 // http://infolab.stanford.edu/~datar/courses/cs361a/papers/quantiles.pdf

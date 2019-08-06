@@ -14,9 +14,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -115,6 +115,10 @@ func (l *Collector) run(exit chan bool) {
 	heartbeat := time.NewTicker(15 * time.Second)
 	queueSizeTicker := time.NewTicker(10 * time.Second)
 	go func() {
+		tags := []string{
+			fmt.Sprintf("version:%s", Version),
+			fmt.Sprintf("revision:%s", GitCommit),
+		}
 		for {
 			select {
 			case payload := <-l.send:
@@ -127,7 +131,7 @@ func (l *Collector) run(exit chan bool) {
 					l.postMessage(payload.endpoint, m)
 				}
 			case <-heartbeat.C:
-				statsd.Client.Gauge("datadog.process.agent", 1, []string{"version:" + Version}, 1)
+				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1)
 			case <-queueSizeTicker.C:
 				updateQueueSize(l.send)
 			case <-exit:

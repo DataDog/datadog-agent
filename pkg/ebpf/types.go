@@ -20,6 +20,11 @@ const (
 
 	// TCPSendMsg traces the tcp_sendmsg() system call
 	TCPSendMsg KProbeName = "kprobe/tcp_sendmsg"
+	// TCPSendMsgReturn traces the return value for the tcp_sendmsg() system call
+	// XXX: This is only used for telemetry for now to count the number of errors returned
+	// by the tcp_sendmsg func (so we can have a # of tcp sent bytes we miscounted)
+	TCPSendMsgReturn KProbeName = "kretprobe/tcp_sendmsg"
+
 	// TCPCleanupRBuf traces the tcp_cleanup_rbuf() system call
 	TCPCleanupRBuf KProbeName = "kprobe/tcp_cleanup_rbuf"
 	// TCPClose traces the tcp_close() system call
@@ -49,6 +54,7 @@ const (
 	latestTimestampMap bpfMapName = "latest_ts"
 	tracerStatusMap    bpfMapName = "tracer_status"
 	portBindingsMap    bpfMapName = "port_bindings"
+	telemetryMap       bpfMapName = "telemetry"
 )
 
 // sectionName returns the sectionName for the given BPF map

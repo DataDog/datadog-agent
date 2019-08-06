@@ -48,14 +48,21 @@ func roundFloat(val float64) float64 {
 	return math.Round(val*100) / 100
 }
 
-// Can't use values from math.MaxInt* because this should depend on the machine's word size
-const maxInt = int64(^uint(0) >> 1)
+// We can't use values from math.MaxUint* because C size for longs changes on 32/64 bit machines
+const maxULong = uint64(^uint(0)) // local max value for an uint (uint64 or uint32)
+const maxULong32 = math.MaxUint32
 
 // Compute the increment between two iostats values, taking into account they can overflow
 func incrementWithOverflow(currentValue, lastValue uint64) int64 {
 	ret := int64(currentValue - lastValue)
 	if ret < 0 {
-		ret = ret + maxInt
+		// even on 64bit machines some values overflow at max32bit (like WeightedIO)
+		maxValue := maxULong
+		if lastValue <= maxULong32 {
+			maxValue = maxULong32
+		}
+		// +1 is for the overflow that pushed the value from its max to 0
+		ret = int64(currentValue + (maxValue - lastValue) + 1)
 	}
 	return ret
 }
@@ -121,9 +128,11 @@ func (c *IOCheck) nixIO() error {
 		diffNRIO := float64(incrementWithOverflow(ioStats.ReadCount, lastIOStats.ReadCount))
 		diffNWIO := float64(incrementWithOverflow(ioStats.WriteCount, lastIOStats.WriteCount))
 		if diffNRIO != 0 {
+			//Note we use math.MaxUint32 because this value is always 32-bit, even on 64 bit machines
 			rAwait = float64(incrementWithOverflow(ioStats.ReadTime, lastIOStats.ReadTime)) / diffNRIO
 		}
 		if diffNWIO != 0 {
+			//Note we use math.MaxUint32 because this value is always 32-bit, even on 64 bit machines
 			wAwait = float64(incrementWithOverflow(ioStats.WriteTime, lastIOStats.WriteTime)) / diffNWIO
 		}
 
@@ -133,6 +142,7 @@ func (c *IOCheck) nixIO() error {
 		if diffNIO != 0 {
 			avgrqsz = float64((incrementWithOverflow(ioStats.ReadBytes, lastIOStats.ReadBytes)+
 				incrementWithOverflow(ioStats.WriteBytes, lastIOStats.WriteBytes))/SectorSize) / diffNIO
+			//Note we use math.MaxUint32 because these values are always 32-bit, even on 64 bit machines
 			aWait = float64(
 				incrementWithOverflow(ioStats.ReadTime, lastIOStats.ReadTime)+
 					incrementWithOverflow(ioStats.WriteTime, lastIOStats.WriteTime)) / diffNIO

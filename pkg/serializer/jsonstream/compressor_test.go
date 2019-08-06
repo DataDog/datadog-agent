@@ -16,15 +16,17 @@ import (
 	"io/ioutil"
 	"testing"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 var (
-	maxPayloadSizeDefault = maxPayloadSize
+	maxPayloadSizeDefault = config.Datadog.GetInt("serializer_max_payload_size")
 )
 
 type dummyMarshaller struct {
@@ -34,22 +36,24 @@ type dummyMarshaller struct {
 }
 
 func resetDefaults() {
-	maxPayloadSize = maxPayloadSizeDefault
+	config.Datadog.SetDefault("serializer_max_payload_size", maxPayloadSizeDefault)
 }
 
-func (d *dummyMarshaller) JSONHeader() []byte {
-	return []byte(d.header)
+func (d *dummyMarshaller) WriteHeader(stream *jsoniter.Stream) error {
+	_, err := stream.Write([]byte(d.header))
+	return err
 }
 
 func (d *dummyMarshaller) Len() int {
 	return len(d.items)
 }
 
-func (d *dummyMarshaller) JSONItem(i int) ([]byte, error) {
+func (d *dummyMarshaller) WriteItem(stream *jsoniter.Stream, i int) error {
 	if i < 0 || i > d.Len()-1 {
-		return nil, errors.New("out of range")
+		return errors.New("out of range")
 	}
-	return []byte(d.items[i]), nil
+	_, err := stream.Write([]byte(d.items[i]))
+	return err
 }
 
 func (d *dummyMarshaller) DescribeItem(i int) string {
@@ -59,8 +63,9 @@ func (d *dummyMarshaller) DescribeItem(i int) string {
 	return d.items[i]
 }
 
-func (d *dummyMarshaller) JSONFooter() []byte {
-	return []byte(d.footer)
+func (d *dummyMarshaller) WriteFooter(stream *jsoniter.Stream) error {
+	_, err := stream.Write([]byte(d.footer))
+	return err
 }
 
 func (d *dummyMarshaller) MarshalJSON() ([]byte, error) {
@@ -131,7 +136,7 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 		header: "{[",
 		footer: "]}",
 	}
-	maxPayloadSize = 22
+	config.Datadog.SetDefault("serializer_max_payload_size", 22)
 	defer resetDefaults()
 
 	builder := NewPayloadBuilder()
@@ -148,7 +153,7 @@ func TestTwoPayload(t *testing.T) {
 		header: "{[",
 		footer: "]}",
 	}
-	maxPayloadSize = 22
+	config.Datadog.SetDefault("serializer_max_payload_size", 22)
 	defer resetDefaults()
 
 	builder := NewPayloadBuilder()
@@ -239,7 +244,7 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 		r, _ = builder.Build(testSeries)
 	}
 	// ensure we actually had to split
-	if len(r) != 2 {
+	if len(r) != 13 {
 		panic(fmt.Sprintf("expecting two payloads, got %d", len(r)))
 	}
 	// test the compressed size

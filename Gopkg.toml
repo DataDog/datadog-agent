@@ -1,19 +1,15 @@
 [[constraint]]
   name = "github.com/DataDog/agent-payload"
-  version = "4.7.1"
+  version = "4.9.1"
 
 [[constraint]]
   name = "github.com/DataDog/gohai"
   branch = "master"
 
 [[constraint]]
-  name = "github.com/DataDog/zstd"
-  version = "~v1.3.0"
-
-[[constraint]]
-  name = "github.com/DataDog/zstd.v0.5"
+  name = "github.com/DataDog/zstd.v1.3"
   source = "github.com/DataDog/zstd"
-  revision = "2b373cbe6ac0c8e6960bbd18026ceb269eef89f5"
+  version = "~v1.3.0"
 
 [[constraint]]
   name = "github.com/Microsoft/go-winio"
@@ -187,11 +183,12 @@
 
 [[constraint]]
   name = "github.com/DataDog/gopsutil"
-  revision = "fe7986fb54b7a36afebec4610af9daa8e5f34f89"
+  revision = "3ca45fa2b07679737219be93796a178822ff878f"
 
 [[constraint]]
   name = "github.com/iovisor/gobpf"
-  revision = "98ebf56442afb10e1b43145127de3c1777ed7e95"
+  source = "github.com/DataDog/gobpf"
+  revision = "dfb11c17a0746e78b1bd96b6eea766f2a4a2ce8a"
 
 [[constraint]]
   name = "github.com/florianl/go-conntrack"

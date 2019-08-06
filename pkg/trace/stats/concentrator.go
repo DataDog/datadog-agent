@@ -1,6 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package stats
 
 import (
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -32,7 +38,8 @@ type Concentrator struct {
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
 	bufferLen int
 
-	OutStats chan []Bucket
+	In  chan *Input
+	Out chan []Bucket
 
 	exit   chan struct{}
 	exitWG *sync.WaitGroup
@@ -53,7 +60,8 @@ func NewConcentrator(aggregators []string, bsize int64, out chan []Bucket) *Conc
 		// TODO: Move to configuration.
 		bufferLen: defaultBufferLen,
 
-		OutStats: out,
+		In:  make(chan *Input, 1000),
+		Out: out,
 
 		exit:   make(chan struct{}),
 		exitWG: &sync.WaitGroup{},
@@ -82,13 +90,23 @@ func (c *Concentrator) Run() {
 
 	log.Debug("Starting concentrator")
 
+	for i := 0; i < runtime.NumCPU(); i++ {
+		go func() {
+			for {
+				select {
+				case i := <-c.In:
+					c.addNow(i, time.Now().UnixNano())
+				}
+			}
+		}()
+	}
 	for {
 		select {
 		case <-flushTicker.C:
-			c.OutStats <- c.Flush()
+			c.Out <- c.Flush()
 		case <-c.exit:
 			log.Info("Exiting concentrator, computing remaining stats")
-			c.OutStats <- c.Flush()
+			c.Out <- c.Flush()
 			return
 		}
 	}
@@ -108,11 +126,6 @@ type Input struct {
 	Trace     WeightedTrace
 	Sublayers SublayerMap
 	Env       string
-}
-
-// Add appends to the proper stats bucket this trace's statistics
-func (c *Concentrator) Add(i *Input) {
-	c.addNow(i, time.Now().UnixNano())
 }
 
 func (c *Concentrator) addNow(i *Input, now int64) {

@@ -1,8 +1,8 @@
 package encoding
 
 import (
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/gogo/protobuf/proto"
 )
 

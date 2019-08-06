@@ -16,9 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// FIXME: Changed chanSize to a constant once we refactor packages
 const (
-	chanSize      = 100
 	warningPeriod = 1000
 )
 
@@ -54,6 +52,8 @@ func (d *Destination) Send(payload []byte) error {
 		// We work only if we have a started destination context
 		ctx := d.destinationsContext.Context()
 		if d.conn, err = d.connManager.NewConnection(ctx); err != nil {
+			// the connection manager is not meant to fail,
+			// this can happen only when the context is cancelled.
 			return err
 		}
 	}
@@ -61,14 +61,15 @@ func (d *Destination) Send(payload []byte) error {
 	content := d.prefixer.apply(payload)
 	frame, err := d.delimiter.delimit(content)
 	if err != nil {
-		return client.NewFramingError(err)
+		// the delimiter can fail when the payload can not be framed correctly.
+		return err
 	}
 
 	_, err = d.conn.Write(frame)
 	if err != nil {
 		d.connManager.CloseConnection(d.conn)
 		d.conn = nil
-		return err
+		return client.NewRetryableError(err)
 	}
 
 	return nil
@@ -79,7 +80,7 @@ func (d *Destination) Send(payload []byte) error {
 func (d *Destination) SendAsync(payload []byte) {
 	host := d.connManager.endpoint.Host
 	d.once.Do(func() {
-		inputChan := make(chan []byte, chanSize)
+		inputChan := make(chan []byte, config.ChanSize)
 		d.inputChan = inputChan
 		metrics.DestinationLogsDropped.Set(host, &expvar.Int{})
 		go d.runAsync()

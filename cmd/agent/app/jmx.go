@@ -82,7 +82,7 @@ var (
 )
 
 func init() {
-	jmxCmd.PersistentFlags().StringVarP(&jmxLogLevel, "log-level", "l", "debug", "set the log level")
+	jmxCmd.PersistentFlags().StringVarP(&jmxLogLevel, "log-level", "l", "debug", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
 
 	// attach list and collect commands to jmx command
 	jmxCmd.AddCommand(jmxListCmd)
@@ -122,16 +122,30 @@ func doJmxListNotCollected(cmd *cobra.Command, args []string) error {
 	return runJmxCommand("list_not_matching_attributes")
 }
 
-func setupAgent() error {
+func runJmxCommand(command string) error {
+
+	if jmxLogLevel != "" {
+		// Honour the deprecated --log-level argument
+		overrides := make(map[string]interface{})
+		overrides["log_level"] = jmxLogLevel
+		config.SetOverrides(overrides)
+	} else {
+		jmxLogLevel = config.GetEnv("DD_LOG_LEVEL", "off")
+	}
+
 	overrides := make(map[string]interface{})
-
-	// let the os assign an available port
-	overrides["cmd_port"] = 0
-
+	overrides["cmd_port"] = 0 // let the os assign an available port
 	config.SetOverrides(overrides)
+
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	}
+
+	err = config.SetupLogger(loggerName, jmxLogLevel, "", "", false, true, false)
+	if err != nil {
+		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+		return err
 	}
 
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
@@ -139,21 +153,6 @@ func setupAgent() error {
 	// start the cmd HTTP server
 	if err := api.StartServer(); err != nil {
 		return fmt.Errorf("Error while starting api server, exiting: %v", err)
-	}
-
-	return nil
-}
-
-func runJmxCommand(command string) error {
-	err := config.SetupLogger(loggerName, jmxLogLevel, "", "", false, true, false)
-	if err != nil {
-		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-		return err
-	}
-
-	err = setupAgent()
-	if err != nil {
-		return err
 	}
 
 	runner := &jmxfetch.JMXFetch{}

@@ -1,6 +1,6 @@
 # Downgrade back to Agent 5
 
-This guide assumes you upgraded to the beta using our [upgrade guide][upgrade-guide]
+This guide assumes you upgraded to the Agent v6 using our [upgrade guide][upgrade-guide]
 
 We have been careful to keep the legacy configurations in place to ease the the
 downgrade process should you decide you do not wish to continue trying the beta.
@@ -23,7 +23,7 @@ sudo apt-get install apt-transport-https
 ```shell
 sudo rm /etc/apt/sources.list.d/datadog-beta.list
 [ ! -f /etc/apt/sources.list.d/datadog.list ] &&  echo 'deb https://apt.datadoghq.com/ stable main' | sudo tee /etc/apt/sources.list.d/datadog.list
-sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 382E94DE
+sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 A2923DFF56EDA6E76E55E492D3A80E30382E94DE
 ```
 
 ##### Update apt and downgrade the agent

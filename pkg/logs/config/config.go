@@ -87,7 +87,6 @@ func BuildEndpoints() (*Endpoints, error) {
 }
 
 func buildTCPEndpoints() (*Endpoints, error) {
-	var useSSL bool
 	useProto := coreConfig.Datadog.GetBool("logs_config.dev_mode_use_proto")
 	proxyAddress := coreConfig.Datadog.GetString("logs_config.socks5_proxy_address")
 	main := Endpoint{
@@ -105,11 +104,11 @@ func buildTCPEndpoints() (*Endpoints, error) {
 		}
 		main.Host = host
 		main.Port = port
-		useSSL = !coreConfig.Datadog.GetBool("logs_config.logs_no_ssl")
+		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.logs_no_ssl")
 	case coreConfig.Datadog.GetBool("logs_config.use_port_443"):
 		main.Host = coreConfig.Datadog.GetString("logs_config.dd_url_443")
 		main.Port = 443
-		useSSL = true
+		main.UseSSL = true
 	default:
 		// If no proxy is set, we default to 'logs_config.dd_url' if set, or to 'site'.
 		// if none of them is set, we default to the US agent endpoint.
@@ -119,9 +118,8 @@ func buildTCPEndpoints() (*Endpoints, error) {
 		} else {
 			main.Port = coreConfig.Datadog.GetInt("logs_config.dd_port")
 		}
-		useSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
+		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
 	}
-	main.UseSSL = useSSL
 
 	var additionals []Endpoint
 	err := coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &additionals)
@@ -129,7 +127,7 @@ func buildTCPEndpoints() (*Endpoints, error) {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
 	}
 	for i := 0; i < len(additionals); i++ {
-		additionals[i].UseSSL = useSSL
+		additionals[i].UseSSL = main.UseSSL
 		additionals[i].ProxyAddress = proxyAddress
 	}
 
@@ -155,7 +153,16 @@ func buildHTTPEndpoints() (*Endpoints, error) {
 		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
 	}
 
-	return NewEndpoints(main, nil, false, true), nil
+	var additionals []Endpoint
+	err := coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &additionals)
+	if err != nil {
+		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
+	}
+	for i := 0; i < len(additionals); i++ {
+		additionals[i].UseSSL = main.UseSSL
+	}
+
+	return NewEndpoints(main, additionals, false, true), nil
 }
 
 func isSetAndNotEmpty(config coreConfig.Config, key string) bool {
