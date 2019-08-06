@@ -382,18 +382,7 @@ func newEventGenerator() (*eventGenerator, error) {
 		return nil, err
 	}
 
-	go func() {
-		for {
-			conn, err := l.Accept()
-			if err != nil {
-				return
-			}
-
-			io.Copy(ioutil.Discard, conn)
-			conn.Close()
-		}
-	}()
-
+	go acceptHandler(l)
 	e := &eventGenerator{listener: l, lport: uint16(lport)}
 	return e, nil
 }
@@ -456,6 +445,18 @@ func (e *eventGenerator) Close() {
 	}
 
 	e.listener.Close()
+}
+
+func acceptHandler(l net.Listener) {
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+
+		io.Copy(ioutil.Discard, conn)
+		conn.Close()
+	}
 }
 
 // tcpGetInfo obtains information from a TCP socket via GETSOCKOPT(2) system call.
