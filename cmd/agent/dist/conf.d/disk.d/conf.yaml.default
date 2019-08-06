@@ -61,7 +61,7 @@ instances:
     ## start matching from the beginning. To match anywhere,
     ## prepend `.*`. For exact matches, append `$`.
     ##
-    ## When conflicts arise, `file_system_whitelist` is overriden.
+    ## When conflicts arise, `file_system_whitelist` is overridden.
     #
     # file_system_blacklist:
     #   - tmpfs$
@@ -86,7 +86,7 @@ instances:
     ## expressions start matching from the beginning. To match
     ## anywhere, prepend `.*`. For exact matches, append `$`.
     ##
-    ## When conflicts arise, `device_whitelist` is overriden.
+    ## When conflicts arise, `device_whitelist` is overridden.
     #
     # device_blacklist:
     #   - /dev/sde
@@ -110,7 +110,7 @@ instances:
     ## expressions start matching from the beginning. To match
     ## anywhere, prepend `.*`. For exact matches, append `$`.
     ##
-    ## When conflicts arise, `mount_point_whitelist` is overriden.
+    ## When conflicts arise, `mount_point_whitelist` is overridden.
     #
     # mount_point_blacklist:
     #   - /proc/sys/fs/binfmt_misc
