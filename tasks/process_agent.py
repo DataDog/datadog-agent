@@ -95,27 +95,3 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
     }
 
     ctx.run(cmd.format(**args), env=env)
-
-
-@task
-def protobuf(ctx):
-    """
-    Compile the protobuf files for the process agent
-    """
-
-    expected = "libprotoc 3.3.0"
-
-    protoc_version = check_output(["protoc", "--version"]).decode('utf-8').strip()
-
-    if protoc_version != expected:
-        raise Exception(
-            "invalid version for protoc got '{version}' expected '{expected}'".format(
-                version=protoc_version,
-                expected=expected,
-            )
-        )
-
-    cmd = "protoc {proto_dir}/agent.proto -I {gopath}/src -I vendor -I {proto_dir} --gogofaster_out {gopath}/src"
-    proto_dir = os.path.join(".", "pkg", "process", "proto")
-
-    ctx.run(cmd.format(gopath=get_gopath(ctx), proto_dir=proto_dir))

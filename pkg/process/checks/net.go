@@ -6,10 +6,10 @@ import (
 	"os"
 	"time"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

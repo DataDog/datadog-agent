@@ -45,9 +45,10 @@ type Tracer struct {
 	perfMap *bpflib.PerfMap
 
 	// Telemetry
-	perfReceived int64
-	perfLost     int64
-	skippedConns int64
+	perfReceived  int64
+	perfLost      int64
+	skippedConns  int64
+	pidCollisions int64
 	// Will track the count of expired TCP connections
 	// We are manually expiring TCP connections because it seems that we are losing some of the TCP close events
 	// For now we are only tracking the `tcp_close` probe but we should also track the `tcp_set_state` probe when
@@ -69,10 +70,11 @@ type Tracer struct {
 	buf *bytes.Buffer
 }
 
-// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
-// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
 const (
-	maxActive = 128
+	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
+	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
+	maxActive                = 128
+	defaultClosedChannelSize = 500
 )
 
 // CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
@@ -189,7 +191,11 @@ func (t *Tracer) expvarStats() {
 
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
 func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
-	closedChannel := make(chan []byte, 100)
+	closedChannelSize := defaultClosedChannelSize
+	if t.config.ClosedChannelSize > 0 {
+		closedChannelSize = t.config.ClosedChannelSize
+	}
+	closedChannel := make(chan []byte, closedChannelSize)
 	lostChannel := make(chan uint64, 10)
 
 	pm, err := bpflib.InitPerfMap(t.m, string(tcpCloseEventMap), closedChannel, lostChannel)
@@ -305,6 +311,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 	// Iterate through all key-value pairs in map
 	key, nextKey, stats := &ConnTuple{}, &ConnTuple{}, &ConnStatsWithTimestamp{}
+	seen := make(map[ConnTuple]struct{})
 	var expired []*ConnTuple
 	for {
 		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
@@ -316,7 +323,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 				atomic.AddInt64(&t.expiredTCPConns, 1)
 			}
 		} else {
-			conn := connStats(nextKey, stats, t.getTCPStats(tcpMp, nextKey))
+			conn := connStats(nextKey, stats, t.getTCPStats(tcpMp, nextKey, seen))
 			conn.Direction = t.determineConnectionDirection(&conn)
 
 			if t.shouldSkipConnection(&conn) {
@@ -387,19 +394,26 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 }
 
 // getTCPStats reads tcp related stats for the given ConnTuple
-func (t *Tracer) getTCPStats(mp *bpflib.Map, tuple *ConnTuple) *TCPStats {
+func (t *Tracer) getTCPStats(mp *bpflib.Map, tuple *ConnTuple, seen map[ConnTuple]struct{}) *TCPStats {
+	stats := &TCPStats{retransmits: 0}
+
+	if !tuple.isTCP() {
+		return stats
+	}
+
 	// The PID isn't used as a key in the stats map, we will temporarily set it to 0 here and reset it when we're done
 	pid := tuple.pid
 	tuple.pid = 0
 
-	stats := &TCPStats{retransmits: 0}
-
-	// Don't bother looking in the map if the connection is UDP, there will never be data for that and we will avoid
-	// the overhead of the syscall and creating the resultant error
-	if tuple.isTCP() {
-		_ = t.m.LookupElement(mp, unsafe.Pointer(tuple), unsafe.Pointer(stats))
+	// This is required to avoid (over)reporting stats for connections sharing the same socket.
+	if _, reported := seen[*tuple]; reported {
+		atomic.AddInt64(&t.pidCollisions, 1)
+		tuple.pid = pid
+		return stats
 	}
 
+	_ = t.m.LookupElement(mp, unsafe.Pointer(tuple), unsafe.Pointer(stats))
+	seen[*tuple] = struct{}{}
 	tuple.pid = pid
 
 	return stats
@@ -502,6 +516,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	received := atomic.LoadInt64(&t.perfReceived)
 	skipped := atomic.LoadInt64(&t.skippedConns)
 	expiredTCP := atomic.LoadInt64(&t.expiredTCPConns)
+	pidCollisions := atomic.LoadInt64(&t.pidCollisions)
 
 	stateStats := t.state.GetStats()
 	conntrackStats := t.conntracker.GetStats()
@@ -514,6 +529,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 			"closed_conn_polling_received": received,
 			"conn_valid_skipped":           skipped, // Skipped connections (e.g. Local DNS requests)
 			"expired_tcp_conns":            expiredTCP,
+			"pid_collisions":               pidCollisions,
 		},
 		"ebpf":    t.getEbpfTelemetry(),
 		"kprobes": GetProbeStats(),

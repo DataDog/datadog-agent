@@ -1,19 +1,15 @@
 [[constraint]]
   name = "github.com/DataDog/agent-payload"
-  version = "4.7.1"
+  version = "4.9.1"
 
 [[constraint]]
   name = "github.com/DataDog/gohai"
   branch = "master"
 
 [[constraint]]
-  name = "github.com/DataDog/zstd"
-  version = "~v1.3.0"
-
-[[constraint]]
-  name = "github.com/DataDog/zstd.v0.5"
+  name = "github.com/DataDog/zstd.v1.3"
   source = "github.com/DataDog/zstd"
-  revision = "2b373cbe6ac0c8e6960bbd18026ceb269eef89f5"
+  version = "~v1.3.0"
 
 [[constraint]]
   name = "github.com/Microsoft/go-winio"

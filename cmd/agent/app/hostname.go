@@ -27,11 +27,18 @@ var getHostnameCommand = &cobra.Command{
 
 // query for the version
 func doGetHostname(cmd *cobra.Command, args []string) error {
-	config.SetupLogger(loggerName, "off", "", "", false, true, false)
+
 	err := common.SetupConfigWithoutSecrets(confFilePath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
+
+	err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+	if err != nil {
+		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+		return err
+	}
+
 	hname, err := util.GetHostname()
 	if err != nil {
 		return fmt.Errorf("Error getting the hostname: %v", err)

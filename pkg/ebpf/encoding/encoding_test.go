@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -229,7 +229,7 @@ def system_tests(ctx):
 
 
 @task
-def image_build(ctx, base_dir="omnibus", skip_tests=False):
+def image_build(ctx, base_dir="omnibus", python_version=2, skip_tests=False):
     """
     Build the docker image
     """
@@ -246,14 +246,16 @@ def image_build(ctx, base_dir="omnibus", skip_tests=False):
 
     # Pull base image with content trust enabled
     pull_base_images(ctx, "Dockerfiles/agent/Dockerfile", signed_pull=True)
+    common_build_opts = "-t {} --build-arg PYTHON_VERSION={}".format(AGENT_TAG, python_version)
 
     # Build with the testing target
     if not skip_tests:
-        ctx.run("docker build -t {} --target testing Dockerfiles/agent".format(AGENT_TAG))
+        ctx.run("docker build {} --target testing Dockerfiles/agent".format(common_build_opts))
 
     # Build with the release target
-    ctx.run("docker build -t {} --target release Dockerfiles/agent".format(AGENT_TAG))
+    ctx.run("docker build {} --target release Dockerfiles/agent".format(common_build_opts))
     ctx.run("rm Dockerfiles/agent/datadog-agent*_amd64.deb")
+
 
 @task
 def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):

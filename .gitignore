@@ -93,3 +93,8 @@ pkg/ebpf/c/*.o
 
 # windows container build output
 build.out/
+
+# dev VM
+.vagrant
+Vagrantfile
+

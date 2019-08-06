@@ -19,16 +19,16 @@ import (
 
 var currentStats = map[string]disk.IOCountersStat{
 	"sda": {
-		ReadCount:        42,
-		MergedReadCount:  42,
-		WriteCount:       42,
-		MergedWriteCount: 42,
+		ReadCount:        41,
+		MergedReadCount:  41,
+		WriteCount:       41,
+		MergedWriteCount: 41,
 		ReadBytes:        42 * kB,
 		WriteBytes:       42 * kB,
-		ReadTime:         42,
-		WriteTime:        42,
+		ReadTime:         41,
+		WriteTime:        41,
 		IopsInProgress:   0,
-		IoTime:           42,
+		IoTime:           41,
 		WeightedIO:       42 * kB,
 		Name:             "sda",
 		SerialNumber:     "123456789WD",
@@ -37,38 +37,47 @@ var currentStats = map[string]disk.IOCountersStat{
 
 var lastStats = map[string]disk.IOCountersStat{
 	"sda": {
-		ReadCount:        uint64(maxLong),
-		MergedReadCount:  uint64(maxLong),
-		WriteCount:       uint64(maxLong),
-		MergedWriteCount: uint64(maxLong),
-		ReadBytes:        uint64(maxLong),
-		WriteBytes:       uint64(maxLong),
+		ReadCount:        uint64(maxULong),
+		MergedReadCount:  uint64(maxULong),
+		WriteCount:       uint64(maxULong),
+		MergedWriteCount: uint64(maxULong),
+		ReadBytes:        uint64(maxULong),
+		WriteBytes:       uint64(maxULong),
 		ReadTime:         uint64(math.MaxUint32),
 		WriteTime:        uint64(math.MaxUint32),
 		IopsInProgress:   0,
-		IoTime:           uint64(maxLong),
-		WeightedIO:       uint64(maxLong),
+		IoTime:           uint64(maxULong),
+		WeightedIO:       uint64(math.MaxUint32),
 		Name:             "sda",
 		SerialNumber:     "123456789WD",
 	},
 }
 
-func TestWithRealValues(t *testing.T) {
-	increment := incrementWithOverflow(6176672, 4292830204, math.MaxUint32)
-	assert.Equal(t, int64(8313763), increment)
+func TestOverflow32(t *testing.T) {
+	increment := incrementWithOverflow(0, math.MaxUint32)
+	assert.Equal(t, int64(1), increment)
+}
+
+func TestOverflow64(t *testing.T) {
+	increment := incrementWithOverflow(0, math.MaxUint64)
+	assert.Equal(t, int64(1), increment)
+}
+
+func TestWithRealValues32(t *testing.T) {
+	increment := incrementWithOverflow(123456, math.MaxUint32-2)
+	assert.Equal(t, int64(123459), increment)
+}
+
+func TestWithRealValues64(t *testing.T) {
+	increment := incrementWithOverflow(123456, math.MaxUint64-2)
+	assert.Equal(t, int64(123459), increment)
 }
 
 func TestIncrementWithOverflow(t *testing.T) {
-	prev := uint64(maxLong) - 2
-	for i := -1; i < 2; i++ {
-		curr := uint64(maxLong) + uint64(i)
-		if curr >= uint64(maxLong) {
-			curr -= uint64(maxLong)
-		}
-		increment := incrementWithOverflow(curr, prev, maxLong)
-		assert.Equal(t, int64(1), increment)
-		prev = curr
-	}
+	assert.Equal(t, int64(1), incrementWithOverflow(maxULong-1, maxULong-2))
+	assert.Equal(t, int64(1), incrementWithOverflow(maxULong, maxULong-1))
+	assert.Equal(t, int64(1), incrementWithOverflow(0, maxULong))
+	assert.Equal(t, int64(1), incrementWithOverflow(1, 0))
 }
 
 func TestIoStatsOverflow(t *testing.T) {
@@ -83,10 +92,10 @@ func TestIoStatsOverflow(t *testing.T) {
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
-	mock.On("Rate", "system.io.r_s", 42.0, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Rate", "system.io.w_s", 42.0, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Rate", "system.io.rrqm_s", 42.0, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Rate", "system.io.wrqm_s", 42.0, "", []string{"device:sda"}).Return().Times(1)
+	mock.On("Rate", "system.io.r_s", 41.0, "", []string{"device:sda"}).Return().Times(1)
+	mock.On("Rate", "system.io.w_s", 41.0, "", []string{"device:sda"}).Return().Times(1)
+	mock.On("Rate", "system.io.rrqm_s", 41.0, "", []string{"device:sda"}).Return().Times(1)
+	mock.On("Rate", "system.io.wrqm_s", 41.0, "", []string{"device:sda"}).Return().Times(1)
 	mock.On("Gauge", "system.io.rkb_s", 42.0, "", []string{"device:sda"}).Return().Times(1)
 	mock.On("Gauge", "system.io.wkb_s", 42.0, "", []string{"device:sda"}).Return().Times(1)
 	mock.On("Gauge", "system.io.avg_rq_sz", 2.0, "", []string{"device:sda"}).Return().Times(1)

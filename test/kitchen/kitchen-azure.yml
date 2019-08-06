@@ -315,6 +315,7 @@ suites:
     dd-agent-install-script:
       api_key: <%= api_key %>
       candidate_repo_branch: pipeline-<%= ENV['CI_PIPELINE_ID'] %>
+      install_script_url: https://raw.githubusercontent.com/DataDog/datadog-agent/<%= ENV['CI_COMMIT_SHA'] %>/cmd/agent/install_script.sh
       install_candidate: true
     dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>

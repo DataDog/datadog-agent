@@ -37,7 +37,7 @@ build: off
 test_script:
   - inv -e rtloader.build --install-prefix=%APPVEYOR_BUILD_FOLDER%\dev --cmake-options="-G \"MSYS Makefiles\""
   - inv -e rtloader.install
-  - inv -e rtloader.format
+  - inv -e rtloader.format --raise-if-changed
   - inv -e rtloader.test
   - inv -e deps --dep-vendor-only
   - inv -e test --coverage --profile --fail-on-fmt --python-home-2=C:\Python27-x64 --python-home-3=C:\Python37-x64

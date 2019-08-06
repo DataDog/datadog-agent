@@ -8,6 +8,4 @@
 ---
 enhancements:
   - |
-    APM: Services are no longer aggreagated in the agent, nor written to the Datadog API.
-    Instead, they are now automatically extracted on the backend based on the received
-    traces.
+    For Windows, add a message when the user cannot perform the action in the systray.

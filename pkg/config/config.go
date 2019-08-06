@@ -455,6 +455,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.max_closed_connections_buffered")
 	config.SetKnown("system_probe_config.max_connection_state_buffered")
 	config.SetKnown("system_probe_config.excluded_linux_versions")
+	config.SetKnown("system_probe_config.closed_channel_size")
 
 	// APM
 	config.SetKnown("apm_config.enabled")
@@ -810,6 +811,16 @@ func IsContainerized() bool {
 // file used to populate the registry
 func FileUsedDir() string {
 	return filepath.Dir(Datadog.ConfigFileUsed())
+}
+
+// GetEnv retrieves the value of the environment variable named by the key,
+// or def if the environment variable was not set.
+func GetEnv(key, def string) string {
+	value, found := os.LookupEnv(key)
+	if !found {
+		return def
+	}
+	return value
 }
 
 // IsKubernetes returns whether the Agent is running on a kubernetes cluster

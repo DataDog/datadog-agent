@@ -3,8 +3,8 @@
 package net
 
 import (
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
 )
 
 // RemoteSysProbeUtil is only implemented on linux
