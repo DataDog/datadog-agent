@@ -165,15 +165,15 @@ done:
  * freePyInfo()
  */
 
-void Three::freePyInfo(py_info_t* info) {
+void Three::freePyInfo(py_info_t *info)
+{
     info->version = NULL;
-    if(info->path){
+    if (info->path) {
         free(info->path);
         info->version = NULL;
     }
     free(info);
     return;
-    
 }
 bool Three::runSimpleString(const char *code) const
 {

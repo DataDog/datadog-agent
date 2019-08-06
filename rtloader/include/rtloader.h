@@ -166,8 +166,8 @@ public:
 
       Frees all memory allocated in a previous call to getPyInfo
      */
-    virtual void freePyInfo(py_info_t*) = 0;
-    
+    virtual void freePyInfo(py_info_t *) = 0;
+
     //! Pure virtual runSimpleString member.
     /*!
       \param code A C-string representation of python code we wish to run on the underlying python runtime.

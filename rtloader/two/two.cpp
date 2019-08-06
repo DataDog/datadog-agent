@@ -167,14 +167,14 @@ done:
 /**
  * freePyInfo()
  */
-void Two::freePyInfo(py_info_t* info) {
+void Two::freePyInfo(py_info_t *info)
+{
     info->version = NULL;
-    if(info->path){
+    if (info->path) {
         free(info->path);
     }
     free(info);
     return;
-    
 }
 
 bool Two::runSimpleString(const char *code) const

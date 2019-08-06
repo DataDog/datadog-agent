@@ -223,7 +223,7 @@ py_info_t *get_py_info(rtloader_t *rtloader)
     return AS_TYPE(RtLoader, rtloader)->getPyInfo();
 }
 
-void free_py_info(rtloader_t* rtloader, py_info_t* info)
+void free_py_info(rtloader_t *rtloader, py_info_t *info)
 {
     AS_TYPE(RtLoader, rtloader)->freePyInfo(info);
 }

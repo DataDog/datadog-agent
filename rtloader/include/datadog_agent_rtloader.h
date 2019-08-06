@@ -259,7 +259,7 @@ DATADOG_AGENT_RTLOADER_API py_info_t *get_py_info(rtloader_t *);
 
     Frees the structure and appropriate structure memebers.
 */
-DATADOG_AGENT_RTLOADER_API void free_py_info(rtloader_t *, py_info_t*);
+DATADOG_AGENT_RTLOADER_API void free_py_info(rtloader_t *, py_info_t *);
 /*! \fn int run_simple_string(const rtloader_t *, const char *code)
     \brief Routine to execute a simple piece of python code on the RtLoader python runtime
     implementation.

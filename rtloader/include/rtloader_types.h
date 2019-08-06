@@ -65,7 +65,7 @@ typedef struct event_s {
 
 typedef struct py_info_s {
     const char *version; // returned by Py_GetInfo(); is static string owned by python
-    char *path;          // allocated within getPyInfo()
+    char *path; // allocated within getPyInfo()
 } py_info_t;
 
 /*
