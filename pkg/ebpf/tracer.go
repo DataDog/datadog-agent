@@ -106,9 +106,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 		}
 	}
 
+	start := time.Now()
 	if err := guessOffsets(m, config); err != nil {
 		return nil, fmt.Errorf("failed to init module: error guessing offsets: %v", err)
 	}
+	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
 
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes := config.EnabledKProbes()
