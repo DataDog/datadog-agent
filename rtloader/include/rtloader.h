@@ -111,6 +111,15 @@ public:
     */
     virtual char *runCheck(RtLoaderPyObject *check) = 0;
 
+    //! Pure virtual sizeOfCheck member.
+    /*!
+      \param check The python object pointer to the check we wish to sizeOfCheck.
+      \return An integer with the size of the check instance.
+    */
+#define _PY_PYMPLER_SIZING_MODULE "pympler.asizeof"
+#define _PY_PYMPLER_SIZING_FUNCTION "asizeof"
+    virtual long sizeOfCheck(RtLoaderPyObject *check) = 0;
+
     //! Pure virtual getCheckWarnings member.
     /*!
       \param check The python object pointer to the check we wish to collect existing warnings for.

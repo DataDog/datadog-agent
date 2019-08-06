@@ -228,6 +228,19 @@ func (c *Collector) getAllInstanceIDs(checkName string) []check.ID {
 	return instances
 }
 
+// GetAllCheckInstances gets all the check instances configured in the collector
+func (c *Collector) GetAllCheckInstances() []check.Check {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
+	instances := []check.Check{}
+	for _, check := range c.checks {
+		instances = append(instances, check)
+	}
+
+	return instances
+}
+
 // ReloadAllCheckInstances completely restarts a check with a new configuration
 func (c *Collector) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]check.ID, error) {
 	if !c.started() {

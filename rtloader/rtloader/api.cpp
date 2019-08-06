@@ -293,6 +293,11 @@ char *run_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
     return AS_TYPE(RtLoader, rtloader)->runCheck(AS_TYPE(RtLoaderPyObject, check));
 }
 
+long size_of_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
+{
+    return AS_TYPE(RtLoader, rtloader)->sizeOfCheck(AS_TYPE(RtLoaderPyObject, check));
+}
+
 char **get_checks_warnings(rtloader_t *rtloader, rtloader_pyobject_t *check)
 {
     return AS_TYPE(RtLoader, rtloader)->getCheckWarnings(AS_TYPE(RtLoaderPyObject, check));

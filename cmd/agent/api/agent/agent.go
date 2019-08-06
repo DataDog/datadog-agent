@@ -44,6 +44,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/dogstatsd-stats", getDogstatsdStats).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
+	r.HandleFunc("/status/memory/{component}/checks", getCheckMemoryStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
@@ -217,6 +218,25 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(s)
+}
+
+func getCheckMemoryStatus(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	component := vars["component"]
+	switch component {
+	case "py":
+		jsonStatus, err := status.GetPythonCheckMemoryUsage(common.Coll)
+		if err != nil {
+			log.Errorf("unable to collect python check memory usage: %s", err.Error())
+			http.Error(w, err.Error(), 500)
+		}
+
+		w.Write(jsonStatus)
+	default:
+		err := fmt.Errorf("bad url or resource does not exist")
+		log.Errorf("%s", err.Error())
+		http.Error(w, err.Error(), 404)
+	}
 }
 
 func getHealth(w http.ResponseWriter, r *http.Request) {

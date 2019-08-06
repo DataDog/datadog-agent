@@ -25,10 +25,10 @@ import (
 )
 
 /*
-#include <stdlib.h>
-
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
+
+#include <stdlib.h>
 
 char *getStringAddr(char **array, unsigned int idx);
 */
@@ -106,6 +106,24 @@ func (c *PythonCheck) RunSimple() error {
 
 // Stop does nothing
 func (c *PythonCheck) Stop() {}
+
+func (c *PythonCheck) SizeOfCheck() (int, error) {
+	// Lock the GIL and release it at the end of the run
+	gstate := newStickyLock()
+	defer gstate.unlock()
+
+	log.Debugf("Running python check %s %s", c.ModuleName, c.id)
+
+	size := int(C.size_of_check(rtloader, c.instance))
+	if size < 0 {
+		if err := getRtLoaderError(); err != nil {
+			return size, err
+		}
+		return size, fmt.Errorf("An error occurred while collecting the check instance size: %s", c.ModuleName)
+	}
+
+	return size, nil
+}
 
 // String representation (for debug and logging)
 func (c *PythonCheck) String() string {

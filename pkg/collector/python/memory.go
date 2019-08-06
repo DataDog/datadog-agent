@@ -9,7 +9,6 @@ package python
 
 import (
 	"expvar"
-	// "log"
 	"runtime/debug"
 	"sync"
 	"unsafe"

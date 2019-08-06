@@ -416,6 +416,61 @@ done:
     return ret_copy;
 }
 
+long Two::sizeOfCheck(RtLoaderPyObject *check)
+{
+    long size = -1;
+    char format[] = "(O)";
+    PyObject *pyPympler = NULL, *pySizer = NULL, *pyArgs = NULL;
+    PyObject *result = NULL;
+
+    if (check == NULL) {
+        return 0;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+    rtloader_gilstate_t state = GILEnsure();
+
+    pyPympler = PyImport_ImportModule(_PY_PYMPLER_SIZING_MODULE);
+    if (pyPympler == NULL) {
+        setError("unable to import " _PY_PYMPLER_SIZING_MODULE " module: " + _fetchPythonError());
+        goto done;
+    }
+
+    pySizer = PyObject_GetAttrString(pyPympler, _PY_PYMPLER_SIZING_FUNCTION);
+    if (pySizer == NULL) {
+        setError("could not fetch " _PY_PYMPLER_SIZING_FUNCTION " attr: " + _fetchPythonError());
+        goto done;
+    }
+
+    pyArgs = Py_BuildValue(format, check);
+    if (pyArgs == NULL) {
+        setError("could not build args tuple: " + _fetchPythonError());
+        goto done;
+    }
+
+    result = PyObject_Call(pySizer, pyArgs, NULL);
+    if (result == NULL) {
+        setError("error invoking '" _PY_PYMPLER_SIZING_MODULE "." _PY_PYMPLER_SIZING_FUNCTION "' function: "
+                 + _fetchPythonError());
+        goto done;
+    }
+
+    // result is a python integer...
+    size = PyInt_AsLong(result);
+    if (size == -1) {
+        setError("error converting '" _PY_PYMPLER_SIZING_MODULE "." _PY_PYMPLER_SIZING_FUNCTION "' result to long: "
+                 + _fetchPythonError());
+        goto done;
+    }
+
+done:
+    Py_XDECREF(result);
+    GILRelease(state);
+
+    return size;
+}
+
 char **Two::getCheckWarnings(RtLoaderPyObject *check)
 {
     if (check == NULL) {
