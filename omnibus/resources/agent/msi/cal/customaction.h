@@ -12,7 +12,10 @@ int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data, bool isDC = 
 void removeUserPermsFromFile(std::wstring &filename, PSID sidremove);
 
 DWORD DeleteUser(const wchar_t* host, const wchar_t* name);
+bool setUserProfileFolder(const std::wstring& username, const wchar_t* domain, const std::wstring& password);
 
+// setUserProfileFolder must be called prior using getUserProfileFolder (persist after a reboot)
+bool getUserProfileFolder(const std::wstring& username, std::wstring& userPofileFolder);
 
 bool AddPrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd);
 bool RemovePrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd);

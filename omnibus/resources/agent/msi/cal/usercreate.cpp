@@ -395,3 +395,71 @@ cleanAndFail:
     return retval;
 }
 
+namespace {
+	std::wstring getLastErrorMessage() {
+		return L"Error code: " + std::to_wstring(GetLastError());
+	}
+}
+
+bool setUserProfileFolder(const std::wstring& username, const wchar_t* domain, const std::wstring& password) {
+	HANDLE token = nullptr;
+	if (LogonUser(username.c_str(), domain, password.c_str(), LOGON32_LOGON_SERVICE, 
+					LOGON32_PROVIDER_DEFAULT, &token) == 0) {
+		WcaLog(LOGMSG_STANDARD, "Cannot logon as user %S: %S.", username.c_str(), getLastErrorMessage().c_str());
+		return false;
+	}
+	
+	PROFILEINFO profileInfo;
+	ZeroMemory(&profileInfo, sizeof(PROFILEINFO));
+	profileInfo.dwSize = sizeof(PROFILEINFO);
+	std::vector<wchar_t> profileUserName{ username.begin(), username.end() };
+	profileUserName.push_back(0);
+	profileInfo.lpUserName = &profileUserName[0];
+	
+	if (!LoadUserProfile(token, &profileInfo)) {
+		WcaLog(LOGMSG_STANDARD, "Cannot load profile for %S: %S", username.c_str(), getLastErrorMessage().c_str());
+		return false;
+	}
+	
+	DWORD bufferSize = 0;	
+	if (GetUserProfileDirectory(token, nullptr, &bufferSize) || GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+		WcaLog(LOGMSG_STANDARD, "Cannot get the user profile buffer size. %S", getLastErrorMessage().c_str());
+		return false;
+	}
+	
+	std::vector<wchar_t> userProfileFolder(bufferSize);	
+	if (!GetUserProfileDirectory(token, &userProfileFolder[0], &bufferSize)) {
+		WcaLog(LOGMSG_STANDARD, "Cannot get the user profile. %S", getLastErrorMessage().c_str());
+		return false;
+	}
+
+	USER_INFO_1006 ui;
+	ui.usri1006_home_dir = &userProfileFolder[0];
+	
+	if (NetUserSetInfo(nullptr, username.c_str(), 1006, reinterpret_cast<LPBYTE>(&ui), nullptr) != NERR_Success) {
+		WcaLog(LOGMSG_STANDARD, "Cannot set user profile. %S", getLastErrorMessage().c_str());
+		return false;
+	}
+	
+	WcaLog(LOGMSG_STANDARD, "User profile set to: %S", ui.usri1006_home_dir);
+	return true;
+}
+
+bool getUserProfileFolder(const std::wstring& username, std::wstring& userPofileFolder) {
+	USER_INFO_1* userInfo1 = nullptr;
+
+	if (NetUserGetInfo(nullptr, username.c_str(), 1, reinterpret_cast<LPBYTE*>(&userInfo1)) != NERR_Success) {
+		WcaLog(LOGMSG_STANDARD, "NetUserGetInfo failed.");
+		return false;
+	}
+
+	if (!userInfo1->usri1_home_dir) {
+		WcaLog(LOGMSG_STANDARD, "userInfo1->usri1_home_dir is null.");
+		return false;
+	}
+	WcaLog(LOGMSG_STANDARD, "User profile is: %S", userInfo1->usri1_home_dir);
+
+	userPofileFolder = userInfo1->usri1_home_dir;
+	NetApiBufferFree(userInfo1);
+	return true;
+}
