@@ -24,6 +24,7 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 DEFAULT_BUILD_TAGS = [
     "apm",
+    "process",
     "consul",
     "containerd",
     "python",
@@ -189,6 +190,8 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
         copy_tree("./cmd/agent/dist/conf.d/{}.d/".format(check), check_dir)
     if "apm" in build_tags:
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
+    if "process" in build_tags:
+        shutil.copy("./cmd/agent/dist/conf.d/process_agent.yaml.default", os.path.join(dist_folder, "conf.d/process_agent.yaml.default"))
 
     copy_tree("./pkg/status/dist/", dist_folder)
     copy_tree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"))
