@@ -305,8 +305,8 @@ func guess(m *elf.Module, cfg *Config) error {
 		return nil
 	}
 
-	eventGenerator := &eventGenerator{}
-	if err := eventGenerator.startServer(); err != nil {
+	eventGenerator, err := newEventGenerator()
+	if err != nil {
 		return err
 	}
 	defer eventGenerator.Close()
@@ -368,25 +368,23 @@ type eventGenerator struct {
 	conn     net.Conn
 }
 
-func (e *eventGenerator) startServer() error {
+func newEventGenerator() (*eventGenerator, error) {
 	// port 0 means we let the kernel choose a free port
 	addr := fmt.Sprintf("%s:0", listenIP)
 	l, err := net.Listen("tcp4", addr)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	e.listener = l
 
 	lport, err := strconv.Atoi(strings.Split(l.Addr().String(), ":")[1])
 	if err != nil {
-		e.listener.Close()
-		return err
+		l.Close()
+		return nil, err
 	}
-	e.lport = uint16(lport)
 
 	go func() {
 		for {
-			conn, err := e.listener.Accept()
+			conn, err := l.Accept()
 			if err != nil {
 				return
 			}
@@ -396,7 +394,8 @@ func (e *eventGenerator) startServer() error {
 		}
 	}()
 
-	return nil
+	e := &eventGenerator{listener: l, lport: uint16(lport)}
+	return e, nil
 }
 
 // Generate an event for offset guessing
