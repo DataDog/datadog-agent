@@ -322,24 +322,24 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             "populate_s3_cache": ""
         }
         pfxfile = None
-        if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
-            # get certificate and password from ssm
-            pfxfile = get_signing_cert(ctx)
-            pfxpass = get_pfx_pass(ctx)
-            print("Retrieved file {} pass {}".format(pfxfile, pfxpass))
-            # hack for now.  Remove `sign_windows, and set sign_pfx`
-            env['SIGN_PFX'] = "{}".format(pfxfile)
-            env['SIGN_PFX_PW'] = "{}".format(pfxpass)
-
-        if omnibus_s3_cache:
-            args['populate_s3_cache'] = " --populate-s3-cache "
-        if skip_sign:
-            env['SKIP_SIGN_MAC'] = 'true'
-
-        env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True)
-
         try:
+            if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
+                # get certificate and password from ssm
+                pfxfile = get_signing_cert(ctx)
+                pfxpass = get_pfx_pass(ctx)
+                # hack for now.  Remove `sign_windows, and set sign_pfx`
+                env['SIGN_PFX'] = "{}".format(pfxfile)
+                env['SIGN_PFX_PW'] = "{}".format(pfxpass)
+
+            if omnibus_s3_cache:
+                args['populate_s3_cache'] = " --populate-s3-cache "
+            if skip_sign:
+                env['SKIP_SIGN_MAC'] = 'true'
+
+            env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True)
+
             ctx.run(cmd.format(**args), env=env)
+
         except Exception as e:
             if pfxfile:
                 os.remove(pfxfile)
