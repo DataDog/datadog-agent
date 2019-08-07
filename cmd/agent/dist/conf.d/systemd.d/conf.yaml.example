@@ -27,6 +27,13 @@ instances:
     ##
     # private_socket: <PATH_TO_SYSTEMD_PRIVATE_SOCKET>
 
+    ## @param system_bus_socket - string - optional
+    ## Path to system bus socket needed to retrieve systemd data.
+    ## Defaults to `/var/run/dbus/system_bus_socket`.
+    ## Defaults to `/host/var/run/dbus/system_bus_socket` when using Docker Agent (https://docs.datadoghq.com/agent/docker/).
+    ##
+    # system_bus_socket: <PATH_TO_SYSTEM_BUS_SOCKET>
+
     ## @param tags  - list of key:value elements - optional
     ## List of tags to attach to every metric, event, and service check emitted by this integration.
     ##
