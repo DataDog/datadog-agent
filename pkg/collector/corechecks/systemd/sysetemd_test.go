@@ -27,12 +27,18 @@ type mockSystemdStats struct {
 
 func createDefaultMockSystemdStats() *mockSystemdStats {
 	stats := &mockSystemdStats{}
-	stats.On("NewConn").Return(&dbus.Conn{}, nil)
+	stats.On("NewSystemdConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+	stats.On("NewSystemConnection", mock.Anything).Return(&dbus.Conn{}, nil)
 	stats.On("SystemState", mock.Anything).Return(&dbus.Property{Name: "SystemState", Value: godbus.MakeVariant("running")}, nil)
 	return stats
 }
 
-func (s *mockSystemdStats) NewConn(privateSocket string) (*dbus.Conn, error) {
+func (s *mockSystemdStats) NewSystemdConnection(privateSocket string) (*dbus.Conn, error) {
+	args := s.Mock.Called(privateSocket)
+	return args.Get(0).(*dbus.Conn), args.Error(1)
+}
+
+func (s *mockSystemdStats) NewSystemConnection() (*dbus.Conn, error) {
 	args := s.Mock.Called()
 	return args.Get(0).(*dbus.Conn), args.Error(1)
 }
@@ -144,41 +150,174 @@ private_socket: /tmp/foo
 	assert.Equal(t, "/tmp/foo", check.config.instance.PrivateSocket)
 }
 
-func TestDefaultSocketConfiguration(t *testing.T) {
-	defer os.Unsetenv("DBUS_SYSTEM_BUS_ADDRESS")
+func TestPrivateSocketConnection(t *testing.T) {
+	stats := &mockSystemdStats{}
+	stats.On("NewSystemdConnection", mock.Anything).Return(&dbus.Conn{}, nil)
 
-	check := SystemdCheck{}
 	rawInstanceConfig := []byte(`
 unit_names:
 - ssh.service
+private_socket: /tmp/foo/private_socket
 `)
+	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, []byte(``))
+	conn, err := check.doGetConnection()
 
-	check.Run()
-
-	assert.Equal(t, "/run/systemd/private", check.config.instance.PrivateSocket)
+	assert.Nil(t, err)
+	assert.NotNil(t, conn)
+	stats.AssertCalled(t, "NewSystemdConnection", "/tmp/foo/private_socket")
+	stats.AssertNotCalled(t, "NewSystemConnection")
 }
 
-func TestDockerAgentDefaultSocketConfiguration(t *testing.T) {
-	os.Setenv("DOCKER_DD_AGENT", "true")
-	defer os.Unsetenv("DOCKER_DD_AGENT")
+func TestPrivateSocketConnectionErrorCase(t *testing.T) {
+	stats := &mockSystemdStats{}
+	stats.On("NewSystemdConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+
+	rawInstanceConfig := []byte(`
+unit_names:
+- ssh.service
+private_socket: /tmp/foo/private_socket
+`)
+	check := SystemdCheck{stats: stats}
+	check.Configure(rawInstanceConfig, []byte(``))
+	conn, err := check.doGetConnection()
+
+	assert.EqualError(t, err, "some error")
+	assert.Nil(t, conn)
+	stats.AssertCalled(t, "NewSystemdConnection", "/tmp/foo/private_socket")
+	stats.AssertNotCalled(t, "NewSystemConnection")
+}
+
+func TestSystemBusSocketConnection(t *testing.T) {
 	defer os.Unsetenv("DBUS_SYSTEM_BUS_ADDRESS")
 
-	check := SystemdCheck{}
+	stats := &mockSystemdStats{}
+	stats.On("NewSystemConnection").Return(&dbus.Conn{}, nil)
+
+	rawInstanceConfig := []byte(`
+unit_names:
+- ssh.service
+system_bus_socket: /tmp/foo/system_bus_socket
+`)
+	check := SystemdCheck{stats: stats}
+	check.Configure(rawInstanceConfig, []byte(``))
+	conn, err := check.doGetConnection()
+
+	assert.Nil(t, err)
+	assert.NotNil(t, conn)
+	assert.Equal(t, "/tmp/foo/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
+	stats.AssertCalled(t, "NewSystemConnection")
+	stats.AssertNotCalled(t, "NewSystemdConnection")
+}
+
+func TestSystemBusSocketConnectionErrorCase(t *testing.T) {
+	defer os.Unsetenv("DBUS_SYSTEM_BUS_ADDRESS")
+
+	stats := &mockSystemdStats{}
+	stats.On("NewSystemConnection").Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+
+	rawInstanceConfig := []byte(`
+unit_names:
+- ssh.service
+system_bus_socket: /tmp/foo/system_bus_socket
+`)
+	check := SystemdCheck{stats: stats}
+	check.Configure(rawInstanceConfig, []byte(``))
+	conn, err := check.doGetConnection()
+
+	assert.EqualError(t, err, "some error")
+	assert.Equal(t, "/tmp/foo/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
+	assert.Nil(t, conn)
+	stats.AssertCalled(t, "NewSystemConnection")
+	stats.AssertNotCalled(t, "NewSystemdConnection")
+}
+
+func TestDefaultPrivateSocketConnection(t *testing.T) {
+	stats := &mockSystemdStats{}
+	stats.On("NewSystemdConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+
 	rawInstanceConfig := []byte(`
 unit_names:
 - ssh.service
 `)
+	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, []byte(``))
+	conn, err := check.doGetConnection()
 
-	check.Run()
+	assert.Nil(t, err)
+	assert.NotNil(t, conn)
+	stats.AssertCalled(t, "NewSystemdConnection", "/run/systemd/private")
+	stats.AssertNotCalled(t, "NewSystemConnection")
+}
 
-	assert.Equal(t, "/host/run/systemd/private", check.config.instance.PrivateSocket)
+func TestDefaultSystemBusSocketConnection(t *testing.T) {
+	stats := &mockSystemdStats{}
+	stats.On("NewSystemdConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("NewSystemConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+
+	rawInstanceConfig := []byte(`
+unit_names:
+- ssh.service
+`)
+	check := SystemdCheck{stats: stats}
+	check.Configure(rawInstanceConfig, []byte(``))
+	conn, err := check.doGetConnection()
+
+	assert.Nil(t, err)
+	assert.NotNil(t, conn)
+	assert.Equal(t, "/var/run/dbus/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
+	stats.AssertCalled(t, "NewSystemConnection")
+	stats.AssertNotCalled(t, "NewSystemdConnection")
+}
+
+func TestDefaultDockerAgentPrivateSocketConnection(t *testing.T) {
+	os.Setenv("DOCKER_DD_AGENT", "true")
+	defer os.Unsetenv("DOCKER_DD_AGENT")
+
+	stats := &mockSystemdStats{}
+	stats.On("NewSystemdConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+
+	rawInstanceConfig := []byte(`
+unit_names:
+- ssh.service
+`)
+	check := SystemdCheck{stats: stats}
+	check.Configure(rawInstanceConfig, []byte(``))
+	conn, err := check.doGetConnection()
+
+	assert.Nil(t, err)
+	assert.NotNil(t, conn)
+	stats.AssertCalled(t, "NewSystemdConnection", "/host/run/systemd/private")
+	stats.AssertNotCalled(t, "NewSystemConnection")
+}
+
+func TestDefaultDockerAgentSystemBusSocketConnection(t *testing.T) {
+	os.Setenv("DOCKER_DD_AGENT", "true")
+	defer os.Unsetenv("DOCKER_DD_AGENT")
+
+	stats := &mockSystemdStats{}
+	stats.On("NewSystemdConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("NewSystemConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+
+	rawInstanceConfig := []byte(`
+unit_names:
+- ssh.service
+`)
+	check := SystemdCheck{stats: stats}
+	check.Configure(rawInstanceConfig, []byte(``))
+	conn, err := check.doGetConnection()
+
+	assert.Nil(t, err)
+	assert.NotNil(t, conn)
+	assert.Equal(t, "/host/var/run/dbus/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
+	stats.AssertCalled(t, "NewSystemConnection")
+	stats.AssertNotCalled(t, "NewSystemdConnection")
 }
 
 func TestDbusConnectionErr(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("NewConn").Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("NewSystemdConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("NewSystemConnection").Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
 
 	check := SystemdCheck{stats: stats}
 	check.Configure([]byte(``), []byte(``), "test")
@@ -196,7 +335,7 @@ func TestDbusConnectionErr(t *testing.T) {
 
 func TestSystemStateCallErr(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("NewConn").Return(&dbus.Conn{}, nil)
+	stats.On("NewSystemdConnection", mock.Anything).Return(&dbus.Conn{}, nil)
 	stats.On("SystemState", mock.Anything).Return((*dbus.Property)(nil), fmt.Errorf("some error"))
 
 	check := SystemdCheck{stats: stats}
@@ -224,7 +363,7 @@ func TestListUnitErr(t *testing.T) {
 
 	err := check.Run()
 
-	expectedErrorMsg := "Error getting list of units: some error"
+	expectedErrorMsg := "error getting list of units: some error"
 	assert.EqualError(t, err, expectedErrorMsg)
 }
 
@@ -491,7 +630,7 @@ func TestServiceCheckSystemStateAndCanConnect(t *testing.T) {
 	for _, d := range data {
 		t.Run(fmt.Sprintf("state %s should be mapped to %s", d.systemStatus, d.expectedServiceCheckStatus.String()), func(t *testing.T) {
 			stats := &mockSystemdStats{}
-			stats.On("NewConn").Return(&dbus.Conn{}, nil)
+			stats.On("NewSystemdConnection", mock.Anything).Return(&dbus.Conn{}, nil)
 			stats.On("SystemState", mock.Anything).Return(&dbus.Property{Name: "SystemState", Value: godbus.MakeVariant(d.systemStatus)}, nil)
 			stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{}, nil)
 
@@ -700,9 +839,9 @@ func TestGetPropertyUint64(t *testing.T) {
 		"prop_uint property retrieved": {"prop_uint", 3, nil},
 		"uint32 property retrieved":    {"prop_uint32", 5, nil},
 		"uint64 property retrieved":    {"prop_uint64", 10, nil},
-		"error int64 not valid":        {"prop_int64", 0, fmt.Errorf("Property prop_int64 (int64) cannot be converted to uint64")},
-		"error string not valid":       {"prop_string", 0, fmt.Errorf("Property prop_string (string) cannot be converted to uint64")},
-		"error prop not exist":         {"prop_not_exist", 0, fmt.Errorf("Property prop_not_exist not found")},
+		"error int64 not valid":        {"prop_int64", 0, fmt.Errorf("property prop_int64 (int64) cannot be converted to uint64")},
+		"error string not valid":       {"prop_string", 0, fmt.Errorf("property prop_string (string) cannot be converted to uint64")},
+		"error prop not exist":         {"prop_not_exist", 0, fmt.Errorf("property prop_not_exist not found")},
 	}
 	for name, d := range data {
 		t.Run(name, func(t *testing.T) {
@@ -725,8 +864,8 @@ func TestGetPropertyString(t *testing.T) {
 		expectedError  error
 	}{
 		"valid string":         {"prop_string", "foo bar", nil},
-		"prop_uint not valid":  {"prop_uint", "", fmt.Errorf("Property prop_uint (uint) cannot be converted to string")},
-		"error prop not exist": {"prop_not_exist", "", fmt.Errorf("Property prop_not_exist not found")},
+		"prop_uint not valid":  {"prop_uint", "", fmt.Errorf("property prop_uint (uint) cannot be converted to string")},
+		"error prop not exist": {"prop_not_exist", "", fmt.Errorf("property prop_not_exist not found")},
 	}
 	for name, d := range data {
 		t.Run(name, func(t *testing.T) {
@@ -751,8 +890,8 @@ func TestGetPropertyBool(t *testing.T) {
 	}{
 		"valid bool true":      {"prop_bool_true", true, nil},
 		"valid bool false":     {"prop_bool_false", false, nil},
-		"prop_uint not valid":  {"prop_uint", false, fmt.Errorf("Property prop_uint (uint) cannot be converted to bool")},
-		"error prop not exist": {"prop_not_exist", false, fmt.Errorf("Property prop_not_exist not found")},
+		"prop_uint not valid":  {"prop_uint", false, fmt.Errorf("property prop_uint (uint) cannot be converted to bool")},
+		"error prop not exist": {"prop_not_exist", false, fmt.Errorf("property prop_not_exist not found")},
 	}
 	for name, d := range data {
 		t.Run(name, func(t *testing.T) {

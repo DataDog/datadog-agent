@@ -9,6 +9,7 @@ package systemd
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -121,6 +122,7 @@ type SystemdCheck struct {
 
 type systemdInstanceConfig struct {
 	PrivateSocket     string   `yaml:"private_socket"`
+	SystemBusSocket   string   `yaml:"system_bus_socket"`
 	UnitNames         []string `yaml:"unit_names"`
 	UnitRegexStrings  []string `yaml:"unit_regexes"`
 	MaxUnits          int      `yaml:"max_units"`
@@ -136,7 +138,8 @@ type systemdConfig struct {
 
 type systemdStats interface {
 	// Dbus Connection
-	NewConn(privateSocket string) (*dbus.Conn, error)
+	NewSystemdConnection(privateSocket string) (*dbus.Conn, error)
+	NewSystemConnection() (*dbus.Conn, error)
 	CloseConn(c *dbus.Conn)
 
 	// System Data
@@ -150,8 +153,12 @@ type systemdStats interface {
 
 type defaultSystemdStats struct{}
 
-func (s *defaultSystemdStats) NewConn(privateSocket string) (*dbus.Conn, error) {
-	return NewSystemdAnyConnection(privateSocket)
+func (s *defaultSystemdStats) NewSystemdConnection(privateSocket string) (*dbus.Conn, error) {
+	return NewSystemdConnection(privateSocket)
+}
+
+func (s *defaultSystemdStats) NewSystemConnection() (*dbus.Conn, error) {
+	return dbus.NewSystemConnection()
 }
 
 func (s *defaultSystemdStats) CloseConn(c *dbus.Conn) {
@@ -196,8 +203,8 @@ func (c *SystemdCheck) Run() error {
 }
 
 func (c *SystemdCheck) getDbusConn(sender aggregator.Sender) (*dbus.Conn, error) {
+	conn, err := c.doGetConnection()
 
-	conn, err := c.stats.NewConn(c.config.instance.PrivateSocket)
 	if err != nil {
 		newErr := fmt.Errorf("Cannot create a connection: %v", err)
 		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", nil, newErr.Error())
@@ -224,10 +231,52 @@ func (c *SystemdCheck) getDbusConn(sender aggregator.Sender) (*dbus.Conn, error)
 	return conn, nil
 }
 
+func (c *SystemdCheck) doGetConnection() (*dbus.Conn, error) {
+	var err = fmt.Errorf("no connection")
+	var conn *dbus.Conn
+	if c.config.instance.PrivateSocket != "" {
+		conn, err = c.getNewSystemdConnection(c.config.instance.PrivateSocket)
+	} else if c.config.instance.SystemBusSocket != "" {
+		conn, err = c.getNewSystemConnection(c.config.instance.SystemBusSocket)
+	} else {
+		defaultPrivateSocket := "/run/systemd/private"
+		defaultSystemBusSocket := "/var/run/dbus/system_bus_socket"
+		if config.IsContainerized() {
+			defaultPrivateSocket = "/host" + defaultPrivateSocket
+			defaultSystemBusSocket = "/host" + defaultSystemBusSocket
+		}
+		conn, err = c.getNewSystemdConnection(defaultPrivateSocket)
+		if err != nil {
+			conn, err = c.getNewSystemConnection(defaultSystemBusSocket)
+		}
+	}
+	return conn, err
+}
+
+func (c *SystemdCheck) getNewSystemdConnection(privateSocket string) (*dbus.Conn, error) {
+	conn, err := c.stats.NewSystemdConnection(privateSocket)
+	if err != nil {
+		log.Debugf("error getting new connection using private socket %s: %v", privateSocket, err)
+	}
+	return conn, err
+}
+
+func (c *SystemdCheck) getNewSystemConnection(systemBusSocket string) (*dbus.Conn, error) {
+	err := os.Setenv("DBUS_SYSTEM_BUS_ADDRESS", systemBusSocket)
+	if err != nil {
+		return nil, fmt.Errorf("error setting env: %v", err)
+	}
+	conn, err := c.stats.NewSystemConnection()
+	if err != nil {
+		log.Debugf("error getting new connection using system bus socket %s: %v", systemBusSocket, err)
+	}
+	return conn, err
+}
+
 func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) error {
 	units, err := c.stats.ListUnits(conn)
 	if err != nil {
-		return fmt.Errorf("Error getting list of units: %v", err)
+		return fmt.Errorf("error getting list of units: %v", err)
 	}
 
 	c.submitCountMetrics(sender, units)
@@ -337,7 +386,7 @@ func sendServicePropertyAsGauge(sender aggregator.Sender, properties map[string]
 	}
 	value, err := getPropertyUint64(properties, service.propertyName)
 	if err != nil {
-		return fmt.Errorf("Error getting property %s: %v", service.propertyName, err)
+		return fmt.Errorf("error getting property %s: %v", service.propertyName, err)
 	}
 	sender.Gauge(service.metricName, float64(value), "", tags)
 	return nil
@@ -358,7 +407,7 @@ func computeUptime(activeState string, activeEnterTimestampMicroSec uint64, unit
 func getPropertyUint64(properties map[string]interface{}, propertyName string) (uint64, error) {
 	prop, ok := properties[propertyName]
 	if !ok {
-		return 0, fmt.Errorf("Property %s not found", propertyName)
+		return 0, fmt.Errorf("property %s not found", propertyName)
 	}
 	switch typedProp := prop.(type) {
 	case uint:
@@ -368,17 +417,17 @@ func getPropertyUint64(properties map[string]interface{}, propertyName string) (
 	case uint64:
 		return typedProp, nil
 	}
-	return 0, fmt.Errorf("Property %s (%T) cannot be converted to uint64", propertyName, prop)
+	return 0, fmt.Errorf("property %s (%T) cannot be converted to uint64", propertyName, prop)
 }
 
 func getPropertyString(properties map[string]interface{}, propertyName string) (string, error) {
 	prop, ok := properties[propertyName]
 	if !ok {
-		return "", fmt.Errorf("Property %s not found", propertyName)
+		return "", fmt.Errorf("property %s not found", propertyName)
 	}
 	propValue, ok := prop.(string)
 	if !ok {
-		return "", fmt.Errorf("Property %s (%T) cannot be converted to string", propertyName, prop)
+		return "", fmt.Errorf("property %s (%T) cannot be converted to string", propertyName, prop)
 	}
 	return propValue, nil
 }
@@ -386,11 +435,11 @@ func getPropertyString(properties map[string]interface{}, propertyName string) (
 func getPropertyBool(properties map[string]interface{}, propertyName string) (bool, error) {
 	prop, ok := properties[propertyName]
 	if !ok {
-		return false, fmt.Errorf("Property %s not found", propertyName)
+		return false, fmt.Errorf("property %s not found", propertyName)
 	}
 	propValue, ok := prop.(bool)
 	if !ok {
-		return false, fmt.Errorf("Property %s (%T) cannot be converted to bool", propertyName, prop)
+		return false, fmt.Errorf("property %s (%T) cannot be converted to bool", propertyName, prop)
 	}
 	return propValue, nil
 }
@@ -453,17 +502,6 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 	if len(c.config.instance.UnitNames) == 0 && len(c.config.instance.UnitRegexPatterns) == 0 {
 		return fmt.Errorf("`unit_names` and `unit_regexes` must not be both empty")
 	}
-
-	socketPath := ""
-	if c.config.instance.PrivateSocket != "" {
-		socketPath = c.config.instance.PrivateSocket
-	} else if config.IsContainerized() {
-		socketPath = "/host/run/systemd/private"
-	} else {
-		socketPath = "/run/systemd/private"
-	}
-
-	c.config.instance.PrivateSocket = socketPath
 
 	return nil
 }

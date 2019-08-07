@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// +build systemd
-
 package systemd
 
 import (
@@ -12,21 +10,9 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/coreos/go-systemd/dbus"
 	godbus "github.com/godbus/dbus"
 )
-
-// New establishes a connection to any available bus and authenticates.
-// Callers should call Close() when done with the connection.
-func NewSystemdAnyConnection(privateSocket string) (*dbus.Conn, error) {
-	conn, err := NewSystemdConnection(privateSocket)
-	if err != nil {
-		log.Debugf("Fail to connect using private socket: %v", err)
-		return dbus.NewSystemConnection()
-	}
-	return conn, err
-}
 
 // NewSystemdConnection establishes a private, direct connection to systemd.
 // This can be used for communicating with systemd without a dbus daemon.
