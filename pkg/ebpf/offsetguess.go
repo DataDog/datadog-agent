@@ -409,14 +409,6 @@ func (e *eventGenerator) Generate(status *tracerStatus, expected *fieldValues) e
 		}
 
 		expected.sport = uint16(sport)
-
-		// Set SO_LINGER to 0 so the connection state after closing is CLOSE instead of TIME_WAIT.
-		// In this way, they will disappear from the conntrack table after around 10 seconds instead of 2 mins
-		tcpConn, ok := conn.(*net.TCPConn)
-		if !ok {
-			return fmt.Errorf("not a tcp connection unexpectedly")
-		}
-		tcpConn.SetLinger(0)
 	}
 
 	// This triggers the KProbe handler attached to `tcp_get_info`
