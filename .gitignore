@@ -89,13 +89,6 @@ p-env/
 omnibus/omnibus/*
 pkg/flare/auth_token
 
-#tf artifacts
-*/**/.terraform
-config-map-aws-auth.yaml
-kubeconfig
-*/**/*.tfstate
-*/**/*.tfstate.backup
-
 # vagrant
 .vagrant
 

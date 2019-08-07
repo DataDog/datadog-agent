@@ -1,0 +1,36 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: stackstate-agent
+rules:
+- apiGroups:  # Kubelet connectivity
+  - ""
+  resources:
+  - nodes/metrics
+  - nodes/spec
+  - nodes/proxy
+  verbs:
+  - get
+---
+# You need to use that account for your dd-agent DaemonSet
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: stackstate-agent
+  namespace: default
+---
+# Your admin user needs the same permissions to be able to grant them
+# Easiest way is to bind your user to the cluster-admin role
+# See https://cloud.google.com/container-engine/docs/role-based-access-control#setting_up_role-based_access_control
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: stackstate-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: stackstate-agent
+subjects:
+- kind: ServiceAccount
+  name: stackstate-agent
+  namespace: default

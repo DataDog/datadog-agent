@@ -14,13 +14,10 @@ spec:
     spec:
       serviceAccountName: stackstate-agent
       containers:
-      - image: stackstate/stackstate-agent-2:latest
+      - image: stackstate/stackstate-agent-2-test:master
         imagePullPolicy: Always
         name: stackstate-agent
         ports:
-          - containerPort: 8125
-            name: dogstatsdport
-            protocol: UDP
           - containerPort: 8126
             name: traceport
             protocol: TCP
@@ -28,15 +25,19 @@ spec:
           privileged: true
         env:
           - name: STS_API_KEY
-            value: "API_KEY"
+            value: "<STS_API_KEY>"
           - name: STS_STS_URL
+            value: "<STACKSTATE_BACKEND_URL>/stsAgent"
+          - name: STS_PROCESS_AGENT_URL
+            value: "<STACKSTATE_BACKEND_URL>/stsAgent"
+          - name: STS_APM_URL
             value: "<STACKSTATE_BACKEND_URL>/stsAgent"
           - name: KUBERNETES
             value: "true"
           - name: STS_PROCESS_AGENT_ENABLED
             value: "true"
-          - name: STS_PROCESS_AGENT_URL
-            value: "<STACKSTATE_BACKEND_URL>/stsAgent"
+          - name: STS_APM_ENABLED
+            value: "true"
           - name: STS_NETWORK_TRACING_ENABLED
             value: "true"
           - name: STS_SKIP_SSL_VALIDATION
@@ -45,12 +46,21 @@ spec:
             value: "/host/proc"
           - name: HOST_SYS
             value: "/host/sys"
+          - name: STS_PROCESS_BLACKLIST_PATTERNS
+            value: "^s6-,^/sbin/,^/usr/sbin,^/pause,^/usr/bin/dbus-daemon,^-bash,^su$,^/bin/bash,/lib/systemd/"
           - name: STS_HEALTH_PORT
             value: "5555"
           - name: STS_KUBERNETES_KUBELET_HOST
             valueFrom:
               fieldRef:
                 fieldPath: status.hostIP
+#          - name: STS_CLUSTER_AGENT_ENABLED
+#            value: "true"
+#          - name: STS_CLUSTER_AGENT_AUTH_TOKEN
+#            valueFrom:
+#              secretKeyRef:
+#                name: stackstate-auth-token
+#                key: token
         resources:
           requests:
             memory: "256Mi"
