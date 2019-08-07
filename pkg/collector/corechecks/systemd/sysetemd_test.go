@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// +build systemd
-
 package systemd
 
 import (
@@ -27,18 +25,18 @@ type mockSystemdStats struct {
 
 func createDefaultMockSystemdStats() *mockSystemdStats {
 	stats := &mockSystemdStats{}
-	stats.On("NewSystemdConnection", mock.Anything).Return(&dbus.Conn{}, nil)
-	stats.On("NewSystemConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+	stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+	stats.On("SystemBusSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
 	stats.On("SystemState", mock.Anything).Return(&dbus.Property{Name: "SystemState", Value: godbus.MakeVariant("running")}, nil)
 	return stats
 }
 
-func (s *mockSystemdStats) NewSystemdConnection(privateSocket string) (*dbus.Conn, error) {
+func (s *mockSystemdStats) PrivateSocketConnection(privateSocket string) (*dbus.Conn, error) {
 	args := s.Mock.Called(privateSocket)
 	return args.Get(0).(*dbus.Conn), args.Error(1)
 }
 
-func (s *mockSystemdStats) NewSystemConnection() (*dbus.Conn, error) {
+func (s *mockSystemdStats) SystemBusSocketConnection() (*dbus.Conn, error) {
 	args := s.Mock.Called()
 	return args.Get(0).(*dbus.Conn), args.Error(1)
 }
@@ -152,7 +150,7 @@ private_socket: /tmp/foo
 
 func TestPrivateSocketConnection(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("NewSystemdConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+	stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
 
 	rawInstanceConfig := []byte(`
 unit_names:
@@ -165,13 +163,13 @@ private_socket: /tmp/foo/private_socket
 
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
-	stats.AssertCalled(t, "NewSystemdConnection", "/tmp/foo/private_socket")
-	stats.AssertNotCalled(t, "NewSystemConnection")
+	stats.AssertCalled(t, "PrivateSocketConnection", "/tmp/foo/private_socket")
+	stats.AssertNotCalled(t, "SystemBusSocketConnection")
 }
 
 func TestPrivateSocketConnectionErrorCase(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("NewSystemdConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
 
 	rawInstanceConfig := []byte(`
 unit_names:
@@ -184,15 +182,15 @@ private_socket: /tmp/foo/private_socket
 
 	assert.EqualError(t, err, "some error")
 	assert.Nil(t, conn)
-	stats.AssertCalled(t, "NewSystemdConnection", "/tmp/foo/private_socket")
-	stats.AssertNotCalled(t, "NewSystemConnection")
+	stats.AssertCalled(t, "PrivateSocketConnection", "/tmp/foo/private_socket")
+	stats.AssertNotCalled(t, "SystemBusSocketConnection")
 }
 
 func TestSystemBusSocketConnection(t *testing.T) {
 	defer os.Unsetenv("DBUS_SYSTEM_BUS_ADDRESS")
 
 	stats := &mockSystemdStats{}
-	stats.On("NewSystemConnection").Return(&dbus.Conn{}, nil)
+	stats.On("SystemBusSocketConnection").Return(&dbus.Conn{}, nil)
 
 	rawInstanceConfig := []byte(`
 unit_names:
@@ -206,15 +204,15 @@ system_bus_socket: /tmp/foo/system_bus_socket
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
 	assert.Equal(t, "/tmp/foo/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
-	stats.AssertCalled(t, "NewSystemConnection")
-	stats.AssertNotCalled(t, "NewSystemdConnection")
+	stats.AssertCalled(t, "SystemBusSocketConnection")
+	stats.AssertNotCalled(t, "PrivateSocketConnection")
 }
 
 func TestSystemBusSocketConnectionErrorCase(t *testing.T) {
 	defer os.Unsetenv("DBUS_SYSTEM_BUS_ADDRESS")
 
 	stats := &mockSystemdStats{}
-	stats.On("NewSystemConnection").Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("SystemBusSocketConnection").Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
 
 	rawInstanceConfig := []byte(`
 unit_names:
@@ -228,13 +226,13 @@ system_bus_socket: /tmp/foo/system_bus_socket
 	assert.EqualError(t, err, "some error")
 	assert.Equal(t, "/tmp/foo/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
 	assert.Nil(t, conn)
-	stats.AssertCalled(t, "NewSystemConnection")
-	stats.AssertNotCalled(t, "NewSystemdConnection")
+	stats.AssertCalled(t, "SystemBusSocketConnection")
+	stats.AssertNotCalled(t, "PrivateSocketConnection")
 }
 
 func TestDefaultPrivateSocketConnection(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("NewSystemdConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+	stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
 
 	rawInstanceConfig := []byte(`
 unit_names:
@@ -246,14 +244,14 @@ unit_names:
 
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
-	stats.AssertCalled(t, "NewSystemdConnection", "/run/systemd/private")
-	stats.AssertNotCalled(t, "NewSystemConnection")
+	stats.AssertCalled(t, "PrivateSocketConnection", "/run/systemd/private")
+	stats.AssertNotCalled(t, "SystemBusSocketConnection")
 }
 
 func TestDefaultSystemBusSocketConnection(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("NewSystemdConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
-	stats.On("NewSystemConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("SystemBusSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
 
 	rawInstanceConfig := []byte(`
 unit_names:
@@ -266,8 +264,8 @@ unit_names:
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
 	assert.Equal(t, "/var/run/dbus/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
-	stats.AssertCalled(t, "NewSystemConnection")
-	stats.AssertNotCalled(t, "NewSystemdConnection")
+	stats.AssertCalled(t, "SystemBusSocketConnection")
+	stats.AssertNotCalled(t, "PrivateSocketConnection")
 }
 
 func TestDefaultDockerAgentPrivateSocketConnection(t *testing.T) {
@@ -275,7 +273,7 @@ func TestDefaultDockerAgentPrivateSocketConnection(t *testing.T) {
 	defer os.Unsetenv("DOCKER_DD_AGENT")
 
 	stats := &mockSystemdStats{}
-	stats.On("NewSystemdConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+	stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
 
 	rawInstanceConfig := []byte(`
 unit_names:
@@ -287,8 +285,8 @@ unit_names:
 
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
-	stats.AssertCalled(t, "NewSystemdConnection", "/host/run/systemd/private")
-	stats.AssertNotCalled(t, "NewSystemConnection")
+	stats.AssertCalled(t, "PrivateSocketConnection", "/host/run/systemd/private")
+	stats.AssertNotCalled(t, "SystemBusSocketConnection")
 }
 
 func TestDefaultDockerAgentSystemBusSocketConnection(t *testing.T) {
@@ -296,8 +294,8 @@ func TestDefaultDockerAgentSystemBusSocketConnection(t *testing.T) {
 	defer os.Unsetenv("DOCKER_DD_AGENT")
 
 	stats := &mockSystemdStats{}
-	stats.On("NewSystemdConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
-	stats.On("NewSystemConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("SystemBusSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
 
 	rawInstanceConfig := []byte(`
 unit_names:
@@ -310,14 +308,14 @@ unit_names:
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
 	assert.Equal(t, "/host/var/run/dbus/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
-	stats.AssertCalled(t, "NewSystemConnection")
-	stats.AssertNotCalled(t, "NewSystemdConnection")
+	stats.AssertCalled(t, "SystemBusSocketConnection")
+	stats.AssertNotCalled(t, "PrivateSocketConnection")
 }
 
 func TestDbusConnectionErr(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("NewSystemdConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
-	stats.On("NewSystemConnection").Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("SystemBusSocketConnection").Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
 
 	check := SystemdCheck{stats: stats}
 	check.Configure([]byte(``), []byte(``), "test")
@@ -335,7 +333,7 @@ func TestDbusConnectionErr(t *testing.T) {
 
 func TestSystemStateCallErr(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("NewSystemdConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+	stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
 	stats.On("SystemState", mock.Anything).Return((*dbus.Property)(nil), fmt.Errorf("some error"))
 
 	check := SystemdCheck{stats: stats}
@@ -630,7 +628,7 @@ func TestServiceCheckSystemStateAndCanConnect(t *testing.T) {
 	for _, d := range data {
 		t.Run(fmt.Sprintf("state %s should be mapped to %s", d.systemStatus, d.expectedServiceCheckStatus.String()), func(t *testing.T) {
 			stats := &mockSystemdStats{}
-			stats.On("NewSystemdConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+			stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
 			stats.On("SystemState", mock.Anything).Return(&dbus.Property{Name: "SystemState", Value: godbus.MakeVariant(d.systemStatus)}, nil)
 			stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{}, nil)
 

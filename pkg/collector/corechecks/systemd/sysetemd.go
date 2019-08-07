@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// +build systemd
-
 package systemd
 
 import (
@@ -138,8 +136,8 @@ type systemdConfig struct {
 
 type systemdStats interface {
 	// Dbus Connection
-	NewSystemdConnection(privateSocket string) (*dbus.Conn, error)
-	NewSystemConnection() (*dbus.Conn, error)
+	PrivateSocketConnection(privateSocket string) (*dbus.Conn, error)
+	SystemBusSocketConnection() (*dbus.Conn, error)
 	CloseConn(c *dbus.Conn)
 
 	// System Data
@@ -153,11 +151,11 @@ type systemdStats interface {
 
 type defaultSystemdStats struct{}
 
-func (s *defaultSystemdStats) NewSystemdConnection(privateSocket string) (*dbus.Conn, error) {
+func (s *defaultSystemdStats) PrivateSocketConnection(privateSocket string) (*dbus.Conn, error) {
 	return NewSystemdConnection(privateSocket)
 }
 
-func (s *defaultSystemdStats) NewSystemConnection() (*dbus.Conn, error) {
+func (s *defaultSystemdStats) SystemBusSocketConnection() (*dbus.Conn, error) {
 	return dbus.NewSystemConnection()
 }
 
@@ -235,9 +233,9 @@ func (c *SystemdCheck) doGetConnection() (*dbus.Conn, error) {
 	var err = fmt.Errorf("no connection")
 	var conn *dbus.Conn
 	if c.config.instance.PrivateSocket != "" {
-		conn, err = c.getNewSystemdConnection(c.config.instance.PrivateSocket)
+		conn, err = c.getPrivateSocketConnection(c.config.instance.PrivateSocket)
 	} else if c.config.instance.SystemBusSocket != "" {
-		conn, err = c.getNewSystemConnection(c.config.instance.SystemBusSocket)
+		conn, err = c.getSystemBusSocketConnection(c.config.instance.SystemBusSocket)
 	} else {
 		defaultPrivateSocket := "/run/systemd/private"
 		defaultSystemBusSocket := "/var/run/dbus/system_bus_socket"
@@ -245,28 +243,28 @@ func (c *SystemdCheck) doGetConnection() (*dbus.Conn, error) {
 			defaultPrivateSocket = "/host" + defaultPrivateSocket
 			defaultSystemBusSocket = "/host" + defaultSystemBusSocket
 		}
-		conn, err = c.getNewSystemdConnection(defaultPrivateSocket)
+		conn, err = c.getPrivateSocketConnection(defaultPrivateSocket)
 		if err != nil {
-			conn, err = c.getNewSystemConnection(defaultSystemBusSocket)
+			conn, err = c.getSystemBusSocketConnection(defaultSystemBusSocket)
 		}
 	}
 	return conn, err
 }
 
-func (c *SystemdCheck) getNewSystemdConnection(privateSocket string) (*dbus.Conn, error) {
-	conn, err := c.stats.NewSystemdConnection(privateSocket)
+func (c *SystemdCheck) getPrivateSocketConnection(privateSocket string) (*dbus.Conn, error) {
+	conn, err := c.stats.PrivateSocketConnection(privateSocket)
 	if err != nil {
 		log.Debugf("error getting new connection using private socket %s: %v", privateSocket, err)
 	}
 	return conn, err
 }
 
-func (c *SystemdCheck) getNewSystemConnection(systemBusSocket string) (*dbus.Conn, error) {
+func (c *SystemdCheck) getSystemBusSocketConnection(systemBusSocket string) (*dbus.Conn, error) {
 	err := os.Setenv("DBUS_SYSTEM_BUS_ADDRESS", systemBusSocket)
 	if err != nil {
 		return nil, fmt.Errorf("error setting env: %v", err)
 	}
-	conn, err := c.stats.NewSystemConnection()
+	conn, err := c.stats.SystemBusSocketConnection()
 	if err != nil {
 		log.Debugf("error getting new connection using system bus socket %s: %v", systemBusSocket, err)
 	}
