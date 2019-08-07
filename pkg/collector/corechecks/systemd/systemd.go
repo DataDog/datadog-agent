@@ -232,7 +232,7 @@ func (c *SystemdCheck) connect(sender aggregator.Sender) (*dbus.Conn, error) {
 }
 
 func (c *SystemdCheck) getDbusConnection() (*dbus.Conn, error) {
-	var err = fmt.Errorf("no connection")
+	var err error
 	var conn *dbus.Conn
 	if c.config.instance.PrivateSocket != "" {
 		conn, err = c.getPrivateSocketConnection(c.config.instance.PrivateSocket)
