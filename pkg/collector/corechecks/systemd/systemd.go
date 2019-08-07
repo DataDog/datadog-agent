@@ -504,8 +504,7 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 	return nil
 }
 
-// SystemdFactory create systemd check instance
-func SystemdFactory() check.Check {
+func systemdFactory() check.Check {
 	return &SystemdCheck{
 		stats:     &defaultSystemdStats{},
 		CheckBase: core.NewCheckBase(systemdCheckName),
@@ -513,5 +512,5 @@ func SystemdFactory() check.Check {
 }
 
 func init() {
-	core.RegisterCheck(systemdCheckName, SystemdFactory)
+	core.RegisterCheck(systemdCheckName, systemdFactory)
 }
