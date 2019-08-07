@@ -32,7 +32,7 @@ func createDefaultMockSystemdStats() *mockSystemdStats {
 	return stats
 }
 
-func (s *mockSystemdStats) NewConn() (*dbus.Conn, error) {
+func (s *mockSystemdStats) NewConn(privateSocket string) (*dbus.Conn, error) {
 	args := s.Mock.Called()
 	return args.Get(0).(*dbus.Conn), args.Error(1)
 }
@@ -135,13 +135,13 @@ func TestEnvConfiguration(t *testing.T) {
 	rawInstanceConfig := []byte(`
 unit_names:
 - ssh.service
-system_bus_socket: /tmp/foo
+private_socket: /tmp/foo
 `)
 	check.Configure(rawInstanceConfig, []byte(``))
 
 	check.Run()
 
-	assert.Equal(t, "/tmp/foo", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
+	assert.Equal(t, "/tmp/foo", check.config.instance.PrivateSocket)
 }
 
 func TestDefaultSocketConfiguration(t *testing.T) {
@@ -156,7 +156,7 @@ unit_names:
 
 	check.Run()
 
-	assert.Equal(t, "/var/run/dbus/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
+	assert.Equal(t, "/run/systemd/private", check.config.instance.PrivateSocket)
 }
 
 func TestDockerAgentDefaultSocketConfiguration(t *testing.T) {
@@ -173,7 +173,7 @@ unit_names:
 
 	check.Run()
 
-	assert.Equal(t, "/host/var/run/dbus/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
+	assert.Equal(t, "/host/run/systemd/private", check.config.instance.PrivateSocket)
 }
 
 func TestDbusConnectionErr(t *testing.T) {

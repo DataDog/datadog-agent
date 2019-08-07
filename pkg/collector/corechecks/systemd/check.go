@@ -9,7 +9,6 @@ package systemd
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -121,7 +120,7 @@ type SystemdCheck struct {
 }
 
 type systemdInstanceConfig struct {
-	SystemBusSocket   string   `yaml:"system_bus_socket"`
+	PrivateSocket     string   `yaml:"private_socket"`
 	UnitNames         []string `yaml:"unit_names"`
 	UnitRegexStrings  []string `yaml:"unit_regexes"`
 	MaxUnits          int      `yaml:"max_units"`
@@ -137,7 +136,7 @@ type systemdConfig struct {
 
 type systemdStats interface {
 	// Dbus Connection
-	NewConn() (*dbus.Conn, error)
+	NewConn(privateSocket string) (*dbus.Conn, error)
 	CloseConn(c *dbus.Conn)
 
 	// System Data
@@ -151,8 +150,8 @@ type systemdStats interface {
 
 type defaultSystemdStats struct{}
 
-func (s *defaultSystemdStats) NewConn() (*dbus.Conn, error) {
-	return dbus.NewSystemConnection()
+func (s *defaultSystemdStats) NewConn(privateSocket string) (*dbus.Conn, error) {
+	return NewBusConn(privateSocket)
 }
 
 func (s *defaultSystemdStats) CloseConn(c *dbus.Conn) {
@@ -198,7 +197,7 @@ func (c *SystemdCheck) Run() error {
 
 func (c *SystemdCheck) getDbusConn(sender aggregator.Sender) (*dbus.Conn, error) {
 
-	conn, err := c.stats.NewConn()
+	conn, err := c.stats.NewConn(c.config.instance.PrivateSocket)
 	if err != nil {
 		newErr := fmt.Errorf("Cannot create a connection: %v", err)
 		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", nil, newErr.Error())
@@ -456,14 +455,15 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 	}
 
 	socketPath := ""
-	if c.config.instance.SystemBusSocket != "" {
-		socketPath = c.config.instance.SystemBusSocket
+	if c.config.instance.PrivateSocket != "" {
+		socketPath = c.config.instance.PrivateSocket
 	} else if config.IsContainerized() {
-		socketPath = "/host/var/run/dbus/system_bus_socket"
+		socketPath = "/host/run/systemd/private"
 	} else {
-		socketPath = "/var/run/dbus/system_bus_socket"
+		socketPath = "/run/systemd/private"
 	}
-	os.Setenv("DBUS_SYSTEM_BUS_ADDRESS", socketPath)
+
+	c.config.instance.PrivateSocket = socketPath
 
 	return nil
 }
