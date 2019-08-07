@@ -12,8 +12,7 @@ upgrade:
     all units are monitored. Now either `unit_names` or `unit_regexes` must be
     set, and only matching units will be monitored.
   - |
-    New configuration `private_socket` has been added.
-  - |
-    New configuration `max_units` has been added.
+    New configuration `private_socket`, `system_bus_socket` and
+    `max_units` have been added.
   - |
     Several metrics have been renamed.
