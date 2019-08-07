@@ -91,7 +91,12 @@ def generate_doc(ctx):
     rtloader_path = get_rtloader_path()
 
     # doxygen puts both errors and warnings in stderr
-    ctx.run("doxygen {0}/doxygen/Doxyfile 2>{0}/doxygen/errors.log".format(rtloader_path))
+    result = ctx.run("doxygen {0}/doxygen/Doxyfile 2>{0}/doxygen/errors.log".format(rtloader_path), warn=True)
+
+    if result.exited != 0:
+        print("Fatal error encountered while trying to generate documentation.")
+        print("See {0}/doxygen/errors.log for details.".format(rtloader_path))
+        raise Exit(code=result.exited)
 
     errors, warnings = [], []
 
