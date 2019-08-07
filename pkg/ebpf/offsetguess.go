@@ -476,7 +476,7 @@ func tcpGetInfo(conn net.Conn) (*syscall.TCPInfo, error) {
 	}
 	defer file.Close()
 
-	tcpInfo := new(syscall.TCPInfo)
+	var tcpInfo syscall.TCPInfo
 	size := uint32(unsafe.Sizeof(tcpInfo))
 
 	_, _, errno := syscall.Syscall6(
@@ -484,7 +484,7 @@ func tcpGetInfo(conn net.Conn) (*syscall.TCPInfo, error) {
 		uintptr(file.Fd()),
 		uintptr(syscall.SOL_TCP),
 		uintptr(syscall.TCP_INFO),
-		uintptr(unsafe.Pointer(tcpInfo)),
+		uintptr(unsafe.Pointer(&tcpInfo)),
 		uintptr(unsafe.Pointer(&size)),
 		0,
 	)
@@ -493,5 +493,5 @@ func tcpGetInfo(conn net.Conn) (*syscall.TCPInfo, error) {
 		return nil, errors.Wrap(errno, "error calling syscall.SYS_GETSOCKOPT")
 	}
 
-	return tcpInfo, nil
+	return &tcpInfo, nil
 }
