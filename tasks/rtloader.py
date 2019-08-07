@@ -83,8 +83,8 @@ def format(ctx, raise_if_changed=False):
 @task
 def generate_doc(ctx, verbose=False):
     """
-    Generates the doxygen documentation and puts it in rtloader/doc (hardcoded right now in the Doxyfile,
-    as doxygen cannot take the output directory as argument)
+    Generates the doxygen documentation, puts it in rtloader/doc, and logs doc errors/warnings.
+    (rtloader/doc is hardcoded right now in the Doxyfile, as doxygen cannot take the output directory as argument)
     Logs all errors and warnings to <rtloader_path>/doxygen/errors.log and to the standard output.
     Returns 1 if errors were found (by default, doxygen returns 0 even if errors are present).
     """
