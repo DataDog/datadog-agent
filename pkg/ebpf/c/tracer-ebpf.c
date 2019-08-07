@@ -667,12 +667,9 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
 /* Used exclusively for offset guessing */
 SEC("kprobe/tcp_get_info")
 int kprobe__tcp_get_info(struct pt_regs* ctx) {
-    struct sock* sk;
-    tracer_status_t* status;
     u64 zero = 0;
-    sk = (struct sock*)PT_REGS_PARM1(ctx);
-
-    status = bpf_map_lookup_elem(&tracer_status, &zero);
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
     if (status == NULL) {
         return 0;
     }
