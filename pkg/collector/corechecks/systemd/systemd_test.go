@@ -161,7 +161,7 @@ private_socket: /tmp/foo/private_socket
 `)
 	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, []byte(``))
-	conn, err := check.doGetConnection()
+	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
@@ -180,7 +180,7 @@ private_socket: /tmp/foo/private_socket
 `)
 	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, []byte(``))
-	conn, err := check.doGetConnection()
+	conn, err := check.getDbusConnection()
 
 	assert.EqualError(t, err, "some error")
 	assert.Nil(t, conn)
@@ -201,7 +201,7 @@ system_bus_socket: /tmp/foo/system_bus_socket
 `)
 	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, []byte(``))
-	conn, err := check.doGetConnection()
+	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
@@ -223,7 +223,7 @@ system_bus_socket: /tmp/foo/system_bus_socket
 `)
 	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, []byte(``))
-	conn, err := check.doGetConnection()
+	conn, err := check.getDbusConnection()
 
 	assert.EqualError(t, err, "some error")
 	assert.Equal(t, "/tmp/foo/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
@@ -242,7 +242,7 @@ unit_names:
 `)
 	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, []byte(``))
-	conn, err := check.doGetConnection()
+	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
@@ -261,7 +261,7 @@ unit_names:
 `)
 	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, []byte(``))
-	conn, err := check.doGetConnection()
+	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
@@ -283,7 +283,7 @@ unit_names:
 `)
 	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, []byte(``))
-	conn, err := check.doGetConnection()
+	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
@@ -305,7 +305,7 @@ unit_names:
 `)
 	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, []byte(``))
-	conn, err := check.doGetConnection()
+	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)

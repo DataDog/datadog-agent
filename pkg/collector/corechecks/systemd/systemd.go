@@ -188,7 +188,7 @@ func (c *SystemdCheck) Run() error {
 		return err
 	}
 
-	conn, err := c.getDbusConn(sender)
+	conn, err := c.connect(sender)
 	if err != nil {
 		return err
 	}
@@ -202,8 +202,8 @@ func (c *SystemdCheck) Run() error {
 	return nil
 }
 
-func (c *SystemdCheck) getDbusConn(sender aggregator.Sender) (*dbus.Conn, error) {
-	conn, err := c.doGetConnection()
+func (c *SystemdCheck) connect(sender aggregator.Sender) (*dbus.Conn, error) {
+	conn, err := c.getDbusConnection()
 
 	if err != nil {
 		newErr := fmt.Errorf("Cannot create a connection: %v", err)
@@ -231,7 +231,7 @@ func (c *SystemdCheck) getDbusConn(sender aggregator.Sender) (*dbus.Conn, error)
 	return conn, nil
 }
 
-func (c *SystemdCheck) doGetConnection() (*dbus.Conn, error) {
+func (c *SystemdCheck) getDbusConnection() (*dbus.Conn, error) {
 	var err = fmt.Errorf("no connection")
 	var conn *dbus.Conn
 	if c.config.instance.PrivateSocket != "" {
