@@ -219,3 +219,9 @@ def load_release_versions(ctx):
     with open(deps_file, "r") as f:
         versions = json.load(f)
         return {str(k):str(v) for k, v in versions.iteritems()}
+
+def do_go_rename(ctx, rename, at):
+    ctx.run("gofmt -l -w -r {} {}".format(rename, at))
+
+def do_sed_rename(ctx, rename, at):
+    ctx.run("sed -i '{}' {}".format(rename, at))

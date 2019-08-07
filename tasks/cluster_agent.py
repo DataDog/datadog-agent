@@ -13,15 +13,30 @@ from invoke.exceptions import Exit
 from .build_tags import get_build_tags
 from .utils import get_build_flags, bin_name, get_version
 from .utils import REPO_PATH
+from .utils import do_go_rename, do_sed_rename
 from .go import deps
 
 # constants
-BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
-AGENT_TAG = "datadog/cluster_agent:master"
+BIN_PATH = os.path.join(".", "bin", "stackstate-cluster-agent")
+AGENT_TAG = "stackstate/cluster_agent:master"
 DEFAULT_BUILD_TAGS = [
     "kubeapiserver",
     "clusterchecks",
 ]
+
+
+@task
+def apply_branding(ctx):
+    """
+    Apply stackstate branding
+    """
+    sts_lower_replace = '/www/! s/datadog/stackstate/g'
+
+    do_sed_rename(ctx, sts_lower_replace, "./cmd/cluster-agent/main.go")
+    do_sed_rename(ctx, sts_lower_replace, "./cmd/cluster-agent/app/*")
+    do_sed_rename(ctx, 's/Datadog Cluster/StackState Cluster/g', "./cmd/cluster-agent/app/*")
+    do_sed_rename(ctx, 's/Datadog Agent/StackState Agent/g', "./cmd/cluster-agent/app/*")
+    do_sed_rename(ctx, 's/to Datadog/to StackState/g', "./cmd/cluster-agent/app/*")
 
 
 @task
@@ -38,7 +53,7 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None,
     build_tags = get_build_tags(build_include, build_exclude)
 
     # We rely on the go libs embedded in the debian stretch image to build dynamically
-    ldflags, gcflags, env = get_build_flags(ctx, static=False, use_embedded_libs=use_embedded_libs, prefix='dca')
+    ldflags, gcflags, env = get_build_flags(ctx, static=False, use_embedded_libs=use_embedded_libs)
 
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent"
@@ -46,12 +61,13 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None,
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "-i",
         "build_tags": " ".join(build_tags),
-        "bin_name": os.path.join(BIN_PATH, bin_name("datadog-cluster-agent")),
+        "bin_name": os.path.join(BIN_PATH, bin_name("stackstate-cluster-agent")),
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
 
+    apply_branding(ctx)
     ctx.run(cmd.format(**args), env=env)
     # Render the configuration file template
     #
@@ -99,7 +115,7 @@ def clean(ctx):
 
     # remove the bin/agent folder
     print("Remove agent binary folder")
-    ctx.run("rm -rf ./bin/datadog-cluster-agent")
+    ctx.run("rm -rf ./bin/stackstate-cluster-agent")
 
 
 @task
@@ -139,7 +155,7 @@ def image_build(ctx, tag=AGENT_TAG, push=False):
     Build the docker image
     """
 
-    dca_binary = glob.glob(os.path.join(BIN_PATH, "datadog-cluster-agent"))
+    dca_binary = glob.glob(os.path.join(BIN_PATH, "stackstate-cluster-agent"))
     # get the last debian package built
     if not dca_binary:
         print("No bin found in {}".format(BIN_PATH))
@@ -150,7 +166,7 @@ def image_build(ctx, tag=AGENT_TAG, push=False):
 
     shutil.copy2(latest_file, "Dockerfiles/cluster-agent/")
     ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(tag))
-    ctx.run("rm Dockerfiles/cluster-agent/datadog-cluster-agent")
+    ctx.run("rm Dockerfiles/cluster-agent/stackstate-cluster-agent")
     if push:
         ctx.run("docker push {}".format(tag))
 
@@ -165,4 +181,4 @@ def version(ctx, url_safe=False, git_sha_length=7):
                     use this to explicitly set the version
                     (the windows builder and the default ubuntu version have such an incompatibility)
     """
-    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length, prefix='dca'))
+    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length))
