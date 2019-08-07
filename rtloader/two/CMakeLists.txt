@@ -29,6 +29,7 @@ add_library(datadog-agent-two SHARED
     two.cpp
     ../common/cgo_free.c
     ../common/stringutils.c
+    ../common/log.c
     ../common/builtins/aggregator.c
     ../common/builtins/datadog_agent.c
     ../common/builtins/util.c
