@@ -102,7 +102,7 @@ func (ps *rateLimiter) RealRate() float64 {
 func (ps *rateLimiter) realRateLocked() float64 {
 	if ps.stats.RecentTracesSeen <= 0 {
 		// avoid division by zero
-		return ps.stats.TargetRate
+		return 1
 	}
 	return 1 - (ps.stats.RecentTracesDropped / ps.stats.RecentTracesSeen)
 }
