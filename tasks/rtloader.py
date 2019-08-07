@@ -81,7 +81,7 @@ def format(ctx, raise_if_changed=False):
             raise Exit(code=1)
 
 @task
-def generate_doc(ctx, verbose=False):
+def generate_doc(ctx):
     """
     Generates the doxygen documentation, puts it in rtloader/doc, and logs doc errors/warnings.
     (rtloader/doc is hardcoded right now in the Doxyfile, as doxygen cannot take the output directory as argument)
@@ -89,10 +89,9 @@ def generate_doc(ctx, verbose=False):
     Returns 1 if errors were found (by default, doxygen returns 0 even if errors are present).
     """
     rtloader_path = get_rtloader_path()
-    redirect_stdout = "" if verbose else ">/dev/null"
 
     # doxygen puts both errors and warnings in stderr
-    ctx.run("doxygen {0}/doxygen/Doxyfile 2>{0}/doxygen/errors.log {1}".format(rtloader_path, redirect_stdout))
+    ctx.run("doxygen {0}/doxygen/Doxyfile 2>{0}/doxygen/errors.log".format(rtloader_path))
 
     errors, warnings = [], []
 
