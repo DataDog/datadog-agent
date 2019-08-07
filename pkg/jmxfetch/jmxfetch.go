@@ -18,10 +18,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -71,6 +73,22 @@ type JMXFetch struct {
 	managed            bool
 	shutdown           chan struct{}
 	stopped            chan struct{}
+}
+
+// checkInstanceCfg lists the config options on the instance against which we make some sanity checks
+// on how they're configured. All the other options should be checked on JMXFetch's side.
+type checkInstanceCfg struct {
+	JavaBinPath      string `yaml:"java_bin_path,omitempty"`
+	JavaOptions      string `yaml:"java_options,omitempty"`
+	ToolsJarPath     string `yaml:"tools_jar_path,omitempty"`
+	ProcessNameRegex string `yaml:"process_name_regex,omitempty"`
+}
+
+type checkInitCfg struct {
+	CustomJarPaths []string `yaml:"custom_jar_paths,omitempty"`
+	ToolsJarPath   string   `yaml:"tools_jar_path,omitempty"`
+	JavaBinPath    string   `yaml:"java_bin_path,omitempty"`
+	JavaOptions    string   `yaml:"java_options,omitempty"`
 }
 
 func (j *JMXFetch) setDefaults() {
@@ -266,4 +284,72 @@ func (j *JMXFetch) Up() (bool, error) {
 	// if sig is 0, then no signal is sent, but error checking is still performed
 	err = process.Signal(syscall.Signal(0))
 	return err == nil, err
+}
+
+func (j *JMXFetch) ConfigureCheck(initConfig integration.Data) error {
+	var initConf checkInitCfg
+
+	// unmarshall init config
+	if err := yaml.Unmarshal(initConfig, &initConf); err != nil {
+		return err
+	}
+
+	if j.JavaBinPath == "" {
+		if initConf.JavaBinPath != "" {
+			j.JavaBinPath = initConf.JavaBinPath
+		}
+	}
+
+	if j.JavaOptions == "" {
+		if initConf.JavaOptions != "" {
+			j.JavaOptions = initConf.JavaOptions
+		}
+	}
+
+	if j.JavaToolsJarPath == "" {
+		if initConf.ToolsJarPath != "" {
+			j.JavaToolsJarPath = initConf.ToolsJarPath
+		}
+	}
+	if j.JavaCustomJarPaths == nil {
+		if initConf.CustomJarPaths != nil {
+			j.JavaCustomJarPaths = initConf.CustomJarPaths
+		}
+	}
+
+	return nil
+}
+
+func (j *JMXFetch) ConfigureInstance(instance integration.Data) error {
+
+	var instanceConf checkInstanceCfg
+
+	// unmarshall instance info
+	if err := yaml.Unmarshal(instance, &instanceConf); err != nil {
+		return err
+	}
+
+	if j.JavaBinPath == "" {
+		if instanceConf.JavaBinPath != "" {
+			j.JavaBinPath = instanceConf.JavaBinPath
+		}
+	}
+	if j.JavaOptions == "" {
+		if instanceConf.JavaOptions != "" {
+			j.JavaOptions = instanceConf.JavaOptions
+		}
+	}
+	if j.JavaToolsJarPath == "" {
+		if instanceConf.ToolsJarPath != "" {
+			j.JavaToolsJarPath = instanceConf.ToolsJarPath
+		}
+	}
+
+	if instanceConf.ProcessNameRegex != "" {
+		if j.JavaToolsJarPath == "" {
+			return fmt.Errorf("You must specify the path to tools.jar. See http://docs.datadoghq.com/integrations/java/ for more information")
+		}
+	}
+
+	return nil
 }

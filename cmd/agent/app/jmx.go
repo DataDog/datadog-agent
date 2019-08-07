@@ -164,7 +164,7 @@ func runJmxCommand(command string) error {
 	runner.Command = command
 	runner.IPCPort = api.ServerAddress().Port
 
-	runner.JavaCustomJarPaths = loadConfigs()
+	loadConfigs(runner)
 
 	err = runner.Start(false)
 	if err != nil {
@@ -183,12 +183,11 @@ func runJmxCommand(command string) error {
 	return nil
 }
 
-func loadConfigs() []string {
+func loadConfigs(runner *jmxfetch.JMXFetch) {
 	fmt.Println("Loading configs :")
 
 	configs := common.AC.GetAllConfigs()
 	includeEverything := len(checks) == 0
-	var jarPaths []string
 
 	for _, c := range configs {
 		rawInitConfig := integration.RawMap{}
@@ -196,13 +195,9 @@ func loadConfigs() []string {
 		if check.IsJMXConfig(c.Name, c.InitConfig, rawInitConfig) && (includeEverything || configIncluded(c)) {
 			fmt.Println("Config ", c.Name, " was loaded.")
 			jmx.AddScheduledConfig(c)
-			customJarPaths, _ := rawInitConfig["custom_jar_paths"].([]string)
-			if customJarPaths != nil {
-				jarPaths = append(jarPaths, customJarPaths...)
-			}
+			runner.ConfigureCheck(c.InitConfig)
 		}
 	}
-	return jarPaths
 }
 
 func configIncluded(config integration.Config) bool {
