@@ -30,7 +30,12 @@ instances:
     ## @param system_bus_socket - string - optional
     ## Path to system bus socket needed to retrieve systemd data.
     ## Defaults to `/var/run/dbus/system_bus_socket`.
-    ## Defaults to `/host/var/run/dbus/system_bus_socket` when using Docker Agent (https://docs.datadoghq.com/agent/docker/).
+    ##
+    ## When using Docker Agent (https://docs.datadoghq.com/agent/docker/),
+    ## the default socket is `/host/var/run/dbus/system_bus_socket`.
+    ## Docker container must be run in privileged mode `--privileged` or
+    ## with the security option `--security-opt apparmor:unconfined` to bypass
+    ## the App Armor security.
     ##
     # system_bus_socket: <PATH_TO_SYSTEM_BUS_SOCKET>
 
