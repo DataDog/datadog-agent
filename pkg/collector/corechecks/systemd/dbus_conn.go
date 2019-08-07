@@ -12,18 +12,18 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/coreos/go-systemd/dbus"
 	godbus "github.com/godbus/dbus"
 )
 
-// (method borrowed from `go-systemd/dbus` to provide custom path for systemd private socket
 // New establishes a connection to any available bus and authenticates.
 // Callers should call Close() when done with the connection.
-// Note: method borrowed from `go-systemd/dbus` to provide custom path for systemd private socket
-func NewBusConn(privateSocket string) (*dbus.Conn, error) {
-	conn, err := dbus.NewSystemConnection()
-	if err != nil && os.Geteuid() == 0 {
-		return NewSystemdConnection(privateSocket)
+func NewSystemdAnyConnection(privateSocket string) (*dbus.Conn, error) {
+	conn, err := NewSystemdConnection(privateSocket)
+	if err != nil {
+		log.Debugf("Fail to connect using private socket: %v", err)
+		return dbus.NewSystemConnection()
 	}
 	return conn, err
 }

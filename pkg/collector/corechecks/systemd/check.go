@@ -151,7 +151,7 @@ type systemdStats interface {
 type defaultSystemdStats struct{}
 
 func (s *defaultSystemdStats) NewConn(privateSocket string) (*dbus.Conn, error) {
-	return NewBusConn(privateSocket)
+	return NewSystemdAnyConnection(privateSocket)
 }
 
 func (s *defaultSystemdStats) CloseConn(c *dbus.Conn) {
