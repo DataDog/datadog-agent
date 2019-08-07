@@ -121,9 +121,13 @@ RUN tar xzf s6.tgz \
  && chmod 500 /readsecret.py
 
 # Update links to python binaries
-RUN ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/python \
+
+RUN if [ ! -z "$PYTHON_VERSION" ]; then \
+ ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/python \
  && ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION}-config /opt/datadog-agent/embedded/bin/python-config \
- && ln -sfn /opt/datadog-agent/embedded/bin/pip${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/pip
+ && ln -sfn /opt/datadog-agent/embedded/bin/pip${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/pip ; \
+ fi
+
 
 # Override the exit script by ours to fix --pid=host operations
 COPY init-stage3 /etc/s6/init/init-stage3
