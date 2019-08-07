@@ -17,7 +17,7 @@ func TestLineSerializer(t *testing.T) {
 	var messages []*message.Message
 	var payload []byte
 
-	serializer := NewLineSerializer()
+	serializer := LineSerializer
 
 	payload = serializer.Serialize(messages)
 	assert.Len(t, payload, 0)
@@ -35,7 +35,7 @@ func TestArraySerializer(t *testing.T) {
 	var messages []*message.Message
 	var payload []byte
 
-	serializer := NewArraySerializer()
+	serializer := ArraySerializer
 
 	payload = serializer.Serialize(messages)
 	assert.Equal(t, []byte("[]"), payload)
