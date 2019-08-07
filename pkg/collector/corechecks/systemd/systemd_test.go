@@ -130,7 +130,7 @@ unit_regexes:
 
 func TestMissingUnitNamesOrRegexShouldRaiseError(t *testing.T) {
 	check := SystemdCheck{}
-	err := check.Configure([]byte(``), []byte(``))
+	err := check.Configure([]byte(``), []byte(``), "test")
 
 	expectedErrorMsg := "`unit_names` and `unit_regexes` must not be both empty"
 	assert.EqualError(t, err, expectedErrorMsg)
@@ -143,7 +143,7 @@ unit_names:
 - ssh.service
 private_socket: /tmp/foo
 `)
-	check.Configure(rawInstanceConfig, []byte(``))
+	check.Configure(rawInstanceConfig, []byte(``), "test")
 
 	check.Run()
 
@@ -160,7 +160,7 @@ unit_names:
 private_socket: /tmp/foo/private_socket
 `)
 	check := SystemdCheck{stats: stats}
-	check.Configure(rawInstanceConfig, []byte(``))
+	check.Configure(rawInstanceConfig, []byte(``), "test")
 	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
@@ -179,7 +179,7 @@ unit_names:
 private_socket: /tmp/foo/private_socket
 `)
 	check := SystemdCheck{stats: stats}
-	check.Configure(rawInstanceConfig, []byte(``))
+	check.Configure(rawInstanceConfig, []byte(``), "test")
 	conn, err := check.getDbusConnection()
 
 	assert.EqualError(t, err, "some error")
@@ -200,7 +200,7 @@ unit_names:
 system_bus_socket: /tmp/foo/system_bus_socket
 `)
 	check := SystemdCheck{stats: stats}
-	check.Configure(rawInstanceConfig, []byte(``))
+	check.Configure(rawInstanceConfig, []byte(``), "test")
 	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
@@ -222,7 +222,7 @@ unit_names:
 system_bus_socket: /tmp/foo/system_bus_socket
 `)
 	check := SystemdCheck{stats: stats}
-	check.Configure(rawInstanceConfig, []byte(``))
+	check.Configure(rawInstanceConfig, []byte(``), "test")
 	conn, err := check.getDbusConnection()
 
 	assert.EqualError(t, err, "some error")
@@ -241,7 +241,7 @@ unit_names:
 - ssh.service
 `)
 	check := SystemdCheck{stats: stats}
-	check.Configure(rawInstanceConfig, []byte(``))
+	check.Configure(rawInstanceConfig, []byte(``), "test")
 	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
@@ -260,7 +260,7 @@ unit_names:
 - ssh.service
 `)
 	check := SystemdCheck{stats: stats}
-	check.Configure(rawInstanceConfig, []byte(``))
+	check.Configure(rawInstanceConfig, []byte(``), "test")
 	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
@@ -282,7 +282,7 @@ unit_names:
 - ssh.service
 `)
 	check := SystemdCheck{stats: stats}
-	check.Configure(rawInstanceConfig, []byte(``))
+	check.Configure(rawInstanceConfig, []byte(``), "test")
 	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
@@ -304,7 +304,7 @@ unit_names:
 - ssh.service
 `)
 	check := SystemdCheck{stats: stats}
-	check.Configure(rawInstanceConfig, []byte(``))
+	check.Configure(rawInstanceConfig, []byte(``), "test")
 	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
@@ -925,7 +925,7 @@ max_units: 3
 	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, mock.Anything).Return(map[string]interface{}{}, nil)
 
 	check := SystemdCheck{stats: stats}
-	check.Configure(rawInstanceConfig, nil)
+	check.Configure(rawInstanceConfig, nil, "test")
 
 	// setup expectation
 	mockSender := mocksender.NewMockSender(check.ID())
