@@ -164,6 +164,43 @@ spec:
                   path: /var/run/dogstatsd
                 name: dogstatsd
 
+    - name: logs-hello-world
+      value: |
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        metadata:
+          name: logs-hello-world
+          namespace: default
+        spec:
+          replicas: 1
+          template:
+            metadata:
+              labels:
+                app: logs-hello-world
+            spec:
+              initContainers:
+              - name: logs-hello-world-init-container
+                image: busybox:latest
+                command: ['sh', '-c', 'echo hello world && sleep 2']
+                resources:
+                  requests:
+                    memory: "32Mi"
+                    cpu: "50m"
+                  limits:
+                    memory: "32Mi"
+                    cpu: "50m"                
+              containers:
+              - name: logs-hello-world-short-lived-container
+                image: busybox:latest
+                command: ['sh', '-c', 'echo goodbye && sleep 2']
+                resources:
+                  requests:
+                    memory: "32Mi"
+                    cpu: "50m"
+                  limits:
+                    memory: "32Mi"
+                    cpu: "50m"
+
     - name: agent-service-account
       value: |
         kind: ServiceAccount
@@ -254,6 +291,12 @@ spec:
             dogstatsd_socket: /var/run/dogstatsd/dsd.socket
             # Hardcode a hostname to test dogstatsd hostname injection
             hostname: e2e-test
+            # logs-config
+            logs_enabled: true
+            logs:
+              dd_url: "fake-datadog.default.svc.cluster.local"
+              use_http: true
+              dev_mode_no_ssl: true
 
           kubelet.yaml: |
             init_config:
@@ -556,6 +599,7 @@ spec:
       - name: redis-service
       - name: redis-deployment
       - name: redis-deployment-unready
+      - name: logs-hello-world
       - name: agent-configmap
       - name: agent-service-account
       - name: agent-cluster-role
@@ -635,6 +679,17 @@ spec:
             value: "{{item}}"
         withItems:
         - "{{inputs.parameters.dsd-hostname}}"
+
+    - - name: logs-hello-world-setup
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "apply"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.logs-hello-world}}"
 
     - - name: fake-dd-reset
         template: fake-dd-reset
@@ -739,6 +794,7 @@ spec:
       - name: redis-deployment-unready
       - name: cpu-stress
       - name: dsd-hostname
+      - name: logs-hello-world
       - name: agent-configmap
       - name: agent-service-account
       - name: agent-cluster-role
@@ -764,6 +820,7 @@ spec:
         - "{{inputs.parameters.redis-deployment-unready}}"
         - "{{inputs.parameters.cpu-stress}}"
         - "{{inputs.parameters.dsd-hostname}}"
+        - "{{inputs.parameters.logs-hello-world}}"
         - "{{inputs.parameters.agent-configmap}}"
         - "{{inputs.parameters.agent-service-account}}"
         - "{{inputs.parameters.agent-cluster-role}}"
@@ -1247,4 +1304,27 @@ spec:
             break;
           }
           sleep(2000);
+        }
+  - name: find-hello-world-logs
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          sleep(2000)
+          var nb = db.logs.find({
+            message: "hello world",
+          }).count();
+          if (nb == 0) {
+            print("missing init container log for logs-hello-world application");
+            continue;
+          }
+          var nb = db.logs.find({
+            message: "goodbye",
+          }).count();
+          if (nb == 0) {
+            print("missing short-lived container log for logs-hello-world application");
+            continue;
+          }
         }
