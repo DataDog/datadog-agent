@@ -111,7 +111,7 @@ Other arguments can be passed to the installation command.
 
 Linux arguments:
 
-- `HOSTNAME` = Instance hostname
+- `STS_HOSTNAME` = Instance hostname
 - `$HOST_TAGS` = Agent host tags to use for all topology component (by default `os:linux` will be added)
 - `SKIP_SSL_VALIDATION` = Skip ssl certificates validation when talking to the backend (defaults to `false`)
 - `STS_INSTALL_ONLY` = Agent won't be automatically started after installation

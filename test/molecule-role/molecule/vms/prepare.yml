@@ -274,7 +274,7 @@
       environment:
         STS_API_KEY: "API_KEY"
         STS_URL: "https://test-stackstate-agent.sts/stsAgent"
-        HOSTNAME: "{{ inventory_hostname }}"
+        STS_HOSTNAME: "{{ inventory_hostname }}"
         CODE_NAME: "{{ agent_current_branch }}"
         SKIP_SSL_VALIDATION: "true"
 
