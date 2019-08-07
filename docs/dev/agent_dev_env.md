@@ -165,7 +165,7 @@ dev environment.
 
 We use [Doxygen](http://www.doxygen.nl/) to generate the documentation for the `rtloader` part of the Agent.
 
-To generate it (using the `invoke rtloader.generate-doc`), you'll need to have Doxygen
+To generate it (using the `invoke rtloader.generate-doc` command), you'll need to have Doxygen
 installed on your system and available in your `$PATH`. You can compile and install Doxygen from source
 with the instructions available [here](http://www.doxygen.nl/manual/install.html).
 Alternatively, you can use already-compiled Doxygen binaries from [here](http://www.doxygen.nl/download.html).
