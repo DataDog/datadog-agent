@@ -368,7 +368,7 @@ on Windows ACL rights are listed.
 Example on Linux:
 
 ```shell
-$> datadog-agent secrets
+$> datadog-agent secret
 === Checking executable rights ===
 Executable path: /path/to/you/executable
 Check Rights: OK, the executable has the correct rights

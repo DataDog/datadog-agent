@@ -132,5 +132,9 @@ func PrintConfig(w io.Writer, c integration.Config) {
 			fmt.Fprintln(w, fmt.Sprintf("* %s", color.CyanString(id)))
 		}
 	}
+	if c.NodeName != "" {
+		state := fmt.Sprintf("dispatched to %s", c.NodeName)
+		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("State"), color.CyanString(state)))
+	}
 	fmt.Fprintln(w, "===")
 }

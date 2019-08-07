@@ -216,6 +216,29 @@ func TestLoadEnv(t *testing.T) {
 				}, cfg.AnalyzedSpansByService)
 			})
 
+			env = "DD_APM_REPLACE_TAGS"
+			t.Run(env, func(t *testing.T) {
+				assert := assert.New(t)
+				err := os.Setenv(env, `[{"name":"name1", "pattern":"pattern1"}, {"name":"name2","pattern":"pattern2","repl":"replace2"}]`)
+				assert.NoError(err)
+				defer os.Unsetenv(env)
+				cfg, err := Load("./testdata/full." + ext)
+				assert.NoError(err)
+				rule1 := &ReplaceRule{
+					Name:    "name1",
+					Pattern: "pattern1",
+					Repl:    "",
+				}
+				rule2 := &ReplaceRule{
+					Name:    "name2",
+					Pattern: "pattern2",
+					Repl:    "replace2",
+				}
+				compileReplaceRules([]*ReplaceRule{rule1, rule2})
+				assert.Contains(cfg.ReplaceTags, rule1)
+				assert.Contains(cfg.ReplaceTags, rule2)
+			})
+
 			for _, envKey := range []string{
 				"DD_CONNECTION_LIMIT", // deprecated
 				"DD_APM_CONNECTION_LIMIT",

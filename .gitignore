@@ -85,3 +85,7 @@ trace-agent-msg.h
 
 # ebpf object files
 pkg/ebpf/c/*.o
+
+# dev VM
+.vagrant
+Vagrantfile

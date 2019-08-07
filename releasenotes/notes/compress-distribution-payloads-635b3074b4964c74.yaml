@@ -8,6 +8,5 @@
 ---
 enhancements:
   - |
-    APM: Services are no longer aggreagated in the agent, nor written to the Datadog API.
-    Instead, they are now automatically extracted on the backend based on the received
-    traces.
+    Distributions: Distribution payloads are now compressed before being sent to
+    Datadog if the agent is built with either zlib or zstd.

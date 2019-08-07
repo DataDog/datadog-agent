@@ -186,14 +186,19 @@ func (a *Agent) Process(t *api.Trace) {
 	}
 	a.Replacer.Replace(t.Spans)
 
-	// Extract the client sampling rate.
-	clientSampleRate := sampler.GetGlobalRate(root)
-	sampler.SetClientRate(root, clientSampleRate)
-	// Combine it with the pre-sampling rate.
-	rateLimiterRate := a.Receiver.RateLimiter.RealRate()
-	sampler.SetPreSampleRate(root, rateLimiterRate)
-	// Update root's global sample rate to include the presampler rate as well
-	sampler.AddGlobalRate(root, rateLimiterRate)
+	{
+		// this section sets up any necessary tags on the root:
+		clientSampleRate := sampler.GetGlobalRate(root)
+		rateLimiterRate := a.Receiver.RateLimiter.RealRate()
+
+		sampler.SetClientRate(root, clientSampleRate)
+		sampler.SetPreSampleRate(root, rateLimiterRate)
+		sampler.AddGlobalRate(root, rateLimiterRate)
+
+		for k, v := range t.ContainerTags {
+			root.Meta[k] = v
+		}
+	}
 
 	// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
 	// which is not thread-safe while samplers and Concentrator might modify it too.
