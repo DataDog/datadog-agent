@@ -37,7 +37,7 @@ services:
       ZOOKEEPER_QUORUM: kafka
     mem_limit: 1G
   db:
-    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-trace-java-demo:db"
+    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-trace-java-demo:db-master"
     environment:
       POSTGRES_USER: 'app'
       POSTGRES_PASSWORD: 'app'
@@ -51,26 +51,29 @@ services:
       - 5432:5432
     labels:
       - "traefik.frontend.rule=Host:stackstate-demo-db.docker.localhost"
+      - "traefik.backend=stackstate-demo-db"
   stackstate-books-app:
-    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-trace-java-demo:books-app"
+    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-trace-java-demo:books-app-master"
     ports:
       - '8081-8091:8081'
     depends_on:
       - db
       - stackstate-agent
     labels:
-      - "traefik.frontend.rule=Host:stackstate-books-app"
+      - "traefik.frontend.rule=Host:stackstate-books-app.docker.localhost"
+      - "traefik.backend=stackstate-books-app"
     environment:
       MAVEN_OPTS: "-Dsts.service.name=stackstate-books-app -Dsts.agent.host=${DOCKER_HOST_IP} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
   stackstate-authors-app:
-    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-trace-java-demo:authors-app"
+    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-trace-java-demo:authors-app-master"
     ports:
       - '8092-8099:8081'
     depends_on:
       - db
       - stackstate-agent
     labels:
-      - "traefik.frontend.rule=Host:stackstate-authors-app"
+      - "traefik.frontend.rule=Host:stackstate-authors-app.docker.localhost"
+      - "traefik.backend=stackstate-authors-app"
     environment:
       MAVEN_OPTS: "-Dsts.service.name=stackstate-authors-app -Dsts.agent.host=${DOCKER_HOST_IP} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
   traefik:
