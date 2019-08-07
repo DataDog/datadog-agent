@@ -51,15 +51,15 @@ func (jl *JMXCheckLoader) Load(config integration.Config) ([]check.Check, error)
 	var err error
 	checks := []check.Check{}
 
-	if !check.IsJMXConfig(config.Name, config.InitConfig, nil) {
-		return checks, errors.New("check is not a jmx check, or unable to determine if it's so")
-	}
-
 	rawInitConfig := integration.RawMap{}
 	err = yaml.Unmarshal(config.InitConfig, &rawInitConfig)
 	if err != nil {
 		log.Errorf("jmx.loader: could not unmarshal instance config: %s", err)
 		return checks, err
+	}
+
+	if !check.IsJMXConfig(config.Name, config.InitConfig, rawInitConfig) {
+		return checks, errors.New("check is not a jmx check, or unable to determine if it's so")
 	}
 
 	for _, instance := range config.Instances {

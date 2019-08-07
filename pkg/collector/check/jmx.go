@@ -42,13 +42,13 @@ func IsJMXConfig(name string, initConf integration.Data, rawInitConfig integrati
 
 // CollectDefaultMetrics returns if the config is for a JMX check which has collect_default_metrics: true
 func CollectDefaultMetrics(c integration.Config) bool {
-	if !IsJMXConfig(c.String(), c.InitConfig, nil) {
-		return false
-	}
-
 	rawInitConfig := integration.RawMap{}
 	err := yaml.Unmarshal(c.InitConfig, &rawInitConfig)
 	if err != nil {
+		return false
+	}
+
+	if !IsJMXConfig(c.String(), c.InitConfig, rawInitConfig) {
 		return false
 	}
 
