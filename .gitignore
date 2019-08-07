@@ -89,3 +89,7 @@ pkg/ebpf/c/*.o
 # dev VM
 .vagrant
 Vagrantfile
+
+# doxygen doc & error log
+rtloader/doc
+rtlodaer/doxygen/errors.log

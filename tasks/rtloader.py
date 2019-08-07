@@ -79,3 +79,46 @@ def format(ctx, raise_if_changed=False):
             for f in changed_files:
                 print("  - {}".format(f))
             raise Exit(code=1)
+
+@task
+def generate_doc(ctx, verbose=False):
+    """
+    Generates the doxygen documentation and puts it in rtloader/doc (hardcoded right now in the Doxyfile,
+    as doxygen cannot take the output directory as argument)
+    Logs all errors and warnings to <rtloader_path>/doxygen/errors.log and to the standard output.
+    Returns 1 if errors were found (by default, doxygen returns 0 even if errors are present).
+    """
+    rtloader_path = get_rtloader_path()
+    redirect_stdout = "" if verbose else ">/dev/null"
+
+    # doxygen puts both errors and warnings in stderr
+    ctx.run("doxygen {0}/doxygen/Doxyfile 2>{0}/doxygen/errors.log {1}".format(rtloader_path, redirect_stdout))
+
+    errors, warnings = [], []
+
+    def flushentry(entry):
+        if 'error:' in currententry:
+            errors.append(currententry)
+        elif 'warning:' in currententry:
+            warnings.append(currententry)
+
+    # Separate warnings from errors
+    with open("{}/doxygen/errors.log".format(rtloader_path)) as errfile:
+        currententry = ""
+        for line in errfile.readlines():
+            if 'error:' in line or 'warning:' in line: # We get to a new entry, flush current one
+                flushentry(currententry)
+                currententry = ""
+
+            currententry += line
+
+        flushentry(currententry) # Flush last entry
+
+        print("\033[93m{}\033[0m".format("\n".join(warnings)))
+        print("\033[91m{}\033[0m".format("\n".join(errors)))
+        print("Found {} error(s) and {} warning(s) while generating documentation.".format(len(errors), len(warnings)))
+        print("The full list is available in {}/doxygen/errors.log.".format(rtloader_path))
+
+    # Exit with non-zero code if an error has been found
+    if len(errors) > 0:
+        raise Exit(code=1)
