@@ -79,18 +79,18 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	}
 
 	c.instance = instance
-
-	var local_ntp_servers []string
+	var localNtpServers []string
 	var err error
 	if c.instance.UseLocalDefinedServers {
-		local_ntp_servers, err = getLocalServers()
+		localNtpServers, err = getLocalServers()
 		if err != nil {
 			return err
 		}
+		log.Infof("Use local defined servers: %v", localNtpServers)
 	}
 
-	if len(local_ntp_servers) > 0 {
-		c.instance.Hosts = local_ntp_servers
+	if len(localNtpServers) > 0 {
+		c.instance.Hosts = localNtpServers
 	} else if c.instance.Host != "" {
 		hosts := []string{c.instance.Host}
 		// If config contains both host and hosts

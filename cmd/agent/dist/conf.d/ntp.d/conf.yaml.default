@@ -19,5 +19,6 @@ instances:
     # timeout: 5
     #    
     # Use the ntp servers defined in the host.    
-    # For unix system, the servers defined in /etc/ntp.conf are used. if /etc/ntp.conf does not exist, etc/xntp.conf is used.
+    # For Unix system, the servers defined in /etc/ntp.conf and etc/xntp.conf are used.
+    # For Windows system, the servers defined in registry key HKLM\SYSTEM\CurrentControlSet\Services\W32Time\Parameters\NtpServer are used.
     # use_local_defined_servers: false
