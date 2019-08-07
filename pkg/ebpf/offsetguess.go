@@ -175,68 +175,61 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 	case guessSaddr:
 		if status.saddr == C.__u32(expected.saddr) {
 			status.what = guessDaddr
-		} else {
-			status.offset_saddr++
-			status.saddr = C.__u32(expected.saddr)
+			break
 		}
-		status.state = stateChecking
+		status.offset_saddr++
+		status.saddr = C.__u32(expected.saddr)
 	case guessDaddr:
 		if status.daddr == C.__u32(expected.daddr) {
 			status.what = guessFamily
-		} else {
-			status.offset_daddr++
-			status.daddr = C.__u32(expected.daddr)
+			break
 		}
-		status.state = stateChecking
+		status.offset_daddr++
+		status.daddr = C.__u32(expected.daddr)
 	case guessFamily:
 		if status.family == C.__u16(expected.family) {
 			status.what = guessSport
 			// we know the sport ((struct inet_sock)->inet_sport) is
 			// after the family field, so we start from there
 			status.offset_sport = status.offset_family
-		} else {
-			status.offset_family++
+			break
 		}
-		status.state = stateChecking
+		status.offset_family++
 	case guessSport:
 		if status.sport == C.__u16(htons(expected.sport)) {
 			status.what = guessDport
-		} else {
-			status.offset_sport++
+			break
 		}
-		status.state = stateChecking
+		status.offset_sport++
 	case guessDport:
 		if status.dport == C.__u16(htons(expected.dport)) {
 			status.what = guessNetns
-		} else {
-			status.offset_dport++
+			break
 		}
-		status.state = stateChecking
+		status.offset_dport++
 	case guessNetns:
 		if status.netns == C.__u32(expected.netns) {
 			status.what = guessDaddrIPv6
-		} else {
-			status.offset_ino++
-			// go to the next offset_netns if we get an error
-			if status.err != 0 || status.offset_ino >= threshold {
-				status.offset_ino = 0
-				status.offset_netns++
-			}
+			break
 		}
-		status.state = stateChecking
+		status.offset_ino++
+		// go to the next offset_netns if we get an error
+		if status.err != 0 || status.offset_ino >= threshold {
+			status.offset_ino = 0
+			status.offset_netns++
+		}
 	case guessDaddrIPv6:
-		if compareIPv6(status.daddr_ipv6, expected.daddrIPv6) {
+		if status.ipv6_enabled == disableV6 || compareIPv6(status.daddr_ipv6, expected.daddrIPv6) {
 			// at this point, we've guessed all the offsets we need,
 			// set the status to "stateReady"
-			status.state = stateReady
-		} else {
-			status.offset_daddr_ipv6++
-			status.state = stateChecking
+			return setReadyState(module, mp, status)
 		}
+		status.offset_daddr_ipv6++
 	default:
 		return fmt.Errorf("unexpected field to guess: %v", whatString[status.what])
 	}
 
+	status.state = stateChecking
 	// update the map with the new offset/field to check
 	if err := module.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status), 0); err != nil {
 		return fmt.Errorf("error updating tracer_status: %v", err)
@@ -333,14 +326,6 @@ func guessOffsets(m *elf.Module, cfg *Config) error {
 	maxRetries := 100
 
 	for status.state != stateReady {
-		// If IPv6 is not enabled, then set state to ready as its the last field we guess
-		if status.what == guessDaddrIPv6 && !cfg.CollectIPv6Conns {
-			if err := setReadyState(m, mp, status); err != nil {
-				return err
-			}
-			continue
-		}
-
 		if err := eventGenerator.Generate(status, expected); err != nil {
 			return err
 		}
