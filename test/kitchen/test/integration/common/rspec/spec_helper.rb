@@ -278,7 +278,7 @@ shared_examples_for "an installed Agent" do
       msi_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-cli.msi"
       expect(File).to exist(msi_path)
       output = `powershell -command "get-authenticodesignature #{msi_path}"`
-      signature_hash = "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C"
+      signature_hash = "3B79DBE9410471E4FFBDFDAD646A83A1CD47D5AA"
       expect(output).to include(signature_hash)
       expect(output).to include("Valid")
       expect(output).not_to include("NotSigned")
