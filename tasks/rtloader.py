@@ -101,10 +101,10 @@ def generate_doc(ctx):
     errors, warnings = [], []
 
     def flushentry(entry):
-        if 'error:' in currententry:
-            errors.append(currententry)
-        elif 'warning:' in currententry:
-            warnings.append(currententry)
+        if 'error:' in entry:
+            errors.append(entry)
+        elif 'warning:' in entry:
+            warnings.append(entry)
 
     # Separate warnings from errors
     with open("{}/doxygen/errors.log".format(rtloader_path)) as errfile:
