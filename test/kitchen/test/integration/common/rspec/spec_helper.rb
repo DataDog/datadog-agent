@@ -241,6 +241,7 @@ shared_examples_for 'Agent' do
   it_behaves_like 'a running Agent with APM manually disabled'
   it_behaves_like 'an Agent that stops'
   it_behaves_like 'an Agent that restarts'
+  it_behaves_like 'an Agent with python3 enabled'
   it_behaves_like 'an Agent that is removed'
 end
 
@@ -446,6 +447,28 @@ shared_examples_for 'an Agent that restarts' do
       expect(output).to be_truthy
     end
     expect(status).to be_truthy
+  end
+end
+
+shared_examples_for 'an Agent with python3 enabled' do
+  it 'restarts after python_version set to 3' do
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
+    confYaml["python_version"] = 3
+    File.write(conf_path, confYaml.to_yaml)
+
+    output = restart
+    expect(output).to be_truthy
+  end
+
+  it 'restarts after python_version set back to 2' do
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
+    confYaml["python_version"] = 2
+    File.write(conf_path, confYaml.to_yaml)
+
+    output = restart
+    expect(output).to be_truthy
   end
 end
 
