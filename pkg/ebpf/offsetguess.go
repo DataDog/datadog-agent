@@ -145,6 +145,29 @@ func expectedValues(conn net.Conn) (*fieldValues, error) {
 	}, nil
 }
 
+func waitUntilStable(conn net.Conn, window time.Duration, attempts int) (*fieldValues, error) {
+	var (
+		current *fieldValues
+		prev    *fieldValues
+		err     error
+	)
+	for i := 0; i <= attempts; i++ {
+		current, err = expectedValues(conn)
+		if err != nil {
+			return nil, err
+		}
+
+		if prev != nil && *prev == *current {
+			return current, nil
+		}
+
+		prev = current
+		time.Sleep(window)
+	}
+
+	return nil, errors.New("unstable TCP socket params")
+}
+
 func offsetGuessProbes(c *Config) []KProbeName {
 	probes := []KProbeName{TCPGetInfo}
 	if c.CollectIPv6Conns {
@@ -378,7 +401,7 @@ func guessOffsets(m *elf.Module, cfg *Config) error {
 	maxRetries := 100
 
 	// Retrieve expected values from local connection
-	expected, err := expectedValues(eventGenerator.conn)
+	expected, err := waitUntilStable(eventGenerator.conn, 200*time.Millisecond, 5)
 	if err != nil {
 		return errors.Wrap(err, "error retrieving expected value")
 	}
@@ -403,6 +426,7 @@ func guessOffsets(m *elf.Module, cfg *Config) error {
 		}
 	}
 
+	fmt.Printf("guessing complete: %+v\n", status)
 	return nil
 }
 
