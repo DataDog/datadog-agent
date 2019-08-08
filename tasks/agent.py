@@ -18,6 +18,7 @@ from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
 from .go import deps
 from .docker import pull_base_images
+from .ssm import get_signing_cert, get_pfx_pass
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -72,6 +73,7 @@ PUPPY_CORECHECKS = [
     "ntp",
     "uptime",
 ]
+
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
@@ -319,12 +321,33 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             "overrides": overrides_cmd,
             "populate_s3_cache": ""
         }
-        if omnibus_s3_cache:
-            args['populate_s3_cache'] = " --populate-s3-cache "
-        if skip_sign:
-            env['SKIP_SIGN_MAC'] = 'true'
-        env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True)
-        ctx.run(cmd.format(**args), env=env)
+        pfxfile = None
+        try:
+            if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
+                # get certificate and password from ssm
+                pfxfile = get_signing_cert(ctx)
+                pfxpass = get_pfx_pass(ctx)
+                # hack for now.  Remove `sign_windows, and set sign_pfx`
+                env['SIGN_PFX'] = "{}".format(pfxfile)
+                env['SIGN_PFX_PW'] = "{}".format(pfxpass)
+
+            if omnibus_s3_cache:
+                args['populate_s3_cache'] = " --populate-s3-cache "
+            if skip_sign:
+                env['SKIP_SIGN_MAC'] = 'true'
+
+            env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True)
+
+            ctx.run(cmd.format(**args), env=env)
+
+        except Exception as e:
+            if pfxfile:
+                os.remove(pfxfile)
+            raise
+
+        if pfxfile:
+            os.remove(pfxfile)
+
 
 
 @task
