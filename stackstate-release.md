@@ -4,6 +4,7 @@
 
 **Features**
 
+- Enable new cluster agent _[(STAC-5008)](https://stackstate.atlassian.net/browse/STAC-5008)_
 - Add topology to python base check _[(STAC-4964)](https://stackstate.atlassian.net/browse/STAC-4964)_
 - Add new stackstate-agent-integrations _[(STAC-4964)](https://stackstate.atlassian.net/browse/STAC-4964)_
 - Add python bindings and handling of topology _[(STAC-4869)](https://stackstate.atlassian.net/browse/STAC-4869)_

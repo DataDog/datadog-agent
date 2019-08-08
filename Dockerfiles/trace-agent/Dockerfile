@@ -26,7 +26,7 @@ RUN apt-get update \
   # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954
   && rm -f /usr/lib/x86_64-linux-gnu/libdb-5.3.so \
   && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
-  && mkdir -p /etc/stackstate-agent/ && mkdir -p /var/log/stackstate-agent/  
+  && mkdir -p /etc/stackstate-agent/ && mkdir -p /var/log/stackstate-agent/
 
 # Prepare for running without root
 # - Create a stackstate-agent:root user and give it permissions on relevant folders
@@ -39,20 +39,16 @@ RUN  adduser --system --no-create-home --disabled-password --ingroup root stacks
  && chmod 755 /probe.sh /init-trace.sh
 
 
-#   - copy default configuration files
+# Copy default configuration files
 COPY stackstate*.yaml /etc/stackstate-agent/
-
 
 # Expose trace-agent port
 EXPOSE  8126/tcp
-
-
 
 HEALTHCHECK --interval=2m --timeout=5s --retries=2 \
   CMD ["/probe.sh"]
 
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag
 VOLUME ["/etc/stackstate-agent", "/var/log/stackstate", "/tmp"]
-
 
 CMD ["/init-trace.sh"]
