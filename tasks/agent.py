@@ -78,7 +78,8 @@ PUPPY_CORECHECKS = [
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, development=True, precompile_only=False, skip_assets=False,
-          embedded_path=None, rtloader_root=None, python_home_2=None, python_home_3=None):
+          embedded_path=None, rtloader_root=None, python_home_2=None, python_home_3=None,
+          arch='x64'):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -91,7 +92,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     ldflags, gcflags, env = get_build_flags(ctx, embedded_path=embedded_path,
-            rtloader_root=rtloader_root, python_home_2=python_home_2, python_home_3=python_home_3)
+            rtloader_root=rtloader_root, python_home_2=python_home_2, python_home_3=python_home_3, arch=arch)
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
@@ -106,21 +107,28 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
                 build_exclude.append(ex)
 
     if sys.platform == 'win32':
+        windres_target = "pe-x86-64"
+        if arch == "x86":
+            env["GOARCH"] = "386"
+            windres_target = "pe-i386"
+
         # This generates the manifest resource. The manifest resource is necessary for
         # being able to load the ancient C-runtime that comes along with Python 2.7
         # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
         ver = get_version_numeric_only(ctx)
         build_maj, build_min, build_patch = ver.split(".")
 
-        command = "windmc --target pe-x86-64 -r cmd/agent cmd/agent/agentmsg.mc "
+        command = "windmc --target {target_arch} -r cmd/agent cmd/agent/agentmsg.mc ".format(target_arch=windres_target)
         ctx.run(command, env=env)
 
-        command = "windres --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
+        command = "windres --target {target_arch} --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} --define BUILD_ARCH_{build_arch}=1".format(
             build_maj=build_maj,
             build_min=build_min,
-            build_patch=build_patch
+            build_patch=build_patch,
+            target_arch=windres_target,
+            build_arch=arch
         )
-        command += "-i cmd/agent/agent.rc --target=pe-x86-64 -O coff -o cmd/agent/rsrc.syso"
+        command += "-i cmd/agent/agent.rc -O coff -o cmd/agent/rsrc.syso"
         ctx.run(command, env=env)
 
     if puppy:
@@ -141,6 +149,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
+    print( "ENV {}".format(env))
     ctx.run(cmd.format(**args), env=env)
 
     # Render the configuration file template

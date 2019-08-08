@@ -45,7 +45,7 @@
   revision = "43b075bb9705588cd89c71363d6d72937e3020c7"
 
 [[projects]]
-  digest = "1:84c22eb14ecdebefff6a3764e5d3769739a775095f31d90919dfd10e887170fb"
+  digest = "1:75f64877bf77b16c450dc23028abfa6d8b38e76ba70b6950cdd888e4f18e7032"
   name = "github.com/DataDog/gopsutil"
   packages = [
     "cpu",
@@ -56,7 +56,7 @@
     "process",
   ]
   pruneopts = ""
-  revision = "3ca45fa2b07679737219be93796a178822ff878f"
+  revision = "833e93ecbcfd25e491eceea5e42c49c22dac7ed1"
 
 [[projects]]
   branch = "master"

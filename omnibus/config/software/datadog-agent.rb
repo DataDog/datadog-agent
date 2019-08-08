@@ -44,10 +44,11 @@ build do
 
   # we assume the go deps are already installed before running omnibus
   if windows?
-    command "inv -e rtloader.build --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\"", :env => env
+    platform = windows_arch_i386? ? "x86" : "x64"
+    command "inv -e rtloader.build --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
     command "mv rtloader/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
-    command "inv -e agent.build --rtloader-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded", env: env
-    command "inv -e systray.build --rebuild --no-development", env: env
+    command "inv -e agent.build --rtloader-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded --arch #{platform}", env: env
+    command "inv -e systray.build --rebuild --no-development --arch #{platform}", env: env
   else
     command "inv -e rtloader.build --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
     command "inv -e rtloader.install"
@@ -68,7 +69,8 @@ build do
 
   ## build the custom action library required for the install
   if windows?
-    command "invoke customaction.build"
+    platform = windows_arch_i386? ? "x86" : "x64"
+    command "invoke customaction.build --arch=" + platform
   end
 
   # move around bin and config files
@@ -81,7 +83,8 @@ build do
     # defer compilation step in a block to allow getting the project's build version, which is populated
     # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
     env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
-    command "invoke trace-agent.build", :env => env
+    platform = windows_arch_i386? ? "x86" : "x64"
+    command "invoke trace-agent.build --arch #{platform}", :env => env
 
     if windows?
       copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
@@ -92,8 +95,9 @@ build do
 
 
   if windows?
+    platform = windows_arch_i386? ? "x86" : "x64"
     # Build the process-agent with the correct go version for windows
-    command "invoke -e process-agent.build", :env => env
+    command "invoke -e process-agent.build --arch #{platform}", :env => env
 
     copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
   else

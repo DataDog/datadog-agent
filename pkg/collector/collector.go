@@ -24,12 +24,14 @@ const (
 
 // Collector abstract common operations about running a Check
 type Collector struct {
-	scheduler      *scheduler.Scheduler
-	runner         *runner.Runner
-	checks         map[check.ID]check.Check
-	state          uint32
-	m              sync.RWMutex
 	checkInstances int64
+	state          uint32
+
+	scheduler *scheduler.Scheduler
+	runner    *runner.Runner
+	checks    map[check.ID]check.Check
+
+	m sync.RWMutex
 }
 
 // NewCollector create a Collector instance and sets up the Python Environment
