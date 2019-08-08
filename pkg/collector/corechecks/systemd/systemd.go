@@ -503,6 +503,9 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 		return fmt.Errorf("`unit_names` and `unit_regexes` must not be both empty")
 	}
 
+	if c.config.instance.PrivateSocket != "" && c.config.instance.SystemBusSocket != "" {
+		return fmt.Errorf("`private_socket` and `system_bus_socket` should not be both provided")
+	}
 	return nil
 }
 

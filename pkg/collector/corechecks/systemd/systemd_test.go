@@ -136,18 +136,18 @@ func TestMissingUnitNamesOrRegexShouldRaiseError(t *testing.T) {
 	assert.EqualError(t, err, expectedErrorMsg)
 }
 
-func TestEnvConfiguration(t *testing.T) {
+func TestConfigurationMultipleSocketConfigShouldNotBeDefined(t *testing.T) {
 	check := SystemdCheck{}
 	rawInstanceConfig := []byte(`
 unit_names:
 - ssh.service
 private_socket: /tmp/foo
+system_bus_socket: /tmp/bar
 `)
-	check.Configure(rawInstanceConfig, []byte(``), "test")
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 
-	check.Run()
-
-	assert.Equal(t, "/tmp/foo", check.config.instance.PrivateSocket)
+	expectedErrorMsg := "`private_socket` and `system_bus_socket` should not be both provided"
+	assert.EqualError(t, err, expectedErrorMsg)
 }
 
 func TestPrivateSocketConnection(t *testing.T) {
