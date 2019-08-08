@@ -154,8 +154,19 @@ public:
     //! Pure virtual getPyInfo member.
     /*!
       \return A py_info_t struct with the details (version and path) of the underlying python runtime.
+
+      Structure returned must be freed with a call to freePyInfo()
     */
     virtual py_info_t *getPyInfo() = 0;
+
+    // Public Const API
+    //! Pure virtual freePyInfo member
+    /*!
+      \return none
+
+      Frees all memory allocated in a previous call to getPyInfo
+     */
+    virtual void freePyInfo(py_info_t *) = 0;
 
     //! Pure virtual runSimpleString member.
     /*!

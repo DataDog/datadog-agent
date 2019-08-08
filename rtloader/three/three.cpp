@@ -118,6 +118,9 @@ done:
     return _baseClass != NULL;
 }
 
+/**
+ * getPyInfo()
+ */
 py_info_t *Three::getPyInfo()
 {
     PyObject *sys = NULL;
@@ -129,7 +132,6 @@ py_info_t *Three::getPyInfo()
         setError("could not allocate a py_info_t struct");
         return NULL;
     }
-
     info->version = Py_GetVersion();
     info->path = NULL;
 
@@ -159,7 +161,20 @@ done:
     Py_XDECREF(str_path);
     return info;
 }
+/**
+ * freePyInfo()
+ */
 
+void Three::freePyInfo(py_info_t *info)
+{
+    info->version = NULL;
+    if (info->path) {
+        free(info->path);
+        info->version = NULL;
+    }
+    free(info);
+    return;
+}
 bool Three::runSimpleString(const char *code) const
 {
     return PyRun_SimpleString(code) == 0;
