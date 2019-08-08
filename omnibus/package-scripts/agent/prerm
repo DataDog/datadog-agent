@@ -93,11 +93,11 @@ uninstall_integrations()
     # been installed by the package.
 
     if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
-        # List all files available on the filesystem
+        # List all files in the embedded dir of the datadog-agent install dir
         find $INSTALL_DIR/embedded/lib/python*/site-packages > $INSTALL_DIR/embedded/.all-integrations.txt
 
-        # List all files available on the filesystem which were not installed by
-        # the package and rm them.
+        # List all files in the embedded dir of the datadog-agent install dir
+        # which were not installed by the package and rm them.
         grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt | grep -v '^#' | xargs rm -rf
 
         rm $INSTALL_DIR/embedded/.all-integrations.txt
