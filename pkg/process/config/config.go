@@ -152,7 +152,7 @@ func NewDefaultAgentConfig() *AgentConfig {
 	_, err = util.GetContainers()
 	canAccessContainers := err == nil
 
-	enabledChecks := make([]string, 0)
+	var enabledChecks []string
 	if canAccessContainers {
 		enabledChecks = containerChecks
 	}
