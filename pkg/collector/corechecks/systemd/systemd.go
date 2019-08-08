@@ -206,14 +206,14 @@ func (c *SystemdCheck) connect(sender aggregator.Sender) (*dbus.Conn, error) {
 	conn, err := c.getDbusConnection()
 
 	if err != nil {
-		newErr := fmt.Errorf("Cannot create a connection: %v", err)
+		newErr := fmt.Errorf("cannot create a connection: %v", err)
 		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", nil, newErr.Error())
 		return nil, newErr
 	}
 
 	systemStateProp, err := c.stats.SystemState(conn)
 	if err != nil {
-		newErr := fmt.Errorf("Err calling SystemState: %v", err)
+		newErr := fmt.Errorf("err calling SystemState: %v", err)
 		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", nil, newErr.Error())
 		return nil, newErr
 	}
@@ -256,7 +256,7 @@ func (c *SystemdCheck) getDbusConnection() (*dbus.Conn, error) {
 func (c *SystemdCheck) getPrivateSocketConnection(privateSocket string) (*dbus.Conn, error) {
 	conn, err := c.stats.PrivateSocketConnection(privateSocket)
 	if err != nil {
-		log.Debugf("error getting new connection using private socket %s: %v", privateSocket, err)
+		log.Debugf("Error getting new connection using private socket %s: %v", privateSocket, err)
 	}
 	return conn, err
 }
@@ -268,7 +268,7 @@ func (c *SystemdCheck) getSystemBusSocketConnection(systemBusSocket string) (*db
 	}
 	conn, err := c.stats.SystemBusSocketConnection()
 	if err != nil {
-		log.Debugf("error getting new connection using system bus socket %s: %v", systemBusSocket, err)
+		log.Debugf("Error getting new connection using system bus socket %s: %v", systemBusSocket, err)
 	}
 	return conn, err
 }
