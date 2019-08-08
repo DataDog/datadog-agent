@@ -327,7 +327,7 @@ func TestDbusConnectionErr(t *testing.T) {
 
 	err := check.Run()
 
-	expectedErrorMsg := "Cannot create a connection: some error"
+	expectedErrorMsg := "cannot create a connection: some error"
 	assert.EqualError(t, err, expectedErrorMsg)
 	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, metrics.ServiceCheckCritical, "", []string(nil), expectedErrorMsg)
 
@@ -346,7 +346,7 @@ func TestSystemStateCallErr(t *testing.T) {
 
 	err := check.Run()
 
-	expectedErrorMsg := "Err calling SystemState: some error"
+	expectedErrorMsg := "err calling SystemState: some error"
 	assert.EqualError(t, err, expectedErrorMsg)
 	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, metrics.ServiceCheckCritical, "", []string(nil), expectedErrorMsg)
 }
