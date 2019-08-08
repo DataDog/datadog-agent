@@ -13,18 +13,16 @@ import (
 )
 
 // IsJMXConfig checks if a certain YAML config is a JMX config
-func IsJMXConfig(name string, initConf integration.Data, rawInitConfig integration.RawMap) bool {
+func IsJMXConfig(name string, initConf integration.Data) bool {
 
 	if _, ok := agentconfig.StandardJMXIntegrations[name]; ok {
 		return true
 	}
 
-	if rawInitConfig == nil {
-		rawInitConfig := integration.RawMap{}
-		err := yaml.Unmarshal(initConf, &rawInitConfig)
-		if err != nil {
-			return false
-		}
+	rawInitConfig := integration.RawMap{}
+	err := yaml.Unmarshal(initConf, &rawInitConfig)
+	if err != nil {
+		return false
 	}
 
 	x, ok := rawInitConfig["is_jmx"]
@@ -42,13 +40,13 @@ func IsJMXConfig(name string, initConf integration.Data, rawInitConfig integrati
 
 // CollectDefaultMetrics returns if the config is for a JMX check which has collect_default_metrics: true
 func CollectDefaultMetrics(c integration.Config) bool {
-	rawInitConfig := integration.RawMap{}
-	err := yaml.Unmarshal(c.InitConfig, &rawInitConfig)
-	if err != nil {
+	if !IsJMXConfig(c.String(), c.InitConfig) {
 		return false
 	}
 
-	if !IsJMXConfig(c.String(), c.InitConfig, rawInitConfig) {
+	rawInitConfig := integration.RawMap{}
+	err := yaml.Unmarshal(c.InitConfig, &rawInitConfig)
+	if err != nil {
 		return false
 	}
 

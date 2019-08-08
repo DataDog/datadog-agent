@@ -20,8 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/spf13/cobra"
-
-	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -190,9 +188,7 @@ func loadConfigs(runner *jmxfetch.JMXFetch) {
 	includeEverything := len(checks) == 0
 
 	for _, c := range configs {
-		rawInitConfig := integration.RawMap{}
-		yaml.Unmarshal(c.InitConfig, &rawInitConfig)
-		if check.IsJMXConfig(c.Name, c.InitConfig, rawInitConfig) && (includeEverything || configIncluded(c)) {
+		if check.IsJMXConfig(c.Name, c.InitConfig) && (includeEverything || configIncluded(c)) {
 			fmt.Println("Config ", c.Name, " was loaded.")
 			jmx.AddScheduledConfig(c)
 			runner.ConfigureCheck(c.InitConfig)
