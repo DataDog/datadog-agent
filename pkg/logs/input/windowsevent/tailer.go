@@ -20,10 +20,10 @@ import (
 )
 
 const (
-	binaryPath   = "Event.EventData.Binary"
-	dataPath     = "Event.EventData.Data"
-	taskPath     = "Event.System.Task"
-	fabricPrefix = "Microsoft-ServiceFabric/"
+	binaryPath = "Event.EventData.Binary"
+	dataPath   = "Event.EventData.Data"
+	taskPath   = "Event.System.Task"
+	opcode     = "Event.System.Opcode"
 )
 
 // Config is a event log tailer configuration
@@ -35,6 +35,15 @@ type Config struct {
 // eventContext links go and c
 type eventContext struct {
 	id int
+}
+
+// richEvent carries rendered information to create a richer log
+type richEvent struct {
+	xmlEvent string
+	message  string
+	task     string
+	opcode   string
+	level    string
 }
 
 // Tailer collects logs from event log.
@@ -70,7 +79,8 @@ func (t *Tailer) Identifier() string {
 }
 
 // toMessage converts an XML message into json
-func (t *Tailer) toMessage(event string) (*message.Message, error) {
+func (t *Tailer) toMessage(rm *richEvent) (*message.Message, error) {
+	event := rm.xmlEvent
 	log.Debug("Rendered XML:", event)
 	mxj.PrependAttrWithHyphen(false)
 	mv, err := mxj.NewMapXml([]byte(event))
@@ -100,17 +110,19 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 		}
 	}
 
-	// for Azure Fabric, replace task id by task name
-	if strings.HasPrefix(t.config.ChannelPath, fabricPrefix) {
-		taskName, err := extractTaskName(mv)
-		if err != nil {
-			log.Debugf("Error extracting task name: %s", err)
-		} else {
-			_, err = mv.UpdateValuesForPath("Task:"+taskName, taskPath)
-			if err != nil {
-				log.Debugf("An error occurred updating %s: %s", taskPath, err)
-			}
-		}
+	// Replace Task and Opcode codes by the rendered value
+	if rm.task != "" {
+		_, _ = mv.UpdateValuesForPath("Task:"+rm.task, taskPath)
+	}
+	if rm.opcode != "" {
+		_, _ = mv.UpdateValuesForPath("Opcode:"+rm.opcode, opcode)
+	}
+	// Set message and severity
+	if rm.message != "" {
+		_ = mv.SetValueForPath(rm.message, "message")
+	}
+	if rm.level != "" {
+		_ = mv.SetValueForPath(rm.level, "level")
 	}
 
 	jsonEvent, err := mv.Json(false)
@@ -120,21 +132,6 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 	jsonEvent = replaceTextKeyToValue(jsonEvent)
 	log.Debug("Sending JSON:", string(jsonEvent))
 	return message.NewMessageWithSource(jsonEvent, message.StatusInfo, t.source), nil
-}
-
-// extractTaskName looks for the TASK_ID in {"Event": {"System": {"Task": <TASK_ID> }}}
-// and maps it to the name of the task that match in the Microsoft Task Codes
-func extractTaskName(mv mxj.Map) (string, error) {
-	values, err := mv.ValuesForPath(taskPath)
-	if err != nil || len(values) == 0 {
-		return "", fmt.Errorf("Could not find path: %s", taskPath)
-	}
-
-	taskName, found := taskIDMapping[values[0]]
-	if !found {
-		return "", fmt.Errorf("Could not resolve task id: %s", values[0])
-	}
-	return taskName, nil
 }
 
 // extractDataField transforms the fields parsed from <Data Name='NAME1'>VALUE1</Data><Data Name='NAME2'>VALUE2</Data> to
@@ -242,127 +239,4 @@ func decodeUTF16(b []byte) (string, error) {
 func replaceTextKeyToValue(jsonEvent []byte) []byte {
 	jsonEvent = bytes.Replace(jsonEvent, []byte("\"#text\":"), []byte("\"value\":"), -1)
 	return jsonEvent
-}
-
-// Mapping can be found here
-// https://github.com/Microsoft/service-fabric/blob/c326b801c6c709f36684700edfe7bb88ceec9d7f/src/prod/src/Common/TraceTaskCodes.h
-var taskIDMapping = map[interface{}]string{
-	"1":   "Common",
-	"2":   "Config",
-	"3":   "Timer",
-	"4":   "AsyncExclusiveLock",
-	"5":   "PerfMonitor",
-	"10":  "General",
-	"11":  "FabricGateway",
-	"12":  "Java",
-	"13":  "Managed",
-	"16":  "Transport",
-	"17":  "IPC",
-	"18":  "UnreliableTransport",
-	"19":  "LeaseAgent",
-	"25":  "ReliableMessagingSession",
-	"26":  "ReliableMessagingStream",
-	"48":  "P2P",
-	"49":  "RoutingTable",
-	"50":  "Token",
-	"51":  "VoteProxy",
-	"52":  "VoteManager",
-	"53":  "Bootstrap",
-	"54":  "Join",
-	"55":  "JoinLock",
-	"56":  "Gap",
-	"57":  "Lease",
-	"58":  "Arbitration",
-	"59":  "Routing",
-	"60":  "Broadcast",
-	"61":  "SiteNode",
-	"62":  "Multicast",
-	"64":  "Reliability",
-	"65":  "Replication",
-	"66":  "OperationQueue",
-	"67":  "Api",
-	"68":  "CRM",
-	"69":  "MCRM",
-	"72":  "FM",
-	"73":  "RA",
-	"74":  "RAP",
-	"75":  "FailoverUnit",
-	"76":  "FMM",
-	"77":  "PLB",
-	"78":  "PLBM",
-	"79":  "RocksDbStore",
-	"80":  "EseStore",
-	"81":  "ReplicatedStore",
-	"82":  "ReplicatedStoreStateMachine",
-	"83":  "SqlStore",
-	"84":  "KeyValueStore",
-	"85":  "NM",
-	"86":  "NamingStoreService",
-	"87":  "NamingGateway",
-	"88":  "NamingCommon",
-	"89":  "HealthClient",
-	"90":  "Hosting",
-	"91":  "FabricWorkerProcess",
-	"92":  "ClrRuntimeHost",
-	"93":  "FabricTypeHost",
-	"100": "FabricNode",
-	"105": "ClusterManagerTransport",
-	"106": "FaultAnalysisService",
-	"107": "UpgradeOrchestrationService",
-	"108": "BackupRestoreService",
-	"110": "ServiceModel",
-	"111": "ImageStore",
-	"112": "NativeImageStoreClient",
-	"115": "ClusterManager",
-	"116": "RepairPolicyEngineService",
-	"117": "InfrastructureService",
-	"118": "RepairService",
-	"119": "RepairManager",
-	"120": "LeaseLayer",
-	"125": "CentralSecretService",
-	"126": "LocalSecretService",
-	"127": "ResourceManager",
-	"130": "ServiceGroupCommon",
-	"131": "ServiceGroupStateful",
-	"132": "ServiceGroupStateless",
-	"133": "ServiceGroupStatefulMember",
-	"134": "ServiceGroupStatelessMember",
-	"135": "ServiceGroupReplication",
-	"170": "BwTree",
-	"171": "BwTreeVolatileStorage",
-	"172": "BwTreeStableStorage",
-	"173": "FabricTransport",
-	"174": "TestabilityComponent",
-	"189": "RCR",
-	"190": "LR",
-	"191": "SM",
-	"192": "RStore",
-	"193": "TR",
-	"194": "LogicalLog",
-	"195": "Ktl",
-	"196": "KtlLoggerNode",
-	"200": "TestSession",
-	"201": "HttpApplicationGateway",
-	"209": "DNS",
-	"204": "BA",
-	"205": "BAP",
-	"208": "ResourceMonitor",
-	"210": "FabricSetup",
-	"211": "Query",
-	"212": "HealthManager",
-	"213": "HealthManagerCommon",
-	"214": "SystemServices",
-	"215": "FabricActivator",
-	"216": "HttpGateway",
-	"217": "Client",
-	"218": "FileStoreService",
-	"219": "TokenValidationService",
-	"220": "AccessControl",
-	"221": "FileTransfer",
-	"222": "FabricInstallerService",
-	"223": "EntreeServiceProxy",
-	"256": "MaxTask",
-	// Mappings found directly in the Event Viewer
-	"249": "TReplicator",
-	"251": "TStateManager",
 }
