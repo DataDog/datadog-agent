@@ -8,7 +8,7 @@ from invoke.exceptions import Exit
 
 def get_rtloader_path():
     here = os.path.abspath(os.path.dirname(__file__))
-    return os.path.join(here, '..', 'rtloader')
+    return os.path.abspath(os.path.join(here, '..', 'rtloader'))
 
 def clear_cmake_cache(rtloader_path, settings):
     """
