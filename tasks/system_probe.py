@@ -118,18 +118,22 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
 
 
 @task
-def nettop(ctx):
+def nettop(ctx, incremental_build=False):
     """
     Build and run the `nettop` utility for testing
     """
     build_object_files(ctx, install=True)
 
-    cmd = 'go build -a -tags "linux_bpf" -o {bin_path} {path}'
+    cmd = 'go build {build_type} -tags "linux_bpf" -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
     # Build
-    ctx.run(cmd.format(path=os.path.join(REPO_PATH, "pkg", "ebpf", "nettop"), bin_path=bin_path))
-    # Run
+    ctx.run(cmd.format(
+        path=os.path.join(REPO_PATH, "pkg", "ebpf", "nettop"),
+        bin_path=bin_path,
+        build_type="-i" if incremental_build else "-a",
+    ))
 
+    # Run
     if should_use_sudo(ctx):
         ctx.sudo(bin_path)
     else:
@@ -174,22 +178,6 @@ def build_dev_docker_image(ctx, image_name, push=False):
 
 
 @task
-def codegen(ctx):
-    """codegen handles retrieving the easyjson dependency and rebuilding
-    the easyjson files
-    """
-
-    ctx.run("go get -u github.com/mailru/easyjson/...")
-    ebpf_path = os.path.join(".", "pkg", "ebpf")
-    paths = [
-        os.path.join(ebpf_path, "event_common.go"),
-        os.path.join(ebpf_path, "netlink", "event.go"),
-    ]
-    for path in paths:
-        ctx.run("easyjson {}".format(path))
-
-
-@task
 def object_files(ctx, install=True):
     """object_files builds the eBPF object files"""
     build_object_files(ctx, install=install)
@@ -200,11 +188,17 @@ def build_object_files(ctx, install=True):
     set install to False to disable replacing the assets
     """
 
-    headers_dir = "/usr/src"
-    linux_headers = [
-        os.path.join(headers_dir, d) for d in os.listdir(headers_dir)
-        if "linux-headers" in d
-    ]
+    centos_headers_dir = "/usr/src/kernels"
+    debian_headers_dir = "/usr/src"
+    if os.path.isdir(centos_headers_dir):
+        linux_headers = [
+            os.path.join(centos_headers_dir, d) for d in os.listdir(centos_headers_dir)
+        ]
+    else:
+        linux_headers = [
+            os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir)
+            if d.startswith("linux-")
+        ]
 
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     c_dir = os.path.join(bpf_dir, "c")

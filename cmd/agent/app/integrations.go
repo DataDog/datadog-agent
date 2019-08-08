@@ -31,12 +31,12 @@ import (
 
 const (
 	reqAgentReleaseFile = "requirements-agent-release.txt"
-	constraintsFile     = "final_constraints-py2.txt"
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
 	downloaderModule    = "datadog_checks.downloader"
 	disclaimer          = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
-	versionScript = `
+	pythonMinorVersionScript = "import sys;print(sys.version_info[1])"
+	integrationVersionScript = `
 try:
 	from datadog_checks.%s import __version__
 	print(__version__)
@@ -51,11 +51,16 @@ var (
 	wheelPackageNameRe  = regexp.MustCompile("Name: (\\S+)")           // e.g. Name: datadog-postgres
 	versionSpecifiersRe = regexp.MustCompile("([><=!]{1,2})([0-9.]*)") // Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
 
-	allowRoot    bool
-	verbose      int
-	useSysPython bool
-	versionOnly  bool
-	localWheel   bool
+	allowRoot           bool
+	verbose             int
+	useSysPython        bool
+	versionOnly         bool
+	localWheel          bool
+	rootDir             string
+	pythonMajorVersion  string
+	pythonMinorVersion  string
+	reqAgentReleasePath string
+	constraintsPath     string
 )
 
 func init() {
@@ -67,6 +72,7 @@ func init() {
 	integrationCmd.PersistentFlags().CountVarP(&verbose, "verbose", "v", "enable verbose logging")
 	integrationCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	integrationCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
+	integrationCmd.PersistentFlags().StringVarP(&pythonMajorVersion, "python", "", "", "the version of Python to act upon (2 or 3). defaults to the python_version setting in datadog.yaml")
 
 	// Power user flags - mark as hidden
 	integrationCmd.PersistentFlags().MarkHidden("use-sys-python")
@@ -115,6 +121,59 @@ var showCmd = &cobra.Command{
 	RunE:  show,
 }
 
+func loadPythonInfo() error {
+	rootDir, _ = executable.Folder()
+	for {
+		agentReleaseFile := filepath.Join(rootDir, reqAgentReleaseFile)
+		if _, err := os.Lstat(agentReleaseFile); err == nil {
+			reqAgentReleasePath = agentReleaseFile
+			break
+		}
+
+		parentDir := filepath.Dir(rootDir)
+		if parentDir == rootDir {
+			return fmt.Errorf("unable to locate %s", reqAgentReleaseFile)
+		}
+
+		rootDir = parentDir
+	}
+
+	if err := common.SetupConfig(confFilePath); err != nil {
+		fmt.Printf("Cannot setup config, exiting: %v", err)
+		return err
+	}
+
+	if pythonMajorVersion == "" {
+		pythonMajorVersion = config.Datadog.GetString("python_version")
+	}
+
+	constraintsPath = filepath.Join(rootDir, fmt.Sprintf("final_constraints-py%s.txt", pythonMajorVersion))
+	if _, err := os.Lstat(constraintsPath); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func detectPythonMinorVersion() error {
+	if pythonMinorVersion == "" {
+		pythonPath, err := getCommandPython()
+		if err != nil {
+			return err
+		}
+
+		versionCmd := exec.Command(pythonPath, "-c", pythonMinorVersionScript)
+		minorVersion, err := versionCmd.Output()
+		if err != nil {
+			return err
+		}
+
+		pythonMinorVersion = strings.TrimSpace(string(minorVersion))
+	}
+
+	return nil
+}
+
 func getIntegrationName(packageName string) string {
 	switch packageName {
 	case "datadog-checks-base":
@@ -159,8 +218,7 @@ func getCommandPython() (string, error) {
 		return pythonBin, nil
 	}
 
-	here, _ := executable.Folder()
-	pyPath := filepath.Join(here, relPyPath)
+	pyPath := filepath.Join(rootDir, getRelPyPath())
 
 	if _, err := os.Stat(pyPath); err != nil {
 		if os.IsNotExist(err) {
@@ -197,10 +255,6 @@ func validateArgs(args []string, local bool) error {
 }
 
 func pip(args []string, stdout io.Writer, stderr io.Writer) error {
-	if !allowRoot && !authorizedUser() {
-		return errors.New("Please use this tool as the agent-running user")
-	}
-
 	if flagNoColor {
 		color.NoColor = true
 	}
@@ -257,18 +311,18 @@ func pip(args []string, stdout io.Writer, stderr io.Writer) error {
 }
 
 func install(cmd *cobra.Command, args []string) error {
-	if !isIntegrationUser() {
-		return fmt.Errorf("Installation requires an elevated/root user")
-	}
-	if err := validateArgs(args, localWheel); err != nil {
+	if err := loadPythonInfo(); err != nil {
 		return err
 	}
 
-	here, err := executable.Folder()
+	err := validateUser(allowRoot)
 	if err != nil {
 		return err
 	}
-	constraintsPath := filepath.Join(here, relConstraintsPath)
+
+	if err := validateArgs(args, localWheel); err != nil {
+		return err
+	}
 
 	pipArgs := []string{
 		"install",
@@ -433,10 +487,6 @@ func downloadWheel(integration, version string) (string, error) {
 	downloaderCmd.Env = environ
 
 	// Proxy support
-	if err := common.SetupConfig(confFilePath); err != nil {
-		fmt.Printf("Cannot setup config, exiting: %v\n", err)
-		return "", err
-	}
 	proxies := config.GetProxies()
 	if proxies != nil {
 		downloaderCmd.Env = append(downloaderCmd.Env,
@@ -595,8 +645,7 @@ func validateRequirement(version *semver.Version, comp string, versionReq *semve
 }
 
 func minAllowedVersion(integration string) (*semver.Version, bool, error) {
-	here, _ := executable.Folder()
-	lines, err := ioutil.ReadFile(filepath.Join(here, relReqAgentReleasePath))
+	lines, err := ioutil.ReadFile(reqAgentReleasePath)
 	if err != nil {
 		return nil, false, err
 	}
@@ -622,7 +671,7 @@ func installedVersion(integration string) (*semver.Version, bool, error) {
 	if !validName {
 		return nil, false, fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
 	}
-	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(versionScript, integrationName))
+	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(integrationVersionScript, integrationName))
 	output, err := pythonCmd.Output()
 
 	if err != nil {
@@ -681,8 +730,12 @@ func moveConfigurationFilesOf(integration string) error {
 		return err
 	}
 
-	here, _ := executable.Folder()
-	confFileSrc := filepath.Join(here, relChecksPath, check, "data")
+	relChecksPath, err := getRelChecksPath()
+	if err != nil {
+		return err
+	}
+	confFileSrc := filepath.Join(rootDir, relChecksPath, check, "data")
+
 	return moveConfigurationFiles(confFileSrc, confFileDest)
 }
 
@@ -722,8 +775,13 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 }
 
 func remove(cmd *cobra.Command, args []string) error {
-	if !isIntegrationUser() {
-		return fmt.Errorf("Removal requires an elevated/root user")
+	if err := loadPythonInfo(); err != nil {
+		return err
+	}
+
+	err := validateUser(allowRoot)
+	if err != nil {
+		return err
 	}
 
 	if err := validateArgs(args, false); err != nil {
@@ -741,6 +799,9 @@ func remove(cmd *cobra.Command, args []string) error {
 }
 
 func freeze(cmd *cobra.Command, args []string) error {
+	if err := loadPythonInfo(); err != nil {
+		return err
+	}
 
 	pipArgs := []string{
 		"freeze",
@@ -764,6 +825,10 @@ func freeze(cmd *cobra.Command, args []string) error {
 }
 
 func show(cmd *cobra.Command, args []string) error {
+	if err := loadPythonInfo(); err != nil {
+		return err
+	}
+
 	if err := validateArgs(args, false); err != nil {
 		return err
 	}

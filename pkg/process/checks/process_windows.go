@@ -5,7 +5,7 @@ package checks
 import (
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/process/model"
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/gopsutil/cpu"
 	"github.com/DataDog/gopsutil/process"
 )

@@ -37,6 +37,7 @@ type APMCheck struct {
 	running     uint32
 	stop        chan struct{}
 	stopDone    chan struct{}
+	source      string
 }
 
 func (c *APMCheck) String() string {
@@ -45,6 +46,10 @@ func (c *APMCheck) String() string {
 
 func (c *APMCheck) Version() string {
 	return ""
+}
+
+func (c *APMCheck) ConfigSource() string {
+	return c.source
 }
 
 // Run executes the check with retries
@@ -127,7 +132,7 @@ func (c *APMCheck) run() error {
 }
 
 // Configure the APMCheck
-func (c *APMCheck) Configure(data integration.Data, initConfig integration.Data) error {
+func (c *APMCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
 	var checkConf apmCheckConf
 	if err := yaml.Unmarshal(data, &checkConf); err != nil {
 		return err
@@ -160,6 +165,7 @@ func (c *APMCheck) Configure(data integration.Data, initConfig integration.Data)
 		c.commandOpts = append(c.commandOpts, fmt.Sprintf("-config=%s", configFile))
 	}
 
+	c.source = source
 	return nil
 }
 

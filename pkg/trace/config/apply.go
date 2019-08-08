@@ -1,10 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package config
 
 import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"math"
 	"net/url"
 	"regexp"
 	"strings"
@@ -12,8 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/writer/backoff"
-	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -88,31 +90,19 @@ type ReplaceRule struct {
 	Repl string `mapstructure:"repl"`
 }
 
-type traceWriter struct {
-	FlushPeriod            float64                `mapstructure:"flush_period_seconds"`
-	UpdateInfoPeriod       int                    `mapstructure:"update_info_period_seconds"`
-	QueueablePayloadSender queueablePayloadSender `mapstructure:"queue"`
-}
+// WriterConfig specifies configuration for an API writer.
+type WriterConfig struct {
+	// ConnectionLimit specifies the maximum number of concurrent outgoing
+	// connections allowed for the sender.
+	ConnectionLimit int `mapstructure:"connection_limit"`
 
-type serviceWriter struct {
-	UpdateInfoPeriod       int                    `mapstructure:"update_info_period_seconds"`
-	FlushPeriod            int                    `mapstructure:"flush_period_seconds"`
-	QueueablePayloadSender queueablePayloadSender `mapstructure:"queue"`
-}
+	// QueueSize specifies the maximum number or payloads allowed to be queued
+	// in the sender.
+	QueueSize int `mapstructure:"queue_size"`
 
-type statsWriter struct {
-	MaxEntriesPerPayload   int                    `mapstructure:"max_entries_per_payload"`
-	UpdateInfoPeriod       int                    `mapstructure:"update_info_period_seconds"`
-	QueueablePayloadSender queueablePayloadSender `mapstructure:"queue"`
-}
-
-type queueablePayloadSender struct {
-	MaxAge            int   `mapstructure:"max_age_seconds"`
-	MaxQueuedBytes    int64 `mapstructure:"max_bytes"`
-	MaxQueuedPayloads int   `mapstructure:"max_payloads"`
-	BackoffDuration   int   `mapstructure:"exp_backoff_max_duration_seconds"`
-	BackoffBase       int   `mapstructure:"exp_backoff_base_milliseconds"`
-	BackoffGrowth     int   `mapstructure:"exp_backoff_growth_base"`
+	// FlushPeriodSeconds specifies the frequency at which the writer's buffer
+	// will be flushed to the sender, in seconds. Fractions are permitted.
+	FlushPeriodSeconds float64 `mapstructure:"flush_period_seconds"`
 }
 
 func (c *AgentConfig) applyDatadogConfig() error {
@@ -189,6 +179,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("apm_config.receiver_port") {
 		c.ReceiverPort = config.Datadog.GetInt("apm_config.receiver_port")
 	}
+	if config.Datadog.IsSet("apm_config.receiver_socket") {
+		c.ReceiverSocket = config.Datadog.GetString("apm_config.receiver_socket")
+	}
 	if config.Datadog.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = config.Datadog.GetInt("apm_config.connection_limit")
 	}
@@ -247,17 +240,15 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.MaxMemory = config.Datadog.GetFloat64("apm_config.max_memory")
 	}
 
-	// undocumented
-	c.ServiceWriterConfig = readServiceWriterConfigYaml()
-	c.StatsWriterConfig = readStatsWriterConfigYaml()
-	c.TraceWriterConfig = readTraceWriterConfigYaml()
-
-	// allow 1% of maximum connnections for concurrent stats flushes
-	conns1percent := int(math.Max(1, float64(c.ConnectionLimit)/100))
-	c.StatsWriterConfig.SenderConfig.MaxConnections = conns1percent
-	// allow 10% of maximum connnections for concurrent trace flushes
-	conns10percent := int(math.Max(1, float64(c.ConnectionLimit)/10))
-	c.TraceWriterConfig.SenderConfig.MaxConnections = conns10percent
+	// undocumented writers
+	for key, cfg := range map[string]*WriterConfig{
+		"apm_config.trace_writer": c.TraceWriter,
+		"apm_config.stats_writer": c.StatsWriter,
+	} {
+		if err := config.Datadog.UnmarshalKey(key, cfg); err != nil {
+			log.Errorf("Error reading writer config %q: %v", key, err)
+		}
+	}
 
 	// undocumented deprecated
 	if config.Datadog.IsSet("apm_config.analyzed_rate_by_service") {
@@ -356,90 +347,6 @@ func (c *AgentConfig) addReplaceRule(tag, pattern, repl string) {
 		Re:      re,
 		Repl:    repl,
 	})
-}
-
-func readServiceWriterConfigYaml() writerconfig.ServiceWriterConfig {
-	w := serviceWriter{}
-	c := writerconfig.DefaultServiceWriterConfig()
-
-	if err := config.Datadog.UnmarshalKey("apm_config.service_writer", &w); err == nil {
-		if w.FlushPeriod > 0 {
-			c.FlushPeriod = getDuration(w.FlushPeriod)
-		}
-		if w.UpdateInfoPeriod > 0 {
-			c.UpdateInfoPeriod = getDuration(w.UpdateInfoPeriod)
-		}
-		c.SenderConfig = readQueueablePayloadSenderConfigYaml(w.QueueablePayloadSender)
-	}
-	return c
-}
-
-func readStatsWriterConfigYaml() writerconfig.StatsWriterConfig {
-	w := statsWriter{}
-	c := writerconfig.DefaultStatsWriterConfig()
-
-	if err := config.Datadog.UnmarshalKey("apm_config.stats_writer", &w); err == nil {
-		if w.MaxEntriesPerPayload > 0 {
-			c.MaxEntriesPerPayload = w.MaxEntriesPerPayload
-		}
-		if w.UpdateInfoPeriod > 0 {
-			c.UpdateInfoPeriod = getDuration(w.UpdateInfoPeriod)
-		}
-		c.SenderConfig = readQueueablePayloadSenderConfigYaml(w.QueueablePayloadSender)
-	}
-	return c
-}
-
-func readTraceWriterConfigYaml() writerconfig.TraceWriterConfig {
-	w := traceWriter{}
-	c := writerconfig.DefaultTraceWriterConfig()
-
-	if err := config.Datadog.UnmarshalKey("apm_config.trace_writer", &w); err == nil {
-		if w.FlushPeriod > 0 {
-			c.FlushPeriod = time.Duration(w.FlushPeriod*1000) * time.Millisecond
-		}
-		if w.UpdateInfoPeriod > 0 {
-			c.UpdateInfoPeriod = getDuration(w.UpdateInfoPeriod)
-		}
-		c.SenderConfig = readQueueablePayloadSenderConfigYaml(w.QueueablePayloadSender)
-	}
-	return c
-}
-
-func readQueueablePayloadSenderConfigYaml(yc queueablePayloadSender) writerconfig.QueuablePayloadSenderConf {
-	c := writerconfig.DefaultQueuablePayloadSenderConf()
-
-	if yc.MaxAge != 0 {
-		c.MaxAge = getDuration(yc.MaxAge)
-	}
-
-	if yc.MaxQueuedBytes != 0 {
-		c.MaxQueuedBytes = yc.MaxQueuedBytes
-	}
-
-	if yc.MaxQueuedPayloads != 0 {
-		c.MaxQueuedPayloads = yc.MaxQueuedPayloads
-	}
-
-	c.ExponentialBackoff = readExponentialBackoffConfigYaml(yc)
-
-	return c
-}
-
-func readExponentialBackoffConfigYaml(yc queueablePayloadSender) backoff.ExponentialConfig {
-	c := backoff.DefaultExponentialConfig()
-
-	if yc.BackoffDuration > 0 {
-		c.MaxDuration = getDuration(yc.BackoffDuration)
-	}
-	if yc.BackoffBase > 0 {
-		c.Base = time.Duration(yc.BackoffBase) * time.Millisecond
-	}
-	if yc.BackoffGrowth > 0 {
-		c.GrowthBase = yc.BackoffGrowth
-	}
-
-	return c
 }
 
 // compileReplaceRules compiles the regular expressions found in the replace rules.

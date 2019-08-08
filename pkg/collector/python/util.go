@@ -8,9 +8,9 @@
 package python
 
 /*
-#include <datadog_agent_six.h>
-#cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
-#cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
+#include <datadog_agent_rtloader.h>
+#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 */
 import "C"
 
@@ -27,7 +27,7 @@ import (
 //export GetSubprocessOutput
 func GetSubprocessOutput(argv **C.char, cStdout **C.char, cStderr **C.char, cRetCode *C.int, exception **C.char) {
 	subprocessArgs := cStringArrayToSlice(argv)
-	// this should never happen has: this case is filtered by six
+	// this should never happen has: this case is filtered by rtloader
 	if len(subprocessArgs) == 0 {
 		return
 	}

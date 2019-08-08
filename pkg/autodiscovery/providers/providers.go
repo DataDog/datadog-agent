@@ -21,8 +21,12 @@ const (
 	File            = "file"
 	Kubernetes      = "kubernetes"
 	KubeServices    = "kubernetes-services"
+	KubeEndpoints   = "kubernetes-endpoints"
 	Zookeeper       = "zookeeper"
 )
+
+// KubeEndpointsProviderName defines the kube endpoints provider name
+const KubeEndpointsProviderName = "kube_endpoints"
 
 // ProviderCatalog keeps track of config providers by name
 var ProviderCatalog = make(map[string]ConfigProviderFactory)

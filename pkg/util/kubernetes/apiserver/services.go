@@ -13,7 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-const kubeServiceIDPrefix = "kube_service://"
+const kubeServiceIDPrefix = "kube_service_uid://"
 
 // ServicesForPod returns the services mapped to a given pod and namespace.
 // If nothing is found, the boolean is false. This call is thread-safe.

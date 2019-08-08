@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // FIXTURE
@@ -37,11 +38,12 @@ func newTestCheck(doErr bool, id string) *TestCheck {
 	}
 }
 
-func (c *TestCheck) String() string                                     { return "TestCheck" }
-func (c *TestCheck) Version() string                                    { return "" }
-func (c *TestCheck) Stop()                                              {}
-func (c *TestCheck) Configure(integration.Data, integration.Data) error { return nil }
-func (c *TestCheck) Interval() time.Duration                            { return 1 }
+func (c *TestCheck) String() string                                             { return "TestCheck" }
+func (c *TestCheck) Version() string                                            { return "" }
+func (c *TestCheck) ConfigSource() string                                       { return "" }
+func (c *TestCheck) Stop()                                                      {}
+func (c *TestCheck) Configure(integration.Data, integration.Data, string) error { return nil }
+func (c *TestCheck) Interval() time.Duration                                    { return 1 }
 func (c *TestCheck) Run() error {
 	c.Lock()
 	defer c.Unlock()
@@ -115,6 +117,10 @@ func TestWork(t *testing.T) {
 }
 
 func TestLogging(t *testing.T) {
+	defaultFrequency := config.Datadog.GetInt64("logging_frequency")
+	config.Datadog.SetDefault("logging_frequency", int64(20))
+	defer config.Datadog.SetDefault("logging_frequency", defaultFrequency)
+
 	r := NewRunner()
 	c := newTestCheck(false, "1")
 	s := &check.Stats{

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 // This script is a dummy emulating the behavior of a secret command used in the Datadog Agent configuration
 // as the value of the environment variable "DD_SECRET_BACKEND_COMMAND" which mirrors the YAML config setting
 // "secret_backend_command".

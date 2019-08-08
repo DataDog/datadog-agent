@@ -70,7 +70,7 @@ func (jl *JMXCheckLoader) Load(config integration.Config) ([]check.Check, error)
 	}
 
 	for _, cf := range splitConfig(config) {
-		c := newJMXCheck(cf)
+		c := newJMXCheck(cf, config.Source)
 		checks = append(checks, c)
 	}
 

@@ -9,8 +9,8 @@ The `datadog_agent` module exposes features of the Go Agent to Python checks.
 
 ## Implementation
 
-* [datadog_agent.c](/six/common/builtins/datadog_agent.c)
-* [datadog_agent.h](/six/common/builtins/datadog_agent.h)
+* [datadog_agent.c](/rtloader/common/builtins/datadog_agent.c)
+* [datadog_agent.h](/rtloader/common/builtins/datadog_agent.h)
 * [datadog_agent.go](/pkg/collector/python/datadog_agent.go)
 
 ## Functions

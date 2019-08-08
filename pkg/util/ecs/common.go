@@ -50,7 +50,7 @@ func ListContainers() ([]*containers.Container, error) {
 		return cList, err
 	}
 	for _, c := range ecsContainers {
-		entityID := docker.ContainerIDToEntityName(c.DockerID)
+		entityID := docker.ContainerIDToTaggerEntityName(c.DockerID)
 		ctr := &containers.Container{
 			Type:        "ECS",
 			ID:          c.DockerID,

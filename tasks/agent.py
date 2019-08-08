@@ -11,13 +11,14 @@ from distutils.dir_util import copy_tree
 
 import invoke
 from invoke import task
-from invoke.exceptions import Exit
+from invoke.exceptions import Exit, ParseError
 
 from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
 from .go import deps
 from .docker import pull_base_images
+from .ssm import get_signing_cert, get_pfx_pass
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -45,9 +46,9 @@ DEFAULT_BUILD_TAGS = [
 ]
 
 AGENT_CORECHECKS = [
+    "containerd",
     "cpu",
     "cri",
-    "containerd",
     "docker",
     "file_handle",
     "go_expvar",
@@ -57,6 +58,7 @@ AGENT_CORECHECKS = [
     "load",
     "memory",
     "ntp",
+    "systemd",
     "uptime",
     "winproc",
 ]
@@ -72,10 +74,12 @@ PUPPY_CORECHECKS = [
     "uptime",
 ]
 
+
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, development=True, precompile_only=False, skip_assets=False,
-          embedded_path=None, six_root=None, python_home_2=None, python_home_3=None):
+          embedded_path=None, rtloader_root=None, python_home_2=None, python_home_3=None,
+          arch='x64'):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -88,7 +92,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     ldflags, gcflags, env = get_build_flags(ctx, embedded_path=embedded_path,
-            six_root=six_root, python_home_2=python_home_2, python_home_3=python_home_3)
+            rtloader_root=rtloader_root, python_home_2=python_home_2, python_home_3=python_home_3, arch=arch)
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
@@ -103,21 +107,28 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
                 build_exclude.append(ex)
 
     if sys.platform == 'win32':
+        windres_target = "pe-x86-64"
+        if arch == "x86":
+            env["GOARCH"] = "386"
+            windres_target = "pe-i386"
+
         # This generates the manifest resource. The manifest resource is necessary for
         # being able to load the ancient C-runtime that comes along with Python 2.7
         # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
         ver = get_version_numeric_only(ctx)
         build_maj, build_min, build_patch = ver.split(".")
 
-        command = "windmc --target pe-x86-64 -r cmd/agent cmd/agent/agentmsg.mc "
+        command = "windmc --target {target_arch} -r cmd/agent cmd/agent/agentmsg.mc ".format(target_arch=windres_target)
         ctx.run(command, env=env)
 
-        command = "windres --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
+        command = "windres --target {target_arch} --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} --define BUILD_ARCH_{build_arch}=1".format(
             build_maj=build_maj,
             build_min=build_min,
-            build_patch=build_patch
+            build_patch=build_patch,
+            target_arch=windres_target,
+            build_arch=arch
         )
-        command += "-i cmd/agent/agent.rc --target=pe-x86-64 -O coff -o cmd/agent/rsrc.syso"
+        command += "-i cmd/agent/agent.rc -O coff -o cmd/agent/rsrc.syso"
         ctx.run(command, env=env)
 
     if puppy:
@@ -138,6 +149,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
+    print( "ENV {}".format(env))
     ctx.run(cmd.format(**args), env=env)
 
     # Render the configuration file template
@@ -219,10 +231,15 @@ def system_tests(ctx):
 
 
 @task
-def image_build(ctx, base_dir="omnibus", skip_tests=False):
+def image_build(ctx, base_dir="omnibus", python_version="2", skip_tests=False):
     """
     Build the docker image
     """
+    BOTH_VERSIONS = ["both", "2+3"]
+    VALID_VERSIONS = ["2", "3"] + BOTH_VERSIONS
+    if python_version not in VALID_VERSIONS:
+        raise ParseError("provided python_version is invalid")
+
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
     pkg_dir = os.path.join(base_dir, 'pkg')
     list_of_files = glob.glob(os.path.join(pkg_dir, 'datadog-agent*_amd64.deb'))
@@ -236,14 +253,18 @@ def image_build(ctx, base_dir="omnibus", skip_tests=False):
 
     # Pull base image with content trust enabled
     pull_base_images(ctx, "Dockerfiles/agent/Dockerfile", signed_pull=True)
+    common_build_opts = "-t {}".format(AGENT_TAG)
+    if python_version not in BOTH_VERSIONS:
+        common_build_opts = "{} --build-arg PYTHON_VERSION={}".format(common_build_opts, python_version)
 
     # Build with the testing target
     if not skip_tests:
-        ctx.run("docker build -t {} --target testing Dockerfiles/agent".format(AGENT_TAG))
+        ctx.run("docker build {} --target testing Dockerfiles/agent".format(common_build_opts))
 
     # Build with the release target
-    ctx.run("docker build -t {} --target release Dockerfiles/agent".format(AGENT_TAG))
+    ctx.run("docker build {} --target release Dockerfiles/agent".format(common_build_opts))
     ctx.run("rm Dockerfiles/agent/datadog-agent*_amd64.deb")
+
 
 @task
 def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
@@ -318,12 +339,33 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             "overrides": overrides_cmd,
             "populate_s3_cache": ""
         }
-        if omnibus_s3_cache:
-            args['populate_s3_cache'] = " --populate-s3-cache "
-        if skip_sign:
-            env['SKIP_SIGN_MAC'] = 'true'
-        env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True)
-        ctx.run(cmd.format(**args), env=env)
+        pfxfile = None
+        try:
+            if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
+                # get certificate and password from ssm
+                pfxfile = get_signing_cert(ctx)
+                pfxpass = get_pfx_pass(ctx)
+                # hack for now.  Remove `sign_windows, and set sign_pfx`
+                env['SIGN_PFX'] = "{}".format(pfxfile)
+                env['SIGN_PFX_PW'] = "{}".format(pfxpass)
+
+            if omnibus_s3_cache:
+                args['populate_s3_cache'] = " --populate-s3-cache "
+            if skip_sign:
+                env['SKIP_SIGN_MAC'] = 'true'
+
+            env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True)
+
+            ctx.run(cmd.format(**args), env=env)
+
+        except Exception as e:
+            if pfxfile:
+                os.remove(pfxfile)
+            raise
+
+        if pfxfile:
+            os.remove(pfxfile)
+
 
 
 @task

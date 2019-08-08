@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -42,12 +42,12 @@ func TestProcessService(t *testing.T) {
 	}
 
 	svc := processService(ksvc, true)
-	assert.Equal(t, "kube_service://test", svc.GetEntity())
+	assert.Equal(t, "kube_service_uid://test", svc.GetEntity())
 	assert.Equal(t, integration.Before, svc.GetCreationTime())
 
 	adID, err := svc.GetADIdentifiers()
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"kube_service://test"}, adID)
+	assert.Equal(t, []string{"kube_service_uid://test"}, adID)
 
 	hosts, err := svc.GetHosts()
 	assert.NoError(t, err)

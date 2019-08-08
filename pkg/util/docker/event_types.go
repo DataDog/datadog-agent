@@ -23,7 +23,7 @@ type ContainerEvent struct {
 
 // ContainerEntityName returns the event's container as a tagger entity name
 func (ev *ContainerEvent) ContainerEntityName() string {
-	return ContainerIDToEntityName(ev.ContainerID)
+	return ContainerIDToTaggerEntityName(ev.ContainerID)
 }
 
 // Errors client might receive

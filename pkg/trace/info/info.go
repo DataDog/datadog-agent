@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package info
 
 import (
@@ -16,7 +21,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
@@ -27,16 +31,15 @@ var (
 
 	// TODO: move from package globals to a clean single struct
 
-	traceWriterInfo   TraceWriterInfo
-	statsWriterInfo   StatsWriterInfo
-	serviceWriterInfo ServiceWriterInfo
+	traceWriterInfo TraceWriterInfo
+	statsWriterInfo StatsWriterInfo
 
 	watchdogInfo        watchdog.Info
 	samplerInfo         SamplerInfo
 	prioritySamplerInfo SamplerInfo
 	errorsSamplerInfo   SamplerInfo
 	rateByService       map[string]float64
-	preSamplerStats     sampler.PreSamplerStats
+	rateLimiterStats    RateLimiterStats
 	start               = time.Now()
 	once                sync.Once
 	infoTmpl            *template.Template
@@ -66,23 +69,16 @@ const (
   From {{if $ts.Tags.Lang}}{{ $ts.Tags.Lang }} {{ $ts.Tags.LangVersion }} ({{ $ts.Tags.Interpreter }}), client {{ $ts.Tags.TracerVersion }}{{else}}unknown clients{{end}}
     Traces received: {{ $ts.Stats.TracesReceived }} ({{ $ts.Stats.TracesBytes }} bytes)
     Spans received: {{ $ts.Stats.SpansReceived }}
-    Services received: {{ $ts.Stats.ServicesReceived }} ({{ $ts.Stats.ServicesBytes }} bytes)
-    {{if gt $ts.Stats.TracesDropped 0}}
-    WARNING: Traces dropped: {{ $ts.Stats.TracesDropped }}
-    {{end}}
-    {{if gt $ts.Stats.SpansDropped 0}}
-    WARNING: Spans dropped: {{ $ts.Stats.SpansDropped }}
+    {{ with $ts.WarnString }}
+    WARNING: {{ . }}
     {{end}}
 
   {{end}}
   {{ range $key, $value := .Status.RateByService }}
   Priority sampling rate for '{{ $key }}': {{percent $value}} %
   {{ end }}
-  {{if lt .Status.PreSampler.Rate 1.0}}
-  WARNING: Pre-sampling traces: {{percent .Status.PreSampler.Rate}} %
-  {{end}}
-  {{if .Status.PreSampler.Error}}
-  WARNING: Pre-sampler: {{.Status.PreSampler.Error}}
+  {{if lt .Status.RateLimiter.TargetRate 1.0}}
+  WARNING: Rate-limiter keep percentage: {{percent .Status.RateLimiter.TargetRate}} %
   {{end}}
 
   --- Writer stats (1 min) ---
@@ -91,8 +87,6 @@ const (
   {{if gt .Status.TraceWriter.Errors 0}}WARNING: Traces API errors (1 min): {{.Status.TraceWriter.Errors}}{{end}}
   Stats: {{.Status.StatsWriter.Payloads}} payloads, {{.Status.StatsWriter.StatsBuckets}} stats buckets, {{.Status.StatsWriter.Bytes}} bytes
   {{if gt .Status.StatsWriter.Errors 0}}WARNING: Stats API errors (1 min): {{.Status.StatsWriter.Errors}}{{end}}
-  Services: {{.Status.ServiceWriter.Payloads}} payloads, {{.Status.ServiceWriter.Services}} services, {{.Status.ServiceWriter.Bytes}} bytes
-  {{if gt .Status.ServiceWriter.Errors 0}}WARNING: Services API errors (1 min): {{.Status.ServiceWriter.Errors}}{{end}}
 `
 
 	notRunningTmplSrc = `{{.Banner}}
@@ -213,17 +207,30 @@ func publishWatchdogInfo() interface{} {
 	return watchdogInfo
 }
 
-// UpdatePreSampler updates internal stats about the pre-sampling.
-func UpdatePreSampler(ss sampler.PreSamplerStats) {
-	infoMu.Lock()
-	defer infoMu.Unlock()
-	preSamplerStats = ss
+// RateLimiterStats contains rate limiting data. The public content
+// might be interesting for statistics, logging.
+type RateLimiterStats struct {
+	// TargetRate is the rate limiting rate that we are aiming for.
+	TargetRate float64
+	// RecentPayloadsSeen is the number of payloads that passed by.
+	RecentPayloadsSeen float64
+	// RecentTracesSeen is the number of traces that passed by.
+	RecentTracesSeen float64
+	// RecentTracesDropped is the number of traces that were dropped.
+	RecentTracesDropped float64
 }
 
-func publishPreSamplerStats() interface{} {
+// UpdateRateLimiter updates internal stats about the rate limiting.
+func UpdateRateLimiter(ss RateLimiterStats) {
+	infoMu.Lock()
+	defer infoMu.Unlock()
+	rateLimiterStats = ss
+}
+
+func publishRateLimiterStats() interface{} {
 	infoMu.RLock()
 	defer infoMu.RUnlock()
-	return preSamplerStats
+	return rateLimiterStats
 }
 
 func publishUptime() interface{} {
@@ -255,12 +262,11 @@ func InitInfo(conf *config.AgentConfig) error {
 		expvar.Publish("sampler", expvar.Func(publishSamplerInfo))
 		expvar.Publish("trace_writer", expvar.Func(publishTraceWriterInfo))
 		expvar.Publish("stats_writer", expvar.Func(publishStatsWriterInfo))
-		expvar.Publish("service_writer", expvar.Func(publishServiceWriterInfo))
 		expvar.Publish("prioritysampler", expvar.Func(publishPrioritySamplerInfo))
 		expvar.Publish("errorssampler", expvar.Func(publishErrorsSamplerInfo))
 		expvar.Publish("ratebyservice", expvar.Func(publishRateByService))
 		expvar.Publish("watchdog", expvar.Func(publishWatchdogInfo))
-		expvar.Publish("presampler", expvar.Func(publishPreSamplerStats))
+		expvar.Publish("ratelimiter", expvar.Func(publishRateLimiterStats))
 
 		// copy the config to ensure we don't expose sensitive data such as API keys
 		c := *conf
@@ -311,15 +317,14 @@ type StatusInfo struct {
 	MemStats struct {
 		Alloc uint64
 	} `json:"memstats"`
-	Version       infoVersion             `json:"version"`
-	Receiver      []TagStats              `json:"receiver"`
-	RateByService map[string]float64      `json:"ratebyservice"`
-	TraceWriter   TraceWriterInfo         `json:"trace_writer"`
-	StatsWriter   StatsWriterInfo         `json:"stats_writer"`
-	ServiceWriter ServiceWriterInfo       `json:"service_writer"`
-	Watchdog      watchdog.Info           `json:"watchdog"`
-	PreSampler    sampler.PreSamplerStats `json:"presampler"`
-	Config        config.AgentConfig      `json:"config"`
+	Version       infoVersion        `json:"version"`
+	Receiver      []TagStats         `json:"receiver"`
+	RateByService map[string]float64 `json:"ratebyservice"`
+	TraceWriter   TraceWriterInfo    `json:"trace_writer"`
+	StatsWriter   StatsWriterInfo    `json:"stats_writer"`
+	Watchdog      watchdog.Info      `json:"watchdog"`
+	RateLimiter   RateLimiterStats   `json:"ratelimiter"`
+	Config        config.AgentConfig `json:"config"`
 }
 
 func getProgramBanner(version string) (string, string) {

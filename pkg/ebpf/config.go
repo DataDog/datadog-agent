@@ -58,6 +58,9 @@ type Config struct {
 
 	// DebugPort specifies a port to run golang's expvar and pprof debug endpoint
 	DebugPort int
+
+	// ClosedChannelSize specifies the size for closed channel for the tracer
+	ClosedChannelSize int
 }
 
 // NewDefaultConfig enables traffic collection for all connection types
@@ -77,6 +80,7 @@ func NewDefaultConfig() *Config {
 		MaxClosedConnectionsBuffered: 50000,
 		MaxConnectionsStateBuffered:  75000,
 		ClientStateExpiry:            2 * time.Minute,
+		ClosedChannelSize:            500,
 	}
 }
 
@@ -96,6 +100,10 @@ func (c *Config) EnabledKProbes() map[KProbeName]struct{} {
 		enabled[TCPRetransmit] = struct{}{}
 		enabled[InetCskAcceptReturn] = struct{}{}
 		enabled[TCPv4DestroySock] = struct{}{}
+
+		if c.BPFDebug {
+			enabled[TCPSendMsgReturn] = struct{}{}
+		}
 	}
 
 	if c.CollectUDPConns {

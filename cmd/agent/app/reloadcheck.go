@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -27,6 +28,22 @@ var reloadCheckCommand = &cobra.Command{
 	Short: "Reload a running check",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if flagNoColor {
+			color.NoColor = true
+		}
+
+		err := common.SetupConfigWithoutSecrets(confFilePath)
+		if err != nil {
+			return fmt.Errorf("unable to set up global agent configuration: %v", err)
+		}
+
+		err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
+		}
+
 		var checkName string
 		if len(args) != 0 {
 			checkName = args[0]
@@ -34,10 +51,6 @@ var reloadCheckCommand = &cobra.Command{
 			return fmt.Errorf("missing arguments")
 		}
 
-		err := common.SetupConfigWithoutSecrets(confFilePath)
-		if err != nil {
-			return fmt.Errorf("unable to set up global agent configuration: %v", err)
-		}
 		return doReloadCheck(checkName)
 	},
 }

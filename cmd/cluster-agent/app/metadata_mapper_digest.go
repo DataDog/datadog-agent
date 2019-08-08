@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -33,12 +34,24 @@ One can easily identify which pods are running on which nodes,
 as well as which services are serving the pods. Or the deployment name for the pod`,
 	Example: "datadog-cluster-agent metamap ip-10-0-115-123",
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if flagNoColor {
+			color.NoColor = true
+		}
+
 		// we'll search for a config file named `datadog-cluster.yaml`
 		config.Datadog.SetConfigName("datadog-cluster")
 		err := common.SetupConfig(confPath)
 		if err != nil {
 			return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)
 		}
+
+		err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
+		}
+
 		nodeName := ""
 		if len(args) > 0 {
 			nodeName = args[0]

@@ -14,6 +14,7 @@ import (
 type Stats struct {
 	CheckName            string
 	CheckVersion         string
+	CheckConfigSource    string
 	CheckID              ID
 	TotalRuns            uint64
 	TotalErrors          uint64
@@ -36,9 +37,10 @@ type Stats struct {
 // NewStats returns a new check stats instance
 func NewStats(c Check) *Stats {
 	return &Stats{
-		CheckID:      c.ID(),
-		CheckName:    c.String(),
-		CheckVersion: c.Version(),
+		CheckID:           c.ID(),
+		CheckName:         c.String(),
+		CheckVersion:      c.Version(),
+		CheckConfigSource: c.ConfigSource(),
 	}
 }
 

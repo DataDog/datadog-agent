@@ -42,7 +42,7 @@ type ntpInstanceConfig struct {
 	OffsetThreshold       int      `yaml:"offset_threshold"`
 	Host                  string   `yaml:"host"`
 	Hosts                 []string `yaml:"hosts"`
-	Port                  string   `yaml:"port"`
+	Port                  int      `yaml:"port"`
 	Timeout               int      `yaml:"timeout"`
 	Version               int      `yaml:"version"`
 	MinCollectionInterval int      `yaml:"min_collection_interval"`
@@ -64,7 +64,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 	var initConf ntpInitConfig
 	defaultVersion := 3
 	defaultTimeout := 1
-	defaultPort := "ntp"
+	defaultPort := 123
 	defaultOffsetThreshold := 60
 	defaultMinCollectionInterval := 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
 	defaultHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
@@ -91,7 +91,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 	if c.instance.Hosts == nil {
 		c.instance.Hosts = defaultHosts
 	}
-	if c.instance.Port == "" {
+	if c.instance.Port == 0 {
 		c.instance.Port = defaultPort
 	}
 	if c.instance.Version == 0 {
@@ -112,8 +112,8 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 }
 
 // Configure configure the data from the yaml
-func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	err := c.CommonConfigure(data)
+func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(data, source)
 	if err != nil {
 		return err
 	}
@@ -175,7 +175,7 @@ func (c *NTPCheck) queryOffset() (float64, error) {
 	offsets := []float64{}
 
 	for _, host := range c.cfg.instance.Hosts {
-		response, err := ntpQuery(host, ntp.QueryOptions{Version: c.cfg.instance.Version})
+		response, err := ntpQuery(host, ntp.QueryOptions{Version: c.cfg.instance.Version, Port: c.cfg.instance.Port})
 		if err != nil {
 			log.Infof("There was an error querying the ntp host %s: %s", host, err)
 			continue

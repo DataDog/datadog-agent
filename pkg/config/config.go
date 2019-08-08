@@ -107,7 +107,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("log_level", "info")
 	config.BindEnvAndSetDefault("log_to_syslog", false)
 	config.BindEnvAndSetDefault("log_to_console", true)
-	config.BindEnvAndSetDefault("logging_frequency", int64(20))
+	config.BindEnvAndSetDefault("logging_frequency", int64(500))
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")
 	config.BindEnvAndSetDefault("syslog_rfc", false)
@@ -332,6 +332,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("apm_config.enabled", true)
 
 	// Process agent
+	config.SetDefault("process_config.enabled", "false")
 	config.BindEnv("process_config.process_dd_url", "")
 
 	// Logs Agent
@@ -454,6 +455,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.max_closed_connections_buffered")
 	config.SetKnown("system_probe_config.max_connection_state_buffered")
 	config.SetKnown("system_probe_config.excluded_linux_versions")
+	config.SetKnown("system_probe_config.closed_channel_size")
 
 	// APM
 	config.SetKnown("apm_config.enabled")
@@ -466,6 +468,7 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.apm_dd_url")
 	config.SetKnown("apm_config.max_cpu_percent")
 	config.SetKnown("apm_config.receiver_port")
+	config.SetKnown("apm_config.receiver_socket")
 	config.SetKnown("apm_config.connection_limit")
 	config.SetKnown("apm_config.ignore_resources")
 	config.SetKnown("apm_config.replace_tags")
@@ -481,30 +484,12 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.extra_sample_rate")
 	config.SetKnown("apm_config.dd_agent_bin")
 	config.SetKnown("apm_config.max_events_per_second")
-	config.SetKnown("apm_config.trace_writer.flush_period_seconds")
-	config.SetKnown("apm_config.trace_writer.update_info_period_seconds")
-	config.SetKnown("apm_config.trace_writer.queue.max_age_seconds")
-	config.SetKnown("apm_config.trace_writer.queue.max_bytes")
-	config.SetKnown("apm_config.trace_writer.queue.max_payloads")
-	config.SetKnown("apm_config.trace_writer.queue.exp_backoff_max_duration_seconds")
-	config.SetKnown("apm_config.trace_writer.queue.exp_backoff_base_milliseconds")
-	config.SetKnown("apm_config.trace_writer.queue.exp_backoff_growth_base")
-	config.SetKnown("apm_config.service_writer.flush_period_seconds")
-	config.SetKnown("apm_config.service_writer.update_info_period_seconds")
-	config.SetKnown("apm_config.service_writer.queue.max_age_seconds")
-	config.SetKnown("apm_config.service_writer.queue.max_bytes")
-	config.SetKnown("apm_config.service_writer.queue.max_payloads")
-	config.SetKnown("apm_config.service_writer.queue.exp_backoff_max_duration_seconds")
-	config.SetKnown("apm_config.service_writer.queue.exp_backoff_base_milliseconds")
-	config.SetKnown("apm_config.service_writer.queue.exp_backoff_growth_base")
-	config.SetKnown("apm_config.stats_writer.max_entries_per_payload")
-	config.SetKnown("apm_config.stats_writer.update_info_period_seconds")
-	config.SetKnown("apm_config.stats_writer.queue.max_age_seconds")
-	config.SetKnown("apm_config.stats_writer.queue.max_bytes")
-	config.SetKnown("apm_config.stats_writer.queue.max_payloads")
-	config.SetKnown("apm_config.stats_writer.queue.exp_backoff_max_duration_seconds")
-	config.SetKnown("apm_config.stats_writer.queue.exp_backoff_base_milliseconds")
-	config.SetKnown("apm_config.stats_writer.queue.exp_backoff_growth_base")
+	config.SetKnown("apm_config.trace_writer.connection_limit")
+	config.SetKnown("apm_config.trace_writer.queue_size")
+	config.SetKnown("apm_config.service_writer.connection_limit")
+	config.SetKnown("apm_config.service_writer.queue_size")
+	config.SetKnown("apm_config.stats_writer.connection_limit")
+	config.SetKnown("apm_config.stats_writer.queue_size")
 	config.SetKnown("apm_config.analyzed_rate_by_service.*")
 	config.SetKnown("apm_config.analyzed_spans.*")
 	config.SetKnown("apm_config.log_throttling")
@@ -826,6 +811,16 @@ func IsContainerized() bool {
 // file used to populate the registry
 func FileUsedDir() string {
 	return filepath.Dir(Datadog.ConfigFileUsed())
+}
+
+// GetEnv retrieves the value of the environment variable named by the key,
+// or def if the environment variable was not set.
+func GetEnv(key, def string) string {
+	value, found := os.LookupEnv(key)
+	if !found {
+		return def
+	}
+	return value
 }
 
 // IsKubernetes returns whether the Agent is running on a kubernetes cluster

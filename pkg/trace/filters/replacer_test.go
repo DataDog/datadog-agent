@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package filters
 
 import (
@@ -58,7 +63,7 @@ func TestReplacer(t *testing.T) {
 		root := replaceFilterTestSpan(tt.got)
 		childSpan := replaceFilterTestSpan(tt.got)
 		trace := pb.Trace{root, childSpan}
-		tr.Replace(&trace)
+		tr.Replace(trace)
 		for k, v := range tt.want {
 			switch k {
 			case "resource.name":

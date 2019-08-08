@@ -109,6 +109,11 @@ func (p *ConsulConfigProvider) Collect() ([]integration.Config, error) {
 	log.Debugf("identifiers found in backend: %v", identifiers)
 	for _, id := range identifiers {
 		templates := p.getTemplates(id)
+
+		for idx := range templates {
+			templates[idx].Source = "consul:" + id
+		}
+
 		configs = append(configs, templates...)
 	}
 	return configs, nil

@@ -19,17 +19,17 @@ import (
 type Pipeline struct {
 	InputChan chan *message.Message
 	processor *processor.Processor
-	sender    sender.Sender
+	sender    *sender.Sender
 }
 
 // NewPipeline returns a new Pipeline
 func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
 	var destinations *client.Destinations
 	if endpoints.UseHTTP {
-		main := http.NewDestination(endpoints.Main, destinationsContext)
+		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext)
 		additionals := []client.Destination{}
 		for _, endpoint := range endpoints.Additionals {
-			additionals = append(additionals, http.NewDestination(endpoint, destinationsContext))
+			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext))
 		}
 		destinations = client.NewDestinations(main, additionals)
 	} else {
@@ -43,12 +43,13 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 
 	senderChan := make(chan *message.Message, config.ChanSize)
 
-	var newSender sender.Sender
+	var strategy sender.Strategy
 	if endpoints.UseHTTP {
-		newSender = sender.NewBatchSender(senderChan, outputChan, destinations)
+		strategy = sender.NewBatchStrategy(sender.ArraySerializer)
 	} else {
-		newSender = sender.NewStreamSender(senderChan, outputChan, destinations)
+		strategy = sender.StreamStrategy
 	}
+	sender := sender.NewSender(senderChan, outputChan, destinations, strategy)
 
 	var encoder processor.Encoder
 	if endpoints.UseHTTP {
@@ -65,7 +66,7 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	return &Pipeline{
 		InputChan: inputChan,
 		processor: processor,
-		sender:    newSender,
+		sender:    sender,
 	}
 }
 

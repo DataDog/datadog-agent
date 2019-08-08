@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/configresolver"
+
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -304,6 +306,11 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 	if len(cf.DockerImages) > 0 && len(cf.ADIdentifiers) == 0 {
 		return config, errors.New("the 'docker_images' section is deprecated, please use 'ad_identifiers' instead")
 	}
+
+	// Interpolate env vars. Returns an error a variable wasn't subsituted, ignore it.
+	_ = configresolver.SubstituteTemplateEnvVars(&config)
+
+	config.Source = "file:" + fpath
 
 	return config, err
 }

@@ -31,7 +31,8 @@ if linux?
 end
 
 relative_path 'integrations-core'
-whitelist_file "embedded/lib/python3.7"
+whitelist_file "embedded/lib/python3.7/site-packages/psycopg2"
+whitelist_file "embedded/lib/python3.7/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
@@ -68,6 +69,16 @@ if arm?
   blacklist_packages.push(/^pymqi==/)
 end
 
+if windows? && windows_arch_i386?
+  blacklist_folders.push('oracle') 
+  blacklist_packages.push(/^cx-Oracle==/)
+  blacklist_packages.push(/^jpype1==/)
+  blacklist_packages.push(/^Jpype1==/)
+  blacklist_packages.push(/^JayDeBeApi==/)
+  blacklist_packages.push(/^jaydebeapi==/)
+
+end
+
 final_constraints_file = 'final_constraints-py3.txt'
 agent_requirements_file = 'agent_requirements-py3.txt'
 filtered_agent_requirements_in = 'agent_requirements-py3.in'
@@ -99,7 +110,7 @@ build do
     #
     command "#{pip} install wheel==0.30.0"
     command "#{pip} install pip-tools==2.0.2"
-    uninstall_buildtime_deps = ['six', 'click', 'first', 'pip-tools']
+    uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",

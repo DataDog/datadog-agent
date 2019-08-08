@@ -22,8 +22,7 @@ import (
 
 // Flag values
 var opts struct {
-	configPath string
-
+	configPath  string
 	pidFilePath string
 	debug       bool
 	version     bool
@@ -44,6 +43,9 @@ func main() {
 	// Parse flags
 	flag.StringVar(&opts.configPath, "config", "/etc/datadog-agent/system-probe.yaml", "Path to system-probe config formatted as YAML")
 	flag.StringVar(&opts.pidFilePath, "pid", "", "Path to set pidfile for process")
+	checkCmd := flag.NewFlagSet("check", flag.ExitOnError)
+	checkType := checkCmd.String("type", "", "The type of the check to run. Choose from: connections, network_maps, network_state, stats")
+	checkClient := checkCmd.String("client", "", "The client ID that the check will use to run")
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 	flag.Parse()
 
@@ -87,6 +89,26 @@ func main() {
 		gracefulExit()
 	}
 
+	// run check command if the flag is specified
+	if len(os.Args) >= 2 && os.Args[1] == "check" {
+		err = checkCmd.Parse(os.Args[2:])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		if *checkType == "" {
+			checkCmd.PrintDefaults()
+			os.Exit(1)
+		}
+		err := querySocketEndpoint(cfg, *checkType, *checkClient)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+
+		os.Exit(0)
+	}
+
 	// configure statsd
 	if err := statsd.Configure(cfg); err != nil {
 		log.Criticalf("Error configuring statsd: %s", err)
@@ -94,7 +116,7 @@ func main() {
 	}
 
 	sysprobe, err := CreateSystemProbe(cfg)
-	if err != nil && strings.HasPrefix(err.Error(), ErrTracerUnsupported.Error()) {
+	if err != nil && strings.HasPrefix(err.Error(), ErrSysprobeUnsupported.Error()) {
 		// If tracer is unsupported by this operating system, then exit gracefully
 		log.Infof("%s, exiting.", err)
 		gracefulExit()

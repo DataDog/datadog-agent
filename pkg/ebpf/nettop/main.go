@@ -17,11 +17,8 @@ func main() {
 	}
 	fmt.Printf("-- Kernel: %d (%d.%d)--\n", kernelVersion, (kernelVersion>>16)&0xff, (kernelVersion>>8)&0xff)
 
-	if ok, err := ebpf.IsTracerSupportedByOS(nil); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	} else if !ok {
-		fmt.Fprintln(os.Stderr, "tracer is not supported by current OS")
+	if supported, msg := ebpf.IsTracerSupportedByOS(nil); !supported {
+		fmt.Fprintf(os.Stderr, "system-probe is not supported: %s\n", msg)
 		os.Exit(1)
 	}
 

@@ -9,112 +9,73 @@ package clusterchecks
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	v1 "k8s.io/api/core/v1"
 )
 
 // getEndpointsConfigs provides configs templates of endpoints checks queried by node name.
 // Exposed to node agents by the cluster agent api.
 func (d *dispatcher) getEndpointsConfigs(nodeName string) ([]integration.Config, error) {
-	err := d.updateEndpointsChecks()
-	if err != nil {
-		log.Errorf("Cannot update check maps: %s", err)
-		return nil, err
+	nodeConfigs := []integration.Config{}
+	d.store.RLock()
+	for _, v := range d.store.endpointsConfigs[nodeName] {
+		nodeConfigs = append(nodeConfigs, v)
 	}
-	return d.store.endpointsChecks[nodeName], nil
+	d.store.RUnlock()
+	return nodeConfigs, nil
 }
 
-// updateEndpointsChecks updates stored endpoints configs.
-// The function validates cached configs by listing their corresponding
-// *v1.Endpoints objects and checking if endpoints are backed by pods,
-// if validated, store them as endpoints checks with their correspendent node name.
-// Listing the *v1.Endpoints object keeps pods' UIDs updated as they will
-// be added as AD identifiers in the endpoints config templates in buildEndpointsChecks.
-func (d *dispatcher) updateEndpointsChecks() error {
-	endpointsChecks := make(map[string][]integration.Config)
+// getAllEndpointsCheckConfigs provides all config templates of endpoints checks
+func (d *dispatcher) getAllEndpointsCheckConfigs() ([]integration.Config, error) {
+	configs := []integration.Config{}
+	d.store.RLock()
+	defer d.store.RUnlock()
+	for _, configMap := range d.store.endpointsConfigs {
+		for _, config := range configMap {
+			configs = append(configs, config)
+		}
+	}
+	return configs, nil
+}
+
+// addEndpointConfig stores a given endpoint configuration by node name
+func (d *dispatcher) addEndpointConfig(config integration.Config, nodename string) {
 	d.store.Lock()
 	defer d.store.Unlock()
-	for _, epInfo := range d.store.endpointsCache {
-		namespace := epInfo.Namespace
-		name := epInfo.Name
-		if namespace == "" || name == "" {
-			log.Warnf("Empty namespace %s or name %s for Endpoints related to %s, configs will not be processed", namespace, name, epInfo.ServiceEntity)
+	if d.store.endpointsConfigs[nodename] == nil {
+		d.store.endpointsConfigs[nodename] = map[string]integration.Config{}
+	}
+	d.store.endpointsConfigs[nodename][config.Digest()] = config
+}
+
+// removeEndpointConfig deletes a given endpoint configuration
+func (d *dispatcher) removeEndpointConfig(config integration.Config, nodename string) {
+	d.store.Lock()
+	defer d.store.Unlock()
+	delete(d.store.endpointsConfigs[nodename], config.Digest())
+}
+
+// patchEndpointsConfiguration transforms the endpoint configuration from AD into a config
+// ready to use by node agents. It does the following changes:
+//   - clear the ClusterCheck boolean
+//   - inject the extra tags (including `cluster_name` if set) in all instances
+func (d *dispatcher) patchEndpointsConfiguration(in integration.Config) (integration.Config, error) {
+	out := in
+	out.ClusterCheck = false
+
+	// Deep copy the instances to avoid modifying the original
+	out.Instances = make([]integration.Data, len(in.Instances))
+	copy(out.Instances, in.Instances)
+	out.NodeName = in.NodeName
+
+	for i := range out.Instances {
+		// Inject extra tags if not empty
+		if len(d.extraTags) == 0 {
 			continue
 		}
-		kendpoints, err := d.endpointsLister.Endpoints(namespace).Get(name)
+		err := out.Instances[i].MergeAdditionalTags(d.extraTags)
 		if err != nil {
-			log.Errorf("Cannot get Kubernetes endpoints:%s/%s : %s", namespace, name, err)
-			return err
-		}
-		if hasPodRef(kendpoints) {
-			// Only consider endpoints backed by pods
-			newEndpointsChecks := buildEndpointsChecks(kendpoints, epInfo)
-			endpointsChecks = unionMaps(endpointsChecks, newEndpointsChecks)
+			return in, err
 		}
 	}
-	// Store the up-to-date generated endpoints config checks
-	d.store.endpointsChecks = endpointsChecks
-	return nil
-}
 
-// hasPodRef checks if an *v1.Endpoints object is backed by pod.
-func hasPodRef(kendpoints *v1.Endpoints) bool {
-	for i := range kendpoints.Subsets {
-		for j := range kendpoints.Subsets[i].Addresses {
-			if kendpoints.Subsets[i].Addresses[j].TargetRef == nil {
-				return false
-			}
-			return kendpoints.Subsets[i].Addresses[j].TargetRef.Kind == "Pod"
-		}
-	}
-	return false
-}
-
-// buildEndpointsChecks returns a map of node names as keys with their
-// corresponding endpoints configs as values.
-// The function gets node names and pod uids from the *v1.Endpoints object.
-// The function adds the corresponding pod uid and service entity as AD identifiers
-// to the validated config templates using updateADIdentifiers.
-func buildEndpointsChecks(kendpoints *v1.Endpoints, epInfo *types.EndpointsInfo) map[string][]integration.Config {
-	nodesEndpointsMapping := make(map[string][]integration.Config)
-	for i := range kendpoints.Subsets {
-		for j := range kendpoints.Subsets[i].Addresses {
-			if nodeName := kendpoints.Subsets[i].Addresses[j].NodeName; nodeName != nil {
-				podUID := string(kendpoints.Subsets[i].Addresses[j].TargetRef.UID)
-				for _, config := range epInfo.Configs {
-					nodesEndpointsMapping[*nodeName] = append(nodesEndpointsMapping[*nodeName], updateADIdentifiers(config, podUID, epInfo.ServiceEntity))
-				}
-			}
-		}
-	}
-	return nodesEndpointsMapping
-}
-
-// updateADIdentifiers generates a config template for an endpoints check
-// with adding pod entity and kube service entity as AD identifiers.
-func updateADIdentifiers(config integration.Config, podUID, svcEntity string) integration.Config {
-	updatedConfig := integration.Config{
-		Name:            config.Name,
-		Instances:       config.Instances,
-		InitConfig:      config.InitConfig,
-		MetricConfig:    config.MetricConfig,
-		LogsConfig:      config.LogsConfig,
-		ADIdentifiers:   []string{},
-		ClusterCheck:    config.ClusterCheck,
-		Provider:        config.Provider,
-		EndpointsChecks: config.EndpointsChecks,
-	}
-	updatedConfig.ADIdentifiers = append(updatedConfig.ADIdentifiers, config.ADIdentifiers...)
-	updatedConfig.ADIdentifiers = append(updatedConfig.ADIdentifiers, getPodEntity(podUID))
-	updatedConfig.ADIdentifiers = append(updatedConfig.ADIdentifiers, svcEntity)
-	return updatedConfig
-}
-
-// unionMaps returns the union of two maps containing endpoints checks.
-func unionMaps(first, second map[string][]integration.Config) map[string][]integration.Config {
-	for k, v := range second {
-		first[k] = append(first[k], v...)
-	}
-	return first
+	return out, nil
 }

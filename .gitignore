@@ -80,8 +80,21 @@ cmd/trace-agent/windows_resources/*.bin
 pkg/trace/info/git_version.go
 trace-agent-msg.h
 
+# process agent artifacts
+cmd/process-agent/windows_resources/process-agent-msg.rc
+cmd/process-agent/windows_resources/*.bin
+process-agent-msg.h
+
 #visual studio files
 *.aps
 
 # ebpf object files
 pkg/ebpf/c/*.o
+
+# windows container build output
+build.out/
+
+# dev VM
+.vagrant
+Vagrantfile
+

@@ -29,16 +29,25 @@ var configCommand = &cobra.Command{
 	Short: "Print the runtime configuration of a running agent",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if flagNoColor {
+			color.NoColor = true
+		}
+
 		err := common.SetupConfigWithoutSecrets(confFilePath)
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
+
+		err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
+		}
+
 		err = util.SetAuthToken()
 		if err != nil {
 			return err
-		}
-		if flagNoColor {
-			color.NoColor = true
 		}
 
 		runtimeConfig, err := requestConfig()
@@ -58,7 +67,7 @@ func requestConfig() (string, error) {
 	r, err := util.DoGet(c, apiConfigURL)
 	if err != nil {
 		var errMap = make(map[string]string)
-		json.Unmarshal(r, errMap)
+		json.Unmarshal(r, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
 			return "", fmt.Errorf(e)
