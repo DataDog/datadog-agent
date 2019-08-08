@@ -58,12 +58,16 @@ type runnerCheckStats struct {
 
 // Runner ...
 type Runner struct {
+	// keep members that are used in atomic functions at the top of the structure
+	// important for 32 bit compiles.
+	// see https://github.com/golang/go/issues/599#issuecomment-419909701 for more information
+	running          uint32                   // Flag to see if the Runner is, well, running
+	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
 	pending          chan check.Check         // The channel where checks come from
 	runningChecks    map[check.ID]check.Check // The list of checks running
 	scheduler        *scheduler.Scheduler     // Scheduler runner operates on
 	m                sync.Mutex               // To control races on runningChecks
-	running          uint32                   // Flag to see if the Runner is, well, running
-	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
+
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.

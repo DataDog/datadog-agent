@@ -120,7 +120,7 @@ func doRun(m *testing.M) int {
 	var dockerCfg = []byte(dockerCfgString)
 	var dockerInitCfg = []byte("")
 	dockerCheck = containers.DockerFactory()
-	dockerCheck.Configure(dockerCfg, dockerInitCfg)
+	dockerCheck.Configure(dockerCfg, dockerInitCfg, "test")
 
 	// Setup mock sender
 	sender = mocksender.NewMockSender(dockerCheck.ID())

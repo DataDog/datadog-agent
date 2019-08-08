@@ -62,7 +62,7 @@ func doConfigure() error {
 	csrfToken, err := util.DoGet(c, urlstr)
 	if err != nil {
 		var errMap = make(map[string]string)
-		json.Unmarshal(csrfToken, errMap)
+		json.Unmarshal(csrfToken, &errMap)
 		if e, found := errMap["error"]; found {
 			err = fmt.Errorf(e)
 		}

@@ -6,6 +6,7 @@
 #include "cgo_free.h"
 
 #include <stringutils.h>
+#include <log.h>
 
 // these must be set by the Agent
 static cb_get_version_t cb_get_version = NULL;
@@ -13,7 +14,6 @@ static cb_get_config_t cb_get_config = NULL;
 static cb_headers_t cb_headers = NULL;
 static cb_get_hostname_t cb_get_hostname = NULL;
 static cb_get_clustername_t cb_get_clustername = NULL;
-static cb_log_t cb_log = NULL;
 static cb_set_external_tags_t cb_set_external_tags = NULL;
 
 // forward declarations
@@ -76,11 +76,6 @@ void _set_get_hostname_cb(cb_get_hostname_t cb)
 void _set_get_clustername_cb(cb_get_clustername_t cb)
 {
     cb_get_clustername = cb;
-}
-
-void _set_log_cb(cb_log_t cb)
-{
-    cb_log = cb;
 }
 
 void _set_set_external_tags_cb(cb_set_external_tags_t cb)
@@ -307,11 +302,6 @@ PyObject *get_clustername(PyObject *self, PyObject *args)
 */
 static PyObject *log_message(PyObject *self, PyObject *args)
 {
-    // callback must be set
-    if (cb_log == NULL) {
-        Py_RETURN_NONE;
-    }
-
     char *message = NULL;
     int log_level;
 
@@ -321,7 +311,7 @@ static PyObject *log_message(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    cb_log(message, log_level);
+    agent_log(log_level, message);
     Py_RETURN_NONE;
 }
 

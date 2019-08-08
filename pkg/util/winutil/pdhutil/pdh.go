@@ -7,8 +7,9 @@
 package pdhutil
 
 import (
-	"golang.org/x/sys/windows"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 type (
@@ -130,25 +131,6 @@ const (
 const (
 	ERROR_SUCCESS = 0
 )
-
-// Union specialization for double values
-type PDH_FMT_COUNTERVALUE_DOUBLE struct {
-	CStatus     uint32
-	DoubleValue float64
-}
-
-// Union specialization for 64 bit integer values
-type PDH_FMT_COUNTERVALUE_LARGE struct {
-	CStatus    uint32
-	LargeValue int64
-}
-
-// Union specialization for long values
-type PDH_FMT_COUNTERVALUE_LONG struct {
-	CStatus   uint32
-	LongValue int32
-	padding   [4]byte
-}
 
 // PdhOpenQuery Creates a new query that is used to manage the collection of performance data.
 /*

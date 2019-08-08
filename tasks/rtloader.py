@@ -31,7 +31,7 @@ def clear_cmake_cache(rtloader_path, settings):
         os.remove(cmake_cache)
 
 @task
-def build(ctx, install_prefix=None, python_runtimes=None, cmake_options=''):
+def build(ctx, install_prefix=None, python_runtimes=None, cmake_options='', arch="x64"):
     rtloader_path = get_rtloader_path()
 
     here = os.path.abspath(os.path.dirname(__file__))
@@ -56,6 +56,9 @@ def build(ctx, install_prefix=None, python_runtimes=None, cmake_options=''):
 
     for option, value in settings.items():
         cmake_args += " -D{}={} ".format(option, value)
+
+    if arch == "x86":
+        cmake_args += " -DARCH_I386=ON"
 
     ctx.run("cd {} && cmake {} .".format(rtloader_path, cmake_args))
     ctx.run("make -C {}".format(rtloader_path))

@@ -38,6 +38,7 @@ type ProcessAgentCheck struct {
 	running     uint32
 	stop        chan struct{}
 	stopDone    chan struct{}
+	source      string
 }
 
 func (c *ProcessAgentCheck) String() string {
@@ -46,6 +47,10 @@ func (c *ProcessAgentCheck) String() string {
 
 func (c *ProcessAgentCheck) Version() string {
 	return ""
+}
+
+func (c *ProcessAgentCheck) ConfigSource() string {
+	return c.source
 }
 
 // Run executes the check with retries
@@ -121,7 +126,7 @@ func (c *ProcessAgentCheck) run() error {
 }
 
 // Configure the ProcessAgentCheck
-func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integration.Data) error {
+func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
 	// handle the case when the agent is disabled via the old `datadog.conf` file
 	if enabled := config.Datadog.GetBool("process_config.enabled"); !enabled {
 		return fmt.Errorf("Process Agent disabled through main configuration file")
@@ -155,6 +160,8 @@ func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integrat
 	if _, err := os.Stat(configFile); !os.IsNotExist(err) {
 		c.commandOpts = append(c.commandOpts, fmt.Sprintf("-config=%s", configFile))
 	}
+
+	c.source = source
 
 	return nil
 }
