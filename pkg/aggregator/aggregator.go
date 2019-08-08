@@ -125,6 +125,7 @@ func init() {
 	aggregatorExpvars.Set("NumberOfFlush", &aggregatorNumberOfFlush)
 	aggregatorExpvars.Set("DogstatsdMetricSample", &aggregatorDogstatsdMetricSample)
 	aggregatorExpvars.Set("ChecksMetricSample", &aggregatorChecksMetricSample)
+	aggregatorExpvars.Set("ChecksHistogramBucketMetricSample", &aggregatorCheckHistogramBucketMetricSample)
 	aggregatorExpvars.Set("ServiceCheck", &aggregatorServiceCheck)
 	aggregatorExpvars.Set("Event", &aggregatorEvent)
 	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
