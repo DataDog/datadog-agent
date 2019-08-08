@@ -540,7 +540,7 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)
             goto done;
         }
 
-        // get symbol name (not a copy, should not be modified or freed)
+        // get symbol name, as_string returns a new object that we have to free
         char *symbol_name = as_string(symbol);
         if (symbol_name == NULL) {
             // as_string returns NULL if `symbol` is not a string object
