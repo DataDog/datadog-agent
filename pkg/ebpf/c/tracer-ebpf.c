@@ -252,6 +252,10 @@ static int guess_offsets(tracer_status_t* status, struct sock* skp) {
         }
         new_status.netns = possible_netns;
         break;
+    case GUESS_RTT:
+        bpf_probe_read(&new_status.rtt, sizeof(new_status.rtt), ((char*)skp) + status->offset_rtt);
+        bpf_probe_read(&new_status.rtt_var, sizeof(new_status.rtt_var), ((char*)skp) + status->offset_rtt_var);
+        break;
     case GUESS_DADDR_IPV6:
         if (!check_family(skp, status, AF_INET6))
             break;

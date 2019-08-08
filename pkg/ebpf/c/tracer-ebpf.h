@@ -9,7 +9,8 @@ static const __u8 GUESS_FAMILY = 2;
 static const __u8 GUESS_SPORT = 3;
 static const __u8 GUESS_DPORT = 4;
 static const __u8 GUESS_NETNS = 5;
-static const __u8 GUESS_DADDR_IPV6 = 6;
+static const __u8 GUESS_RTT = 6;
+static const __u8 GUESS_DADDR_IPV6 = 7;
 
 #ifndef TASK_COMM_LEN
 #define TASK_COMM_LEN 16
@@ -90,12 +91,16 @@ typedef struct {
     __u64 offset_netns;
     __u64 offset_ino;
     __u64 offset_family;
+    __u64 offset_rtt;
+    __u64 offset_rtt_var;
     __u64 offset_daddr_ipv6;
 
     __u64 err;
 
     __u32 daddr_ipv6[4];
     __u32 netns;
+    __u32 rtt;
+    __u32 rtt_var;
     __u32 saddr;
     __u32 daddr;
     __u16 sport;
