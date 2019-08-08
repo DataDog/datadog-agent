@@ -452,6 +452,12 @@ end
 
 shared_examples_for 'an Agent with python3 enabled' do
   it 'restarts after python_version set to 3' do
+    conf_path = ""
+    if os != :windows
+      conf_path = "/etc/datadog-agent/datadog.yaml"
+    else
+      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
+    end
     f = File.read(conf_path)
     confYaml = YAML.load(f)
     confYaml["python_version"] = 3
@@ -462,6 +468,12 @@ shared_examples_for 'an Agent with python3 enabled' do
   end
 
   it 'restarts after python_version set back to 2' do
+    conf_path = ""
+    if os != :windows
+      conf_path = "/etc/datadog-agent/datadog.yaml"
+    else
+      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
+    end
     f = File.read(conf_path)
     confYaml = YAML.load(f)
     confYaml["python_version"] = 2
