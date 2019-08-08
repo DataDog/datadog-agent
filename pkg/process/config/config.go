@@ -151,7 +151,6 @@ func NewDefaultAgentConfig() *AgentConfig {
 	//       need a few minutes to be ready.
 	_, err = util.GetContainers()
 	canAccessContainers := err == nil
-	canAccessContainers = false
 
 	enabledChecks := make([]string, 0)
 	if canAccessContainers {
