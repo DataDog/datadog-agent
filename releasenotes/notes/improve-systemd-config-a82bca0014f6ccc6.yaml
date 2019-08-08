@@ -13,6 +13,7 @@ upgrade:
     set, and only matching units will be monitored.
   - |
     New configuration `private_socket`, `system_bus_socket` and
-    `max_units` have been added.
+    `max_units` have been added. Default are now prefixed with `/host`
+    when using Docker Agent.
   - |
-    Several metrics have been renamed.
+    Several metrics have been renamed (the integration is not public yet).
