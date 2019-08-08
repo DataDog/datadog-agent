@@ -20,6 +20,7 @@ import (
 // This can be used for communicating with systemd without a dbus daemon.
 // Callers should call Close() when done with the connection.
 // Note: method borrowed from `go-systemd/dbus` to provide custom path for systemd private socket
+// Source: https://github.com/coreos/go-systemd
 func NewSystemdConnection(privateSocket string) (*dbus.Conn, error) {
 	return dbus.NewConnection(func() (*godbus.Conn, error) {
 		// We skip Hello when talking directly to systemd.
@@ -30,6 +31,7 @@ func NewSystemdConnection(privateSocket string) (*dbus.Conn, error) {
 }
 
 // Note: method borrowed from `go-systemd/dbus` to provide custom path for systemd private socket
+// Source: https://github.com/coreos/go-systemd
 func dbusAuthConnection(createBus func() (*godbus.Conn, error)) (*godbus.Conn, error) {
 	conn, err := createBus()
 	if err != nil {
