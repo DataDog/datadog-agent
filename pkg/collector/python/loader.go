@@ -177,7 +177,7 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 		check := NewPythonCheck(moduleName, checkClass)
 
 		// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
-		if err := check.Configure(i, config.InitConfig); err != nil {
+		if err := check.Configure(i, config.InitConfig, config.Source); err != nil {
 			addExpvarConfigureError(fmt.Sprintf("%s (%s)", moduleName, wheelVersion), err.Error())
 			continue
 		}

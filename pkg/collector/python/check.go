@@ -41,6 +41,7 @@ type PythonCheck struct {
 	ModuleName   string
 	interval     time.Duration
 	lastWarnings []error
+	source       string
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -115,6 +116,11 @@ func (c *PythonCheck) Version() string {
 	return c.version
 }
 
+// ConfigSource returns the source of the configuration for this check
+func (c *PythonCheck) ConfigSource() string {
+	return c.source
+}
+
 // GetWarnings grabs the last warnings from the struct
 func (c *PythonCheck) GetWarnings() []error {
 	warnings := c.lastWarnings
@@ -153,7 +159,7 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 }
 
 // Configure the Python check from YAML data
-func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Data) error {
+func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
 	c.id = check.Identify(c, data, initConfig)
 
@@ -210,6 +216,7 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 		log.Warnf("passing `agentConfig` to the constructor is deprecated, please use the `get_config` function from the 'datadog_agent' package (%s).", c.ModuleName)
 	}
 	c.instance = check
+	c.source = source
 
 	log.Debugf("python check configure done %s", c.ModuleName)
 	return nil

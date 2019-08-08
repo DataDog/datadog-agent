@@ -3,7 +3,13 @@
 #define APP_MANIFEST 1
 
 
+#ifdef BUILD_ARCH_x86
+APP_MANIFEST RT_MANIFEST agent32.exe.manifest
+#elif defined BUILD_ARCH_x64
 APP_MANIFEST RT_MANIFEST agent.exe.manifest
+#else
+#error no architecture
+#endif
 
 #define MAIN_ICON 1
 #define ICON_16_16 2

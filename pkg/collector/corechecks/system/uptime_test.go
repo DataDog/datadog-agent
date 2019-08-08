@@ -18,7 +18,7 @@ func uptimeSampler() (uint64, error) {
 func TestUptimeCheckLinux(t *testing.T) {
 	uptime = uptimeSampler
 	uptimeCheck := new(UptimeCheck)
-	uptimeCheck.Configure(nil, nil)
+	uptimeCheck.Configure(nil, nil, "test")
 
 	mock := mocksender.NewMockSender(uptimeCheck.ID())
 

@@ -47,7 +47,7 @@ def get_multi_python_location(embedded_path=None, rtloader_root=None):
     return rtloader_lib, rtloader_headers
 
 def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
-                    rtloader_root=None, python_home_2=None, python_home_3=None):
+                    rtloader_root=None, python_home_2=None, python_home_3=None, arch="x64"):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -91,6 +91,8 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
             # On windows, need to build with the extra argument -ldflags="-linkmode internal"
             # if you want to be able to use the delve debugger.
             ldflags += "-linkmode internal "
+    elif os.environ.get("NO_GO_OPT"):
+        gcflags = "-N -l"
 
     return ldflags, gcflags, env
 

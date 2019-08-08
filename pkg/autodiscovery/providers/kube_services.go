@@ -155,6 +155,7 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 		// All configurations are cluster checks
 		for i := range svcConf {
 			svcConf[i].ClusterCheck = true
+			svcConf[i].Source = "kube_services:" + service_id
 		}
 		configs = append(configs, svcConf...)
 	}

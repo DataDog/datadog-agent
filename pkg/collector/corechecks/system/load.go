@@ -55,8 +55,8 @@ func (c *LoadCheck) Run() error {
 }
 
 // Configure the CPU check
-func (c *LoadCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	err := c.CommonConfigure(data)
+func (c *LoadCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(data, source)
 	if err != nil {
 		return err
 	}

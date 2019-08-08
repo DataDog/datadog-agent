@@ -10,6 +10,11 @@ if(WIN32)
     SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -mwin32")
 endif()
 
+if(ARCH_I386)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
+endif()
+
 ## Config options
 option(DISABLE_PYTHON2 "Do not build Python2 support")
 option(DISABLE_PYTHON3 "Do not build Python3 support")

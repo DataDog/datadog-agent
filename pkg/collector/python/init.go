@@ -51,6 +51,16 @@ void initCgoFree(rtloader_t *rtloader) {
 }
 
 //
+// init log method
+//
+
+void LogMessage(char *, int);
+
+void initLogger(rtloader_t *rtloader) {
+	set_log_cb(rtloader, LogMessage);
+}
+
+//
 // datadog_agent module
 //
 // This also init "util" module who expose the same "headers" function
@@ -61,7 +71,6 @@ void GetHostname(char **);
 void GetClusterName(char **);
 void Headers(char **);
 void GetConfig(char*, char **);
-void LogMessage(char *, int);
 void SetExternalTags(char *, char *, char **);
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
@@ -69,7 +78,6 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_hostname_cb(rtloader, GetHostname);
 	set_get_clustername_cb(rtloader, GetClusterName);
 	set_headers_cb(rtloader, Headers);
-	set_log_cb(rtloader, LogMessage);
 	set_get_config_cb(rtloader, GetConfig);
 	set_set_external_tags_cb(rtloader, SetExternalTags);
 }
@@ -259,6 +267,7 @@ func Initialize(paths ...string) error {
 
 	// Setup custom builtin before RtLoader initialization
 	C.initCgoFree(rtloader)
+	C.initLogger(rtloader)
 	C.initDatadogAgentModule(rtloader)
 	C.initAggregatorModule(rtloader)
 	C.initUtilModule(rtloader)
