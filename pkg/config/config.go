@@ -404,6 +404,10 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.warmup_duration", 30)         // value in seconds
 	config.BindEnvAndSetDefault("cluster_checks.cluster_tag_name", "cluster_name")
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
+	// Cluster check runner
+	config.BindEnvAndSetDefault("clc_runner_enabled", false)
+	config.BindEnvAndSetDefault("clc_runner_host", "") // must be set using the Kubernetes downward API
+	config.BindEnvAndSetDefault("clc_runner_port", 5005)
 
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.

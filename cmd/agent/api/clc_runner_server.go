@@ -20,8 +20,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
-	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
+	v1 "github.com/DataDog/datadog-agent/cmd/agent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -29,39 +28,37 @@ import (
 )
 
 var (
-	listener net.Listener
+	clcListener net.Listener
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer() error {
+func StartCLCRunnerServer() error {
 	// create the root HTTP router
 	r := mux.NewRouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(r.PathPrefix("/agent").Subrouter())
-	check.SetupHandlers(r.PathPrefix("/check").Subrouter())
+	v1.SetupHandlers(r.PathPrefix("/api/v1").Subrouter())
 
 	// Validate token for every request
-	r.Use(validateToken)
+	r.Use(validateCLCRunnerToken)
 
 	// get the transport we're going to use under HTTP
 	var err error
-	listener, err = getListener()
+	clcListener, err = getCLCRunnerListener()
 	if err != nil {
-		// we use the listener to handle commands for the Agent, there's
-		// no way we can recover from this error
-		return fmt.Errorf("Unable to create the api server: %v", err)
+		return fmt.Errorf("unable to create the clc runner api server: %v", err)
 	}
 
-	err = util.SetAuthToken()
+	// CLC Runner token
+	err = util.SetDCAAuthToken()
 	if err != nil {
 		return err
 	}
 
-	hosts := []string{"127.0.0.1", "localhost"}
+	hosts := []string{"127.0.0.1", "localhost", config.Datadog.GetString("clc_runner_host")}
 	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
 	if err != nil {
-		return fmt.Errorf("unable to start TLS server")
+		return fmt.Errorf("unable to start TLS server: %v", err)
 	}
 
 	// PEM encode the private key
@@ -83,32 +80,32 @@ func StartServer() error {
 		Handler: r,
 		ErrorLog: stdLog.New(&config.ErrorLogWriter{
 			AdditionalDepth: 4, // Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-		}, "Error from the agent http API server: ", 0), // log errors to seelog,
+		}, "Error from the clc runner http API server: ", 0), // log errors to seelog,
 		TLSConfig:    &tlsConfig,
 		WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
 	}
-	tlsListener := tls.NewListener(listener, &tlsConfig)
+	tlsListener := tls.NewListener(clcListener, &tlsConfig)
 
 	go srv.Serve(tlsListener)
 	return nil
 }
 
-// StopServer closes the connection and the server
-// stops listening to new commands.
-func StopServer() {
-	if listener != nil {
-		listener.Close()
+// StopCLCRunnerServer closes the connection and the server
+// stops listening to cluster agent queries.
+func StopCLCRunnerServer() {
+	if clcListener != nil {
+		clcListener.Close()
 	}
 }
 
 // ServerAddress retruns the server address.
-func ServerAddress() *net.TCPAddr {
-	return listener.Addr().(*net.TCPAddr)
+func ServerCLCRunnerAddress() *net.TCPAddr {
+	return clcListener.Addr().(*net.TCPAddr)
 }
 
-func validateToken(next http.Handler) http.Handler {
+func validateCLCRunnerToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := util.Validate(w, r); err != nil {
+		if err := util.ValidateDCARequest(w, r); err != nil {
 			return
 		}
 		next.ServeHTTP(w, r)

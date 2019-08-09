@@ -165,6 +165,14 @@ func StartAgent() error {
 		}
 	}
 
+	// start clc runner server
+	// only start when the cluster agent is enabled and a cluster check runner host is enabled
+	if config.Datadog.GetBool("cluster_agent.enabled") && config.Datadog.GetBool("clc_runner_enabled") {
+		if err = api.StartCLCRunnerServer(); err != nil {
+			return log.Errorf("Error while starting clc runner api server, exiting: %v", err)
+		}
+	}
+
 	// start the GUI server
 	guiPort := config.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {

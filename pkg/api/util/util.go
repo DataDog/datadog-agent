@@ -110,3 +110,14 @@ func ValidateDCARequest(w http.ResponseWriter, r *http.Request) error {
 
 	return err
 }
+
+// IsForbidden returns if a the cluster check runner server is allowed to listen on a given ip
+func IsForbidden(ip string) bool {
+	forbidden := map[string]bool{
+		"":                 true,
+		"0.0.0.0":          true,
+		"::":               true,
+		" 0:0:0:0:0:0:0:0": true,
+	}
+	return forbidden[ip]
+}
