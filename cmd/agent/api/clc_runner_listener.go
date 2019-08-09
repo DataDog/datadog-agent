@@ -19,6 +19,7 @@ import (
 func getCLCRunnerListener() (net.Listener, error) {
 	podIP := config.Datadog.GetString("clc_runner_host")
 	if util.IsForbidden(podIP) {
+		// The server must only listen on the Pod IP
 		return nil, fmt.Errorf("Invalid cluster check runner host: %s, must be set to the Pod IP", podIP)
 	}
 	return net.Listen("tcp", fmt.Sprintf("%v:%v", podIP, config.Datadog.GetInt("clc_runner_port")))

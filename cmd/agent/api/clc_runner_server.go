@@ -31,7 +31,7 @@ var (
 	clcListener net.Listener
 )
 
-// StartServer creates the router and starts the HTTP server
+// StartCLCRunnerServer creates the router and starts the HTTP server
 func StartCLCRunnerServer() error {
 	// create the root HTTP router
 	r := mux.NewRouter()
@@ -50,6 +50,7 @@ func StartCLCRunnerServer() error {
 	}
 
 	// CLC Runner token
+	// Use the Cluster Agent token
 	err = util.SetDCAAuthToken()
 	if err != nil {
 		return err
@@ -98,7 +99,7 @@ func StopCLCRunnerServer() {
 	}
 }
 
-// ServerAddress retruns the server address.
+// ServerCLCRunnerAddress retruns the server address.
 func ServerCLCRunnerAddress() *net.TCPAddr {
 	return clcListener.Addr().(*net.TCPAddr)
 }

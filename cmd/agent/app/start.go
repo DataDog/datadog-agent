@@ -312,6 +312,7 @@ func StopAgent() {
 		common.MetadataScheduler.Stop()
 	}
 	api.StopServer()
+	api.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
 	if common.Forwarder != nil {
 		common.Forwarder.Stop()
