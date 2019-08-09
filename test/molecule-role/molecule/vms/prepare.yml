@@ -330,6 +330,9 @@
   vars_files:
     - common_vars.yml
   tasks:
+    - name: Wait a bit for the ubuntu machine to start
+      pause:
+        seconds: 10
     - name: Connect to Ubuntu agent P2P (1/1)
       win_command: nc {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_after_start_windows }}
       async: "{{ max_test_time }}"
