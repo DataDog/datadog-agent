@@ -404,7 +404,7 @@ unit_names:
 	// assertions
 	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, metrics.ServiceCheckOK, "", []string(nil), mock.Anything)
 	mockSender.AssertCalled(t, "ServiceCheck", systemStateServiceCheck, metrics.ServiceCheckOK, "", []string(nil), mock.Anything)
-	mockSender.AssertCalled(t, "Gauge", "systemd.unit.loaded.count", float64(6), "", []string(nil))
+	mockSender.AssertCalled(t, "Gauge", "systemd.units_loaded_count", float64(6), "", []string(nil))
 	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(3), "", []string{"active_state:" + "active"})
 	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(1), "", []string{"active_state:" + "activating"})
 	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(2), "", []string{"active_state:" + "inactive"})

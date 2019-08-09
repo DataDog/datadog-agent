@@ -303,7 +303,7 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 		c.submitPropertyMetricsAsGauge(sender, conn, unit, tags)
 	}
 
-	sender.Gauge("systemd.unit.loaded.count", float64(loadedCount), "", nil)
+	sender.Gauge("systemd.units_loaded_count", float64(loadedCount), "", nil)
 	return nil
 }
 
