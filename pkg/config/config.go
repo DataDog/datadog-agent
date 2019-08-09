@@ -457,6 +457,9 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.excluded_linux_versions")
 	config.SetKnown("system_probe_config.closed_channel_size")
 
+	// Network
+	config.SetKnown("network.id")
+
 	// APM
 	config.SetKnown("apm_config.enabled")
 	config.SetKnown("apm_config.env")
