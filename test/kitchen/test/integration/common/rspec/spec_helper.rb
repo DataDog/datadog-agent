@@ -467,21 +467,21 @@ shared_examples_for 'an Agent with python3 enabled' do
     expect(output).to be_truthy
   end
 
-  # it 'restarts after python_version is set back to 2' do
-  #   conf_path = ""
-  #   if os != :windows
-  #     conf_path = "/etc/datadog-agent/datadog.yaml"
-  #   else
-  #     conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-  #   end
-  #   f = File.read(conf_path)
-  #   confYaml = YAML.load(f)
-  #   confYaml["python_version"] = 2
-  #   File.write(conf_path, confYaml.to_yaml)
+  it 'restarts after python_version is set back to 2' do
+    conf_path = ""
+    if os != :windows
+      conf_path = "/etc/datadog-agent/datadog.yaml"
+    else
+      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
+    end
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
+    confYaml["python_version"] = 2
+    File.write(conf_path, confYaml.to_yaml)
 
-  #   output = restart
-  #   expect(output).to be_truthy
-  # end
+    output = restart
+    expect(output).to be_truthy
+  end
 end
 
 shared_examples_for 'an Agent that is removed' do
