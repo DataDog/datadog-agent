@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include <filesystem>
 
 #pragma comment(lib, "shlwapi.lib")
 
@@ -462,4 +463,68 @@ bool getUserProfileFolder(const std::wstring& username, std::wstring& userPofile
 	userPofileFolder = userInfo1->usri1_home_dir;
 	NetApiBufferFree(userInfo1);
 	return true;
+}
+
+namespace {	
+	void RemoveLockedFolder(const std::wstring& folder) {
+		std::vector<std::filesystem::path> paths;
+
+		paths.emplace_back(folder);
+		for (auto p : std::filesystem::recursive_directory_iterator(folder)) {
+			paths.push_back(p.path());
+		}
+
+		// We reverse the order because we need to delete empty folders.
+		std::reverse(paths.begin(), paths.end());
+
+		for (const auto& p : paths) {
+			std::error_code error;
+			std::filesystem::remove(p, error);
+			if (error) {
+				// Delete the file or folder on the next reboot.
+				// Folder must be empty
+				if (!MoveFileEx(p.c_str(), nullptr, MOVEFILE_DELAY_UNTIL_REBOOT)) {
+					WcaLog(LOGMSG_STANDARD, "Cannot remove path: %s (Error code %d)", p.c_str(), GetLastError());
+				}
+			}
+		}
+	}
+
+	bool RemoveRegisterKey(const std::wstring& userSid) {
+		if (userSid.empty())
+			return false;
+
+		std::wstring key = L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\ProfileList\\" + userSid;
+		auto status = RegDeleteKey(HKEY_LOCAL_MACHINE, key.c_str());
+		if (status != ERROR_SUCCESS) {
+			WcaLog(LOGMSG_STANDARD, "Cannot remove registry key %S: (Error code %d)", key.c_str(), status);
+			return false;
+		}
+		return true;
+	}
+}
+
+std::optional<std::wstring> GetSidString(PSID sid) {
+	LPWSTR stringSid = nullptr;
+	if (!ConvertSidToStringSid(sid, &stringSid))
+		return std::nullopt;
+	
+	std::wstring result = stringSid;
+
+	LocalFree(stringSid);
+	return result;
+}
+
+bool RemoveUserProfile(const std::wstring& installedUser, const std::wstring& userProfileFolder, const std::wstring& userSid) {
+	try {		
+		RemoveLockedFolder(userProfileFolder);
+		return RemoveRegisterKey(userSid);
+	}
+	catch (const std::exception& e) {
+		WcaLog(LOGMSG_STANDARD, "Error: %s in RemoveUserProfile.", e.what());
+	}
+	catch (...) {
+		WcaLog(LOGMSG_STANDARD, "Unknow error in RemoveUserProfile.");
+	}
+	return false;
 }

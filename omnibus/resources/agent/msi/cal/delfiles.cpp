@@ -99,17 +99,3 @@ BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext) {
     
     return TRUE;
 }
-
-bool deleteDirectoryRecursively(const std::wstring& path) {
-	std::vector<wchar_t> from(path.begin(), path.end());
-	from.push_back(L'\0');
-	from.push_back(L'\0'); // API requires to have two '\0'
-
-	SHFILEOPSTRUCTW fileOperation;
-	ZeroMemory(&fileOperation, sizeof(fileOperation));
-	fileOperation.wFunc = FO_DELETE;
-	fileOperation.pFrom = &from[0];
-	fileOperation.fFlags = FOF_NO_UI;
-
-	return ::SHFileOperationW(&fileOperation) == 0 && !fileOperation.fAnyOperationsAborted;
-}

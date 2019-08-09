@@ -28,6 +28,7 @@
 #include <map>
 #include <sstream>
 #include <vector>
+#include <optional>
 
 // WiX Header Files:
 #include <wcautil.h>

@@ -440,11 +440,6 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
     {
         sid = GetSidForUser(NULL, installedComplete.c_str());
 
-		std::wstring userProfileFolder;
-		if (!getUserProfileFolder(installedUser.c_str(), userProfileFolder)) {
-			WcaLog(LOGMSG_STANDARD, "Error when retrieving the user profile folder. User profile folder will not be removed.");
-		}
-
         // remove dd user from programdata root
         removeUserPermsFromFile(programdataroot, sid);
 
@@ -481,17 +476,23 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
                 WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
             }
         }
+
+		std::wstring userProfileFolder;
+		if (!getUserProfileFolder(installedUser.c_str(), userProfileFolder)) {
+			WcaLog(LOGMSG_STANDARD, "Error when retrieving the user profile folder. User profile folder will not be removed.");
+			return false;
+		}
+
         // delete the user
         er = DeleteUser(NULL, installedUser.c_str());
         if (0 == er) {
-            if(!userProfileFolder.empty()) {
-				if (deleteDirectoryRecursively(userProfileFolder)) {
-					WcaLog(LOGMSG_STANDARD, "User profile folder %S deleted", userProfileFolder.c_str());
-				}
-				else {
-					WcaLog(LOGMSG_STANDARD, "Cannot delete user profile folder %S", userProfileFolder.c_str());
-				}
-            }
+			auto userSid = GetSidString(sid);
+			if (userSid && RemoveUserProfile(installedUser, userProfileFolder, *userSid)) {
+				WcaLog(LOGMSG_STANDARD, "User profile removed.");
+			}
+			else {
+				WcaLog(LOGMSG_STANDARD, "Cannot remove user profile.");
+			}
         }
         else {
             // don't actually fail on failure.  We're doing an uninstall,

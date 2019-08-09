@@ -30,6 +30,8 @@ PSID GetSidForUser(LPCWSTR host, LPCWSTR user);
 bool GetNameForSid(LPCWSTR host, PSID sid, std::wstring& namestr);
 
 LSA_HANDLE GetPolicyHandle();
+bool RemoveUserProfile(const std::wstring& installedUser, const std::wstring& userProfileFolder, const std::wstring& userSid);
+std::optional<std::wstring> GetSidString(PSID sid);
 
 
 
@@ -43,7 +45,6 @@ int verifyServices(MSIHANDLE hInstall, CustomActionData& data);
 
 //delfiles.cpp
 BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext);
-bool deleteDirectoryRecursively(const std::wstring& path);
 
 extern HMODULE hDllModule;
 // rights we might be interested in
