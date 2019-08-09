@@ -41,10 +41,10 @@ func (r *runner) startRunner() error {
 }
 
 func (r *runner) configureRunner(instance, initConfig integration.Data) error {
-	if err := r.jmxfetch.ConfigureInstance(instance); err != nil {
+	if err := r.jmxfetch.ConfigureFromInstance(instance); err != nil {
 		return err
 	}
-	if err := r.jmxfetch.ConfigureCheck(initConfig); err != nil {
+	if err := r.jmxfetch.ConfigureFromInitConfig(initConfig); err != nil {
 		return err
 	}
 	return nil

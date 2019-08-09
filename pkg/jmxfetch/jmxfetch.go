@@ -286,7 +286,9 @@ func (j *JMXFetch) Up() (bool, error) {
 	return err == nil, err
 }
 
-func (j *JMXFetch) ConfigureCheck(initConfig integration.Data) error {
+// ConfigureFromInitConfig configures various options from the init_config
+// section of the configuration
+func (j *JMXFetch) ConfigureFromInitConfig(initConfig integration.Data) error {
 	var initConf checkInitCfg
 
 	// unmarshall init config
@@ -320,7 +322,9 @@ func (j *JMXFetch) ConfigureCheck(initConfig integration.Data) error {
 	return nil
 }
 
-func (j *JMXFetch) ConfigureInstance(instance integration.Data) error {
+// ConfigureFromInitConfig configures various options from the instance
+// section of the configuration
+func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
 
 	var instanceConf checkInstanceCfg
 
