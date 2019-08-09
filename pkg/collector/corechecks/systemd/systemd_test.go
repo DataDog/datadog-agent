@@ -78,7 +78,7 @@ func TestDefaultConfiguration(t *testing.T) {
 	assert.Equal(t, []string(nil), check.config.instance.UnitNames)
 	assert.Equal(t, []string(nil), check.config.instance.UnitRegexStrings)
 	assert.Equal(t, []*regexp.Regexp(nil), check.config.instance.UnitRegexPatterns)
-	assert.Equal(t, 100, check.config.instance.MaxUnits)
+	assert.Equal(t, 50, check.config.instance.MaxUnits)
 }
 
 func TestBasicConfiguration(t *testing.T) {

@@ -38,7 +38,7 @@ const (
 	systemStateServiceCheck = "systemd.system.state"
 	unitStateServiceCheck   = "systemd.unit.state"
 
-	defaultMaxUnits = 100
+	defaultMaxUnits = 50
 )
 
 var dbusTypeMap = map[string]string{
