@@ -431,7 +431,6 @@ func guessOffsets(m *elf.Module, cfg *Config) error {
 		}
 	}
 
-	fmt.Printf("guessing complete: %+v\n", status)
 	return nil
 }
 
