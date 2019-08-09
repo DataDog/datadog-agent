@@ -52,9 +52,9 @@ function on_error() {
     print_red "$ERROR_MESSAGE
 It looks like you hit an issue when trying to install the StackState Agent v2.
 
-Troubleshooting and basic usage information for the Agent are available at:
+Basic information about the Agent are available at:
 
-    https://docs.stackstate.com/guides/basic_agent_usage/
+    https://docs.stackstate.com/integrations/agent/
 
 If you're still having problems, please send an email to info@stackstate.com
 with the contents of $logfile and we'll do our very best to help you
@@ -79,8 +79,8 @@ if [ -n "$STS_INSTALL_ONLY" ]; then
     no_start=true
 fi
 
-if [ -n "$HOSTNAME" ]; then
-    hostname=$HOSTNAME
+if [ -n "$STS_HOSTNAME" ]; then
+    hostname=$STS_HOSTNAME
 fi
 
 # comma-separated list of tags
@@ -205,7 +205,7 @@ if [ $sts_url ]; then
     $sudo_cmd sh -c "sed -i 's/sts_url:.*/sts_url: $sts_url_esc/' $CONF"
 fi
 if [ $hostname ]; then
-    print_blu "* Adding your HOSTNAME to the Agent configuration: $CONF\n"
+    print_blu "* Adding your STS_HOSTNAME to the Agent configuration: $CONF\n"
     $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $hostname/' $CONF"
 fi
 if [ $host_tags ]; then
