@@ -290,12 +290,12 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 		if !c.isMonitored(unit.Name) {
 			continue
 		}
-		monitoredCount++
-		if monitoredCount > c.config.instance.MaxUnits {
+		if monitoredCount >= c.config.instance.MaxUnits {
 			log.Warnf("Reporting more metrics than the allowed maximum. " +
 				"Please contact support@datadoghq.com for more information.")
-			continue
+			break
 		}
+		monitoredCount++
 		tags := []string{"unit:" + unit.Name}
 		sender.ServiceCheck(unitStateServiceCheck, getServiceCheckStatus(unit.ActiveState), "", tags, "")
 
@@ -316,6 +316,7 @@ func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *db
 	if unit.LoadState == unitLoadedState {
 		loaded = 1
 	}
+	sender.Gauge("systemd.unit.monitored", float64(1), "", tags)
 	sender.Gauge("systemd.unit.active", float64(active), "", tags)
 	sender.Gauge("systemd.unit.loaded", float64(loaded), "", tags)
 

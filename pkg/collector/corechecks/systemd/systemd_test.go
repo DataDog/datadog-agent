@@ -463,6 +463,7 @@ unit_names:
 	// assertions
 	tags := []string{"unit:unit1.service"}
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.uptime", float64(900), "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.unit.monitored", float64(1), "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.active", float64(1), "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.loaded", float64(1), "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", float64(10), "", tags)
@@ -474,7 +475,7 @@ unit_names:
 	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", float64(110), "", tags)
 
 	expectedGaugeCalls := 6     /* overall metrics */
-	expectedGaugeCalls += 2 * 7 /* unit/service metrics */
+	expectedGaugeCalls += 2 * 8 /* unit/service metrics */
 	mockSender.AssertNumberOfCalls(t, "Gauge", expectedGaugeCalls)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
