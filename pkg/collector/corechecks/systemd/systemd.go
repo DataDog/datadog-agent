@@ -345,7 +345,7 @@ func (c *SystemdCheck) submitCountMetrics(sender aggregator.Sender, units []dbus
 
 	for _, activeState := range unitActiveStates {
 		count := counts[activeState]
-		sender.Gauge("systemd.units_by_state", float64(count), "", []string{"active_state:" + activeState})
+		sender.Gauge("systemd.units_by_state", float64(count), "", []string{"state:" + activeState})
 	}
 }
 
