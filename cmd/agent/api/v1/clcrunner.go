@@ -6,12 +6,6 @@
 // Package v1 implements the api endpoints for the `/api/v1` prefix.
 // This group of endpoints is meant to provide external queries with
 // stats of the agent.
-
-// IMPORTANT NOTE:
-// Every payload change requires a version bump of the API
-// This API is NOT meant to:
-// - expose check configs
-// - configure the Agent or change its behaviour
 package v1
 
 import (
@@ -23,6 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
 )
+
+// IMPORTANT NOTE:
+// Every payload change requires a version bump of the API
+// This API is NOT meant to:
+// - expose check configs
+// - configure the Agent or change its behaviour
 
 // SetupHandlers adds the specific handlers for /api/v1 endpoints
 // The API is only meant to expose stats used by the Cluster Agent
