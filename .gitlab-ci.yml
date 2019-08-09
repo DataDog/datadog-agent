@@ -229,6 +229,17 @@ run_dep_check_lock:
     # Print a message and fail if dep check fails
     - dep check --skip-vendor || (echo "Gopkg.lock is out of sync with Gopkg.toml and project imports. Please run 'inv deps' and commit the change on Gopkg.lock." && false)
 
+# generate doxygen documentation
+run_doxygen_generate_doc:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:v1592114-da429fd
+  tags: [ "runner:main", "size:large" ]
+  before_script:
+    - cd $SRC_PATH
+    - pip install -r requirements.txt
+  script:
+    - inv -e rtloader.generate-doc
+
 #
 # binary_build
 #
