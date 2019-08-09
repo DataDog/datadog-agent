@@ -78,10 +78,10 @@ func TestDefaultConfiguration(t *testing.T) {
 	assert.Equal(t, []string(nil), check.config.instance.UnitNames)
 	assert.Equal(t, []string(nil), check.config.instance.UnitRegexStrings)
 	assert.Equal(t, []*regexp.Regexp(nil), check.config.instance.UnitRegexPatterns)
+	assert.Equal(t, 100, check.config.instance.MaxUnits)
 }
 
-func TestConfiguration(t *testing.T) {
-	// setup data
+func TestBasicConfiguration(t *testing.T) {
 	check := SystemdCheck{}
 	rawInstanceConfig := []byte(`
 unit_names:
@@ -90,6 +90,7 @@ unit_names:
 unit_regexes:
  - lvm2-.*
  - cloud-.*
+max_units: 99
 `)
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 
@@ -100,6 +101,7 @@ unit_regexes:
 		regexp.MustCompile("cloud-.*"),
 	}
 	assert.Equal(t, regexes, check.config.instance.UnitRegexPatterns)
+	assert.Equal(t, 99, check.config.instance.MaxUnits)
 }
 
 func TestConfigurationSkipOnRegexErr(t *testing.T) {
@@ -118,6 +120,14 @@ unit_regexes:
 		regexp.MustCompile("abc"),
 	}
 	assert.Equal(t, regexes, check.config.instance.UnitRegexPatterns)
+}
+
+func TestMissingUnitNamesOrRegexShouldRaiseError(t *testing.T) {
+	check := SystemdCheck{}
+	err := check.Configure([]byte(``), []byte(``), "test")
+
+	expectedErrorMsg := "`unit_names` and `unit_regexes` must not be both empty"
+	assert.EqualError(t, err, expectedErrorMsg)
 }
 
 func TestDbusConnectionErr(t *testing.T) {
@@ -595,8 +605,7 @@ unit_regexes:
 	}
 }
 
-func TestIsMonitoredEmptyConfigShouldMonitorAll(t *testing.T) {
-	// setup data
+func TestIsMonitoredEmptyConfigShouldReturnNone(t *testing.T) {
 	rawInstanceConfig := []byte(``)
 	check := SystemdCheck{}
 	check.Configure(rawInstanceConfig, nil, "test")
@@ -605,8 +614,8 @@ func TestIsMonitoredEmptyConfigShouldMonitorAll(t *testing.T) {
 		unitName              string
 		expectedToBeMonitored bool
 	}{
-		{"unit1.service", true},
-		{"xyz.socket", true},
+		{"unit1.service", false},
+		{"xyz.socket", false},
 	}
 	for _, d := range data {
 		t.Run(fmt.Sprintf("check.isMonitored('%s') expected to be %v", d.unitName, d.expectedToBeMonitored), func(t *testing.T) {
@@ -711,5 +720,57 @@ func TestGetPropertyBool(t *testing.T) {
 			assert.Equal(t, d.expectedBoolValue, num)
 			assert.Equal(t, d.expectedError, err)
 		})
+	}
+}
+
+func TestMaxUnitLimit(t *testing.T) {
+	rawInstanceConfig := []byte(`
+unit_names:
+ - unit1.service
+ - unit2.service
+ - unit3.service
+ - unit4.service
+ - unit5.service
+max_units: 3
+`)
+
+	stats := createDefaultMockSystemdStats()
+	stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{
+		{Name: "unit1.service", ActiveState: "active", LoadState: "loaded"},
+		{Name: "unit2.service", ActiveState: "active", LoadState: "loaded"},
+		{Name: "unit3.service", ActiveState: "active", LoadState: "loaded"},
+		{Name: "unit4.service", ActiveState: "active", LoadState: "loaded"},
+		{Name: "unit5.service", ActiveState: "active", LoadState: "loaded"},
+	}, nil)
+
+	stats.On("TimeNanoNow").Return(int64(1))
+	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, dbusTypeMap[typeUnit]).Return(map[string]interface{}{
+		"ActiveEnterTimestamp": uint64(1),
+	}, nil)
+	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, mock.Anything).Return(map[string]interface{}{}, nil)
+
+	check := SystemdCheck{stats: stats}
+	check.Configure(rawInstanceConfig, nil, "test")
+
+	// setup expectation
+	mockSender := mocksender.NewMockSender(check.ID())
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	// run
+	check.Run()
+
+	// assertions
+	calledUnits := []string{"unit1.service", "unit2.service", "unit3.service"}
+	for _, unitName := range calledUnits {
+		tags := []string{"unit:" + unitName}
+		mockSender.AssertMetricTaggedWith(t, "Gauge", "systemd.unit.active", tags)
+	}
+
+	notCalledUnits := []string{"unit4.service", "unit5.service"}
+	for _, unitName := range notCalledUnits {
+		tags := []string{"unit:" + unitName}
+		mockSender.AssertMetricNotTaggedWith(t, "Gauge", "systemd.unit.active", tags)
 	}
 }

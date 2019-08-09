@@ -37,6 +37,8 @@ const (
 	canConnectServiceCheck  = "systemd.can_connect"
 	systemStateServiceCheck = "systemd.system.state"
 	unitStateServiceCheck   = "systemd.unit.state"
+
+	defaultMaxUnits = 100
 )
 
 var dbusTypeMap = map[string]string{
@@ -119,6 +121,7 @@ type SystemdCheck struct {
 type systemdInstanceConfig struct {
 	UnitNames         []string `yaml:"unit_names"`
 	UnitRegexStrings  []string `yaml:"unit_regexes"`
+	MaxUnits          int      `yaml:"max_units"`
 	UnitRegexPatterns []*regexp.Regexp
 }
 
@@ -227,11 +230,18 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 	c.submitCountMetrics(sender, units)
 
 	loadedCount := 0
+	monitoredCount := 0
 	for _, unit := range units {
 		if unit.LoadState == unitLoadedState {
 			loadedCount++
 		}
 		if !c.isMonitored(unit.Name) {
+			continue
+		}
+		monitoredCount++
+		if monitoredCount > c.config.instance.MaxUnits {
+			log.Warnf("Reporting more metrics than the allowed maximum. " +
+				"Please contact support@datadoghq.com for more information.")
 			continue
 		}
 		tags := []string{"unit:" + unit.Name}
@@ -396,9 +406,6 @@ func getServiceCheckStatus(activeState string) metrics.ServiceCheckStatus {
 
 // isMonitored verifies if a unit should be monitored.
 func (c *SystemdCheck) isMonitored(unitName string) bool {
-	if len(c.config.instance.UnitNames) == 0 && len(c.config.instance.UnitRegexPatterns) == 0 {
-		return true
-	}
 	for _, name := range c.config.instance.UnitNames {
 		if name == unitName {
 			return true
@@ -427,6 +434,10 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 		return err
 	}
 
+	if c.config.instance.MaxUnits == 0 {
+		c.config.instance.MaxUnits = defaultMaxUnits
+	}
+
 	for _, regexString := range c.config.instance.UnitRegexStrings {
 		pattern, err := regexp.Compile(regexString)
 		if err != nil {
@@ -434,6 +445,10 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 			continue
 		}
 		c.config.instance.UnitRegexPatterns = append(c.config.instance.UnitRegexPatterns, pattern)
+	}
+
+	if len(c.config.instance.UnitNames) == 0 && len(c.config.instance.UnitRegexPatterns) == 0 {
+		return fmt.Errorf("`unit_names` and `unit_regexes` must not be both empty")
 	}
 	return nil
 }
