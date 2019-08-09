@@ -37,6 +37,11 @@ const (
 	// The source port is much further away in the inet sock.
 	thresholdInetSock = 2000
 
+	// When GETSOCKOPT is called the TCP socket field representing rttVar (mdev_us)
+	// loses 2 bits of precision due to the operation (mdev_us >> 2) << 2, so we use
+	// this mask to correct that imprecision when comparing the values.
+	rttVarMask = ^C.__u32(3)
+
 	procNameMaxSize = 15
 )
 
@@ -291,7 +296,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 			status.offset_netns++
 		}
 	case guessRTT:
-		if status.rtt == C.__u32(expected.rtt) && status.rtt_var == C.__u32(expected.rttVar) {
+		if status.rtt == C.__u32(expected.rtt) && status.rtt_var&rttVarMask == C.__u32(expected.rttVar)&rttVarMask {
 			status.what = guessDaddrIPv6
 			break
 		}
