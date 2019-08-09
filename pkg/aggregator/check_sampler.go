@@ -6,6 +6,8 @@
 package aggregator
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,6 +22,9 @@ type CheckSampler struct {
 	contextResolver *ContextResolver
 	metrics         metrics.ContextMetrics
 	sketchMap       sketchMap
+	lastBucketValue map[ckey.ContextKey]int
+	lastSeenBucket  map[ckey.ContextKey]time.Time
+	bucketExpiry    time.Duration
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -30,6 +35,9 @@ func newCheckSampler() *CheckSampler {
 		contextResolver: newContextResolver(),
 		metrics:         metrics.MakeContextMetrics(),
 		sketchMap:       make(sketchMap),
+		lastBucketValue: make(map[ckey.ContextKey]int),
+		lastSeenBucket:  make(map[ckey.ContextKey]time.Time),
+		bucketExpiry:    1 * time.Minute,
 	}
 }
 
@@ -58,10 +66,27 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 	contextKey := cs.contextResolver.trackContext(bucket, bucket.Timestamp)
 
+	// if we already saw the bucket we only send the delta
+	lastBucketValue, bucketFound := cs.lastBucketValue[contextKey]
+	rawValue := bucket.Value
+	if bucketFound {
+		cs.lastSeenBucket[contextKey] = time.Now()
+		bucket.Value = rawValue - lastBucketValue
+	}
+	cs.lastBucketValue[contextKey] = rawValue
+	cs.lastSeenBucket[contextKey] = time.Now()
+
 	// simple linear interpolation, TODO: optimize
 	bucketRange := bucket.UpperBound - bucket.LowerBound
 	if bucketRange < 0 {
-		log.Warnf("Negative bucket range [%f-%f] discarding", bucket.LowerBound, bucket.UpperBound)
+		log.Warnf(
+			"Negative bucket range [%f-%f] for metric %s discarding",
+			bucket.LowerBound, bucket.UpperBound, bucket.Name,
+		)
+		return
+	}
+	if bucket.Value < 0 {
+		log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
 		return
 	}
 	linearIncr := bucketRange / float64(bucket.Value)
@@ -70,7 +95,6 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		cs.sketchMap.insert(int64(bucket.Timestamp), contextKey, currentVal)
 		currentVal += linearIncr
 	}
-	// TODO: store bucket diff if monotonic + garbage collect on timer
 
 	log.Errorf("Adding bucket %v", bucket)
 }
@@ -129,6 +153,15 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	// sketches
 	sketches := cs.sketches
 	cs.sketches = make([]metrics.SketchSeries, 0)
+
+	// garbage collect unused bucket deltas
+	now := time.Now()
+	for ctxKey, lastSeenBucket := range cs.lastSeenBucket {
+		if now.Sub(lastSeenBucket) > cs.bucketExpiry {
+			delete(cs.lastSeenBucket, ctxKey)
+			delete(cs.lastBucketValue, ctxKey)
+		}
+	}
 
 	return series, sketches
 }
