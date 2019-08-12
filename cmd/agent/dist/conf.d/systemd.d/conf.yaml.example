@@ -18,8 +18,8 @@ instances:
 
     ## @param private_socket - string - optional
     ## Path to systemd private socket needed to retrieve systemd data.
-    ## Defaults to `/run/systemd/private`.
-    ## Defaults to `/host/run/systemd/private` when using Docker Agent (https://docs.datadoghq.com/agent/docker/).
+    ## Defaults to `/run/systemd/private` or `/host/run/systemd/private` when
+    ## using Docker Agent (https://docs.datadoghq.com/agent/docker/).
     ##
     # private_socket: <PATH_TO_SYSTEMD_PRIVATE_SOCKET>
 
