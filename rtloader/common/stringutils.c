@@ -150,9 +150,11 @@ done:
 char *as_yaml(PyObject *object) {
     char *retval = NULL;
     PyObject *dumped = NULL;
+    PyObject *encoding = Py_None;
 
     PyObject *args = PyTuple_New(0);
-    PyObject *kwargs = Py_BuildValue("{s:O, s:O}", "data", object, "Dumper", dumper);
+    PyObject *kwargs = Py_BuildValue("{s:O, s:O, s:O}", "data", object, "Dumper", dumper, "encoding", encoding);
+
     dumped = PyObject_Call(ydump, args, kwargs);
     if (dumped == NULL) {
         goto done;
