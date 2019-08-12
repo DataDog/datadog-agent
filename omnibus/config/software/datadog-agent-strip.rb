@@ -18,8 +18,23 @@ build do
         # only stripping linux for now
         if linux?
             # Strip symbols
-            strip_symbols(install_dir, "#{install_dir}/symbols")
-            delete "#{install_dir}/symbols"
+            # strip_symbols(install_dir, "#{install_dir}/symbols")
+            # debug_path "**/symbols"  # this is a little dangerous actually...
+            # delete "#{install_dir}/symbols"
+            #
+            path = install_dir
+            symboldir = "#{install_dir}/symbols"
+            read_output_lines("find #{path}/ -type f -exec file {} \; | grep 'ELF' | cut -f1 -d:") do |elf|
+	            debugfile = "#{elf}.debug"
+                elfdir = File.dirname(debugfile)
+                FileUtils.mkdir_p "#{symboldir}/#{elfdir}" unless Dir.exist? "#{symboldir}/#{elfdir}"
+
+                log.debug(log_key) { "stripping ${elf}, putting debug info into ${debugfile}" }
+	            shellout("objcopy --only-keep-debug #{elf} #{symboldir}/#{debugfile}")
+	            shellout("strip --strip-debug --strip-unneeded #{elf}")
+	            shellout("objcopy --add-gnu-debuglink=#{symboldir}/#{debugfile} #{elf}")
+                shellout("chmod -x #{symboldir}/#{debugfile}")
+            end
         end
     end
 end

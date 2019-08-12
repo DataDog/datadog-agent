@@ -116,7 +116,8 @@ build do
 
             # Strip symbols
             strip_symbols(install_dir, "#{install_dir}/symbols")
-            delete "#{install_dir}/symbols"
+            debug_path "**/symbols"  # this is a little dangerous actually...
+            # delete "#{install_dir}/symbols"
 
             # removing the man pages from the embedded folder to reduce package size by ~4MB
             delete "#{install_dir}/embedded/man"
