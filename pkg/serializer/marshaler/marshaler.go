@@ -24,5 +24,5 @@ type StreamJSONMarshaler interface {
 	WriteItem(stream *jsoniter.Stream, index int, itemIndexInPayload int) error
 	Len() int
 	DescribeItem(i int) string
-	SupportJSONSeparatorInsertion() bool
+	AddJSONSeparatoraAutomatically() bool
 }

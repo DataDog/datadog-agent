@@ -255,7 +255,7 @@ func (events Events) WriteItem(stream *jsoniter.Stream, i int, itemIndexInPayloa
 		stream.WriteMore()
 		startNewSourceType = true
 	} else {
-		// As SupportJSONSeparatorInsertion returns false, we need the separator between items
+		// As AddJSONSeparatoraAutomatically returns false, we need the separator between items
 		stream.WriteMore()
 	}
 
@@ -275,9 +275,9 @@ func (events Events) WriteItem(stream *jsoniter.Stream, i int, itemIndexInPayloa
 	return stream.Flush()
 }
 
-// SupportJSONSeparatorInsertion returns true to add JSON separator automatically between two calls of WriteItem, false otherwise.
-func (events Events) SupportJSONSeparatorInsertion() bool {
-	// If SupportJSONSeparatorInsertion returns true, it leads to this output
+// AddJSONSeparatoraAutomatically returns true to add JSON separator automatically between two calls of WriteItem, false otherwise.
+func (events Events) AddJSONSeparatoraAutomatically() bool {
+	// If AddJSONSeparatoraAutomatically returns true, it leads to this output
 	//
 	// 	"events": {
 	// 		"SourceTypeName1": [  	// First WriteItem

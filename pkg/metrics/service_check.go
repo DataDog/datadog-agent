@@ -180,8 +180,8 @@ func (sc ServiceChecks) WriteItem(stream *jsoniter.Stream, i int, itemIndexInPay
 	return stream.Flush()
 }
 
-// SupportJSONSeparatorInsertion returns true to add JSON separator automatically between two calls of WriteItem, false otherwise.
-func (sc ServiceChecks) SupportJSONSeparatorInsertion() bool { return true }
+// AddJSONSeparatoraAutomatically returns true to add JSON separator automatically between two calls of WriteItem, false otherwise.
+func (sc ServiceChecks) AddJSONSeparatoraAutomatically() bool { return true }
 
 // Len returns the number of items to marshal
 func (sc ServiceChecks) Len() int {

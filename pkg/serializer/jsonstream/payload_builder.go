@@ -66,7 +66,7 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 	if err != nil {
 		return nil, err
 	}
-	insertSepBetweenItems := m.SupportJSONSeparatorInsertion()
+	insertSepBetweenItems := m.AddJSONSeparatoraAutomatically()
 	compressor, err := newCompressor(input, output, header.Bytes(), footer.Bytes(), insertSepBetweenItems)
 	if err != nil {
 		return nil, err

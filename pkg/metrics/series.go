@@ -235,8 +235,8 @@ func (series Series) WriteLastFooter(stream *jsoniter.Stream, itemWrittenCount i
 	return series.WriteFooter(stream)
 }
 
-// SupportJSONSeparatorInsertion returns true to add JSON separator automatically between two calls of WriteItem, false otherwise.
-func (series Series) SupportJSONSeparatorInsertion() bool { return true }
+// AddJSONSeparatoraAutomatically returns true to add JSON separator automatically between two calls of WriteItem, false otherwise.
+func (series Series) AddJSONSeparatoraAutomatically() bool { return true }
 
 // WriteItem prints the json representation of an item
 func (series Series) WriteItem(stream *jsoniter.Stream, i int, itemIndexInPayload int) error {

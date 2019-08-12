@@ -69,7 +69,7 @@ func (d *dummyMarshaller) WriteFooter(stream *jsoniter.Stream) error {
 	return err
 }
 
-func (p *dummyMarshaller) SupportJSONSeparatorInsertion() bool { return true }
+func (p *dummyMarshaller) AddJSONSeparatoraAutomatically() bool { return true }
 func (p *dummyMarshaller) WriteLastFooter(stream *jsoniter.Stream, itemWrittenCount int) error {
 	return p.WriteFooter(stream)
 }

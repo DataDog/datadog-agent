@@ -123,7 +123,7 @@ func (p *testPayload) WriteLastFooter(stream *jsoniter.Stream, itemWrittenCount 
 	return p.WriteFooter(stream)
 }
 
-func (p *testPayload) SupportJSONSeparatorInsertion() bool { return true }
+func (p *testPayload) AddJSONSeparatoraAutomatically() bool { return true }
 
 func (p *testPayload) WriteItem(stream *jsoniter.Stream, i int, itemIndexInPayload int) error {
 	_, err := stream.Write(jsonItem)
@@ -136,7 +136,7 @@ type testErrorPayload struct{}
 
 func (p *testErrorPayload) Initialize() error { return fmt.Errorf("some error") }
 
-func (p *testErrorPayload) SupportJSONSeparatorInsertion() bool { return true }
+func (p *testErrorPayload) AddJSONSeparatoraAutomatically() bool { return true }
 func (p *testErrorPayload) MarshalJSON() ([]byte, error)        { return nil, fmt.Errorf("some error") }
 func (p *testErrorPayload) Marshal() ([]byte, error)            { return nil, fmt.Errorf("some error") }
 func (p *testErrorPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
