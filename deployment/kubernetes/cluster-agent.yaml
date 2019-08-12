@@ -1,5 +1,5 @@
-apiVersion: apps/v1
-kind: DaemonSet
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
   name: stackstate-cluster-agent
   namespace: default
@@ -14,7 +14,7 @@ spec:
         ad.stackstatehq.com/stackstate-cluster-agent.init_configs: '[{}]'
         ad.stackstatehq.com/stackstate-cluster-agent.instances: '[{"prometheus_url": "http://%%host%%:5000/metrics","namespace": "stackstate.cluster_agent","metrics": ["go_goroutines","go_memstats_*","process_*","api_requests","stackstate_requests","external_metrics", "cluster_checks_*"]}]'
     spec:
-      serviceAccountName: dca
+      serviceAccountName: stackstate-cluster-agent
       containers:
       - image: stackstate/stackstate-cluster-agent-test:master
         imagePullPolicy: Always

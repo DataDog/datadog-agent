@@ -19,7 +19,6 @@ import (
 
 	"github.com/StackVista/stackstate-agent/cmd/agent/common"
 	"github.com/StackVista/stackstate-agent/cmd/cluster-agent/api"
-	"github.com/StackVista/stackstate-agent/cmd/cluster-agent/custommetrics"
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/api/healthprobe"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
@@ -128,10 +127,10 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !config.Datadog.IsSet("api_key") {
-		log.Critical("no API key configured, exiting")
-		return nil
-	}
+	//if !config.Datadog.IsSet("api_key") {
+	//	log.Critical("no API key configured, exiting")
+	//	return nil
+	//}
 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")
@@ -207,10 +206,11 @@ func start(cmd *cobra.Command, args []string) error {
 	// HPA Process
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		// Start the k8s custom metrics server. This is a blocking call
-		err = custommetrics.StartServer()
-		if err != nil {
-			log.Errorf("Could not start the custom metrics API server: %s", err.Error())
-		}
+		//err = custommetrics.StartServer()
+		//if err != nil {
+		//	log.Errorf("Could not start the custom metrics API server: %s", err.Error())
+		//}
+		log.Warnf("The custom external metrics feature is not supported yet in cluster agent")
 	}
 
 	// Block here until we receive the interrupt signal
@@ -229,7 +229,7 @@ func start(cmd *cobra.Command, args []string) error {
 	mainCtxCancel()
 
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
-		custommetrics.StopServer()
+		//custommetrics.StopServer()
 	}
 	if stopCh != nil {
 		close(stopCh)

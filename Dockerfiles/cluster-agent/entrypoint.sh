@@ -9,10 +9,10 @@
 
 ##### Core config #####
 
-if [[ -z "$STS_API_KEY" ]]; then
-    echo "You must set an STS_API_KEY environment variable to run the StackState Cluster Agent container"
-    exit 1
-fi
+#if [[ -z "$STS_API_KEY" ]]; then
+#    echo "You must set an STS_API_KEY environment variable to run the StackState Cluster Agent container"
+#    exit 1
+#fi
 
 ##### Copy the custom confs #####
 find /conf.d -name '*.yaml' -exec cp --parents -fv {} /etc/stackstate-agent/ \;
