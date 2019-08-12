@@ -37,11 +37,6 @@ const (
 	// The source port is much further away in the inet sock.
 	thresholdInetSock = 2000
 
-	// When GETSOCKOPT is called the TCP socket field representing rttVar (mdev_us)
-	// loses 2 bits of precision due to the operation (mdev_us >> 2) << 2, so we use
-	// this mask to correct that imprecision when comparing the values.
-	rttVarMask = ^C.__u32(3)
-
 	procNameMaxSize = 15
 )
 
@@ -144,9 +139,8 @@ func expectedValues(conn net.Conn) (*fieldValues, error) {
 		dport:  uint16(dportn),
 		netns:  uint32(netns),
 		family: syscall.AF_INET,
-		// https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
-		rtt:    tcpInfo.Rtt << 3,
-		rttVar: tcpInfo.Rttvar << 2,
+		rtt:    tcpInfo.Rtt,
+		rttVar: tcpInfo.Rttvar,
 	}, nil
 }
 
@@ -296,7 +290,9 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 			status.offset_netns++
 		}
 	case guessRTT:
-		if status.rtt == C.__u32(expected.rtt) && status.rtt_var&rttVarMask == C.__u32(expected.rttVar)&rttVarMask {
+		// For more information on the bit shift operations see:
+		// https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
+		if status.rtt>>3 == C.__u32(expected.rtt) && status.rtt_var>>2 == C.__u32(expected.rttVar) {
 			status.what = guessDaddrIPv6
 			break
 		}
