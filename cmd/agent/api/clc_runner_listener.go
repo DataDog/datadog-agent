@@ -18,9 +18,15 @@ import (
 // The cluster check runner Agent won't start if the server host is not configured
 func getCLCRunnerListener() (net.Listener, error) {
 	podIP := config.Datadog.GetString("clc_runner_host")
+	// This is not a security feature
+	// util.IsForbidden only helps to avoid unnecessarily permissive server config
 	if util.IsForbidden(podIP) {
 		// The server must only listen on the Pod IP
 		return nil, fmt.Errorf("Invalid cluster check runner host: %s, must be set to the Pod IP", podIP)
+	}
+	if util.IsIPv6(podIP) {
+		// IPv6 addresses must be formatted [ip]:port
+		podIP = fmt.Sprintf("[%s]", podIP)
 	}
 	return net.Listen("tcp", fmt.Sprintf("%v:%v", podIP, config.Datadog.GetInt("clc_runner_port")))
 }

@@ -16,6 +16,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
@@ -31,13 +32,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	yaml "gopkg.in/yaml.v2"
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(r *mux.Router) {
-	r.HandleFunc("/version", GetVersion).Methods("GET")
+	r.HandleFunc("/version", apicommon.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
@@ -59,14 +59,6 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
-	w.Write(j)
-}
-
-// GetVersion returns the version of the agent
-func GetVersion(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	av, _ := version.New(version.AgentVersion, version.Commit)
-	j, _ := json.Marshal(av)
 	w.Write(j)
 }
 

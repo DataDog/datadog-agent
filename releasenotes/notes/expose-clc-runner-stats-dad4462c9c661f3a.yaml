@@ -1,5 +1,7 @@
 ---
 features:
   - |
-    The Agent can now expose runner stats via a public API.
+    The Agent can now expose runner stats via the CLC Runner API Server, a remotely-accessible authenticated API server.
     The Cluster Agent can use these stats to optimize dispatching cluster level checks.
+    The CLC Runner API Server is disabled by default, must be enabled via the Agent config, the cluster agent must enabled since it's the only client of the server.
+    By default, the server listens on 5005 and its host address must be set to the Agent Pod IP using the Kubernetes downward API.

@@ -99,7 +99,7 @@ func StopCLCRunnerServer() {
 	}
 }
 
-// ServerCLCRunnerAddress retruns the server address.
+// ServerCLCRunnerAddress returns the server address.
 func ServerCLCRunnerAddress() *net.TCPAddr {
 	return clcListener.Addr().(*net.TCPAddr)
 }

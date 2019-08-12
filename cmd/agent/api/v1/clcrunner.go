@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
+	"github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
@@ -29,7 +29,7 @@ import (
 // Check configs and any data that could contain sensitive information
 // MUST NEVER be sent via this API
 func SetupHandlers(r *mux.Router) {
-	r.HandleFunc("/clcrunner/version", agent.GetVersion).Methods("GET")
+	r.HandleFunc("/clcrunner/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/clcrunner/stats", getCLCRunnerStats).Methods("GET")
 }
 
@@ -37,7 +37,14 @@ func SetupHandlers(r *mux.Router) {
 func getCLCRunnerStats(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the runner stats. Making stats.")
 	w.Header().Set("Content-Type", "text/plain")
-	s := flattenCLCStats(status.GetExpvarRunnerStats())
+	stats, err := status.GetExpvarRunnerStats()
+	if err != nil {
+		log.Errorf("Error getting exp var stats: %v", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	s := flattenCLCStats(stats)
 	jsonStats, err := json.Marshal(s)
 	if err != nil {
 		log.Errorf("Error marshalling stats. Error: %v, Stats: %v", err, s)
