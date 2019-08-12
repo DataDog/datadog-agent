@@ -20,8 +20,7 @@ api_key:
 #     - host2
 
 # Setting this option to "true" will tell the agent to skip validation of SSL/TLS certificates.
-# This may be necessary if the agent is running behind a proxy. See this page for details:
-# https://github.com/DataDog/dd-agent/wiki/Proxy-Configuration#using-haproxy-as-a-proxy
+# This may be necessary if the agent is running behind a proxy.
 # skip_ssl_validation: false
 
 # Setting this option to "true" will force the agent to only use TLS 1.2 when
@@ -822,10 +821,8 @@ network_tracer_config:
 # network_tracer_config:
 #   A boolean indicating the enabled state of the network tracer.
 #   enabled: true
-#   The full path to the location of the unix socket where network traces will be accessed
-#   nettracer_socket: /opt/datadog-agent/run/nettracer.sock
 #   The full path to the file where network-tracer logs will be written.
-#   log_file: /var/log/datadog/network-tracer.log
+#   log_file: /var/log/stackstate-agent/process_agent.log
 {{ end -}}
 
 {{- if .TraceAgent }}

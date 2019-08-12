@@ -46,7 +46,7 @@ instances:
   #     newTag: test
 
   #   # List of metrics to be collected by the integration
-  #   # Read http://docs.datadoghq.com/integrations/java/ to learn how to customize it
+  #   # Read StackState Agent StackPack - Java JMX integration page to learn how to customize it
   #   conf:
   #     - include:
   #         domain: my_domain

@@ -151,6 +151,12 @@ def apply_branding(ctx):
     sts_camel_replace = 's/Data[dD]og/StackState/g'
     sts_lower_replace = 's/datadog/stackstate/g'
 
+    # Dist config templates
+    do_sed_rename(ctx, sts_lower_replace, "./cmd/agent/dist/conf.d/go_expvar.d/agent_stats.yaml.example")
+    do_sed_rename(ctx, sts_lower_replace, "./cmd/agent/dist/conf.d/apm.yaml.default")
+    do_sed_rename(ctx, 's/dd/sts/g', "./cmd/agent/dist/dd-agent")
+    do_sed_rename(ctx, sts_lower_replace, "./cmd/agent/dist/dd-agent")
+
     # Hardcoded checks and metrics
     do_sed_rename(ctx, sts_lower_replace, "./pkg/aggregator/aggregator.go")
 
