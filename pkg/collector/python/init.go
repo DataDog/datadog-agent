@@ -30,13 +30,23 @@ import (
 #cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 
-#include <datadog_agent_rtloader.h>
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
+
 #include <stdlib.h>
 
 // helpers
 
 char *getStringAddr(char **array, unsigned int idx) {
 	return array[idx];
+}
+
+//
+// init memory tracking facilities method
+//
+void MemoryTracker(void *, size_t, rtloader_mem_ops_t);
+void initMemoryTracker(void) {
+	set_memory_tracker_cb(MemoryTracker);
 }
 
 //
@@ -47,7 +57,7 @@ char *getStringAddr(char **array, unsigned int idx) {
 //
 
 void initCgoFree(rtloader_t *rtloader) {
-	set_cgo_free_cb(rtloader, free);
+	set_cgo_free_cb(rtloader, _free);
 }
 
 //
@@ -230,17 +240,20 @@ func Initialize(paths ...string) error {
 		}
 	}
 
+	// memory related RTLoader-global initialization
+	C.initMemoryTracker()
+
 	var pyErr *C.char = nil
 	if pythonVersion == "2" {
-		csPythonHome2 := C.CString(pythonHome2)
+		csPythonHome2 := TrackedCString(pythonHome2)
 		rtloader = C.make2(csPythonHome2, &pyErr)
-		C.free(unsafe.Pointer(csPythonHome2))
+		C._free(unsafe.Pointer(csPythonHome2))
 		log.Infof("Initializing rtloader with python2 %s", pythonHome2)
 		PythonHome = pythonHome2
 	} else if pythonVersion == "3" {
-		csPythonHome3 := C.CString(pythonHome3)
+		csPythonHome3 := TrackedCString(pythonHome3)
 		rtloader = C.make3(csPythonHome3, &pyErr)
-		C.free(unsafe.Pointer(csPythonHome3))
+		C._free(unsafe.Pointer(csPythonHome3))
 		log.Infof("Initializing rtloader with python3 %s", pythonHome3)
 		PythonHome = pythonHome3
 	} else {
@@ -250,14 +263,16 @@ func Initialize(paths ...string) error {
 	if rtloader == nil {
 		err := addExpvarPythonInitErrors(fmt.Sprintf("could not load runtime python for version %s: %s", pythonVersion, C.GoString(pyErr)))
 		if pyErr != nil {
-			C.free(unsafe.Pointer(pyErr))
+			// pyErr tracked when created in rtloader
+			C._free(unsafe.Pointer(pyErr))
 		}
 		return err
 	}
 
 	// Set the PYTHONPATH if needed.
 	for _, p := range paths {
-		C.add_python_path(rtloader, C.CString(p))
+		// bounded but never released allocations with CString
+		C.add_python_path(rtloader, TrackedCString(p))
 	}
 
 	// Any platform-specific initialization

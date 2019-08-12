@@ -5,7 +5,7 @@
 #include "kubeutil.h"
 
 #include "cgo_free.h"
-#include <stringutils.h>
+#include "stringutils.h"
 
 
 // these must be set by the Agent

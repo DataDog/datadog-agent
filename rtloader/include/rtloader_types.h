@@ -5,7 +5,7 @@
 // Copyright 2019 Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_TYPES_H
 #define DATADOG_AGENT_RTLOADER_TYPES_H
-#include <string.h>
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,13 +26,21 @@ extern "C" {
 #endif
 
 #ifndef WIN32
-#    define _strdup(x) strdup(x)
+#    define _strdup(x) strdupe(x)
 #endif
 
 typedef enum rtloader_gilstate_e {
-    DATADOG_AGENT_RTLOADER_GIL_LOCKED,
+    DATADOG_AGENT_RTLOADER_GIL_LOCKED = 0,
     DATADOG_AGENT_RTLOADER_GIL_UNLOCKED
 } rtloader_gilstate_t;
+
+typedef enum {
+    DATADOG_AGENT_RTLOADER_ALLOCATION = 0,
+    DATADOG_AGENT_RTLOADER_FREE,
+} rtloader_mem_ops_t;
+
+typedef void *(*rtloader_malloc_t)(size_t);
+typedef void (*rtloader_free_t)(void *);
 
 typedef enum {
     DATADOG_AGENT_RTLOADER_GAUGE = 0,
@@ -113,7 +121,10 @@ typedef void (*cb_get_subprocess_output_t)(char **, char **, char **, int *, cha
 
 // CGO API
 //
+// memory
+//
 typedef void (*cb_cgo_free_t)(void *);
+typedef void (*cb_memory_tracker_t)(void *, size_t sz, rtloader_mem_ops_t op);
 
 // tagger
 //

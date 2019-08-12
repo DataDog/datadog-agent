@@ -21,9 +21,11 @@ import (
 )
 
 /*
-#include <datadog_agent_rtloader.h>
 #cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
+
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
 */
 import (
 	"C"
@@ -34,7 +36,7 @@ import (
 func GetVersion(agentVersion **C.char) {
 	av, _ := version.New(version.AgentVersion, version.Commit)
 	// version will be free by rtloader when it's done with it
-	*agentVersion = C.CString(av.GetNumber())
+	*agentVersion = TrackedCString(av.GetNumber())
 }
 
 // GetHostname exposes the current hostname of the agent to Python checks.
@@ -46,7 +48,7 @@ func GetHostname(hostname **C.char) {
 		goHostname = ""
 	}
 	// hostname will be free by rtloader when it's done with it
-	*hostname = C.CString(goHostname)
+	*hostname = TrackedCString(goHostname)
 }
 
 // GetClusterName exposes the current clustername (if it exists) of the agent to Python checks.
@@ -54,7 +56,7 @@ func GetHostname(hostname **C.char) {
 func GetClusterName(clusterName **C.char) {
 	goClusterName := clustername.GetClusterName()
 	// clusterName will be free by rtloader when it's done with it
-	*clusterName = C.CString(goClusterName)
+	*clusterName = TrackedCString(goClusterName)
 }
 
 // Headers returns a basic set of HTTP headers that can be used by clients in Python checks.
@@ -69,7 +71,7 @@ func Headers(yamlPayload **C.char) {
 		return
 	}
 	// yamlPayload will be free by rtloader when it's done with it
-	*yamlPayload = C.CString(string(data))
+	*yamlPayload = TrackedCString(string(data))
 }
 
 // GetConfig returns a value from the agent configuration.
@@ -90,7 +92,7 @@ func GetConfig(key *C.char, yamlPayload **C.char) {
 		return
 	}
 	// yaml Payload will be free by rtloader when it's done with it
-	*yamlPayload = C.CString(string(data))
+	*yamlPayload = TrackedCString(string(data))
 }
 
 // LogMessage logs a message from python through the agent logger (see

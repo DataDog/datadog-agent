@@ -16,9 +16,11 @@ import (
 )
 
 /*
-#include <datadog_agent_rtloader.h>
 #cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
+
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
 */
 import "C"
 
@@ -40,7 +42,7 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 		return nil
 	}
 
-	cTags := C.malloc(C.size_t(length+1) * C.size_t(unsafe.Sizeof(uintptr(0))))
+	cTags := C._malloc(C.size_t(length+1) * C.size_t(unsafe.Sizeof(uintptr(0))))
 	if cTags == nil {
 		log.Errorf("could not allocate memory for tags")
 		return nil
@@ -50,7 +52,7 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 	indexTag := (*[1<<29 - 1]*C.char)(cTags)[: length+1 : length+1]
 	indexTag[length] = nil
 	for idx, tag := range tags {
-		indexTag[idx] = C.CString(tag)
+		indexTag[idx] = TrackedCString(tag)
 	}
 
 	return (**C.char)(cTags)

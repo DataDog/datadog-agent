@@ -4,8 +4,9 @@
 // Copyright 2019 Datadog, Inc.
 #include "datadog_agent.h"
 #include "cgo_free.h"
+#include "rtloader_mem.h"
+#include "stringutils.h"
 
-#include <stringutils.h>
 #include <log.h>
 
 // these must be set by the Agent
@@ -421,7 +422,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         char **tags;
         // We already PyList_Check value, so PyList_Size won't fail and return -1
         int tags_len = PyList_Size(value);
-        if (!(tags = (char **)malloc(sizeof(*tags) * tags_len + 1))) {
+        if (!(tags = (char **)_malloc(sizeof(*tags) * tags_len + 1))) {
             PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
             error = 1;
             goto done;
@@ -451,17 +452,17 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
 
         // cleanup
         for (j = 0; j < actual_size; j++) {
-            free(tags[j]);
+            _free(tags[j]);
         }
-        free(tags);
+        _free(tags);
     }
 
 done:
     if (hostname) {
-        free(hostname);
+        _free(hostname);
     }
     if (source_type) {
-        free(source_type);
+        _free(source_type);
     }
     PyGILState_Release(gstate);
 
