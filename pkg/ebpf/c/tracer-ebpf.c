@@ -31,19 +31,6 @@
 #define log_debug(fmt, ...)
 #endif
 
-/* Macro to execute the given expression replacing family by the correct family
- */
-#define handle_family(sk, status, expr)                                             \
-    ({                                                                              \
-        if (check_family(sk, status, AF_INET)) {                                    \
-            metadata_mask_t family = CONN_V4;                                       \
-            expr;                                                                   \
-        } else if (is_ipv6_enabled(status) && check_family(sk, status, AF_INET6)) { \
-            metadata_mask_t family = CONN_V6;                                       \
-            expr;                                                                   \
-        }                                                                           \
-    })
-
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
  * and the values being conn_stats_ts_t *.
  */
@@ -278,113 +265,100 @@ static bool is_ipv6_enabled(tracer_status_t* status) {
 }
 
 __attribute__((always_inline))
-static int read_conn_tuple(conn_tuple_t* tuple, tracer_status_t* status, struct sock* skp, metadata_mask_t type, metadata_mask_t family) {
-    u32 net_ns_inum;
-    u16 sport, dport;
-    u64 saddr_h, saddr_l, daddr_h, daddr_l;
-    possible_net_t* skc_net;
+static int read_conn_tuple(conn_tuple_t* t, struct sock* skp, metadata_mask_t type) {
+    u64 zero = 0;
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL) {
+        return 0;
+    }
 
-    saddr_h = 0;
-    saddr_l = 0;
-    daddr_h = 0;
-    daddr_l = 0;
-    sport = 0;
-    dport = 0;
-    skc_net = NULL;
-    net_ns_inum = 0;
+    t->saddr_h = 0;
+    t->saddr_l = 0;
+    t->daddr_h = 0;
+    t->daddr_l = 0;
+    t->sport = 0;
+    t->dport = 0;
+    t->pid = 0;
+    t->metadata = type;
 
     // Retrieve addresses
-    if (family == CONN_V4) {
-        bpf_probe_read(&saddr_l, sizeof(u32), ((char*)skp) + status->offset_saddr);
-        bpf_probe_read(&daddr_l, sizeof(u32), ((char*)skp) + status->offset_daddr);
+    if (check_family(skp, status, AF_INET)) {
+        t->metadata |= CONN_V4;
+        bpf_probe_read(&t->saddr_l, sizeof(u32), ((char*)skp) + status->offset_saddr);
+        bpf_probe_read(&t->daddr_l, sizeof(u32), ((char*)skp) + status->offset_daddr);
 
-        if (!saddr_l || !daddr_l) {
-            log_debug("ERR(read_conn_tuple.v4): src/dst addr not set src:%d,dst:%d\n", saddr_l, daddr_l);
+        if (!t->saddr_l || !t->daddr_l) {
+            log_debug("ERR(read_conn_tuple.v4): src/dst addr not set src:%d,dst:%d\n", t->saddr_l, t->daddr_l);
             return 0;
         }
-    } else {
-        bpf_probe_read(&saddr_h, sizeof(saddr_h), ((char*)skp) + status->offset_daddr_ipv6 + 2 * sizeof(u64));
-        bpf_probe_read(&saddr_l, sizeof(saddr_l), ((char*)skp) + status->offset_daddr_ipv6 + 3 * sizeof(u64));
-        bpf_probe_read(&daddr_h, sizeof(daddr_h), ((char*)skp) + status->offset_daddr_ipv6);
-        bpf_probe_read(&daddr_l, sizeof(daddr_l), ((char*)skp) + status->offset_daddr_ipv6 + sizeof(u64));
+    } else if (is_ipv6_enabled(status) && check_family(skp, status, AF_INET6)) {
+        bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), ((char*)skp) + status->offset_daddr_ipv6 + 2 * sizeof(u64));
+        bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), ((char*)skp) + status->offset_daddr_ipv6 + 3 * sizeof(u64));
+        bpf_probe_read(&t->daddr_h, sizeof(t->daddr_h), ((char*)skp) + status->offset_daddr_ipv6);
+        bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), ((char*)skp) + status->offset_daddr_ipv6 + sizeof(u64));
 
         // We can only pass 4 args to bpf_trace_printk
         // so split those 2 statements to be able to log everything
-        if (!(saddr_h || saddr_l)) {
+        if (!(t->saddr_h || t->saddr_l)) {
             log_debug("ERR(read_conn_tuple.v6): src addr not set: src_l:%d,src_h:%d\n",
-                saddr_l, saddr_h);
+                t->saddr_l, t->saddr_h);
             return 0;
         }
 
-        if (!(daddr_h || daddr_l)) {
+        if (!(t->daddr_h || t->daddr_l)) {
             log_debug("ERR(read_conn_tuple.v6): dst addr not set: dst_l:%d,dst_h:%d\n",
-                daddr_l, daddr_h);
+                t->daddr_l, t->daddr_h);
             return 0;
+        }
+
+        // Check if we can map IPv6 to IPv4
+        if (is_ipv4_mapped_ipv6(t->saddr_h, t->saddr_l, t->daddr_h, t->daddr_l)) {
+            t->metadata |= CONN_V4;
+            t->saddr_h = 0;
+            t->daddr_h = 0;
+            t->saddr_l = (u32)(t->saddr_l >> 32);
+            t->daddr_l = (u32)(t->daddr_l >> 32);
+        } else {
+            t->metadata |= CONN_V6;
         }
     }
 
     // Retrieve ports
-    bpf_probe_read(&sport, sizeof(sport), ((char*)skp) + status->offset_sport);
-    bpf_probe_read(&dport, sizeof(dport), ((char*)skp) + status->offset_dport);
+    bpf_probe_read(&t->sport, sizeof(t->sport), ((char*)skp) + status->offset_sport);
+    bpf_probe_read(&t->dport, sizeof(t->dport), ((char*)skp) + status->offset_dport);
 
-    if (sport == 0 || dport == 0) {
-        log_debug("ERR(read_conn_tuple.v4): src/dst port not set: src:%d, dst:%d\n", sport, dport);
+    if (t->sport == 0 || t->dport == 0) {
+        log_debug("ERR(read_conn_tuple.v4): src/dst port not set: src:%d, dst:%d\n", t->sport, t->dport);
         return 0;
     }
 
+    // Making ports human-readable
+    t->sport = ntohs(t->sport);
+    t->dport = ntohs(t->dport);
+
     // Retrieve network namespace id
+    possible_net_t* skc_net = NULL;
     bpf_probe_read(&skc_net, sizeof(void*), ((char*)skp) + status->offset_netns);
-    bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char*)skc_net) + status->offset_ino);
-
-    tuple->saddr_h = saddr_h;
-    tuple->saddr_l = saddr_l;
-    tuple->daddr_h = daddr_h;
-    tuple->daddr_l = daddr_l;
-    tuple->sport = sport;
-    tuple->dport = dport;
-    tuple->netns = net_ns_inum;
-    tuple->metadata = type;
-
-    // Check if we can map IPv6 to IPv4
-    if (family == CONN_V6 && is_ipv4_mapped_ipv6(saddr_h, saddr_l, daddr_h, daddr_l)) {
-        tuple->metadata |= CONN_V4;
-
-        tuple->saddr_h = 0;
-        tuple->daddr_h = 0;
-        tuple->saddr_l = (u32)(saddr_l >> 32);
-        tuple->daddr_l = (u32)(daddr_l >> 32);
-    } else {
-        tuple->metadata |= family;
-    }
+    bpf_probe_read(&t->netns, sizeof(t->netns), ((char*)skc_net) + status->offset_ino);
 
     return 1;
 }
 
 __attribute__((always_inline))
 static void update_conn_stats(
-    struct sock* sk,
-    tracer_status_t* status,
+    conn_tuple_t* t,
     u64 pid,
-    metadata_mask_t type,
-    metadata_mask_t family,
     size_t sent_bytes,
     size_t recv_bytes,
     u64 ts) {
-    conn_tuple_t t = {};
     conn_stats_ts_t* val;
 
-    if (!read_conn_tuple(&t, status, sk, type, family)) {
-        return;
-    }
-
-    t.pid = pid >> 32;
-    t.sport = ntohs(t.sport); // Making ports human-readable
-    t.dport = ntohs(t.dport);
+    t->pid = pid >> 32;
 
     // initialize-if-no-exist the connection stat, and load it
     conn_stats_ts_t empty = {};
-    bpf_map_update_elem(&conn_stats, &t, &empty, BPF_NOEXIST);
-    val = bpf_map_lookup_elem(&conn_stats, &t);
+    bpf_map_update_elem(&conn_stats, t, &empty, BPF_NOEXIST);
+    val = bpf_map_lookup_elem(&conn_stats, t);
 
     // If already in our map, increment size in-place
     if (val != NULL) {
@@ -395,26 +369,13 @@ static void update_conn_stats(
 }
 
 __attribute__((always_inline))
-static void update_tcp_stats(
-    struct sock* sk,
-    tracer_status_t* status,
-    metadata_mask_t family,
-    u32 retransmits,
-    u64 ts) {
-    conn_tuple_t t = {};
+static void update_tcp_stats(conn_tuple_t* t, u32 retransmits, u64 ts) {
     tcp_stats_t* val;
-
-    if (!read_conn_tuple(&t, status, sk, CONN_TYPE_TCP, family)) {
-        return;
-    }
-
-    t.sport = ntohs(t.sport); // Making ports human-readable
-    t.dport = ntohs(t.dport);
 
     // initialize-if-no-exist the connetion state, and load it
     tcp_stats_t empty = {};
-    bpf_map_update_elem(&tcp_stats, &t, &empty, BPF_NOEXIST);
-    val = bpf_map_lookup_elem(&tcp_stats, &t);
+    bpf_map_update_elem(&tcp_stats, t, &empty, BPF_NOEXIST);
+    val = bpf_map_lookup_elem(&tcp_stats, t);
     if (val != NULL) {
         __sync_fetch_and_add(&val->retransmits, retransmits);
     }
@@ -423,27 +384,15 @@ static void update_tcp_stats(
 __attribute__((always_inline))
 static void cleanup_tcp_conn(
     struct pt_regs* ctx,
-    struct sock* sk,
-    tracer_status_t* status,
-    u64 pid,
-    metadata_mask_t family) {
+    conn_tuple_t* tup,
+    u64 pid) {
     u32 cpu = bpf_get_smp_processor_id();
 
     // Will hold the full connection data to send through the perf buffer
-    tcp_conn_t t = {
-        .tup = (conn_tuple_t) {
-            .pid = 0,
-        },
-    };
+    tcp_conn_t t = {};
+    bpf_probe_read(&(t.tup), sizeof(conn_tuple_t), tup);
     tcp_stats_t* tst;
     conn_stats_ts_t* cst;
-
-    if (!read_conn_tuple(&(t.tup), status, sk, CONN_TYPE_TCP, family)) {
-        return;
-    }
-
-    t.tup.sport = ntohs(t.tup.sport); // Making ports human-readable
-    t.tup.dport = ntohs(t.tup.dport);
 
     tst = bpf_map_lookup_elem(&tcp_stats, &(t.tup));
     // Delete the connection from the tcp_stats map before setting the PID
@@ -470,16 +419,20 @@ static void cleanup_tcp_conn(
 
 __attribute__((always_inline))
 static int handle_message(struct sock* sk,
-    tracer_status_t* status,
     u64 pid_tgid,
     metadata_mask_t type,
     size_t sent_bytes,
     size_t recv_bytes) {
 
+    conn_tuple_t t = {};
     u64 zero = 0;
     u64 ts = bpf_ktime_get_ns();
 
-    handle_family(sk, status, update_conn_stats(sk, status, pid_tgid, type, family, sent_bytes, recv_bytes, ts));
+    if (!read_conn_tuple(&t, sk, type)) {
+        return 0;
+    }
+
+    update_conn_stats(&t, pid_tgid, sent_bytes, recv_bytes, ts);
 
     // Update latest timestamp that we've seen - for connection expiration tracking
     bpf_map_update_elem(&latest_ts, &zero, &ts, BPF_ANY);
@@ -487,10 +440,15 @@ static int handle_message(struct sock* sk,
 }
 
 __attribute__((always_inline))
-static int handle_retransmit(struct sock* sk, tracer_status_t* status) {
+static int handle_retransmit(struct sock* sk) {
+    conn_tuple_t t = {};
     u64 ts = bpf_ktime_get_ns();
 
-    handle_family(sk, status, update_tcp_stats(sk, status, family, 1, ts));
+    if (!read_conn_tuple(&t, sk, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    update_tcp_stats(&t, 1, ts);
 
     // Update latest timestamp that we've seen - for connection expiration tracking
     u64 zero = 0;
@@ -543,15 +501,9 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     size_t size = (size_t)PT_REGS_PARM3(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 zero = 0;
-
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
 
-    return handle_message(sk, status, pid_tgid, CONN_TYPE_TCP, size, 0);
+    return handle_message(sk, pid_tgid, CONN_TYPE_TCP, size, 0);
 }
 
 SEC("kretprobe/tcp_sendmsg")
@@ -584,22 +536,16 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
         return 0;
     }
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 zero = 0;
-
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
-
     log_debug("kprobe/tcp_cleanup_rbuf: pid_tgid: %d, copied: %d\n", pid_tgid, copied);
 
-    return handle_message(sk, status, pid_tgid, CONN_TYPE_TCP, 0, copied);
+    return handle_message(sk, pid_tgid, CONN_TYPE_TCP, 0, copied);
 }
 
 SEC("kprobe/tcp_close")
 int kprobe__tcp_close(struct pt_regs* ctx) {
     struct sock* sk;
     tracer_status_t* status;
+    conn_tuple_t t = {};
     u64 zero = 0;
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock*)PT_REGS_PARM1(ctx);
@@ -621,7 +567,11 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
 
     log_debug("kprobe/tcp_close: pid_tgid: %d, ns: %d\n", pid_tgid, net_ns_inum);
 
-    handle_family(sk, status, cleanup_tcp_conn(ctx, sk, status, pid_tgid, family));
+    if (!read_conn_tuple(&t, sk, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    cleanup_tcp_conn(ctx, &t, pid_tgid);
     return 0;
 }
 
@@ -645,15 +595,9 @@ int kprobe__udp_sendmsg(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     size_t size = (size_t)PT_REGS_PARM3(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 zero = 0;
 
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
-
+    handle_message(sk, pid_tgid, CONN_TYPE_UDP, size, 0);
     log_debug("kprobe/udp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
-    handle_message(sk, status, pid_tgid, CONN_TYPE_UDP, size, 0);
 
     return 0;
 }
@@ -680,7 +624,6 @@ int kprobe__udp_recvmsg(struct pt_regs* ctx) {
 SEC("kretprobe/udp_recvmsg")
 int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 zero = 0;
 
     // Retrieve socket pointer from kprobe via pid/tgid
     struct sock** skpp = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
@@ -697,12 +640,7 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
         return 0;
     }
 
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
-
-    handle_message(sk, status, pid_tgid, CONN_TYPE_UDP, 0, copied);
+    handle_message(sk, pid_tgid, CONN_TYPE_UDP, 0, copied);
 
     return 0;
 }
@@ -710,14 +648,9 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
-    u64 zero = 0;
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
     log_debug("kprobe/tcp_retransmit\n");
 
-    return handle_retransmit(sk, status);
+    return handle_retransmit(sk);
 }
 
 SEC("kretprobe/inet_csk_accept")
