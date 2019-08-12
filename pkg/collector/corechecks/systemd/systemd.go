@@ -9,7 +9,6 @@ package systemd
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -122,7 +121,6 @@ type SystemdCheck struct {
 
 type systemdInstanceConfig struct {
 	PrivateSocket     string   `yaml:"private_socket"`
-	SystemBusSocket   string   `yaml:"system_bus_socket"`
 	UnitNames         []string `yaml:"unit_names"`
 	UnitRegexStrings  []string `yaml:"unit_regexes"`
 	MaxUnits          int      `yaml:"max_units"`
@@ -236,18 +234,14 @@ func (c *SystemdCheck) getDbusConnection() (*dbus.Conn, error) {
 	var conn *dbus.Conn
 	if c.config.instance.PrivateSocket != "" {
 		conn, err = c.getPrivateSocketConnection(c.config.instance.PrivateSocket)
-	} else if c.config.instance.SystemBusSocket != "" {
-		conn, err = c.getSystemBusSocketConnection(c.config.instance.SystemBusSocket)
 	} else {
 		defaultPrivateSocket := "/run/systemd/private"
-		defaultSystemBusSocket := "/var/run/dbus/system_bus_socket"
 		if config.IsContainerized() {
 			defaultPrivateSocket = "/host" + defaultPrivateSocket
-			defaultSystemBusSocket = "/host" + defaultSystemBusSocket
 		}
 		conn, err = c.getPrivateSocketConnection(defaultPrivateSocket)
 		if err != nil {
-			conn, err = c.getSystemBusSocketConnection(defaultSystemBusSocket)
+			conn, err = c.getSystemBusSocketConnection()
 		}
 	}
 	return conn, err
@@ -261,14 +255,10 @@ func (c *SystemdCheck) getPrivateSocketConnection(privateSocket string) (*dbus.C
 	return conn, err
 }
 
-func (c *SystemdCheck) getSystemBusSocketConnection(systemBusSocket string) (*dbus.Conn, error) {
-	err := os.Setenv("DBUS_SYSTEM_BUS_ADDRESS", systemBusSocket)
-	if err != nil {
-		return nil, fmt.Errorf("error setting env: %v", err)
-	}
+func (c *SystemdCheck) getSystemBusSocketConnection() (*dbus.Conn, error) {
 	conn, err := c.stats.SystemBusSocketConnection()
 	if err != nil {
-		log.Debugf("Error getting new connection using system bus socket %s: %v", systemBusSocket, err)
+		log.Debugf("Error getting new connection using system bus socket: %v", err)
 	}
 	return conn, err
 }
@@ -504,9 +494,6 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 		return fmt.Errorf("`unit_names` and `unit_regexes` must not be both empty")
 	}
 
-	if c.config.instance.PrivateSocket != "" && c.config.instance.SystemBusSocket != "" {
-		return fmt.Errorf("`private_socket` and `system_bus_socket` should not be both provided")
-	}
 	return nil
 }
 

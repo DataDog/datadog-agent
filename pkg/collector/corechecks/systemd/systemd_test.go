@@ -136,20 +136,6 @@ func TestMissingUnitNamesOrRegexShouldRaiseError(t *testing.T) {
 	assert.EqualError(t, err, expectedErrorMsg)
 }
 
-func TestConfigurationMultipleSocketConfigShouldNotBeDefined(t *testing.T) {
-	check := SystemdCheck{}
-	rawInstanceConfig := []byte(`
-unit_names:
-- ssh.service
-private_socket: /tmp/foo
-system_bus_socket: /tmp/bar
-`)
-	err := check.Configure(rawInstanceConfig, []byte(``), "test")
-
-	expectedErrorMsg := "`private_socket` and `system_bus_socket` should not be both provided"
-	assert.EqualError(t, err, expectedErrorMsg)
-}
-
 func TestPrivateSocketConnection(t *testing.T) {
 	stats := &mockSystemdStats{}
 	stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
@@ -188,50 +174,6 @@ private_socket: /tmp/foo/private_socket
 	stats.AssertNotCalled(t, "SystemBusSocketConnection")
 }
 
-func TestSystemBusSocketConnection(t *testing.T) {
-	defer os.Unsetenv("DBUS_SYSTEM_BUS_ADDRESS")
-
-	stats := &mockSystemdStats{}
-	stats.On("SystemBusSocketConnection").Return(&dbus.Conn{}, nil)
-
-	rawInstanceConfig := []byte(`
-unit_names:
-- ssh.service
-system_bus_socket: /tmp/foo/system_bus_socket
-`)
-	check := SystemdCheck{stats: stats}
-	check.Configure(rawInstanceConfig, []byte(``), "test")
-	conn, err := check.getDbusConnection()
-
-	assert.Nil(t, err)
-	assert.NotNil(t, conn)
-	assert.Equal(t, "/tmp/foo/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
-	stats.AssertCalled(t, "SystemBusSocketConnection")
-	stats.AssertNotCalled(t, "PrivateSocketConnection")
-}
-
-func TestSystemBusSocketConnectionErrorCase(t *testing.T) {
-	defer os.Unsetenv("DBUS_SYSTEM_BUS_ADDRESS")
-
-	stats := &mockSystemdStats{}
-	stats.On("SystemBusSocketConnection").Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
-
-	rawInstanceConfig := []byte(`
-unit_names:
-- ssh.service
-system_bus_socket: /tmp/foo/system_bus_socket
-`)
-	check := SystemdCheck{stats: stats}
-	check.Configure(rawInstanceConfig, []byte(``), "test")
-	conn, err := check.getDbusConnection()
-
-	assert.EqualError(t, err, "some error")
-	assert.Equal(t, "/tmp/foo/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
-	assert.Nil(t, conn)
-	stats.AssertCalled(t, "SystemBusSocketConnection")
-	stats.AssertNotCalled(t, "PrivateSocketConnection")
-}
-
 func TestDefaultPrivateSocketConnection(t *testing.T) {
 	stats := &mockSystemdStats{}
 	stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
@@ -265,7 +207,6 @@ unit_names:
 
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
-	assert.Equal(t, "/var/run/dbus/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
 	stats.AssertCalled(t, "SystemBusSocketConnection")
 	stats.AssertNotCalled(t, "PrivateSocketConnection")
 }
@@ -289,29 +230,6 @@ unit_names:
 	assert.NotNil(t, conn)
 	stats.AssertCalled(t, "PrivateSocketConnection", "/host/run/systemd/private")
 	stats.AssertNotCalled(t, "SystemBusSocketConnection")
-}
-
-func TestDefaultDockerAgentSystemBusSocketConnection(t *testing.T) {
-	os.Setenv("DOCKER_DD_AGENT", "true")
-	defer os.Unsetenv("DOCKER_DD_AGENT")
-
-	stats := &mockSystemdStats{}
-	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
-	stats.On("SystemBusSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
-
-	rawInstanceConfig := []byte(`
-unit_names:
-- ssh.service
-`)
-	check := SystemdCheck{stats: stats}
-	check.Configure(rawInstanceConfig, []byte(``), "test")
-	conn, err := check.getDbusConnection()
-
-	assert.Nil(t, err)
-	assert.NotNil(t, conn)
-	assert.Equal(t, "/host/var/run/dbus/system_bus_socket", os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"))
-	stats.AssertCalled(t, "SystemBusSocketConnection")
-	stats.AssertNotCalled(t, "PrivateSocketConnection")
 }
 
 func TestDbusConnectionErr(t *testing.T) {
