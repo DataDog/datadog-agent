@@ -325,12 +325,15 @@ func TestCountMetrics(t *testing.T) {
 
 	rawInstanceConfig := []byte(`
 unit_names:
- - monitor_nothing
+ - unit1.service
+ - unit2.service
 `)
 	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, nil, "test")
 
 	// setup expectations
+	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, mock.Anything).Return(map[string]interface{}{}, nil)
+
 	mockSender := mocksender.NewMockSender(check.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -344,15 +347,13 @@ unit_names:
 	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, metrics.ServiceCheckOK, "", []string(nil), mock.Anything)
 	mockSender.AssertCalled(t, "ServiceCheck", systemStateServiceCheck, metrics.ServiceCheckOK, "", []string(nil), mock.Anything)
 	mockSender.AssertCalled(t, "Gauge", "systemd.units_loaded_count", float64(6), "", []string(nil))
+	mockSender.AssertCalled(t, "Gauge", "systemd.units_monitored_count", float64(2), "", []string(nil))
+	mockSender.AssertCalled(t, "Gauge", "systemd.units_total", float64(8), "", []string(nil))
 	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(3), "", []string{"state:" + "active"})
 	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(1), "", []string{"state:" + "activating"})
 	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(2), "", []string{"state:" + "inactive"})
 	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(1), "", []string{"state:" + "deactivating"})
 	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(1), "", []string{"state:" + "failed"})
-
-	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 2)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 6)
-	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
 
 func TestMetricValues(t *testing.T) {
@@ -413,10 +414,11 @@ unit_names:
 	tags = []string{"unit:unit2.service"}
 	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", float64(110), "", tags)
 
-	expectedGaugeCalls := 6     /* overall metrics */
+	expectedGaugeCalls := 8     /* overall metrics */
 	expectedGaugeCalls += 2 * 8 /* unit/service metrics */
 	mockSender.AssertNumberOfCalls(t, "Gauge", expectedGaugeCalls)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 4)
 }
 
 func TestSubmitMetricsConditionals(t *testing.T) {
