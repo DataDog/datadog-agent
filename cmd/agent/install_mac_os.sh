@@ -45,7 +45,12 @@ if [ ! $apikey ]; then
 fi
 
 # get real user (in case of sudo)
-real_user=`logname`
+real_user=`if [ $SUDO_USER ]; then
+  echo $SUDO_USER
+else
+  echo $USER
+fi`
+
 export TMPDIR=`sudo -u $real_user getconf DARWIN_USER_TEMP_DIR`
 cmd_real_user="sudo -Eu $real_user"
 
