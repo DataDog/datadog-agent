@@ -237,11 +237,12 @@ func (c *SystemdCheck) getDbusConnection() (*dbus.Conn, error) {
 	} else {
 		defaultPrivateSocket := "/run/systemd/private"
 		if config.IsContainerized() {
-			defaultPrivateSocket = "/host" + defaultPrivateSocket
-		}
-		conn, err = c.getPrivateSocketConnection(defaultPrivateSocket)
-		if err != nil && !config.IsContainerized() {
-			conn, err = c.getSystemBusSocketConnection()
+			conn, err = c.getPrivateSocketConnection("/host" + defaultPrivateSocket)
+		} else {
+			conn, err = c.getPrivateSocketConnection(defaultPrivateSocket)
+			if err != nil {
+				conn, err = c.getSystemBusSocketConnection()
+			}
 		}
 	}
 	return conn, err
