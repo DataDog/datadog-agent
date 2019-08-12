@@ -240,7 +240,7 @@ func (c *SystemdCheck) getDbusConnection() (*dbus.Conn, error) {
 			defaultPrivateSocket = "/host" + defaultPrivateSocket
 		}
 		conn, err = c.getPrivateSocketConnection(defaultPrivateSocket)
-		if err != nil {
+		if err != nil && !config.IsContainerized() {
 			conn, err = c.getSystemBusSocketConnection()
 		}
 	}

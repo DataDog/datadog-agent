@@ -28,7 +28,7 @@ type mockSystemdStats struct {
 func createDefaultMockSystemdStats() *mockSystemdStats {
 	stats := &mockSystemdStats{}
 	stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
-	stats.On("SystemBusSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+	stats.On("SystemBusSocketConnection").Return(&dbus.Conn{}, nil)
 	stats.On("SystemState", mock.Anything).Return(&dbus.Property{Name: "SystemState", Value: godbus.MakeVariant("running")}, nil)
 	return stats
 }
@@ -195,7 +195,7 @@ unit_names:
 func TestDefaultSystemBusSocketConnection(t *testing.T) {
 	stats := &mockSystemdStats{}
 	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
-	stats.On("SystemBusSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+	stats.On("SystemBusSocketConnection").Return(&dbus.Conn{}, nil)
 
 	rawInstanceConfig := []byte(`
 unit_names:
@@ -207,8 +207,8 @@ unit_names:
 
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
+	stats.AssertCalled(t, "PrivateSocketConnection", "/run/systemd/private")
 	stats.AssertCalled(t, "SystemBusSocketConnection")
-	stats.AssertNotCalled(t, "PrivateSocketConnection")
 }
 
 func TestDefaultDockerAgentPrivateSocketConnection(t *testing.T) {
@@ -228,6 +228,27 @@ unit_names:
 
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
+	stats.AssertCalled(t, "PrivateSocketConnection", "/host/run/systemd/private")
+	stats.AssertNotCalled(t, "SystemBusSocketConnection")
+}
+
+func TestDefaultDockerAgentSystemBusSocketConnectionNotCalled(t *testing.T) {
+	os.Setenv("DOCKER_DD_AGENT", "true")
+	defer os.Unsetenv("DOCKER_DD_AGENT")
+	stats := &mockSystemdStats{}
+	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("SystemBusSocketConnection").Return(&dbus.Conn{}, nil)
+
+	rawInstanceConfig := []byte(`
+unit_names:
+- ssh.service
+`)
+	check := SystemdCheck{stats: stats}
+	check.Configure(rawInstanceConfig, []byte(``), "test")
+	conn, err := check.getDbusConnection()
+
+	assert.NotNil(t, err)
+	assert.Nil(t, conn)
 	stats.AssertCalled(t, "PrivateSocketConnection", "/host/run/systemd/private")
 	stats.AssertNotCalled(t, "SystemBusSocketConnection")
 }
