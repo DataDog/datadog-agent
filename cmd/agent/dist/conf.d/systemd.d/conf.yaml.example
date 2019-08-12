@@ -12,10 +12,6 @@ instances:
     ## @param unit_regexes - list of strings - required if unit_names is not set
     ## Regex pattern[s] matching the names of units to monitor.
     ## Either `unit_names` or `unit_regexes` must be specified.
-    ##
-    ## If the number of units managed by systemd is unbounded, it might increase
-    ## the number of custom metrics send by this check which may impact your billing.
-    ## Learn more about custom metrics: https://docs.datadoghq.com/developers/metrics/custom_metrics/#how-is-a-custom-metric-defined
     #
     # unit_regexes:
     #   - ^<UNIT_NAME>$        # match exactly the unit name "<UNIT_NAME>"
