@@ -25,6 +25,14 @@ func TestUbuntu44119NotSupported(t *testing.T) {
 	}
 }
 
+func TestLinuxAWSPreceding441060NotSupported(t *testing.T) {
+	for i := uint32(120); i < 128; i++ {
+		ok, err := verifyOSVersion(linuxKernelVersionCode(4, 4, i), "Linux-4.4.0-1060-aws", nil)
+		assert.False(t, ok)
+		assert.NotEmpty(t, err)
+	}
+}
+
 func TestExcludedKernelVersion(t *testing.T) {
 	exclusionList := []string{"5.5.1", "6.3.2"}
 	ok, err := verifyOSVersion(linuxKernelVersionCode(4, 4, 121), "ubuntu", exclusionList)

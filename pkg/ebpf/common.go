@@ -89,6 +89,10 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 		if kernelCode >= linuxKernelVersionCode(4, 4, 119) && kernelCode <= linuxKernelVersionCode(4, 4, 126) {
 			return false, fmt.Sprintf("got ubuntu kernel %s with known bug on platform: %s, see: https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCodeToString(kernelCode), platform)
 		}
+	} else if isLinuxAWS(platform) {
+		if kernelCode < linuxKernelVersionCode(4, 4, 128) {
+			return false, fmt.Sprintf("Known bug on %s, see: \n- https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454\n- https://launchpad.net/ubuntu/xenial/+source/linux-aws/+changelog#linux-aws_4.4.0-1060.69", platform)
+		}
 	}
 
 	missing, err := verifyKernelFuncs(path.Join(util.GetProcRoot(), "kallsyms"))
@@ -158,4 +162,8 @@ func init() {
 
 func isUbuntu(platform string) bool {
 	return strings.Contains(platform, "ubuntu")
+}
+
+func isLinuxAWS(platform string) bool {
+	return strings.Contains(platform, "aws")
 }
