@@ -223,19 +223,24 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 func getCheckMemoryStatus(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	component := vars["component"]
+
+	w.Header().Set("Content-Type", "application/json")
 	switch component {
 	case "py":
 		jsonStatus, err := status.GetPythonCheckMemoryUsage(common.Coll)
 		if err != nil {
-			log.Errorf("unable to collect python check memory usage: %s", err.Error())
-			http.Error(w, err.Error(), 500)
+			log.Errorf("Unable to collect python check memory usage: %s", err.Error())
+			body, _ := json.Marshal(map[string]string{"error": err.Error()})
+			http.Error(w, string(body), 500)
+			return
 		}
 
 		w.Write(jsonStatus)
 	default:
-		err := fmt.Errorf("bad url or resource does not exist")
-		log.Errorf("%s", err.Error())
-		http.Error(w, err.Error(), 404)
+		err := fmt.Errorf("Bad url or resource does not exist")
+		log.Errorf("Unable to get check memory status: %s", err.Error())
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 404)
 	}
 }
 
