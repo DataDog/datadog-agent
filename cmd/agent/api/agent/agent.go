@@ -16,7 +16,6 @@ import (
 
 	"github.com/gorilla/mux"
 
-	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
@@ -37,7 +36,7 @@ import (
 
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(r *mux.Router) {
-	r.HandleFunc("/version", apicommon.GetVersion).Methods("GET")
+	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")

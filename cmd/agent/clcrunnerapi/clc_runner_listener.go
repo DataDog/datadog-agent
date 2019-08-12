@@ -3,7 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-package api
+/*
+Package clcrunnerapi implements the clc runner IPC api. Using HTTP
+calls, the cluster Agent collects stats to optimize the cluster level checks dispatching.
+*/
+package clcrunnerapi
 
 import (
 	"fmt"

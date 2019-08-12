@@ -9,6 +9,8 @@ package common
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
@@ -18,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
@@ -56,4 +59,12 @@ func GetPythonPaths() []string {
 		filepath.Join(GetDistPath(), "checks.d"),       // custom checks in the "checks.d/" sub-dir of the dist path
 		config.Datadog.GetString("additional_checksd"), // custom checks, least precedent check location
 	}
+}
+
+// GetVersion returns the version of the agent in a http response json
+func GetVersion(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	av, _ := version.New(version.AgentVersion, version.Commit)
+	j, _ := json.Marshal(av)
+	w.Write(j)
 }

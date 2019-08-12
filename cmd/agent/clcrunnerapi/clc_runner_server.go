@@ -4,11 +4,10 @@
 // Copyright 2016-2019 Datadog, Inc.
 
 /*
-Package api implements the agent IPC api. Using HTTP
-calls, it's possible to communicate with the agent,
-sending commands and receiving infos.
+Package clcrunnerapi implements the clc runner IPC api. Using HTTP
+calls, the cluster Agent collects stats to optimize the cluster level checks dispatching.
 */
-package api
+package clcrunnerapi
 
 import (
 	"crypto/tls"
@@ -20,7 +19,7 @@ import (
 	"net/http"
 	"time"
 
-	v1 "github.com/DataDog/datadog-agent/cmd/agent/api/v1"
+	v1 "github.com/DataDog/datadog-agent/cmd/agent/clcrunnerapi/v1"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"

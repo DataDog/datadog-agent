@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
