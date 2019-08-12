@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"math"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -64,6 +65,14 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 }
 
 func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
+	if bucket.Value < 0 {
+		log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
+		return
+	}
+	if bucket.Value == 0 {
+		// noop
+		return
+	}
 	contextKey := cs.contextResolver.trackContext(bucket, bucket.Timestamp)
 
 	// if we already saw the bucket we only send the delta
@@ -77,6 +86,10 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 	cs.lastSeenBucket[contextKey] = time.Now()
 
 	// simple linear interpolation, TODO: optimize
+	if math.IsInf(bucket.UpperBound, 1) {
+		// Arbitrarily double the lower bucket value for interpolation over infinity bucket
+		bucket.UpperBound = bucket.LowerBound * 2
+	}
 	bucketRange := bucket.UpperBound - bucket.LowerBound
 	if bucketRange < 0 {
 		log.Warnf(
@@ -85,18 +98,16 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		)
 		return
 	}
-	if bucket.Value < 0 {
-		log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
-		return
-	}
 	linearIncr := bucketRange / float64(bucket.Value)
 	currentVal := bucket.LowerBound
+	log.Tracef(
+		"Interpolating %d buckets over [%f-%f] with %f increment",
+		bucket.Value, bucket.LowerBound, bucket.UpperBound, linearIncr,
+	)
 	for i := 0; i < bucket.Value; i++ {
 		cs.sketchMap.insert(int64(bucket.Timestamp), contextKey, currentVal)
 		currentVal += linearIncr
 	}
-
-	log.Errorf("Adding bucket %v", bucket)
 }
 
 func (cs *CheckSampler) commitSeries(timestamp float64) {
