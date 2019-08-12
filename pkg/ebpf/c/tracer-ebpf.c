@@ -418,21 +418,15 @@ static void cleanup_tcp_conn(
 }
 
 __attribute__((always_inline))
-static int handle_message(struct sock* sk,
+static int handle_message(conn_tuple_t* t,
     u64 pid_tgid,
-    metadata_mask_t type,
     size_t sent_bytes,
     size_t recv_bytes) {
 
-    conn_tuple_t t = {};
     u64 zero = 0;
     u64 ts = bpf_ktime_get_ns();
 
-    if (!read_conn_tuple(&t, sk, type)) {
-        return 0;
-    }
-
-    update_conn_stats(&t, pid_tgid, sent_bytes, recv_bytes, ts);
+    update_conn_stats(t, pid_tgid, sent_bytes, recv_bytes, ts);
 
     // Update latest timestamp that we've seen - for connection expiration tracking
     bpf_map_update_elem(&latest_ts, &zero, &ts, BPF_ANY);
@@ -501,9 +495,15 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     size_t size = (size_t)PT_REGS_PARM3(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
 
-    return handle_message(sk, pid_tgid, CONN_TYPE_TCP, size, 0);
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    return handle_message(&t, pid_tgid, size, 0);
 }
 
 SEC("kretprobe/tcp_sendmsg")
@@ -536,9 +536,15 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
         return 0;
     }
     u64 pid_tgid = bpf_get_current_pid_tgid();
+
     log_debug("kprobe/tcp_cleanup_rbuf: pid_tgid: %d, copied: %d\n", pid_tgid, copied);
 
-    return handle_message(sk, pid_tgid, CONN_TYPE_TCP, 0, copied);
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    return handle_message(&t, pid_tgid, 0, copied);
 }
 
 SEC("kprobe/tcp_close")
@@ -596,7 +602,12 @@ int kprobe__udp_sendmsg(struct pt_regs* ctx) {
     size_t size = (size_t)PT_REGS_PARM3(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
-    handle_message(sk, pid_tgid, CONN_TYPE_UDP, size, 0);
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, CONN_TYPE_UDP)) {
+        return 0;
+    }
+
+    handle_message(&t, pid_tgid, size, 0);
     log_debug("kprobe/udp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
 
     return 0;
@@ -640,7 +651,12 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
         return 0;
     }
 
-    handle_message(sk, pid_tgid, CONN_TYPE_UDP, 0, copied);
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, CONN_TYPE_UDP)) {
+        return 0;
+    }
+
+    handle_message(&t, pid_tgid, 0, copied);
 
     return 0;
 }
