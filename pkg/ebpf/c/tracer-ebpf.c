@@ -369,15 +369,23 @@ static void update_conn_stats(
 }
 
 __attribute__((always_inline))
-static void update_tcp_stats(conn_tuple_t* t, u32 retransmits, u64 ts) {
-    tcp_stats_t* val;
-
+static void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
     // initialize-if-no-exist the connetion state, and load it
     tcp_stats_t empty = {};
     bpf_map_update_elem(&tcp_stats, t, &empty, BPF_NOEXIST);
-    val = bpf_map_lookup_elem(&tcp_stats, t);
-    if (val != NULL) {
-        __sync_fetch_and_add(&val->retransmits, retransmits);
+
+    tcp_stats_t* val = bpf_map_lookup_elem(&tcp_stats, t);
+    if (val == NULL) {
+        return;
+    }
+
+    if (stats.retransmits > 0) {
+        __sync_fetch_and_add(&val->retransmits, stats.retransmits);
+    }
+
+    if (stats.rtt > 0) {
+        val->rtt = stats.rtt;
+        val->rtt_var = stats.rtt_var;
     }
 }
 
@@ -442,12 +450,30 @@ static int handle_retransmit(struct sock* sk) {
         return 0;
     }
 
-    update_tcp_stats(&t, 1, ts);
+    tcp_stats_t stats = { .retransmits = 1, .rtt = 0, .rtt_var = 0 };
+    update_tcp_stats(&t, stats);
 
     // Update latest timestamp that we've seen - for connection expiration tracking
     u64 zero = 0;
     bpf_map_update_elem(&latest_ts, &zero, &ts, BPF_ANY);
     return 0;
+}
+
+__attribute__((always_inline))
+static void handle_tcp_stats(conn_tuple_t* t, struct sock* sk) {
+    u32 zero = 0;
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL) {
+        return;
+    }
+
+    u32 rtt = 0, rtt_var = 0;
+    bpf_probe_read(&rtt, sizeof(rtt), ((char*)sk) + status->offset_rtt);
+    bpf_probe_read(&rtt_var, sizeof(rtt_var), ((char*)sk) + status->offset_rtt_var);
+
+    tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
+    update_tcp_stats(t, stats);
+    return;
 }
 
 // Used for offset guessing (see: pkg/offsetguess.go)
@@ -503,6 +529,7 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
+    handle_tcp_stats(&t, sk);
     return handle_message(&t, pid_tgid, size, 0);
 }
 
