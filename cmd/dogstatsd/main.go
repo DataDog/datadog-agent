@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -68,8 +67,6 @@ extensions for special Datadog features.`,
 )
 
 const (
-	// run the host metadata collector every 14400 seconds (4 hours)
-	hostMetadataCollectorInterval = 14400
 	// loggerName is the name of the dogstatsd logger
 	loggerName config.LoggerName = "DSD"
 )
@@ -168,19 +165,10 @@ func start(cmd *cobra.Command, args []string) error {
 	log.Debugf("Using hostname: %s", hname)
 
 	// setup the metadata collector
-	var metaScheduler *metadata.Scheduler
-	if config.Datadog.GetBool("enable_metadata_collection") {
-		// start metadata collection
-		metaScheduler = metadata.NewScheduler(s, hname)
-
-		// add the host metadata collector
-		err = metaScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
-		if err != nil {
-			metaScheduler.Stop()
-			return log.Error("Host metadata is supposed to be always available in the catalog!")
-		}
-	} else {
-		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
+	metaScheduler := metadata.NewScheduler(s, hname)
+	if err := metadata.SetupMetadataCollection(metaScheduler, []string{"host"}); err != nil {
+		metaScheduler.Stop()
+		return err
 	}
 
 	// container tagging initialisation if origin detection is on
@@ -214,9 +202,7 @@ func start(cmd *cobra.Command, args []string) error {
 	// gracefully shut down any component
 	mainCtxCancel()
 
-	if metaScheduler != nil {
-		metaScheduler.Stop()
-	}
+	metaScheduler.Stop()
 	statsd.Stop()
 	log.Info("See ya!")
 	log.Flush()
