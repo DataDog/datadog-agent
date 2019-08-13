@@ -36,6 +36,9 @@ func GetHostname() (string, error) {
 	return getMetadataItemWithMaxLength("/hostname", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 }
 
+// GetNetworkID retrieves the network ID using the EC2 metadata endpoint. For
+// EC2 instances, the the network ID is the VPC ID, if the instance is found to
+// be a part of exactly one VPC.
 func GetNetworkID() (string, error) {
 	resp, err := getMetadataItem("/network/interfaces/macs")
 	if err != nil {

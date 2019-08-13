@@ -77,6 +77,9 @@ func GetClusterName() (string, error) {
 	return clusterName, nil
 }
 
+// GetNetworkID retrieves the network ID using the metadata endpoint. For
+// GCE instances, the the network ID is the VPC ID, if the instance is found to
+// be a part of exactly one VPC.
 func GetNetworkID() (string, error) {
 	resp, err := getResponse(metadataURL + "/instance/network-interfaces/")
 	if err != nil {

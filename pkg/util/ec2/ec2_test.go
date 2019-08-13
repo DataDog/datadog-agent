@@ -120,7 +120,6 @@ func TestGetNetworkID(t *testing.T) {
 			io.WriteString(w, vpc)
 		default:
 			w.WriteHeader(http.StatusNotFound)
-			fmt.Printf("error %v\n", r.RequestURI)
 		}
 	}))
 
@@ -130,4 +129,44 @@ func TestGetNetworkID(t *testing.T) {
 	val, err := GetNetworkID()
 	assert.NoError(t, err)
 	assert.Equal(t, vpc, val)
+}
+
+func TestGetInstanceIDNoMac(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusNotFound)
+	}))
+
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	_, err := GetNetworkID()
+	assert.Error(t, err)
+}
+
+func TestGetInstanceIDMultipleVPC(t *testing.T) {
+	mac := "00:00:00:00:00"
+	vpc := "vpc-12345"
+	mac2 := "00:00:00:00:01"
+	vpc2 := "vpc-6789"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.RequestURI {
+		case "/network/interfaces/macs":
+			io.WriteString(w, mac+"/\n")
+			io.WriteString(w, mac2+"/\n")
+		case "/network/interfaces/macs/00:00:00:00:00/vpc-id":
+			io.WriteString(w, vpc)
+		case "/network/interfaces/macs/00:00:00:00:01/vpc-id":
+			io.WriteString(w, vpc2)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	_, err := GetNetworkID()
+	assert.Error(t, err)
 }
