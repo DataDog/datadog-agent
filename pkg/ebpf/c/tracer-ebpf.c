@@ -265,13 +265,7 @@ static bool is_ipv6_enabled(tracer_status_t* status) {
 }
 
 __attribute__((always_inline))
-static int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
-    u64 zero = 0;
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
-
+static int read_conn_tuple(conn_tuple_t* t, tracer_status_t* status, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     t->saddr_h = 0;
     t->saddr_l = 0;
     t->daddr_h = 0;
@@ -433,12 +427,12 @@ static int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes)
 }
 
 __attribute__((always_inline))
-static int handle_retransmit(struct sock* sk) {
+static int handle_retransmit(struct sock* sk, tracer_status_t* status) {
     conn_tuple_t t = {};
     u64 ts = bpf_ktime_get_ns();
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 zero = 0;
 
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, status, sk, zero, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -446,19 +440,12 @@ static int handle_retransmit(struct sock* sk) {
     update_tcp_stats(&t, stats);
 
     // Update latest timestamp that we've seen - for connection expiration tracking
-    u64 zero = 0;
     bpf_map_update_elem(&latest_ts, &zero, &ts, BPF_ANY);
     return 0;
 }
 
 __attribute__((always_inline))
-static void handle_tcp_stats(conn_tuple_t* t, struct sock* sk) {
-    u32 zero = 0;
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return;
-    }
-
+static void handle_tcp_stats(conn_tuple_t* t, tracer_status_t* status, struct sock* sk) {
     u32 rtt = 0, rtt_var = 0;
     bpf_probe_read(&rtt, sizeof(rtt), ((char*)sk) + status->offset_rtt);
     bpf_probe_read(&rtt_var, sizeof(rtt_var), ((char*)sk) + status->offset_rtt_var);
@@ -513,15 +500,20 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     size_t size = (size_t)PT_REGS_PARM3(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 zero = 0;
 
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL) {
+        return 0;
+    }
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
-    handle_tcp_stats(&t, sk);
+    handle_tcp_stats(&t, status, sk);
     return handle_message(&t, size, 0);
 }
 
@@ -555,11 +547,17 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
         return 0;
     }
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 zero = 0;
+
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL) {
+        return 0;
+    }
 
     log_debug("kprobe/tcp_cleanup_rbuf: pid_tgid: %d, copied: %d\n", pid_tgid, copied);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -592,7 +590,7 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
 
     log_debug("kprobe/tcp_close: pid_tgid: %d, ns: %d\n", pid_tgid, net_ns_inum);
 
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -620,14 +618,20 @@ int kprobe__udp_sendmsg(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     size_t size = (size_t)PT_REGS_PARM3(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 zero = 0;
 
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL) {
         return 0;
     }
 
-    handle_message(&t, size, 0);
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_UDP)) {
+        return 0;
+    }
+
     log_debug("kprobe/udp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    handle_message(&t, size, 0);
 
     return 0;
 }
@@ -654,6 +658,7 @@ int kprobe__udp_recvmsg(struct pt_regs* ctx) {
 SEC("kretprobe/udp_recvmsg")
 int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 zero = 0;
 
     // Retrieve socket pointer from kprobe via pid/tgid
     struct sock** skpp = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
@@ -670,8 +675,13 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
         return 0;
     }
 
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL) {
+        return 0;
+    }
+
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_UDP)) {
         return 0;
     }
 
@@ -683,9 +693,14 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    u64 zero = 0;
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL) {
+        return 0;
+    }
     log_debug("kprobe/tcp_retransmit\n");
 
-    return handle_retransmit(sk);
+    return handle_retransmit(sk, status);
 }
 
 SEC("kretprobe/inet_csk_accept")
