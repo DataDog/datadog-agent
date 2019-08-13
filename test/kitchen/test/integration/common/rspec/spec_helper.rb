@@ -529,7 +529,12 @@ shared_examples_for 'an Agent with APM enabled' do
     output = `powershell -command "(New-Object System.Security.Principal.NTAccount('#{uname}')).Translate([System.Security.Principal.SecurityIdentifier]).value"`.strip
     output
   end 
-  
+
+  def get_service_sid(svcname)
+    output = `powershell -command "[string]$rawsid = & sc.exe showsid #{svcname} | Select-String \\\"SERVICE SID\\\"; $rawsid.split(\\\":\\\")[1].Trim()\"`.strip
+    output
+  end
+
   def get_sddl_for_object(name) 
     cmd = "powershell -command \"get-acl -Path \\\"#{name}\\\" | format-list -Property sddl\""
     outp = `#{cmd}`.gsub("\n", "").gsub(" ", "")
@@ -613,7 +618,7 @@ shared_examples_for 'an Agent with APM enabled' do
   def get_username_from_tasklist(exename)
     # output of tasklist command is
     # Image Name  PID  Session Name  Session#  Mem Usage Status  User Name  CPU Time  Window Title
-    output = `tasklist /v /fi "imagename eq #{exename}" /nh`.gsub("\n", "").gsub("NT AUTHORITY", "NT_AUTHORITY")
+    output = `tasklist /v /fi "imagename eq #{exename}" /nh`.gsub("\n", "").gsub("NT AUTHORITY", "NT_AUTHORITY").gsub("LOCAL SERVICE", "LOCAL_SERVICE")
   
     # for the above, the system user comes out as "NT AUTHORITY\System", which confuses the split 
     # below.  So special case it, and get rid of the space
