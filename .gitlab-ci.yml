@@ -264,6 +264,10 @@ build_puppy_agent-deb_arm_v7:
   tags: [ "runner:main", "size:large" ]
   script:
     - GOOS=linux GOARCH=arm GOARM=7 inv -e agent.build --puppy
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
 
 
 # build dogstatsd for deb-x64
