@@ -165,6 +165,12 @@ api_key:
 ## Advanced Configuration ##
 ############################
 
+## @param python_version - integer - optional - default: 2
+## The major version of Python used to run integrations and custom checks.
+## The only supported values are 2 (to use Python 2) or 3 (to use Python 3).
+#
+# python_version: 2
+
 ## @param confd_path - string - optional
 ## The path containing check configuration files. By default, uses the conf.d folder
 ## located in the Agent configuration folder.
