@@ -40,6 +40,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     bool isDC = isDomainController(hInstall);
     if(!isDC)
     {
+        sid = GetSidForUser(NULL, L"NT Service\\datadogagent");
         int nErr = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
         if (nErr != NERR_Success) {
             WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
@@ -177,7 +178,7 @@ extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall) {
     HRESULT hr = WcaInitialize(hInstall, "CA: DoRollback");
     UINT er = 0;
     ExitOnFailure(hr, "Failed to initialize");
-
+    initializeStringsFromStringTable();
     WcaLog(LOGMSG_STANDARD, "Initialized.");
 
 #ifdef _DEBUG
@@ -192,6 +193,13 @@ extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall) {
         DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
         dir_to_delete = installdir + L"embedded3";
         DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
+
+        // remove the symlink
+        std::wstring embedded = installdir + L"\\embedded";
+        RemoveDirectory(embedded.c_str());
+
+        // delete the auth token filename altogether
+        DeleteFile(authtokenfilename.c_str());
     }
 LExit:
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;

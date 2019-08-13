@@ -163,7 +163,8 @@ DWORD addDdUserPermsToFile(const wchar_t** usernames, std::wstring &filename)
     {
         PSID  usersid = GetSidForUser(NULL, usernames[i]);
         
-        storedEas[i].BuildGrantUser((SID *)usersid, GENERIC_ALL | KEY_ALL_ACCESS,SUB_CONTAINERS_AND_OBJECTS_INHERIT);
+        storedEas[i].BuildGrantUser((SID *)usersid, FILE_ALL_ACCESS,
+                          SUB_CONTAINERS_AND_OBJECTS_INHERIT);
         acl.AddToArray(storedEas[i]);
     }
 
