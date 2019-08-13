@@ -265,7 +265,7 @@ static bool is_ipv6_enabled(tracer_status_t* status) {
 }
 
 __attribute__((always_inline))
-static int read_conn_tuple(conn_tuple_t* t, struct sock* skp, metadata_mask_t type) {
+static int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     u64 zero = 0;
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
     if (status == NULL) {
@@ -278,7 +278,7 @@ static int read_conn_tuple(conn_tuple_t* t, struct sock* skp, metadata_mask_t ty
     t->daddr_l = 0;
     t->sport = 0;
     t->dport = 0;
-    t->pid = 0;
+    t->pid = pid_tgid >> 32;
     t->metadata = type;
 
     // Retrieve addresses
@@ -345,15 +345,8 @@ static int read_conn_tuple(conn_tuple_t* t, struct sock* skp, metadata_mask_t ty
 }
 
 __attribute__((always_inline))
-static void update_conn_stats(
-    conn_tuple_t* t,
-    u64 pid,
-    size_t sent_bytes,
-    size_t recv_bytes,
-    u64 ts) {
+static void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, u64 ts) {
     conn_stats_ts_t* val;
-
-    t->pid = pid >> 32;
 
     // initialize-if-no-exist the connection stat, and load it
     conn_stats_ts_t empty = {};
@@ -370,11 +363,16 @@ static void update_conn_stats(
 
 __attribute__((always_inline))
 static void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
+    // query stats without the PID from the tuple
+    u32 pid = t->pid;
+    t->pid = 0;
+
     // initialize-if-no-exist the connetion state, and load it
     tcp_stats_t empty = {};
     bpf_map_update_elem(&tcp_stats, t, &empty, BPF_NOEXIST);
 
     tcp_stats_t* val = bpf_map_lookup_elem(&tcp_stats, t);
+    t->pid = pid;
     if (val == NULL) {
         return;
     }
@@ -390,51 +388,44 @@ static void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
 }
 
 __attribute__((always_inline))
-static void cleanup_tcp_conn(
-    struct pt_regs* ctx,
-    conn_tuple_t* tup,
-    u64 pid) {
+static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
     u32 cpu = bpf_get_smp_processor_id();
 
     // Will hold the full connection data to send through the perf buffer
-    tcp_conn_t t = {};
-    bpf_probe_read(&(t.tup), sizeof(conn_tuple_t), tup);
+    tcp_conn_t conn = {};
+    bpf_probe_read(&(conn.tup), sizeof(conn_tuple_t), tup);
     tcp_stats_t* tst;
     conn_stats_ts_t* cst;
 
-    tst = bpf_map_lookup_elem(&tcp_stats, &(t.tup));
-    // Delete the connection from the tcp_stats map before setting the PID
-    bpf_map_delete_elem(&tcp_stats, &(t.tup));
+    // TCP stats don't have the PID
+    conn.tup.pid = 0;
+    tst = bpf_map_lookup_elem(&tcp_stats, &(conn.tup));
+    bpf_map_delete_elem(&tcp_stats, &(conn.tup));
+    conn.tup.pid = tup->pid;
 
-    t.tup.pid = pid >> 32;
-
-    cst = bpf_map_lookup_elem(&conn_stats, &(t.tup));
+    cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
     // Delete this connection from our stats map
-    bpf_map_delete_elem(&conn_stats, &(t.tup));
+    bpf_map_delete_elem(&conn_stats, &(conn.tup));
 
     if (tst != NULL) {
-        t.tcp_stats = *tst;
+        conn.tcp_stats = *tst;
     }
 
     if (cst != NULL) {
         cst->timestamp = bpf_ktime_get_ns();
-        t.conn_stats = *cst;
+        conn.conn_stats = *cst;
     }
 
     // Send the connection data to the perf buffer
-    bpf_perf_event_output(ctx, &tcp_close_event, cpu, &t, sizeof(t));
+    bpf_perf_event_output(ctx, &tcp_close_event, cpu, &conn, sizeof(conn));
 }
 
 __attribute__((always_inline))
-static int handle_message(conn_tuple_t* t,
-    u64 pid_tgid,
-    size_t sent_bytes,
-    size_t recv_bytes) {
-
+static int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes) {
     u64 zero = 0;
     u64 ts = bpf_ktime_get_ns();
 
-    update_conn_stats(t, pid_tgid, sent_bytes, recv_bytes, ts);
+    update_conn_stats(t, sent_bytes, recv_bytes, ts);
 
     // Update latest timestamp that we've seen - for connection expiration tracking
     bpf_map_update_elem(&latest_ts, &zero, &ts, BPF_ANY);
@@ -445,8 +436,9 @@ __attribute__((always_inline))
 static int handle_retransmit(struct sock* sk) {
     conn_tuple_t t = {};
     u64 ts = bpf_ktime_get_ns();
+    u64 pid_tgid = bpf_get_current_pid_tgid();
 
-    if (!read_conn_tuple(&t, sk, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -525,12 +517,12 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
     handle_tcp_stats(&t, sk);
-    return handle_message(&t, pid_tgid, size, 0);
+    return handle_message(&t, size, 0);
 }
 
 SEC("kretprobe/tcp_sendmsg")
@@ -567,11 +559,11 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
     log_debug("kprobe/tcp_cleanup_rbuf: pid_tgid: %d, copied: %d\n", pid_tgid, copied);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
-    return handle_message(&t, pid_tgid, 0, copied);
+    return handle_message(&t, 0, copied);
 }
 
 SEC("kprobe/tcp_close")
@@ -600,11 +592,11 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
 
     log_debug("kprobe/tcp_close: pid_tgid: %d, ns: %d\n", pid_tgid, net_ns_inum);
 
-    if (!read_conn_tuple(&t, sk, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
-    cleanup_tcp_conn(ctx, &t, pid_tgid);
+    cleanup_tcp_conn(ctx, &t);
     return 0;
 }
 
@@ -630,11 +622,11 @@ int kprobe__udp_sendmsg(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, CONN_TYPE_UDP)) {
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
         return 0;
     }
 
-    handle_message(&t, pid_tgid, size, 0);
+    handle_message(&t, size, 0);
     log_debug("kprobe/udp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
 
     return 0;
@@ -679,11 +671,11 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
     }
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, CONN_TYPE_UDP)) {
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
         return 0;
     }
 
-    handle_message(&t, pid_tgid, 0, copied);
+    handle_message(&t, 0, copied);
 
     return 0;
 }
