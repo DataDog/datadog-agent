@@ -258,6 +258,14 @@ build_puppy_agent-deb_x64_arm:
   script:
     - GOOS=linux GOARCH=arm inv -e agent.build --puppy
 
+build_puppy_agent-deb_arm_v7:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - GOOS=linux GOARCH=arm GOARM=7 inv -e agent.build --puppy
+
+
 # build dogstatsd for deb-x64
 build_dogstatsd-deb_x64:
   stage: binary_build
