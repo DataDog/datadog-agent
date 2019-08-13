@@ -357,16 +357,18 @@ func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
+	ts := r.tagStats(req)
 	traceCount := traceCount(req)
+
 	if !r.RateLimiter.Permits(traceCount) {
+		// this payload can not be accepted
 		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(r.rateLimiterResponse)
 		r.replyOK(v, w)
-		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, nil, 1)
+		atomic.AddInt64(&ts.PayloadRefused, 1)
 		return
 	}
 
-	ts := r.tagStats(req)
 	traces, err := r.decodeTraces(v, req)
 	if err != nil {
 		httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)

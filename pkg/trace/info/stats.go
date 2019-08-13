@@ -140,6 +140,7 @@ func (ts *TagStats) publish() {
 	eventsExtracted := atomic.LoadInt64(&ts.EventsExtracted)
 	eventsSampled := atomic.LoadInt64(&ts.EventsSampled)
 	requestsMade := atomic.LoadInt64(&ts.PayloadAccepted)
+	requestsRejected := atomic.LoadInt64(&ts.PayloadRefused)
 
 	// Publish the stats
 	tags := ts.Tags.toArray()
@@ -159,6 +160,7 @@ func (ts *TagStats) publish() {
 	metrics.Count("datadog.trace_agent.receiver.events_extracted", eventsExtracted, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.payload_accepted", requestsMade, tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.payload_refused", requestsRejected, tags, 1)
 
 	for reason, count := range ts.TracesDropped.tagValues() {
 		metrics.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:"+reason), 1)
@@ -301,6 +303,8 @@ type Stats struct {
 	EventsSampled int64
 	// PayloadAccepted counts the number of payloads that have been accepted by the HTTP handler.
 	PayloadAccepted int64
+	// PayloadRefused counts the number of payloads that have been rejected by the rate limiter.
+	PayloadRefused int64
 }
 
 func (s *Stats) update(recent *Stats) {
@@ -337,6 +341,7 @@ func (s *Stats) update(recent *Stats) {
 	atomic.AddInt64(&s.EventsExtracted, atomic.LoadInt64(&recent.EventsExtracted))
 	atomic.AddInt64(&s.EventsSampled, atomic.LoadInt64(&recent.EventsSampled))
 	atomic.AddInt64(&s.PayloadAccepted, atomic.LoadInt64(&recent.PayloadAccepted))
+	atomic.AddInt64(&s.PayloadRefused, atomic.LoadInt64(&recent.PayloadRefused))
 }
 
 func (s *Stats) reset() {
@@ -371,6 +376,7 @@ func (s *Stats) reset() {
 	atomic.StoreInt64(&s.EventsExtracted, 0)
 	atomic.StoreInt64(&s.EventsSampled, 0)
 	atomic.StoreInt64(&s.PayloadAccepted, 0)
+	atomic.StoreInt64(&s.PayloadRefused, 0)
 }
 
 func (s *Stats) isEmpty() bool {
