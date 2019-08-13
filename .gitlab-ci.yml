@@ -267,7 +267,7 @@ build_puppy_agent-deb_arm_v7:
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR
+      - $SRC_PATH/$AGENT_BINARIES_DIR/agent
 
 
 # build dogstatsd for deb-x64
