@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix 'Error code "413 Request Entity Too Large" received while sending transaction to "https://dd.agent.datadoghq.eu/api/v1/check_run?api_key=*************************28e95": Payload too big, dropping it'
