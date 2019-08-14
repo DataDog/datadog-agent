@@ -160,16 +160,18 @@ api_key:
 
 {{ end }}
 {{- if .Agent }}
-
-############################
-## Advanced Configuration ##
-############################
-
+{{- if .BothPythonPresent -}}
 ## @param python_version - integer - optional - default: 2
 ## The major version of Python used to run integrations and custom checks.
 ## The only supported values are 2 (to use Python 2) or 3 (to use Python 3).
 #
 # python_version: 2
+
+{{ end }}
+
+############################
+## Advanced Configuration ##
+############################
 
 ## @param confd_path - string - optional
 ## The path containing check configuration files. By default, uses the conf.d folder

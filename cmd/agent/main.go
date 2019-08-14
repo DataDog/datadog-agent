@@ -5,7 +5,8 @@
 
 // +build !windows,!android
 
-//go:generate go run ../../pkg/config/render_config.go agent ../../pkg/config/config_template.yaml ./dist/datadog.yaml
+//go:generate go run ../../pkg/config/render_config.go agent-py2py3 ../../pkg/config/config_template.yaml ./dist/datadog.yaml
+//go:generate go run ../../pkg/config/render_config.go agent-py3 ../../pkg/config/config_template.yaml ./dist/datadog.yaml
 //go:generate go run ../../pkg/config/render_config.go system-probe ../../pkg/config/config_template.yaml ./dist/system-probe.yaml
 
 package main

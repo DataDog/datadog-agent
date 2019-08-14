@@ -80,7 +80,7 @@ PUPPY_CORECHECKS = [
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, development=True, precompile_only=False, skip_assets=False,
           embedded_path=None, rtloader_root=None, python_home_2=None, python_home_3=None,
-          arch='x64'):
+          with_both_python=False, arch='x64'):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -160,8 +160,16 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         "GOOS": "",
         "GOARCH": "",
     })
-    cmd = "go generate {}/cmd/agent"
+
+    cmd = "go generate -x {}/cmd/agent"
     ctx.run(cmd.format(REPO_PATH), env=env)
+
+    if with_both_python:
+        cmd = "go generate -x --run=\"agent-py2py3\" {}/cmd/agent"
+        ctx.run(cmd.format(REPO_PATH), env=env)
+    else:
+        cmd = "go generate -x --run=\"agent-py3\" {}/cmd/agent"
+        ctx.run(cmd.format(REPO_PATH), env=env)
 
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, puppy=puppy)
