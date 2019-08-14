@@ -329,6 +329,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("expvar_port", "5000")
 
 	// Trace agent
+	// Note that trace-agent environment variables are parsed in pkg/trace/config/env.go
+	// since some of them require custom parsing algorithms. DO NOT add environment variable
+	// bindings here, add them there instead.
 	config.BindEnvAndSetDefault("apm_config.enabled", true)
 
 	// Process agent
