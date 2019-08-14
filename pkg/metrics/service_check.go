@@ -146,7 +146,7 @@ func (sc ServiceCheck) String() string {
 }
 
 //// The following methods implement the StreamJSONMarshaler interface
-//// for support of the enable_services_checks_stream_payload_serialization option.
+//// for support of the enable_service_checks_stream_payload_serialization option.
 
 // WriteHeader writes the payload header for this type
 func (sc ServiceChecks) WriteHeader(stream *jsoniter.Stream) error {
