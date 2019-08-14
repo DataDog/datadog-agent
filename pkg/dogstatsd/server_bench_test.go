@@ -8,10 +8,26 @@ package dogstatsd
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 )
 
-func BenchmarkParsePacket(b *testing.B) {
+func BenchmarkParsePacketWithoutLogs(b *testing.B) {
+	config.SetupLogger("test", "off", "", "", false, true, false)
+	s, _ := NewServer(nil, nil, nil)
+	defer s.Stop()
+
+	packet := listeners.Packet{
+		Contents: []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"),
+		Origin:   listeners.NoOrigin,
+	}
+	for n := 0; n < b.N; n++ {
+		s.parsePacket(&packet, nil, nil, nil)
+	}
+}
+
+func BenchmarkParsePacketWithTraceLogs(b *testing.B) {
+	config.SetupLogger("test", "trace", "", "", false, true, false)
 	s, _ := NewServer(nil, nil, nil)
 	defer s.Stop()
 
