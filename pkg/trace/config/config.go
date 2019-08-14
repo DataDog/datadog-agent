@@ -20,9 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/legacy"
-	"github.com/DataDog/datadog-agent/pkg/trace/flags"
-	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -114,7 +111,7 @@ type AgentConfig struct {
 	AnalyzedSpansByService      map[string]map[string]float64
 
 	// infrastructure agent binary
-	DDAgentBin string // DDAgentBin will be "" for Agent5 scenarios
+	DDAgentBin string
 
 	// Obfuscation holds sensitive data obufscator's configuration.
 	Obfuscation *ObfuscationConfig
@@ -155,6 +152,8 @@ func New() *AgentConfig {
 		Ignore:                      make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
+
+		DDAgentBin: defaultDDAgentBin,
 	}
 }
 
@@ -162,6 +161,9 @@ func New() *AgentConfig {
 func (c *AgentConfig) validate() error {
 	if len(c.Endpoints) == 0 || c.Endpoints[0].APIKey == "" {
 		return ErrMissingAPIKey
+	}
+	if c.DDAgentBin == "" {
+		return errors.New("agent binary path not set")
 	}
 	if c.Hostname == "" {
 		if err := c.acquireHostname(); err != nil {
@@ -179,23 +181,10 @@ var fallbackHostnameFunc = os.Hostname
 // tries to shell out to the infrastructure agent for this, if DD_AGENT_BIN is
 // set, otherwise falling back to os.Hostname.
 func (c *AgentConfig) acquireHostname() error {
-	var cmd *exec.Cmd
-	if c.DDAgentBin != "" {
-		// Agent 6
-		cmd = exec.Command(c.DDAgentBin, "hostname")
-		cmd.Env = []string{}
-	} else {
-		// Most likely Agent 5. Try and obtain the hostname using the Agent's
-		// Python environment, which will cover several additional installation
-		// scenarios such as GCE, EC2, Kube, Docker, etc. In these scenarios
-		// Go's os.Hostname will not be able to obtain the correct host. Do not
-		// remove!
-		cmd = exec.Command(defaultDDAgentPy, "-c", "from utils.hostname import get_hostname; print get_hostname()")
-		cmd.Env = []string{defaultDDAgentPyEnv}
-	}
 	var out bytes.Buffer
-	cmd.Stdout = &out
+	cmd := exec.Command(c.DDAgentBin, "hostname")
 	cmd.Env = append(os.Environ(), cmd.Env...) // needed for Windows
+	cmd.Stdout = &out
 	err := cmd.Run()
 	c.Hostname = strings.TrimSpace(out.String())
 	if err != nil || c.Hostname == "" {
@@ -245,8 +234,9 @@ func Load(path string) (*AgentConfig, error) {
 	} else {
 		log.Infof("Loaded configuration: %s", cfg.ConfigPath)
 	}
-	loadEnv() // TODO(gbbr): remove this along with all A5 configuration loading code and use BindEnv in pkg/config
+	loadEnv()
 	if err := config.ResolveSecrets(config.Datadog, filepath.Base(path)); err != nil {
+		// resolve secrets now that we've finished loading from all sources (file, flags & env)
 		return cfg, err
 	}
 	cfg.applyDatadogConfig()
@@ -254,34 +244,15 @@ func Load(path string) (*AgentConfig, error) {
 }
 
 func prepareConfig(path string) (*AgentConfig, error) {
-	cfgPath := path
-	if cfgPath == flags.DefaultConfigPath && !osutil.Exists(cfgPath) && osutil.Exists(agent5Config) {
-		// attempting to load inexistent default path, but found existing Agent 5
-		// legacy config - try using it
-		log.Warnf("Attempting to use Agent 5 configuration: %s", agent5Config)
-		cfgPath = agent5Config
-	}
 	cfg := New()
-	switch filepath.Ext(cfgPath) {
-	case ".ini", ".conf":
-		ac, err := legacy.GetAgentConfig(cfgPath)
-		if err != nil {
-			return cfg, err
-		}
-		if err := legacy.FromAgentConfig(ac); err != nil {
-			return cfg, err
-		}
-	case ".yaml":
-		cfg.DDAgentBin = defaultDDAgentBin
-		config.Datadog.SetConfigFile(cfgPath)
-		// we'll resolve secrets later, after loading environment variable values too
-		if err := config.LoadWithoutSecret(); err != nil {
-			return cfg, err
-		}
-	default:
-		return cfg, errors.New("unrecognised file extension (need .yaml, .ini or .conf)")
+	config.Datadog.SetConfigFile(path)
+	// we'll resolve secrets later, after loading environment variable values too,
+	// in order to make sure that any potential secret references present in environment
+	// variables get counted.
+	if err := config.LoadWithoutSecret(); err != nil {
+		return cfg, err
 	}
-	cfg.ConfigPath = cfgPath
+	cfg.ConfigPath = path
 	return cfg, nil
 }
 
