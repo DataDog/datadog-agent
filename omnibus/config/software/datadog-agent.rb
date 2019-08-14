@@ -51,7 +51,7 @@ build do
 
   # Flag to generate additional datadog.yaml options if we ship both python versions
   with_both_python = ""
-  if with_python_runtime? "2" && with_python_runtime? "3"
+  if (with_python_runtime? "2") && (with_python_runtime? "3")
     with_both_python = "--with-both-python"
 
   # we assume the go deps are already installed before running omnibus
