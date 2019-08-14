@@ -408,7 +408,7 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 
 // getTCPStats reads tcp related stats for the given ConnTuple
 func (t *Tracer) getTCPStats(mp *bpflib.Map, tuple *ConnTuple, seen map[ConnTuple]struct{}) *TCPStats {
-	stats := &TCPStats{retransmits: 0}
+	stats := new(TCPStats)
 
 	if !tuple.isTCP() {
 		return stats
@@ -418,17 +418,17 @@ func (t *Tracer) getTCPStats(mp *bpflib.Map, tuple *ConnTuple, seen map[ConnTupl
 	pid := tuple.pid
 	tuple.pid = 0
 
-	// This is required to avoid (over)reporting stats for connections sharing the same socket.
+	_ = t.m.LookupElement(mp, unsafe.Pointer(tuple), unsafe.Pointer(stats))
+
+	// This is required to avoid (over)reporting retransmits for connections sharing the same socket.
 	if _, reported := seen[*tuple]; reported {
 		atomic.AddInt64(&t.pidCollisions, 1)
-		tuple.pid = pid
-		return stats
+		stats.retransmits = 0
+	} else {
+		seen[*tuple] = struct{}{}
 	}
 
-	_ = t.m.LookupElement(mp, unsafe.Pointer(tuple), unsafe.Pointer(stats))
-	seen[*tuple] = struct{}{}
 	tuple.pid = pid
-
 	return stats
 }
 

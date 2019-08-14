@@ -376,8 +376,10 @@ static void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
     }
 
     if (stats.rtt > 0) {
-        val->rtt = stats.rtt;
-        val->rtt_var = stats.rtt_var;
+        // For more information on the bit shift operations see:
+        // https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
+        val->rtt = stats.rtt>>3;
+        val->rtt_var = stats.rtt_var>>2;
     }
 }
 

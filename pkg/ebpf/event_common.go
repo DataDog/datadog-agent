@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -85,6 +86,9 @@ type ConnectionStats struct {
 	MonotonicRetransmits uint32
 	LastRetransmits      uint32
 
+	RTT    uint32 // Stored in µs
+	RTTVar uint32
+
 	Pid   uint32
 	NetNS uint32
 
@@ -97,8 +101,8 @@ type ConnectionStats struct {
 }
 
 func (c ConnectionStats) String() string {
-	return fmt.Sprintf(
-		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] (%s) %d bytes sent (+%d), %d bytes received (+%d), %d retransmits (+%d)",
+	str := fmt.Sprintf(
+		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] (%s) %d bytes sent (+%d), %d bytes received (+%d)",
 		c.Type,
 		c.Pid,
 		c.Source,
@@ -108,8 +112,17 @@ func (c ConnectionStats) String() string {
 		c.Direction,
 		c.MonotonicSentBytes, c.LastSentBytes,
 		c.MonotonicRecvBytes, c.LastRecvBytes,
-		c.MonotonicRetransmits, c.LastRetransmits,
 	)
+
+	if c.Type == TCP {
+		str += fmt.Sprintf(
+			", %d retransmits (+%d), RTT %s",
+			c.MonotonicRetransmits, c.LastRetransmits,
+			time.Duration(c.RTT)*time.Microsecond,
+		)
+	}
+
+	return str
 }
 
 // ByteKey returns a unique key for this connection represented as a byte array
