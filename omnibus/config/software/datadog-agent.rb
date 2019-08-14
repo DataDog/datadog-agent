@@ -53,6 +53,7 @@ build do
   with_both_python = ""
   if (with_python_runtime? "2") && (with_python_runtime? "3")
     with_both_python = "--with-both-python"
+  end
 
   # we assume the go deps are already installed before running omnibus
   if windows?
