@@ -21,11 +21,12 @@ func TestTracesDropped(t *testing.T) {
 
 	t.Run("tagValues", func(t *testing.T) {
 		assert.Equal(t, map[string]int64{
-			"empty_trace":    0,
-			"decoding_error": 1,
-			"foreign_span":   1,
-			"trace_id_zero":  1,
-			"span_id_zero":   1,
+			"empty_trace":       0,
+			"payload_too_large": 0,
+			"decoding_error":    1,
+			"foreign_span":      1,
+			"trace_id_zero":     1,
+			"span_id_zero":      1,
 		}, s.tagValues())
 	})
 

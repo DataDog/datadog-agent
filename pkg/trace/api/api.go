@@ -372,7 +372,11 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	traces, err := r.decodeTraces(v, req)
 	if err != nil {
 		httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-		atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
+		if err == ErrLimitedReaderLimitReached {
+			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, traceCount)
+		} else {
+			atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
+		}
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return
 	}
