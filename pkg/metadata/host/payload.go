@@ -28,6 +28,7 @@ type Meta struct {
 	InstanceID     string   `json:"instance-id"`
 }
 
+// NetworkMeta is metadata about the host's network
 type NetworkMeta struct {
 	ID string `json:"network-id"`
 }
