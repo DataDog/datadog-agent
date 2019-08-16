@@ -35,6 +35,12 @@ This is the complete list of the available components:
 * `zk`: enable Zookeeper as a configuration store.
 * `zstd`: use Zstandard instead of Zlib.
 * `systemd`: enable systemd journal log collection
+* `netcgo`: force the use of the CGO resolver. This will also have the effect of making the binary non-static
+* `secrets`: enable secrets support in configuration files (see documentation [here](https://docs.datadoghq.com/agent/guide/secrets-management))
+* `clusterchecks`:
+* `cri` :
+* `containerd`:
+* `kubeapiserver`:
 
 Please note you might need to provide some extra dependencies in your dev
 environment to build certain bits (see [development environment][dev-env]).
