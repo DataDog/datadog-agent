@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func BenchmarkParsePacketWithoutLogs(b *testing.B) {
@@ -17,12 +18,12 @@ func BenchmarkParsePacketWithoutLogs(b *testing.B) {
 	s, _ := NewServer(nil, nil, nil)
 	defer s.Stop()
 
-	packet := listeners.Packet{
-		Contents: []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"),
-		Origin:   listeners.NoOrigin,
-	}
 	for n := 0; n < b.N; n++ {
-		s.parsePacket(&packet, nil, nil, nil)
+		packet := listeners.Packet{
+			Contents: []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"),
+			Origin:   listeners.NoOrigin,
+		}
+		s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
 	}
 }
 
@@ -31,11 +32,11 @@ func BenchmarkParsePacketWithTraceLogs(b *testing.B) {
 	s, _ := NewServer(nil, nil, nil)
 	defer s.Stop()
 
-	packet := listeners.Packet{
-		Contents: []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"),
-		Origin:   listeners.NoOrigin,
-	}
 	for n := 0; n < b.N; n++ {
-		s.parsePacket(&packet, nil, nil, nil)
+		packet := listeners.Packet{
+			Contents: []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"),
+			Origin:   listeners.NoOrigin,
+		}
+		s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
 	}
 }
