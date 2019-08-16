@@ -36,7 +36,7 @@ type DatadogLogger struct {
 	inner seelog.LoggerInterface
 	level seelog.LogLevel
 	extra map[string]seelog.LoggerInterface
-	l     sync.Mutex
+	l     sync.RWMutex
 }
 
 // SetupDatadogLogger configure logger singleton with seelog interface
@@ -101,7 +101,11 @@ func (sw *DatadogLogger) changeLogLevel(level string) error {
 }
 
 func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
-	return (level >= sw.level)
+	sw.l.RLock()
+	shouldLog := level >= sw.level
+	sw.l.RUnlock()
+
+	return shouldLog
 }
 
 func (sw *DatadogLogger) registerAdditionalLogger(n string, l seelog.LoggerInterface) error {
