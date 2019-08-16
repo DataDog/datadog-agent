@@ -10,7 +10,6 @@ package systemd
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -83,8 +82,6 @@ func TestDefaultConfiguration(t *testing.T) {
 	check.Configure([]byte(``), []byte(``), "test")
 
 	assert.Equal(t, []string(nil), check.config.instance.UnitNames)
-	assert.Equal(t, []string(nil), check.config.instance.UnitRegexStrings)
-	assert.Equal(t, []*regexp.Regexp(nil), check.config.instance.UnitRegexPatterns)
 	assert.Equal(t, 50, check.config.instance.MaxUnits)
 }
 
@@ -94,45 +91,20 @@ func TestBasicConfiguration(t *testing.T) {
 unit_names:
  - ssh.service
  - syslog.socket
-unit_regexes:
- - lvm2-.*
- - cloud-.*
 max_units: 99
 `)
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 
 	assert.Nil(t, err)
 	assert.ElementsMatch(t, []string{"ssh.service", "syslog.socket"}, check.config.instance.UnitNames)
-	regexes := []*regexp.Regexp{
-		regexp.MustCompile("lvm2-.*"),
-		regexp.MustCompile("cloud-.*"),
-	}
-	assert.Equal(t, regexes, check.config.instance.UnitRegexPatterns)
 	assert.Equal(t, 99, check.config.instance.MaxUnits)
 }
 
-func TestConfigurationSkipOnRegexErr(t *testing.T) {
-	check := SystemdCheck{}
-	rawInstanceConfig := []byte(`
-unit_regexes:
- - lvm2-.*
- - cloud-[[$$.*
- - abc
-`)
-	check.Configure(rawInstanceConfig, []byte(``), "test")
-
-	regexes := []*regexp.Regexp{
-		regexp.MustCompile("lvm2-.*"),
-		regexp.MustCompile("abc"),
-	}
-	assert.Equal(t, regexes, check.config.instance.UnitRegexPatterns)
-}
-
-func TestMissingUnitNamesOrRegexShouldRaiseError(t *testing.T) {
+func TestMissingUnitNamesShouldRaiseError(t *testing.T) {
 	check := SystemdCheck{}
 	err := check.Configure([]byte(``), []byte(``), "test")
 
-	expectedErrorMsg := "`unit_names` and `unit_regexes` must not be both empty"
+	expectedErrorMsg := "`unit_names` must not be empty"
 	assert.EqualError(t, err, expectedErrorMsg)
 }
 
@@ -693,11 +665,6 @@ func TestIsMonitored(t *testing.T) {
 unit_names:
   - unit1.service
   - unit2.service
-unit_regexes:
-  - docker-.*
-  - abc
-  - ^efg
-  - ^zyz$
 `)
 
 	check := SystemdCheck{}
@@ -710,14 +677,6 @@ unit_regexes:
 		{"unit1.service", true},
 		{"unit2.service", true},
 		{"unit3.service", false},
-		{"mydocker-abc.service", true},
-		{"docker-abc.service", true},
-		{"docker-123.socket", true},
-		{"abc", true},
-		{"abcd", true},
-		{"xxabcd", true},
-		{"efg111", true},
-		{"z_efg111", false},
 	}
 	for _, d := range data {
 		t.Run(fmt.Sprintf("check.isMonitored('%s') expected to be %v", d.unitName, d.expectedToBeMonitored), func(t *testing.T) {

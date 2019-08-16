@@ -9,7 +9,6 @@ package systemd
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -120,11 +119,9 @@ type SystemdCheck struct {
 }
 
 type systemdInstanceConfig struct {
-	PrivateSocket     string   `yaml:"private_socket"`
-	UnitNames         []string `yaml:"unit_names"`
-	UnitRegexStrings  []string `yaml:"unit_regexes"`
-	MaxUnits          int      `yaml:"max_units"`
-	UnitRegexPatterns []*regexp.Regexp
+	PrivateSocket string   `yaml:"private_socket"`
+	UnitNames     []string `yaml:"unit_names"`
+	MaxUnits      int      `yaml:"max_units"`
 }
 
 type systemdInitConfig struct{}
@@ -457,11 +454,6 @@ func (c *SystemdCheck) isMonitored(unitName string) bool {
 			return true
 		}
 	}
-	for _, pattern := range c.config.instance.UnitRegexPatterns {
-		if pattern.MatchString(unitName) {
-			return true
-		}
-	}
 	return false
 }
 
@@ -484,17 +476,8 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 		c.config.instance.MaxUnits = defaultMaxUnits
 	}
 
-	for _, regexString := range c.config.instance.UnitRegexStrings {
-		pattern, err := regexp.Compile(regexString)
-		if err != nil {
-			log.Warnf("Failed to parse systemd check option unit_regexes: %s", err)
-			continue
-		}
-		c.config.instance.UnitRegexPatterns = append(c.config.instance.UnitRegexPatterns, pattern)
-	}
-
-	if len(c.config.instance.UnitNames) == 0 && len(c.config.instance.UnitRegexPatterns) == 0 {
-		return fmt.Errorf("`unit_names` and `unit_regexes` must not be both empty")
+	if len(c.config.instance.UnitNames) == 0 {
+		return fmt.Errorf("`unit_names` must not be empty")
 	}
 
 	return nil

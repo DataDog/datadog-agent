@@ -9,13 +9,6 @@ instances:
     unit_names:
       - <UNIT_NAME>
 
-    ## @param unit_regexes - list of strings - required if unit_names is not set
-    ## Regex pattern[s] matching the names of units to monitor.
-    ## Either `unit_names` or `unit_regexes` must be specified.
-    #
-    # unit_regexes:
-    #   - ^<UNIT_NAME>$        # match exactly the unit name "<UNIT_NAME>"
-
     ## @param private_socket - string - optional
     ## Path to systemd private socket needed to retrieve systemd data.
     ## Defaults to `/run/systemd/private` or `/host/run/systemd/private` when
