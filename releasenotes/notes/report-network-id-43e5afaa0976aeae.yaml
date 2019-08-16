@@ -6,7 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
 enhancements:
   - |
     Added detection of a network ID which will be used to improve destination
