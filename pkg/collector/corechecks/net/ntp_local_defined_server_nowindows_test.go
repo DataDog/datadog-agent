@@ -10,6 +10,7 @@ package net
 import (
 	"io/ioutil"
 	"os"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,7 +18,7 @@ import (
 
 func TestGetNTPServersFromFileNotExist(t *testing.T) {
 	_, err := getNTPServersFromFiles([]string{"file1", "file2"})
-	assert.EqualError(t, err, "Cannot find ntp server in file1, file2")
+	assert.EqualError(t, err, "Cannot find NTP server in file1, file2")
 }
 
 func createTempFile(t *testing.T, content string, callback func(filename string)) {
@@ -42,7 +43,8 @@ func TestGetNTPServersFromFile(t *testing.T) {
 	createTempFile(t, config, func(f1 string) {
 		servers, err := getNTPServersFromFiles([]string{f1})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{"aaa.bbb.ccc.ddd", "127.127.1.0"}, servers)
+		sort.Strings(servers)
+		assert.Equal(t, []string{"127.127.1.0", "aaa.bbb.ccc.ddd"}, servers)
 	})
 }
 
@@ -54,7 +56,8 @@ func TestGetNTPServersFromFileTwoConfigs(t *testing.T) {
 		createTempFile(t, config2, func(f2 string) {
 			servers, err := getNTPServersFromFiles([]string{f1, f2})
 			assert.NoError(t, err)
-			assert.Equal(t, []string{"aaa.bbb.ccc.ddd", "127.0.0.1"}, servers)
+			sort.Strings(servers)
+			assert.Equal(t, []string{"127.0.0.1", "aaa.bbb.ccc.ddd"}, servers)
 		})
 	})
 }
@@ -75,5 +78,6 @@ func TestGetNTPServersFromFileNoServer(t *testing.T) {
 	createTempFile(t, "", func(f1 string) {
 		servers, err := getNTPServersFromFiles([]string{f1})
 		assert.Error(t, err)
+		assert.Equal(t, []string(nil), servers)
 	})
 }
