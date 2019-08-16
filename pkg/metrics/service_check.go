@@ -16,8 +16,8 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
-	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/util/jsonrawobjectwriter"
 )
 
 // ServiceCheckStatus represents the status associated with a service check
@@ -186,13 +186,13 @@ func (sc ServiceChecks) DescribeItem(i int) string {
 }
 
 func writeServiceCheck(sc *ServiceCheck, stream *jsoniter.Stream) error {
-	writer := jsonstream.NewJSONRawObjectWriter(stream)
+	writer := jsonrawobjectwriter.NewJSONRawObjectWriter(stream)
 
-	writer.AddStringField("check", sc.CheckName, jsonstream.AllowEmpty)
-	writer.AddStringField("host_name", sc.Host, jsonstream.AllowEmpty)
+	writer.AddStringField("check", sc.CheckName, jsonrawobjectwriter.AllowEmpty)
+	writer.AddStringField("host_name", sc.Host, jsonrawobjectwriter.AllowEmpty)
 	writer.AddInt64Field("timestamp", sc.Ts)
 	writer.AddInt64Field("status", int64(sc.Status))
-	writer.AddStringField("message", sc.Message, jsonstream.AllowEmpty)
+	writer.AddStringField("message", sc.Message, jsonrawobjectwriter.AllowEmpty)
 
 	tagsField := "tags"
 
