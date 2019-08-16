@@ -30,14 +30,14 @@ func GetNetworkID() (string, error) {
 	}
 
 	log.Debugf("GetNetworkID trying GCE")
-	if networkID, err := gce.GetNetworkID(); err != nil {
+	if networkID, err := gce.GetNetworkID(); err == nil {
 		cache.Cache.Set(cacheNetworkIDKey, networkID, cache.NoExpiration)
 		log.Debugf("GetNetworkID: using network ID from GCE metadata: %s", networkID)
 		return networkID, nil
 	}
 
 	log.Debugf("GetNetworkID trying EC2")
-	if networkID, err := ec2.GetNetworkID(); err != nil {
+	if networkID, err := ec2.GetNetworkID(); err == nil {
 		cache.Cache.Set(cacheNetworkIDKey, networkID, cache.NoExpiration)
 		log.Debugf("GetNetworkID: using network ID from EC2 metadata: %s", networkID)
 		return networkID, nil

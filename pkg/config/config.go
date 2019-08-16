@@ -458,7 +458,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.closed_channel_size")
 
 	// Network
-	config.SetKnown("network.id")
+	config.BindEnv("network.id")
 
 	// APM
 	config.SetKnown("apm_config.enabled")
