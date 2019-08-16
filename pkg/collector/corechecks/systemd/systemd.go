@@ -119,9 +119,11 @@ type SystemdCheck struct {
 }
 
 type systemdInstanceConfig struct {
+	Name          string   `yaml:"name"`
 	PrivateSocket string   `yaml:"private_socket"`
 	UnitNames     []string `yaml:"unit_names"`
 	MaxUnits      int      `yaml:"max_units"`
+	InstanceTags  []string
 }
 
 type systemdInitConfig struct{}
@@ -183,13 +185,13 @@ func (c *SystemdCheck) Run() error {
 		return err
 	}
 
-	conn, err := c.connect(sender)
+	conn, err := c.connect(sender, c.config.instance.InstanceTags)
 	if err != nil {
 		return err
 	}
 	defer c.stats.CloseConn(conn)
 
-	err = c.submitMetrics(sender, conn)
+	err = c.submitMetrics(sender, conn, c.config.instance.InstanceTags)
 	if err != nil {
 		return err
 	}
@@ -197,22 +199,22 @@ func (c *SystemdCheck) Run() error {
 	return nil
 }
 
-func (c *SystemdCheck) connect(sender aggregator.Sender) (*dbus.Conn, error) {
+func (c *SystemdCheck) connect(sender aggregator.Sender, tags []string) (*dbus.Conn, error) {
 	conn, err := c.getDbusConnection()
 
 	if err != nil {
 		newErr := fmt.Errorf("cannot create a connection: %v", err)
-		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", nil, newErr.Error())
+		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", tags, newErr.Error())
 		return nil, newErr
 	}
 
 	systemStateProp, err := c.stats.SystemState(conn)
 	if err != nil {
 		newErr := fmt.Errorf("err calling SystemState: %v", err)
-		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", nil, newErr.Error())
+		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", tags, newErr.Error())
 		return nil, newErr
 	}
-	sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckOK, "", nil, "")
+	sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckOK, "", tags, "")
 
 	serviceCheckStatus := metrics.ServiceCheckUnknown
 	systemState, ok := systemStateProp.Value.Value().(string)
@@ -222,7 +224,7 @@ func (c *SystemdCheck) connect(sender aggregator.Sender) (*dbus.Conn, error) {
 			serviceCheckStatus = status
 		}
 	}
-	sender.ServiceCheck(systemStateServiceCheck, serviceCheckStatus, "", nil, fmt.Sprintf("Systemd status is %v", systemStateProp.Value))
+	sender.ServiceCheck(systemStateServiceCheck, serviceCheckStatus, "", tags, fmt.Sprintf("Systemd status is %v", systemStateProp.Value))
 	return conn, nil
 }
 
@@ -261,13 +263,13 @@ func (c *SystemdCheck) getSystemBusSocketConnection() (*dbus.Conn, error) {
 	return conn, err
 }
 
-func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) error {
+func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn, tags []string) error {
 	units, err := c.stats.ListUnits(conn)
 	if err != nil {
 		return fmt.Errorf("error getting list of units: %v", err)
 	}
 
-	c.submitCountMetrics(sender, units)
+	c.submitCountMetrics(sender, units, tags)
 
 	loadedCount := 0
 	monitoredCount := 0
@@ -284,16 +286,16 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 			break
 		}
 		monitoredCount++
-		tags := []string{"unit:" + unit.Name}
-		sender.ServiceCheck(unitStateServiceCheck, getServiceCheckStatus(unit.ActiveState), "", tags, "")
+		unitTags := append(tags, "unit:"+unit.Name)
+		sender.ServiceCheck(unitStateServiceCheck, getServiceCheckStatus(unit.ActiveState), "", unitTags, "")
 
-		c.submitBasicUnitMetrics(sender, conn, unit, tags)
-		c.submitPropertyMetricsAsGauge(sender, conn, unit, tags)
+		c.submitBasicUnitMetrics(sender, conn, unit, unitTags)
+		c.submitPropertyMetricsAsGauge(sender, conn, unit, unitTags)
 	}
 
-	sender.Gauge("systemd.units_total", float64(len(units)), "", nil)
-	sender.Gauge("systemd.units_loaded_count", float64(loadedCount), "", nil)
-	sender.Gauge("systemd.units_monitored_count", float64(monitoredCount), "", nil)
+	sender.Gauge("systemd.units_total", float64(len(units)), "", tags)
+	sender.Gauge("systemd.units_loaded_count", float64(loadedCount), "", tags)
+	sender.Gauge("systemd.units_monitored_count", float64(monitoredCount), "", tags)
 	return nil
 }
 
@@ -323,7 +325,7 @@ func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *db
 	sender.Gauge("systemd.unit.uptime", float64(computeUptime(unit.ActiveState, activeEnterTimestamp, c.stats.UnixNow())), "", tags)
 }
 
-func (c *SystemdCheck) submitCountMetrics(sender aggregator.Sender, units []dbus.UnitStatus) {
+func (c *SystemdCheck) submitCountMetrics(sender aggregator.Sender, units []dbus.UnitStatus, tags []string) {
 	counts := map[string]int{}
 
 	for _, activeState := range unitActiveStates {
@@ -336,7 +338,7 @@ func (c *SystemdCheck) submitCountMetrics(sender aggregator.Sender, units []dbus
 
 	for _, activeState := range unitActiveStates {
 		count := counts[activeState]
-		sender.Gauge("systemd.units_by_state", float64(count), "", []string{"state:" + activeState})
+		sender.Gauge("systemd.units_by_state", float64(count), "", append(tags, "state:"+activeState))
 	}
 }
 
@@ -476,8 +478,13 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 		c.config.instance.MaxUnits = defaultMaxUnits
 	}
 
+	if c.config.instance.Name == "" {
+		return fmt.Errorf("instance config `name` must not be empty")
+	}
+	c.config.instance.InstanceTags = append(c.config.instance.InstanceTags, "systemd_name:"+c.config.instance.Name)
+
 	if len(c.config.instance.UnitNames) == 0 {
-		return fmt.Errorf("`unit_names` must not be empty")
+		return fmt.Errorf("instance config `unit_names` must not be empty")
 	}
 
 	return nil
