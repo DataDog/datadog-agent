@@ -30,7 +30,7 @@ func getLocalDefinedNTPServers() ([]string, error) {
 	}
 	servers, err := getNptServersFromRegKeyValue(s)
 	if err != nil {
-		return nil, fmt.Errorf("Cannot detect ntp server in registry: LOCAL_MACHINE\\%s (%s)", regKeyPath, err)
+		return nil, fmt.Errorf("Cannot detect NTP server in registry: LOCAL_MACHINE\\%s (%s)", regKeyPath, err)
 	}
 	return servers, nil
 }
@@ -47,7 +47,7 @@ func getNptServersFromRegKeyValue(regKeyValue string) ([]string, error) {
 	}
 
 	if len(servers) == 0 {
-		return nil, errors.New("No ntp server found")
+		return nil, errors.New("No NTP server found")
 	}
 
 	return servers, nil

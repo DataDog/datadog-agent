@@ -36,7 +36,7 @@ func getNTPServersFromFiles(files []string) ([]string, error) {
 	}
 
 	if len(serversMap) == 0 {
-		return nil, fmt.Errorf("Cannot find ntp server in %s", strings.Join(files, ", "))
+		return nil, fmt.Errorf("Cannot find NTP server in %s", strings.Join(files, ", "))
 	}
 
 	var servers []string
