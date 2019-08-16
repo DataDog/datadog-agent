@@ -54,7 +54,7 @@ func CertTemplate() (*x509.Certificate, error) {
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Organization: []string{"Datadoc, Inc."},
+			Organization: []string{"Datadog, Inc."},
 		},
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,

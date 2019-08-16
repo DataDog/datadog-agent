@@ -4,13 +4,15 @@
 // (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 
-#include <rtloader.h>
+#include "rtloader.h"
+#include "rtloader_mem.h"
 
 #ifndef _WIN32
 // clang-format off
 // handler stuff
 #include <execinfo.h>
 #include <csignal>
+#include <cstring>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -60,7 +62,7 @@ void signalHandler(int sig, siginfo_t *, void *)
             std::cerr << symbols[i] << std::endl;
         }
 
-        free(symbols);
+        _free(symbols);
     }
 
     // dump core if so configured
@@ -136,6 +138,6 @@ void RtLoader::clearError()
 void RtLoader::free(void *ptr)
 {
     if (ptr != NULL) {
-        ::free(ptr);
+        _free(ptr);
     }
 }

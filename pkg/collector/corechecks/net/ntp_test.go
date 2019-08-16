@@ -56,7 +56,7 @@ func TestNTPOK(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -86,7 +86,7 @@ func TestNTPCritical(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -115,7 +115,7 @@ func TestNTPError(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -143,7 +143,7 @@ func TestNTPInvalid(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -172,7 +172,7 @@ func TestNTPNegativeOffsetCritical(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -213,7 +213,7 @@ hosts:
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -254,7 +254,7 @@ hosts:
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -286,7 +286,7 @@ hosts:
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(testedConfig, []byte(""))
+	ntpCheck.Configure(testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -303,7 +303,7 @@ hosts:
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(testedConfig, []byte(""))
+	ntpCheck.Configure(testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -315,7 +315,7 @@ host: time.dogo
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(testedConfig, []byte(""))
+	ntpCheck.Configure(testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -329,7 +329,7 @@ hosts:
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(testedConfig, []byte(""))
+	ntpCheck.Configure(testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -339,7 +339,7 @@ func TestDefaultHostConfig(t *testing.T) {
 	testedConfig := []byte(``)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(testedConfig, []byte(""))
+	ntpCheck.Configure(testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -359,7 +359,7 @@ func TestNTPPortConfig(t *testing.T) {
 offset_threshold: 60
 port: %d
 `, expectedPort))
-	err := ntpCheck.Configure(ntpCfg, []byte(""))
+	err := ntpCheck.Configure(ntpCfg, []byte(""), "test")
 	assert.Nil(t, err)
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
@@ -378,6 +378,6 @@ func TestNTPPortNotInt(t *testing.T) {
 offset_threshold: 60 
 port: ntp`)
 
-	err := ntpCheck.Configure(ntpCfg, []byte(""))
+	err := ntpCheck.Configure(ntpCfg, []byte(""), "test")
 	assert.EqualError(t, err, "yaml: unmarshal errors:\n  line 3: cannot unmarshal !!str `ntp` into int")
 }

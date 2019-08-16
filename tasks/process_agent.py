@@ -15,23 +15,34 @@ BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent", android=False))
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 @task
-def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False):
+def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False, arch="x64"):
     """
     Build the process agent
     """
 
+    ldflags, gcflags, env = get_build_flags(ctx, arch=arch)
+
     # generate windows resources
     if sys.platform == 'win32':
+        windres_target = "pe-x86-64"
+        if arch == "x86":
+            env["GOARCH"] = "386"
+            windres_target = "pe-i386"
+
         ver = get_version_numeric_only(ctx)
         maj_ver, min_ver, patch_ver = ver.split(".")
         resdir = os.path.join(".", "cmd", "process-agent", "windows_resources")
 
-        ctx.run("windmc --target pe-x86-64 -r {resdir} {resdir}/process-agent-msg.mc".format(resdir=resdir))
+        ctx.run("windmc --target {target_arch} -r {resdir} {resdir}/process-agent-msg.mc".format(
+            resdir=resdir,
+            target_arch=windres_target
+        ))
 
-        ctx.run("windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/process-agent/windows_resources/process-agent.rc --target=pe-x86-64 -O coff -o cmd/process-agent/rsrc.syso".format(
+        ctx.run("windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/process-agent/windows_resources/process-agent.rc --target {target_arch} -O coff -o cmd/process-agent/rsrc.syso".format(
             maj_ver=maj_ver,
             min_ver=min_ver,
-            patch_ver=patch_ver
+            patch_ver=patch_ver,
+            target_arch=windres_target
         ))
 
     # TODO use pkg/version for this
@@ -55,7 +66,6 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
                     goenv[env_var] = line[line.find(env_var)+len(env_var)+1:-1].strip('\'\"')
         ld_vars["GoVersion"] = go_version
 
-    ldflags, gcflags, env = get_build_flags(ctx)
 
     # extend PATH from gimme with the one from get_build_flags
     if "PATH" in os.environ and "PATH" in goenv:

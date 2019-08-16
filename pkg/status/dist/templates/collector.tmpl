@@ -29,6 +29,7 @@ Collector
     {{printDashes $CheckName "-"}}{{- if $version }}{{printDashes $version "-"}}---{{ end }}
     {{- range $CheckInstances }}
       Instance ID: {{.CheckID}} {{status .}}
+      Configuration Source: {{.CheckConfigSource}}
       Total Runs: {{humanize .TotalRuns}}
       Metric Samples: Last Run: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
       Events: Last Run: {{humanize .Events}}, Total: {{humanize .TotalEvents}}

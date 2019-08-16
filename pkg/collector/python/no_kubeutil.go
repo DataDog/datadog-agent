@@ -16,5 +16,5 @@ import "C"
 
 //export GetKubeletConnectionInfo
 func GetKubeletConnectionInfo(payload **C.char) {
-	*payload = C.CString("{}")
+	*payload = TrackedCString("{}")
 }

@@ -83,10 +83,15 @@ func (p *ECSConfigProvider) getTaskMetadata() (ecs.TaskMetadata, error) {
 func parseECSContainers(containers []ecs.Container) ([]integration.Config, error) {
 	var templates []integration.Config
 	for _, c := range containers {
-		configs, errors := extractTemplatesFromMap(docker.ContainerIDToEntityName(c.DockerID), c.Labels, ecsADLabelPrefix)
+		dockerEntityName := docker.ContainerIDToEntityName(c.DockerID)
+		configs, errors := extractTemplatesFromMap(dockerEntityName, c.Labels, ecsADLabelPrefix)
 
 		for _, err := range errors {
 			log.Errorf("unable to extract templates for container %s - %s", c.DockerID, err)
+		}
+
+		for idx := range configs {
+			configs[idx].Source = "ecs:" + dockerEntityName
 		}
 
 		templates = append(templates, configs...)

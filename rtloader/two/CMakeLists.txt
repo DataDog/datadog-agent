@@ -16,9 +16,14 @@ if(WIN32)
     endif(${flag_var} MATCHES "/MD")
     endforeach(flag_var)
   else() # assume gnuC on windows
-    set(CMAKE_C_FLAGS "-D_hypot=hypot -DMS_WIN64")
-    set(CMAKE_CXX_FLAGS "-D_hypot=hypot -DMS_WIN64")
     string(REPLACE "\\" "\\\\" Python2_STDLIB ${Python2_STDLIB})
+    if(ARCH_I386)
+      set(CMAKE_C_FLAGS "-D_hypot=hypot ")
+      set(CMAKE_CXX_FLAGS "-D_hypot=hypot ")
+    else()
+      set(CMAKE_C_FLAGS "-D_hypot=hypot -DMS_WIN64")
+      set(CMAKE_CXX_FLAGS "-D_hypot=hypot -DMS_WIN64")
+    endif()
   endif()
 endif()
 
@@ -29,6 +34,7 @@ add_library(datadog-agent-two SHARED
     two.cpp
     ../common/cgo_free.c
     ../common/stringutils.c
+    ../common/log.c
     ../common/builtins/aggregator.c
     ../common/builtins/datadog_agent.c
     ../common/builtins/util.c
@@ -46,7 +52,12 @@ target_include_directories(datadog-agent-two PUBLIC
     ${Python2_INCLUDE_DIRS}
 )
 if(WIN32)
-  set_target_properties(datadog-agent-two PROPERTIES LINK_FLAGS -static)
+  if(ARCH_I386)
+    set_target_properties(datadog-agent-two PROPERTIES COMPILE_FLAGS "-m32" LINK_FLAGS "-m32 -static")
+  else()
+    set_target_properties(datadog-agent-two PROPERTIES LINK_FLAGS "-static")
+  endif()
+
 endif()
 
 target_link_libraries(datadog-agent-two ${Python2_LIBRARIES} datadog-agent-rtloader)

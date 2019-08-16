@@ -4,8 +4,10 @@
 // Copyright 2019 Datadog, Inc.
 #include "datadog_agent.h"
 #include "cgo_free.h"
+#include "rtloader_mem.h"
+#include "stringutils.h"
 
-#include <stringutils.h>
+#include <log.h>
 
 // these must be set by the Agent
 static cb_get_version_t cb_get_version = NULL;
@@ -13,7 +15,6 @@ static cb_get_config_t cb_get_config = NULL;
 static cb_headers_t cb_headers = NULL;
 static cb_get_hostname_t cb_get_hostname = NULL;
 static cb_get_clustername_t cb_get_clustername = NULL;
-static cb_log_t cb_log = NULL;
 static cb_set_external_tags_t cb_set_external_tags = NULL;
 
 // forward declarations
@@ -76,11 +77,6 @@ void _set_get_hostname_cb(cb_get_hostname_t cb)
 void _set_get_clustername_cb(cb_get_clustername_t cb)
 {
     cb_get_clustername = cb;
-}
-
-void _set_log_cb(cb_log_t cb)
-{
-    cb_log = cb;
 }
 
 void _set_set_external_tags_cb(cb_set_external_tags_t cb)
@@ -307,11 +303,6 @@ PyObject *get_clustername(PyObject *self, PyObject *args)
 */
 static PyObject *log_message(PyObject *self, PyObject *args)
 {
-    // callback must be set
-    if (cb_log == NULL) {
-        Py_RETURN_NONE;
-    }
-
     char *message = NULL;
     int log_level;
 
@@ -321,7 +312,7 @@ static PyObject *log_message(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    cb_log(message, log_level);
+    agent_log(log_level, message);
     Py_RETURN_NONE;
 }
 
@@ -431,7 +422,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         char **tags;
         // We already PyList_Check value, so PyList_Size won't fail and return -1
         int tags_len = PyList_Size(value);
-        if (!(tags = (char **)malloc(sizeof(*tags) * tags_len + 1))) {
+        if (!(tags = (char **)_malloc(sizeof(*tags) * tags_len + 1))) {
             PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
             error = 1;
             goto done;
@@ -461,17 +452,17 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
 
         // cleanup
         for (j = 0; j < actual_size; j++) {
-            free(tags[j]);
+            _free(tags[j]);
         }
-        free(tags);
+        _free(tags);
     }
 
 done:
     if (hostname) {
-        free(hostname);
+        _free(hostname);
     }
     if (source_type) {
-        free(source_type);
+        _free(source_type);
     }
     PyGILState_Release(gstate);
 
