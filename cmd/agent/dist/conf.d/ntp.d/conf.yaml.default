@@ -17,3 +17,8 @@ instances:
     # port: 123
     # version: 3
     # timeout: 5
+    #    
+    # Use the ntp servers defined in the host.    
+    # For Unix system, the servers defined in /etc/ntp.conf and etc/xntp.conf are used.
+    # For Windows system, the servers defined in registry key HKLM\SYSTEM\CurrentControlSet\Services\W32Time\Parameters\NtpServer are used.
+    # use_local_defined_servers: false

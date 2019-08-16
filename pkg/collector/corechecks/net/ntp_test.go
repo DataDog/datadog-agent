@@ -381,3 +381,20 @@ port: ntp`)
 	err := ntpCheck.Configure(ntpCfg, []byte(""), "test")
 	assert.EqualError(t, err, "yaml: unmarshal errors:\n  line 3: cannot unmarshal !!str `ntp` into int")
 }
+
+func TestNTPUseLocalDefinedServers(t *testing.T) {
+	const localNtpServerTest = "local NTP server"
+	getLocalServers := func() ([]string, error) { return []string{localNtpServerTest}, nil }
+
+	configUseLocalServer := ntpConfig{}
+	err := configUseLocalServer.parse([]byte("use_local_defined_servers: true"), nil, getLocalServers)
+	assert.NoError(t, err)
+	assert.True(t, configUseLocalServer.instance.UseLocalDefinedServers)
+	assert.Equal(t, []string{localNtpServerTest}, configUseLocalServer.instance.Hosts)
+
+	defaultConfig := ntpConfig{}
+	err = defaultConfig.parse([]byte("use_local_defined_servers: false"), nil, getLocalServers)
+	assert.NoError(t, err)
+	assert.False(t, defaultConfig.instance.UseLocalDefinedServers)
+	assert.NotEqual(t, configUseLocalServer.instance.Hosts, defaultConfig.instance.Hosts)
+}
