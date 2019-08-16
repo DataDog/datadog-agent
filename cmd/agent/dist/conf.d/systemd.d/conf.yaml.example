@@ -6,9 +6,9 @@ instances:
     #
   - name: <SYSTEMD_INSTANCE_NAME>
 
-    ## @param unit_names - list of strings - required if unit_regexes is not set
-    ## List of systemd units to monitor (full name e.g. ssh.service).
-    ## Either `unit_names` or `unit_regexes` must be specified.
+    ## @param unit_names - list of strings - required
+    ## List of systemd units to monitor.
+    ## Full names must be used. Examples: ssh.service, docker.socket
     #
     unit_names:
       - <UNIT_NAME>
@@ -21,7 +21,8 @@ instances:
     # private_socket: <PATH_TO_SYSTEMD_PRIVATE_SOCKET>
 
     ## @param tags  - list of key:value elements - optional
-    ## List of tags to attach to every metric, event, and service check emitted by this integration.
+    ## List of tags to attach to every metric, event, and service check emitted
+    ## by this integration.
     ##
     ## Learn more about tagging at https://docs.datadoghq.com/tagging
     #
