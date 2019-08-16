@@ -28,10 +28,14 @@ func getLocalDefinedNTPServers() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Cannot get the value %s in registry key: %s (%s)", regKeyName, regKeyPath, err)
 	}
-	return getNptServersFromRegKeyValue(s), nil
+	servers, err := getNptServersFromRegKeyValue(s)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot detect ntp server in registry: LOCAL_MACHINE\\%s (%s)", regKeyPath, err)
+	}
+	return servers, nil
 }
 
-func getNptServersFromRegKeyValue(regKeyValue string) []string {
+func getNptServersFromRegKeyValue(regKeyValue string) ([]string, error) {
 	// Possible formats:
 	// time.windows.com,0x9
 	// pool.ntp.org time.windows.com time.apple.com time.google.com
@@ -42,5 +46,9 @@ func getNptServersFromRegKeyValue(regKeyValue string) []string {
 		servers = append(servers, server)
 	}
 
-	return servers
+	if len(servers) == 0 {
+		return nil, errors.New("No ntp server found")
+	}
+
+	return servers, nil
 }

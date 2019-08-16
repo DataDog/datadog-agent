@@ -23,7 +23,15 @@ func TestGetNptServersFromRegKeyValue(t *testing.T) {
 	// time.windows.com,0x9
 	// pool.ntp.org time.windows.com time.apple.com time.google.com
 
-	assert.Equal(t, []string{"time.windows.com"}, getNptServersFromRegKeyValue("time.windows.com,0x9"))
-	assert.Equal(t, []string{"pool.ntp.org", "time.windows.com"}, getNptServersFromRegKeyValue("pool.ntp.org time.windows.com"))
-	assert.Equal(t, []string(nil), getNptServersFromRegKeyValue(""))
+	servers, err := getNptServersFromRegKeyValue("time.windows.com,0x9")
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"time.windows.com"}, servers)
+
+	servers, err = getNptServersFromRegKeyValue("pool.ntp.org time.windows.com")
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"pool.ntp.org", "time.windows.com"}, servers)
+
+	servers, err = getNptServersFromRegKeyValue("")
+	assert.Error(t, err)
+	assert.Equal(t, []string(nil), servers)
 }

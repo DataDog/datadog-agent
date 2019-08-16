@@ -70,3 +70,10 @@ server  aaa.bbb.ccc.ddd
 		assert.Equal(t, []string{"aaa.bbb.ccc.ddd"}, servers)
 	})
 }
+
+func TestGetNTPServersFromFileNoServer(t *testing.T) {
+	createTempFile(t, "", func(f1 string) {
+		servers, err := getNTPServersFromFiles([]string{f1})
+		assert.Error(t, err)
+	})
+}
