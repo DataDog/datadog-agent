@@ -164,3 +164,30 @@ func TestPayloadsServiceChecks(t *testing.T) {
 		assert.Equal(t, strings.TrimSpace(string(json)), string(payloads[index]))
 	}
 }
+
+func benchmarkJSONStreamServiceCheck(b *testing.B, numberOfItem int) {
+	var serviceCheckCollections []*ServiceCheck
+
+	for i := 0; i < numberOfItem; i++ {
+		serviceCheckCollections = append(serviceCheckCollections, createServiceCheck(string(i)))
+	}
+	payloadBuilder := jsonstream.NewPayloadBuilder()
+	serviceChecks := ServiceChecks(serviceCheckCollections)
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		payloadBuilder.Build(serviceChecks)
+	}
+}
+
+func BenchmarkJSONStreamServiceCheck1(b *testing.B)       { benchmarkJSONStreamServiceCheck(b, 1) }
+func BenchmarkJSONStreamServiceCheck10(b *testing.B)      { benchmarkJSONStreamServiceCheck(b, 10) }
+func BenchmarkJSONStreamServiceCheck100(b *testing.B)     { benchmarkJSONStreamServiceCheck(b, 100) }
+func BenchmarkJSONStreamServiceCheck1000(b *testing.B)    { benchmarkJSONStreamServiceCheck(b, 1000) }
+func BenchmarkJSONStreamServiceCheck10000(b *testing.B)   { benchmarkJSONStreamServiceCheck(b, 10000) }
+func BenchmarkJSONStreamServiceCheck100000(b *testing.B)  { benchmarkJSONStreamServiceCheck(b, 100000) }
+func BenchmarkJSONStreamServiceCheck1000000(b *testing.B) { benchmarkJSONStreamServiceCheck(b, 1000000) }
+func BenchmarkJSONStreamServiceCheck10000000(b *testing.B) {
+	benchmarkJSONStreamServiceCheck(b, 10000000)
+}
