@@ -34,7 +34,9 @@ func benchmarkAddBucket(bucketValue int, b *testing.B) {
 }
 
 func BenchmarkAddBucket1(b *testing.B)        { benchmarkAddBucket(1, b) }
+func BenchmarkAddBucket10(b *testing.B)       { benchmarkAddBucket(10, b) }
 func BenchmarkAddBucket100(b *testing.B)      { benchmarkAddBucket(100, b) }
+func BenchmarkAddBucket1000(b *testing.B)     { benchmarkAddBucket(1000, b) }
 func BenchmarkAddBucket10000(b *testing.B)    { benchmarkAddBucket(10000, b) }
 func BenchmarkAddBucket1000000(b *testing.B)  { benchmarkAddBucket(1000000, b) }
 func BenchmarkAddBucket10000000(b *testing.B) { benchmarkAddBucket(10000000, b) }
