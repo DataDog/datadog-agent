@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetHostname(t *testing.T) {
@@ -112,13 +113,14 @@ func TestGetNetwork(t *testing.T) {
 func TestGetNetworkNoInferface(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusNotFound)
+		io.WriteString(w, "")
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
 
 	_, err := GetNetworkID()
-	assert.Error(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty response body")
 }
 
 func TestGetNetworkMultipleVPC(t *testing.T) {
@@ -143,5 +145,6 @@ func TestGetNetworkMultipleVPC(t *testing.T) {
 	metadataURL = ts.URL
 
 	_, err := GetNetworkID()
-	assert.Error(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "more than one network interface")
 }

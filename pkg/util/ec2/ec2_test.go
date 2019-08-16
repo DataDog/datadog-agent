@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsDefaultHostname(t *testing.T) {
@@ -133,15 +134,15 @@ func TestGetNetworkID(t *testing.T) {
 
 func TestGetInstanceIDNoMac(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusNotFound)
+		io.WriteString(w, "")
 	}))
 
 	defer ts.Close()
 	metadataURL = ts.URL
 
 	_, err := GetNetworkID()
-	assert.Error(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no mac addresses returned")
 }
 
 func TestGetInstanceIDMultipleVPC(t *testing.T) {
@@ -168,6 +169,6 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 	metadataURL = ts.URL
 
 	_, err := GetNetworkID()
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "too many mac addresses returned")
 }

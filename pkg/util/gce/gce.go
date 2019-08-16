@@ -90,6 +90,9 @@ func GetNetworkID() (string, error) {
 	vpcIDs := common.NewStringSet()
 
 	for _, interfaceID := range interfaceIDs {
+		if interfaceID == "" {
+			continue
+		}
 		interfaceID = strings.TrimSuffix(interfaceID, "/")
 		id, err := getResponse(metadataURL + fmt.Sprintf("/instance/network-interfaces/%s/network", interfaceID))
 		if err != nil {

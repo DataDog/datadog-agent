@@ -49,6 +49,9 @@ func GetNetworkID() (string, error) {
 	vpcIDs := common.NewStringSet()
 
 	for _, mac := range macs {
+		if mac == "" {
+			continue
+		}
 		mac = strings.TrimSuffix(mac, "/")
 		id, err := getMetadataItem(fmt.Sprintf("/network/interfaces/macs/%s/vpc-id", mac))
 		if err != nil {
