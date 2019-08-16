@@ -169,4 +169,5 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 
 	_, err := GetNetworkID()
 	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "too many mac addresses returned")
 }
