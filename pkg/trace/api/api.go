@@ -407,12 +407,21 @@ func (r *HTTPReceiver) processTraces(ts *info.TagStats, containerID string, trac
 	defer timing.Since("datadog.trace_agent.internal.normalize_ms", time.Now())
 
 	containerTags := getContainerTags(containerID)
+
+	// Allow propagating the service name set in container tags down to the
+	// spans (root and children), but only if it explicitly specifies the
+	// override is required by using empty service name in the source
+	overriddenServiceName := ""
+	if svc, ok := containerTags["container.service_name"]; ok {
+		overriddenServiceName = svc
+	}
+
 	for _, trace := range traces {
 		spans := len(trace)
 
 		atomic.AddInt64(&ts.SpansReceived, int64(spans))
 
-		err := normalizeTrace(ts, trace)
+		err := normalizeTrace(ts, trace, overriddenServiceName)
 		if err != nil {
 			log.Debug("Dropping invalid trace: %s", err)
 			atomic.AddInt64(&ts.SpansDropped, int64(spans))
