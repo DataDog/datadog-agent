@@ -8,6 +8,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"io/ioutil"
 	"os"
 	"path/filepath"
