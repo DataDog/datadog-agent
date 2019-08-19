@@ -3,8 +3,10 @@ param(
 )
 
 function Set-RegAccessFor {
-    [Parameter(Mandatory=$true)][System.Security.Principal.SecurityIdentifier]$ddsid
-    [Parameter(Mandatory=$true)][string]$logName
+    Param(
+        [Parameter(Mandatory=$true)][System.Security.Principal.SecurityIdentifier]$ddsid,
+        [Parameter(Mandatory=$true)][string]$logName
+    )
 
     $reg_acl = Get-Acl HKLM:\System\CurrentControlSet\Services\EventLog\$logName
     $accessrule = New-Object System.Security.AccessControl.RegistryAccessRule($ddsid,"ReadKey", "Allow")
@@ -13,13 +15,16 @@ function Set-RegAccessFor {
 }
 
 function Set-ChannelAccessFor {
-    [Parameter(Mandatory=$true)][string]$sidstring
-    [Parameter(Mandatory=$true)][string]$logName
+	
+    Param(
+	[Parameter(Mandatory=$true)][string]$sidstring,
+        [Parameter(Mandatory=$true)][string]$logName
+    )
 
     [string]$channel_access = & wevtutil gl $logName | Select-String "channelAccess:"
     $old_sddl = ($channel_access -split ':',2)[1].Trim()
     $new_sddl = "$old_sddl(A;;0x7;;;$sidstring)"
-    & wevutil sl security /ca:$new_sddl
+    & wevtutil sl security /ca:$new_sddl
 }
 
 [string]$service_sid_out = & sc.exe showsid datadogagent | Select-String "SERVICE SID"

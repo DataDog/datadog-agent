@@ -43,8 +43,12 @@ if ($removeLocalSystem -eq $True) {
 
 # adding ACL for ddagentuser
 if ($addDDUser -eq $True) {
-    $ddAcl = New-Object  system.security.accesscontrol.filesystemaccessrule("ddagentuser", "FullControl","Allow")
+    $ddAcl = New-Object  system.security.accesscontrol.filesystemaccessrule("NT Service\datadogagent", "FullControl","Allow")
     $acl.SetAccessRule($ddAcl)
+
+    $ddAcl = New-Object  system.security.accesscontrol.filesystemaccessrule("NT Service\datadog-trace-agent","FullControl","Allow")
+    $acl.SetAccessRule($ddAcl)
+
 }
 
 $acl | Set-Acl

@@ -18,9 +18,53 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-var (
-	username = "ddagentuser"
-)
+func getSidForUser(username string) (sid *windows.SID, err error) {
+	//
+	// when getting the SID for the secret user, unlike above, we provide
+	// the buffer. So this SID should *not* be passed to FreeSid() (the
+	// way the other ones are. So much for API consistency
+	//
+	// also, *must* provide adequate buffer for the domain name, or the
+	// function will fail (even though we aren't going to use it for anything)
+	//
+	var secretusersyscall *syscall.SID
+	var cchRefDomain uint32
+	var sidUse uint32
+	var sidlen uint32
+	var domainptr uint16
+
+	// first call to get the sidbuf and domainbuf length
+	err = syscall.LookupAccountName(nil, // local system lookup
+		windows.StringToUTF16Ptr(username),
+		secretusersyscall,
+		&sidlen,
+		&domainptr,
+		&cchRefDomain,
+		&sidUse)
+	if err != error(syscall.ERROR_INSUFFICIENT_BUFFER) {
+		// should never happen
+		return nil, fmt.Errorf("could not query %s SID : %v", username, err)
+	}
+
+	sidbuf := make([]uint8, sidlen+1)
+	domainbuf := make([]uint16, cchRefDomain+1)
+	secretusersyscall = (*syscall.SID)(unsafe.Pointer(&sidbuf[0]))
+
+	// second call to actually fetch the SID for username
+	err = syscall.LookupAccountName(nil, // local system lookup
+		windows.StringToUTF16Ptr(username),
+		secretusersyscall,
+		&sidlen,
+		&domainbuf[0],
+		&cchRefDomain,
+		&sidUse)
+	if err != nil {
+		// should never happen
+		return nil, fmt.Errorf("could not query %s SID: %s", username, err)
+	}
+
+	return (*windows.SID)(unsafe.Pointer(secretusersyscall)), nil
+}
 
 // checkRights check that the given filename has access controls set only for
 // Administrator, Local System and the datadog user.
@@ -75,52 +119,17 @@ func checkRights(filename string) error {
 	}
 	defer windows.FreeSid(administrators)
 
-	//
-	// when getting the SID for the secret user, unlike above, we provide
-	// the buffer. So this SID should *not* be passed to FreeSid() (the
-	// way the other ones are. So much for API consistency
-	//
-	// also, *must* provide adequate buffer for the domain name, or the
-	// function will fail (even though we aren't going to use it for anything)
-	//
-	var secretusersyscall *syscall.SID
-	var cchRefDomain uint32
-	var sidUse uint32
-	var sidlen uint32
-	var domainptr uint16
-
-	// first call to get the sidbuf and domainbuf length
-	err = syscall.LookupAccountName(nil, // local system lookup
-		windows.StringToUTF16Ptr(username),
-		secretusersyscall,
-		&sidlen,
-		&domainptr,
-		&cchRefDomain,
-		&sidUse)
-	if err != error(syscall.ERROR_INSUFFICIENT_BUFFER) {
-		// should never happen
-		return fmt.Errorf("could not query %s SID : %v", username, err)
-	}
-
-	sidbuf := make([]uint8, sidlen+1)
-	domainbuf := make([]uint16, cchRefDomain+1)
-	secretusersyscall = (*syscall.SID)(unsafe.Pointer(&sidbuf[0]))
-
-	// second call to actually fetch the SID for username
-	err = syscall.LookupAccountName(nil, // local system lookup
-		windows.StringToUTF16Ptr(username),
-		secretusersyscall,
-		&sidlen,
-		&domainbuf[0],
-		&cchRefDomain,
-		&sidUse)
+	agent_proc, err := getSidForUser("NT Service\\datadogagent")
 	if err != nil {
-		// should never happen
-		return fmt.Errorf("could not query %s SID: %s", username, err)
+		return fmt.Errorf("Failed to get SID for datadog agent service")
+	}
+	trace_proc, err := getSidForUser("NT Service\\datadog-trace-agent")
+	if err != nil {
+		return fmt.Errorf("Failed to get SID for datadog trace agent service")
 	}
 
-	secretuser := (*windows.SID)(unsafe.Pointer(secretusersyscall))
-	bSecretUserExplicitlyAllowed := false
+	bAgentServiceAllowed := false
+	bTraceServiceAllowed := false
 	for i := uint32(0); i < aclSizeInfo.AceCount; i++ {
 		var pAce *winutil.AccessAllowedAce
 		if err := winutil.GetAce(fileDacl, i, &pAce); err != nil {
@@ -130,28 +139,32 @@ func checkRights(filename string) error {
 		compareSid := (*windows.SID)(unsafe.Pointer(&pAce.SidStart))
 		compareIsLocalSystem := windows.EqualSid(compareSid, localSystem)
 		compareIsAdministrators := windows.EqualSid(compareSid, administrators)
-		compareIsSecretUser := windows.EqualSid(compareSid, secretuser)
+		compareIsAgentService := windows.EqualSid(compareSid, agent_proc)
+		compareIsTraceService := windows.EqualSid(compareSid, trace_proc)
 
 		if pAce.AceType == winutil.ACCESS_DENIED_ACE_TYPE {
 			// if we're denying access to local system or administrators,
 			// it's wrong. Otherwise, any explicit access denied is OK
-			if compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser {
-				return fmt.Errorf("Invalid executable '%s': Can't deny access LOCAL_SYSTEM, Administrators or %s", filename, username)
+			if compareIsLocalSystem || compareIsAdministrators || compareIsAgentService || compareIsTraceService {
+				return fmt.Errorf("Invalid executable '%s': Can't deny access LOCAL_SYSTEM, Administrators or agent services", filename)
 			}
 			// otherwise, it's fine; deny access to whomever
 		}
 		if pAce.AceType == winutil.ACCESS_ALLOWED_ACE_TYPE {
-			if !(compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser) {
-				return fmt.Errorf("Invalid executable '%s': other users/groups than LOCAL_SYSTEM, Administrators or %s have rights on it", filename, username)
+			if !(compareIsLocalSystem || compareIsAdministrators || compareIsAgentService || compareIsTraceService) {
+				return fmt.Errorf("Invalid executable '%s': other users/groups than LOCAL_SYSTEM, Administrators or agent services have rights on it", filename)
 			}
-			if compareIsSecretUser {
-				bSecretUserExplicitlyAllowed = true
+			if compareIsAgentService {
+				bAgentServiceAllowed = true
+			}
+			if compareIsTraceService {
+				bTraceServiceAllowed = true
 			}
 		}
 	}
-	if !bSecretUserExplicitlyAllowed {
+	if !bAgentServiceAllowed || !bTraceServiceAllowed {
 		// there was never an ACE explicitly allowing the secret user, so we can't use it
-		return fmt.Errorf("'%s' user is not allowed to execute secretBackendCommand '%s'", username, filename)
+		return fmt.Errorf("'%s' user is not allowed to execute secretBackendCommand '%s'", "service", filename)
 	}
 	return nil
 }
