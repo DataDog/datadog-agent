@@ -80,7 +80,6 @@ func getCreatePropertieWithDefaults(props map[string]interface{}) map[string]int
 func TestBasicConfiguration(t *testing.T) {
 	check := SystemdCheck{}
 	rawInstanceConfig := []byte(`
-name: my-systemd-instance
 unit_names:
  - ssh.service
  - syslog.socket
@@ -89,26 +88,13 @@ unit_names:
 
 	assert.Nil(t, err)
 	assert.ElementsMatch(t, []string{"ssh.service", "syslog.socket"}, check.config.instance.UnitNames)
-	assert.Equal(t, "my-systemd-instance", check.config.instance.Name)
-	assert.Equal(t, []string{"systemd_name:my-systemd-instance"}, check.config.instance.InstanceTags)
 }
 
 func TestMissingUnitNamesShouldRaiseError(t *testing.T) {
 	check := SystemdCheck{}
-	rawInstanceConfig := []byte(`
-name: my-systemd-instance
-`)
-	err := check.Configure(rawInstanceConfig, []byte(``), "test")
-
-	expectedErrorMsg := "instance config `unit_names` must not be empty"
-	assert.EqualError(t, err, expectedErrorMsg)
-}
-
-func TestMissingInstanceNameShouldRaiseError(t *testing.T) {
-	check := SystemdCheck{}
 	err := check.Configure([]byte(``), []byte(``), "test")
 
-	expectedErrorMsg := "instance config `name` must not be empty"
+	expectedErrorMsg := "instance config `unit_names` must not be empty"
 	assert.EqualError(t, err, expectedErrorMsg)
 }
 
@@ -300,7 +286,6 @@ func TestCountMetrics(t *testing.T) {
 	}, nil)
 
 	rawInstanceConfig := []byte(`
-name: my-instance
 unit_names:
  - unit1.service
  - unit2.service
@@ -321,17 +306,16 @@ unit_names:
 	assert.Nil(t, err)
 
 	// assertions
-	tags := []string{"systemd_name:my-instance"}
-	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, metrics.ServiceCheckOK, "", tags, mock.Anything)
-	mockSender.AssertCalled(t, "ServiceCheck", systemStateServiceCheck, metrics.ServiceCheckOK, "", tags, mock.Anything)
-	mockSender.AssertCalled(t, "Gauge", "systemd.units_loaded_count", float64(6), "", tags)
-	mockSender.AssertCalled(t, "Gauge", "systemd.units_monitored_count", float64(2), "", tags)
-	mockSender.AssertCalled(t, "Gauge", "systemd.units_total", float64(8), "", tags)
-	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(3), "", append(tags, "state:active"))
-	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(1), "", append(tags, "state:activating"))
-	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(2), "", append(tags, "state:inactive"))
-	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(1), "", append(tags, "state:deactivating"))
-	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(1), "", append(tags, "state:failed"))
+	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, metrics.ServiceCheckOK, "", []string(nil), mock.Anything)
+	mockSender.AssertCalled(t, "ServiceCheck", systemStateServiceCheck, metrics.ServiceCheckOK, "", []string(nil), mock.Anything)
+	mockSender.AssertCalled(t, "Gauge", "systemd.units_loaded_count", float64(6), "", []string(nil))
+	mockSender.AssertCalled(t, "Gauge", "systemd.units_monitored_count", float64(2), "", []string(nil))
+	mockSender.AssertCalled(t, "Gauge", "systemd.units_total", float64(8), "", []string(nil))
+	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(3), "", []string{"state:" + "active"})
+	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(1), "", []string{"state:" + "activating"})
+	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(2), "", []string{"state:" + "inactive"})
+	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(1), "", []string{"state:" + "deactivating"})
+	mockSender.AssertCalled(t, "Gauge", "systemd.units_by_state", float64(1), "", []string{"state:" + "failed"})
 }
 
 func TestMetricValues(t *testing.T) {
