@@ -28,6 +28,11 @@ type Meta struct {
 	InstanceID     string   `json:"instance-id"`
 }
 
+// NetworkMeta is metadata about the host's network
+type NetworkMeta struct {
+	ID string `json:"network-id"`
+}
+
 type tags struct {
 	System              []string `json:"system,omitempty"`
 	GoogleCloudPlatform []string `json:"google cloud platform,omitempty"`
@@ -41,4 +46,5 @@ type Payload struct {
 	Meta          *Meta             `json:"meta"`
 	HostTags      *tags             `json:"host-tags"`
 	ContainerMeta map[string]string `json:"container-meta,omitempty"`
+	NetworkMeta   *NetworkMeta      `json:"network"`
 }
