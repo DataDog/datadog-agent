@@ -29,6 +29,7 @@ type ConnectionsCheck struct {
 	useLocalTracer bool
 	localTracer    *ebpf.Tracer
 	tracerClientID string
+	networkID      string
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -58,6 +59,12 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemIn
 		net.SetSystemProbeSocketPath(cfg.SystemProbeSocketPath)
 		net.GetRemoteSystemProbeUtil()
 	}
+
+	networkID, err := util.GetNetworkID()
+	if err != nil {
+		log.Infof("no network ID detected: %s", err)
+	}
+	c.networkID = networkID
 
 	// Run the check one time on init to register the client on the system probe
 	c.Run(cfg, 0)
@@ -94,13 +101,8 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 		return nil, err
 	}
 
-	networkID, err := util.GetNetworkID()
-	if err != nil {
-		log.Debugf("could not detect networkID: %s", err)
-	}
-
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns), networkID), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns), c.networkID), nil
 }
 
 func (c *ConnectionsCheck) getConnections() ([]*model.Connection, error) {

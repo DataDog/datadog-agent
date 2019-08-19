@@ -33,11 +33,18 @@ type ProcessCheck struct {
 	lastCtrRates    map[string]util.ContainerRateMetrics
 	lastCtrIDForPID map[int32]string
 	lastRun         time.Time
+	networkID       string
 }
 
 // Init initializes the singleton ProcessCheck.
 func (p *ProcessCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	p.sysInfo = info
+
+	networkID, err := agentutil.GetNetworkID()
+	if err != nil {
+		log.Infof("no network ID detected: %s", err)
+	}
+	p.networkID = networkID
 }
 
 // Name returns the name of the ProcessCheck.
@@ -70,10 +77,6 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 		return nil, err
 	}
 	ctrList, _ := util.GetContainers()
-	networkID, err := agentutil.GetNetworkID()
-	if err != nil {
-		log.Debugf("cannot get networkID %s", err)
-	}
 
 	// End check early if this is our first run.
 	if p.lastProcs == nil {
@@ -88,7 +91,7 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, ctrList, cpuTimes[0], p.lastCPUTime, p.lastRun)
 	containers := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
 
-	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, containers, cfg, p.sysInfo, groupID, networkID)
+	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, containers, cfg, p.sysInfo, groupID, p.networkID)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.

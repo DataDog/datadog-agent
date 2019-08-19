@@ -31,11 +31,18 @@ type ContainerCheck struct {
 	lastRates       map[string]util.ContainerRateMetrics
 	lastRun         time.Time
 	lastCtrIDForPID map[int32]string
+	networkID       string
 }
 
 // Init initializes a ContainerCheck instance.
 func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	c.sysInfo = info
+
+	networkID, err := agentutil.GetNetworkID()
+	if err != nil {
+		log.Infof("no network ID detected: %s", err)
+	}
+	c.networkID = networkID
 }
 
 // Name returns the name of the ProcessCheck.
@@ -59,11 +66,6 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		return nil, err
 	}
 
-	networkID, err := util.GetNetworkID()
-	if err != nil {
-		log.Debugf("could not get networkID: %s", err)
-	}
-
 	// End check early if this is our first run.
 	if c.lastRates == nil {
 		c.lastRates = util.ExtractContainerRateMetric(ctrList)
@@ -83,7 +85,7 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		totalContainers += float64(len(chunked[i]))
 		messages = append(messages, &model.CollectorContainer{
 			HostName:   cfg.HostName,
-			NetworkId:  networkID,
+			NetworkId:  c.networkID,
 			Info:       c.sysInfo,
 			Containers: chunked[i],
 			GroupId:    groupID,
