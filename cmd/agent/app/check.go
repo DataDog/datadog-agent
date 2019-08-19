@@ -8,7 +8,6 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -245,12 +244,7 @@ var checkCmd = &cobra.Command{
 		for _, c := range cs {
 			for _, conf := range allConfigs {
 				if check.IsJMXConfig(conf.Name, conf.InitConfig) {
-					matchingChecks := collector.GetChecksByNameForConfigs(checkName, []integration.Config{conf})
-					for _, matchingCheck := range matchingChecks {
-						if c.ID() == matchingCheck.ID() {
-							return fmt.Errorf("using the jmx option with the check command directly is deprecated, please use the jmx command instead")
-						}
-					}
+					return fmt.Errorf("using the jmx option with the check command directly is deprecated, please use the jmx command instead")
 				}
 			}
 			s := runCheck(c, agg)
