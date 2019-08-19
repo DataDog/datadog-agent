@@ -1,0 +1,137 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent setup steps prior to remove the old package.
+#
+# .deb: STEP 1 of 5
+# .rpm: STEP 4 of 6
+
+KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
+DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
+
+INSTALL_DIR=/opt/datadog-agent
+SERVICE_NAME=datadog-agent
+
+if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
+    DISTRIBUTION_FAMILY="Debian"
+fi
+
+stop_agent()
+{
+    # Stop an already running agent
+    # Only supports systemd and upstart
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl stop $SERVICE_NAME-process || true
+        systemctl stop $SERVICE_NAME-sysprobe || true
+        systemctl stop $SERVICE_NAME-trace || true
+        systemctl stop $SERVICE_NAME || true
+    elif command -v initctl >/dev/null 2>&1; then
+        initctl stop $SERVICE_NAME-process || true
+        initctl stop $SERVICE_NAME-sysprobe || true
+        initctl stop $SERVICE_NAME-trace || true
+        initctl stop $SERVICE_NAME || true
+    elif [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
+        if command -v service >/dev/null 2>&1; then
+            service $SERVICE_NAME-process stop || true
+            service $SERVICE_NAME-sysprobe stop || true
+            service $SERVICE_NAME-trace stop || true
+            service $SERVICE_NAME stop || true
+        else
+            echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd, upstart and sysvinit."
+        fi
+    else
+        echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
+    fi
+}
+
+deregister_agent()
+{
+    # Disable agent start on system boot
+    # Only supports systemd and upstart
+    if command -v systemctl >/dev/null 2>&1; then
+        # Force systemd to ignore the sysvinit scripts. Only cosmetic, remove some irrelevant warnings during upgrade
+        SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME-process || true
+        SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME-sysprobe || true
+        SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME-trace || true
+        SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME || true
+    elif command -v initctl >/dev/null 2>&1; then
+        # Nothing to do, this is defined directly in the upstart job file
+        :
+    elif [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
+        if command -v update-rc.d >/dev/null 2>&1; then
+            update-rc.d -f $SERVICE_NAME-process remove || true
+            update-rc.d -f $SERVICE_NAME-sysprobe remove || true
+            update-rc.d -f $SERVICE_NAME-trace remove || true
+            update-rc.d -f $SERVICE_NAME remove || true
+        else
+            echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd, upstart and sysvinit."
+        fi
+    else
+        echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
+    fi
+}
+
+remove_py_compiled_files()
+{
+    # Delete all the .pyc files in the embedded dir that are part of the agent's package
+    # This MUST be done after using pip or any python, because executing python might generate .pyc files
+    if [ -f "$INSTALL_DIR/embedded/.py_compiled_files.txt" ]; then
+        # (commented lines are filtered out)
+        cat $INSTALL_DIR/embedded/.py_compiled_files.txt | grep -v '^#' | xargs rm -f
+    fi
+}
+
+remove_downloader_data()
+{
+    # Remove all the data that was downloaded using the integration command
+    # This is purely for cleaning up after ourselves
+    DOWNLOADER_DATA="$INSTALL_DIR/embedded/lib/python2.7/site-packages/datadog_checks/downloader/data"
+    if [ -d $DOWNLOADER_DATA ]; then
+        rm -rf $DOWNLOADER_DATA
+    fi
+}
+
+uninstall_integrations()
+{
+    # Uninstall every datadog integration
+    # Starting with 6.10, integrations are uninstalled on package removal
+    # See https://github.com/DataDog/datadog-agent/pull/3066 for more details
+    PIP_PATH=$INSTALL_DIR/embedded/bin/pip
+    if [ -x $PIP_PATH ]; then
+        echo "Uninstalling integrations..."
+        $PIP_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP_PATH uninstall -y -q --no-cache-dir || true
+    fi
+}
+
+if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
+    stop_agent
+    deregister_agent
+    uninstall_integrations
+    remove_py_compiled_files
+    remove_downloader_data
+elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
+    stop_agent
+    deregister_agent
+
+    case "$*" in
+        0)
+            # We're uninstalling.
+            uninstall_integrations
+            remove_py_compiled_files
+            remove_downloader_data
+        ;;
+        1)
+            # We're upgrading.
+            # The preinst script has taken care of removing the .pyc/.pyo files
+        ;;
+        *)
+        ;;
+    esac
+else
+    echo "[ ${Red}FAILED ${RCol}]\tYour system is currently not supported by this script.";
+fi
+
+# Delete all .pyc files in the `agent/` and the `bin/agent/dist` dirs
+find $INSTALL_DIR/agent -name '*.py[co]' -type f -delete || echo "Unable to delete .pyc files in $INSTALL_DIR/agent"
+find $INSTALL_DIR/bin/agent/dist -name '*.py[co]' -type f -delete || echo "Unable to delete .pyc files in $INSTALL_DIR/bin/agent/dist"
+
+exit 0
