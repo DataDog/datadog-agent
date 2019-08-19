@@ -242,6 +242,16 @@ var checkCmd = &cobra.Command{
 		var instancesData []interface{}
 
 		for _, c := range cs {
+			for _, conf := range allConfigs {
+				if check.IsJMXConfig(conf.Name, conf.InitConfig) {
+					matchingChecks := collector.GetChecksByNameForConfigs(checkName, []integration.Config{conf})
+					for _, matchingCheck := range matchingChecks {
+						if c.ID() == matchingCheck.ID() {
+							return fmt.Errorf("using the jmx option with the check command directly is deprecated, please use the jmx command instead")
+						}
+					}
+				}
+			}
 			s := runCheck(c, agg)
 
 			// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
