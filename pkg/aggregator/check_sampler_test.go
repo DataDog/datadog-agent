@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	// stdlib
+	"math"
 	"sort"
 	"testing"
 	"time"
@@ -261,4 +262,72 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	checkSampler.flush()
 	assert.Equal(t, len(checkSampler.lastBucketValue), 0)
 	assert.Equal(t, len(checkSampler.lastSeenBucket), 0)
+}
+
+func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
+	checkSampler := newCheckSampler()
+	checkSampler.bucketExpiry = 10 * time.Millisecond
+
+	bucket1 := &metrics.HistogramBucket{
+		Name:       "my.histogram",
+		Value:      4.0,
+		LowerBound: 9000.0,
+		UpperBound: math.Inf(1),
+		Tags:       []string{"foo", "bar"},
+		Timestamp:  12345.0,
+	}
+	checkSampler.addBucket(bucket1)
+	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
+	assert.Equal(t, len(checkSampler.lastSeenBucket), 1)
+
+	checkSampler.commit(12349.0)
+	_, flushed := checkSampler.flush()
+
+	expSketch := &quantile.Sketch{}
+	expSketch.InsertMany(quantile.Default(), []float64{9000.0, 9000.0, 9000.0, 9000.0})
+
+	assert.Equal(t, 1, len(flushed))
+	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+		Name: "my.histogram",
+		Tags: []string{"foo", "bar"},
+		Points: []metrics.SketchPoint{
+			{Ts: 12345.0, Sketch: expSketch},
+		},
+		ContextKey: generateContextKey(bucket1),
+	}, flushed[0])
+}
+
+func TestCheckHistogramBucketInterpolationGranularity(t *testing.T) {
+	checkSampler := newCheckSampler()
+	checkSampler.bucketExpiry = 10 * time.Millisecond
+	// we should have 2 groups of 2 values
+	checkSampler.interpolationGranularity = 2
+
+	bucket1 := &metrics.HistogramBucket{
+		Name:       "my.histogram",
+		Value:      4.0,
+		LowerBound: 10.0,
+		UpperBound: 20.0,
+		Tags:       []string{"foo", "bar"},
+		Timestamp:  12345.0,
+	}
+	checkSampler.addBucket(bucket1)
+	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
+	assert.Equal(t, len(checkSampler.lastSeenBucket), 1)
+
+	checkSampler.commit(12349.0)
+	_, flushed := checkSampler.flush()
+
+	expSketch := &quantile.Sketch{}
+	expSketch.InsertMany(quantile.Default(), []float64{10.0, 10.0, 15.0, 15.0})
+
+	assert.Equal(t, 1, len(flushed))
+	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+		Name: "my.histogram",
+		Tags: []string{"foo", "bar"},
+		Points: []metrics.SketchPoint{
+			{Ts: 12345.0, Sketch: expSketch},
+		},
+		ContextKey: generateContextKey(bucket1),
+	}, flushed[0])
 }

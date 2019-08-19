@@ -61,7 +61,9 @@ func (a *Agent) Insert(v float64) {
 func (a *Agent) InsertN(v float64, n uint) {
 	a.Sketch.Basic.InsertN(v, n)
 
-	a.Buf = append(a.Buf, agentConfig.key(v))
+	for i := 0; i < int(n); i++ {
+		a.Buf = append(a.Buf, agentConfig.key(v))
+	}
 	if len(a.Buf) < agentBufCap {
 		return
 	}

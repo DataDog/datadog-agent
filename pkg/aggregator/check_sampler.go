@@ -96,10 +96,6 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 	}
 
 	// simple linear interpolation, TODO: optimize
-	if math.IsInf(bucket.UpperBound, 1) {
-		// Arbitrarily double the lower bucket value for interpolation over infinity bucket
-		bucket.UpperBound = bucket.LowerBound * 2
-	}
 	bucketRange := bucket.UpperBound - bucket.LowerBound
 	if bucketRange < 0 {
 		log.Warnf(
@@ -119,6 +115,12 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		linearIncr = bucketRange / float64(bucket.Value)
 		countPerIncr = 1
 		incrCount = bucket.Value
+	}
+	if math.IsInf(bucket.UpperBound, 1) {
+		// We simulate the behavior of promQL for the infinity bucket:
+		// "if the quantile falls into the highest bucket, the upper bound of the 2nd highest bucket is returned"
+		incrCount = 1
+		countPerIncr = uint(bucket.Value)
 	}
 	currentVal := bucket.LowerBound
 	log.Tracef(
