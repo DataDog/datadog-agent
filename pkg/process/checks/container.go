@@ -9,6 +9,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	agentutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -58,6 +59,11 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		return nil, err
 	}
 
+	networkID, err := util.GetNetworkID()
+	if err != nil {
+		log.Debugf("could not get networkID: %s", err)
+	}
+
 	// End check early if this is our first run.
 	if c.lastRates == nil {
 		c.lastRates = util.ExtractContainerRateMetric(ctrList)
@@ -77,6 +83,7 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		totalContainers += float64(len(chunked[i]))
 		messages = append(messages, &model.CollectorContainer{
 			HostName:   cfg.HostName,
+			NetworkId:  networkID,
 			Info:       c.sysInfo,
 			Containers: chunked[i],
 			GroupId:    groupID,
