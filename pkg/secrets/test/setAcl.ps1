@@ -18,7 +18,7 @@ param(
 # remove right inherited
 $acl = Get-Acl $file
 $acl.SetAccessRuleProtection($true,$true)
-$acl | Set-Acl
+(Get-Item $file).SetAccessControl($acl)
 
 
 $acl = Get-Acl $file
@@ -27,6 +27,7 @@ if ($removeAllUser -eq $True) {
     $acl.Access | Where-Object { ($_.IdentityReference -ne 'NT AUTHORITY\SYSTEM') -and ($_.IdentityReference -ne 'BUILTIN\Administrators')} | ForEach-Object {
         $acl.RemoveAccessRule($_);
     }
+    
 }
 
 if ($removeAdmin -eq $True) {
@@ -43,10 +44,12 @@ if ($removeLocalSystem -eq $True) {
 
 # adding ACL for ddagentuser
 if ($addDDUser -eq $True) {
-    $ddAcl = New-Object  system.security.accesscontrol.filesystemaccessrule("NT Service\datadogagent", "FullControl","Allow")
+    $ddSid = New-Object Security.Principal.SecurityIdentifier("S-1-5-80-1780442038-2564740535-2014067642-3562800676-515077229")
+    $ddAcl = New-Object  system.security.accesscontrol.filesystemaccessrule($ddSid, "FullControl","Allow")
     $acl.SetAccessRule($ddAcl)
 
-    $traceAcl = New-Object  system.security.accesscontrol.filesystemaccessrule("NT Service\datadog-trace-agent","FullControl","Allow")
+    $traceSid = New-Object Security.Principal.SecurityIdentifier("S-1-5-80-3626218227-2896763321-2052920590-1920844846-327269072")
+    $traceAcl = New-Object  system.security.accesscontrol.filesystemaccessrule($traceSid,"FullControl","Allow")
     $acl.SetAccessRule($traceAcl)
 }
 (Get-Item $file).SetAccessControl($acl)

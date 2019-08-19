@@ -124,7 +124,6 @@ func checkRights(filename string) error {
 		if err != nil {
 			return fmt.Errorf("Failed to get SID for datadog agent service")
 		}
-		defer windows.FreeSid(agent_proc)
 	}
 	trace_proc, err := getSidForUser("NT Service\\datadog-trace-agent")
 	if err != nil {
@@ -132,7 +131,6 @@ func checkRights(filename string) error {
 		if err != nil {
 			return fmt.Errorf("Failed to get SID for datadog trace agent service")
 		}
-		defer windows.FreeSid(trace_proc)
 	}
 
 	bAgentServiceAllowed := false
@@ -171,7 +169,7 @@ func checkRights(filename string) error {
 	}
 	if !bAgentServiceAllowed || !bTraceServiceAllowed {
 		// there was never an ACE explicitly allowing the secret user, so we can't use it
-		return fmt.Errorf("'%s' user is not allowed to execute secretBackendCommand '%s'", "service", filename)
+		return fmt.Errorf("Service user is not allowed to execute secretBackendCommand '%s'", filename)
 	}
 	return nil
 }
