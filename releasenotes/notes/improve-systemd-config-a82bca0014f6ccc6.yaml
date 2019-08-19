@@ -9,8 +9,9 @@
 upgrade:
   - |
     Update systemd configuration. Before if `unit_names` and `unit_regexes`
-    are not set, all units are monitored. Now either `unit_names` or
-    `unit_regexes` must be set, and only matching units will be monitored.
+    are not set, all units are monitored. Now `unit_names` is required and only
+    matching units will be monitored, `unit_regexes` have been removed (avoid
+    accidental monitoring of too many metrics).
   - |
     New systemd configuration `private_socket`, and `max_units` have been added.
     Default is now prefixed with `/host` when using Docker Agent.
