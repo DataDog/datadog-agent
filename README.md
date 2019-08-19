@@ -50,7 +50,7 @@ To start working on the Agent, you can build the `master` branch:
    rtloader.install`. You will need CMake installed and a C++ compiler for this
    to work.
    `rtloader` is in charge of loading and running Python. By default `rtloader`
-   will be build for Python2 you can choose which versions of Python you want
+   will be built for Python2, but you can choose which versions of Python you want
    to support:
    - `invoke rtloader.build -p 2` for Python2 only
    - `invoke rtloader.build -p 3` for Python3 only
