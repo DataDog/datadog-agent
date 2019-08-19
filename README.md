@@ -56,7 +56,7 @@ To start working on the Agent, you can build the `master` branch:
    - `invoke rtloader.build -p 3` for Python3 only
    - `invoke rtloader.build -p 2,3` for both Python2 and Python3
 5. Build the agent with `invoke agent.build --build-exclude=systemd`. You can
-   specify custome Python location for the agent (useful when using
+   specify a custom Python location for the agent (useful when using
    virtualenvs): `invoke agent.build
    --python-home-2=$GOPATH/src/github.com/DataDog/datadog-agent/venv2
    --python-home-3=$GOPATH/src/github.com/DataDog/datadog-agent/venv3`.
