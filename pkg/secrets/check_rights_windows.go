@@ -118,14 +118,21 @@ func checkRights(filename string) error {
 		return fmt.Errorf("could not query Administrator SID: %s", err)
 	}
 	defer windows.FreeSid(administrators)
-
 	agent_proc, err := getSidForUser("NT Service\\datadogagent")
 	if err != nil {
-		return fmt.Errorf("Failed to get SID for datadog agent service")
+		agent_proc, err = windows.StringToSid("S-1-5-80-1780442038-2564740535-2014067642-3562800676-515077229")
+		if err != nil {
+			return fmt.Errorf("Failed to get SID for datadog agent service")
+		}
+		defer windows.FreeSid(agent_proc)
 	}
 	trace_proc, err := getSidForUser("NT Service\\datadog-trace-agent")
 	if err != nil {
-		return fmt.Errorf("Failed to get SID for datadog trace agent service")
+		trace_proc, err = windows.StringToSid("S-1-5-80-3626218227-2896763321-2052920590-1920844846-327269072")
+		if err != nil {
+			return fmt.Errorf("Failed to get SID for datadog trace agent service")
+		}
+		defer windows.FreeSid(trace_proc)
 	}
 
 	bAgentServiceAllowed := false

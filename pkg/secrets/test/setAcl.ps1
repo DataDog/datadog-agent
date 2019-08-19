@@ -46,9 +46,7 @@ if ($addDDUser -eq $True) {
     $ddAcl = New-Object  system.security.accesscontrol.filesystemaccessrule("NT Service\datadogagent", "FullControl","Allow")
     $acl.SetAccessRule($ddAcl)
 
-    $ddAcl = New-Object  system.security.accesscontrol.filesystemaccessrule("NT Service\datadog-trace-agent","FullControl","Allow")
-    $acl.SetAccessRule($ddAcl)
-
+    $traceAcl = New-Object  system.security.accesscontrol.filesystemaccessrule("NT Service\datadog-trace-agent","FullControl","Allow")
+    $acl.SetAccessRule($traceAcl)
 }
-
-$acl | Set-Acl
+(Get-Item $file).SetAccessControl($acl)
