@@ -5,7 +5,7 @@ This guide will help you to develop and contribute code to the project.
 ## TOC
 
 * [Custom checks developer guide](checks/README.md)
-  * [Python builtin modules](checks/python)
+  * [Python builtin modules](checks/builtins)
 * [Agent IPC API](agent_api.md)
 * [Agent development environment][dev-env]
 * [How to build the Agent binaries](agent_build.md)
