@@ -96,7 +96,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 
 	networkID, err := util.GetNetworkID()
 	if err != nil {
-		log.Debugf("could not detect networkID, will continue with empty string")
+		log.Debugf("could not detect networkID: %s", err)
 	}
 
 	log.Debugf("collected connections in %s", time.Since(start))
