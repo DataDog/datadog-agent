@@ -14,8 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
-// main is the main application entry point
-func main() {
+// DefaultConfigPath specifies the default configuration file path for non-Windows systems.
+const DefaultConfigPath = "/opt/datadog-agent/etc/datadog.yaml"
+
+func runAgent() {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	// Handle stops properly

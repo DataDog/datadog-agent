@@ -124,7 +124,7 @@ func (s *agentRunner) Kill() {
 
 func (s *agentRunner) runAgentConfig(path string) <-chan error {
 	s.Kill()
-	cmd := exec.Command("trace-agent", "-config", path)
+	cmd := exec.Command("trace-agent", "-c", path, "run")
 	s.log.Reset()
 	cmd.Stdout = s.log
 	cmd.Stderr = ioutil.Discard

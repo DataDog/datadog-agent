@@ -15,17 +15,20 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// StatsOut specifies the file to write metrics to. Written to by the run commmand's
+// --stats-out command line flag
+var StatsOut string
+
 // Configure creates a statsd client for the given agent's configuration, using the specified global tags.
 func Configure(cfg *config.AgentConfig, tags []string) error {
-	f, err := os.Create(flags.StatsOut)
+	f, err := os.Create(StatsOut)
 	if err != nil {
 		return err
 	}
-	log.Infof("Outputting metrics to %q", flags.StatsOut)
+	log.Infof("Outputting metrics to %q", StatsOut)
 	Client = &captureClient{
 		f:    f,
 		cfg:  cfg,

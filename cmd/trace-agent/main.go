@@ -10,8 +10,31 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/spf13/cobra"
 )
+
+var rootCmd = &cobra.Command{
+	Use:   "trace-agent",
+	Short: "trace-agent is Datadog's APM agent",
+	Long: `
+trace-agent is Datadog's APM agent. It is comprised of an HTTP API which processes incoming
+payloads representing tracing data. It augments them with stats and extracts Trace Search &
+Analytics events, forwarding them to the Datadog API. The trace-agent is usually bundled and
+run with the Datadog Agent package.`,
+	SilenceUsage: true,
+}
+
+func init() {
+	rootCmd.PersistentFlags().StringVarP(&agent.ConfigPath, "cfgpath", "c", DefaultConfigPath, "path to directory containing datadog.yaml")
+}
+
+func main() {
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(-1)
+	}
+}
 
 // handleSignal closes a channel to exit cleanly from routines
 func handleSignal(onSignal func()) {

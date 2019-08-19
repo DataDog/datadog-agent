@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
-	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
@@ -28,6 +28,16 @@ var elog debug.Log
 
 // ServiceName specifies the service name used in the operating system.
 const ServiceName = "datadog-trace-agent"
+
+// DefaultConfigPath specifies the default configuration path.
+var DefaultConfigPath = "c:\\programdata\\datadog\\datadog.yaml"
+
+func init() {
+	pd, err := winutil.GetProgramDataDir()
+	if err == nil {
+		DefaultConfigPath = filepath.Join(pd, "datadog.yaml")
+	}
+}
 
 type myservice struct{}
 
@@ -66,24 +76,16 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	return
 }
 
-func runService(isDebug bool) {
+func runService() {
 	var err error
-	if isDebug {
-		elog = debug.New(ServiceName)
-	} else {
-		elog, err = eventlog.Open(ServiceName)
-		if err != nil {
-			return
-		}
+	elog, err = eventlog.Open(ServiceName)
+	if err != nil {
+		return
 	}
 	defer elog.Close()
 
-	run := svc.Run
-	if isDebug {
-		run = debug.Run
-	}
 	elog.Info(0x40000007, ServiceName)
-	err = run(ServiceName, &myservice{})
+	err = svc.Run(ServiceName, &myservice{})
 	if err != nil {
 		elog.Error(0xc0000008, err.Error())
 		return
@@ -91,62 +93,15 @@ func runService(isDebug bool) {
 	elog.Info(0x40000004, ServiceName)
 }
 
-// main is the main application entry point
-func main() {
+func runAgent() {
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
 		fmt.Printf("failed to determine if we are running in an interactive session: %v", err)
 	}
 	if !isIntSess {
-		runService(false)
+		runService()
 		return
 	}
-	// sigh.  Go doesn't have boolean xor operator.  The options are mutually exclusive,
-	// make sure more than one wasn't specified
-	optcount := 0
-	if flags.Win.InstallService {
-		optcount++
-	}
-	if flags.Win.UninstallService {
-		optcount++
-	}
-	if flags.Win.StartService {
-		optcount++
-	}
-	if flags.Win.StopService {
-		optcount++
-	}
-	if optcount > 1 {
-		fmt.Printf("Incompatible options chosen")
-		return
-	}
-	if flags.Win.InstallService {
-		if err = installService(); err != nil {
-			fmt.Printf("Error installing service %v\n", err)
-		}
-		return
-	}
-	if flags.Win.UninstallService {
-		if err = removeService(); err != nil {
-			fmt.Printf("Error removing service %v\n", err)
-		}
-		return
-	}
-	if flags.Win.StartService {
-		if err = startService(); err != nil {
-			fmt.Printf("Error starting service %v\n", err)
-		}
-		return
-	}
-	if flags.Win.StopService {
-		if err = stopService(); err != nil {
-			fmt.Printf("Error stopping service %v\n", err)
-		}
-		return
-
-	}
-
-	// if we are an interactive session, then just invoke the agent on the command line.
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	// Handle stops properly

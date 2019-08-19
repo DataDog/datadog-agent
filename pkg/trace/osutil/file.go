@@ -6,10 +6,8 @@
 package osutil
 
 import (
-	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,23 +19,14 @@ func Exists(path string) bool {
 
 // Exit prints the message and exits the program with status code 1.
 func Exit(msg string) {
-	if flags.Info || flags.Version {
-		fmt.Println(msg)
-	} else {
-		log.Error(msg)
-		log.Flush()
-	}
+	log.Error(msg)
+	log.Flush()
 	os.Exit(1)
 }
 
 // Exitf prints the formatted text and exits the program with status code 1.
 func Exitf(format string, args ...interface{}) {
-	if flags.Info || flags.Version {
-		fmt.Printf(format, args...)
-		fmt.Print("")
-	} else {
-		log.Criticalf(format, args...)
-		log.Flush()
-	}
+	log.Criticalf(format, args...)
+	log.Flush()
 	os.Exit(1)
 }

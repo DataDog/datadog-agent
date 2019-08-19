@@ -44,7 +44,7 @@ func TestSecrets(t *testing.T) {
 
 	// run the trace-agent
 	var buf safeWriter
-	cmd = exec.Command(binTraceAgent)
+	cmd = exec.Command(binTraceAgent, "run")
 	cmd.Env = []string{
 		"DD_SECRET_BACKEND_COMMAND=" + binSecrets,
 		"DD_HOSTNAME=ENC[secret1]",
