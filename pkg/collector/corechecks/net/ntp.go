@@ -63,7 +63,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 	var instance ntpInstanceConfig
 	var initConf ntpInitConfig
 	defaultVersion := 3
-	defaultTimeout := 1
+	defaultTimeout := 5
 	defaultPort := 123
 	defaultOffsetThreshold := 60
 	defaultMinCollectionInterval := 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
@@ -175,7 +175,7 @@ func (c *NTPCheck) queryOffset() (float64, error) {
 	offsets := []float64{}
 
 	for _, host := range c.cfg.instance.Hosts {
-		response, err := ntpQuery(host, ntp.QueryOptions{Version: c.cfg.instance.Version, Port: c.cfg.instance.Port})
+		response, err := ntpQuery(host, ntp.QueryOptions{Version: c.cfg.instance.Version, Port: c.cfg.instance.Port, Timeout: time.Duration(c.cfg.instance.Timeout) * time.Second})
 		if err != nil {
 			log.Infof("There was an error querying the ntp host %s: %s", host, err)
 			continue
