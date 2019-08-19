@@ -36,6 +36,7 @@ type NTPCheck struct {
 	core.CheckBase
 	cfg            *ntpConfig
 	lastCollection time.Time
+	errCount       int
 }
 
 type ntpInstanceConfig struct {
@@ -177,9 +178,16 @@ func (c *NTPCheck) queryOffset() (float64, error) {
 	for _, host := range c.cfg.instance.Hosts {
 		response, err := ntpQuery(host, ntp.QueryOptions{Version: c.cfg.instance.Version, Port: c.cfg.instance.Port})
 		if err != nil {
-			log.Infof("There was an error querying the ntp host %s: %s", host, err)
+			if c.errCount >= 10 {
+				c.errCount = 0
+				log.Warnf("Couldn't query the ntp host %s for 10 times in a row: %s", host, err)
+			} else {
+				c.errCount++
+				log.Debugf("There was an error querying the ntp host %s: %s", host, err)
+			}
 			continue
 		}
+		c.errCount = 0
 		err = response.Validate()
 		if err != nil {
 			log.Infof("The ntp response is not valid for host %s: %s", host, err)
