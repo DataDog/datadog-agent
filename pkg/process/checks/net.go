@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -93,8 +94,13 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 		return nil, err
 	}
 
+	networkID, err := util.GetNetworkID()
+	if err != nil {
+		log.Debugf("could not detect networkID, will continue with empty string")
+	}
+
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns)), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns), networkID), nil
 }
 
 func (c *ConnectionsCheck) getConnections() ([]*model.Connection, error) {
@@ -136,7 +142,7 @@ func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model
 
 // Connections are split up into a chunks of at most 100 connections per message to
 // limit the message size on intake.
-func batchConnections(cfg *config.AgentConfig, groupID int32, cxs []*model.Connection) []model.MessageBody {
+func batchConnections(cfg *config.AgentConfig, groupID int32, cxs []*model.Connection, networkID string) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
 
@@ -146,6 +152,7 @@ func batchConnections(cfg *config.AgentConfig, groupID int32, cxs []*model.Conne
 		ctrIDForPID := getCtrIDsByPIDs(connectionPIDs(cxs[:batchSize]))
 		batches = append(batches, &model.CollectorConnections{
 			HostName:        cfg.HostName,
+			NetworkId:       networkID,
 			Connections:     cxs[:batchSize],
 			GroupId:         groupID,
 			GroupSize:       groupSize,
