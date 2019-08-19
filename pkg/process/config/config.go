@@ -84,6 +84,8 @@ type AgentConfig struct {
 	MaxTrackedConnections        uint
 	SysProbeBPFDebug             bool
 	ExcludedBPFLinuxVersions     []string
+	ExcludedInboundConnections   map[string][]string
+	ExcludedOutboundConnections  map[string][]string
 	EnableConntrack              bool
 	ConntrackShortTermBufferSize int
 	SystemProbeDebugPort         int
