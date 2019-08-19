@@ -114,14 +114,12 @@ build do
                 link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
             end
 
-            # Strip symbols
-            strip_symbols(install_dir, "#{install_dir}/symbols")
-            debug_path "**/symbols"  # this is a little dangerous actually...
-            # delete "#{install_dir}/symbols"
-
             # removing the man pages from the embedded folder to reduce package size by ~4MB
             delete "#{install_dir}/embedded/man"
             delete "#{install_dir}/embedded/share/man"
+
+            # add debug path to list of paths to include in debug build
+            debug_path ".debug"
 
         elsif osx?
             # Remove linux specific configs

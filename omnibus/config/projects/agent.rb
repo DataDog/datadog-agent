@@ -166,7 +166,6 @@ dependency 'version-manifest'
 # the `extra_package_file` directive.
 # This must be the last dependency in the project.
 dependency 'datadog-agent-finalize'
-dependency 'datadog-agent-strip'
 
 if linux?
   extra_package_file '/etc/init/datadog-agent.conf'
@@ -192,3 +191,9 @@ end
 
 exclude '\.git*'
 exclude 'bundler\/git'
+
+if linux?
+  strip_build true
+  # debug_path "**/#{stripped_symbols_path}"
+  debug_path "**/.debug"
+end
