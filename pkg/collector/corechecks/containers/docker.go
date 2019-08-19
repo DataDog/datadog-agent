@@ -375,8 +375,8 @@ func (d *DockerCheck) reportIOMetrics(io *cmetrics.CgroupIOStat, tags []string, 
 }
 
 // Configure parses the check configuration and init the check
-func (d *DockerCheck) Configure(config, initConfig integration.Data) error {
-	err := d.CommonConfigure(config)
+func (d *DockerCheck) Configure(config, initConfig integration.Data, source string) error {
+	err := d.CommonConfigure(config, source)
 	if err != nil {
 		return err
 	}

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"testing"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -106,11 +107,21 @@ func (p *testPayload) Marshal() ([]byte, error)     { return protobufString, nil
 func (p *testPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return []marshaler.Marshaler{}, nil
 }
-func (p *testPayload) JSONHeader() []byte             { return jsonHeader }
-func (p *testPayload) Len() int                       { return 1 }
-func (p *testPayload) JSONItem(i int) ([]byte, error) { return jsonItem, nil }
-func (p *testPayload) DescribeItem(i int) string      { return "description" }
-func (p *testPayload) JSONFooter() []byte             { return jsonFooter }
+
+func (p *testPayload) WriteHeader(stream *jsoniter.Stream) error {
+	_, err := stream.Write(jsonHeader)
+	return err
+}
+func (p *testPayload) WriteFooter(stream *jsoniter.Stream) error {
+	_, err := stream.Write(jsonFooter)
+	return err
+}
+func (p *testPayload) WriteItem(stream *jsoniter.Stream, i int) error {
+	_, err := stream.Write(jsonItem)
+	return err
+}
+func (p *testPayload) Len() int                  { return 1 }
+func (p *testPayload) DescribeItem(i int) string { return "description" }
 
 type testErrorPayload struct{}
 
@@ -119,11 +130,20 @@ func (p *testErrorPayload) Marshal() ([]byte, error)     { return nil, fmt.Error
 func (p *testErrorPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return []marshaler.Marshaler{}, fmt.Errorf("some error")
 }
-func (p *testErrorPayload) JSONHeader() []byte             { return jsonHeader }
-func (p *testErrorPayload) Len() int                       { return 1 }
-func (p *testErrorPayload) JSONItem(i int) ([]byte, error) { return jsonItem, fmt.Errorf("some error") }
-func (p *testErrorPayload) DescribeItem(i int) string      { return "description" }
-func (p *testErrorPayload) JSONFooter() []byte             { return jsonFooter }
+
+func (p *testErrorPayload) WriteHeader(stream *jsoniter.Stream) error {
+	_, err := stream.Write(jsonHeader)
+	return err
+}
+func (p *testErrorPayload) WriteFooter(stream *jsoniter.Stream) error {
+	_, err := stream.Write(jsonFooter)
+	return err
+}
+func (p *testErrorPayload) WriteItem(stream *jsoniter.Stream, i int) error {
+	return fmt.Errorf("some error")
+}
+func (p *testErrorPayload) Len() int                  { return 1 }
+func (p *testErrorPayload) DescribeItem(i int) string { return "description" }
 
 func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 	payloads := forwarder.Payloads{}
@@ -250,8 +270,8 @@ func TestSendSeries(t *testing.T) {
 
 func TestSendSketch(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	payloads, _ := mkPayloads(protobufString, false)
-	f.On("SubmitSketchSeries", payloads, protobufExtraHeaders).Return(nil).Times(1)
+	payloads, _ := mkPayloads(protobufString, true)
+	f.On("SubmitSketchSeries", payloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
 	s := NewSerializer(f)
 

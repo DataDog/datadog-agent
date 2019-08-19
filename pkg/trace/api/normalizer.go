@@ -1,16 +1,25 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package api
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,9 +30,10 @@ const (
 	MaxNameLen = 100
 	// MaxTypeLen the maximum length a span type can have
 	MaxTypeLen = 100
-	// MaxEndDateOffset the maximum amount of time in the future we
-	// tolerate for span end dates
-	MaxEndDateOffset = 10 * time.Minute
+	// DefaultServiceName is the default name we assign a service if it's missing and we have no reasonable fallback
+	DefaultServiceName = "unnamed-service"
+	// DefaultSpanName is the default name we assign a span if it's missing and we have no reasonable fallback
+	DefaultSpanName = "unnamed-operation"
 )
 
 var (
@@ -31,38 +41,63 @@ var (
 	Year2000NanosecTS = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC).UnixNano()
 )
 
-// normalize makes sure a Span is properly initialized and encloses the minimum required info
-func normalize(s *pb.Span) error {
-	// Service
+// normalize makes sure a Span is properly initialized and encloses the minimum required info, returning error if it
+// is invalid beyond repair
+func normalize(ts *info.TagStats, s *pb.Span) error {
+	fallbackServiceName := DefaultServiceName
+	if ts.Lang != "" {
+		fallbackServiceName = fmt.Sprintf("unnamed-%s-service", ts.Lang)
+	}
+	if s.TraceID == 0 {
+		atomic.AddInt64(&ts.TracesDropped.TraceIDZero, 1)
+		return fmt.Errorf("TraceID is zero (reason:trace_id_zero): %s", s)
+	}
+	if s.SpanID == 0 {
+		atomic.AddInt64(&ts.TracesDropped.SpanIDZero, 1)
+		return fmt.Errorf("SpanID is zero (reason:span_id_zero): %s", s)
+	}
 	if s.Service == "" {
-		return errors.New("empty `Service`")
+		atomic.AddInt64(&ts.SpansMalformed.ServiceEmpty, 1)
+		log.Debugf("Fixing malformed trace. Service is empty (reason:service_empty), setting span.service=%s: %s", fallbackServiceName, s)
+		s.Service = fallbackServiceName
 	}
 	if len(s.Service) > MaxServiceLen {
-		return fmt.Errorf("`Service` too long (%d chars max): %s", MaxServiceLen, s.Service)
+		atomic.AddInt64(&ts.SpansMalformed.ServiceTruncate, 1)
+		log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", MaxServiceLen, s)
+		s.Service = traceutil.TruncateUTF8(s.Service, MaxServiceLen)
 	}
 	// service should comply with Datadog tag normalization as it's eventually a tag
 	svc := normalizeTag(s.Service)
 	if svc == "" {
-		return fmt.Errorf("invalid `Service`: %q", s.Service)
+		atomic.AddInt64(&ts.SpansMalformed.ServiceInvalid, 1)
+		log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s: %s", s.Service, fallbackServiceName, s)
+		svc = fallbackServiceName
 	}
 	s.Service = svc
 
-	// Name
 	if s.Name == "" {
-		return errors.New("empty `Name`")
+		atomic.AddInt64(&ts.SpansMalformed.SpanNameEmpty, 1)
+		log.Debugf("Fixing malformed trace. Name is empty (reason:span_name_empty), setting span.name=%s: %s", DefaultSpanName, s)
+		s.Name = DefaultSpanName
 	}
 	if len(s.Name) > MaxNameLen {
-		return fmt.Errorf("`Name` too long (%d chars max): %s", MaxNameLen, s.Name)
+		atomic.AddInt64(&ts.SpansMalformed.SpanNameTruncate, 1)
+		log.Debugf("Fixing malformed trace. Name is too long (reason:span_name_truncate), truncating span.name to length=%d: %s", MaxServiceLen, s)
+		s.Name = traceutil.TruncateUTF8(s.Name, MaxNameLen)
 	}
 	// name shall comply with Datadog metric name normalization
 	name, ok := normMetricNameParse(s.Name)
 	if !ok {
-		return fmt.Errorf("invalid `Name`: %s", s.Name)
+		atomic.AddInt64(&ts.SpansMalformed.SpanNameInvalid, 1)
+		log.Debugf("Fixing malformed trace. Name is invalid (reason:span_name_invalid), setting span.name=%s: %s", DefaultSpanName, s)
+		name = DefaultSpanName
 	}
 	s.Name = name
 
 	if s.Resource == "" {
-		return errors.New("`Resource` can not be empty")
+		atomic.AddInt64(&ts.SpansMalformed.ResourceEmpty, 1)
+		log.Debugf("Fixing malformed trace. Resource is empty (reason:resource_empty), setting span.resource=%s: %s", s.Name, s)
+		s.Resource = s.Name
 	}
 	s.Resource = toUTF8(s.Resource)
 
@@ -79,51 +114,50 @@ func normalize(s *pb.Span) error {
 	// Start & Duration as nanoseconds timestamps
 	// if s.Start is very little, less than year 2000 probably a unit issue so discard
 	// (or it is "le bug de l'an 2000")
+	if s.Duration < 0 {
+		atomic.AddInt64(&ts.SpansMalformed.InvalidDuration, 1)
+		log.Debugf("Fixing malformed trace. Duration is invalid (reason:invalid_duration), setting span.duration=0: %s", s)
+		s.Duration = 0
+	}
+	if s.Duration > math.MaxInt64-s.Start {
+		atomic.AddInt64(&ts.SpansMalformed.InvalidDuration, 1)
+		log.Debugf("Fixing malformed trace. Duration is too large and causes overflow (reason:invalid_duration), setting span.duration=0: %s", s)
+		s.Duration = 0
+	}
 	if s.Start < Year2000NanosecTS {
-		return fmt.Errorf("invalid `Start` (must be nanosecond epoch): %d", s.Start)
+		atomic.AddInt64(&ts.SpansMalformed.InvalidStartDate, 1)
+		log.Debugf("Fixing malformed trace. Start date is invalid (reason:invalid_start_date), setting span.start=time.now(): %s", s)
+		now := time.Now().UnixNano()
+		s.Start = now - s.Duration
+		if s.Start < 0 {
+			s.Start = now
+		}
 	}
 
-	// If the end date is too far away in the future, it's probably a mistake.
-	if s.Start+s.Duration > time.Now().Add(MaxEndDateOffset).UnixNano() {
-		return fmt.Errorf("invalid `Start`+`Duration`: too far in the future")
-	}
-
-	if s.Duration <= 0 {
-		return fmt.Errorf("invalid `Duration`: %d", s.Duration)
-	}
-
-	// ParentID set on the client side, no way of checking
-
-	// Type
 	s.Type = toUTF8(s.Type)
 	if len(s.Type) > MaxTypeLen {
-		return fmt.Errorf("`Type` too long (%d chars max): %s", MaxTypeLen, s.Type)
+		atomic.AddInt64(&ts.SpansMalformed.TypeTruncate, 1)
+		log.Debugf("Fixing malformed trace. Type is too long (reason:type_truncate), truncating span.type to length=%d: %s", MaxTypeLen, s)
+		s.Type = traceutil.TruncateUTF8(s.Type, MaxTypeLen)
 	}
-
 	for k, v := range s.Meta {
 		utf8K := toUTF8(k)
-
 		if k != utf8K {
 			delete(s.Meta, k)
 			k = utf8K
 		}
-
 		s.Meta[k] = toUTF8(v)
 	}
-
-	// Environment
 	if env, ok := s.Meta["env"]; ok {
 		s.Meta["env"] = normalizeTag(env)
 	}
-
-	// Status Code
 	if sc, ok := s.Meta["http.status_code"]; ok {
 		if !isValidStatusCode(sc) {
+			atomic.AddInt64(&ts.SpansMalformed.InvalidHTTPStatusCode, 1)
+			log.Debugf("Fixing malformed trace. HTTP status code is invalid (reason:invalid_http_status_code), dropping invalid http.status_code=%s: %s", sc, s)
 			delete(s.Meta, "http.status_code")
-			log.Debugf("Drop invalid meta `http.status_code`: %s", sc)
 		}
 	}
-
 	return nil
 }
 
@@ -134,30 +168,27 @@ func normalize(s *pb.Span) error {
 // * rejects traces where at least one span cannot be normalized
 // * return the normalized trace and an error:
 //   - nil if the trace can be accepted
-//   - an error string if the trace needs to be dropped
-func normalizeTrace(t pb.Trace) error {
+//   - a reason tag explaining the reason the traces failed normalization
+func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	if len(t) == 0 {
-		return errors.New("empty trace")
+		atomic.AddInt64(&ts.TracesDropped.EmptyTrace, 1)
+		return errors.New("trace is empty (reason:empty_trace)")
 	}
 
 	spanIDs := make(map[uint64]struct{})
-	traceID := t[0].TraceID
+	firstSpan := t[0]
 
 	for _, span := range t {
-		if span.TraceID == 0 {
-			return errors.New("empty `TraceID`")
+		if span.TraceID != firstSpan.TraceID {
+			atomic.AddInt64(&ts.TracesDropped.ForeignSpan, 1)
+			return fmt.Errorf("trace has foreign span (reason:foreign_span): %s", span)
 		}
-		if span.SpanID == 0 {
-			return errors.New("empty `SpanID`")
+		if err := normalize(ts, span); err != nil {
+			return err
 		}
 		if _, ok := spanIDs[span.SpanID]; ok {
-			return fmt.Errorf("duplicate `SpanID` %v (span %v)", span.SpanID, span)
-		}
-		if span.TraceID != traceID {
-			return fmt.Errorf("foreign span in trace (Name:TraceID) %s:%x != %s:%x", t[0].Name, t[0].TraceID, span.Name, span.TraceID)
-		}
-		if err := normalize(span); err != nil {
-			return fmt.Errorf("invalid span (SpanID:%d): %v", span.SpanID, err)
+			atomic.AddInt64(&ts.SpansMalformed.DuplicateSpanID, 1)
+			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): %s", span)
 		}
 		spanIDs[span.SpanID] = struct{}{}
 	}

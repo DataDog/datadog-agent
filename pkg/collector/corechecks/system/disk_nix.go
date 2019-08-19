@@ -139,8 +139,8 @@ func (c *DiskCheck) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOC
 }
 
 // Configure the disk check
-func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	err := c.CommonConfigure(data)
+func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(data, source)
 	if err != nil {
 		return err
 	}

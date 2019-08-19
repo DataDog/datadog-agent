@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	ktypes "k8s.io/apimachinery/pkg/types"
 )
 
 // clusterStore holds the state of cluster-check management.
@@ -21,13 +20,12 @@ import (
 // operations involving several calls.
 type clusterStore struct {
 	sync.RWMutex
-	active          bool
-	digestToConfig  map[string]integration.Config       // All configurations to dispatch
-	digestToNode    map[string]string                   // Node running a config
-	nodes           map[string]*nodeStore               // All nodes known to the cluster-agent
-	danglingConfigs map[string]integration.Config       // Configs we could not dispatch to any node
-	endpointsCache  map[ktypes.UID]*types.EndpointsInfo // Endpoints configs and info retrieved from services configs, keys are services UIDs
-	endpointsChecks map[string][]integration.Config     // Endpoints checks to be consumed by node agents
+	active           bool
+	digestToConfig   map[string]integration.Config            // All configurations to dispatch
+	digestToNode     map[string]string                        // Node running a config
+	nodes            map[string]*nodeStore                    // All nodes known to the cluster-agent
+	danglingConfigs  map[string]integration.Config            // Configs we could not dispatch to any node
+	endpointsConfigs map[string]map[string]integration.Config // Endpoints configs to be consumed by node agents
 }
 
 func newClusterStore() *clusterStore {
@@ -43,8 +41,7 @@ func (s *clusterStore) reset() {
 	s.digestToNode = make(map[string]string)
 	s.nodes = make(map[string]*nodeStore)
 	s.danglingConfigs = make(map[string]integration.Config)
-	s.endpointsCache = make(map[ktypes.UID]*types.EndpointsInfo)
-	s.endpointsChecks = make(map[string][]integration.Config)
+	s.endpointsConfigs = make(map[string]map[string]integration.Config)
 }
 
 // getNodeStore retrieves the store struct for a given node name, if it exists

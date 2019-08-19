@@ -7,16 +7,17 @@
 
 #include "constants.h"
 
-#include <_util.h>
-#include <aggregator.h>
-#include <cgo_free.h>
-#include <containers.h>
-#include <datadog_agent.h>
-#include <kubeutil.h>
-#include <rtloader_types.h>
-#include <stringutils.h>
-#include <tagger.h>
-#include <util.h>
+#include "_util.h"
+#include "aggregator.h"
+#include "cgo_free.h"
+#include "containers.h"
+#include "datadog_agent.h"
+#include "kubeutil.h"
+#include "rtloader_mem.h"
+#include "rtloader_types.h"
+#include "stringutils.h"
+#include "tagger.h"
+#include "util.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -34,6 +35,7 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
 
 Two::Two(const char *python_home)
     : RtLoader()
+    , _pythonHome(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
 {
@@ -42,17 +44,24 @@ Two::Two(const char *python_home)
 
 Two::~Two()
 {
+    // For more information on why Py_Finalize() isn't called here please
+    // refer to the header file or the doxygen documentation.
     PyEval_RestoreThread(_threadState);
     Py_XDECREF(_baseClass);
 }
 
 void Two::initPythonHome(const char *pythonHome)
 {
-    if (pythonHome != NULL && strlen(pythonHome) != 0) {
-        _pythonHome = pythonHome;
+    char *oldPythonHome = _pythonHome;
+    if (pythonHome == NULL || strlen(pythonHome) == 0) {
+        _pythonHome = strdupe(_defaultPythonHome);
+    } else {
+        _pythonHome = strdupe(pythonHome);
     }
 
-    Py_SetPythonHome(const_cast<char *>(_pythonHome));
+    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
+    Py_SetPythonHome(_pythonHome);
+    _free(oldPythonHome);
 }
 
 bool Two::init()
@@ -121,7 +130,7 @@ py_info_t *Two::getPyInfo()
     PyObject *path = NULL;
     PyObject *str_path = NULL;
 
-    py_info_t *info = (py_info_t *)malloc(sizeof(*info));
+    py_info_t *info = (py_info_t *)_malloc(sizeof(*info));
     if (!info) {
         setError("could not allocate a py_info_t struct");
         return NULL;
@@ -155,6 +164,18 @@ done:
     Py_XDECREF(path);
     Py_XDECREF(str_path);
     return info;
+}
+/**
+ * freePyInfo()
+ */
+void Two::freePyInfo(py_info_t *info)
+{
+    info->version = NULL;
+    if (info->path) {
+        free(info->path);
+    }
+    free(info);
+    return;
 }
 
 bool Two::runSimpleString(const char *code) const
@@ -371,7 +392,7 @@ done:
     return true;
 }
 
-const char *Two::runCheck(RtLoaderPyObject *check)
+char *Two::runCheck(RtLoaderPyObject *check)
 {
     if (check == NULL) {
         return NULL;
@@ -400,7 +421,7 @@ const char *Two::runCheck(RtLoaderPyObject *check)
         goto done;
     }
 
-    ret_copy = _strdup(ret);
+    ret_copy = strdupe(ret);
 
 done:
     Py_XDECREF(result);
@@ -433,7 +454,7 @@ char **Two::getCheckWarnings(RtLoaderPyObject *check)
         goto done;
     }
 
-    warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
+    warnings = (char **)_malloc(sizeof(*warnings) * (numWarnings + 1));
     if (!warnings) {
         setError("could not allocate memory to store warnings");
         goto done;
@@ -444,7 +465,12 @@ char **Two::getCheckWarnings(RtLoaderPyObject *check)
         PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
         if (warn == NULL) {
             setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
-            free(warnings);
+
+            for (int jdx = 0; jdx < numWarnings && warnings[jdx]; jdx++) {
+                _free(warnings[jdx]);
+            }
+            _free(warnings);
+
             warnings = NULL;
             goto done;
         }

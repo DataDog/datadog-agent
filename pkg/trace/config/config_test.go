@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package config
 
 import (
@@ -5,7 +10,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +31,7 @@ func TestConfigHostname(t *testing.T) {
 		defer func() {
 			fallbackHostnameFunc = os.Hostname
 		}()
-		_, err := Load("./testdata/multi_api_keys.ini")
+		_, err := Load("./testdata/site_override.yaml")
 		assert.Equal(ErrMissingHostname, err)
 	})
 
@@ -39,7 +43,7 @@ func TestConfigHostname(t *testing.T) {
 			t.Skip()
 		}
 		assert := assert.New(t)
-		cfg, err := Load("./testdata/multi_api_keys.ini")
+		cfg, err := Load("./testdata/site_override.yaml")
 		assert.NoError(err)
 		assert.Equal(host, cfg.Hostname)
 	})
@@ -59,7 +63,7 @@ func TestConfigHostname(t *testing.T) {
 		err := os.Setenv("DD_HOSTNAME", "onlyenv")
 		defer os.Unsetenv("DD_HOSTNAME")
 		assert.NoError(err)
-		cfg, err := Load("./testdata/multi_api_keys.ini")
+		cfg, err := Load("./testdata/site_override.yaml")
 		assert.NoError(err)
 		assert.Equal("onlyenv", cfg.Hostname)
 	})
@@ -112,11 +116,11 @@ func TestDefaultConfig(t *testing.T) {
 
 }
 
-func TestOnlyDDAgentConfig(t *testing.T) {
+func TestNoAPMConfig(t *testing.T) {
 	defer cleanConfig()()
 	assert := assert.New(t)
 
-	c, err := prepareConfig("./testdata/no_apm_config.ini")
+	c, err := prepareConfig("./testdata/no_apm_config.yaml")
 	assert.NoError(err)
 	assert.NoError(c.applyDatadogConfig())
 
@@ -125,75 +129,6 @@ func TestOnlyDDAgentConfig(t *testing.T) {
 	assert.Equal("0.0.0.0", c.ReceiverHost)
 	assert.Equal(28125, c.StatsdPort)
 	assert.Equal("DEBUG", c.LogLevel)
-}
-
-func TestDDAgentMultiAPIKeys(t *testing.T) {
-	defer cleanConfig()()
-	// old feature Datadog Agent feature, got dropped since
-	// TODO: at some point, expire this case
-	assert := assert.New(t)
-
-	c, err := prepareConfig("./testdata/multi_api_keys.ini")
-	assert.NoError(err)
-	assert.NoError(c.applyDatadogConfig())
-
-	assert.Equal("foo", c.Endpoints[0].APIKey)
-}
-
-func TestFullIniConfig(t *testing.T) {
-	defer cleanConfig()()
-	assert := assert.New(t)
-
-	c, err := prepareConfig("./testdata/full.ini")
-	assert.NoError(err)
-	assert.NoError(c.applyDatadogConfig())
-
-	assert.Equal("api_key_test", c.Endpoints[0].APIKey)
-	assert.Equal("mymachine", c.Hostname)
-	assert.Equal("https://user:password@proxy_for_https:1234", c.ProxyURL.String())
-	assert.Equal("https://datadog.unittests", c.Endpoints[0].Host)
-	assert.Equal(false, c.Enabled)
-	assert.Equal("test", c.DefaultEnv)
-	assert.Equal(18126, c.ReceiverPort)
-	assert.Equal(18125, c.StatsdPort)
-	assert.Equal(0.5, c.ExtraSampleRate)
-	assert.Equal(5.0, c.MaxTPS)
-	assert.Equal(50.0, c.MaxEPS)
-	assert.Equal("0.0.0.0", c.ReceiverHost)
-	assert.Equal("host.ip", c.StatsdHost)
-	assert.Equal("/path/to/file", c.LogFilePath)
-	assert.Equal("debug", c.LogLevel)
-	assert.False(c.LogThrottling) // turns off when log_level is "debug"
-	assert.True(c.SkipSSLValidation)
-
-	assert.Equal(map[string]float64{
-		"service1": 1.1,
-		"service2": 1.2,
-	}, c.AnalyzedRateByServiceLegacy)
-
-	assert.Equal(map[string]map[string]float64{
-		"service3": {
-			"op3": 1.3,
-		},
-		"service4": {
-			"op4": 1.4,
-			"op5": 1.5,
-		},
-	}, c.AnalyzedSpansByService)
-
-	assert.Equal(5*time.Second, c.BucketInterval)
-	assert.Equal([]string{"http.status_code", "a", "b", "c"}, c.ExtraAggregators)
-	assert.Equal(2000, c.ConnectionLimit)
-	assert.Equal(4, c.ReceiverTimeout)
-	assert.Equal(1234.5, c.MaxMemory)
-	assert.Equal(.85, c.MaxCPU)
-	assert.Equal(5*time.Second, c.WatchdogInterval)
-	assert.EqualValues([]string{"/health", "/500"}, c.Ignore["resource"])
-
-	assert.Equal(5, c.TraceWriter.ConnectionLimit)
-	assert.Equal(6, c.TraceWriter.QueueSize)
-	assert.Equal(3, c.StatsWriter.ConnectionLimit)
-	assert.Equal(4, c.StatsWriter.QueueSize)
 }
 
 func TestFullYamlConfig(t *testing.T) {
@@ -327,24 +262,4 @@ func TestAcquireHostname(t *testing.T) {
 	assert.Nil(t, err)
 	host, _ := os.Hostname()
 	assert.Equal(t, host, c.Hostname)
-}
-
-func TestUndocumentedIni(t *testing.T) {
-	defer cleanConfig()()
-	assert := assert.New(t)
-
-	c, err := prepareConfig("./testdata/undocumented.ini")
-	assert.NoError(err)
-	assert.NoError(c.applyDatadogConfig())
-
-	// analysis legacy
-	assert.Equal(0.8, c.AnalyzedRateByServiceLegacy["web"])
-	assert.Equal(0.05, c.AnalyzedRateByServiceLegacy["intake"])
-	// analysis
-	assert.Len(c.AnalyzedSpansByService, 2)
-	assert.Len(c.AnalyzedSpansByService["web"], 2)
-	assert.Len(c.AnalyzedSpansByService["db"], 1)
-	assert.Equal(0.8, c.AnalyzedSpansByService["web"]["http.request"])
-	assert.Equal(0.9, c.AnalyzedSpansByService["web"]["django.request"])
-	assert.Equal(0.05, c.AnalyzedSpansByService["db"]["intake"])
 }

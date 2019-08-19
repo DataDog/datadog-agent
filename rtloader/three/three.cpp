@@ -6,16 +6,17 @@
 #include "three.h"
 
 #include "constants.h"
-#include "stringutils.h"
 
-#include <_util.h>
-#include <aggregator.h>
-#include <cgo_free.h>
-#include <containers.h>
-#include <datadog_agent.h>
-#include <kubeutil.h>
-#include <tagger.h>
-#include <util.h>
+#include "_util.h"
+#include "aggregator.h"
+#include "cgo_free.h"
+#include "containers.h"
+#include "datadog_agent.h"
+#include "kubeutil.h"
+#include "rtloader_mem.h"
+#include "stringutils.h"
+#include "tagger.h"
+#include "util.h"
 
 #include <algorithm>
 #include <sstream>
@@ -44,24 +45,21 @@ Three::~Three()
     // For more information on why Py_Finalize() isn't called here please
     // refer to the header file or the doxygen documentation.
     PyEval_RestoreThread(_threadState);
-    if (_pythonHome) {
-        PyMem_RawFree((void *)_pythonHome);
-    }
     Py_XDECREF(_baseClass);
 }
 
 void Three::initPythonHome(const char *pythonHome)
 {
+    wchar_t *oldPythonHome = _pythonHome;
     if (pythonHome == NULL || strlen(pythonHome) == 0) {
         _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
     } else {
-        if (_pythonHome) {
-            PyMem_RawFree((void *)_pythonHome);
-        }
         _pythonHome = Py_DecodeLocale(pythonHome, NULL);
     }
 
+    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
     Py_SetPythonHome(_pythonHome);
+    PyMem_RawFree((void *)oldPythonHome);
 }
 
 bool Three::init()
@@ -121,18 +119,20 @@ done:
     return _baseClass != NULL;
 }
 
+/**
+ * getPyInfo()
+ */
 py_info_t *Three::getPyInfo()
 {
     PyObject *sys = NULL;
     PyObject *path = NULL;
     PyObject *str_path = NULL;
 
-    py_info_t *info = (py_info_t *)malloc(sizeof(*info));
+    py_info_t *info = (py_info_t *)_malloc(sizeof(*info));
     if (!info) {
         setError("could not allocate a py_info_t struct");
         return NULL;
     }
-
     info->version = Py_GetVersion();
     info->path = NULL;
 
@@ -162,7 +162,20 @@ done:
     Py_XDECREF(str_path);
     return info;
 }
+/**
+ * freePyInfo()
+ */
 
+void Three::freePyInfo(py_info_t *info)
+{
+    info->version = NULL;
+    if (info->path) {
+        free(info->path);
+        info->version = NULL;
+    }
+    free(info);
+    return;
+}
 bool Three::runSimpleString(const char *code) const
 {
     return PyRun_SimpleString(code) == 0;
@@ -377,7 +390,7 @@ done:
     return true;
 }
 
-const char *Three::runCheck(RtLoaderPyObject *check)
+char *Three::runCheck(RtLoaderPyObject *check)
 {
     if (check == NULL) {
         return NULL;
@@ -435,7 +448,7 @@ char **Three::getCheckWarnings(RtLoaderPyObject *check)
         goto done;
     }
 
-    warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
+    warnings = (char **)_malloc(sizeof(*warnings) * (numWarnings + 1));
     if (!warnings) {
         setError("could not allocate memory to store warnings");
         goto done;
@@ -446,7 +459,12 @@ char **Three::getCheckWarnings(RtLoaderPyObject *check)
         PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
         if (warn == NULL) {
             setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
-            free(warnings);
+
+            for (int jdx = 0; jdx < numWarnings && warnings[jdx]; jdx++) {
+                _free(warnings[jdx]);
+            }
+            _free(warnings);
+
             warnings = NULL;
             goto done;
         }
@@ -486,11 +504,13 @@ error:
 
 PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)
 {
+    // baseClass is not a Class type
     if (base == NULL || !PyType_Check(base)) {
         setError("base class is not of type 'Class'");
         return NULL;
     }
 
+    // module is not a Module object
     if (module == NULL || !PyModule_Check(module)) {
         setError("module is not of type 'Module'");
         return NULL;
@@ -498,50 +518,64 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)
 
     PyObject *dir = PyObject_Dir(module);
     if (dir == NULL) {
+        PyErr_Clear();
         setError("there was an error calling dir() on module object");
         return NULL;
     }
 
     PyObject *klass = NULL;
     for (int i = 0; i < PyList_GET_SIZE(dir); i++) {
-        // get symbol name
-        char *symbol_name;
-        PyObject *symbol = PyList_GetItem(dir, i);
-        if (symbol != NULL) {
-            symbol_name = as_string(symbol);
-            if (symbol_name == NULL)
-                continue;
-        } else {
-            // Gets exception reason
-            PyObject *reason = PyUnicodeDecodeError_GetReason(PyExc_IndexError);
+        // Reset `klass` at every iteration so its state is always clean when we
+        // continue the loop or return early. Reset at first iteration is useless
+        // but it keeps the code readable.
+        Py_XDECREF(klass);
+        klass = NULL;
 
-            // Clears exception and sets error
-            PyException_SetTraceback(PyExc_IndexError, Py_None);
-            setError((const char *)PyBytes_AsString(reason));
+        // get the symbol in current list item
+        PyObject *symbol = PyList_GetItem(dir, i);
+        if (symbol == NULL) {
+            // This should never happen as it means we're out of bounds
+            PyErr_Clear();
+            setError("there was an error browsing dir() output");
             goto done;
         }
 
+        // get symbol name, as_string returns a new object that we have to free
+        char *symbol_name = as_string(symbol);
+        if (symbol_name == NULL) {
+            // as_string returns NULL if `symbol` is not a string object
+            // and raises TypeError. Let's clear the error and keep going.
+            PyErr_Clear();
+            continue;
+        }
+
+        // get symbol instance. It's a new ref but in case of success we don't
+        // DecRef since we return it and the caller will be owner
         klass = PyObject_GetAttrString(module, symbol_name);
-        ::free(symbol_name);
+        ::_free(symbol_name);
         if (klass == NULL) {
+            PyErr_Clear();
             continue;
         }
 
         // Not a class, ignore
         if (!PyType_Check(klass)) {
-            Py_XDECREF(klass);
             continue;
         }
 
         // Unrelated class, ignore
         if (!PyType_IsSubtype((PyTypeObject *)klass, (PyTypeObject *)base)) {
-            Py_XDECREF(klass);
             continue;
         }
 
-        // `klass` is actually `base` itself, ignore
-        if (PyObject_RichCompareBool(klass, base, Py_EQ) == 1) {
-            Py_XDECREF(klass);
+        // check whether `klass` is actually `base` itself
+        int retval = PyObject_RichCompareBool(klass, base, Py_EQ);
+        if (retval == 1) {
+            // `klass` is indeed `base`, continue
+            continue;
+        } else if (retval == -1) {
+            // an error occurred calling __eq__, clear and continue
+            PyErr_Clear();
             continue;
         }
 
@@ -549,7 +583,7 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)
         char func_name[] = "__subclasses__";
         PyObject *children = PyObject_CallMethod(klass, func_name, NULL);
         if (children == NULL) {
-            Py_XDECREF(klass);
+            PyErr_Clear();
             continue;
         }
 
@@ -559,7 +593,6 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)
 
         // Agent integrations are supposed to have no subclasses
         if (children_count > 0) {
-            Py_XDECREF(klass);
             continue;
         }
 
@@ -567,11 +600,14 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)
         goto done;
     }
 
+    // we couldn't find any good subclass, set an error and reset
+    // `klass` state for one last time before moving to `done`.
     setError("cannot find a subclass");
+    Py_XDECREF(klass);
     klass = NULL;
 
 done:
-    Py_DECREF(dir);
+    Py_XDECREF(dir);
     return klass;
 }
 
@@ -630,7 +666,7 @@ std::string Three::_fetchPythonError() const
                         // traceback.format_exception returns a list of strings, each ending in a *newline*
                         // and some containing internal newlines. No need to add any CRLF/newlines.
                         ret_val += item;
-                        ::free(item);
+                        ::_free(item);
                     }
                 }
             }
@@ -647,7 +683,7 @@ std::string Three::_fetchPythonError() const
             // we know pvalue_obj is a string (we just casted it), no need to PyUnicode_Check()
             char *ret = as_string(pvalue_obj);
             ret_val += ret;
-            ::free(ret);
+            ::_free(ret);
             Py_XDECREF(pvalue_obj);
         }
     } else if (ptype != NULL) {
@@ -656,7 +692,7 @@ std::string Three::_fetchPythonError() const
             // we know ptype_obj is a string (we just casted it), no need to PyUnicode_Check()
             char *ret = as_string(ptype_obj);
             ret_val += ret;
-            ::free(ret);
+            ::_free(ret);
             Py_XDECREF(ptype_obj);
         }
     }

@@ -71,6 +71,12 @@ func pdhLookupPerfNameByIndex(ndx int) (string, error) {
 func pdhEnumObjectItems(className string) (counters []string, instances []string, err error) {
 	var counterlen uint32
 	var instancelen uint32
+
+	if counterlen != 0 || instancelen != 0 {
+		log.Errorf("invalid parameter %v %v", counterlen, instancelen)
+		counterlen = 0
+		instancelen = 0
+	}
 	r, _, _ := procPdhEnumObjectItems.Call(
 		uintptr(0), // NULL data source, use computer in computername parameter
 		uintptr(0), // local computer
@@ -82,7 +88,7 @@ func pdhEnumObjectItems(className string) (counters []string, instances []string
 		uintptr(PERF_DETAIL_WIZARD),
 		uintptr(0))
 	if r != PDH_MORE_DATA {
-		log.Errorf("Failed to enumerate windows performance counters (class %s)", className)
+		log.Errorf("Failed to enumerate windows performance counters (%v) (class %s)", r, className)
 		log.Errorf("This error indicates that the Windows performance counter database may need to be rebuilt")
 		return nil, nil, fmt.Errorf("Failed to get buffer size %v", r)
 	}

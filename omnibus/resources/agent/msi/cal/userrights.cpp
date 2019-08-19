@@ -336,3 +336,76 @@ cleanAndReturn:
 	}
     return ret;
 }
+
+void getGroupNameFromSidString(wchar_t* groupSidString, wchar_t* defaultGroupName, std::wstring &groupname)
+{
+    // need to look up the group name by SID; the group name can be localized
+    PSID groupsid = NULL;
+    if(!ConvertStringSidToSid(groupSidString, &groupsid)) {
+        WcaLog(LOGMSG_STANDARD, "failed to convert sid string to sid; attempting default");
+        groupname = defaultGroupName;
+    } else {
+        if(!GetNameForSid(NULL, groupsid, groupname)) {
+            WcaLog(LOGMSG_STANDARD, "failed to get group name for sid; using default");
+            groupname = defaultGroupName;
+        }
+        LocalFree((LPVOID) groupsid);
+    }
+}
+DWORD AddUserToGroup(PSID userSid, wchar_t* groupSidString, wchar_t* defaultGroupName)
+{
+    
+    DWORD nErr  = 0;
+    std::wstring groupname;
+
+    LOCALGROUP_MEMBERS_INFO_0 lmi0;
+    memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_0));
+    lmi0.lgrmi0_sid = userSid;
+
+    std::string asciiname;
+   
+    getGroupNameFromSidString(groupSidString, defaultGroupName, groupname);
+    toMbcs(asciiname, groupname.c_str());
+    WcaLog(LOGMSG_STANDARD, "Attempting to add to group %s", asciiname.c_str());
+    nErr = NetLocalGroupAddMembers(NULL, groupname.c_str(), 0, (LPBYTE)&lmi0, 1);
+    if (nErr == NERR_Success) {
+        WcaLog(LOGMSG_STANDARD, "Added ddagentuser to %s", asciiname.c_str());
+    }
+    else if (nErr == ERROR_MEMBER_IN_GROUP || nErr == ERROR_MEMBER_IN_ALIAS) {
+        WcaLog(LOGMSG_STANDARD, "User already in group, continuing %d", nErr);
+        nErr = NERR_Success; // treat as success
+    }
+    else {
+        WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
+    }
+    return nErr;
+
+}
+
+DWORD DelUserFromGroup(PSID userSid, wchar_t* groupSidString, wchar_t* defaultGroupName)
+{
+    DWORD nErr  = 0;
+    std::wstring groupname;
+    std::string asciiname;
+
+    LOCALGROUP_MEMBERS_INFO_0 lmi0;
+    memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_0));
+    lmi0.lgrmi0_sid = userSid;
+
+    getGroupNameFromSidString(groupSidString, defaultGroupName, groupname);
+    toMbcs(asciiname, groupname.c_str());
+    WcaLog(LOGMSG_STANDARD, "Attempting to add to group %s", asciiname.c_str());
+    nErr = NetLocalGroupDelMembers(NULL, L"Performance Monitor Users", 0, (LPBYTE)&lmi0, 1);
+    if (nErr == NERR_Success) {
+        WcaLog(LOGMSG_STANDARD, "Added ddagentuser to %s", asciiname.c_str());
+    }
+    else if (nErr == ERROR_NO_SUCH_MEMBER || nErr == ERROR_MEMBER_NOT_IN_ALIAS) {
+        WcaLog(LOGMSG_STANDARD, "User wasn't in group, continuing %d", nErr);
+        nErr = NERR_Success; // treat as success
+    }
+    else {
+        WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
+    }
+    return nErr;
+
+}

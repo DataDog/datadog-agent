@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
@@ -119,9 +120,20 @@ func GetPlatform() (string, error) {
 }
 
 // IsDebugfsMounted would test the existence of file /sys/kernel/debug/tracing/kprobe_events to determine if debugfs is mounted or not
-func IsDebugfsMounted() bool {
+// returns a boolean and a possible error message
+func IsDebugfsMounted() (bool, string) {
 	_, err := os.Stat("/sys/kernel/debug/tracing/kprobe_events")
-	return err == nil
+
+	if err != nil {
+		if os.IsPermission(err) {
+			return false, "system-probe does not have permission to access debugfs"
+		} else if os.IsNotExist(err) {
+			return false, "debugfs is not mounted and is needed for eBPF-based checks, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs"
+		} else {
+			return false, fmt.Sprintf("an error occurred while accessing debugfs: %s", err)
+		}
+	}
+	return true, ""
 }
 
 func execCmd(head string, args ...string) (string, error) {
@@ -140,4 +152,17 @@ func execCmd(head string, args ...string) (string, error) {
 	}
 
 	return strings.ToLower(strings.TrimSpace(stdout.String())), nil
+}
+
+// GetProcRoot retrieves the current procfs dir we should use
+func GetProcRoot() string {
+	if v := os.Getenv("HOST_PROC"); v != "" {
+		return v
+	}
+
+	if config.IsContainerized() && PathExists("/host") {
+		return "/host/proc"
+	}
+
+	return "/proc"
 }

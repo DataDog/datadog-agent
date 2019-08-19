@@ -61,8 +61,8 @@ func (c *CRIConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (c *CRICheck) Configure(config, initConfig integration.Data) error {
-	err := c.CommonConfigure(config)
+func (c *CRICheck) Configure(config, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(config, source)
 	if err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func (c *CRICheck) Run() error {
 // processContainerStats extracts metrics from the protobuf object
 func (c *CRICheck) processContainerStats(sender aggregator.Sender, runtime string, containerStats map[string]*pb.ContainerStats) {
 	for cid, stats := range containerStats {
-		entityID := containers.BuildEntityName(runtime, cid)
+		entityID := containers.BuildTaggerEntityName(cid)
 		tags, err := tagger.Tag(entityID, collectors.HighCardinality)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", cid[:12], err)

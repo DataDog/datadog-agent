@@ -8,7 +8,8 @@ clone_folder: C:\gopath\src\github.com\DataDog\datadog-agent
 # environment must be set for python 64 bit
 environment:
   GOPATH: C:\gopath
-  GOROOT: C:\go111
+  GOVERSION: '1.12.9'
+  GOROOT: C:\go_1.12.9
   # Give hints to CMake to find Pythons
   Python2_ROOT_DIR: C:\Python27-x64
   Python3_ROOT_DIR: C:\Python37-x64
@@ -26,7 +27,12 @@ install:
   - git clone --depth 1 https://github.com/datadog/integrations-core
   - "%PIP2% install codecov -r requirements.txt"
   - "%PIP3% install PyYAML==5.1"
-
+  # download specific go version
+  - md c:\tmp
+  - ps: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://dl.google.com/go/go$ENV:GOVERSION.windows-amd64.zip", "c:\tmp\godl.zip")
+  - ps: '& 7z -o"c:\tmp\go_$ENV:GOVERSION" x c:\tmp\godl.zip'
+  - move "c:\tmp\go_%GOVERSION%\go" %GOROOT%
+  - set PATH=%GOROOT%\bin;%PATH%
 cache:
   - '%GOPATH%\bin'
   - '%LOCALAPPDATA%\pip\Cache'
@@ -37,9 +43,9 @@ build: off
 test_script:
   - inv -e rtloader.build --install-prefix=%APPVEYOR_BUILD_FOLDER%\dev --cmake-options="-G \"MSYS Makefiles\""
   - inv -e rtloader.install
-  - inv -e rtloader.format
+  - inv -e rtloader.format --raise-if-changed
   - inv -e rtloader.test
-  - inv -e deps
+  - inv -e deps --dep-vendor-only
   - inv -e test --coverage --profile --fail-on-fmt --python-home-2=C:\Python27-x64 --python-home-3=C:\Python37-x64
   - codecov -f profile.cov -F windows
 

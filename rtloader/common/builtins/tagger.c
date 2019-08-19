@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
+#include "tagger.h"
 
 #include "cgo_free.h"
 #include "stringutils.h"
-#include <tagger.h>
 
 // these must be set by the Agent
 static cb_tags_t cb_tags = NULL;
@@ -49,12 +49,11 @@ int parseArgs(PyObject *args, char **id, int *cardinality)
 */
 PyObject *buildTagsList(char **tags)
 {
+    PyObject *res = PyList_New(0);
     if (tags == NULL) {
-        // Py_RETURN_NONE macro increases the refcount on Py_None
-        Py_RETURN_NONE;
+        return res;
     }
 
-    PyObject *res = PyList_New(0);
     int i;
     for (i = 0; tags[i]; i++) {
         PyObject *pyTag = PyStringFromCString(tags[i]);

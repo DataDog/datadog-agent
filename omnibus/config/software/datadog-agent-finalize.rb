@@ -39,6 +39,7 @@ build do
             # remove the config files for the subservices; they'll be started
             # based on the config file
             delete "#{conf_dir}/apm.yaml.default"
+            delete "#{conf_dir}/process_agent.yaml.default"
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
 
@@ -87,6 +88,7 @@ build do
 
             # remove unused configs
             delete "/etc/datadog-agent/conf.d/apm.yaml.default"
+            delete "/etc/datadog-agent/conf.d/process_agent.yaml.default"
 
             # remove windows specific configs
             delete "/etc/datadog-agent/conf.d/winproc.d"
@@ -98,11 +100,26 @@ build do
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.py_compiled_files.txt"
             command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print >> #{install_dir}/embedded/.py_compiled_files.txt"
 
+            # removing the doc from the embedded folder to reduce package size by ~3MB
+            delete "#{install_dir}/embedded/share/doc"
+
+            # removing the terminfo db from the embedded folder to reduce package size by ~7MB
+            delete "#{install_dir}/embedded/share/terminfo"
+
+            # removing useless folder
+            delete "#{install_dir}/embedded/share/aclocal"
+            delete "#{install_dir}/embedded/share/examples"
+
             # Setup pip aliases: `/opt/datadog-agent/embedded/bin/pip` will default to `pip2`
             if with_python_runtime? "2"
                 delete "#{install_dir}/embedded/bin/pip"
                 link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
             end
+
+
+        # removing the man pages from the embedded folder to reduce package size by ~4MB
+        delete "#{install_dir}/embedded/man"
+        delete "#{install_dir}/embedded/share/man"
 
         elsif osx?
             # Remove linux specific configs

@@ -7,25 +7,28 @@ package decoder
 
 import (
 	"bytes"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
-// defaultContentLenLimit represents the length limit above which we want to
-// truncate the output content
+// defaultContentLenLimit represents the max size for a line,
+// if a line is bigger than this limit, it will be truncated.
 const defaultContentLenLimit = 256 * 1000
 
-// Input represents a list of bytes consumed by the Decoder
+// Input represents a chunk of line.
 type Input struct {
 	content []byte
 }
 
-// NewInput returns a new input
+// NewInput returns a new input.
 func NewInput(content []byte) *Input {
-	return &Input{content}
+	return &Input{
+		content: content,
+	}
 }
 
-// Output represents the fields parsed from decoder.
+// Output represents a structured line.
 type Output struct {
 	Content    []byte
 	Status     string
@@ -45,9 +48,9 @@ func NewOutput(content []byte, status string, rawDataLen int, timestamp string) 
 
 // Decoder splits raw data into lines and passes them to a lineHandler that emits outputs
 type Decoder struct {
-	InputChan  chan *Input
-	OutputChan chan *Output
-	EndLineMatcher
+	InputChan       chan *Input
+	OutputChan      chan *Output
+	matcher         EndLineMatcher
 	lineBuffer      *bytes.Buffer
 	lineHandler     LineHandler
 	contentLenLimit int
@@ -85,7 +88,7 @@ func New(InputChan chan *Input, OutputChan chan *Output, lineHandler LineHandler
 		lineBuffer:      &lineBuffer,
 		lineHandler:     lineHandler,
 		contentLenLimit: contentLenLimit,
-		EndLineMatcher:  matcher,
+		matcher:         matcher,
 	}
 }
 
@@ -122,7 +125,7 @@ func (d *Decoder) decodeIncomingData(inBuf []byte) {
 			d.sendLine()
 			i = j
 			maxj = i + d.contentLenLimit
-		} else if d.Match(d.lineBuffer.Bytes(), inBuf, i, j) {
+		} else if d.matcher.Match(d.lineBuffer.Bytes(), inBuf, i, j) {
 			d.lineBuffer.Write(inBuf[i:j])
 			d.sendLine()
 			i = j + 1 // skip the matching byte.

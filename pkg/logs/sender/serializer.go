@@ -11,26 +11,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
+var (
+	// LineSerializer is a shared line serializer.
+	LineSerializer Serializer = &lineSerializer{}
+	// ArraySerializer is a shared line serializer.
+	ArraySerializer Serializer = &arraySerializer{}
+)
+
 // Serializer transforms a batch of messages into a payload.
 type Serializer interface {
 	Serialize(messages []*message.Message) []byte
 }
 
-// serializer represents a generic serializer that holds a buffer.
-type serializer struct {
-	buffer bytes.Buffer
-}
-
 // lineSerializer transforms a message array into a payload
 // separating content by new line character.
-type lineSerializer struct {
-	serializer
-}
-
-// NewLineSerializer returns a new line serializer.
-func NewLineSerializer() Serializer {
-	return &lineSerializer{}
-}
+type lineSerializer struct{}
 
 // Serialize concatenates all messages using
 // a new line characater as a separator,
@@ -38,39 +33,32 @@ func NewLineSerializer() Serializer {
 // "{"message":"content1"}", "{"message":"content2"}"
 // returns, "{"message":"content1"}\n{"message":"content2"}"
 func (s *lineSerializer) Serialize(messages []*message.Message) []byte {
-	s.buffer.Reset()
+	var buffer bytes.Buffer
 	for i, message := range messages {
 		if i > 0 {
-			s.buffer.WriteByte('\n')
+			buffer.WriteByte('\n')
 		}
-		s.buffer.Write(message.Content)
+		buffer.Write(message.Content)
 	}
-	return s.buffer.Bytes()
+	return buffer.Bytes()
 }
 
 // arraySerializer transforms a message array into a array string payload.
-type arraySerializer struct {
-	serializer
-}
-
-// NewArraySerializer returns a new line serializer.
-func NewArraySerializer() Serializer {
-	return &arraySerializer{}
-}
+type arraySerializer struct{}
 
 // Serialize transforms all messages into a array string
 // for example:
 // "{"message":"content1"}", "{"message":"content2"}"
 // returns, "[{"message":"content1"},{"message":"content2"}]"
 func (s *arraySerializer) Serialize(messages []*message.Message) []byte {
-	s.buffer.Reset()
-	s.buffer.WriteByte('[')
+	var buffer bytes.Buffer
+	buffer.WriteByte('[')
 	for i, message := range messages {
 		if i > 0 {
-			s.buffer.WriteByte(',')
+			buffer.WriteByte(',')
 		}
-		s.buffer.Write(message.Content)
+		buffer.Write(message.Content)
 	}
-	s.buffer.WriteByte(']')
-	return s.buffer.Bytes()
+	buffer.WriteByte(']')
+	return buffer.Bytes()
 }

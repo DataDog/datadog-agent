@@ -58,4 +58,4 @@ kitchen diagnose --no-instances --loader
 mkdir -p ~/.ssh
 [[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
 
-rake dd-agent-azure-parallel[40]
+rake dd-agent-azure-parallel

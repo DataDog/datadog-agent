@@ -82,7 +82,7 @@ var (
 )
 
 func init() {
-	jmxCmd.PersistentFlags().StringVarP(&jmxLogLevel, "log-level", "l", "debug", "set the log level")
+	jmxCmd.PersistentFlags().StringVarP(&jmxLogLevel, "log-level", "l", "debug", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
 
 	// attach list and collect commands to jmx command
 	jmxCmd.AddCommand(jmxListCmd)
@@ -122,16 +122,30 @@ func doJmxListNotCollected(cmd *cobra.Command, args []string) error {
 	return runJmxCommand("list_not_matching_attributes")
 }
 
-func setupAgent() error {
+func runJmxCommand(command string) error {
+
+	if jmxLogLevel != "" {
+		// Honour the deprecated --log-level argument
+		overrides := make(map[string]interface{})
+		overrides["log_level"] = jmxLogLevel
+		config.SetOverrides(overrides)
+	} else {
+		jmxLogLevel = config.GetEnv("DD_LOG_LEVEL", "off")
+	}
+
 	overrides := make(map[string]interface{})
-
-	// let the os assign an available port
-	overrides["cmd_port"] = 0
-
+	overrides["cmd_port"] = 0 // let the os assign an available port
 	config.SetOverrides(overrides)
+
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	}
+
+	err = config.SetupLogger(loggerName, jmxLogLevel, "", "", false, true, false)
+	if err != nil {
+		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+		return err
 	}
 
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
@@ -141,28 +155,13 @@ func setupAgent() error {
 		return fmt.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
-	return nil
-}
-
-func runJmxCommand(command string) error {
-	err := config.SetupLogger(loggerName, jmxLogLevel, "", "", false, true, false)
-	if err != nil {
-		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-		return err
-	}
-
-	err = setupAgent()
-	if err != nil {
-		return err
-	}
-
 	runner := &jmxfetch.JMXFetch{}
 
 	runner.ReportOnConsole = true
 	runner.Command = command
 	runner.IPCPort = api.ServerAddress().Port
 
-	loadConfigs()
+	loadConfigs(runner)
 
 	err = runner.Start(false)
 	if err != nil {
@@ -181,7 +180,7 @@ func runJmxCommand(command string) error {
 	return nil
 }
 
-func loadConfigs() {
+func loadConfigs(runner *jmxfetch.JMXFetch) {
 	fmt.Println("Loading configs :")
 
 	configs := common.AC.GetAllConfigs()
@@ -191,6 +190,10 @@ func loadConfigs() {
 		if check.IsJMXConfig(c.Name, c.InitConfig) && (includeEverything || configIncluded(c)) {
 			fmt.Println("Config ", c.Name, " was loaded.")
 			jmx.AddScheduledConfig(c)
+			runner.ConfigureFromInitConfig(c.InitConfig)
+			for _, instance := range c.Instances {
+				runner.ConfigureFromInstance(instance)
+			}
 		}
 	}
 }

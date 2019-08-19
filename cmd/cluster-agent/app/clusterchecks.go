@@ -27,19 +27,28 @@ var clusterChecksCmd = &cobra.Command{
 	Use:   "clusterchecks",
 	Short: "Prints the active cluster check configurations",
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if flagNoColor {
+			color.NoColor = true
+		}
+
 		// we'll search for a config file named `datadog-cluster.yaml`
 		config.Datadog.SetConfigName("datadog-cluster")
 		err := common.SetupConfig(confPath)
 		if err != nil {
 			return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)
 		}
-		if flagNoColor {
-			color.NoColor = true
-		}
-		err = flare.GetClusterChecks(color.Output)
+
+		err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 			return err
 		}
-		return nil
+
+		if err = flare.GetClusterChecks(color.Output); err != nil {
+			return err
+		}
+
+		return flare.GetEndpointsChecks(color.Output)
 	},
 }

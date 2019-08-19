@@ -90,10 +90,7 @@ func main() {
 	}
 
 	// run check command if the flag is specified
-	if len(os.Args) > 1 && os.Args[1] != "check" {
-		fmt.Fprintln(os.Stderr, "unknown command argument: ", os.Args[1])
-		os.Exit(1)
-	} else if len(os.Args) >= 2 && os.Args[1] == "check" {
+	if len(os.Args) >= 2 && os.Args[1] == "check" {
 		err = checkCmd.Parse(os.Args[2:])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -119,7 +116,7 @@ func main() {
 	}
 
 	sysprobe, err := CreateSystemProbe(cfg)
-	if err != nil && strings.HasPrefix(err.Error(), ErrTracerUnsupported.Error()) {
+	if err != nil && strings.HasPrefix(err.Error(), ErrSysprobeUnsupported.Error()) {
 		// If tracer is unsupported by this operating system, then exit gracefully
 		log.Infof("%s, exiting.", err)
 		gracefulExit()

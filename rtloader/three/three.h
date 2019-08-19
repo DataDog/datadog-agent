@@ -26,8 +26,8 @@ class Three : public RtLoader
 public:
     //! Constructor.
     /*!
-      \param python_home A C-string representation to the python home for the
-      underlying python interpreter.
+      \param python_home A C-string with the path to the python home for the
+      python interpreter.
 
       Basic constructor, initializes the _error string to an empty string and
       errorFlag to false and set the supplied PYTHONHOME.
@@ -47,6 +47,7 @@ public:
       thread id>,) in <module 'threading'".
       Even if Python ignores it, the exception ends up in the log files for
       upstart/syslog/...
+      Since we don't call Py_Finalize, we don't free _pythonHome here either.
 
       More info here:
       https://stackoverflow.com/questions/8774958/keyerror-in-module-threading-after-a-successful-py-test-run/12639040#12639040
@@ -65,7 +66,7 @@ public:
                   const char *check_id_str, const char *check_name, const char *agent_config_str,
                   RtLoaderPyObject *&check);
 
-    const char *runCheck(RtLoaderPyObject *check);
+    char *runCheck(RtLoaderPyObject *check);
     char **getCheckWarnings(RtLoaderPyObject *check);
     void decref(RtLoaderPyObject *obj);
     void incref(RtLoaderPyObject *obj);
@@ -73,6 +74,7 @@ public:
 
     // const API
     py_info_t *getPyInfo();
+    void freePyInfo(py_info_t *);
     bool runSimpleString(const char *path) const;
     RtLoaderPyObject *getNone() const
     {

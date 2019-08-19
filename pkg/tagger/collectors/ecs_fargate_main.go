@@ -110,7 +110,7 @@ func (c *ECSFargateCollector) parseExpires(idList []string) ([]*TagInfo, error) 
 	for _, id := range idList {
 		info := &TagInfo{
 			Source:       ecsFargateCollectorName,
-			Entity:       docker.ContainerIDToEntityName(id),
+			Entity:       docker.ContainerIDToTaggerEntityName(id),
 			DeleteEntity: true,
 		}
 		output = append(output, info)

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package writer
 
 import (
@@ -13,11 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const (
-	testHostname = "agent-test-host"
-	testEnv      = "testing"
-)
-
 func TestTraceWriter(t *testing.T) {
 	srv := newTestServer()
 	cfg := &config.AgentConfig{
@@ -27,7 +27,7 @@ func TestTraceWriter(t *testing.T) {
 			APIKey: "123",
 			Host:   srv.URL,
 		}},
-		TraceWriter: &config.SenderConfig{ConnectionLimit: 200, QueueSize: 40},
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
 	}
 
 	t.Run("ok", func(t *testing.T) {
@@ -39,7 +39,7 @@ func TestTraceWriter(t *testing.T) {
 		// Use a flush threshold that allows the first two entries to not overflow,
 		// but overflow on the third.
 		defer useFlushThreshold(testSpans[0].size() + testSpans[1].size() + 10)()
-		in := make(chan *SampledSpans, 100)
+		in := make(chan *SampledSpans)
 		tw := NewTraceWriter(cfg, in)
 		go tw.Run()
 		for _, ss := range testSpans {
@@ -49,8 +49,7 @@ func TestTraceWriter(t *testing.T) {
 		// One payload flushes due to overflowing the threshold, and the second one
 		// because of stop.
 		assert.Equal(t, 2, srv.Accepted())
-		payloadContains(t, srv.Payloads()[0], testSpans[:2])
-		payloadContains(t, srv.Payloads()[1], testSpans[2:])
+		payloadsContain(t, srv.Payloads(), testSpans)
 	})
 }
 
@@ -72,31 +71,37 @@ func randomSampledSpans(spans, events int) *SampledSpans {
 	}
 }
 
-// payloadContains checks that the given payload contains the given set of sampled spans.
-func payloadContains(t *testing.T, p *payload, sampledSpans []*SampledSpans) {
-	assert := assert.New(t)
-	gzipr, err := gzip.NewReader(p.body)
-	assert.NoError(err)
-	slurp, err := ioutil.ReadAll(gzipr)
-	assert.NoError(err)
-	var payload pb.TracePayload
-	err = proto.Unmarshal(slurp, &payload)
-	assert.NoError(err)
-	assert.Equal(payload.HostName, testHostname)
-	assert.Equal(payload.Env, testEnv)
+// payloadsContain checks that the given payloads contain the given set of sampled spans.
+func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledSpans) {
+	t.Helper()
+	var all pb.TracePayload
+	for _, p := range payloads {
+		assert := assert.New(t)
+		gzipr, err := gzip.NewReader(p.body)
+		assert.NoError(err)
+		slurp, err := ioutil.ReadAll(gzipr)
+		assert.NoError(err)
+		var payload pb.TracePayload
+		err = proto.Unmarshal(slurp, &payload)
+		assert.NoError(err)
+		assert.Equal(payload.HostName, testHostname)
+		assert.Equal(payload.Env, testEnv)
+		all.Traces = append(all.Traces, payload.Traces...)
+		all.Transactions = append(all.Transactions, payload.Transactions...)
+	}
 	for _, ss := range sampledSpans {
 		var found bool
-		for _, trace := range payload.Traces {
+		for _, trace := range all.Traces {
 			if reflect.DeepEqual(trace.Spans, ([]*pb.Span)(ss.Trace)) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Fatal("payload didn't contain given traces")
+			t.Fatal("payloads didn't contain given traces")
 		}
 		for _, event := range ss.Events {
-			assert.Contains(payload.Transactions, event)
+			assert.Contains(t, all.Transactions, event)
 		}
 	}
 }

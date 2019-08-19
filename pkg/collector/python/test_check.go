@@ -75,7 +75,7 @@ void rtloader_free(rtloader_t *s, void *p) {
 int run_check_calls = 0;
 char *run_check_return = NULL;
 rtloader_pyobject_t *run_check_instance = NULL;
-const char *run_check(rtloader_t *s, rtloader_pyobject_t *check) {
+char *run_check(rtloader_t *s, rtloader_pyobject_t *check) {
 	run_check_instance = check;
 	run_check_calls++;
 	return run_check_return;
@@ -295,7 +295,7 @@ func testConfigure(t *testing.T) {
 
 	C.get_check_return = 1
 	C.get_check_check = &C.rtloader_pyobject_t{}
-	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("aaa"))
+	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("aaa"), "test")
 	assert.Nil(t, err)
 
 	assert.Equal(t, c.class, C.get_check_py_class)
@@ -323,7 +323,7 @@ func testConfigureDeprecated(t *testing.T) {
 	C.get_check_return = 0
 	C.get_check_deprecated_check = &C.rtloader_pyobject_t{}
 	C.get_check_deprecated_return = 1
-	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("aaa"))
+	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("aaa"), "test")
 	assert.Nil(t, err)
 
 	assert.Equal(t, c.class, C.get_check_py_class)

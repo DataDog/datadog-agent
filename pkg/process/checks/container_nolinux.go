@@ -7,8 +7,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -50,4 +50,8 @@ func chunkContainers(ctrList []*containers.Container, lastRates map[string]util.
 
 func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.ContainerRateMetrics, lastRun time.Time) []*model.Container {
 	return make([]*model.Container, 0)
+}
+
+func (c *ContainerCheck) filterCtrIDsByPIDs(pids []int32) map[int32]string {
+	return map[int32]string{}
 }

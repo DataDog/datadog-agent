@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package info
 
 // EndpointStats contains stats about the volume of data written
@@ -15,13 +20,4 @@ type EndpointStats struct {
 	// TracesStats is the number of stats in the traces payload data sent, including errors.
 	// If several URLs are given, it does not change the size (shared for all).
 	TracesStats int64
-	// TracesPayload is the number of services payload sent, including errors.
-	// If several URLs are given, each URL counts for one.
-	ServicesPayload int64
-	// ServicesPayloadError is the number of services payload sent with an error.
-	// If several URLs are given, each URL counts for one.
-	ServicesPayloadError int64
-	// TracesBytes is the size of the services payload data sent, including errors.
-	// If several URLs are given, it does not change the size (shared for all).
-	ServicesBytes int64
 }

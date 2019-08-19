@@ -7,6 +7,7 @@
 #define DATADOG_AGENT_RTLOADER_RTLOADER_H
 
 #include "rtloader_types.h"
+
 #include <map>
 #include <mutex>
 #include <string>
@@ -108,7 +109,7 @@ public:
       \param check The python object pointer to the check we wish to run.
       \return A C-string with the check result.
     */
-    virtual const char *runCheck(RtLoaderPyObject *check) = 0;
+    virtual char *runCheck(RtLoaderPyObject *check) = 0;
 
     //! Pure virtual getCheckWarnings member.
     /*!
@@ -154,8 +155,19 @@ public:
     //! Pure virtual getPyInfo member.
     /*!
       \return A py_info_t struct with the details (version and path) of the underlying python runtime.
+
+      Structure returned must be freed with a call to freePyInfo()
     */
     virtual py_info_t *getPyInfo() = 0;
+
+    // Public Const API
+    //! Pure virtual freePyInfo member
+    /*!
+      \return none
+
+      Frees all memory allocated in a previous call to getPyInfo
+     */
+    virtual void freePyInfo(py_info_t *) = 0;
 
     //! Pure virtual runSimpleString member.
     /*!
@@ -372,7 +384,7 @@ private:
 /*! create_t function prototype
   \typedef create_t defines the factory function prototype to create RtLoader instances for
   the underlying python runtimes.
-  \param python_home A C-string representation of the python home for the target python runtime.
+  \param python_home A C-string path to the python home for the target python runtime.
   \return A pointer to the RtLoader instance created by the implementing function.
 */
 typedef RtLoader *(create_t)(const char *python_home);

@@ -21,8 +21,8 @@ import (
 )
 
 var (
-	rtloader     *C.rtloader_t
-	tmpfile *os.File
+	rtloader *C.rtloader_t
+	tmpfile  *os.File
 )
 
 func setUp() error {
@@ -57,6 +57,7 @@ func getPyInfo() (string, string) {
 	state := C.ensure_gil(rtloader)
 
 	info := C.get_py_info(rtloader)
+	defer C.free_py_info(rtloader, info)
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()

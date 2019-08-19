@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
 package config
 
 import (
@@ -85,8 +90,8 @@ type ReplaceRule struct {
 	Repl string `mapstructure:"repl"`
 }
 
-// SenderConfig specifies the configuration for the sender.
-type SenderConfig struct {
+// WriterConfig specifies configuration for an API writer.
+type WriterConfig struct {
 	// ConnectionLimit specifies the maximum number of concurrent outgoing
 	// connections allowed for the sender.
 	ConnectionLimit int `mapstructure:"connection_limit"`
@@ -94,6 +99,10 @@ type SenderConfig struct {
 	// QueueSize specifies the maximum number or payloads allowed to be queued
 	// in the sender.
 	QueueSize int `mapstructure:"queue_size"`
+
+	// FlushPeriodSeconds specifies the frequency at which the writer's buffer
+	// will be flushed to the sender, in seconds. Fractions are permitted.
+	FlushPeriodSeconds float64 `mapstructure:"flush_period_seconds"`
 }
 
 func (c *AgentConfig) applyDatadogConfig() error {
@@ -170,6 +179,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("apm_config.receiver_port") {
 		c.ReceiverPort = config.Datadog.GetInt("apm_config.receiver_port")
 	}
+	if config.Datadog.IsSet("apm_config.receiver_socket") {
+		c.ReceiverSocket = config.Datadog.GetString("apm_config.receiver_socket")
+	}
 	if config.Datadog.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = config.Datadog.GetInt("apm_config.connection_limit")
 	}
@@ -229,7 +241,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 
 	// undocumented writers
-	for key, cfg := range map[string]*SenderConfig{
+	for key, cfg := range map[string]*WriterConfig{
 		"apm_config.trace_writer": c.TraceWriter,
 		"apm_config.stats_writer": c.StatsWriter,
 	} {

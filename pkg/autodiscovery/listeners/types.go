@@ -26,6 +26,7 @@ type ContainerPort struct {
 // ADIdentifiers field.
 type Service interface {
 	GetEntity() string                         // unique entity name
+	GetTaggerEntity() string                   // tagger entity name
 	GetADIdentifiers() ([]string, error)       // identifiers on which templates will be matched
 	GetHosts() (map[string]string, error)      // network --> IP address
 	GetPorts() ([]ContainerPort, error)        // network ports

@@ -10,7 +10,6 @@ package jmxfetch
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,10 +19,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -63,7 +63,6 @@ type JMXFetch struct {
 	JavaToolsJarPath   string
 	JavaCustomJarPaths []string
 	LogLevel           string
-	JmxExitFile        string
 	Command            string
 	ReportOnConsole    bool
 	Checks             []string
@@ -71,10 +70,25 @@ type JMXFetch struct {
 	IPCHost            string
 	defaultJmxCommand  string
 	cmd                *exec.Cmd
-	exitFilePath       string
 	managed            bool
 	shutdown           chan struct{}
 	stopped            chan struct{}
+}
+
+// checkInstanceCfg lists the config options on the instance against which we make some sanity checks
+// on how they're configured. All the other options should be checked on JMXFetch's side.
+type checkInstanceCfg struct {
+	JavaBinPath      string `yaml:"java_bin_path,omitempty"`
+	JavaOptions      string `yaml:"java_options,omitempty"`
+	ToolsJarPath     string `yaml:"tools_jar_path,omitempty"`
+	ProcessNameRegex string `yaml:"process_name_regex,omitempty"`
+}
+
+type checkInitCfg struct {
+	CustomJarPaths []string `yaml:"custom_jar_paths,omitempty"`
+	ToolsJarPath   string   `yaml:"tools_jar_path,omitempty"`
+	JavaBinPath    string   `yaml:"java_bin_path,omitempty"`
+	JavaOptions    string   `yaml:"java_options,omitempty"`
 }
 
 func (j *JMXFetch) setDefaults() {
@@ -99,7 +113,6 @@ func (j *JMXFetch) setDefaults() {
 func (j *JMXFetch) Start(manage bool) error {
 	j.setDefaults()
 
-	here, _ := executable.Folder()
 	classpath := filepath.Join(common.GetDistPath(), "jmx", jmxJarName)
 	if j.JavaToolsJarPath != "" {
 		classpath = fmt.Sprintf("%s%s%s", j.JavaToolsJarPath, string(os.PathListSeparator), classpath)
@@ -185,13 +198,6 @@ func (j *JMXFetch) Start(manage bool) error {
 
 	subprocessArgs = append(subprocessArgs, j.Command)
 
-	if j.JmxExitFile != "" {
-		j.exitFilePath = filepath.Join(here, "dist", "jmx", j.JmxExitFile) // FIXME : At some point we should have a `run` folder
-		// Signal handlers are not supported on Windows:
-		// use a file to trigger JMXFetch exit instead
-		subprocessArgs = append(subprocessArgs, "--exit_file_location", j.exitFilePath)
-	}
-
 	j.cmd = exec.Command(j.JavaBinPath, subprocessArgs...)
 
 	// set environment + token
@@ -200,20 +206,19 @@ func (j *JMXFetch) Start(manage bool) error {
 		fmt.Sprintf("SESSION_TOKEN=%s", api.GetAuthToken()),
 	)
 
-	// remove the exit file trigger (windows)
-	if j.JmxExitFile != "" {
-		os.Remove(j.exitFilePath)
-	}
-
 	// forward the standard output to the Agent logger
 	stdout, err := j.cmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
 	go func() {
+	scan:
 		in := bufio.NewScanner(stdout)
 		for in.Scan() {
 			log.Info(in.Text())
+		}
+		if in.Err() == bufio.ErrTooLong {
+			goto scan
 		}
 	}()
 
@@ -223,9 +228,13 @@ func (j *JMXFetch) Start(manage bool) error {
 		return err
 	}
 	go func() {
+	scan:
 		in := bufio.NewScanner(stderr)
 		for in.Scan() {
 			log.Error(in.Text())
+		}
+		if in.Err() == bufio.ErrTooLong {
+			goto scan
 		}
 	}()
 
@@ -243,49 +252,6 @@ func (j *JMXFetch) Start(manage bool) error {
 	}
 
 	return err
-}
-
-// Stop stops the JMXFetch process
-func (j *JMXFetch) Stop() error {
-	var stopChan chan struct{}
-
-	if j.JmxExitFile == "" {
-		// Unix
-		err := j.cmd.Process.Signal(syscall.SIGTERM)
-		if err != nil {
-			return err
-		}
-
-		if j.managed {
-			stopChan = j.stopped
-			close(j.shutdown)
-		} else {
-			stopChan = make(chan struct{})
-
-			go func() {
-				j.Wait()
-				close(stopChan)
-			}()
-		}
-
-		select {
-		case <-time.After(time.Millisecond * 500):
-			log.Warnf("Jmxfetch did not exit during it's grace period, killing it")
-			err = j.cmd.Process.Signal(os.Kill)
-			if err != nil {
-				log.Warnf("Could not kill jmxfetch: %v", err)
-			}
-		case <-stopChan:
-		}
-
-	} else {
-		// Windows
-		if err := ioutil.WriteFile(j.exitFilePath, nil, 0644); err != nil {
-			log.Warnf("Could not signal JMXFetch to exit, killing instead: %v", err)
-			return j.cmd.Process.Kill()
-		}
-	}
-	return nil
 }
 
 // Wait waits for the end of the JMXFetch process and returns the error code
@@ -318,4 +284,76 @@ func (j *JMXFetch) Up() (bool, error) {
 	// if sig is 0, then no signal is sent, but error checking is still performed
 	err = process.Signal(syscall.Signal(0))
 	return err == nil, err
+}
+
+// ConfigureFromInitConfig configures various options from the init_config
+// section of the configuration
+func (j *JMXFetch) ConfigureFromInitConfig(initConfig integration.Data) error {
+	var initConf checkInitCfg
+
+	// unmarshall init config
+	if err := yaml.Unmarshal(initConfig, &initConf); err != nil {
+		return err
+	}
+
+	if j.JavaBinPath == "" {
+		if initConf.JavaBinPath != "" {
+			j.JavaBinPath = initConf.JavaBinPath
+		}
+	}
+
+	if j.JavaOptions == "" {
+		if initConf.JavaOptions != "" {
+			j.JavaOptions = initConf.JavaOptions
+		}
+	}
+
+	if j.JavaToolsJarPath == "" {
+		if initConf.ToolsJarPath != "" {
+			j.JavaToolsJarPath = initConf.ToolsJarPath
+		}
+	}
+	if j.JavaCustomJarPaths == nil {
+		if initConf.CustomJarPaths != nil {
+			j.JavaCustomJarPaths = initConf.CustomJarPaths
+		}
+	}
+
+	return nil
+}
+
+// ConfigureFromInitConfig configures various options from the instance
+// section of the configuration
+func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
+
+	var instanceConf checkInstanceCfg
+
+	// unmarshall instance info
+	if err := yaml.Unmarshal(instance, &instanceConf); err != nil {
+		return err
+	}
+
+	if j.JavaBinPath == "" {
+		if instanceConf.JavaBinPath != "" {
+			j.JavaBinPath = instanceConf.JavaBinPath
+		}
+	}
+	if j.JavaOptions == "" {
+		if instanceConf.JavaOptions != "" {
+			j.JavaOptions = instanceConf.JavaOptions
+		}
+	}
+	if j.JavaToolsJarPath == "" {
+		if instanceConf.ToolsJarPath != "" {
+			j.JavaToolsJarPath = instanceConf.ToolsJarPath
+		}
+	}
+
+	if instanceConf.ProcessNameRegex != "" {
+		if j.JavaToolsJarPath == "" {
+			return fmt.Errorf("You must specify the path to tools.jar. See http://docs.datadoghq.com/integrations/java/ for more information")
+		}
+	}
+
+	return nil
 }

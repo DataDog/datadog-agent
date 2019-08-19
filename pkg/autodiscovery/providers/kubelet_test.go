@@ -56,7 +56,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 					Containers: []kubelet.ContainerStatus{
 						{
 							Name: "apache",
-							ID:   "docker://3b8efe0c50e8",
+							ID:   "container_id://3b8efe0c50e8",
 						},
 					},
 				},
@@ -64,9 +64,10 @@ func TestParseKubeletPodlist(t *testing.T) {
 			expectedCfg: []integration.Config{
 				{
 					Name:          "http_check",
-					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
+					ADIdentifiers: []string{"container_id://3b8efe0c50e8"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					Source:        "kubelet:container_id://3b8efe0c50e8",
 				},
 			},
 		},
@@ -87,11 +88,11 @@ func TestParseKubeletPodlist(t *testing.T) {
 					Containers: []kubelet.ContainerStatus{
 						{
 							Name: "apache",
-							ID:   "docker://3b8efe0c50e8",
+							ID:   "container_id://3b8efe0c50e8",
 						},
 						{
 							Name: "nginx",
-							ID:   "docker://4ac8352d70bf1",
+							ID:   "container_id://4ac8352d70bf1",
 						},
 					},
 				},
@@ -99,15 +100,17 @@ func TestParseKubeletPodlist(t *testing.T) {
 			expectedCfg: []integration.Config{
 				{
 					Name:          "http_check",
-					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
+					ADIdentifiers: []string{"container_id://3b8efe0c50e8"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					Source:        "kubelet:container_id://3b8efe0c50e8",
 				},
 				{
 					Name:          "http_check",
-					ADIdentifiers: []string{"docker://4ac8352d70bf1"},
+					ADIdentifiers: []string{"container_id://4ac8352d70bf1"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"Other service\",\"timeout\":1,\"url\":\"http://%%host_external%%\"}")},
+					Source:        "kubelet:container_id://4ac8352d70bf1",
 				},
 			},
 		},
@@ -125,7 +128,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 					Containers: []kubelet.ContainerStatus{
 						{
 							Name: "apache",
-							ID:   "docker://3b8efe0c50e8",
+							ID:   "container_id://3b8efe0c50e8",
 						},
 					},
 				},
@@ -133,15 +136,17 @@ func TestParseKubeletPodlist(t *testing.T) {
 			expectedCfg: []integration.Config{
 				{
 					Name:          "apache",
-					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
+					ADIdentifiers: []string{"container_id://3b8efe0c50e8"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
+					Source:        "kubelet:container_id://3b8efe0c50e8",
 				},
 				{
 					Name:          "http_check",
-					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
+					ADIdentifiers: []string{"container_id://3b8efe0c50e8"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					Source:        "kubelet:container_id://3b8efe0c50e8",
 				},
 			},
 		},

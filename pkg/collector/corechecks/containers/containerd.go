@@ -72,9 +72,9 @@ func (co *ContainerdConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (c *ContainerdCheck) Configure(config, initConfig integration.Data) error {
+func (c *ContainerdCheck) Configure(config, initConfig integration.Data, source string) error {
 	var err error
-	if err = c.CommonConfigure(config); err != nil {
+	if err = c.CommonConfigure(config, source); err != nil {
 		return err
 	}
 
@@ -158,7 +158,7 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *ddCo
 		output.Title = fmt.Sprintf("Event on %s from Containerd", split[1])
 		if split[1] == "containers" || split[1] == "tasks" {
 			// For task events, we use the container ID in order to query the Tagger's API
-			tags, err := tagger.Tag(e.ID, collectors.HighCardinality)
+			tags, err := tagger.Tag(ddContainers.ContainerEntityPrefix+e.ID, collectors.HighCardinality)
 			if err != nil {
 				// If there is an error retrieving tags from the Tagger, we can still submit the event as is.
 				log.Errorf("Could not retrieve tags for the container %s: %v", e.ID, err)
@@ -191,7 +191,7 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			log.Errorf("Could not collect tags for container %s: %s", ctn.ID()[:12], err)
 		}
 		// Tagger tags
-		taggerTags, err := tagger.Tag(ctn.ID(), collectors.HighCardinality)
+		taggerTags, err := tagger.Tag(ddContainers.ContainerEntityPrefix+ctn.ID(), collectors.HighCardinality)
 		if err != nil {
 			log.Errorf(err.Error())
 			continue

@@ -4,8 +4,10 @@
 // Copyright 2019 Datadog, Inc.
 #include "datadog_agent.h"
 #include "cgo_free.h"
+#include "rtloader_mem.h"
+#include "stringutils.h"
 
-#include <stringutils.h>
+#include <log.h>
 
 // these must be set by the Agent
 static cb_get_version_t cb_get_version = NULL;
@@ -13,7 +15,6 @@ static cb_get_config_t cb_get_config = NULL;
 static cb_headers_t cb_headers = NULL;
 static cb_get_hostname_t cb_get_hostname = NULL;
 static cb_get_clustername_t cb_get_clustername = NULL;
-static cb_log_t cb_log = NULL;
 static cb_set_external_tags_t cb_set_external_tags = NULL;
 
 // forward declarations
@@ -78,11 +79,6 @@ void _set_get_clustername_cb(cb_get_clustername_t cb)
     cb_get_clustername = cb;
 }
 
-void _set_log_cb(cb_log_t cb)
-{
-    cb_log = cb;
-}
-
 void _set_set_external_tags_cb(cb_set_external_tags_t cb)
 {
     cb_set_external_tags = cb;
@@ -105,7 +101,7 @@ PyObject *get_version(PyObject *self, PyObject *args)
         Py_RETURN_NONE;
     }
 
-    char *v;
+    char *v = NULL;
     cb_get_version(&v);
 
     if (v != NULL) {
@@ -151,7 +147,9 @@ PyObject *get_config(PyObject *self, PyObject *args)
         Py_RETURN_NONE;
     }
 
-    char *key;
+    char *key = NULL;
+    // PyArg_ParseTuple returns a pointer to the existing string in &key
+    // No need to free the result.
     if (!PyArg_ParseTuple(args, "s", &key)) {
         return NULL;
     }
@@ -213,7 +211,7 @@ PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs)
     // `kwargs` might contain the `http_host` key, let's grab it
     if (kwargs != NULL) {
         char key[] = "http_host";
-        // borrowed
+        // Returns a borrowed reference; no exception set if not present
         PyObject *pyHTTPHost = PyDict_GetItemString(kwargs, key);
         if (pyHTTPHost != NULL) {
             PyDict_SetItemString(headers_dict, "Host", pyHTTPHost);
@@ -250,7 +248,7 @@ PyObject *get_hostname(PyObject *self, PyObject *args)
         Py_RETURN_NONE;
     }
 
-    char *v;
+    char *v = NULL;
     cb_get_hostname(&v);
 
     if (v != NULL) {
@@ -280,7 +278,7 @@ PyObject *get_clustername(PyObject *self, PyObject *args)
         Py_RETURN_NONE;
     }
 
-    char *v;
+    char *v = NULL;
     cb_get_clustername(&v);
 
     if (v != NULL) {
@@ -305,20 +303,16 @@ PyObject *get_clustername(PyObject *self, PyObject *args)
 */
 static PyObject *log_message(PyObject *self, PyObject *args)
 {
-    // callback must be set
-    if (cb_log == NULL) {
-        Py_RETURN_NONE;
-    }
-
-    char *message;
+    char *message = NULL;
     int log_level;
 
-    // datadog_agent.log(message, log_level)
+    // PyArg_ParseTuple returns a pointer to the existing string in &message
+    // No need to free the result.
     if (!PyArg_ParseTuple(args, "si", &message, &log_level)) {
         return NULL;
     }
 
-    cb_log(message, log_level);
+    agent_log(log_level, message);
     Py_RETURN_NONE;
 }
 
@@ -357,6 +351,8 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
     PyGILState_STATE gstate = PyGILState_Ensure();
 
     // function expects only one positional arg containing a list
+    // the reference count in the returned object (input list) is _not_
+    // incremented
     if (!PyArg_ParseTuple(args, "O", &input_list)) {
         PyGILState_Release(gstate);
         return NULL;
@@ -381,21 +377,24 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         // list must contain only tuples in form ('hostname', {'source_type': ['tag1', 'tag2']},)
         if (!PyTuple_Check(tuple)) {
             PyErr_SetString(PyExc_TypeError, "external host tags list must contain only tuples");
-            goto error;
+            error = 1;
+            goto done;
         }
 
         // first elem is the hostname
         hostname = as_string(PyTuple_GetItem(tuple, 0));
         if (hostname == NULL) {
             PyErr_SetString(PyExc_TypeError, "hostname is not a valid string");
-            goto error;
+            error = 1;
+            goto done;
         }
 
         // second is a dictionary
         PyObject *dict = PyTuple_GetItem(tuple, 1);
         if (!PyDict_Check(dict)) {
             PyErr_SetString(PyExc_TypeError, "second elem of the host tags tuple must be a dict");
-            goto error;
+            error = 1;
+            goto done;
         }
 
         // dict contains only 1 key, if dict is empty don't do anything
@@ -409,21 +408,24 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         source_type = as_string(key);
         if (source_type == NULL) {
             PyErr_SetString(PyExc_TypeError, "source_type is not a valid string");
-            goto error;
+            error = 1;
+            goto done;
         }
 
         if (!PyList_Check(value)) {
             PyErr_SetString(PyExc_TypeError, "dict value must be a list of tags");
-            goto error;
+            error = 1;
+            goto done;
         }
 
         // allocate an array of char* to store the tags we'll send to the Go function
         char **tags;
         // We already PyList_Check value, so PyList_Size won't fail and return -1
         int tags_len = PyList_Size(value);
-        if (!(tags = (char **)malloc(sizeof(*tags) * tags_len + 1))) {
+        if (!(tags = (char **)_malloc(sizeof(*tags) * tags_len + 1))) {
             PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
-            goto error;
+            error = 1;
+            goto done;
         }
 
         // copy the list of tags into an array of char*
@@ -450,17 +452,17 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
 
         // cleanup
         for (j = 0; j < actual_size; j++) {
-            free(tags[j]);
+            _free(tags[j]);
         }
-        free(tags);
+        _free(tags);
     }
 
 done:
     if (hostname) {
-        free(hostname);
+        _free(hostname);
     }
     if (source_type) {
-        free(source_type);
+        _free(source_type);
     }
     PyGILState_Release(gstate);
 
@@ -470,7 +472,4 @@ done:
     }
     Py_RETURN_NONE;
 
-error:
-    error = 1;
-    goto done;
 }

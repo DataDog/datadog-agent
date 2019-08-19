@@ -83,10 +83,14 @@ func (ku *KubeUtil) UpdateContainerMetrics(ctrList []*containers.Container) erro
 }
 
 func parseContainerInPod(status ContainerStatus, pod *Pod) (*containers.Container, error) {
+	entity, err := KubeContainerIDToTaggerEntityID(status.ID)
+	if err != nil {
+		return nil, fmt.Errorf("Skipping container %s from pod %s: %s", status.Name, pod.Metadata.Name, err)
+	}
 	c := &containers.Container{
 		Type:     "kubelet",
 		ID:       TrimRuntimeFromCID(status.ID),
-		EntityID: status.ID,
+		EntityID: entity,
 		Name:     fmt.Sprintf("%s-%s", pod.Metadata.Name, status.Name),
 		Image:    status.Image,
 	}
@@ -100,7 +104,7 @@ func parseContainerInPod(status ContainerStatus, pod *Pod) (*containers.Containe
 		c.State = containers.ContainerRunningState
 		c.Created = status.State.Running.StartedAt.Unix()
 		c.Health = parseContainerReadiness(status, pod)
-		c.AddressList = parseContainerNetworkAdresses(status, pod)
+		c.AddressList = parseContainerNetworkAddresses(status, pod)
 	case status.State.Terminated != nil:
 		if status.State.Terminated.ExitCode == 0 {
 			c.State = containers.ContainerExitedState
@@ -115,7 +119,7 @@ func parseContainerInPod(status ContainerStatus, pod *Pod) (*containers.Containe
 	return c, nil
 }
 
-func parseContainerNetworkAdresses(status ContainerStatus, pod *Pod) []containers.NetworkAddress {
+func parseContainerNetworkAddresses(status ContainerStatus, pod *Pod) []containers.NetworkAddress {
 	addrList := []containers.NetworkAddress{}
 	podIP := net.ParseIP(pod.Status.PodIP)
 	if podIP == nil {

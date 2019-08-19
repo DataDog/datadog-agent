@@ -41,6 +41,7 @@ type CheckBase struct {
 	checkID        check.ID
 	latestWarnings []error
 	checkInterval  time.Duration
+	source         string
 }
 
 // NewCheckBase returns a check base struct with a given check name
@@ -60,13 +61,13 @@ func (c *CheckBase) BuildID(instance, initConfig integration.Data) {
 
 // Configure is provided for checks that require no config. If overridden,
 // the call to CommonConfigure must be preserved.
-func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data) error {
-	return c.CommonConfigure(data)
+func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data, source string) error {
+	return c.CommonConfigure(data, source)
 }
 
 // CommonConfigure is called when checks implement their own Configure method,
 // in order to setup common options (run interval, empty hostname)
-func (c *CheckBase) CommonConfigure(instance integration.Data) error {
+func (c *CheckBase) CommonConfigure(instance integration.Data, source string) error {
 	commonOptions := integration.CommonInstanceConfig{}
 	err := yaml.Unmarshal(instance, &commonOptions)
 	if err != nil {
@@ -99,6 +100,7 @@ func (c *CheckBase) CommonConfigure(instance integration.Data) error {
 		s.SetCheckCustomTags(commonOptions.Tags)
 	}
 
+	c.source = source
 	return nil
 }
 
@@ -137,6 +139,12 @@ func (c *CheckBase) String() string {
 // from the agent
 func (c *CheckBase) Version() string {
 	return ""
+}
+
+// ConfigSource returns an empty string as Go check can't be updated independently
+// from the agent
+func (c *CheckBase) ConfigSource() string {
+	return c.source
 }
 
 // ID returns a unique ID for that check instance

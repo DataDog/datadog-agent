@@ -14,6 +14,8 @@ import (
 type SourceType string
 
 const (
+	// DockerSourceType docker source type
+	DockerSourceType SourceType = "docker"
 	// KubernetesSourceType kubernetes source type
 	KubernetesSourceType SourceType = "kubernetes"
 )

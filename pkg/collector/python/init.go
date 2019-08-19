@@ -30,13 +30,23 @@ import (
 #cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 
-#include <datadog_agent_rtloader.h>
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
+
 #include <stdlib.h>
 
 // helpers
 
 char *getStringAddr(char **array, unsigned int idx) {
 	return array[idx];
+}
+
+//
+// init memory tracking facilities method
+//
+void MemoryTracker(void *, size_t, rtloader_mem_ops_t);
+void initMemoryTracker(void) {
+	set_memory_tracker_cb(MemoryTracker);
 }
 
 //
@@ -47,7 +57,17 @@ char *getStringAddr(char **array, unsigned int idx) {
 //
 
 void initCgoFree(rtloader_t *rtloader) {
-	set_cgo_free_cb(rtloader, free);
+	set_cgo_free_cb(rtloader, _free);
+}
+
+//
+// init log method
+//
+
+void LogMessage(char *, int);
+
+void initLogger(rtloader_t *rtloader) {
+	set_log_cb(rtloader, LogMessage);
 }
 
 //
@@ -61,7 +81,6 @@ void GetHostname(char **);
 void GetClusterName(char **);
 void Headers(char **);
 void GetConfig(char*, char **);
-void LogMessage(char *, int);
 void SetExternalTags(char *, char *, char **);
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
@@ -69,7 +88,6 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_hostname_cb(rtloader, GetHostname);
 	set_get_clustername_cb(rtloader, GetClusterName);
 	set_headers_cb(rtloader, Headers);
-	set_log_cb(rtloader, LogMessage);
 	set_get_config_cb(rtloader, GetConfig);
 	set_set_external_tags_cb(rtloader, SetExternalTags);
 }
@@ -222,17 +240,20 @@ func Initialize(paths ...string) error {
 		}
 	}
 
+	// memory related RTLoader-global initialization
+	C.initMemoryTracker()
+
 	var pyErr *C.char = nil
 	if pythonVersion == "2" {
-		// Do not free this CString which stores the path of the python home: it is passed to `Py_SetPythonHome`,
-		// which explicitly needs it to be kept around until the interpreter exits.
-		rtloader = C.make2(C.CString(pythonHome2), &pyErr)
+		csPythonHome2 := TrackedCString(pythonHome2)
+		rtloader = C.make2(csPythonHome2, &pyErr)
+		C._free(unsafe.Pointer(csPythonHome2))
 		log.Infof("Initializing rtloader with python2 %s", pythonHome2)
 		PythonHome = pythonHome2
 	} else if pythonVersion == "3" {
-		// Do not free this CString which stores the path of the python home: it is passed to `Py_SetPythonHome`,
-		// which explicitly needs it to be kept around until the interpreter exits.
-		rtloader = C.make3(C.CString(pythonHome3), &pyErr)
+		csPythonHome3 := TrackedCString(pythonHome3)
+		rtloader = C.make3(csPythonHome3, &pyErr)
+		C._free(unsafe.Pointer(csPythonHome3))
 		log.Infof("Initializing rtloader with python3 %s", pythonHome3)
 		PythonHome = pythonHome3
 	} else {
@@ -242,14 +263,16 @@ func Initialize(paths ...string) error {
 	if rtloader == nil {
 		err := addExpvarPythonInitErrors(fmt.Sprintf("could not load runtime python for version %s: %s", pythonVersion, C.GoString(pyErr)))
 		if pyErr != nil {
-			C.free(unsafe.Pointer(pyErr))
+			// pyErr tracked when created in rtloader
+			C._free(unsafe.Pointer(pyErr))
 		}
 		return err
 	}
 
 	// Set the PYTHONPATH if needed.
 	for _, p := range paths {
-		C.add_python_path(rtloader, C.CString(p))
+		// bounded but never released allocations with CString
+		C.add_python_path(rtloader, TrackedCString(p))
 	}
 
 	// Any platform-specific initialization
@@ -259,6 +282,7 @@ func Initialize(paths ...string) error {
 
 	// Setup custom builtin before RtLoader initialization
 	C.initCgoFree(rtloader)
+	C.initLogger(rtloader)
 	C.initDatadogAgentModule(rtloader)
 	C.initAggregatorModule(rtloader)
 	C.initUtilModule(rtloader)
@@ -286,8 +310,7 @@ func Initialize(paths ...string) error {
 		cache.Cache.Set(key, PythonVersion, cache.NoExpiration)
 
 		PythonPath = C.GoString(pyInfo.path)
-		C.rtloader_free(rtloader, unsafe.Pointer(pyInfo.path))
-		C.rtloader_free(rtloader, unsafe.Pointer(pyInfo))
+		C.free_py_info(rtloader, pyInfo)
 	} else {
 		log.Errorf("Could not query python information: %s", C.GoString(C.get_error(rtloader)))
 	}

@@ -38,8 +38,8 @@ type MemoryCheck struct {
 const mbSize float64 = 1024 * 1024
 
 // Configure handles initial configuration/initialization of the check
-func (c *MemoryCheck) Configure(data integration.Data, initConfig integration.Data) (err error) {
-	if err := c.CommonConfigure(data); err != nil {
+func (c *MemoryCheck) Configure(data integration.Data, initConfig integration.Data, source string) (err error) {
+	if err := c.CommonConfigure(data, source); err != nil {
 		return err
 	}
 

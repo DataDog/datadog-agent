@@ -26,9 +26,6 @@ import (
 const (
 	// AD on the load-balanced service IPs
 	kubeServiceAnnotationPrefix = "ad.datadoghq.com/service."
-	// AD on the individual service endpoints (TODO)
-	kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
-	kubeEndpointIDPrefix         = "kube_endpoint://"
 )
 
 // KubeServiceConfigProvider implements the ConfigProvider interface for the apiserver.
@@ -115,11 +112,6 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 		k.upToDate = false
 		return
 	}
-	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeEndpointAnnotationPrefix) {
-		log.Trace("Invalidating configs on service end annotations change")
-		k.upToDate = false
-		return
-	}
 }
 
 // valuesDiffer returns true if the annotations matching the
@@ -160,21 +152,12 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 		for _, err := range errors {
 			log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
-		endptConf, errors := extractTemplatesFromMap(apiserver.EntityForEndpoints(svc.Namespace, svc.Name), svc.Annotations, kubeEndpointAnnotationPrefix)
-		for _, err := range errors {
-			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
-		}
 		// All configurations are cluster checks
 		for i := range svcConf {
 			svcConf[i].ClusterCheck = true
-			// Add endpoints check templates extracted from
-			// endpoints annotations to the service config.
-			// The cluster agent will validate and dispatch
-			// these templates to node agents.
-			svcConf[i].EndpointsChecks = endptConf
+			svcConf[i].Source = "kube_services:" + service_id
 		}
 		configs = append(configs, svcConf...)
-		configs = append(configs, endptConf...)
 	}
 
 	return configs, nil

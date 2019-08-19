@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:six-pip3
+      - image: datadog/datadog-agent-runner-circle:go1129
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -66,7 +66,7 @@ jobs:
       - run:
           name: grab go deps
           command: |
-            inv deps --verbose
+            inv deps --verbose --dep-vendor-only
       - run:
           name: build rtloader
           command: |
@@ -75,9 +75,7 @@ jobs:
       - run:
           name: lint rtloader
           command: |
-            inv rtloader.format
-            # only check for diff in rtloader folder since "inv deps" step might update Gopkg.lock
-            [[ $(git ls-files -m rtloader | wc -l) -eq 0 ]]
+            inv rtloader.format --raise-if-changed
       - run:
           name: test rtloader
           command: |

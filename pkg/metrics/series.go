@@ -12,7 +12,6 @@ import (
 	"expvar"
 	"fmt"
 	"strings"
-	"unsafe"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/gogo/protobuf/proto"
@@ -23,17 +22,6 @@ import (
 )
 
 var seriesExpvar = expvar.NewMap("series")
-
-var marshaller = jsoniter.Config{
-	EscapeHTML:                    false,
-	ObjectFieldMustBeSimpleString: true,
-}.Froze()
-
-var (
-	jsonSeparator  = []byte(",")
-	jsonArrayStart = []byte("[")
-	jsonArrayEnd   = []byte("]")
-)
 
 // Point represents a metric value at a specific time
 type Point struct {
@@ -224,28 +212,35 @@ func (e Serie) String() string {
 //// The following methods implement the StreamJSONMarshaler interface
 //// for support of the enable_stream_payload_serialization option.
 
-// JSONHeader prints the payload header for this type
-func (series Series) JSONHeader() []byte {
-	return []byte(`{"series":[`)
+// WriteHeader writes the payload header for this type
+func (series Series) WriteHeader(stream *jsoniter.Stream) error {
+	stream.WriteObjectStart()
+	stream.WriteObjectField("series")
+	stream.WriteArrayStart()
+	return stream.Flush()
+}
+
+// WriteFooter prints the payload footer for this type
+func (series Series) WriteFooter(stream *jsoniter.Stream) error {
+	stream.WriteArrayEnd()
+	stream.WriteObjectEnd()
+	return stream.Flush()
+}
+
+// WriteItem prints the json representation of an item
+func (series Series) WriteItem(stream *jsoniter.Stream, i int) error {
+	if i < 0 || i > len(series)-1 {
+		return errors.New("out of range")
+	}
+	serie := series[i]
+	populateDeviceField(serie)
+	encodeSerie(serie, stream)
+	return stream.Flush()
 }
 
 // Len returns the number of items to marshal
 func (series Series) Len() int {
 	return len(series)
-}
-
-// JSONItem prints the json representation of an item
-func (series Series) JSONItem(i int) ([]byte, error) {
-	if i < 0 || i > len(series)-1 {
-		return nil, errors.New("out of range")
-	}
-	populateDeviceField(series[i])
-	return marshaller.Marshal(series[i])
-}
-
-// JSONFooter prints the payload footer for this type
-func (series Series) JSONFooter() []byte {
-	return []byte(`]}`)
 }
 
 // DescribeItem returns a text description for logs
@@ -256,34 +251,71 @@ func (series Series) DescribeItem(i int) string {
 	return fmt.Sprintf("name %q, %d points", series[i].Name, len(series[i].Points))
 }
 
-// encodePoints is registered to serialize a Point array with
-// limited reflections and heap allocations.
-// Called when using jsoniter
-func encodePoints(ptr unsafe.Pointer, stream *jsoniter.Stream) {
-	if ptr == nil {
-		stream.Write(jsonArrayStart)
-		stream.Write(jsonArrayEnd)
-		return
+func encodeSerie(serie *Serie, stream *jsoniter.Stream) {
+	stream.WriteObjectStart()
+
+	stream.WriteObjectField("metric")
+	stream.WriteString(serie.Name)
+	stream.WriteMore()
+
+	stream.WriteObjectField("points")
+	encodePoints(serie.Points, stream)
+	stream.WriteMore()
+
+	stream.WriteObjectField("tags")
+	stream.WriteArrayStart()
+	firstTag := true
+	for _, s := range serie.Tags {
+		if !firstTag {
+			stream.WriteMore()
+		}
+		stream.WriteString(s)
+		firstTag = false
+	}
+	stream.WriteArrayEnd()
+	stream.WriteMore()
+
+	stream.WriteObjectField("host")
+	stream.WriteString(serie.Host)
+	stream.WriteMore()
+
+	if serie.Device != "" {
+		stream.WriteObjectField("device")
+		stream.WriteString(serie.Device)
+		stream.WriteMore()
 	}
 
-	points := *(*[]Point)(ptr)
+	stream.WriteObjectField("type")
+	stream.WriteString(serie.MType.String())
+	stream.WriteMore()
+
+	stream.WriteObjectField("interval")
+	stream.WriteInt64(serie.Interval)
+
+	if serie.SourceTypeName != "" {
+		stream.WriteMore()
+		stream.WriteObjectField("source_type_name")
+		stream.WriteString(serie.SourceTypeName)
+	}
+
+	stream.WriteObjectEnd()
+}
+
+func encodePoints(points []Point, stream *jsoniter.Stream) {
 	var needComa bool
-	stream.Write(jsonArrayStart)
+
+	stream.WriteArrayStart()
 	for _, p := range points {
 		if needComa {
-			stream.Write(jsonSeparator)
+			stream.WriteMore()
 		} else {
 			needComa = true
 		}
-		fmt.Fprintf(stream, "[%v,%v]", int64(p.Ts), p.Value)
+		stream.WriteArrayStart()
+		stream.WriteInt64(int64(p.Ts))
+		stream.WriteMore()
+		stream.WriteFloat64(p.Value)
+		stream.WriteArrayEnd()
 	}
-	stream.Write(jsonArrayEnd)
-}
-
-func init() {
-	jsoniter.RegisterTypeEncoderFunc(
-		"[]metrics.Point",
-		encodePoints,
-		func(ptr unsafe.Pointer) bool { return ptr == nil },
-	)
+	stream.WriteArrayEnd()
 }
