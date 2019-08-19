@@ -79,7 +79,6 @@ dependency 'preparation'
 
 # Datadog agent
 dependency 'datadog-puppy'
-dependency 'datadog-agent-strip'
 
 # version manifest file
 dependency 'version-manifest'
