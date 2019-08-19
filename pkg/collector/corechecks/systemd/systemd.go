@@ -37,8 +37,6 @@ const (
 	canConnectServiceCheck  = "systemd.can_connect"
 	systemStateServiceCheck = "systemd.system.state"
 	unitStateServiceCheck   = "systemd.unit.state"
-
-	defaultMaxUnits = 50
 )
 
 var dbusTypeMap = map[string]string{
@@ -122,7 +120,6 @@ type systemdInstanceConfig struct {
 	Name          string   `yaml:"name"`
 	PrivateSocket string   `yaml:"private_socket"`
 	UnitNames     []string `yaml:"unit_names"`
-	MaxUnits      int      `yaml:"max_units"`
 	InstanceTags  []string
 }
 
@@ -279,11 +276,6 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn, 
 		}
 		if !c.isMonitored(unit.Name) {
 			continue
-		}
-		if monitoredCount >= c.config.instance.MaxUnits {
-			log.Warnf("Reporting more metrics than the allowed maximum. " +
-				"Please contact support@datadoghq.com for more information.")
-			break
 		}
 		monitoredCount++
 		unitTags := append(tags, "unit:"+unit.Name)
@@ -472,10 +464,6 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 	err = yaml.Unmarshal(rawInstance, &c.config.instance)
 	if err != nil {
 		return err
-	}
-
-	if c.config.instance.MaxUnits == 0 {
-		c.config.instance.MaxUnits = defaultMaxUnits
 	}
 
 	if c.config.instance.Name == "" {

@@ -77,14 +77,6 @@ func getCreatePropertieWithDefaults(props map[string]interface{}) map[string]int
 	return defaultProps
 }
 
-func TestDefaultConfiguration(t *testing.T) {
-	check := SystemdCheck{}
-	check.Configure([]byte(``), []byte(``), "test")
-
-	assert.Equal(t, []string(nil), check.config.instance.UnitNames)
-	assert.Equal(t, 50, check.config.instance.MaxUnits)
-}
-
 func TestBasicConfiguration(t *testing.T) {
 	check := SystemdCheck{}
 	rawInstanceConfig := []byte(`
@@ -92,13 +84,11 @@ name: my-systemd-instance
 unit_names:
  - ssh.service
  - syslog.socket
-max_units: 99
 `)
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 
 	assert.Nil(t, err)
 	assert.ElementsMatch(t, []string{"ssh.service", "syslog.socket"}, check.config.instance.UnitNames)
-	assert.Equal(t, 99, check.config.instance.MaxUnits)
 	assert.Equal(t, "my-systemd-instance", check.config.instance.Name)
 	assert.Equal(t, []string{"systemd_name:my-systemd-instance"}, check.config.instance.InstanceTags)
 }
@@ -816,53 +806,5 @@ func TestGetPropertyBool(t *testing.T) {
 			assert.Equal(t, d.expectedBoolValue, num)
 			assert.Equal(t, d.expectedError, err)
 		})
-	}
-}
-
-func TestMaxUnitLimit(t *testing.T) {
-	rawInstanceConfig := []byte(`
-unit_names:
- - unit1.service
- - unit2.service
- - unit3.service
- - unit4.service
- - unit5.service
-max_units: 3
-`)
-
-	stats := createDefaultMockSystemdStats()
-	stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{
-		{Name: "unit1.service", ActiveState: "active", LoadState: "loaded"},
-		{Name: "unit2.service", ActiveState: "active", LoadState: "loaded"},
-		{Name: "unit3.service", ActiveState: "active", LoadState: "loaded"},
-		{Name: "unit4.service", ActiveState: "active", LoadState: "loaded"},
-		{Name: "unit5.service", ActiveState: "active", LoadState: "loaded"},
-	}, nil)
-
-	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, mock.Anything).Return(map[string]interface{}{}, nil)
-
-	check := SystemdCheck{stats: stats}
-	check.Configure(rawInstanceConfig, nil, "test")
-
-	// setup expectation
-	mockSender := mocksender.NewMockSender(check.ID())
-	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	// run
-	check.Run()
-
-	// assertions
-	calledUnits := []string{"unit1.service", "unit2.service", "unit3.service"}
-	for _, unitName := range calledUnits {
-		tags := []string{"unit:" + unitName}
-		mockSender.AssertMetricTaggedWith(t, "Gauge", "systemd.unit.active", tags)
-	}
-
-	notCalledUnits := []string{"unit4.service", "unit5.service"}
-	for _, unitName := range notCalledUnits {
-		tags := []string{"unit:" + unitName}
-		mockSender.AssertMetricNotTaggedWith(t, "Gauge", "systemd.unit.active", tags)
 	}
 }
