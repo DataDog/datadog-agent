@@ -467,6 +467,19 @@ shared_examples_for 'an Agent with python3 enabled' do
     expect(output).to be_truthy
   end
 
+  it 'runs Python 3 after python_version is set to 3' do
+    json_info_output = json_info
+    if json_info_output.key?('metadata') &&
+      json_info_output['metadata'].key?('systemStats') &&
+      json_info_output['metadata']['systemStats'].key?('pythonV')
+        pythonV = json_info_output['metadata']['systemStats'].key?('pythonV')
+        if pythonV.is_a? String && Gem::Version.new('3.0.0') <= Gem::Version.new(pythonV)
+          result = true
+        end
+      break
+    end
+  end
+
   it 'restarts after python_version is set back to 2' do
     conf_path = ""
     if os != :windows
@@ -481,6 +494,19 @@ shared_examples_for 'an Agent with python3 enabled' do
 
     output = restart
     expect(output).to be_truthy
+  end
+
+  it 'runs Python 2 after python_version is set back to 2' do
+    json_info_output = json_info
+    if json_info_output.key?('metadata') &&
+      json_info_output['metadata'].key?('systemStats') &&
+      json_info_output['metadata']['systemStats'].key?('pythonV')
+        pythonV = json_info_output['metadata']['systemStats'].key?('pythonV')
+        if pythonV.is_a? String && Gem::Version.new('3.0.0') > Gem::Version.new(pythonV)
+          result = true
+        end
+      break
+    end
   end
 end
 
