@@ -396,8 +396,8 @@ type Trace struct {
 	Source *info.Tags
 
 	// ContainerTags specifies orchestrator tags corresponding to the origin of this
-	// trace (e.g. K8S pod, Docker image, ECS, etc).
-	ContainerTags map[string]string
+	// trace (e.g. K8S pod, Docker image, ECS, etc). They are of the type "k1:v1,k2:v2".
+	ContainerTags string
 
 	// Spans holds the spans of this trace.
 	Spans pb.Trace
@@ -584,33 +584,16 @@ func tracesFromSpans(spans []pb.Span) pb.Traces {
 	return traces
 }
 
-// getContainerTags returns container and orchestrator tags belonging to containerID. If containerID
-// is empty or no tags are found, an empty map is returned.
-func getContainerTags(containerID string) map[string]string {
+// getContainerTag returns container and orchestrator tags belonging to containerID. If containerID
+// is empty or no tags are found, an empty string is returned.
+func getContainerTags(containerID string) string {
 	list, err := tagger.Tag("container_id://"+containerID, collectors.HighCardinality)
 	if err != nil {
 		log.Tracef("Getting container tags for ID %q: %v", containerID, err)
-		return map[string]string{}
+		return ""
 	}
 	log.Tracef("Getting container tags for ID %q: %v", containerID, list)
-	tags := make(map[string]string, len(list))
-	for _, tag := range list {
-		// this is a metrics product style tag; either a "key:value" pair,
-		// or simply "key", without a value.
-		parts := strings.Split(tag, ":")
-		if parts[0] == "" {
-			continue
-		}
-		k := "container." + parts[0]
-		if len(parts) > 1 {
-			// key and value
-			tags[k] = parts[1]
-		} else {
-			// key only
-			tags[k] = ""
-		}
-	}
-	return tags
+	return strings.Join(list, ",")
 }
 
 // getMediaType attempts to return the media type from the Content-Type MIME header. If it fails
