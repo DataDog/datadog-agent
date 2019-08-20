@@ -46,11 +46,12 @@ char *as_string(PyObject *object)
     }
     retval = strdupe(tmp);
 #else
-    PyObject *temp_bytes;
+    PyObject *temp_bytes = NULL;
 
     if (PyBytes_Check(object)) {
         // We already have an encoded string, we suppose it has the correct encoding (UTF-8)
         temp_bytes = object;
+        Py_INCREF(temp_bytes);
     } else if (PyUnicode_Check(object)) {
         // Encode the Unicode string that was given
         temp_bytes = PyUnicode_AsEncodedString(object, "UTF-8", "strict");
