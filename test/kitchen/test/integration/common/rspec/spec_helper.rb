@@ -472,7 +472,7 @@ shared_examples_for 'an Agent with python3 enabled' do
     if json_info_output.key?('metadata') &&
       json_info_output['metadata'].key?('systemStats') &&
       json_info_output['metadata']['systemStats'].key?('pythonV')
-        pythonV = json_info_output['metadata']['systemStats'].key?('pythonV')
+        pythonV = json_info_output['metadata']['systemStats']['pythonV']
         if pythonV.is_a? String && Gem::Version.new('3.0.0') <= Gem::Version.new(pythonV)
           result = true
         end
@@ -501,7 +501,7 @@ shared_examples_for 'an Agent with python3 enabled' do
     if json_info_output.key?('metadata') &&
       json_info_output['metadata'].key?('systemStats') &&
       json_info_output['metadata']['systemStats'].key?('pythonV')
-        pythonV = json_info_output['metadata']['systemStats'].key?('pythonV')
+        pythonV = json_info_output['metadata']['systemStats']['pythonV']
         if pythonV.is_a? String && Gem::Version.new('3.0.0') > Gem::Version.new(pythonV)
           result = true
         end
