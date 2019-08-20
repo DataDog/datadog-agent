@@ -177,29 +177,31 @@ spec:
             metadata:
               labels:
                 app: logs-hello-world
+              annotations:
+                ad.datadoghq.com/logs-short-lived-container.logs: '[{"source":"shell","service":"logs"}]'
             spec:
               initContainers:
-              - name: logs-hello-world-init-container
+              - name: logs-init-container
                 image: busybox:latest
-                command: ['sh', '-c', 'echo hello world && sleep 2']
+                command: ['sh', '-c', 'echo hello world']
                 resources:
                   requests:
                     memory: "32Mi"
                     cpu: "50m"
                   limits:
-                    memory: "32Mi"
-                    cpu: "50m"                
+                    memory: "64Mi"
+                    cpu: "100m"
               containers:
-              - name: logs-hello-world-short-lived-container
+              - name: logs-short-lived-container
                 image: busybox:latest
-                command: ['sh', '-c', 'echo goodbye && sleep 2']
+                command: ['sh', '-c', 'echo goodbye']
                 resources:
                   requests:
                     memory: "32Mi"
                     cpu: "50m"
                   limits:
-                    memory: "32Mi"
-                    cpu: "50m"
+                    memory: "64Mi"
+                    cpu: "100m"
 
     - name: agent-service-account
       value: |
@@ -297,6 +299,7 @@ spec:
               dd_url: "fake-datadog.default.svc.cluster.local"
               use_http: true
               dev_mode_no_ssl: true
+              container_collect_all: true
 
           kubelet.yaml: |
             init_config:
@@ -1322,6 +1325,8 @@ spec:
           }
           var nb = db.logs.find({
             message: "goodbye",
+            source: "shell",
+            service: "logs",
           }).count();
           if (nb == 0) {
             print("missing short-lived container log for logs-hello-world application");
