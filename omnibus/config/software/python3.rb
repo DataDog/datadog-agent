@@ -12,10 +12,6 @@ if ohai["platform"] != "windows"
   dependency "liblzma"
   dependency "libyaml"
 
-  version "3.6.7" do
-    source :sha256 => "b7c36f7ed8f7143b2c46153b7332db2227669f583ea0cce753facf549d1a4239"
-  end
-
   version "3.7.4" do
     source :sha256 => "d63e63e14e6d29e17490abbe6f7d17afb3db182dbd801229f14e55f4157c4ba3"
   end
