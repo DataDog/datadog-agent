@@ -94,6 +94,24 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not load bpf module: %s", err)
 	}
 
+	// Enable kernel probes used for offset guessing.
+	// TODO: Disable them once offsets have been figured out.
+	for _, probeName := range offsetGuessProbes(config) {
+		if err := m.EnableKprobe(string(probeName), maxActive); err != nil {
+			return nil, fmt.Errorf(
+				"could not enable kprobe(%s) used for offset guessing: %s",
+				probeName,
+				err,
+			)
+		}
+	}
+
+	start := time.Now()
+	if err := guessOffsets(m, config); err != nil {
+		return nil, fmt.Errorf("failed to init module: error guessing offsets: %v", err)
+	}
+	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
+
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes := config.EnabledKProbes()
 	for k := range m.IterKprobes() {
@@ -102,11 +120,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 				return nil, fmt.Errorf("could not enable kprobe(%s): %s", k.Name, err)
 			}
 		}
-	}
-
-	// TODO: Disable TCPv{4,6} connect kernel probes once offsets have been figured out.
-	if err := guess(m, config); err != nil {
-		return nil, fmt.Errorf("failed to init module: error guessing offsets: %v", err)
 	}
 
 	portMapping := NewPortMapping(config.ProcRoot, config)

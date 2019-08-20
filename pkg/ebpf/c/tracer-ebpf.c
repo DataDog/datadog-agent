@@ -36,15 +36,9 @@
 #define handle_family(sk, status, expr)                                             \
     ({                                                                              \
         if (check_family(sk, status, AF_INET)) {                                    \
-            if (!are_offsets_ready_v4(status, sk)) {                                \
-                return 0;                                                           \
-            }                                                                       \
             metadata_mask_t family = CONN_V4;                                       \
             expr;                                                                   \
         } else if (is_ipv6_enabled(status) && check_family(sk, status, AF_INET6)) { \
-            if (!are_offsets_ready_v6(status, sk)) {                                \
-                return 0;                                                           \
-            }                                                                       \
             metadata_mask_t family = CONN_V6;                                       \
             expr;                                                                   \
         }                                                                           \
@@ -82,19 +76,6 @@ struct bpf_map_def SEC("maps/tcp_close_events") tcp_close_event = {
     .key_size = sizeof(__u32),
     .value_size = sizeof(__u32),
     .max_entries = 0, // This will get overridden at runtime
-    .pinning = 0,
-    .namespace = "",
-};
-
-/* These maps are used to match the kprobe & kretprobe of connect for IPv4 */
-/* This is a key/value store with the keys being a pid
- * and the values being a struct sock *.
- */
-struct bpf_map_def SEC("maps/connectsock_ipv4") connectsock_ipv4 = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(void*),
-    .max_entries = 1024,
     .pinning = 0,
     .namespace = "",
 };
@@ -209,20 +190,18 @@ static bool proc_t_comm_equals(proc_t a, proc_t b) {
 }
 
 __attribute__((always_inline))
-static int are_offsets_ready_v4(tracer_status_t* status, struct sock* skp) {
+static bool check_family(struct sock* sk, tracer_status_t* status, u16 expected_family) {
+    u16 family = 0;
+    bpf_probe_read(&family, sizeof(u16), ((char*)sk) + status->offset_family);
+    return family == expected_family;
+}
+
+__attribute__((always_inline))
+static int guess_offsets(tracer_status_t* status, struct sock* skp) {
     u64 zero = 0;
 
-    switch (status->state) {
-    case TRACER_STATE_UNINITIALIZED:
-        return 0;
-    case TRACER_STATE_CHECKING:
-        break;
-    case TRACER_STATE_CHECKED:
-        return 0;
-    case TRACER_STATE_READY:
+    if (status->state != TRACER_STATE_CHECKING) {
         return 1;
-    default:
-        return 0;
     }
 
     // Only traffic for the expected process name. Extraneous connections from other processes must be ignored here.
@@ -235,70 +214,33 @@ static int are_offsets_ready_v4(tracer_status_t* status, struct sock* skp) {
         return 0;
 
     tracer_status_t new_status = {};
+    // Copy values from status to new_status
+    bpf_probe_read(&new_status, sizeof(tracer_status_t), status);
     new_status.state = TRACER_STATE_CHECKED;
-    new_status.what = status->what;
-    new_status.offset_saddr = status->offset_saddr;
-    new_status.offset_daddr = status->offset_daddr;
-    new_status.offset_sport = status->offset_sport;
-    new_status.offset_dport = status->offset_dport;
-    new_status.offset_netns = status->offset_netns;
-    new_status.offset_ino = status->offset_ino;
-    new_status.offset_family = status->offset_family;
-    new_status.offset_daddr_ipv6 = status->offset_daddr_ipv6;
     new_status.err = 0;
-    new_status.saddr = status->saddr;
-    new_status.daddr = status->daddr;
-    new_status.sport = status->sport;
-    new_status.dport = status->dport;
-    new_status.netns = status->netns;
-    new_status.family = status->family;
-    new_status.ipv6_enabled = status->ipv6_enabled;
-
     bpf_probe_read(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
 
-    int i;
-    for (i = 0; i < 4; i++) {
-        new_status.daddr_ipv6[i] = status->daddr_ipv6[i];
-    }
-
-    u32 possible_saddr;
-    u32 possible_daddr;
-    u16 possible_sport;
-    u16 possible_dport;
-    possible_net_t* possible_skc_net;
-    u32 possible_netns;
-    u16 possible_family;
+    possible_net_t* possible_skc_net = NULL;
+    u32 possible_netns = 0;
     long ret = 0;
 
     switch (status->what) {
     case GUESS_SADDR:
-        possible_saddr = 0;
-        bpf_probe_read(&possible_saddr, sizeof(possible_saddr), ((char*)skp) + status->offset_saddr);
-        new_status.saddr = possible_saddr;
+        bpf_probe_read(&new_status.saddr, sizeof(new_status.saddr), ((char*)skp) + status->offset_saddr);
         break;
     case GUESS_DADDR:
-        possible_daddr = 0;
-        bpf_probe_read(&possible_daddr, sizeof(possible_daddr), ((char*)skp) + status->offset_daddr);
-        new_status.daddr = possible_daddr;
+        bpf_probe_read(&new_status.daddr, sizeof(new_status.daddr), ((char*)skp) + status->offset_daddr);
         break;
     case GUESS_FAMILY:
-        possible_family = 0;
-        bpf_probe_read(&possible_family, sizeof(possible_family), ((char*)skp) + status->offset_family);
-        new_status.family = possible_family;
+        bpf_probe_read(&new_status.family, sizeof(new_status.family), ((char*)skp) + status->offset_family);
         break;
     case GUESS_SPORT:
-        possible_sport = 0;
-        bpf_probe_read(&possible_sport, sizeof(possible_sport), ((char*)skp) + status->offset_sport);
-        new_status.sport = possible_sport;
+        bpf_probe_read(&new_status.sport, sizeof(new_status.sport), ((char*)skp) + status->offset_sport);
         break;
     case GUESS_DPORT:
-        possible_dport = 0;
-        bpf_probe_read(&possible_dport, sizeof(possible_dport), ((char*)skp) + status->offset_dport);
-        new_status.dport = possible_dport;
+        bpf_probe_read(&new_status.dport, sizeof(new_status.dport), ((char*)skp) + status->offset_dport);
         break;
     case GUESS_NETNS:
-        possible_netns = 0;
-        possible_skc_net = NULL;
         bpf_probe_read(&possible_skc_net, sizeof(possible_net_t*), ((char*)skp) + status->offset_netns);
         // if we get a kernel fault, it means possible_skc_net
         // is an invalid pointer, signal an error so we can go
@@ -310,78 +252,11 @@ static int are_offsets_ready_v4(tracer_status_t* status, struct sock* skp) {
         }
         new_status.netns = possible_netns;
         break;
-    default:
-        // not for us
-        return 0;
-    }
-
-    bpf_map_update_elem(&tracer_status, &zero, &new_status, BPF_ANY);
-
-    return 0;
-}
-
-__attribute__((always_inline))
-static int are_offsets_ready_v6(tracer_status_t* status, struct sock* skp) {
-    u64 zero = 0;
-
-    switch (status->state) {
-    case TRACER_STATE_UNINITIALIZED:
-        return 0;
-    case TRACER_STATE_CHECKING:
-        break;
-    case TRACER_STATE_CHECKED:
-        return 0;
-    case TRACER_STATE_READY:
-        return 1;
-    default:
-        return 0;
-    }
-
-    // Only traffic for the expected process name. Extraneous connections from other processes must be ignored here.
-    // Userland must take care to generate connections from the correct thread. In Golang, this can be achieved
-    // with runtime.LockOSThread.
-    proc_t proc = {};
-    bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
-
-    if (!proc_t_comm_equals(status->proc, proc))
-        return 0;
-
-    tracer_status_t new_status = {};
-    new_status.state = TRACER_STATE_CHECKED;
-    new_status.what = status->what;
-    new_status.offset_saddr = status->offset_saddr;
-    new_status.offset_daddr = status->offset_daddr;
-    new_status.offset_sport = status->offset_sport;
-    new_status.offset_dport = status->offset_dport;
-    new_status.offset_netns = status->offset_netns;
-    new_status.offset_ino = status->offset_ino;
-    new_status.offset_family = status->offset_family;
-    new_status.offset_daddr_ipv6 = status->offset_daddr_ipv6;
-    new_status.err = 0;
-    new_status.saddr = status->saddr;
-    new_status.daddr = status->daddr;
-    new_status.sport = status->sport;
-    new_status.dport = status->dport;
-    new_status.netns = status->netns;
-    new_status.family = status->family;
-    new_status.ipv6_enabled = status->ipv6_enabled;
-
-    bpf_probe_read(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
-
-    int i;
-    for (i = 0; i < 4; i++) {
-        new_status.daddr_ipv6[i] = status->daddr_ipv6[i];
-    }
-
-    u32 possible_daddr_ipv6[4] = {};
-    switch (status->what) {
     case GUESS_DADDR_IPV6:
-        bpf_probe_read(&possible_daddr_ipv6, sizeof(possible_daddr_ipv6), ((char*)skp) + status->offset_daddr_ipv6);
+        if (!check_family(skp, status, AF_INET6))
+            break;
 
-        int i;
-        for (i = 0; i < 4; i++) {
-            new_status.daddr_ipv6[i] = possible_daddr_ipv6[i];
-        }
+        bpf_probe_read(new_status.daddr_ipv6, sizeof(u32)*4, ((char*)skp) + status->offset_daddr_ipv6);
         break;
     default:
         // not for us
@@ -391,13 +266,6 @@ static int are_offsets_ready_v6(tracer_status_t* status, struct sock* skp) {
     bpf_map_update_elem(&tracer_status, &zero, &new_status, BPF_ANY);
 
     return 0;
-}
-
-__attribute__((always_inline))
-static bool check_family(struct sock* sk, tracer_status_t* status, u16 expected_family) {
-    u16 family = 0;
-    bpf_probe_read(&family, sizeof(u16), ((char*)sk) + status->offset_family);
-    return family == expected_family;
 }
 
 __attribute__((always_inline))
@@ -627,54 +495,6 @@ static int handle_retransmit(struct sock* sk, tracer_status_t* status) {
 }
 
 // Used for offset guessing (see: pkg/offsetguess.go)
-SEC("kprobe/tcp_v4_connect")
-int kprobe__tcp_v4_connect(struct pt_regs* ctx) {
-    struct sock* sk;
-    u64 pid = bpf_get_current_pid_tgid();
-
-    sk = (struct sock*)PT_REGS_PARM1(ctx);
-
-    bpf_map_update_elem(&connectsock_ipv4, &pid, &sk, BPF_ANY);
-
-    return 0;
-}
-
-// Used for offset guessing (see: pkg/offsetguess.go)
-SEC("kretprobe/tcp_v4_connect")
-int kretprobe__tcp_v4_connect(struct pt_regs* ctx) {
-    int ret = PT_REGS_RC(ctx);
-    u64 pid = bpf_get_current_pid_tgid();
-    struct sock** skpp;
-    u64 zero = 0;
-    tracer_status_t* status;
-
-    skpp = bpf_map_lookup_elem(&connectsock_ipv4, &pid);
-    if (skpp == 0) {
-        return 0; // missed entry
-    }
-
-    struct sock* skp = *skpp;
-
-    bpf_map_delete_elem(&connectsock_ipv4, &pid);
-
-    if (ret != 0) {
-        // failed to send SYNC packet, may not have populated
-        // socket __sk_common.{skc_rcv_saddr, ...}
-        return 0;
-    }
-
-    status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL || status->state == TRACER_STATE_UNINITIALIZED) {
-        return 0;
-    }
-
-    // We should figure out offsets if they're not already figured out
-    are_offsets_ready_v4(status, skp);
-
-    return 0;
-}
-
-// Used for offset guessing (see: pkg/offsetguess.go)
 SEC("kprobe/tcp_v6_connect")
 int kprobe__tcp_v6_connect(struct pt_regs* ctx) {
     struct sock* sk;
@@ -704,12 +524,12 @@ int kretprobe__tcp_v6_connect(struct pt_regs* ctx) {
     struct sock* skp = *skpp;
 
     status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL || status->state == TRACER_STATE_UNINITIALIZED) {
+    if (status == NULL) {
         return 0;
     }
 
     // We should figure out offsets if they're not already figured out
-    are_offsets_ready_v6(status, skp);
+    guess_offsets(status, skp);
 
     return 0;
 }
@@ -722,7 +542,7 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     u64 zero = 0;
 
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL || status->state == TRACER_STATE_UNINITIALIZED) {
+    if (status == NULL) {
         return 0;
     }
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
@@ -763,7 +583,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
     u64 zero = 0;
 
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL || status->state == TRACER_STATE_UNINITIALIZED) {
+    if (status == NULL) {
         return 0;
     }
 
@@ -781,7 +601,7 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     sk = (struct sock*)PT_REGS_PARM1(ctx);
 
     status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL || status->state != TRACER_STATE_READY) {
+    if (status == NULL) {
         return 0;
     }
 
@@ -801,6 +621,21 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     return 0;
 }
 
+/* Used exclusively for offset guessing */
+SEC("kprobe/tcp_get_info")
+int kprobe__tcp_get_info(struct pt_regs* ctx) {
+    u64 zero = 0;
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL) {
+        return 0;
+    }
+
+    guess_offsets(status, sk);
+
+    return 0;
+}
+
 SEC("kprobe/udp_sendmsg")
 int kprobe__udp_sendmsg(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
@@ -809,7 +644,7 @@ int kprobe__udp_sendmsg(struct pt_regs* ctx) {
     u64 zero = 0;
 
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL || status->state == TRACER_STATE_UNINITIALIZED) {
+    if (status == NULL) {
         return 0;
     }
 
@@ -859,7 +694,7 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
     }
 
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL || status->state == TRACER_STATE_UNINITIALIZED) {
+    if (status == NULL) {
         return 0;
     }
 
@@ -873,7 +708,7 @@ int kprobe__tcp_retransmit_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     u64 zero = 0;
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL || status->state == TRACER_STATE_UNINITIALIZED) {
+    if (status == NULL) {
         return 0;
     }
     log_debug("kprobe/tcp_retransmit\n");
@@ -891,7 +726,7 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
 
     u64 zero = 0;
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL || status->state != TRACER_STATE_READY) {
+    if (status == NULL) {
         return 0;
     }
 
@@ -925,7 +760,7 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
 
     u64 zero = 0;
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL || status->state != TRACER_STATE_READY) {
+    if (status == NULL) {
         return 0;
     }
 
