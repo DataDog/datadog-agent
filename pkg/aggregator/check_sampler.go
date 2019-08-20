@@ -77,15 +77,18 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 	}
 	contextKey := cs.contextResolver.trackContext(bucket, bucket.Timestamp)
 
-	// if we already saw the bucket we only send the delta
-	lastBucketValue, bucketFound := cs.lastBucketValue[contextKey]
-	rawValue := bucket.Value
-	if bucketFound {
+	// if the bucket is monotonic and we already saw the bucket we only send the delta
+	if bucket.Monotonic {
+		lastBucketValue, bucketFound := cs.lastBucketValue[contextKey]
+		rawValue := bucket.Value
+		if bucketFound {
+			cs.lastSeenBucket[contextKey] = time.Now()
+			bucket.Value = rawValue - lastBucketValue
+		}
+		cs.lastBucketValue[contextKey] = rawValue
 		cs.lastSeenBucket[contextKey] = time.Now()
-		bucket.Value = rawValue - lastBucketValue
 	}
-	cs.lastBucketValue[contextKey] = rawValue
-	cs.lastSeenBucket[contextKey] = time.Now()
+
 	if bucket.Value < 0 {
 		log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
 		return

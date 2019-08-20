@@ -206,6 +206,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 		UpperBound: 20.0,
 		Tags:       []string{"foo", "bar"},
 		Timestamp:  12345.0,
+		Monotonic:  true,
 	}
 	checkSampler.addBucket(bucket1)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
@@ -235,6 +236,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 		UpperBound: 20.0,
 		Tags:       []string{"foo", "bar"},
 		Timestamp:  12400.0,
+		Monotonic:  true,
 	}
 	checkSampler.addBucket(bucket2)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
@@ -277,8 +279,6 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 		Timestamp:  12345.0,
 	}
 	checkSampler.addBucket(bucket1)
-	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
-	assert.Equal(t, len(checkSampler.lastSeenBucket), 1)
 
 	checkSampler.commit(12349.0)
 	_, flushed := checkSampler.flush()
@@ -312,8 +312,6 @@ func TestCheckHistogramBucketInterpolationGranularity(t *testing.T) {
 		Timestamp:  12345.0,
 	}
 	checkSampler.addBucket(bucket1)
-	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
-	assert.Equal(t, len(checkSampler.lastSeenBucket), 1)
 
 	checkSampler.commit(12349.0)
 	_, flushed := checkSampler.flush()
