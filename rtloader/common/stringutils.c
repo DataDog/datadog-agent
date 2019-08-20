@@ -66,6 +66,7 @@ char *as_string(PyObject *object)
     }
 
     retval = strdupe(PyBytes_AS_STRING(temp_bytes));
+    Py_XDECREF(temp_bytes);
 #endif
 
     return retval;
