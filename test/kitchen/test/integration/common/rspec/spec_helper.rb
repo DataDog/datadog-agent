@@ -3,6 +3,7 @@ require 'open-uri'
 require 'rspec'
 require 'rbconfig'
 require 'yaml'
+require 'rubygems'
 
 os_cache = nil
 
