@@ -39,7 +39,7 @@ platforms:
     user_data: files/agent/none.txt
 
   - name: agent-win
-    image: ami-0a51db045a1b55840  #  Windows Server 2016 preconfigured for ansible (EBS-Backed)
+    image: ami-06992baf7dbb5c7dd  #  Windows Server 2016 preconfigured for ansible (EBS-Backed)
     instance_type: t3.small
     vpc_subnet_id: subnet-41c8f224  # eu-west-1a
     region: eu-west-1

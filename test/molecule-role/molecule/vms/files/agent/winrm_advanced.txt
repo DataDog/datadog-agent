@@ -24,4 +24,6 @@ Set-ItemProperty -Path $UserKey -Name "IsInstalled" -Value 0
 Set-ExecutionPolicy Bypass -Scope Process -Force;
 iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/softasap/sa-win/master/bootstrap.ps1'))
 
+New-Item c:\provisioned.txt -type file
+
 </powershell>

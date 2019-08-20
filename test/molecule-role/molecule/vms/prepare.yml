@@ -15,8 +15,8 @@
         name: [python-pip, virtualenv, libyajl2]  # venv and yajl2 if you wanna run the simulator
         state: present
         update_cache: yes
-      retries: 5
-      delay: 5
+      retries: 20
+      delay: 30
       register: pip_result
       until: pip_result is not failed
     - name: Installing python boto packages
@@ -212,6 +212,7 @@
     - common_vars.yml
   tasks:
     # We use ncat to keep a listening port open and get a direction
+    - debug: msg="Starting listening for fedora and windows"
     - name: Open listening port for fedora {{ connection_port_before_start_fedora }}
       shell: "nohup ncat --broker --listen -p {{ connection_port_before_start_fedora }} &"
       become: true

@@ -6,4 +6,6 @@ net user test 'Bionic!' /add /y
 net localgroup administrators test /add
 
 Invoke-Expression ((New-Object System.Net.Webclient).DownloadString('https://raw.githubusercontent.com/ansible/ansible/devel/examples/scripts/ConfigureRemotingForAnsible.ps1'))
+
+New-Item c:\provisioned.txt -type file
 </powershell>

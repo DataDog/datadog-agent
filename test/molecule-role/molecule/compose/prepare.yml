@@ -16,7 +16,7 @@
         state: present
         update_cache: yes
       retries: 20
-      delay: 10
+      delay: 30
       register: pip_result
       until: pip_result is not failed
     - name: Installing python boto packages
