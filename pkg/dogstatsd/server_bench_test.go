@@ -8,27 +8,11 @@ package dogstatsd
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-func BenchmarkParsePacketWithoutLogs(b *testing.B) {
-	config.SetupLogger("test", "off", "", "", false, true, false)
-	s, _ := NewServer(nil, nil, nil)
-	defer s.Stop()
-
-	for n := 0; n < b.N; n++ {
-		packet := listeners.Packet{
-			Contents: []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"),
-			Origin:   listeners.NoOrigin,
-		}
-		s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
-	}
-}
-
-func BenchmarkParsePacketWithTraceLogs(b *testing.B) {
-	config.SetupLogger("test", "trace", "", "", false, true, false)
+func BenchmarkParsePacket(b *testing.B) {
 	s, _ := NewServer(nil, nil, nil)
 	defer s.Stop()
 
