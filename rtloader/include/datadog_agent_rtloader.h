@@ -421,6 +421,17 @@ DATADOG_AGENT_RTLOADER_API void set_get_hostname_cb(rtloader_t *, cb_get_hostnam
 */
 DATADOG_AGENT_RTLOADER_API void set_get_clustername_cb(rtloader_t *, cb_get_clustername_t);
 
+/*! \fn void set_get_tracemalloc_enabled_cb(rtloader_t *, cb_get_tracemalloc_enabled_t)
+    \brief Sets a callback to be used by rtloader to collect whether tracemalloc is enabled
+    or not.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_get_tracemalloc_enabled_t prototype to the
+    callback function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_get_tracemalloc_enabled_cb(rtloader_t *, cb_get_tracemalloc_enabled_t);
+
 /*! \fn void set_log_cb(rtloader_t *, cb_log_t)
     \brief Sets a callback to be used by rtloader to allow using the agent's go-native
     logging facilities to log messages.

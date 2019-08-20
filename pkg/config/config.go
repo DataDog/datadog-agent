@@ -857,22 +857,26 @@ func applyOverrides(config Config) {
 	}
 }
 
+// TracemallocEnabled is a helper to get the effective tracemalloc
+// configuration.
+func TracemallocEnabled(config Config) bool {
+	pyVersion := config.GetString("python_version")
+	wTracemalloc := config.GetBool("tracemalloc_debug")
+	if pyVersion == "2" && wTracemalloc {
+		wTracemalloc = false
+	}
+
+	return wTracemalloc
+}
+
 // GetNumWorkers is a helper to get the number of workers for
 // a given config.
 func GetNumWorkers(config Config) int {
-	pyVersion := config.GetString("python_version")
-	wTracemalloc := config.GetBool("tracemalloc_debug")
+	wTracemalloc := TracemallocEnabled(config)
 	numWorkers := config.GetInt("check_runners")
-	switch pyVersion {
-	case "2":
-		if wTracemalloc {
-			log.Warnf("Tracemalloc unavailable on python2")
-		}
-	case "3":
-		if wTracemalloc {
-			log.Infof("Tracemalloc enabled, only one check runner enabled to run checks serially")
-			numWorkers = 1
-		}
+	if wTracemalloc {
+		log.Infof("Tracemalloc enabled, only one check runner enabled to run checks serially")
+		numWorkers = 1
 	}
 
 	return numWorkers
