@@ -152,6 +152,11 @@ func NewDefaultAgentConfig() *AgentConfig {
 	_, err = util.GetContainers()
 	canAccessContainers := err == nil
 
+	var enabledChecks []string
+	if canAccessContainers {
+		enabledChecks = containerChecks
+	}
+
 	ac := &AgentConfig{
 		Enabled:            canAccessContainers, // We'll always run inside of a container.
 		APIEndpoints:       []APIEndpoint{{Endpoint: u}},
@@ -184,7 +189,7 @@ func NewDefaultAgentConfig() *AgentConfig {
 		ConntrackShortTermBufferSize: defaultConntrackShortTermBufferSize,
 
 		// Check config
-		EnabledChecks: containerChecks,
+		EnabledChecks: enabledChecks,
 		CheckIntervals: map[string]time.Duration{
 			"process":     10 * time.Second,
 			"rtprocess":   2 * time.Second,
