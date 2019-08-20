@@ -194,6 +194,5 @@ exclude 'bundler\/git'
 
 if linux?
   strip_build true
-  # debug_path "**/#{stripped_symbols_path}"
   debug_path "**/.debug"
 end
