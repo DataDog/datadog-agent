@@ -72,7 +72,7 @@ type Runner struct {
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
 func NewRunner() *Runner {
-	numWorkers := config.Datadog.GetInt("check_runners")
+	numWorkers := config.GetNumWorkers(config.Datadog)
 	if numWorkers > maxNumWorkers {
 		numWorkers = maxNumWorkers
 		log.Warnf("Configured number of checks workers (%v) is too high: %v will be used", numWorkers, maxNumWorkers)

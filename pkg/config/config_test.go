@@ -636,3 +636,26 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedKeysPerDomain, keysPerDomain)
 }
+
+func TestNumWorkers(t *testing.T) {
+	config := setupConf()
+
+	config.Set("python_version", "2")
+	config.Set("tracemalloc_debug", true)
+	config.Set("check_runners", 4)
+
+	workers := GetNumWorkers(config)
+	assert.Equal(t, workers, config.GetInt("check_runners"))
+
+	config.Set("tracemalloc_debug", false)
+	workers = GetNumWorkers(config)
+	assert.Equal(t, workers, config.GetInt("check_runners"))
+
+	config.Set("python_version", "3")
+	workers = GetNumWorkers(config)
+	assert.Equal(t, workers, config.GetInt("check_runners"))
+
+	config.Set("tracemalloc_debug", true)
+	workers = GetNumWorkers(config)
+	assert.Equal(t, workers, 1)
+}

@@ -126,9 +126,10 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", "2")
-	// C-land crash feature flags
+	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
 	config.BindEnvAndSetDefault("c_core_dump", false)
+	config.BindEnvAndSetDefault("tracemalloc_debug", false)
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
@@ -854,4 +855,25 @@ func applyOverrides(config Config) {
 	for k, v := range overrideVars {
 		config.Set(k, v)
 	}
+}
+
+// GetNumWorkers is a helper to get the number of workers for
+// a given config.
+func GetNumWorkers(config Config) int {
+	pyVersion := config.GetString("python_version")
+	wTracemalloc := config.GetBool("tracemalloc_debug")
+	numWorkers := config.GetInt("check_runners")
+	switch pyVersion {
+	case "2":
+		if wTracemalloc {
+			log.Warnf("Tracemalloc unavailable on python2")
+		}
+	case "3":
+		if wTracemalloc {
+			log.Infof("Tracemalloc enabled, only one check runner enabled to run checks serially")
+			numWorkers = 1
+		}
+	}
+
+	return numWorkers
 }
