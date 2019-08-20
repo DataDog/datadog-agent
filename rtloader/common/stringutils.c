@@ -59,18 +59,13 @@ char *as_string(PyObject *object)
             // PyUnicode_AsEncodedString might raise an error if the codec raised an
             // exception
             PyErr_Clear();
-            retval = NULL;
-            goto done;
+            return NULL;
         }
     } else {
-        retval = NULL;
-        goto done;
+        return NULL;
     }
 
     retval = strdupe(PyBytes_AS_STRING(temp_bytes));
-
-done:
-    Py_XDECREF(temp_bytes);
 #endif
 
     return retval;
