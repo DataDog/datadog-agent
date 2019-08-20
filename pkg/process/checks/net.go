@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,6 +29,7 @@ type ConnectionsCheck struct {
 	useLocalTracer bool
 	localTracer    *ebpf.Tracer
 	tracerClientID string
+	networkID      string
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -57,6 +59,12 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemIn
 		net.SetSystemProbeSocketPath(cfg.SystemProbeSocketPath)
 		net.GetRemoteSystemProbeUtil()
 	}
+
+	networkID, err := util.GetNetworkID()
+	if err != nil {
+		log.Infof("no network ID detected: %s", err)
+	}
+	c.networkID = networkID
 
 	// Run the check one time on init to register the client on the system probe
 	c.Run(cfg, 0)
@@ -94,7 +102,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	}
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns)), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns), c.networkID), nil
 }
 
 func (c *ConnectionsCheck) getConnections() ([]*model.Connection, error) {
@@ -136,7 +144,7 @@ func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model
 
 // Connections are split up into a chunks of at most 100 connections per message to
 // limit the message size on intake.
-func batchConnections(cfg *config.AgentConfig, groupID int32, cxs []*model.Connection) []model.MessageBody {
+func batchConnections(cfg *config.AgentConfig, groupID int32, cxs []*model.Connection, networkID string) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
 
@@ -146,6 +154,7 @@ func batchConnections(cfg *config.AgentConfig, groupID int32, cxs []*model.Conne
 		ctrIDForPID := getCtrIDsByPIDs(connectionPIDs(cxs[:batchSize]))
 		batches = append(batches, &model.CollectorConnections{
 			HostName:        cfg.HostName,
+			NetworkId:       networkID,
 			Connections:     cxs[:batchSize],
 			GroupId:         groupID,
 			GroupSize:       groupSize,

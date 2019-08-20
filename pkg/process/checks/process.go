@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	agentutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/cpu"
@@ -32,11 +33,18 @@ type ProcessCheck struct {
 	lastCtrRates    map[string]util.ContainerRateMetrics
 	lastCtrIDForPID map[int32]string
 	lastRun         time.Time
+	networkID       string
 }
 
 // Init initializes the singleton ProcessCheck.
 func (p *ProcessCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	p.sysInfo = info
+
+	networkID, err := agentutil.GetNetworkID()
+	if err != nil {
+		log.Infof("no network ID detected: %s", err)
+	}
+	p.networkID = networkID
 }
 
 // Name returns the name of the ProcessCheck.
@@ -83,7 +91,7 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, ctrList, cpuTimes[0], p.lastCPUTime, p.lastRun)
 	containers := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
 
-	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, containers, cfg, p.sysInfo, groupID)
+	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, containers, cfg, p.sysInfo, groupID, p.networkID)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
@@ -105,6 +113,7 @@ func createProcCtrMessages(
 	cfg *config.AgentConfig,
 	sysInfo *model.SystemInfo,
 	groupID int32,
+	networkID string,
 ) ([]model.MessageBody, int, int) {
 	totalProcs, totalContainers := 0, 0
 	msgs := make([]*model.CollectorProc, 0)
@@ -114,6 +123,7 @@ func createProcCtrMessages(
 	for _, c := range chunks {
 		msgs = append(msgs, &model.CollectorProc{
 			HostName:  cfg.HostName,
+			NetworkId: networkID,
 			Info:      sysInfo,
 			Processes: c,
 			GroupId:   groupID,
