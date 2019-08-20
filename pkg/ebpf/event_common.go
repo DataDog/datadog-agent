@@ -8,6 +8,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/dustin/go-humanize"
 )
 
 // ConnectionType will be either TCP or UDP
@@ -102,7 +103,7 @@ type ConnectionStats struct {
 
 func (c ConnectionStats) String() string {
 	str := fmt.Sprintf(
-		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] (%s) %d bytes sent (+%d), %d bytes received (+%d)",
+		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] (%s) %s sent (+%s), %s received (+%s)",
 		c.Type,
 		c.Pid,
 		c.Source,
@@ -110,15 +111,16 @@ func (c ConnectionStats) String() string {
 		c.Dest,
 		c.DPort,
 		c.Direction,
-		c.MonotonicSentBytes, c.LastSentBytes,
-		c.MonotonicRecvBytes, c.LastRecvBytes,
+		humanize.Bytes(c.MonotonicSentBytes), humanize.Bytes(c.LastSentBytes),
+		humanize.Bytes(c.MonotonicRecvBytes), humanize.Bytes(c.LastRecvBytes),
 	)
 
 	if c.Type == TCP {
 		str += fmt.Sprintf(
-			", %d retransmits (+%d), RTT %s",
+			", %d retransmits (+%d), RTT %s (± %s)",
 			c.MonotonicRetransmits, c.LastRetransmits,
 			time.Duration(c.RTT)*time.Microsecond,
+			time.Duration(c.RTTVar)*time.Microsecond,
 		)
 	}
 
