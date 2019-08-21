@@ -244,7 +244,7 @@ var checkCmd = &cobra.Command{
 		for _, c := range cs {
 			for _, conf := range allConfigs {
 				if check.IsJMXConfig(conf.Name, conf.InitConfig) {
-					return fmt.Errorf("using the jmx option with the check command directly is deprecated, please use the jmx command instead")
+					return fmt.Errorf("using the jmx option with the check command directly is not supported, please use the jmx command instead")
 				}
 			}
 			s := runCheck(c, agg)
