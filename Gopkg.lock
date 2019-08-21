@@ -1226,6 +1226,14 @@
   version = "v0.1.1"
 
 [[projects]]
+  branch = "master"
+  digest = "1:227a91986ac2522b2ecc9cfafed7451037efbf01de54eb6c3d0c9f876b279d55"
+  name = "github.com/stretchr/stew"
+  packages = ["slice"]
+  pruneopts = ""
+  revision = "80ef0842b48b329a6120607c817a85aff5a2ec71"
+
+[[projects]]
   digest = "1:c587772fb8ad29ad4db67575dad25ba17a51f072ff18a22b4f0257a4d9c24f75"
   name = "github.com/stretchr/testify"
   packages = [
@@ -2048,6 +2056,7 @@
     "github.com/spf13/afero",
     "github.com/spf13/cobra",
     "github.com/spf13/pflag",
+    "github.com/stretchr/stew/slice",
     "github.com/stretchr/testify/assert",
     "github.com/stretchr/testify/mock",
     "github.com/stretchr/testify/require",

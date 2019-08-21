@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/stew/slice"
 )
 
+// Connection holds a user-defined blacklisted IP, CIDR, and ports
 type Connection struct {
 	IP    string
 	CIDR  *net.IPNet

@@ -8,28 +8,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var filters = map[string][]string{
-	"172.0.0.1": []string{
-		"80",
-		"10",
-		"443",
-	},
-	"172.0.1.2": []string{},
-	"10.0.0.0/24": []string{
-		"8080",
-		"8081",
-		"10255",
-	},
-	"*": []string{
-		"9000",
-	},
-	"169.254.170.2": []string{
-		"*",
-	},
+var testFilters = map[string][]string{
+	"172.0.0.1":     {"80", "10", "443"},
+	"172.0.1.2":     {},
+	"10.0.0.0/24":   {"8080", "8081", "10255"},
+	"*":             {"9000"},
+	"169.254.170.2": {"*"},
 }
 
 func TestParseBlacklist(t *testing.T) {
-	config.Datadog.SetDefault("system_probe_config.excluded_source_connections", filters)
+	config.Datadog.SetDefault("system_probe_config.excluded_source_connections", testFilters)
 	parseBlacklist(config.Datadog.GetStringMapStringSlice("system_probe_config.excluded_source_connections"))
 
 	assert.True(t, IsBlacklistedConnection("source", AddressFromString("172.0.0.1"), uint16(10)))
@@ -76,11 +64,11 @@ func TestNewNetworkFilter(t *testing.T) {
 	s = newNetworkFilter("invalid")
 	assert.Empty(t, s)
 
-	config.Datadog.SetDefault("system_probe_config.excluded_source_connections", filters)
+	config.Datadog.SetDefault("system_probe_config.excluded_source_connections", testFilters)
 	s = newNetworkFilter("source")
 	assert.Equal(t, len(s), len(connections))
 
-	config.Datadog.SetDefault("system_probe_config.excluded_destination_connections", filters)
+	config.Datadog.SetDefault("system_probe_config.excluded_destination_connections", testFilters)
 	d := newNetworkFilter("destination")
 	assert.Equal(t, len(d), len(connections))
 }
