@@ -29,6 +29,11 @@ func AddressFromString(ip string) Address {
 	return AddressFromNetIP(net.ParseIP(ip))
 }
 
+// NetIPFromAddress returns a net.IP from an Address
+func NetIPFromAddress(addr Address) net.IP {
+	return net.IP(addr.Bytes())
+}
+
 type v4Address [4]byte
 
 // V4Address creates an Address using the uint32 representation of an v4 IP

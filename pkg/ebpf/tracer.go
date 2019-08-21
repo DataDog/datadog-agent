@@ -252,10 +252,8 @@ func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 	switch {
 	case !t.config.CollectLocalDNS && isDNSConnection && conn.Direction == LOCAL:
 		return true
-	case conn.Direction == LOCAL || INCOMING:
-		return util2.IsBlacklistedConnection("source", conn.Source, conn.SPort)
-	case conn.Direction == OUTGOING:
-		return util2.IsBlacklistedConnection("destination", conn.Source, conn.SPort)
+	case util.IsBlacklistedConnection("source", conn.Source, conn.SPort) || util.IsBlacklistedConnection("destination", conn.Dest, conn.DPort):
+		return true
 	}
 	return false
 }

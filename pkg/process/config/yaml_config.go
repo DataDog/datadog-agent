@@ -119,11 +119,11 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	if sourceExclude := key(spNS, "excluded_source_connections"); config.Datadog.IsSet(sourceExclude) {
-		a.ExcludedInboundConnections = config.Datadog.GetStringMapStringSlice(sourceExclude)
+		a.ExcludedSourceConnections = config.Datadog.GetStringMapStringSlice(sourceExclude)
 	}
 
 	if destinationExclude := key(spNS, "excluded_destination_connections"); config.Datadog.IsSet(destinationExclude) {
-		a.ExcludedOutboundConnections = config.Datadog.GetStringMapStringSlice(destinationExclude)
+		a.ExcludedDestinationConnections = config.Datadog.GetStringMapStringSlice(destinationExclude)
 	}
 
 	return nil

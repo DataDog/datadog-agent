@@ -49,19 +49,22 @@ func newNetworkFilter(direction string) (networkFilter []*Connection) {
 // IsBlacklistedConnection returns true if a given connection should be excluded
 // by the tracer based on user defined filters
 func IsBlacklistedConnection(dir string, addrIP Address, addrPort uint16) bool {
+	ip := NetIPFromAddress(addrIP)
+	port := strconv.Itoa(int(addrPort))
+
 	if nf := newNetworkFilter(dir); len(nf) > 0 {
 		for _, conn := range nf {
 			// see if we should exclude this IP
-			if conn.CIDR != nil && conn.CIDR.Contains(net.ParseIP(addrIP.String())) || conn.IP == addrIP.String() {
+			if conn.CIDR != nil && conn.CIDR.Contains(ip) || conn.IP == ip.String() {
 				switch {
 				case slice.ContainsString(conn.Ports, "*") || len(conn.Ports) == 0:
 					return true
-				case slice.ContainsString(conn.Ports, strconv.Itoa(int(addrPort))):
+				case slice.ContainsString(conn.Ports, port):
 					return true
 				}
 			}
 			// see if we should exclude this port across all connections
-			if (strings.Contains(conn.IP, "*") || len(conn.IP) == 0) && slice.ContainsString(conn.Ports, strconv.Itoa(int(addrPort))) {
+			if (strings.Contains(conn.IP, "*") || len(conn.IP) == 0) && slice.ContainsString(conn.Ports, port) {
 				return true
 			}
 		}
