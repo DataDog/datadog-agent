@@ -13,11 +13,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/iovisor/gobpf/elf"
 	"github.com/pkg/errors"
 )
@@ -63,7 +63,8 @@ const (
 	guessSport             = 3
 	guessDport             = 4
 	guessNetns             = 5
-	guessDaddrIPv6         = 6
+	guessRTT               = 6
+	guessDaddrIPv6         = 7
 )
 
 // These constants should be in sync with the equivalent definitions in the ebpf program.
@@ -93,7 +94,77 @@ type fieldValues struct {
 	dport     uint16
 	netns     uint32
 	family    uint16
+	rtt       uint32
+	rttVar    uint32
 	daddrIPv6 [4]uint32
+}
+
+func expectedValues(conn net.Conn) (*fieldValues, error) {
+	netns, err := ownNetNS()
+	if err != nil {
+		return nil, err
+	}
+
+	saddr, sport, err := net.SplitHostPort(conn.LocalAddr().String())
+	if err != nil {
+		return nil, err
+	}
+
+	sip := net.ParseIP(saddr).To4()
+	sportn, err := strconv.Atoi(sport)
+	if err != nil {
+		return nil, err
+	}
+
+	daddr, dport, err := net.SplitHostPort(conn.RemoteAddr().String())
+	if err != nil {
+		return nil, err
+	}
+
+	dip := net.ParseIP(daddr).To4()
+	dportn, err := strconv.Atoi(dport)
+	if err != nil {
+		return nil, err
+	}
+
+	tcpInfo, err := tcpGetInfo(conn)
+	if err != nil {
+		return nil, err
+	}
+
+	return &fieldValues{
+		saddr:  binary.LittleEndian.Uint32(sip),
+		daddr:  binary.LittleEndian.Uint32(dip),
+		sport:  uint16(sportn),
+		dport:  uint16(dportn),
+		netns:  uint32(netns),
+		family: syscall.AF_INET,
+		rtt:    tcpInfo.Rtt,
+		rttVar: tcpInfo.Rttvar,
+	}, nil
+}
+
+func waitUntilStable(conn net.Conn, window time.Duration, attempts int) (*fieldValues, error) {
+	var (
+		current *fieldValues
+		prev    *fieldValues
+		err     error
+	)
+	for i := 0; i <= attempts; i++ {
+		current, err = expectedValues(conn)
+		if err != nil {
+			return nil, err
+		}
+
+		if prev != nil && *prev == *current {
+			return current, nil
+		}
+
+		prev = current
+		time.Sleep(window)
+	}
+
+	return nil, errors.New("unstable TCP socket params")
 }
 
 func offsetGuessProbes(c *Config) []KProbeName {
@@ -209,7 +280,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 		status.offset_dport++
 	case guessNetns:
 		if status.netns == C.__u32(expected.netns) {
-			status.what = guessDaddrIPv6
+			status.what = guessRTT
 			break
 		}
 		status.offset_ino++
@@ -217,6 +288,28 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 		if status.err != 0 || status.offset_ino >= threshold {
 			status.offset_ino = 0
 			status.offset_netns++
+		}
+	case guessRTT:
+		// For more information on the bit shift operations see:
+		// https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
+		if status.rtt>>3 == C.__u32(expected.rtt) && status.rtt_var>>2 == C.__u32(expected.rttVar) {
+			status.what = guessDaddrIPv6
+			break
+		}
+		// We know that these two fields are always next to each other, 4 bytes apart:
+		// https://elixir.bootlin.com/linux/v4.6/source/include/linux/tcp.h#L232
+		// rtt -> srtt_us
+		// rtt_var -> mdev_us
+		status.offset_rtt++
+		status.offset_rtt_var = status.offset_rtt + 4
+
+		// For now we'll tolerate the case where we can't find the offsets for RTT metrics
+		if status.offset_rtt > thresholdInetSock {
+			log.Warn("could not guess offsets for TCP RTT fields. moving on.")
+			status.what = guessDaddrIPv6
+			status.offset_rtt = 0
+			status.offset_rtt_var = 0
+			break
 		}
 	case guessDaddrIPv6:
 		if status.ipv6_enabled == disableV6 || compareIPv6(status.daddr_ipv6, expected.daddrIPv6) {
@@ -261,11 +354,6 @@ func setReadyState(m *elf.Module, mp *elf.Map, status *tracerStatus) error {
 // offset and repeating the process until we find the value we expect. Then, we
 // guess the next field.
 func guessOffsets(m *elf.Module, cfg *Config) error {
-	currentNetns, err := ownNetNS()
-	if err != nil {
-		return fmt.Errorf("error getting current netns: %v", err)
-	}
-
 	mp := m.Map(string(tracerStatusMap))
 
 	// pid & tid must not change during the guessing work: the communication
@@ -293,7 +381,7 @@ func guessOffsets(m *elf.Module, cfg *Config) error {
 	}
 
 	// if we already have the offsets, just return
-	err = m.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status))
+	err := m.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status))
 	if err == nil && status.state == stateReady {
 		return nil
 	}
@@ -309,21 +397,15 @@ func guessOffsets(m *elf.Module, cfg *Config) error {
 		return fmt.Errorf("error initializing tracer_status map: %v", err)
 	}
 
-	expected := &fieldValues{
-		// 127.0.0.1
-		saddr: 0x0100007F,
-		// 127.0.0.2
-		daddr: 0x0200007F,
-		// will be set later
-		sport:  0,
-		dport:  eventGenerator.lport,
-		netns:  uint32(currentNetns),
-		family: syscall.AF_INET,
-	}
-
 	// If the kretprobe for tcp_v4_connect() is configured with a too-low maxactive, some kretprobe might be missing.
 	// In this case, we detect it and try again. See: https://github.com/weaveworks/tcptracer-bpf/issues/24
 	maxRetries := 100
+
+	// Retrieve expected values from local connection
+	expected, err := waitUntilStable(eventGenerator.conn, 200*time.Millisecond, 5)
+	if err != nil {
+		return errors.Wrap(err, "error retrieving expected value")
+	}
 
 	for status.state != stateReady {
 		if err := eventGenerator.Generate(status, expected); err != nil {
@@ -344,12 +426,12 @@ func guessOffsets(m *elf.Module, cfg *Config) error {
 			return fmt.Errorf("overflow while guessing %v, bailing out", whatString[status.what])
 		}
 	}
+
 	return nil
 }
 
 type eventGenerator struct {
 	listener net.Listener
-	lport    uint16
 	conn     net.Conn
 }
 
@@ -361,15 +443,16 @@ func newEventGenerator() (*eventGenerator, error) {
 		return nil, err
 	}
 
-	lport, err := strconv.Atoi(strings.Split(l.Addr().String(), ":")[1])
+	go acceptHandler(l)
+
+	// Establish connection that will be used in the offset guessing
+	c, err := net.Dial(l.Addr().Network(), l.Addr().String())
 	if err != nil {
 		l.Close()
 		return nil, err
 	}
 
-	go acceptHandler(l)
-	e := &eventGenerator{listener: l, lport: uint16(lport)}
-	return e, nil
+	return &eventGenerator{listener: l, conn: c}, nil
 }
 
 // Generate an event for offset guessing
@@ -390,25 +473,6 @@ func (e *eventGenerator) Generate(status *tracerStatus, expected *fieldValues) e
 		}
 
 		return nil
-	}
-
-	// Ensure v4 connection is up. The same connection is used for guessing all v4 offsets.
-	if e.conn == nil {
-		bindAddress := fmt.Sprintf("%s:%d", listenIP, expected.dport)
-		conn, err := net.Dial("tcp4", bindAddress)
-		if err != nil {
-			return fmt.Errorf("error dialing %q: %v", bindAddress, err)
-		}
-
-		e.conn = conn
-
-		// get the source port assigned by the kernel
-		sport, err := strconv.Atoi(strings.Split(conn.LocalAddr().String(), ":")[1])
-		if err != nil {
-			return fmt.Errorf("error converting source port: %v", err)
-		}
-
-		expected.sport = uint16(sport)
 	}
 
 	// This triggers the KProbe handler attached to `tcp_get_info`
@@ -455,7 +519,6 @@ func tcpGetInfo(conn net.Conn) (*syscall.TCPInfo, error) {
 
 	var tcpInfo syscall.TCPInfo
 	size := uint32(unsafe.Sizeof(tcpInfo))
-
 	_, _, errno := syscall.Syscall6(
 		syscall.SYS_GETSOCKOPT,
 		uintptr(file.Fd()),

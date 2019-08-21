@@ -60,6 +60,8 @@ type ConnStatsWithTimestamp C.conn_stats_ts_t
 
 /* tcp_stats_t
 __u32 retransmits;
+__u32 rtt;
+__u32 rtt_var;
 */
 type TCPStats C.tcp_stats_t
 
@@ -97,6 +99,8 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) Conn
 		MonotonicSentBytes:   uint64(s.sent_bytes),
 		MonotonicRecvBytes:   uint64(s.recv_bytes),
 		MonotonicRetransmits: uint32(tcpStats.retransmits),
+		RTT:                  uint32(tcpStats.rtt),
+		RTTVar:               uint32(tcpStats.rtt_var),
 		LastUpdateEpoch:      uint64(s.timestamp),
 	}
 }
