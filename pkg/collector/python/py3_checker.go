@@ -13,20 +13,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
 var (
 	linterTimeout = 4 * time.Second
 )
-
-func init() {
-	here, _ := executable.Folder()
-	pythonPath = filepath.Join(here, pythonPath)
-}
 
 type warning struct {
 	Message string
@@ -37,7 +29,7 @@ func validatePython3(moduleName string, modulePath string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), linterTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, pythonPath, "-m", "a7", modulePath)
+	cmd := exec.CommandContext(ctx, pythonBinPath, "-m", "a7", modulePath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
