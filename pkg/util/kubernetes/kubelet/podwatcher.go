@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const unreadinessTimeout = 30 * time.Second
+const unreadinessTimeout = 25 * time.Second
 
 // PodWatcher regularly pools the kubelet for new/changed/removed containers.
 // It keeps an internal state to only send the updated pods.
@@ -163,7 +163,7 @@ func (w *PodWatcher) Expire() ([]string, error) {
 		}
 	}
 	for id, lastSeenReady := range w.lastSeenReady {
-		// we keep pods gone unready for 30 seconds and then force removal
+		// we keep pods gone unready for 25 seconds and then force removal
 		if now.Sub(lastSeenReady) > unreadinessTimeout {
 			delete(w.lastSeenReady, id)
 			expiredContainers = append(expiredContainers, id)

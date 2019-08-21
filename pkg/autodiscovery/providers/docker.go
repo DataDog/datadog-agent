@@ -9,6 +9,7 @@ package providers
 
 import (
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -25,16 +26,22 @@ const (
 // DockerConfigProvider implements the ConfigProvider interface for the docker labels.
 type DockerConfigProvider struct {
 	sync.RWMutex
-	dockerUtil *docker.DockerUtil
-	upToDate   bool
-	streaming  bool
-	health     *health.Handle
+	dockerUtil   *docker.DockerUtil
+	upToDate     bool
+	streaming    bool
+	health       *health.Handle
+	labelCache   map[string]map[string]string
+	syncInterval int
+	syncCounter  int
 }
 
 // NewDockerConfigProvider returns a new ConfigProvider connected to docker.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewDockerConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
-	return &DockerConfigProvider{}, nil
+	return &DockerConfigProvider{
+		// periodically resync if we're missing events
+		syncInterval: 30,
+	}, nil
 }
 
 // String returns a string representation of the DockerConfigProvider
@@ -53,12 +60,21 @@ func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
 		go d.listen()
 	}
 
-	containers, err := d.dockerUtil.AllContainerLabels()
-	if err != nil {
-		return []integration.Config{}, err
+	var containers map[string]map[string]string
+	// on the first run we collect all labels, then rely on events
+	if d.labelCache == nil || d.syncCounter == d.syncInterval {
+		containers, err = d.dockerUtil.AllContainerLabels()
+		if err != nil {
+			return []integration.Config{}, err
+		}
+		d.labelCache = containers
+		d.syncCounter = 0
+	} else {
+		containers = d.labelCache
 	}
 
 	d.Lock()
+	d.syncCounter += 1
 	d.upToDate = true
 	d.Unlock()
 
@@ -88,13 +104,27 @@ CONNECT:
 				// only these two event types will change what containers appear.
 				// Container labels cannot change once they are created, so we don't need to react on
 				// other lifecycle events.
-				if ev.Action == "start" || ev.Action == "die" {
-					d.Lock()
-					d.upToDate = false
-					d.Unlock()
+				if ev.Action == "start" {
+					container, err := d.dockerUtil.Inspect(ev.ContainerID, false)
+					if err != nil {
+						log.Warnf("Error inspecting container: %s", err)
+					} else {
+						d.Lock()
+						d.labelCache[ev.ContainerID] = container.Config.Labels
+						d.upToDate = false
+						d.Unlock()
+					}
+				} else if ev.Action == "die" {
+					// delay for short lived detection
+					time.AfterFunc(5*time.Second, func() {
+						d.Lock()
+						delete(d.labelCache, ev.ContainerID)
+						d.upToDate = false
+						d.Unlock()
+					})
 				}
 			case err := <-errChan:
-				log.Warnf("error getting docker events: %s", err)
+				log.Warnf("Error getting docker events: %s", err)
 				d.Lock()
 				d.upToDate = false
 				d.Unlock()
