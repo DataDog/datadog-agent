@@ -241,7 +241,8 @@ def fetch_python_version(timeout = 10)
     json_info_output = json_info
     if json_info_output.key?('metadata') &&
       json_info_output['metadata'].key?('systemStats') &&
-      json_info_output['metadata']['systemStats'].key?('pythonV')
+      json_info_output['metadata']['systemStats'].key?('pythonV') &&
+      Gem::Version.correct?(json_info_output['metadata']['systemStats']['pythonV']) # Check that we do have a version number
         return json_info_output['metadata']['systemStats']['pythonV']
     end
     sleep 1
