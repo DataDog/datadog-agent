@@ -75,9 +75,19 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		// noop
 		return
 	}
+
+	bucketRange := bucket.UpperBound - bucket.LowerBound
+	if bucketRange < 0 {
+		log.Warnf(
+			"Negative bucket range [%f-%f] for metric %s discarding",
+			bucket.LowerBound, bucket.UpperBound, bucket.Name,
+		)
+		return
+	}
+
 	contextKey := cs.contextResolver.trackContext(bucket, bucket.Timestamp)
 
-	// if the bucket is monotonic and we already saw the bucket we only send the delta
+	// if the bucket is monotonic and we have already seen the bucket we only send the delta
 	if bucket.Monotonic {
 		lastBucketValue, bucketFound := cs.lastBucketValue[contextKey]
 		rawValue := bucket.Value
@@ -99,14 +109,6 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 	}
 
 	// simple linear interpolation, TODO: optimize
-	bucketRange := bucket.UpperBound - bucket.LowerBound
-	if bucketRange < 0 {
-		log.Warnf(
-			"Negative bucket range [%f-%f] for metric %s discarding",
-			bucket.LowerBound, bucket.UpperBound, bucket.Name,
-		)
-		return
-	}
 	var linearIncr float64
 	var incrCount int
 	var countPerIncr uint

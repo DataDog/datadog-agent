@@ -185,6 +185,7 @@ func (s *checkSender) GetMetricStats() map[string]int64 {
 	metricStats["MetricSamples"] = s.priormetricStats.MetricSamples
 	metricStats["Events"] = s.priormetricStats.Events
 	metricStats["ServiceChecks"] = s.priormetricStats.ServiceChecks
+	metricStats["HistogramBuckets"] = s.priormetricStats.HistogramBuckets
 
 	return metricStats
 }
