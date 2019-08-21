@@ -77,6 +77,7 @@ bool Three::init()
     Py_Initialize();
 
     if (!Py_IsInitialized()) {
+        setError("Python not initialized");
         return false;
     }
 
@@ -106,11 +107,15 @@ bool Three::init()
     }
 
     if (init_stringutils() != EXIT_SUCCESS) {
+        setError("error initializing string utils");
         goto done;
     }
 
     // import the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
+    if (_baseClass == NULL) {
+        setError("could not import base class");
+    }
 
 done:
     // save thread state and release the GIL
