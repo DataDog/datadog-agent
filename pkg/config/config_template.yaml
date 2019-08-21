@@ -182,6 +182,26 @@ api_key:
 #
 # collect_gce_tags: true
 
+## @param exclude_gce_tags - list of strings - optional - default: ["kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"]
+## Google Cloud Engine metadata attribute to exclude from being converted into
+## host tags -- only applicable when collect_gce_tags is true.
+#
+# exclude_gce_tags:
+#   - "kube-env"
+#   - "kubelet-config"
+#   - "containerd-configure-sh"
+#   - "startup-script"
+#   - "shutdown-script"
+#   - "configure-sh"
+#   - "sshKeys"
+#   - "ssh-keys"
+#   - "user-data"
+#   - "cli-cert"
+#   - "ipsec-cert"
+#   - "ssl-cert"
+#   - "google-container-manifest"
+#   - "bosh_settings"
+
 {{ end }}
 {{- if .Agent }}
 {{- if .BothPythonPresent -}}
