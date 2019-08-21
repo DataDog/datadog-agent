@@ -470,6 +470,7 @@ shared_examples_for 'an Agent with python3 enabled' do
   it 'runs Python 3 after python_version is set to 3' do
     result = false
     json_info_output = json_info
+    puts json_info_output
     if json_info_output.key?('metadata') &&
       json_info_output['metadata'].key?('systemStats') &&
       json_info_output['metadata']['systemStats'].key?('pythonV')
@@ -500,11 +501,12 @@ shared_examples_for 'an Agent with python3 enabled' do
   it 'runs Python 2 after python_version is set back to 2' do
     result = false
     json_info_output = json_info
+    puts json_info_output
     if json_info_output.key?('metadata') &&
       json_info_output['metadata'].key?('systemStats') &&
       json_info_output['metadata']['systemStats'].key?('pythonV')
         pythonV = json_info_output['metadata']['systemStats']['pythonV']
-        if Gem::Version.new('3.0.0') <= Gem::Version.new(pythonV)
+        if Gem::Version.new('3.0.0') > Gem::Version.new(pythonV)
           result = true
         end
     end
