@@ -257,6 +257,7 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 
 		if warnings, err := validatePython3(checkName, checkFilePath); err != nil {
 			status = a7TagUnknown
+			log.Errorf("Failed to validate Python 3 linting for check '%s': '%s'", checkName, err)
 		} else if len(warnings) == 0 {
 			status = a7TagReady
 			metricValue = 1.0
