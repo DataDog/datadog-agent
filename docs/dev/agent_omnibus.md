@@ -82,4 +82,64 @@ the source files for the `datadog-agent` software definition.
 
 ## Building on Windows
 
-TODO.
+### Prerequisites
+- Visual Studio >= 2017
+    - Minimal config for VS 2019
+    ```{
+       "version": "1.0",
+       "components": [
+         "Microsoft.VisualStudio.Component.CoreEditor",
+         "Microsoft.VisualStudio.Workload.CoreEditor",
+         "Microsoft.VisualStudio.Component.NuGet",
+         "Microsoft.VisualStudio.Component.Roslyn.Compiler",
+         "Microsoft.VisualStudio.ComponentGroup.WebToolsExtensions",
+         "Microsoft.Component.MSBuild",
+         "Microsoft.VisualStudio.Component.TextTemplating",
+         "Microsoft.VisualStudio.Component.IntelliCode",
+         "Component.Microsoft.VisualStudio.LiveShare",
+         "Microsoft.VisualStudio.Component.VC.CoreIde",
+         "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+         "Microsoft.VisualStudio.Component.Graphics.Tools",
+         "Microsoft.VisualStudio.Component.VC.DiagnosticTools",
+         "Microsoft.VisualStudio.Component.Windows10SDK.18362",
+         "Microsoft.VisualStudio.Component.Debugger.JustInTime",
+         "Microsoft.VisualStudio.Component.VC.Redist.14.Latest",
+         "Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Core",
+         "Microsoft.VisualStudio.Component.VC.CMake.Project",
+         "Microsoft.VisualStudio.Component.VC.ATL",
+         "Microsoft.VisualStudio.Component.VC.TestAdapterForBoostTest",
+         "Microsoft.VisualStudio.Component.VC.TestAdapterForGoogleTest",
+         "Microsoft.VisualStudio.Component.VC.v141.x86.x64",
+         "Microsoft.Component.VC.Runtime.UCRTSDK",
+         "Microsoft.VisualStudio.Component.VC.140",
+         "Microsoft.VisualStudio.Workload.NativeDesktop"
+       ]
+     }
+- Windows 8.1 SDK
+- Wix SDK (Also requires the Windows feature '.Net Framework 3.5')
+- 7zip
+- Ruby >= 2.4 and MSYS/MINGW
+- Bundler
+- Python >= 2.7
+    
+*Note:* Windows 8.1 SDK is not longer shipped with Visual Studio, starting with version 2019.
+It can be downloaded separately [here](https://developer.microsoft.com/en-us/windows/downloads/sdk-archive).
+
+### Installation
+- Launch a "Developer Command Prompt for VS 201X"
+- Enable ridk
+
+        ridk enable
+
+- Check that the necessary tools are in the %PATH%:
+
+        > which 7z
+        /c/Program Files/7-Zip/7z
+        > which heat
+        /c/Program Files (x86)/WiX Toolset v3.11/bin/heat
+        > which bundler
+        /c/Ruby24-x64/bin/bundler
+
+- Launch the build for the packages
+
+        inv agent.omnibus-build --base-dir=C:\.omnibus-ruby
