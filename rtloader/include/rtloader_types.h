@@ -112,7 +112,7 @@ typedef void (*cb_get_hostname_t)(char **);
 // (clustername)
 typedef void (*cb_get_clustername_t)(char **);
 // (tracemalloc_enabled)
-typedef void (*cb_get_tracemalloc_enabled_t)(bool *);
+typedef bool (*cb_get_tracemalloc_enabled_t)(void);
 // (message, level)
 typedef void (*cb_log_t)(char *, int);
 // (hostname, source_type_name, list of tags)

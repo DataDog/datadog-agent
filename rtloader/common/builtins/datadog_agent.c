@@ -310,11 +310,10 @@ PyObject *get_tracemalloc_enabled(PyObject *self, PyObject *args)
 {
     // callback must be set
     if (cb_get_tracemalloc_enabled == NULL) {
-        Py_RETURN_NONE;
+        Py_RETURN_FALSE;
     }
 
-    bool enabled = false;
-    cb_get_tracemalloc_enabled(&enabled);
+    bool enabled = cb_get_tracemalloc_enabled();
 
     if (enabled) {
         Py_RETURN_TRUE;

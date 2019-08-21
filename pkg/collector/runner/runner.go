@@ -90,6 +90,9 @@ func NewRunner() *Runner {
 		numWorkers = defaultNumWorkers
 	}
 
+	// update config with the actual effective number of workers
+	config.Datadog.Set("check_runners", numWorkers)
+
 	// start the workers
 	for i := 0; i < numWorkers; i++ {
 		r.AddWorker()

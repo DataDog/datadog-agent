@@ -79,7 +79,7 @@ void initLogger(rtloader_t *rtloader) {
 void GetClusterName(char **);
 void GetConfig(char*, char **);
 void GetHostname(char **);
-void GetTracemallocEnabled(bool *);
+bool GetTracemallocEnabled();
 void GetVersion(char **);
 void Headers(char **);
 void SetExternalTags(char *, char *, char **);

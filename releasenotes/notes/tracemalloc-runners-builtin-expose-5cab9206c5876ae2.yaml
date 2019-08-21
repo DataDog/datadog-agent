@@ -8,7 +8,7 @@
 ---
 features:
   - |
-    Adding tracemalloc_debug configuration setting. Tracemalloc
-    memory profiling will be enabled for python checks, when this
-    setting is enabled the number of check runners is overridden
-    to 1 to guarantee sequential execution of checks.
+    Adding tracemalloc_debug configuration setting (Python3 only).
+    Enables Tracemalloc memory profiling on Python3. Enabling this
+    option will override the number of check runners to 1 to guarantee
+    sequential execution of checks.
