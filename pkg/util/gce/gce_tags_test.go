@@ -15,26 +15,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetHostTags(t *testing.T) {
-	lastRequests := []*http.Request{}
-	content, err := ioutil.ReadFile("test/gce_metadata.json")
-	if err != nil {
-		assert.Fail(t, fmt.Sprintf("Error getting test data: %v", err))
-	}
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Contains(t, r.URL.String(), "/?recursive=true")
-		assert.Equal(t, "Google", r.Header.Get("Metadata-Flavor"))
-		w.Header().Set("Content-Type", "application/json")
-		io.WriteString(w, string(content))
-		lastRequests = append(lastRequests, r)
-	}))
-	defer ts.Close()
-	metadataURL = ts.URL
-
+	server := mockMetadataRequest(t)
+	defer server.Close()
 	tags, err := GetTags()
 	if err != nil {
 		assert.Fail(t, fmt.Sprintf("Error getting tags: %v", err))
@@ -60,4 +48,53 @@ func TestGetHostTags(t *testing.T) {
 	for _, tag := range tags {
 		assert.Contains(t, expectedTags, tag)
 	}
+}
+
+func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
+	mockConfig := config.Mock()
+	mockConfig.Set("exclude_gce_tags", []string{"kube-env", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings", "zone", "internal-hostname", "project"})
+	defer mockConfig.Set("exclude_gce_tags", []string{"kube-env", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"})
+
+	server := mockMetadataRequest(t)
+	defer server.Close()
+
+	tags, err := GetTags()
+	if err != nil {
+		assert.Fail(t, fmt.Sprintf("Error getting tags: %v", err))
+	}
+
+	expectedTags := []string{
+		"tag",
+		"instance-type:n1-standard-1",
+		"instance-id:1111111111111111111",
+		"numeric_project_id:111111111111",
+		"cluster-location:us-east1-b",
+		"cluster-name:test-cluster",
+		"created-by:projects/111111111111/zones/us-east1-b/instanceGroupManagers/gke-test-cluster-default-pool-0012834b-grp",
+		"gci-ensure-gke-docker:true",
+		"gci-update-strategy:update_disabled",
+		"google-compute-enable-pcid:true",
+		"instance-template:projects/111111111111/global/instanceTemplates/gke-test-cluster-default-pool-0012834b",
+	}
+	require.Len(t, tags, len(expectedTags))
+	for _, tag := range tags {
+		assert.Contains(t, expectedTags, tag)
+	}
+}
+
+func mockMetadataRequest(t *testing.T) *httptest.Server {
+	lastRequests := []*http.Request{}
+	content, err := ioutil.ReadFile("test/gce_metadata.json")
+	if err != nil {
+		assert.Fail(t, fmt.Sprintf("Error getting test data: %v", err))
+	}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Contains(t, r.URL.String(), "/?recursive=true")
+		assert.Equal(t, "Google", r.Header.Get("Metadata-Flavor"))
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, string(content))
+		lastRequests = append(lastRequests, r)
+	}))
+	metadataURL = ts.URL
+	return ts
 }
