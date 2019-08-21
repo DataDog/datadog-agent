@@ -234,6 +234,22 @@ def read_conf_file
 end
 
 
+def fetch_python_version(timeout = 10)
+  # Try to fetch the metadata.systemStats.pythonV from the Agent status
+  # Timeout after the given number of seconds
+  for _ in 1..timeout do
+    json_info_output = json_info
+    if json_info_output.key?('metadata') &&
+      json_info_output['metadata'].key?('systemStats') &&
+      json_info_output['metadata']['systemStats'].key?('pythonV')
+        return json_info_output['metadata']['systemStats']['pythonV']
+    end
+    sleep 1
+  end
+  return nil
+end
+
+
 shared_examples_for 'Agent' do
   it_behaves_like 'an installed Agent'
   it_behaves_like 'a running Agent with no errors'
@@ -469,15 +485,9 @@ shared_examples_for 'an Agent with python3 enabled' do
 
   it 'runs Python 3 after python_version is set to 3' do
     result = false
-    json_info_output = json_info
-    puts json_info_output
-    if json_info_output.key?('metadata') &&
-      json_info_output['metadata'].key?('systemStats') &&
-      json_info_output['metadata']['systemStats'].key?('pythonV')
-        pythonV = json_info_output['metadata']['systemStats']['pythonV']
-        if Gem::Version.new('3.0.0') <= Gem::Version.new(pythonV)
-          result = true
-        end
+    pythonV = fetch_python_version
+    if Gem::Version.new('3.0.0') <= Gem::Version.new(pythonV)
+      result = true
     end
     expect(result).to be_truthy
   end
@@ -500,15 +510,9 @@ shared_examples_for 'an Agent with python3 enabled' do
 
   it 'runs Python 2 after python_version is set back to 2' do
     result = false
-    json_info_output = json_info
-    puts json_info_output
-    if json_info_output.key?('metadata') &&
-      json_info_output['metadata'].key?('systemStats') &&
-      json_info_output['metadata']['systemStats'].key?('pythonV')
-        pythonV = json_info_output['metadata']['systemStats']['pythonV']
-        if Gem::Version.new('3.0.0') > Gem::Version.new(pythonV)
-          result = true
-        end
+    pythonV = fetch_python_version
+    if Gem::Version.new('3.0.0') > Gem::Version.new(pythonV)
+      result = true
     end
     expect(result).to be_truthy
   end
