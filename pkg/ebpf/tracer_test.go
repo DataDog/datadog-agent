@@ -738,7 +738,7 @@ func isLocalDNS(c ConnectionStats) bool {
 
 func TestShouldSkipBlacklistedConnection(t *testing.T) {
 	// exclude connections from 127.0.0.1:80
-	config.Datadog.SetDefaultSetDefault("system_probe_config.excluded_source_connections", map[string][]string{"127.0.0.1": {"80"}})
+	config.Datadog.SetDefault("system_probe_config.excluded_source_connections", map[string][]string{"127.0.0.1": {"80"}})
 	config := NewDefaultConfig()
 	tr, err := NewTracer(config)
 	if err != nil {
