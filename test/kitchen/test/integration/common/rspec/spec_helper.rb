@@ -3,7 +3,6 @@ require 'open-uri'
 require 'rspec'
 require 'rbconfig'
 require 'yaml'
-require 'rubygems'
 
 os_cache = nil
 
@@ -469,16 +468,18 @@ shared_examples_for 'an Agent with python3 enabled' do
   end
 
   it 'runs Python 3 after python_version is set to 3' do
+    result = false
     json_info_output = json_info
     if json_info_output.key?('metadata') &&
       json_info_output['metadata'].key?('systemStats') &&
       json_info_output['metadata']['systemStats'].key?('pythonV')
         pythonV = json_info_output['metadata']['systemStats']['pythonV']
-        if pythonV.is_a? String && Gem::Version.new('3.0.0') <= Gem::Version.new(pythonV)
+        if Gem::Version.new('3.0.0') <= Gem::Version.new(pythonV)
           result = true
         end
       break
     end
+    expect(result).to be_truthy
   end
 
   it 'restarts after python_version is set back to 2' do
@@ -498,16 +499,18 @@ shared_examples_for 'an Agent with python3 enabled' do
   end
 
   it 'runs Python 2 after python_version is set back to 2' do
+    result = false
     json_info_output = json_info
     if json_info_output.key?('metadata') &&
       json_info_output['metadata'].key?('systemStats') &&
       json_info_output['metadata']['systemStats'].key?('pythonV')
         pythonV = json_info_output['metadata']['systemStats']['pythonV']
-        if pythonV.is_a? String && Gem::Version.new('3.0.0') > Gem::Version.new(pythonV)
+        if Gem::Version.new('3.0.0') <= Gem::Version.new(pythonV)
           result = true
         end
       break
     end
+    expect(result).to be_truthy
   end
 end
 
