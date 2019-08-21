@@ -14,7 +14,7 @@ type ConnectionFilter struct {
 	Ports map[uint16]struct{}
 }
 
-// takes the user defined blacklist and returns a slice of ConnectionFilters
+// ParseBlacklist takes the user defined blacklist and returns a slice of ConnectionFilters
 func ParseBlacklist(filters map[string][]string) (blacklist []*ConnectionFilter) {
 	for ip, ports := range filters {
 		conn := &ConnectionFilter{Ports: map[uint16]struct{}{}}
