@@ -13,6 +13,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -68,6 +69,15 @@ type Tracer struct {
 
 	// Internal buffer used to compute bytekeys
 	buf *bytes.Buffer
+
+	// Connections for the tracer to blacklist
+	connectionBlacklist *ConnectionBlacklist
+}
+
+// ConnectionBlacklist stores the agent's blacklist configuration for source and destination to be called by the tracer
+type ConnectionBlacklist struct {
+	SourceBlacklist      []*util.ConnectionFilter
+	DestinationBlacklist []*util.ConnectionFilter
 }
 
 const (
@@ -126,14 +136,15 @@ func NewTracer(config *Config) (*Tracer, error) {
 	state := NewNetworkState(config.ClientStateExpiry, config.MaxClosedConnectionsBuffered, config.MaxConnectionsStateBuffered)
 
 	tr := &Tracer{
-		m:              m,
-		config:         config,
-		state:          state,
-		portMapping:    portMapping,
-		localAddresses: readLocalAddresses(),
-		buffer:         make([]ConnectionStats, 0, 512),
-		buf:            &bytes.Buffer{},
-		conntracker:    conntracker,
+		m:                   m,
+		config:              config,
+		state:               state,
+		portMapping:         portMapping,
+		localAddresses:      readLocalAddresses(),
+		buffer:              make([]ConnectionStats, 0, 512),
+		buf:                 &bytes.Buffer{},
+		conntracker:         conntracker,
+		connectionBlacklist: getNetworkBlacklists(),
 	}
 
 	tr.perfMap, err = tr.initPerfPolling()
@@ -252,7 +263,7 @@ func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 	switch {
 	case !t.config.CollectLocalDNS && isDNSConnection && conn.Direction == LOCAL:
 		return true
-	case util.IsBlacklistedConnection("source", conn.Source, conn.SPort) || util.IsBlacklistedConnection("destination", conn.Dest, conn.DPort):
+	case util.IsBlacklistedConnection(t.connectionBlacklist.SourceBlacklist, conn.Source, conn.SPort) || util.IsBlacklistedConnection(t.connectionBlacklist.DestinationBlacklist, conn.Dest, conn.DPort):
 		return true
 	}
 	return false
@@ -636,6 +647,16 @@ func readLocalAddresses() map[util.Address]struct{} {
 	}
 
 	return addresses
+}
+
+// getNetworkBlacklists retrieves the blacklists set in the agent config
+func getNetworkBlacklists() *ConnectionBlacklist {
+	s := util.ParseBlacklist(config.Datadog.GetStringMapStringSlice("system_probe_config.excluded_source_connections"))
+	d := util.ParseBlacklist(config.Datadog.GetStringMapStringSlice("system_probe_config.excluded_destination_connections"))
+	return &ConnectionBlacklist{
+		SourceBlacklist:      s,
+		DestinationBlacklist: d,
+	}
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)
