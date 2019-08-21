@@ -1501,7 +1501,8 @@ deploy_cloudfront_invalidate:
   tags: [ "runner:main", "size:large" ]
   before_script: [ "# noop" ] # Override top level entry
   script:
-  - inv -e e2e-tests --image=datadog/agent-dev:$CI_COMMIT_REF_SLUG
+  - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
+  - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
 
 pupernetes-dev:
   <<: *pupernetes_template
@@ -1515,7 +1516,8 @@ pupernetes-master:
   only:
     - master
   script:
-  - inv -e e2e-tests --image=datadog/agent-dev:master
+  - inv -e e2e-tests --image=datadog/agent-dev:master-py2
+  - inv -e e2e-tests --image=datadog/agent-dev:master-py3
 
 pupernetes-tags:
   <<: *pupernetes_template
