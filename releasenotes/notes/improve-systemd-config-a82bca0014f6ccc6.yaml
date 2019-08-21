@@ -8,13 +8,13 @@
 ---
 upgrade:
   - |
-    Update systemd configuration. Before if `unit_names` and `unit_regexes`
-    are not set, all units are monitored. Now `unit_names` is required and only
+    Update to the configuration of the systemd check: Before, if `unit_names` and `unit_regexes`
+    were not set, all units were monitored. Now `unit_names` is required and only
     matching units will be monitored, `unit_regexes` have been removed (avoid
     accidental monitoring of too many metrics).
   - |
-    New systemd configuration `private_socket`, and `max_units` have been added.
-    Default is now prefixed with `/host` when using Docker Agent.
+    Several metrics sent by the systemd check have been renamed. The integration is now stable.
+enhancements:
   - |
-    Several systemd metrics have been renamed (the integration is not public
-    yet).
+    Add `private_socket` configuration to the systemd check. Defaults to `/run/systemd/private`
+    (or `/host/run/systemd/private` when using Docker Agent).
