@@ -118,9 +118,6 @@ build do
             delete "#{install_dir}/embedded/man"
             delete "#{install_dir}/embedded/share/man"
 
-            # add debug path to list of paths to include in debug build
-            debug_path ".debug"
-
         elsif osx?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"

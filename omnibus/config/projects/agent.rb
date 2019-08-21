@@ -194,5 +194,5 @@ exclude 'bundler\/git'
 
 if linux?
   strip_build true
-  debug_path "**/.debug"
+  debug_path ".debug"  # the srip symbols will be in here
 end
