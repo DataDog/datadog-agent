@@ -477,7 +477,6 @@ shared_examples_for 'an Agent with python3 enabled' do
         if Gem::Version.new('3.0.0') <= Gem::Version.new(pythonV)
           result = true
         end
-      break
     end
     expect(result).to be_truthy
   end
@@ -508,7 +507,6 @@ shared_examples_for 'an Agent with python3 enabled' do
         if Gem::Version.new('3.0.0') <= Gem::Version.new(pythonV)
           result = true
         end
-      break
     end
     expect(result).to be_truthy
   end
