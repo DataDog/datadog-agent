@@ -1,4 +1,4 @@
 fixes:
   - |
-    The parameter ``jmx`` is deprecated on the command ``check``, it is replaced by the command ``jmx``.
+    The parameter ``jmx`` is not supported with the command ``check``, it is replaced by the command ``jmx``.
 
