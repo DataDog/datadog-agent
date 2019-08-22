@@ -644,18 +644,22 @@ func TestNumWorkers(t *testing.T) {
 	config.Set("tracemalloc_debug", true)
 	config.Set("check_runners", 4)
 
-	workers := GetNumWorkers(config)
+	setNumWorkers(config)
+	workers := config.GetInt("check_runners")
 	assert.Equal(t, workers, config.GetInt("check_runners"))
 
 	config.Set("tracemalloc_debug", false)
-	workers = GetNumWorkers(config)
+	setNumWorkers(config)
+	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, config.GetInt("check_runners"))
 
 	config.Set("python_version", "3")
-	workers = GetNumWorkers(config)
+	setNumWorkers(config)
+	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, config.GetInt("check_runners"))
 
 	config.Set("tracemalloc_debug", true)
-	workers = GetNumWorkers(config)
+	setNumWorkers(config)
+	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, 1)
 }
