@@ -176,6 +176,10 @@ func enrichEvent(h C.ULONGLONG, xml string) *richEvent {
 		C.free(unsafe.Pointer(richEvtCStruct))
 	}
 
+	if len(message) >= maxRunes {
+		message = message + truncatedFlag
+	}
+
 	return &richEvent{
 		xmlEvent: xml,
 		message:  message,
@@ -202,7 +206,8 @@ const (
 
 	ERROR_NO_MORE_ITEMS syscall.Errno = 259
 
-	maxRunes = 1<<17 - 1 // 128 kB
+	maxRunes      = 1<<17 - 1 // 128 kB
+	truncatedFlag = "...TRUNCATED..."
 )
 
 type EVT_SUBSCRIBE_FLAGS int

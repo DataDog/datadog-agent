@@ -79,8 +79,8 @@ func (t *Tailer) Identifier() string {
 }
 
 // toMessage converts an XML message into json
-func (t *Tailer) toMessage(rm *richEvent) (*message.Message, error) {
-	event := rm.xmlEvent
+func (t *Tailer) toMessage(re *richEvent) (*message.Message, error) {
+	event := re.xmlEvent
 	log.Debug("Rendered XML:", event)
 	mxj.PrependAttrWithHyphen(false)
 	mv, err := mxj.NewMapXml([]byte(event))
@@ -111,18 +111,18 @@ func (t *Tailer) toMessage(rm *richEvent) (*message.Message, error) {
 	}
 
 	// Replace Task and Opcode codes by the rendered value
-	if rm.task != "" {
-		_, _ = mv.UpdateValuesForPath("Task:"+rm.task, taskPath)
+	if re.task != "" {
+		_, _ = mv.UpdateValuesForPath("Task:"+re.task, taskPath)
 	}
-	if rm.opcode != "" {
-		_, _ = mv.UpdateValuesForPath("Opcode:"+rm.opcode, opcode)
+	if re.opcode != "" {
+		_, _ = mv.UpdateValuesForPath("Opcode:"+re.opcode, opcode)
 	}
 	// Set message and severity
-	if rm.message != "" {
-		_ = mv.SetValueForPath(rm.message, "message")
+	if re.message != "" {
+		_ = mv.SetValueForPath(re.message, "message")
 	}
-	if rm.level != "" {
-		_ = mv.SetValueForPath(rm.level, "level")
+	if re.level != "" {
+		_ = mv.SetValueForPath(re.level, "level")
 	}
 
 	jsonEvent, err := mv.Json(false)
