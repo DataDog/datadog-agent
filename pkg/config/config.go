@@ -28,9 +28,10 @@ const (
 	DefaultSite    = "datadoghq.com"
 	infraURLPrefix = "https://app."
 
-	// runner worker caps
+	// DefaultNumWorkers default number of workers for our check runner
 	DefaultNumWorkers = 4
-	MaxNumWorkers     = 25
+	// MaxNumWorkers maximum number of workers for our check runner
+	MaxNumWorkers = 25
 
 	// DefaultForwarderRecoveryInterval is the default recovery interval,
 	// also used if the user-provided value is invalid.
