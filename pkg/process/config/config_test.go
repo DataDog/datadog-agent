@@ -161,7 +161,6 @@ func TestDefaultConfig(t *testing.T) {
 	// assert that some sane defaults are set
 	assert.Equal("info", agentConfig.LogLevel)
 	assert.Equal(true, agentConfig.AllowRealTime)
-	assert.Equal(containerChecks, agentConfig.EnabledChecks)
 	assert.Equal(true, agentConfig.Scrubber.Enabled)
 
 	os.Setenv("DOCKER_DD_AGENT", "yes")
@@ -169,7 +168,6 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(os.Getenv("HOST_PROC"), "")
 	assert.Equal(os.Getenv("HOST_SYS"), "")
 	os.Setenv("DOCKER_DD_AGENT", "no")
-	assert.Equal(containerChecks, agentConfig.EnabledChecks)
 	assert.Equal(6062, agentConfig.ProcessExpVarPort)
 
 	os.Unsetenv("DOCKER_DD_AGENT")
@@ -222,6 +220,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeSocketPath)
 	assert.Equal(append(processChecks, "connections"), agentConfig.EnabledChecks)
+	assert.Equal(500, agentConfig.ClosedChannelSize)
 	assert.True(agentConfig.SysProbeBPFDebug)
 	assert.Empty(agentConfig.ExcludedBPFLinuxVersions)
 	assert.False(agentConfig.DisableTCPTracing)
@@ -246,6 +245,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	assert.False(agentConfig.SysProbeBPFDebug)
+	assert.Equal(1000, agentConfig.ClosedChannelSize)
 	assert.Equal(agentConfig.ExcludedBPFLinuxVersions, []string{"5.5.0", "4.2.1"})
 	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeSocketPath)
 	assert.Equal(append(processChecks, "connections"), agentConfig.EnabledChecks)

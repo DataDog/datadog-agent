@@ -39,6 +39,7 @@ build do
             # remove the config files for the subservices; they'll be started
             # based on the config file
             delete "#{conf_dir}/apm.yaml.default"
+            delete "#{conf_dir}/process_agent.yaml.default"
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
 
@@ -87,6 +88,7 @@ build do
 
             # remove unused configs
             delete "/etc/datadog-agent/conf.d/apm.yaml.default"
+            delete "/etc/datadog-agent/conf.d/process_agent.yaml.default"
 
             # remove windows specific configs
             delete "/etc/datadog-agent/conf.d/winproc.d"
@@ -97,6 +99,12 @@ build do
             # The prerm script of the package should use this list to remove the pyc/pyo files
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.py_compiled_files.txt"
             command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print >> #{install_dir}/embedded/.py_compiled_files.txt"
+
+            # The prerm and preinst scripts of the package will use this list to detect which files
+            # have been setup by the installer, this way, on removal, we'll be able to delete only files
+            # which have not been created by the package.
+            command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.installed_by_pkg.txt"
+            command "find #{install_dir}/embedded/lib/python*/site-packages >> #{install_dir}/embedded/.installed_by_pkg.txt"
 
             # removing the doc from the embedded folder to reduce package size by ~3MB
             delete "#{install_dir}/embedded/share/doc"

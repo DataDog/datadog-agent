@@ -49,6 +49,10 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 		tracerConfig.MaxConnectionsStateBuffered = mcsb
 	}
 
+	if ccs := cfg.ClosedChannelSize; ccs > 0 {
+		tracerConfig.ClosedChannelSize = ccs
+	}
+
 	return tracerConfig
 }
 

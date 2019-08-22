@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:six-pip3
+      - image: datadog/datadog-agent-runner-circle:go1129-doxygen
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -75,9 +75,7 @@ jobs:
       - run:
           name: lint rtloader
           command: |
-            inv rtloader.format
-            # only check for diff in rtloader folder since "inv deps" step might update Gopkg.lock
-            [[ $(git ls-files -m rtloader | wc -l) -eq 0 ]]
+            inv rtloader.format --raise-if-changed
       - run:
           name: test rtloader
           command: |
@@ -193,6 +191,15 @@ jobs:
           name: test puppy
           command: ./bin/agent/agent -c ./bin/agent/dist check cpu
 
+  documentation_generation:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: generate doxygen documentation
+          command: inv -e rtloader.generate-doc
+
 workflows:
   version: 2
   test_and_build:
@@ -220,6 +227,9 @@ workflows:
           requires:
             - dependencies
       - docker_tests:
+          requires:
+            - dependencies
+      - documentation_generation:
           requires:
             - dependencies
       - build_binaries:

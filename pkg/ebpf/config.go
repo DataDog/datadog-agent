@@ -58,6 +58,9 @@ type Config struct {
 
 	// DebugPort specifies a port to run golang's expvar and pprof debug endpoint
 	DebugPort int
+
+	// ClosedChannelSize specifies the size for closed channel for the tracer
+	ClosedChannelSize int
 }
 
 // NewDefaultConfig enables traffic collection for all connection types
@@ -77,17 +80,14 @@ func NewDefaultConfig() *Config {
 		MaxClosedConnectionsBuffered: 50000,
 		MaxConnectionsStateBuffered:  75000,
 		ClientStateExpiry:            2 * time.Minute,
+		ClosedChannelSize:            500,
 	}
 }
 
-// EnabledKProbes returns a map of kprobes that are enabled per config settings
+// EnabledKProbes returns a map of kprobes that are enabled per config settings.
+// This map does not include the probes used exclusively in the offset guessing process.
 func (c *Config) EnabledKProbes() map[KProbeName]struct{} {
 	enabled := make(map[KProbeName]struct{}, 0)
-
-	// Note: TCPv4Connect & TCPv4ConnectReturn are always included as they're needed for initialization
-	// and can be disabled after field offset guessing has completed.
-	enabled[TCPv4Connect] = struct{}{}
-	enabled[TCPv4ConnectReturn] = struct{}{}
 
 	if c.CollectTCPConns {
 		enabled[TCPSendMsg] = struct{}{}
@@ -106,11 +106,6 @@ func (c *Config) EnabledKProbes() map[KProbeName]struct{} {
 		enabled[UDPRecvMsgReturn] = struct{}{}
 		enabled[UDPRecvMsg] = struct{}{}
 		enabled[UDPSendMsg] = struct{}{}
-	}
-
-	if c.CollectIPv6Conns {
-		enabled[TCPv6Connect] = struct{}{}
-		enabled[TCPv6ConnectReturn] = struct{}{}
 	}
 
 	return enabled

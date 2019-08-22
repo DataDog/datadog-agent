@@ -62,7 +62,7 @@ func init() {
 	checkCmd.Flags().BoolVarP(&checkRate, "check-rate", "r", false, "check rates by running the check twice with a 1sec-pause between the 2 runs")
 	checkCmd.Flags().IntVarP(&checkTimes, "check-times", "t", 1, "number of times to run the check")
 	checkCmd.Flags().IntVar(&checkPause, "pause", 0, "pause between multiple runs of the check, in milliseconds")
-	checkCmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off')")
+	checkCmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
 	checkCmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in milliseconds")
 	checkCmd.Flags().BoolVarP(&formatJSON, "json", "", false, "format aggregator and check runner output as json")
 	checkCmd.Flags().StringVarP(&breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
@@ -88,34 +88,25 @@ var checkCmd = &cobra.Command{
 	Short: "Run the specified check",
 	Long:  `Use this to run a specific check with a specific rate`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		overrides := make(map[string]interface{})
+
+		if logLevel != "" {
+			// Honour the deprecated --log-level argument
+			overrides := make(map[string]interface{})
+			overrides["log_level"] = logLevel
+			config.SetOverrides(overrides)
+		} else {
+			logLevel = config.GetEnv("DD_LOG_LEVEL", "off")
+		}
 
 		if flagNoColor {
 			color.NoColor = true
 		}
 
-		if logLevel != "" {
-			// Python calls config.Datadog.GetString("log_level")
-			overrides["log_level"] = logLevel
-		}
-
-		// Global Agent configuration
-		config.SetOverrides(overrides)
 		err := common.SetupConfig(confFilePath)
 		if err != nil {
-			fmt.Printf("Cannot setup config, exiting: %v\n", err)
-			return err
+			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
 
-		if logLevel == "" {
-			if confFilePath != "" {
-				logLevel = config.Datadog.GetString("log_level")
-			} else {
-				logLevel = "off"
-			}
-		}
-
-		// Setup logger
 		err = config.SetupLogger(loggerName, logLevel, "", "", false, true, false)
 		if err != nil {
 			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
@@ -251,6 +242,11 @@ var checkCmd = &cobra.Command{
 		var instancesData []interface{}
 
 		for _, c := range cs {
+			for _, conf := range allConfigs {
+				if check.IsJMXConfig(conf.Name, conf.InitConfig) {
+					return fmt.Errorf("using the jmx option with the check command directly is not supported, please use the jmx command instead")
+				}
+			}
 			s := runCheck(c, agg)
 
 			// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc

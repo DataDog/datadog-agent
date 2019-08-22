@@ -270,15 +270,25 @@ shared_examples_for "an installed Agent" do
     JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('skip_windows_signing_test')
   }
   
+  
   it 'is properly signed' do
     puts "swsc is #{skip_windows_signing_check}"
+    #puts "is an upgrade is #{is_upgrade}"
     if os == :windows and !skip_windows_signing_check
       # The user in the yaml file is "datadog", however the default test kitchen user is azure.
       # This allows either to be used without changing the test.
       msi_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-cli.msi"
+      msi_path_upgrade = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-up.msi"
+      
+      # The upgrade file should only be present when doing an upgrade test.  Therefore,
+      # check the file we're upgrading to, not the file we're upgrading from
+      if File.file?(msi_path_upgrade)
+        msi_path = msi_path_upgrade
+      end
+      puts "checking file #{msi_path}"
       expect(File).to exist(msi_path)
       output = `powershell -command "get-authenticodesignature #{msi_path}"`
-      signature_hash = "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C"
+      signature_hash = "3B79DBE9410471E4FFBDFDAD646A83A1CD47D5AA"
       expect(output).to include(signature_hash)
       expect(output).to include("Valid")
       expect(output).not_to include("NotSigned")

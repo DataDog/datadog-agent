@@ -37,7 +37,7 @@ func GetSubprocessOutput(argv **C.char, cStdout **C.char, cStderr **C.char, cRet
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		*exception = C.CString(fmt.Sprintf("internal error creating stdout pipe: %v", err))
+		*exception = TrackedCString(fmt.Sprintf("internal error creating stdout pipe: %v", err))
 		return
 	}
 
@@ -51,7 +51,7 @@ func GetSubprocessOutput(argv **C.char, cStdout **C.char, cStderr **C.char, cRet
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		*exception = C.CString(fmt.Sprintf("internal error creating stderr pipe: %v", err))
+		*exception = TrackedCString(fmt.Sprintf("internal error creating stderr pipe: %v", err))
 		return
 	}
 
@@ -75,7 +75,7 @@ func GetSubprocessOutput(argv **C.char, cStdout **C.char, cStderr **C.char, cRet
 		}
 	}
 
-	*cStdout = C.CString(string(output))
-	*cStderr = C.CString(string(outputErr))
+	*cStdout = TrackedCString(string(output))
+	*cStderr = TrackedCString(string(outputErr))
 	*cRetCode = C.int(retCode)
 }

@@ -74,6 +74,7 @@ public:
 
     // const API
     py_info_t *getPyInfo();
+    void freePyInfo(py_info_t *);
     bool runSimpleString(const char *path) const;
     RtLoaderPyObject *getNone() const
     {
@@ -82,6 +83,7 @@ public:
 
     // Python Helpers
     char *getIntegrationList();
+    char *getInterpreterMemoryUsage();
 
     // aggregator API
     void setSubmitMetricCb(cb_submit_metric_t);
@@ -94,6 +96,7 @@ public:
     void setHeadersCb(cb_headers_t);
     void setGetHostnameCb(cb_get_hostname_t);
     void setGetClusternameCb(cb_get_clustername_t);
+    void setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t);
     void setLogCb(cb_log_t);
     void setSetExternalTagsCb(cb_set_external_tags_t);
 

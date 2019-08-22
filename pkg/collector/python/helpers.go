@@ -14,12 +14,16 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	yaml "gopkg.in/yaml.v2"
 )
 
 /*
 #include <stdlib.h>
-#include <datadog_agent_rtloader.h>
+
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
+
 char *getStringAddr(char **array, unsigned int idx);
 */
 import "C"
@@ -43,6 +47,21 @@ import "C"
 type stickyLock struct {
 	gstate C.rtloader_gilstate_t
 	locked uint32 // Flag set to 1 if the lock is locked, 0 otherwise
+}
+
+//PythonStatsEntry are entries for specific object type memory usage
+type PythonStatsEntry struct {
+	Reference string
+	NObjects  int
+	Size      int
+}
+
+//PythonStats contains python memory statistics
+type PythonStats struct {
+	Type     string
+	NObjects int
+	Size     int
+	Entries  []*PythonStatsEntry
 }
 
 const (
@@ -159,6 +178,65 @@ func GetPythonIntegrationList() ([]string, error) {
 	return ddPythonPackages, nil
 }
 
+// GetIntepreterMemoryUsage collects a python interpreter memory usage snapshot
+func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
+	if rtloader == nil {
+		return nil, fmt.Errorf("rtloader is not initialized")
+	}
+
+	glock := newStickyLock()
+	defer glock.unlock()
+
+	usage := C.get_interpreter_memory_usage(rtloader)
+	if usage == nil {
+		return nil, fmt.Errorf("Could not collect interpreter memory snapshot: %s", getRtLoaderError())
+	}
+	defer C.rtloader_free(rtloader, unsafe.Pointer(usage))
+	payload := C.GoString(usage)
+
+	log.Infof("Interpreter stats received: %v", payload)
+
+	stats := map[interface{}]interface{}{}
+	if err := yaml.Unmarshal([]byte(payload), &stats); err != nil {
+		return nil, fmt.Errorf("Could not Unmarshal python interpreter memory usage payload: %s", err)
+	}
+
+	myPythonStats := []*PythonStats{}
+	// Let's iterate map
+	for entryName, value := range stats {
+		entrySummary := value.(map[interface{}]interface{})
+		num := entrySummary["num"].(int)
+		size := entrySummary["sz"].(int)
+		entries := entrySummary["entries"].([]interface{})
+
+		pyStat := &PythonStats{
+			Type:     entryName.(string),
+			NObjects: num,
+			Size:     size,
+			Entries:  []*PythonStatsEntry{},
+		}
+
+		for _, entry := range entries {
+			contents := entry.([]interface{})
+			ref := contents[0].(string)
+			refNum := contents[1].(int)
+			refSz := contents[2].(int)
+
+			// add to list
+			pyEntry := &PythonStatsEntry{
+				Reference: ref,
+				NObjects:  refNum,
+				Size:      refSz,
+			}
+			pyStat.Entries = append(pyStat.Entries, pyEntry)
+		}
+
+		myPythonStats = append(myPythonStats, pyStat)
+	}
+
+	return myPythonStats, nil
+}
+
 // SetPythonPsutilProcPath sets python psutil.PROCFS_PATH
 func SetPythonPsutilProcPath(procPath string) error {
 	if rtloader == nil {
@@ -168,12 +246,12 @@ func SetPythonPsutilProcPath(procPath string) error {
 	glock := newStickyLock()
 	defer glock.unlock()
 
-	module := C.CString(psutilModule)
-	defer C.free(unsafe.Pointer(module))
-	attrName := C.CString(psutilProcPath)
-	defer C.free(unsafe.Pointer(attrName))
-	attrValue := C.CString(procPath)
-	defer C.free(unsafe.Pointer(attrValue))
+	module := TrackedCString(psutilModule)
+	defer C._free(unsafe.Pointer(module))
+	attrName := TrackedCString(psutilProcPath)
+	defer C._free(unsafe.Pointer(attrName))
+	attrValue := TrackedCString(procPath)
+	defer C._free(unsafe.Pointer(attrValue))
 
 	C.set_module_attr_string(rtloader, module, attrName, attrValue)
 	return getRtLoaderError()

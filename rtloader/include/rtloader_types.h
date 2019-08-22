@@ -5,7 +5,8 @@
 // Copyright 2019 Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_TYPES_H
 #define DATADOG_AGENT_RTLOADER_TYPES_H
-#include <string.h>
+#include <stdbool.h>
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,13 +27,21 @@ extern "C" {
 #endif
 
 #ifndef WIN32
-#    define _strdup(x) strdup(x)
+#    define _strdup(x) strdupe(x)
 #endif
 
 typedef enum rtloader_gilstate_e {
-    DATADOG_AGENT_RTLOADER_GIL_LOCKED,
+    DATADOG_AGENT_RTLOADER_GIL_LOCKED = 0,
     DATADOG_AGENT_RTLOADER_GIL_UNLOCKED
 } rtloader_gilstate_t;
+
+typedef enum {
+    DATADOG_AGENT_RTLOADER_ALLOCATION = 0,
+    DATADOG_AGENT_RTLOADER_FREE,
+} rtloader_mem_ops_t;
+
+typedef void *(*rtloader_malloc_t)(size_t);
+typedef void (*rtloader_free_t)(void *);
 
 typedef enum {
     DATADOG_AGENT_RTLOADER_GAUGE = 0,
@@ -64,9 +73,18 @@ typedef struct event_s {
 } event_t;
 
 typedef struct py_info_s {
-    const char *version;
-    char *path;
+    const char *version; // returned by Py_GetInfo(); is static string owned by python
+    char *path; // allocated within getPyInfo()
 } py_info_t;
+
+typedef enum {
+    DATADOG_AGENT_TRACE = 7,
+    DATADOG_AGENT_DEBUG = 10,
+    DATADOG_AGENT_INFO = 20,
+    DATADOG_AGENT_WARNING = 30,
+    DATADOG_AGENT_ERROR = 40,
+    DATADOG_AGENT_CRITICAL = 50
+} log_level_t;
 
 /*
  * custom builtins
@@ -93,6 +111,8 @@ typedef void (*cb_headers_t)(char **);
 typedef void (*cb_get_hostname_t)(char **);
 // (clustername)
 typedef void (*cb_get_clustername_t)(char **);
+// (tracemalloc_enabled)
+typedef bool (*cb_tracemalloc_enabled_t)(void);
 // (message, level)
 typedef void (*cb_log_t)(char *, int);
 // (hostname, source_type_name, list of tags)
@@ -104,7 +124,10 @@ typedef void (*cb_get_subprocess_output_t)(char **, char **, char **, int *, cha
 
 // CGO API
 //
+// memory
+//
 typedef void (*cb_cgo_free_t)(void *);
+typedef void (*cb_memory_tracker_t)(void *, size_t sz, rtloader_mem_ops_t op);
 
 // tagger
 //

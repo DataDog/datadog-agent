@@ -62,10 +62,7 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		t.outputChan <- message.NewMessageWithSource(
-			output.Content,
-			message.StatusInfo,
-			t.source)
+		t.outputChan <- message.NewMessageWithSource(output.Content, message.StatusInfo, t.source)
 	}
 }
 

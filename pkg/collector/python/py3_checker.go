@@ -16,11 +16,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
 var (
-	linterTimeout = 4 * time.Second
+	linterTimeout = time.Duration(config.Datadog.GetInt("python3_linter_timeout")) * time.Second
 )
 
 func init() {

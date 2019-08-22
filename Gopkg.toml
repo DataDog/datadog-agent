@@ -1,19 +1,15 @@
 [[constraint]]
   name = "github.com/DataDog/agent-payload"
-  version = "4.7.1"
+  version = "4.11.0"
 
 [[constraint]]
   name = "github.com/DataDog/gohai"
   branch = "master"
 
 [[constraint]]
-  name = "github.com/DataDog/zstd"
-  version = "~v1.3.0"
-
-[[constraint]]
-  name = "github.com/DataDog/zstd.v0.5"
+  name = "github.com/DataDog/zstd.v1.3"
   source = "github.com/DataDog/zstd"
-  revision = "2b373cbe6ac0c8e6960bbd18026ceb269eef89f5"
+  version = "~v1.3.0"
 
 [[constraint]]
   name = "github.com/Microsoft/go-winio"
@@ -187,7 +183,7 @@
 
 [[constraint]]
   name = "github.com/DataDog/gopsutil"
-  revision = "3ca45fa2b07679737219be93796a178822ff878f"
+  revision = "833e93ecbcfd25e491eceea5e42c49c22dac7ed1"
 
 [[constraint]]
   name = "github.com/iovisor/gobpf"
@@ -201,3 +197,12 @@
 [[override]]
   name = "golang.org/x/sys"
   revision = "61b9204099cb1bebc803c9ffb9b2d3acd9d457d9"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/benesch/cgosymbolizer"
+
+[[override]]
+  name = "github.com/ianlancetaylor/cgosymbolizer"
+  source = "github.com/ianlancetaylor/cgosymbolizer"
+  revision = "f5072df9c550dc687157e5d7efb50825cdf8f0eb"

@@ -9,12 +9,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	agentutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -30,11 +31,18 @@ type ContainerCheck struct {
 	lastRates       map[string]util.ContainerRateMetrics
 	lastRun         time.Time
 	lastCtrIDForPID map[int32]string
+	networkID       string
 }
 
 // Init initializes a ContainerCheck instance.
 func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	c.sysInfo = info
+
+	networkID, err := agentutil.GetNetworkID()
+	if err != nil {
+		log.Infof("no network ID detected: %s", err)
+	}
+	c.networkID = networkID
 }
 
 // Name returns the name of the ProcessCheck.
@@ -77,6 +85,7 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		totalContainers += float64(len(chunked[i]))
 		messages = append(messages, &model.CollectorContainer{
 			HostName:   cfg.HostName,
+			NetworkId:  c.networkID,
 			Info:       c.sysInfo,
 			Containers: chunked[i],
 			GroupId:    groupID,

@@ -8,6 +8,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"os/exec"
 
@@ -28,7 +29,6 @@ type menuItem struct {
 
 var (
 	separator = "SEPARATOR"
-	menuitems []menuItem
 	ni        *walk.NotifyIcon
 	launchgui bool
 	eventname = windows.StringToUTF16Ptr("ddtray-event")
@@ -36,19 +36,66 @@ var (
 
 func init() {
 	enableLoggingToFile()
+}
+
+func createMenuItems(notifyIcon *walk.NotifyIcon) []menuItem {
 	av, _ := version.New(version.AgentVersion, version.Commit)
 	verstring := av.GetNumberAndPre()
 
-	menuitems = make([]menuItem, 0)
+	isAdmin, err := isUserAnAdmin()
+	areAdminButtonsAvailable := isAdmin
+
+	if err != nil {
+		log.Warnf("Failed to call isUserAnAdmin %v", err)
+		// If we cannot determine if the user is admin or not let the user allow to click on the buttons.
+		areAdminButtonsAvailable = true
+	}
+
+	checkRightsAndRun := func(action func()) func() {
+		return func() {
+			if !areAdminButtonsAvailable {
+				showCustomMessage(notifyIcon, "You do not have the right to perform this action. "+
+					"Please login with administrator account.")
+			} else {
+				action()
+			}
+		}
+	}
+
+	menuitems := make([]menuItem, 0)
 	menuitems = append(menuitems, menuItem{label: verstring, enabled: false})
 	menuitems = append(menuitems, menuItem{label: separator})
-	menuitems = append(menuitems, menuItem{label: "&Start", handler: onStart, enabled: true})
-	menuitems = append(menuitems, menuItem{label: "S&top", handler: onStop, enabled: true})
-	menuitems = append(menuitems, menuItem{label: "&Restart", handler: onRestart, enabled: true})
-	menuitems = append(menuitems, menuItem{label: "&Configure", handler: onConfigure, enabled: canConfigure()})
+	menuitems = append(menuitems, menuItem{label: "&Start", handler: checkRightsAndRun(onStart), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "S&top", handler: checkRightsAndRun(onStop), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "&Restart", handler: checkRightsAndRun(onRestart), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "&Configure", handler: checkRightsAndRun(onConfigure), enabled: canConfigure()})
 	menuitems = append(menuitems, menuItem{label: "&Flare", handler: onFlare, enabled: true})
 	menuitems = append(menuitems, menuItem{label: separator})
 	menuitems = append(menuitems, menuItem{label: "E&xit", handler: onExit, enabled: true})
+
+	return menuitems
+}
+
+func isUserAnAdmin() (bool, error) {
+	shell32 := windows.NewLazySystemDLL("Shell32.dll")
+	defer windows.FreeLibrary(windows.Handle(shell32.Handle()))
+
+	isUserAnAdminProc := shell32.NewProc("IsUserAnAdmin")
+	ret, _, winError := isUserAnAdminProc.Call()
+
+	if winError != windows.NTE_OP_OK {
+		return false, fmt.Errorf("IsUserAnAdmin returns error code %d", winError)
+	}
+	if ret == 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
+func showCustomMessage(notifyIcon *walk.NotifyIcon, message string) {
+	if err := notifyIcon.ShowCustom("Datadog Agent Manager", message); err != nil {
+		log.Warnf("Failed to show custom message %v", err)
+	}
 }
 
 func onExit() {
@@ -114,14 +161,11 @@ func main() {
 		if button != walk.LeftButton {
 			return
 		}
-
-		if err := ni.ShowCustom(
-			"Datadog Agent Manager",
-			"Please right click to display available options."); err != nil {
-
-			log.Warnf("Failed to show custom message %v", err)
-		}
+		showCustomMessage(ni, "Please right click to display available options.")
 	})
+
+	menuitems := createMenuItems(ni)
+
 	for _, item := range menuitems {
 		var action *walk.Action
 		if item.label == separator {

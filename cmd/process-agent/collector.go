@@ -14,9 +14,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -28,20 +28,23 @@ type checkPayload struct {
 
 // Collector will collect metrics from the local system and ship to the backend.
 type Collector struct {
+	// Set to 1 if enabled 0 is not. We're using an integer
+	// so we can use the sync/atomic for thread-safe access.
+	realTimeEnabled int32
+
+	groupID int32
+
 	send         chan checkPayload
 	rtIntervalCh chan time.Duration
 	cfg          *config.AgentConfig
 	httpClient   http.Client
-	groupID      int32
+
 	// counters for each type of check
 	runCounters   sync.Map
 	enabledChecks []checks.Check
 
 	// Controls the real-time interval, can change live.
 	realTimeInterval time.Duration
-	// Set to 1 if enabled 0 is not. We're using an integer
-	// so we can use the sync/atomic for thread-safe access.
-	realTimeEnabled int32
 }
 
 // NewCollector creates a new Collector

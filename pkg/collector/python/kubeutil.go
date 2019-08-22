@@ -76,5 +76,5 @@ func GetKubeletConnectionInfo(payload **C.char) {
 		cache.Cache.Set(kubeletCacheKey, creds, 5*time.Minute)
 	}
 
-	*payload = C.CString(creds)
+	*payload = TrackedCString(creds)
 }

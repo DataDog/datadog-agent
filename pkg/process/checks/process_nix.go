@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/gopsutil/cpu"
 	"github.com/DataDog/gopsutil/process"
 
-	"github.com/DataDog/datadog-agent/pkg/process/model"
+	model "github.com/DataDog/agent-payload/process"
 )
 
 func formatUser(fp *process.FilledProcess) *model.ProcessUser {

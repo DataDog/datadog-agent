@@ -3,7 +3,11 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-2019 Datadog, Inc.
 
-windows_arch :x86_64
+if ENV["WINDOWS_BUILD_32_BIT"]
+    windows_arch :x86
+else
+    windows_arch :x86_64
+end
 # Don't append a timestamp to the package version
 append_timestamp false
 

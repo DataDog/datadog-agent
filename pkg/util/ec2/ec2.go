@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,6 +34,40 @@ func GetInstanceID() (string, error) {
 // GetHostname fetches the hostname for current host from the EC2 metadata API
 func GetHostname() (string, error) {
 	return getMetadataItemWithMaxLength("/hostname", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+}
+
+// GetNetworkID retrieves the network ID using the EC2 metadata endpoint. For
+// EC2 instances, the the network ID is the VPC ID, if the instance is found to
+// be a part of exactly one VPC.
+func GetNetworkID() (string, error) {
+	resp, err := getMetadataItem("/network/interfaces/macs")
+	if err != nil {
+		return "", err
+	}
+
+	macs := strings.Split(strings.TrimSpace(resp), "\n")
+	vpcIDs := common.NewStringSet()
+
+	for _, mac := range macs {
+		if mac == "" {
+			continue
+		}
+		mac = strings.TrimSuffix(mac, "/")
+		id, err := getMetadataItem(fmt.Sprintf("/network/interfaces/macs/%s/vpc-id", mac))
+		if err != nil {
+			return "", err
+		}
+		vpcIDs.Add(id)
+	}
+
+	switch len(vpcIDs) {
+	case 0:
+		return "", fmt.Errorf("EC2: GetNetworkID no mac addresses returned")
+	case 1:
+		return vpcIDs.GetAll()[0], nil
+	default:
+		return "", fmt.Errorf("EC2: GetNetworkID too many mac addresses returned")
+	}
 }
 
 func getMetadataItemWithMaxLength(endpoint string, maxLength int) (string, error) {
