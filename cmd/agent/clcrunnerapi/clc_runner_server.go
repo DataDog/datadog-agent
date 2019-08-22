@@ -81,8 +81,9 @@ func StartCLCRunnerServer() error {
 		ErrorLog: stdLog.New(&config.ErrorLogWriter{
 			AdditionalDepth: 4, // Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 		}, "Error from the clc runner http API server: ", 0), // log errors to seelog,
-		TLSConfig:    &tlsConfig,
-		WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
+		TLSConfig:         &tlsConfig,
+		WriteTimeout:      config.Datadog.GetDuration("clc_runner_server_write_timeout") * time.Second,
+		ReadHeaderTimeout: config.Datadog.GetDuration("clc_runner_server_readheader_timeout") * time.Second,
 	}
 	tlsListener := tls.NewListener(clcListener, &tlsConfig)
 

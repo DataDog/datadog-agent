@@ -408,6 +408,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
 	config.BindEnvAndSetDefault("clc_runner_host", "") // must be set using the Kubernetes downward API
 	config.BindEnvAndSetDefault("clc_runner_port", 5005)
+	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
+	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
 
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
