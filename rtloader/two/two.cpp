@@ -819,9 +819,9 @@ void Two::setGetClusternameCb(cb_get_clustername_t cb)
     _set_get_clustername_cb(cb);
 }
 
-void Two::setGetTracemallocEnabledCb(cb_get_tracemalloc_enabled_t cb)
+void Two::setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t cb)
 {
-    _set_get_tracemalloc_enabled_cb(cb);
+    _set_tracemalloc_enabled_cb(cb);
 }
 
 void Two::setLogCb(cb_log_t cb)

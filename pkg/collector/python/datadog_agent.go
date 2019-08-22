@@ -59,9 +59,9 @@ func GetClusterName(clusterName **C.char) {
 	*clusterName = TrackedCString(goClusterName)
 }
 
-// GetTracemallocEnabled exposes the tracemalloc configuration of the agent to Python checks.
-//export GetTracemallocEnabled
-func GetTracemallocEnabled() C.bool {
+// TracemallocEnabled exposes the tracemalloc configuration of the agent to Python checks.
+//export TracemallocEnabled
+func TracemallocEnabled() C.bool {
 	return C.bool(config.Datadog.GetBool("tracemalloc_debug"))
 }
 

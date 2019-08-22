@@ -813,9 +813,9 @@ void Three::setGetClusternameCb(cb_get_clustername_t cb)
     _set_get_clustername_cb(cb);
 }
 
-void Three::setGetTracemallocEnabledCb(cb_get_tracemalloc_enabled_t cb)
+void Three::setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t cb)
 {
-    _set_get_tracemalloc_enabled_cb(cb);
+    _set_tracemalloc_enabled_cb(cb);
 }
 
 void Three::setLogCb(cb_log_t cb)
