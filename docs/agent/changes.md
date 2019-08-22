@@ -572,6 +572,6 @@ will change from the GCE instance _name_ to the full GCE instance _hostname_ (wh
 
 _Only affects Windows Agents_
 
-When running the agent on Windows Agent 5, the metrics _system.mem.pagefile.*_ display inconsistent units (they're off by 10^6).
+When running the Windows Agent 5, the metrics _system.mem.pagefile.*_ display inconsistent units (they're off by 10^6).
 This problem has been fixed on Windows Agent6; however, the Agent 5 discrepancy remains for backwards compatibility.  Therefore,
 reported values (and associated monitors) will be different upon upgrade from Agent v5 to Agent v6.
