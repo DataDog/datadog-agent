@@ -135,7 +135,8 @@ func (c *DCAClient) ClusterAgentAPIEndpoint() string {
 }
 
 // getClusterAgentEndpoint provides a validated https endpoint from configuration keys in datadog.yaml:
-// 1st. configuration key "cluster_agent.url", add the https prefix if the scheme isn't specified
+// 1st. configuration key "cluster_agent.url" (or the DD_CLUSTER_AGENT_URL environment variable),
+//      add the https prefix if the scheme isn't specified
 // 2nd. environment variables associated with "cluster_agent.kubernetes_service_name"
 //      ${dcaServiceName}_SERVICE_HOST and ${dcaServiceName}_SERVICE_PORT
 func getClusterAgentEndpoint() (string, error) {
