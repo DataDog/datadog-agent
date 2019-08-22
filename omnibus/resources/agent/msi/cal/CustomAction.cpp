@@ -424,16 +424,20 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
     {
         std::string usershort;
         toMbcs(usershort, installedUser.c_str());
-        WcaLog(LOGMSG_STANDARD, "This install installed user %s, will remove", usershort.c_str());
+        WcaLog(LOGMSG_STANDARD, "This install installed user %s", usershort.c_str());
         installedUserPtr = installedUser.c_str();
         if (installState.getStringValue(installCreatedDDDomain.c_str(), installedDomain)) {
             installedDomainPtr = installedDomain.c_str();
             toMbcs(usershort, installedDomainPtr);
-            WcaLog(LOGMSG_STANDARD, "Removing user from domain %s", usershort);
+            WcaLog(LOGMSG_STANDARD, "NOT Removing user from domain %s", usershort);
+            WcaLog(LOGMSG_STANDARD, "Domain user can be removed.");
             installedComplete = installedDomain + L"\\";
+        } else {
+            WcaLog(LOGMSG_STANDARD, "Will delete user %s from local user store", usershort.c_str());
+            willDeleteUser = true;
         }
         installedComplete += installedUser;
-        willDeleteUser = true;
+        
     }
 
     if (willDeleteUser)
