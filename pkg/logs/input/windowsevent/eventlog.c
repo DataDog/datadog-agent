@@ -12,9 +12,9 @@
 
 DWORD WINAPI SubscriptionCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, PVOID pContext, EVT_HANDLE hEvent);
 DWORD PrintEvent(EVT_HANDLE hEvent);
-ULONGLONG startEventSubscribe(char *channel, char* query, ULONGLONG ulBookmark, int iFlags, PVOID ctx)
+ULONGLONG startEventSubscribe(char *channel, char* query, ULONGLONG ullBookmark, int iFlags, PVOID ctx)
 {
-    EVT_HANDLE hBookmark = (EVT_HANDLE) ulBookmark;
+    EVT_HANDLE hBookmark = (EVT_HANDLE) ullBookmark;
     EVT_SUBSCRIBE_FLAGS flags = (EVT_SUBSCRIBE_FLAGS) iFlags;
 	DWORD status = ERROR_SUCCESS;
 	EVT_HANDLE hSubscription = NULL;
@@ -142,19 +142,20 @@ DWORD PrintEvent(EVT_HANDLE hEvent)
 
 cleanup:
 
-	if (pRenderedContent)
+	if (pRenderedContent) {
 		free(pRenderedContent);
+	}
 
 	return status;
 }
 
 LPWSTR FormatEvtField(EVT_HANDLE hMetadata, EVT_HANDLE hEvent, EVT_FORMAT_MESSAGE_FLAGS FormatId);
 PEVT_VARIANT GetProviderName(EVT_HANDLE hEvent);
-RichEvent* EnrichEvent(ULONGLONG ulEvent)
+RichEvent* EnrichEvent(ULONGLONG ullEvent)
 {
     EVT_HANDLE hProviderMetadata = NULL;
     LPWSTR pwsMessage = NULL;
-    EVT_HANDLE hEvent = (EVT_HANDLE) ulEvent;
+    EVT_HANDLE hEvent = (EVT_HANDLE) ullEvent;
     RichEvent *richEvent = (RichEvent*)malloc(sizeof(RichEvent));
 
     // Get Provider name
@@ -192,14 +193,15 @@ RichEvent* EnrichEvent(ULONGLONG ulEvent)
 
 cleanup:
 
-    if (hEvent)
+    if (hEvent) {
         EvtClose(hEvent);
-
-    if (pRenderedValues)
+    }
+    if (pRenderedValues) {
         free(pRenderedValues);
-
-    if (hProviderMetadata)
+    }
+    if (hProviderMetadata) {
         EvtClose(hProviderMetadata);
+    }
 
     return richEvent;
 }
@@ -255,8 +257,9 @@ PEVT_VARIANT GetProviderName(EVT_HANDLE hEvent)
 
 cleanup:
 
-    if (hContext)
+    if (hContext) {
         EvtClose(hContext);
+    }
 
     return pRenderedValues;
 }
@@ -279,10 +282,12 @@ LPWSTR FormatEvtField(EVT_HANDLE hMetadata, EVT_HANDLE hEvent, EVT_FORMAT_MESSAG
             // size of the buffer, so you know when you have read the last string, or you
             // can terminate the list of strings with a second null terminator character
             // as this example does.
-            if ((EvtFormatMessageKeyword == FormatId))
+            if ((EvtFormatMessageKeyword == FormatId)) {
                 pBuffer[dwBufferSize-1] = L'\0';
-            else
+            }
+            else {
                 dwBufferSize = dwBufferUsed;
+            }
 
             pBuffer = (LPWSTR)malloc(dwBufferSize * sizeof(WCHAR));
 
@@ -291,8 +296,9 @@ LPWSTR FormatEvtField(EVT_HANDLE hMetadata, EVT_HANDLE hEvent, EVT_FORMAT_MESSAG
                 EvtFormatMessage(hMetadata, hEvent, 0, 0, NULL, FormatId, dwBufferSize, pBuffer, &dwBufferUsed);
 
                 // Add the second null terminator character.
-                if ((EvtFormatMessageKeyword == FormatId))
+                if ((EvtFormatMessageKeyword == FormatId)) {
                     pBuffer[dwBufferUsed-1] = L'\0';
+                }
             }
             else
             {

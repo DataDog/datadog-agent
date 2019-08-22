@@ -20,8 +20,8 @@ typedef struct RichEvent_t {
     LPWSTR level;
 } RichEvent ;
 
-ULONGLONG startEventSubscribe(char *channel, char* query, ULONGLONG  hBookmark, int flags, PVOID ctx);
-RichEvent* EnrichEvent(ULONGLONG ulEvent);
+ULONGLONG startEventSubscribe(char *channel, char* query, ULONGLONG  ullBookmark, int flags, PVOID ctx);
+RichEvent* EnrichEvent(ULONGLONG ullEvent);
 
 /// our version of winerror.h doesn't have these... when we get an up-to-date compiler,
 // should be able to remove.
