@@ -120,6 +120,7 @@ func IsForbidden(ip string) bool {
 		"0.0.0.0":         true,
 		"::":              true,
 		"0:0:0:0:0:0:0:0": true,
+		"[::]":            true,
 	}
 	return forbidden[ip]
 }
