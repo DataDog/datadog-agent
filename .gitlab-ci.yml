@@ -59,7 +59,7 @@ variables:
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   S3_DSD6_URI: s3://dsd6-staging/linux
   RELEASE_VERSION: nightly
-  DATADOG_AGENT_BUILDIMAGES: v1614107-913f0a9
+  DATADOG_AGENT_BUILDIMAGES: v1631023-f2ae59b
   DATADOG_AGENT_BUILDERS: v1613952-f072482
 
 
