@@ -32,7 +32,7 @@ Starting with the 6.0 release configuration files will now be stored in
 
 ### Agent configuration file
 
-Please refer to [this section][config] of the documentation for a detailed list
+Refer to the [Configuration Options][config] for a detailed list
 of the configuration options that were either changed or deprecated in the new Agent.
 
 In addition to the location change, the primary agent configuration file has been
