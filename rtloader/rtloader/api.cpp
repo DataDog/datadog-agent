@@ -426,6 +426,11 @@ char *get_integration_list(rtloader_t *rtloader)
     return AS_TYPE(RtLoader, rtloader)->getIntegrationList();
 }
 
+char *get_interpreter_memory_usage(rtloader_t *rtloader)
+{
+    return AS_TYPE(RtLoader, rtloader)->getInterpreterMemoryUsage();
+}
+
 /*
  * _util API
  */

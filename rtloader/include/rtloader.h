@@ -235,6 +235,9 @@ public:
       \return A yaml-encoded C-string with the list of every datadog integration wheel installed.
     */
     virtual char *getIntegrationList() = 0;
+#define _PY_MEM_MODULE "utils.py_mem"
+#define _PY_MEM_SUMMARY_FUNC "get_mem_stats"
+    virtual char *getInterpreterMemoryUsage() = 0;
 
     // aggregator API
     //! setSubmitMetricCb member.
