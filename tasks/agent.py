@@ -181,7 +181,7 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
     os.mkdir(dist_folder)
 
     if "python" in build_tags:
-        copy_tree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"))
+        os.mkdir(os.path.join(dist_folder, "checks"))
         copy_tree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"))
         shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
     if not puppy:

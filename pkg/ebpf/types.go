@@ -6,10 +6,6 @@ import "fmt"
 type KProbeName string
 
 const (
-	// TCPv4Connect traces the v4 connect() system call
-	TCPv4Connect KProbeName = "kprobe/tcp_v4_connect"
-	// TCPv4ConnectReturn traces the return value for the v4 connect() system call
-	TCPv4ConnectReturn KProbeName = "kretprobe/tcp_v4_connect"
 	// TCPv4DestroySock traces the tcp_v4_destroy_sock system call (called for both ipv4 and ipv6)
 	TCPv4DestroySock KProbeName = "kprobe/tcp_v4_destroy_sock"
 
@@ -24,6 +20,10 @@ const (
 	// XXX: This is only used for telemetry for now to count the number of errors returned
 	// by the tcp_sendmsg func (so we can have a # of tcp sent bytes we miscounted)
 	TCPSendMsgReturn KProbeName = "kretprobe/tcp_sendmsg"
+
+	// TCPGetInfo traces the tcp_get_info() system call
+	// This probe is used for offset guessing only
+	TCPGetInfo KProbeName = "kprobe/tcp_get_info"
 
 	// TCPCleanupRBuf traces the tcp_cleanup_rbuf() system call
 	TCPCleanupRBuf KProbeName = "kprobe/tcp_cleanup_rbuf"

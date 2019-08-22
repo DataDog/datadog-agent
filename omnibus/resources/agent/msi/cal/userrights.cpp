@@ -27,7 +27,7 @@ PSID GetSidForUser(LPCWSTR host, LPCWSTR user) {
 	ZeroMemory(refDomain, (cchRefDomain + 1) * sizeof(wchar_t));
 
 	// try it again
-	bRet = LookupAccountName(NULL, user, newsid, &cbSid, refDomain, &cchRefDomain, &use);
+	bRet = LookupAccountName(host, user, newsid, &cbSid, refDomain, &cchRefDomain, &use);
 	if (!bRet) {
 		WcaLog(LOGMSG_STANDARD, "Failed to lookup account name %d", GetLastError());
 		goto cleanAndFail;

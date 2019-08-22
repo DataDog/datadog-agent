@@ -1,6 +1,6 @@
 [[constraint]]
   name = "github.com/DataDog/agent-payload"
-  version = "4.9.1"
+  version = "4.11.0"
 
 [[constraint]]
   name = "github.com/DataDog/gohai"

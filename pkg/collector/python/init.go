@@ -295,7 +295,7 @@ func Initialize(paths ...string) error {
 
 	// Init RtLoader machinery
 	if C.init(rtloader) == 0 {
-		err := C.GoString(C.get_error(rtloader))
+		err := fmt.Sprintf("could not initialize rtloader: %s", C.GoString(C.get_error(rtloader)))
 		return addExpvarPythonInitErrors(err)
 	}
 

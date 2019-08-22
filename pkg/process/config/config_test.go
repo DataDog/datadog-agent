@@ -161,7 +161,6 @@ func TestDefaultConfig(t *testing.T) {
 	// assert that some sane defaults are set
 	assert.Equal("info", agentConfig.LogLevel)
 	assert.Equal(true, agentConfig.AllowRealTime)
-	assert.Equal(containerChecks, agentConfig.EnabledChecks)
 	assert.Equal(true, agentConfig.Scrubber.Enabled)
 
 	os.Setenv("DOCKER_DD_AGENT", "yes")
@@ -169,7 +168,6 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(os.Getenv("HOST_PROC"), "")
 	assert.Equal(os.Getenv("HOST_SYS"), "")
 	os.Setenv("DOCKER_DD_AGENT", "no")
-	assert.Equal(containerChecks, agentConfig.EnabledChecks)
 	assert.Equal(6062, agentConfig.ProcessExpVarPort)
 
 	os.Unsetenv("DOCKER_DD_AGENT")
