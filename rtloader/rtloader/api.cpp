@@ -406,6 +406,11 @@ void set_get_clustername_cb(rtloader_t *rtloader, cb_get_clustername_t cb)
     AS_TYPE(RtLoader, rtloader)->setGetClusternameCb(cb);
 }
 
+void set_tracemalloc_enabled_cb(rtloader_t *rtloader, cb_tracemalloc_enabled_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setGetTracemallocEnabledCb(cb);
+}
+
 void set_log_cb(rtloader_t *rtloader, cb_log_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setLogCb(cb);
@@ -419,6 +424,11 @@ void set_set_external_tags_cb(rtloader_t *rtloader, cb_set_external_tags_t cb)
 char *get_integration_list(rtloader_t *rtloader)
 {
     return AS_TYPE(RtLoader, rtloader)->getIntegrationList();
+}
+
+char *get_interpreter_memory_usage(rtloader_t *rtloader)
+{
+    return AS_TYPE(RtLoader, rtloader)->getInterpreterMemoryUsage();
 }
 
 /*

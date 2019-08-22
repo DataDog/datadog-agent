@@ -14,10 +14,12 @@ import (
 	"fmt"
 	"os/exec"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
-	linterTimeout = 4 * time.Second
+	linterTimeout = time.Duration(config.Datadog.GetInt("python3_linter_timeout")) * time.Second
 )
 
 type warning struct {

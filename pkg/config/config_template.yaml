@@ -245,6 +245,14 @@ api_key:
 ## Disable Python3 validation of python checks.
 #
 # disable_py3_validation: false
+#
+## @param tracemalloc_debug - boolean - optional - default: false
+## Enables debugging with tracemalloc for python checks.
+## Please not that this option is only available when python_version is set to "3".
+## Additionally when this option becomes effective the number of check runners is
+## overridden to 1.
+#
+# tracemalloc_debug: false
 
 ## @param secret_backend_command - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.

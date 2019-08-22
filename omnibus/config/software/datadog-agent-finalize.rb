@@ -100,6 +100,12 @@ build do
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.py_compiled_files.txt"
             command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print >> #{install_dir}/embedded/.py_compiled_files.txt"
 
+            # The prerm and preinst scripts of the package will use this list to detect which files
+            # have been setup by the installer, this way, on removal, we'll be able to delete only files
+            # which have not been created by the package.
+            command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.installed_by_pkg.txt"
+            command "find #{install_dir}/embedded/lib/python*/site-packages >> #{install_dir}/embedded/.installed_by_pkg.txt"
+
             # removing the doc from the embedded folder to reduce package size by ~3MB
             delete "#{install_dir}/embedded/share/doc"
 

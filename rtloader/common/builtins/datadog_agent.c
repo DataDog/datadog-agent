@@ -10,28 +10,31 @@
 #include <log.h>
 
 // these must be set by the Agent
-static cb_get_version_t cb_get_version = NULL;
-static cb_get_config_t cb_get_config = NULL;
-static cb_headers_t cb_headers = NULL;
-static cb_get_hostname_t cb_get_hostname = NULL;
 static cb_get_clustername_t cb_get_clustername = NULL;
+static cb_get_config_t cb_get_config = NULL;
+static cb_get_hostname_t cb_get_hostname = NULL;
+static cb_tracemalloc_enabled_t cb_tracemalloc_enabled = NULL;
+static cb_get_version_t cb_get_version = NULL;
+static cb_headers_t cb_headers = NULL;
 static cb_set_external_tags_t cb_set_external_tags = NULL;
 
 // forward declarations
-static PyObject *get_version(PyObject *self, PyObject *args);
-static PyObject *get_config(PyObject *self, PyObject *args);
-static PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs);
-static PyObject *get_hostname(PyObject *self, PyObject *args);
 static PyObject *get_clustername(PyObject *self, PyObject *args);
+static PyObject *get_config(PyObject *self, PyObject *args);
+static PyObject *get_hostname(PyObject *self, PyObject *args);
+static PyObject *tracemalloc_enabled(PyObject *self, PyObject *args);
+static PyObject *get_version(PyObject *self, PyObject *args);
+static PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *log_message(PyObject *self, PyObject *args);
 static PyObject *set_external_tags(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
-    { "get_version", get_version, METH_NOARGS, "Get Agent version." },
-    { "get_config", get_config, METH_VARARGS, "Get an Agent config item." },
-    { "headers", (PyCFunction)headers, METH_VARARGS | METH_KEYWORDS, "Get standard set of HTTP headers." },
-    { "get_hostname", get_hostname, METH_NOARGS, "Get the hostname." },
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
+    { "get_config", get_config, METH_VARARGS, "Get an Agent config item." },
+    { "get_hostname", get_hostname, METH_NOARGS, "Get the hostname." },
+    { "tracemalloc_enabled", tracemalloc_enabled, METH_VARARGS, "Gets if tracemalloc is enabled." },
+    { "get_version", get_version, METH_NOARGS, "Get Agent version." },
+    { "headers", (PyCFunction)headers, METH_VARARGS | METH_KEYWORDS, "Get standard set of HTTP headers." },
     { "log", log_message, METH_VARARGS, "Log a message through the agent logger." },
     { "set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags." },
     { NULL, NULL } // guards
@@ -82,6 +85,11 @@ void _set_get_clustername_cb(cb_get_clustername_t cb)
 void _set_set_external_tags_cb(cb_set_external_tags_t cb)
 {
     cb_set_external_tags = cb;
+}
+
+void _set_tracemalloc_enabled_cb(cb_tracemalloc_enabled_t cb)
+{
+    cb_tracemalloc_enabled = cb;
 }
 
 /*! \fn PyObject *get_version(PyObject *self, PyObject *args)
@@ -287,6 +295,31 @@ PyObject *get_clustername(PyObject *self, PyObject *args)
         return retval;
     }
     Py_RETURN_NONE;
+}
+
+/*! \fn PyObject *tracemalloc_enabled(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog-agent.tracemalloc_enabled` method, returning
+    whether or not tracemalloc is enabled
+    \return a PyObject * pointer to Py_True or Py_False with the state of tracemalloc.
+
+    This function is callable as the `datadog_agent.tracemalloc_enabled` python
+    method, it uses the `cb_tracemalloc_enabled()` callback to retrieve the value from the agent
+    with CGO. If the callback has not been set `None` will be returned.
+*/
+PyObject *tracemalloc_enabled(PyObject *self, PyObject *args)
+{
+    // callback must be set
+    if (cb_tracemalloc_enabled == NULL) {
+        Py_RETURN_FALSE;
+    }
+
+    bool enabled = cb_tracemalloc_enabled();
+
+    if (enabled) {
+        Py_RETURN_TRUE;
+    }
+
+    Py_RETURN_FALSE;
 }
 
 /*! \fn PyObject *log_message(PyObject *self, PyObject *args)
