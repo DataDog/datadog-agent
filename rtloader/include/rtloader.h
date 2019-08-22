@@ -296,6 +296,15 @@ public:
     */
     virtual void setGetHostnameCb(cb_get_hostname_t) = 0;
 
+    //! setGetTracemallocEnabledCb member.
+    /*!
+      \param A cb_tracemalloc_enabled_t function pointer to the CGO callback.
+
+      This allows us to set the CGO callback that will provide the tracemalloc enabled
+      configuration setting.
+    */
+    virtual void setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t) = 0;
+
     //! setGetClusternameCb member.
     /*!
       \param A cb_get_clustername_t function pointer to the CGO callback.

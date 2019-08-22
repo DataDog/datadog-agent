@@ -5,6 +5,7 @@
 // Copyright 2019 Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_TYPES_H
 #define DATADOG_AGENT_RTLOADER_TYPES_H
+#include <stdbool.h>
 #include <stdlib.h>
 
 #ifdef __cplusplus
@@ -110,6 +111,8 @@ typedef void (*cb_headers_t)(char **);
 typedef void (*cb_get_hostname_t)(char **);
 // (clustername)
 typedef void (*cb_get_clustername_t)(char **);
+// (tracemalloc_enabled)
+typedef bool (*cb_tracemalloc_enabled_t)(void);
 // (message, level)
 typedef void (*cb_log_t)(char *, int);
 // (hostname, source_type_name, list of tags)

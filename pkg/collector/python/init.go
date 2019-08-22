@@ -76,20 +76,22 @@ void initLogger(rtloader_t *rtloader) {
 // This also init "util" module who expose the same "headers" function
 //
 
-void GetVersion(char **);
-void GetHostname(char **);
 void GetClusterName(char **);
-void Headers(char **);
 void GetConfig(char*, char **);
+void GetHostname(char **);
+void GetVersion(char **);
+void Headers(char **);
 void SetExternalTags(char *, char *, char **);
+bool TracemallocEnabled();
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
-	set_get_version_cb(rtloader, GetVersion);
-	set_get_hostname_cb(rtloader, GetHostname);
 	set_get_clustername_cb(rtloader, GetClusterName);
-	set_headers_cb(rtloader, Headers);
 	set_get_config_cb(rtloader, GetConfig);
+	set_get_hostname_cb(rtloader, GetHostname);
+	set_get_version_cb(rtloader, GetVersion);
+	set_headers_cb(rtloader, Headers);
 	set_set_external_tags_cb(rtloader, SetExternalTags);
+	set_tracemalloc_enabled_cb(rtloader, TracemallocEnabled);
 }
 
 //

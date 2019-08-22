@@ -59,6 +59,12 @@ func GetClusterName(clusterName **C.char) {
 	*clusterName = TrackedCString(goClusterName)
 }
 
+// TracemallocEnabled exposes the tracemalloc configuration of the agent to Python checks.
+//export TracemallocEnabled
+func TracemallocEnabled() C.bool {
+	return C.bool(config.Datadog.GetBool("tracemalloc_debug"))
+}
+
 // Headers returns a basic set of HTTP headers that can be used by clients in Python checks.
 //export Headers
 func Headers(yamlPayload **C.char) {
