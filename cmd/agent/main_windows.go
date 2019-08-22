@@ -4,8 +4,6 @@
 // Copyright 2016-2019 Datadog, Inc.
 
 // +build !android
-//go:generate go run ../../pkg/config/render_config.go agent-py2py3 ../../pkg/config/config_template.yaml ./dist/datadog.yaml
-//go:generate go run ../../pkg/config/render_config.go agent-py3 ../../pkg/config/config_template.yaml ./dist/datadog.yaml
 
 package main
 

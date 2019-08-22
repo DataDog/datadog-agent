@@ -152,24 +152,18 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     }
     ctx.run(cmd.format(**args), env=env)
 
-    # Render the configuration file template
-    #
-    # We need to remove cross compiling bits if any because go generate must
-    # build and execute in the native platform
-    env.update({
-        "GOOS": "",
-        "GOARCH": "",
-    })
-
-    cmd = "go generate -x {}/cmd/agent"
-    ctx.run(cmd.format(REPO_PATH), env=env)
-
+    # Render the Agent configuration file template
     if with_both_python:
-        cmd = "go generate -x --run=\"agent-py2py3\" {}/cmd/agent"
-        ctx.run(cmd.format(REPO_PATH), env=env)
+        cmd = "go run ./pkg/config/render_config.go agent-py2py3 ./pkg/config/config_template.yaml ./cmd/agent/dist/datadog.yaml"
     else:
-        cmd = "go generate -x --run=\"agent-py3\" {}/cmd/agent"
-        ctx.run(cmd.format(REPO_PATH), env=env)
+        cmd = "go run ./pkg/config/render_config.go agent-py3 ./pkg/config/config_template.yaml ./cmd/agent/dist/datadog.yaml"
+
+    ctx.run(cmd, env=env)
+
+    # On Linux and MacOS, render the system-probe configuration file template
+    if sys.platform != 'win32':
+        cmd = "go run ./pkg/config/render_config.go system-probe ./pkg/config/config_template.yaml ./cmd/agent/dist/system-probe.yaml"
+        ctx.run(cmd, env=env)
 
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, puppy=puppy)
