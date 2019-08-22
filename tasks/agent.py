@@ -152,6 +152,12 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     }
     ctx.run(cmd.format(**args), env=env)
 
+    # Remove cross-compiling bits to render config
+    env.update({
+        "GOOS": "",
+        "GOARCH": "",
+    })
+
     # Render the Agent configuration file template
     if with_both_python:
         cmd = "go run ./pkg/config/render_config.go agent-py2py3 ./pkg/config/config_template.yaml ./cmd/agent/dist/datadog.yaml"
