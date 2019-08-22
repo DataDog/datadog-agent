@@ -8,10 +8,9 @@
 ---
 upgrade:
   - |
-    Update to the configuration of the systemd check: Before, if `unit_names` and `unit_regexes`
-    were not set, all units were monitored. Now `unit_names` is required and only
-    matching units will be monitored, `unit_regexes` have been removed (avoid
-    accidental monitoring of too many metrics).
+    Update to the configuration of the systemd check: ``unit_names`` is now
+    required and only matching units will be monitored, ``unit_regexes``
+    configuration has been removed.
   - |
     Several metrics sent by the systemd check have been renamed. The integration is now stable.
 enhancements:
