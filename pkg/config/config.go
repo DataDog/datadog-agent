@@ -130,6 +130,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
 	config.BindEnvAndSetDefault("c_core_dump", false)
 
+	// Python 3 linter timeout, in seconds
+	config.BindEnvAndSetDefault("python3_linter_timeout", 8)
+
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
 	// compatibility with Agent5 behavior/win
