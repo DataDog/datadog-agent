@@ -19,28 +19,30 @@ import (
 // #include <stdlib.h>
 // #include <datadog_agent_rtloader.h>
 //
-// extern void getVersion(char **);
-// extern void getConfig(char *, char **);
-// extern void headers(char **);
-// extern void getHostname(char **);
-// extern void getClustername(char **);
 // extern void doLog(char*, int);
+// extern void getClustername(char **);
+// extern void getConfig(char *, char **);
+// extern void getHostname(char **);
+// extern bool getTracemallocEnabled();
+// extern void getVersion(char **);
+// extern void headers(char **);
 // extern void setExternalHostTags(char*, char*, char**);
 //
 // static void initDatadogAgentTests(rtloader_t *rtloader) {
-//    set_get_version_cb(rtloader, getVersion);
-//    set_get_config_cb(rtloader, getConfig);
-//    set_headers_cb(rtloader, headers);
-//    set_get_hostname_cb(rtloader, getHostname);
 //    set_get_clustername_cb(rtloader, getClustername);
+//    set_get_config_cb(rtloader, getConfig);
+//    set_get_hostname_cb(rtloader, getHostname);
+//    set_get_tracemalloc_enabled_cb(rtloader, getTracemallocEnabled);
+//    set_get_version_cb(rtloader, getVersion);
+//    set_headers_cb(rtloader, headers);
 //    set_log_cb(rtloader, doLog);
 //    set_set_external_tags_cb(rtloader, setExternalHostTags);
 // }
 import "C"
 
 var (
-	rtloader     *C.rtloader_t
-	tmpfile *os.File
+	rtloader *C.rtloader_t
+	tmpfile  *os.File
 )
 
 type message struct {
@@ -148,6 +150,11 @@ func getHostname(in **C.char) {
 //export getClustername
 func getClustername(in **C.char) {
 	*in = C.CString("the-cluster")
+}
+
+//export getTracemallocEnabled
+func getTracemallocEnabled() C.bool {
+	return C.bool(true)
 }
 
 //export doLog
