@@ -25,6 +25,7 @@ import (
 )
 
 var chanSize = 10
+var closeTimeout = 1 * time.Second
 
 type TailerTestSuite struct {
 	suite.Suite
@@ -53,6 +54,7 @@ func (suite *TailerTestSuite) SetupTest() {
 	})
 	sleepDuration := 10 * time.Millisecond
 	suite.tailer = NewTailer(suite.outputChan, suite.source, suite.testPath, sleepDuration, false)
+	suite.tailer.closeTimeout = closeTimeout
 }
 
 func (suite *TailerTestSuite) TearDownTest() {
@@ -63,6 +65,31 @@ func (suite *TailerTestSuite) TearDownTest() {
 
 func TestTailerTestSuite(t *testing.T) {
 	suite.Run(t, new(TailerTestSuite))
+}
+
+func (suite *TailerTestSuite) TestStopAfterFileRotationWhenStuck() {
+	// Write more messages than the output channel capacity
+	for i := 0; i < chanSize+2; i++ {
+		_, err := suite.testFile.WriteString(fmt.Sprintf("line %d\n", i))
+		suite.Nil(err)
+	}
+
+	// Start to tail and ensure it has read the file
+	// At this point the tailer is stuck because the channel is full
+	// and it tries to write in it
+	err := suite.tailer.StartFromBeginning()
+	suite.Nil(err)
+	<-suite.tailer.outputChan
+
+	// Ask the tailer to stop after a file rotation
+	suite.tailer.StopAfterFileRotation()
+
+	// Ensure the tailer is effectively closed
+	select {
+	case <-suite.tailer.done:
+	case <-time.After(closeTimeout + 10*time.Second):
+		suite.Fail("timeout")
+	}
 }
 
 func (suite *TailerTestSuite) TestTailFromBeginning() {
