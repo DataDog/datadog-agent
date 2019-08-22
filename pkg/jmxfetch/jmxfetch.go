@@ -144,23 +144,11 @@ func (j *JMXFetch) Start(manage bool) error {
 	// Specify a maximum memory allocation pool for the JVM
 	javaOptions := j.JavaOptions
 
-	incompatibleOptions := false
 	useContainerSupport := config.Datadog.GetBool("jmx_use_container_support")
 	useCgroupMemoryLimit := config.Datadog.GetBool("jmx_use_cgroup_memory_limit")
 
 	if useContainerSupport && useCgroupMemoryLimit {
-		log.Warnf("Skipping incompatible options %q and %q, only one should be set at a time", jvmContainerSupport, jvmCgroupMemoryAwareness)
-		incompatibleOptions = true
-	}
-	if incompatibleOptions || !(useContainerSupport || useCgroupMemoryLimit) {
-		// Specify a maximum memory allocation pool for the JVM
-		if !strings.Contains(javaOptions, "Xmx") && !strings.Contains(javaOptions, "XX:MaxHeapSize") {
-			javaOptions += defaultJvmMaxMemoryAllocation
-		}
-		// Specify the initial memory allocation pool for the JVM
-		if !strings.Contains(javaOptions, "Xms") && !strings.Contains(javaOptions, "XX:InitialHeapSize") {
-			javaOptions += defaultJvmInitialMemoryAllocation
-		}
+		return fmt.Errorf("incompatible options %q and %q", jvmContainerSupport, jvmCgroupMemoryAwareness)
 	} else if useContainerSupport {
 		javaOptions += jvmContainerSupport
 	} else if useCgroupMemoryLimit {
@@ -174,6 +162,15 @@ func (j *JMXFetch) Start(manage bool) error {
 		}
 		if passOption {
 			javaOptions += jvmCgroupMemoryAwareness
+		}
+	} else {
+		// Specify a maximum memory allocation pool for the JVM
+		if !strings.Contains(javaOptions, "Xmx") && !strings.Contains(javaOptions, "XX:MaxHeapSize") {
+			javaOptions += defaultJvmMaxMemoryAllocation
+		}
+		// Specify the initial memory allocation pool for the JVM
+		if !strings.Contains(javaOptions, "Xms") && !strings.Contains(javaOptions, "XX:InitialHeapSize") {
+			javaOptions += defaultJvmInitialMemoryAllocation
 		}
 	}
 
