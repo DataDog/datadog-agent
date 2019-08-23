@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -47,6 +48,7 @@ const (
 	a7TagReady     = "ready"
 	a7TagNotReady  = "not_ready"
 	a7TagUnknown   = "unknown"
+	a7TagPython3   = "python3" //Already running on python3, linting is disabled
 )
 
 func init() {
@@ -255,7 +257,11 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 			checkFilePath = checkFilePath[:len(checkFilePath)-1]
 		}
 
-		if warnings, err := validatePython3(checkName, checkFilePath); err != nil {
+		if strings.HasPrefix(host.GetPythonVersion(), "3") {
+			// the linter used by validatePython3 doesn't work when run from python3
+			status = a7TagPython3
+			metricValue = 1.0
+		} else if warnings, err := validatePython3(checkName, checkFilePath); err != nil {
 			status = a7TagUnknown
 			log.Errorf("Failed to validate Python 3 linting for check '%s': '%s'", checkName, err)
 		} else if len(warnings) == 0 {
