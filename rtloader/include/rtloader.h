@@ -264,6 +264,14 @@ public:
     */
     virtual void setSubmitEventCb(cb_submit_event_t) = 0;
 
+    //! setSubmitHistogramBucketCb member.
+    /*!
+      \param A cb_submit_histogram_bucket_t function pointer to the CGO callback.
+
+      Actual histogram buckets are submitted from go-land, this allows us to set the CGO callback.
+    */
+    virtual void setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t) = 0;
+
     // datadog_agent API
 
     //! setGetVersionCb member.

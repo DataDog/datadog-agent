@@ -294,3 +294,41 @@ func TestEventCheckTagsError(t *testing.T) {
 		t.Errorf("wrong printed value: '%s'", out)
 	}
 }
+
+func TestSubmitHistogramBucket(t *testing.T) {
+	out, err := run(`aggregator.submit_histogram_bucket(None, 'id', 'name', 42, 1.0, 2.0, 1, 'myhost', ['foo', 21, 'bar', ["hey"]])`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out != "" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+	if checkID != "id" {
+		t.Fatalf("Unexpected id value: %s", checkID)
+	}
+	if name != "name" {
+		t.Fatalf("Unexpected name value: %s", name)
+	}
+	if intValue != 42 {
+		t.Fatalf("Unexpected int value: %d", intValue)
+	}
+	if lowerBound != 1.0 {
+		t.Fatalf("Unexpected lower bound value: %f", lowerBound)
+	}
+	if upperBound != 2.0 {
+		t.Fatalf("Unexpected upper bound value: %f", upperBound)
+	}
+	if monotonic != true {
+		t.Fatalf("Unexpected monotonic value: %v", monotonic)
+	}
+	if hostname != "myhost" {
+		t.Fatalf("Unexpected hostname value: %s", hostname)
+	}
+	if len(tags) != 2 {
+		t.Fatalf("Unexpected tags length: %d", len(tags))
+	}
+	if tags[0] != "foo" || tags[1] != "bar" {
+		t.Fatalf("Unexpected tags: %v", tags)
+	}
+}

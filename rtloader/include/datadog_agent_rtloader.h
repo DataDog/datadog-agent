@@ -376,6 +376,15 @@ DATADOG_AGENT_RTLOADER_API void set_submit_service_check_cb(rtloader_t *, cb_sub
 */
 DATADOG_AGENT_RTLOADER_API void set_submit_event_cb(rtloader_t *, cb_submit_event_t);
 
+/*! \fn void set_submit_histogram_bucket_cb(rtloader_t *, cb_submit_histogram_bucket_t)
+    \brief Sets the submit event callback to be used by rtloader for histogram bucket submission.
+    \param cb A function pointer with cb_submit_histogram_bucket_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_submit_histogram_bucket_cb(rtloader_t *, cb_submit_histogram_bucket_t);
+
 // DATADOG_AGENT API
 /*! \fn void set_get_version_cb(rtloader_t *, cb_get_version_t)
     \brief Sets a callback to be used by rtloader to collect the agent version.

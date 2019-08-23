@@ -10,16 +10,19 @@
 static cb_submit_metric_t cb_submit_metric = NULL;
 static cb_submit_service_check_t cb_submit_service_check = NULL;
 static cb_submit_event_t cb_submit_event = NULL;
+static cb_submit_histogram_bucket_t cb_submit_histogram_bucket = NULL;
 
 // forward declarations
 static PyObject *submit_metric(PyObject *self, PyObject *args);
 static PyObject *submit_service_check(PyObject *self, PyObject *args);
 static PyObject *submit_event(PyObject *self, PyObject *args);
+static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "submit_metric", (PyCFunction)submit_metric, METH_VARARGS, "Submit metrics." },
     { "submit_service_check", (PyCFunction)submit_service_check, METH_VARARGS, "Submit service checks." },
     { "submit_event", (PyCFunction)submit_event, METH_VARARGS, "Submit events." },
+    { "submit_histogram_bucket", (PyCFunction)submit_histogram_bucket, METH_VARARGS, "Submit histogram bucket." },
     { NULL, NULL } // guards
 };
 
@@ -75,6 +78,11 @@ void _set_submit_service_check_cb(cb_submit_service_check_t cb)
 void _set_submit_event_cb(cb_submit_event_t cb)
 {
     cb_submit_event = cb;
+}
+
+void _set_submit_histogram_bucket_cb(cb_submit_histogram_bucket_t cb)
+{
+    cb_submit_histogram_bucket = cb;
 }
 
 /*! \fn py_tag_to_c(PyObject *py_tags)
@@ -355,4 +363,43 @@ gstate_cleanup:
     PyGILState_Release(gstate);
 
     return retval;
+}
+
+static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
+{
+    if (cb_submit_histogram_bucket == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    PyObject *check = NULL; // borrowed
+    PyObject *py_tags = NULL; // borrowed
+    char *check_id = NULL;
+    char *name = NULL;
+    int value;
+    float lower_bound;
+    float upper_bound;
+    int monotonic;
+    char *hostname = NULL;
+    char **tags = NULL;
+
+    // Python call: aggregator.submit_histogram_bucket(self, metric string, value, lowerBound, upperBound, monotonic, hostname, tags)
+    if (!PyArg_ParseTuple(args, "OssiffisO", &check, &check_id, &name, &value, &lower_bound, &upper_bound, &monotonic, &hostname, &py_tags)) {
+        goto error;
+    }
+
+    if ((tags = py_tag_to_c(py_tags)) == NULL)
+        goto error;
+
+    cb_submit_histogram_bucket(check_id, name, value, lower_bound, upper_bound, monotonic, hostname, tags);
+
+    free_tags(tags);
+
+    PyGILState_Release(gstate);
+    Py_RETURN_NONE;
+
+error:
+    PyGILState_Release(gstate);
+    return NULL;
 }

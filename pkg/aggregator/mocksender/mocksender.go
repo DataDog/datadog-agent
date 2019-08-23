@@ -49,6 +49,15 @@ func (m *MockSender) SetupAcceptAll() {
 		mock.AnythingOfType("string"),                     // message
 	).Return()
 	m.On("Event", mock.AnythingOfType("metrics.Event")).Return()
+	m.On("HistogramBucket",
+		mock.AnythingOfType("string"),   // metric name
+		mock.AnythingOfType("int"),      // value
+		mock.AnythingOfType("float64"),  // lower bound
+		mock.AnythingOfType("float64"),  // upper bound
+		mock.AnythingOfType("bool"),     // monotonic
+		mock.AnythingOfType("string"),   // hostname
+		mock.AnythingOfType("[]string"), // tags
+	).Return()
 	m.On("GetMetricStats", mock.AnythingOfType("map[string]int64")).Return()
 	m.On("DisableDefaultHostname", mock.AnythingOfType("bool")).Return()
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()
