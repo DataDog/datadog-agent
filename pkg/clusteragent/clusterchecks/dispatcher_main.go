@@ -20,7 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const runnerStatsMinutes = 5
+const firstRunnerStatsMinutes = 2  // collect runner stats after the first 2 minutes
+const secondRunnerStatsMinutes = 5 // collect runner stats after the first 7 minutes
+const finalRunnerStatsMinutes = 10 // collect runner stats endlessly every 10 minutes
 
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {
@@ -162,6 +164,7 @@ func (d *dispatcher) run(ctx context.Context) {
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()
 
+	runnerStatsMinutes := firstRunnerStatsMinutes
 	runnerStatsTicker := time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
 	defer runnerStatsTicker.Stop()
 
@@ -181,10 +184,21 @@ func (d *dispatcher) run(ctx context.Context) {
 				d.reschedule(danglingConfs)
 			}
 		case <-runnerStatsTicker.C:
+			// Collect stats with an exponential backoff 2 - 5 - 10 minutes
+			if runnerStatsMinutes == firstRunnerStatsMinutes {
+				runnerStatsMinutes = secondRunnerStatsMinutes
+				runnerStatsTicker = time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
+			} else if runnerStatsMinutes == secondRunnerStatsMinutes {
+				runnerStatsMinutes = finalRunnerStatsMinutes
+				runnerStatsTicker = time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
+			}
+
+			// Update runner stats and rebalance if needed
 			if d.advancedDispatching {
-				// collect CLC runners stats and update cache
-				// needed for the advanced dispatching logic
+				// Collect CLC runners stats and update cache
 				d.updateRunnersStats()
+				// Rebalance checks distribution
+				d.rebalance()
 			}
 		}
 	}

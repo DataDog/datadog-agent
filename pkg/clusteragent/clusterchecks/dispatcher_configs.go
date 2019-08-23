@@ -10,6 +10,7 @@ package clusterchecks
 import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 // getAllConfigs returns all configurations known to the store, for reporting
@@ -46,6 +47,9 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 	// Register config
 	digest := config.Digest()
 	d.store.digestToConfig[digest] = config
+	for _, instance := range config.Instances {
+		d.store.idToDigest[check.BuildID(config.Name, instance, config.InitConfig)] = digest
+	}
 
 	// No target node specified: store in danglingConfigs
 	if targetNodeName == "" {
@@ -82,6 +86,12 @@ func (d *dispatcher) removeConfig(digest string) {
 	delete(d.store.digestToNode, digest)
 	delete(d.store.digestToConfig, digest)
 	delete(d.store.danglingConfigs, digest)
+
+	for k, v := range d.store.idToDigest {
+		if v == digest {
+			delete(d.store.idToDigest, k)
+		}
+	}
 
 	// Remove from node configs if assigned
 	if found {
@@ -148,4 +158,13 @@ func (d *dispatcher) patchConfiguration(in integration.Config) (integration.Conf
 	}
 
 	return out, nil
+}
+
+// getConfigAndDigest returns config and digest of a check by checkID
+func (d *dispatcher) getConfigAndDigest(checkID string) (integration.Config, string) {
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	digest := d.store.idToDigest[check.ID(checkID)]
+	return d.store.digestToConfig[digest], digest
 }

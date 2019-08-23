@@ -8,6 +8,7 @@
 package clusterchecks
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -17,8 +18,10 @@ import (
 )
 
 const (
-	kubeServiceIDPrefix  = "kube_service_uid://"
-	kubeEndpointIDPrefix = "kube_endpoint_uid://"
+	kubeServiceIDPrefix      = "kube_service_uid://"
+	kubeEndpointIDPrefix     = "kube_endpoint_uid://"
+	checkExecutionTimeWeight = 0.8
+	checkMetricSamplesWeight = 0.2
 )
 
 // makeConfigArray flattens a map of configs into a slice. Creating a new slice
@@ -82,10 +85,26 @@ func getNameAndNamespaceFromEntity(s string) (string, string) {
 	return "", ""
 }
 
+// calculateBusyness returns the busyness value of a node
 func calculateBusyness(checkStats types.CLCRunnersStats) int {
 	busyness := 0.0
 	for _, stats := range checkStats {
-		busyness += 0.8*float64(stats.AverageExecutionTime) + 0.2*float64(stats.MetricSamples)
+		busyness += busynessFunc(stats.AverageExecutionTime, stats.MetricSamples)
 	}
 	return int(busyness)
+}
+
+// busynessFunc returns the weight of a check
+func busynessFunc(avgExecTime, mSamples int) float64 {
+	return checkExecutionTimeWeight*float64(avgExecTime) + checkMetricSamplesWeight*float64(mSamples)
+}
+
+// orderedKeys sorts the keys of a map and return them in a slice
+func orderedKeys(m map[string]int) []string {
+	keys := []string{}
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }

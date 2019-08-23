@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -26,6 +27,7 @@ type clusterStore struct {
 	nodes            map[string]*nodeStore                    // All nodes known to the cluster-agent
 	danglingConfigs  map[string]integration.Config            // Configs we could not dispatch to any node
 	endpointsConfigs map[string]map[string]integration.Config // Endpoints configs to be consumed by node agents
+	idToDigest       map[check.ID]string                      // link check IDs to check configs
 }
 
 func newClusterStore() *clusterStore {
@@ -42,6 +44,7 @@ func (s *clusterStore) reset() {
 	s.nodes = make(map[string]*nodeStore)
 	s.danglingConfigs = make(map[string]integration.Config)
 	s.endpointsConfigs = make(map[string]map[string]integration.Config)
+	s.idToDigest = make(map[check.ID]string)
 }
 
 // getNodeStore retrieves the store struct for a given node name, if it exists
@@ -111,4 +114,25 @@ func (s *nodeStore) removeConfig(digest string) {
 	s.lastConfigChange = timestampNow()
 	delete(s.digestToConfig, digest)
 	dispatchedConfigs.WithLabelValues(s.name).Dec()
+}
+
+func (s *nodeStore) addRunnerStats(checkID string, stats types.CLCRunnerStats) {
+	s.clcRunnerStats[checkID] = stats
+}
+
+func (s *nodeStore) removeRunnerStats(checkID string) {
+	_, found := s.clcRunnerStats[checkID]
+	if !found {
+		log.Debugf("unknown check ID %s, skipping", checkID)
+		return
+	}
+	delete(s.clcRunnerStats, checkID)
+}
+
+func (s *nodeStore) getRunnerStats(checkID string) types.CLCRunnerStats {
+	stats, found := s.clcRunnerStats[checkID]
+	if !found {
+		log.Debugf("unknown check ID %s", checkID)
+	}
+	return stats
 }

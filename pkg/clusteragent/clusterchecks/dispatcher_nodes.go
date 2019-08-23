@@ -158,10 +158,10 @@ func (d *dispatcher) updateRunnersStats() {
 		} else {
 			node.Lock()
 			node.clcRunnerStats = stats
-			log.Debugf("Updated CLC Runner stats with IP %s on node %s: %v", node.clientIP, name, stats)
+			log.Tracef("Updated CLC Runner stats on node: %s, node IP: %s, stats: %v", name, node.clientIP, stats)
 			node.busyness = calculateBusyness(stats)
-			log.Debugf("Updated busyness on node %s: %d", name, node.busyness)
 			node.Unlock()
+			log.Debugf("Updated busyness on node: %s, node IP: %s, busyness value: %d", name, node.clientIP, node.busyness)
 		}
 	}
 }
