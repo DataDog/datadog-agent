@@ -39,7 +39,7 @@ type DockerConfigProvider struct {
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewDockerConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
 	return &DockerConfigProvider{
-		// periodically resync if we're missing events
+		// periodically resync every 30 runs if we're missing events
 		syncInterval: 30,
 	}, nil
 }
@@ -61,7 +61,8 @@ func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
 	}
 
 	var containers map[string]map[string]string
-	// on the first run we collect all labels, then rely on events
+	// on the first run we collect all labels, then rely on individual events to
+	// avoid listing all containers too often
 	if d.labelCache == nil || d.syncCounter == d.syncInterval {
 		containers, err = d.dockerUtil.AllContainerLabels()
 		if err != nil {
