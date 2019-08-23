@@ -48,7 +48,7 @@ if ohai["platform"] != "windows"
     command python_configure.join(" "), :env => env
     command "make -j #{workers}", :env => env
     command "make install", :env => env
-    # delete "#{install_dir}/embedded/lib/python2.7/test"
+    delete "#{install_dir}/embedded/lib/python3.7/test"
 
     # There exists no configure flag to tell Python to not compile readline support :(
     major, minor, bugfix = version.split(".")
