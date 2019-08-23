@@ -1,0 +1,19 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    Update to the configuration of the systemd check: ``unit_names`` is now
+    required and only matching units will be monitored, ``unit_regexes``
+    configuration has been removed.
+  - |
+    Several metrics sent by the systemd check have been renamed. The integration is now stable.
+enhancements:
+  - |
+    Add `private_socket` configuration to the systemd check. Defaults to `/run/systemd/private`
+    (or `/host/run/systemd/private` when using Docker Agent).
