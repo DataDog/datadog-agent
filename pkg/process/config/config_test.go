@@ -254,8 +254,8 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.True(agentConfig.DisableTCPTracing)
 	assert.True(agentConfig.DisableUDPTracing)
 	assert.True(agentConfig.DisableIPv6Tracing)
-	assert.Equal(map[string][]string(map[string][]string{"172.0.0.1/20": []string{"*"}, "*": []string{"443"}, "127.0.0.1": []string{"5005"}}), agentConfig.ExcludedSourceConnections)
-	assert.Equal(map[string][]string(map[string][]string{"172.0.0.1/20": []string{"*"}, "*": []string{"*"}, "2001:db8::2:1": []string{"5005"}}), agentConfig.ExcludedDestinationConnections)
+	assert.Equal(map[string][]string(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"443"}, "127.0.0.1": {"5005"}}), agentConfig.ExcludedSourceConnections)
+	assert.Equal(map[string][]string(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"*"}, "2001:db8::2:1": {"5005"}}), agentConfig.ExcludedDestinationConnections)
 }
 
 func TestProxyEnv(t *testing.T) {
