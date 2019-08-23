@@ -71,6 +71,9 @@ platforms:
     user_data: files/agent/none.txt
 provisioner:
   name: ansible
+  config_options:
+    defaults:
+      any_errors_fatal: true
   playbooks:
     create: create.yml
     prepare: prepare.yml

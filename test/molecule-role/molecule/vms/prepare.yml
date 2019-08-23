@@ -109,6 +109,10 @@
       apt:
         name: [nmap, stress]
         state: present
+      register: nmap_stress_result
+      retries: 10
+      delay: 30
+      until: nmap_stress_result is not failed
       when: ansible_distribution == "Ubuntu"
     - name: Install nc (for ncat binary), libselinux-python and stresss in Fedora
       become: true
