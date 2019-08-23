@@ -32,6 +32,14 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 		log.Info("system probe TCP tracing disabled by configuration")
 	}
 
+	if len(cfg.ExcludedSourceConnections) > 0 {
+		tracerConfig.ExcludedSourceConnections = cfg.ExcludedSourceConnections
+	}
+
+	if len(cfg.ExcludedDestinationConnections) > 0 {
+		tracerConfig.ExcludedDestinationConnections = cfg.ExcludedDestinationConnections
+	}
+
 	tracerConfig.CollectLocalDNS = cfg.CollectLocalDNS
 
 	tracerConfig.MaxTrackedConnections = cfg.MaxTrackedConnections

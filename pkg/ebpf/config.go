@@ -61,6 +61,12 @@ type Config struct {
 
 	// ClosedChannelSize specifies the size for closed channel for the tracer
 	ClosedChannelSize int
+
+	// ExcludedSourceConnections is a map of source connections to blacklist
+	ExcludedSourceConnections map[string][]string
+
+	// ExcludedDestinationConnections is a map of destination connections to blacklist
+	ExcludedDestinationConnections map[string][]string
 }
 
 // NewDefaultConfig enables traffic collection for all connection types

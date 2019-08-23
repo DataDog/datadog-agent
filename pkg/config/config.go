@@ -475,6 +475,8 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.max_closed_connections_buffered")
 	config.SetKnown("system_probe_config.max_connection_state_buffered")
 	config.SetKnown("system_probe_config.excluded_linux_versions")
+	config.SetKnown("system_probe_config.source_excludes")
+	config.SetKnown("system_probe_config.dest_excludes")
 	config.SetKnown("system_probe_config.closed_channel_size")
 
 	// Network
