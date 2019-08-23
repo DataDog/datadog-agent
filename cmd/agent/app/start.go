@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
+	"github.com/DataDog/datadog-agent/cmd/agent/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -164,6 +165,14 @@ func StartAgent() error {
 		}
 	}
 
+	// start clc runner server
+	// only start when the cluster agent is enabled and a cluster check runner host is enabled
+	if config.Datadog.GetBool("cluster_agent.enabled") && config.Datadog.GetBool("clc_runner_enabled") {
+		if err = clcrunnerapi.StartCLCRunnerServer(); err != nil {
+			return log.Errorf("Error while starting clc runner api server, exiting: %v", err)
+		}
+	}
+
 	// start the GUI server
 	guiPort := config.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
@@ -250,6 +259,7 @@ func StopAgent() {
 		common.MetadataScheduler.Stop()
 	}
 	api.StopServer()
+	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
 	if common.Forwarder != nil {
 		common.Forwarder.Stop()
