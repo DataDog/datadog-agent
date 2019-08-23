@@ -100,7 +100,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 	}
 
 	if bucket.Value < 0 {
-		log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
+		log.Warnf("Negative bucket delta %d for metric %s discarding", bucket.Value, bucket.Name)
 		return
 	}
 	if bucket.Value == 0 {

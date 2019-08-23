@@ -212,12 +212,12 @@ func submitEvent(id *C.char, ev *C.event_t) {
 func submitHistogramBucket(id *C.char, cMetricName *C.char, cVal C.int, cLowerBound C.float, cUpperBound C.float, cMonotonic C.int, cHostname *C.char, t **C.char) {
 	checkID = C.GoString(id)
 	name = C.GoString(cMetricName)
-    intValue = int(cVal)
-    lowerBound = float64(cLowerBound)
-    upperBound = float64(cUpperBound)
-    monotonic = (cMonotonic != 0)
-    hostname = C.GoString(cHostname)
-    if t != nil {
+	intValue = int(cVal)
+	lowerBound = float64(cLowerBound)
+	upperBound = float64(cUpperBound)
+	monotonic = (cMonotonic != 0)
+	hostname = C.GoString(cHostname)
+	if t != nil {
 		tags = append(tags, charArrayToSlice(t)...)
 	}
 }
