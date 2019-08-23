@@ -159,12 +159,16 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     })
 
     # Render the Agent configuration file template
-    if with_both_python:
-        cmd = "go run ./pkg/config/render_config.go agent-py2py3 ./pkg/config/config_template.yaml ./cmd/agent/dist/datadog.yaml"
-    else:
-        cmd = "go run ./pkg/config/render_config.go agent-py3 ./pkg/config/config_template.yaml ./cmd/agent/dist/datadog.yaml"
+    cmd = "go run {go_file} {build_type} {template_file} {output_file}"
 
-    ctx.run(cmd, env=env)
+    args = {
+        "go_file": "./pkg/config/render_config.go",
+        "build_type": "agent-py2py3" if with_both_python else "agent-py3",
+        "template_file": "./pkg/config/config_template.yaml",
+        "output_file": "./cmd/agent/dist/datadog.yaml",
+    }
+
+    ctx.run(cmd.format(**args), env=env)
 
     # On Linux and MacOS, render the system-probe configuration file template
     if sys.platform != 'win32':
