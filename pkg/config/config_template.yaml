@@ -160,6 +160,15 @@ api_key:
 
 {{ end }}
 {{- if .Agent }}
+{{- if .BothPythonPresent -}}
+## @param python_version - integer - optional - default: 2
+## The major version of Python used to run integrations and custom checks.
+## The only supported values are 2 (to use Python 2) or 3 (to use Python 3).
+## Do not change this option when using the official Docker Agent images.
+#
+# python_version: 2
+
+{{ end }}
 
 ############################
 ## Advanced Configuration ##
