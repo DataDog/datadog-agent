@@ -7,16 +7,17 @@
 
 #include "constants.h"
 
-#include <_util.h>
-#include <aggregator.h>
-#include <cgo_free.h>
-#include <containers.h>
-#include <datadog_agent.h>
-#include <kubeutil.h>
-#include <rtloader_types.h>
-#include <stringutils.h>
-#include <tagger.h>
-#include <util.h>
+#include "_util.h"
+#include "aggregator.h"
+#include "cgo_free.h"
+#include "containers.h"
+#include "datadog_agent.h"
+#include "kubeutil.h"
+#include "rtloader_mem.h"
+#include "rtloader_types.h"
+#include "stringutils.h"
+#include "tagger.h"
+#include "util.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -53,14 +54,14 @@ void Two::initPythonHome(const char *pythonHome)
 {
     char *oldPythonHome = _pythonHome;
     if (pythonHome == NULL || strlen(pythonHome) == 0) {
-        _pythonHome = _strdup(_defaultPythonHome);
+        _pythonHome = strdupe(_defaultPythonHome);
     } else {
-        _pythonHome = _strdup(pythonHome);
+        _pythonHome = strdupe(pythonHome);
     }
 
     // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
     Py_SetPythonHome(_pythonHome);
-    free(oldPythonHome);
+    _free(oldPythonHome);
 }
 
 bool Two::init()
@@ -129,7 +130,7 @@ py_info_t *Two::getPyInfo()
     PyObject *path = NULL;
     PyObject *str_path = NULL;
 
-    py_info_t *info = (py_info_t *)malloc(sizeof(*info));
+    py_info_t *info = (py_info_t *)_malloc(sizeof(*info));
     if (!info) {
         setError("could not allocate a py_info_t struct");
         return NULL;
@@ -163,6 +164,18 @@ done:
     Py_XDECREF(path);
     Py_XDECREF(str_path);
     return info;
+}
+/**
+ * freePyInfo()
+ */
+void Two::freePyInfo(py_info_t *info)
+{
+    info->version = NULL;
+    if (info->path) {
+        free(info->path);
+    }
+    free(info);
+    return;
 }
 
 bool Two::runSimpleString(const char *code) const
@@ -408,7 +421,7 @@ char *Two::runCheck(RtLoaderPyObject *check)
         goto done;
     }
 
-    ret_copy = _strdup(ret);
+    ret_copy = strdupe(ret);
 
 done:
     Py_XDECREF(result);
@@ -441,7 +454,7 @@ char **Two::getCheckWarnings(RtLoaderPyObject *check)
         goto done;
     }
 
-    warnings = (char **)malloc(sizeof(*warnings) * (numWarnings + 1));
+    warnings = (char **)_malloc(sizeof(*warnings) * (numWarnings + 1));
     if (!warnings) {
         setError("could not allocate memory to store warnings");
         goto done;
@@ -452,7 +465,12 @@ char **Two::getCheckWarnings(RtLoaderPyObject *check)
         PyObject *warn = PyList_GetItem(warns_list, idx); // borrowed ref
         if (warn == NULL) {
             setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
-            free(warnings);
+
+            for (int jdx = 0; jdx < numWarnings && warnings[jdx]; jdx++) {
+                _free(warnings[jdx]);
+            }
+            _free(warnings);
+
             warnings = NULL;
             goto done;
         }
@@ -801,6 +819,11 @@ void Two::setGetClusternameCb(cb_get_clustername_t cb)
     _set_get_clustername_cb(cb);
 }
 
+void Two::setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t cb)
+{
+    _set_tracemalloc_enabled_cb(cb);
+}
+
 void Two::setLogCb(cb_log_t cb)
 {
     _set_log_cb(cb);
@@ -892,4 +915,62 @@ done:
     GILRelease(state);
 
     return wheels;
+}
+
+// getInterpreterMemoryUsage return a dict with the python interpreters memory
+// usage snapshot. The returned dict must be freed by calling....
+char *Two::getInterpreterMemoryUsage()
+{
+    PyObject *pyMemory = NULL;
+    PyObject *memSummary = NULL;
+    PyObject *args = NULL;
+    PyObject *summary = NULL;
+    char *memUsage = NULL;
+
+    rtloader_gilstate_t state = GILEnsure();
+
+    pyMemory = PyImport_ImportModule(_PY_MEM_MODULE);
+    if (pyMemory == NULL) {
+        setError("could not import " _PY_MEM_MODULE ": " + _fetchPythonError());
+        goto done;
+    }
+
+    memSummary = PyObject_GetAttrString(pyMemory, _PY_MEM_SUMMARY_FUNC);
+    if (memSummary == NULL) {
+        setError("could not fetch " _PY_MEM_SUMMARY_FUNC ": " + _fetchPythonError());
+        goto done;
+    }
+
+    // an empty tuple *must* be used when no arguments are used
+    args = PyTuple_New(0);
+    if (args == NULL) {
+        setError("could not initialize args to empty tuple: " + _fetchPythonError());
+        goto done;
+    }
+
+    summary = PyObject_Call(memSummary, args, NULL);
+    if (summary == NULL) {
+        setError("error fetching interpreter memory usage: " + _fetchPythonError());
+        goto done;
+    }
+
+    if (PyDict_Check(summary) == 0) {
+        setError("'" _PY_MEM_SUMMARY_FUNC "' did not return a dictionary");
+        goto done;
+    }
+
+    memUsage = as_yaml(summary);
+    if (memUsage == NULL) {
+        setError("'packages' could not be serialized to yaml: " + _fetchPythonError());
+        goto done;
+    }
+
+done:
+    Py_XDECREF(summary);
+    Py_XDECREF(args);
+    Py_XDECREF(memSummary);
+    Py_XDECREF(pyMemory);
+    GILRelease(state);
+
+    return memUsage;
 }

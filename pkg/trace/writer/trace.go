@@ -150,9 +150,13 @@ func (w *TraceWriter) addSpans(pkg *SampledSpans) {
 		w.flush()
 	}
 	if len(pkg.Trace) > 0 {
+		log.Tracef("Handling new trace with %d spans: %v", len(pkg.Trace), pkg.Trace)
 		w.traces = append(w.traces, traceutil.APITrace(pkg.Trace))
 	}
-	w.events = append(w.events, pkg.Events...)
+	if len(pkg.Events) > 0 {
+		log.Tracef("Handling new APM events: %v", pkg.Events)
+		w.events = append(w.events, pkg.Events...)
+	}
 	w.bufferedSize += size
 }
 

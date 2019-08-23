@@ -48,6 +48,15 @@ DATADOG_AGENT_RTLOADER_API rtloader_t *make2(const char *pythonhome, char **erro
 */
 DATADOG_AGENT_RTLOADER_API rtloader_t *make3(const char *pythonhome, char **error);
 
+// HELPERS
+/*! \fn void set_memory_tracker_cb(cb_memory_tracker_t)
+    \brief Sets a callback to be used by rtloader for some memory allocation book-keeping.
+    \param object A function pointer to the callback function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_memory_tracker_cb(cb_memory_tracker_t);
+
 // API
 /*! \fn void destroy(rtloader_t *rtloader)
     \brief Destructor function for the provided rtloader backend.
@@ -248,10 +257,18 @@ DATADOG_AGENT_RTLOADER_API rtloader_pyobject_t *get_none(const rtloader_t *);
     error.
     \sa py_info_t, rtloader_t
 
-    Allocates memory for the returned `py_info_t` structure and should be freed accordingly.
+    Allocates memory for the returned `py_info_t` structure and should be freed by calling free_py_info()
 */
 DATADOG_AGENT_RTLOADER_API py_info_t *get_py_info(rtloader_t *);
 
+/*! \fn py_info_t *free_py_info(rtloader_t *)
+    \brief Routine to free structure returned from get_py_info
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param A py_info_t * pointer previously returned form get_py_info
+
+    Frees the structure and appropriate structure memebers.
+*/
+DATADOG_AGENT_RTLOADER_API void free_py_info(rtloader_t *, py_info_t *);
 /*! \fn int run_simple_string(const rtloader_t *, const char *code)
     \brief Routine to execute a simple piece of python code on the RtLoader python runtime
     implementation.
@@ -319,6 +336,15 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const rtloader_t *, const int);
     The returned list must be freed by the caller.
 */
 DATADOG_AGENT_RTLOADER_API char *get_integration_list(rtloader_t *);
+
+/*! \fn char *get_interpreter_memory_usage(rtloader_t *)
+    \brief Routine to get python interpreter memory usage (pympler).
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \sa rtloader_t
+
+    TODO.
+*/
+DATADOG_AGENT_RTLOADER_API char *get_interpreter_memory_usage(rtloader_t *);
 
 // AGGREGATOR API
 /*! \fn void set_submit_metric_cb(rtloader_t *, cb_submit_metric_t)
@@ -403,6 +429,17 @@ DATADOG_AGENT_RTLOADER_API void set_get_hostname_cb(rtloader_t *, cb_get_hostnam
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_get_clustername_cb(rtloader_t *, cb_get_clustername_t);
+
+/*! \fn void set_tracemalloc_enabled_cb(rtloader_t *, cb_tracemalloc_enabled_t)
+    \brief Sets a callback to be used by rtloader to collect whether tracemalloc is enabled
+    or not.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_tracemalloc_enabled_t prototype to the
+    callback function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_tracemalloc_enabled_cb(rtloader_t *, cb_tracemalloc_enabled_t);
 
 /*! \fn void set_log_cb(rtloader_t *, cb_log_t)
     \brief Sets a callback to be used by rtloader to allow using the agent's go-native

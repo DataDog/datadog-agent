@@ -12,8 +12,9 @@
 #include <iostream>
 #include <sstream>
 
-#include <datadog_agent_rtloader.h>
-#include <rtloader.h>
+#include "datadog_agent_rtloader.h"
+#include "rtloader.h"
+#include "rtloader_mem.h"
 
 #if __linux__
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.so"
@@ -65,7 +66,7 @@ create_t *loadAndCreate(const char *dll, const char *python_home, char **error)
         int err = GetLastError();
         std::ostringstream err_msg;
         err_msg << "Unable to open library " << dll << ", error code: " << err;
-        *error = strdup(err_msg.str().c_str());
+        *error = strdupe(err_msg.str().c_str());
         return NULL;
     }
 
@@ -76,7 +77,7 @@ create_t *loadAndCreate(const char *dll, const char *python_home, char **error)
         int err = GetLastError();
         std::ostringstream err_msg;
         err_msg << "Unable to open factory GPA: " << err;
-        *error = strdup(err_msg.str().c_str());
+        *error = strdupe(err_msg.str().c_str());
         return NULL;
     }
     return create;
@@ -86,7 +87,7 @@ rtloader_t *make2(const char *python_home, char **error)
 {
 
     if (rtloader_backend != NULL) {
-        *error = strdup("RtLoader already initialized!");
+        *error = strdupe("RtLoader already initialized!");
         return NULL;
     }
 
@@ -100,7 +101,7 @@ rtloader_t *make2(const char *python_home, char **error)
 rtloader_t *make3(const char *python_home, char **error)
 {
     if (rtloader_backend != NULL) {
-        *error = strdup("RtLoader already initialized!");
+        *error = strdupe("RtLoader already initialized!");
         return NULL;
     }
 
@@ -136,7 +137,7 @@ rtloader_t *make2(const char *python_home, char **error)
 {
     if (rtloader_backend != NULL) {
         std::string err_msg = "RtLoader already initialized!";
-        *error = strdup(err_msg.c_str());
+        *error = strdupe(err_msg.c_str());
         return NULL;
     }
     // load library
@@ -144,7 +145,7 @@ rtloader_t *make2(const char *python_home, char **error)
     if (!rtloader_backend) {
         std::ostringstream err_msg;
         err_msg << "Unable to open two library: " << dlerror();
-        *error = strdup(err_msg.str().c_str());
+        *error = strdupe(err_msg.str().c_str());
         return NULL;
     }
 
@@ -157,7 +158,7 @@ rtloader_t *make2(const char *python_home, char **error)
     if (dlsym_error) {
         std::ostringstream err_msg;
         err_msg << "Unable to open two factory: " << dlsym_error;
-        *error = strdup(err_msg.str().c_str());
+        *error = strdupe(err_msg.str().c_str());
         return NULL;
     }
 
@@ -168,7 +169,7 @@ rtloader_t *make3(const char *python_home, char **error)
 {
     if (rtloader_backend != NULL) {
         std::string err_msg = "RtLoader already initialized!";
-        *error = strdup(err_msg.c_str());
+        *error = strdupe(err_msg.c_str());
         return NULL;
     }
 
@@ -177,7 +178,7 @@ rtloader_t *make3(const char *python_home, char **error)
     if (!rtloader_backend) {
         std::ostringstream err_msg;
         err_msg << "Unable to open three library: " << dlerror();
-        *error = strdup(err_msg.str().c_str());
+        *error = strdupe(err_msg.str().c_str());
         return NULL;
     }
 
@@ -190,7 +191,7 @@ rtloader_t *make3(const char *python_home, char **error)
     if (dlsym_error) {
         std::ostringstream err_msg;
         err_msg << "Unable to open three factory: " << dlsym_error;
-        *error = strdup(err_msg.str().c_str());
+        *error = strdupe(err_msg.str().c_str());
         return NULL;
     }
 
@@ -213,6 +214,11 @@ void destroy(rtloader_t *rtloader)
 }
 #endif
 
+void set_memory_tracker_cb(cb_memory_tracker_t cb)
+{
+    _set_memory_tracker_cb(cb);
+}
+
 int init(rtloader_t *rtloader)
 {
     return AS_TYPE(RtLoader, rtloader)->init() ? 1 : 0;
@@ -221,6 +227,11 @@ int init(rtloader_t *rtloader)
 py_info_t *get_py_info(rtloader_t *rtloader)
 {
     return AS_TYPE(RtLoader, rtloader)->getPyInfo();
+}
+
+void free_py_info(rtloader_t *rtloader, py_info_t *info)
+{
+    AS_TYPE(RtLoader, rtloader)->freePyInfo(info);
 }
 
 int run_simple_string(const rtloader_t *rtloader, const char *code)
@@ -395,6 +406,11 @@ void set_get_clustername_cb(rtloader_t *rtloader, cb_get_clustername_t cb)
     AS_TYPE(RtLoader, rtloader)->setGetClusternameCb(cb);
 }
 
+void set_tracemalloc_enabled_cb(rtloader_t *rtloader, cb_tracemalloc_enabled_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setGetTracemallocEnabledCb(cb);
+}
+
 void set_log_cb(rtloader_t *rtloader, cb_log_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setLogCb(cb);
@@ -408,6 +424,11 @@ void set_set_external_tags_cb(rtloader_t *rtloader, cb_set_external_tags_t cb)
 char *get_integration_list(rtloader_t *rtloader)
 {
     return AS_TYPE(RtLoader, rtloader)->getIntegrationList();
+}
+
+char *get_interpreter_memory_usage(rtloader_t *rtloader)
+{
+    return AS_TYPE(RtLoader, rtloader)->getInterpreterMemoryUsage();
 }
 
 /*

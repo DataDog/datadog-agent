@@ -35,11 +35,9 @@ const (
 
 var (
 	// TestWg is used for testing the number of check workers
-	TestWg            sync.WaitGroup
-	defaultNumWorkers = 4
-	maxNumWorkers     = 25
-	runnerStats       *expvar.Map
-	checkStats        *runnerCheckStats
+	TestWg      sync.WaitGroup
+	runnerStats *expvar.Map
+	checkStats  *runnerCheckStats
 )
 
 func init() {
@@ -73,10 +71,6 @@ type Runner struct {
 // NewRunner takes the number of desired goroutines processing incoming checks.
 func NewRunner() *Runner {
 	numWorkers := config.Datadog.GetInt("check_runners")
-	if numWorkers > maxNumWorkers {
-		numWorkers = maxNumWorkers
-		log.Warnf("Configured number of checks workers (%v) is too high: %v will be used", numWorkers, maxNumWorkers)
-	}
 
 	r := &Runner{
 		// initialize the channel
@@ -87,7 +81,7 @@ func NewRunner() *Runner {
 	}
 
 	if !r.staticNumWorkers {
-		numWorkers = defaultNumWorkers
+		numWorkers = config.DefaultNumWorkers
 	}
 
 	// start the workers
@@ -126,7 +120,7 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 	case numChecks <= 25:
 		desiredNumWorkers = 20
 	default:
-		desiredNumWorkers = maxNumWorkers
+		desiredNumWorkers = config.MaxNumWorkers
 	}
 
 	// Add workers if we don't have enough for this range

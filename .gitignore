@@ -98,3 +98,6 @@ build.out/
 .vagrant
 Vagrantfile
 
+# doxygen doc & error log
+rtloader/doc
+rtlodaer/doxygen/errors.log

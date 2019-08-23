@@ -326,7 +326,40 @@ func zipExpVar(tempDir, hostname string) error {
 		}
 	}
 
-	return nil
+	apmPort := "8126"
+	if config.Datadog.IsSet("apm_config.receiver_port") {
+		apmPort = config.Datadog.GetString("apm_config.receiver_port")
+	}
+	f := filepath.Join(tempDir, hostname, "expvar", "trace-agent")
+	w, err := newRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s/debug/vars", apmPort))
+	if err != nil {
+		_, err := w.Write([]byte(fmt.Sprintf("Error retrieving vars: %v", err)))
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		slurp, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write([]byte(fmt.Sprintf("Got response %s from /debug/vars:\n%s", resp.Status, string(slurp))))
+		return err
+	}
+	var all map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&all); err != nil {
+		return fmt.Errorf("error decoding trace-agent /debug/vars response: %v", err)
+	}
+	v, err := yaml.Marshal(all)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(v)
+	return err
 }
 
 func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {

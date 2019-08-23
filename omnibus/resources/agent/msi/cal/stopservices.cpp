@@ -741,7 +741,7 @@ int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *p
     serviceDef services[NUM_SERVICES] = {
         serviceDef(agentService.c_str(), L"DataDog Agent", L"Send metrics to DataDog",
                    agent_exe.c_str(),
-                   L"winmgmt\0\0", SERVICE_AUTO_START, data.getFullUsername().c_str(), password),
+                   NULL, SERVICE_AUTO_START, data.getFullUsername().c_str(), password),
         serviceDef(traceService.c_str(), L"DataDog Trace Agent", L"Send tracing metrics to DataDog",
                    trace_exe.c_str(),
                    L"datadogagent\0\0", SERVICE_DEMAND_START, data.getFullUsername().c_str(), password),

@@ -30,13 +30,23 @@ import (
 #cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 
-#include <datadog_agent_rtloader.h>
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
+
 #include <stdlib.h>
 
 // helpers
 
 char *getStringAddr(char **array, unsigned int idx) {
 	return array[idx];
+}
+
+//
+// init memory tracking facilities method
+//
+void MemoryTracker(void *, size_t, rtloader_mem_ops_t);
+void initMemoryTracker(void) {
+	set_memory_tracker_cb(MemoryTracker);
 }
 
 //
@@ -47,7 +57,7 @@ char *getStringAddr(char **array, unsigned int idx) {
 //
 
 void initCgoFree(rtloader_t *rtloader) {
-	set_cgo_free_cb(rtloader, free);
+	set_cgo_free_cb(rtloader, _free);
 }
 
 //
@@ -66,20 +76,22 @@ void initLogger(rtloader_t *rtloader) {
 // This also init "util" module who expose the same "headers" function
 //
 
-void GetVersion(char **);
-void GetHostname(char **);
 void GetClusterName(char **);
-void Headers(char **);
 void GetConfig(char*, char **);
+void GetHostname(char **);
+void GetVersion(char **);
+void Headers(char **);
 void SetExternalTags(char *, char *, char **);
+bool TracemallocEnabled();
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
-	set_get_version_cb(rtloader, GetVersion);
-	set_get_hostname_cb(rtloader, GetHostname);
 	set_get_clustername_cb(rtloader, GetClusterName);
-	set_headers_cb(rtloader, Headers);
 	set_get_config_cb(rtloader, GetConfig);
+	set_get_hostname_cb(rtloader, GetHostname);
+	set_get_version_cb(rtloader, GetVersion);
+	set_headers_cb(rtloader, Headers);
 	set_set_external_tags_cb(rtloader, SetExternalTags);
+	set_tracemalloc_enabled_cb(rtloader, TracemallocEnabled);
 }
 
 //
@@ -151,7 +163,8 @@ var (
 	// initialized, or the Agent was built using system libs and the env var
 	// PYTHONHOME is empty. It's expected to always contain a value when the
 	// Agent is built using embedded libs.
-	PythonHome = ""
+	PythonHome    = ""
+	pythonBinPath = ""
 	// PythonPath contains the string representation of the Python list returned
 	// by `sys.path`. It's empty if the interpreter was not initialized.
 	PythonPath = ""
@@ -204,9 +217,7 @@ func sendTelemetry(pythonVersion string) {
 	})
 }
 
-func Initialize(paths ...string) error {
-	pythonVersion := config.Datadog.GetString("python_version")
-
+func detectPythonLocation(pythonVersion string) {
 	// Since the install location can be set by the user on Windows we use relative import
 	if runtime.GOOS == "windows" {
 		_here, _ := executable.Folder()
@@ -230,19 +241,36 @@ func Initialize(paths ...string) error {
 		}
 	}
 
-	var pyErr *C.char = nil
 	if pythonVersion == "2" {
-		csPythonHome2 := C.CString(pythonHome2)
-		rtloader = C.make2(csPythonHome2, &pyErr)
-		C.free(unsafe.Pointer(csPythonHome2))
-		log.Infof("Initializing rtloader with python2 %s", pythonHome2)
 		PythonHome = pythonHome2
 	} else if pythonVersion == "3" {
-		csPythonHome3 := C.CString(pythonHome3)
-		rtloader = C.make3(csPythonHome3, &pyErr)
-		C.free(unsafe.Pointer(csPythonHome3))
-		log.Infof("Initializing rtloader with python3 %s", pythonHome3)
 		PythonHome = pythonHome3
+	}
+
+	if runtime.GOOS == "windows" {
+		pythonBinPath = filepath.Join(PythonHome, "python.exe")
+	} else {
+		pythonBinPath = filepath.Join(PythonHome, "bin", "python")
+	}
+}
+
+func Initialize(paths ...string) error {
+	pythonVersion := config.Datadog.GetString("python_version")
+
+	// memory related RTLoader-global initialization
+	C.initMemoryTracker()
+
+	detectPythonLocation(pythonVersion)
+
+	var pyErr *C.char = nil
+	csPythonHome := TrackedCString(PythonHome)
+	defer C._free(unsafe.Pointer(csPythonHome))
+	if pythonVersion == "2" {
+		rtloader = C.make2(csPythonHome, &pyErr)
+		log.Infof("Initializing rtloader with python2 %s", PythonHome)
+	} else if pythonVersion == "3" {
+		rtloader = C.make3(csPythonHome, &pyErr)
+		log.Infof("Initializing rtloader with python3 %s", PythonHome)
 	} else {
 		return addExpvarPythonInitErrors(fmt.Sprintf("unsuported version of python: %s", pythonVersion))
 	}
@@ -250,14 +278,16 @@ func Initialize(paths ...string) error {
 	if rtloader == nil {
 		err := addExpvarPythonInitErrors(fmt.Sprintf("could not load runtime python for version %s: %s", pythonVersion, C.GoString(pyErr)))
 		if pyErr != nil {
-			C.free(unsafe.Pointer(pyErr))
+			// pyErr tracked when created in rtloader
+			C._free(unsafe.Pointer(pyErr))
 		}
 		return err
 	}
 
 	// Set the PYTHONPATH if needed.
 	for _, p := range paths {
-		C.add_python_path(rtloader, C.CString(p))
+		// bounded but never released allocations with CString
+		C.add_python_path(rtloader, TrackedCString(p))
 	}
 
 	// Any platform-specific initialization
@@ -278,7 +308,7 @@ func Initialize(paths ...string) error {
 
 	// Init RtLoader machinery
 	if C.init(rtloader) == 0 {
-		err := C.GoString(C.get_error(rtloader))
+		err := fmt.Sprintf("could not initialize rtloader: %s", C.GoString(C.get_error(rtloader)))
 		return addExpvarPythonInitErrors(err)
 	}
 
@@ -295,8 +325,7 @@ func Initialize(paths ...string) error {
 		cache.Cache.Set(key, PythonVersion, cache.NoExpiration)
 
 		PythonPath = C.GoString(pyInfo.path)
-		C.rtloader_free(rtloader, unsafe.Pointer(pyInfo.path))
-		C.rtloader_free(rtloader, unsafe.Pointer(pyInfo))
+		C.free_py_info(rtloader, pyInfo)
 	} else {
 		log.Errorf("Could not query python information: %s", C.GoString(C.get_error(rtloader)))
 	}

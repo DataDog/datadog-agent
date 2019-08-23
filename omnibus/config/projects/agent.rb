@@ -18,8 +18,12 @@ if ohai['platform'] == "windows"
   python_3_embedded "#{install_dir}/embedded3"
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
+  if redhat? || suse?
+    maintainer 'Datadog, Inc <package@datadoghq.com>'
+  else
+    maintainer 'Datadog Packages <package@datadoghq.com>'
+  end
   install_dir '/opt/datadog-agent'
-  maintainer 'Datadog Packages <package@datadoghq.com>'
 end
 
 # build_version is computed by an invoke command/function.

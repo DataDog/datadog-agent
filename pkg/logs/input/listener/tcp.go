@@ -96,7 +96,7 @@ func (l *TCPListener) run() {
 				l.source.Status.Success()
 				continue
 			default:
-				l.startNewTailer(conn)
+				l.startTailer(conn)
 				l.source.Status.Success()
 			}
 		}
@@ -126,8 +126,8 @@ func (l *TCPListener) read(tailer *Tailer) ([]byte, error) {
 	return frame[:n], nil
 }
 
-// startNewTailer creates and starts a new tailer that reads from the connection.
-func (l *TCPListener) startNewTailer(conn net.Conn) {
+// startTailer creates and starts a new tailer that reads from the connection.
+func (l *TCPListener) startTailer(conn net.Conn) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	tailer := NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read)
@@ -137,9 +137,9 @@ func (l *TCPListener) startNewTailer(conn net.Conn) {
 
 // stopTailer stops the tailer.
 func (l *TCPListener) stopTailer(tailer *Tailer) {
+	tailer.Stop()
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	tailer.Stop()
 	for i, t := range l.tailers {
 		if t == tailer {
 			l.tailers = append(l.tailers[:i], l.tailers[i+1:]...)

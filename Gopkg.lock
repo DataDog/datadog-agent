@@ -10,15 +10,15 @@
   source = "github.com/adjust/goautoneg"
 
 [[projects]]
-  digest = "1:4d058d0c70c840a711bc07a754f8585fd7a4d7fe4f17b5291daa94efb8fd8e63"
+  digest = "1:dfa126c123ce1bef1328b4d5b025ca5f0bb72a4ceebf2da1da680058f0ea276c"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "289e8fe7ace0255e45ff2e87704a39dc103b2f86"
-  version = "4.9.1"
+  revision = "bd00819f7e33ddcf00a0fdc4f71847229e5c2998"
+  version = "4.11.0"
 
 [[projects]]
   digest = "1:e64fddc819e2abc68792a743dd857c379449a56f2b9eaf030c03fb0ec19de884"
@@ -179,6 +179,14 @@
   pruneopts = ""
   revision = "62c80a04de2086884d8296004b6d74ee1846c582"
   version = "v0.2.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:4b0608ebbed8f170c6c57f9bf1e5beb27e0a6a291766530e83e1b44107b11c0e"
+  name = "github.com/benesch/cgosymbolizer"
+  packages = ["."]
+  pruneopts = ""
+  revision = "bec6fe6e597bfeb28b9d8c0b998772635fceea8b"
 
 [[projects]]
   branch = "master"
@@ -785,6 +793,14 @@
   revision = "7f56832555fc229dad908c67d65ed3ce6156b70c"
 
 [[projects]]
+  digest = "1:e345ab0697f8f63d0ff3cc4c4c90fa470fa79c8d3c0b461a1d16df2f5b0c1fd1"
+  name = "github.com/ianlancetaylor/cgosymbolizer"
+  packages = ["."]
+  pruneopts = ""
+  revision = "f5072df9c550dc687157e5d7efb50825cdf8f0eb"
+  source = "github.com/ianlancetaylor/cgosymbolizer"
+
+[[projects]]
   digest = "1:302c6eb8e669c997bec516a138b8fc496018faa1ece4c13e445a2749fbe079bb"
   name = "github.com/imdario/mergo"
   packages = ["."]
@@ -801,7 +817,7 @@
   version = "v1.0"
 
 [[projects]]
-  digest = "1:1aa0d09d686e3261044994ddeeecc873f8e0e9597785ba6273a7aaf31f5159d4"
+  digest = "1:5ca19ae59ae03be8e9a97f39bb705938cf8174b4c8cb4b037accdbb99decfe8a"
   name = "github.com/iovisor/gobpf"
   packages = [
     "elf",
@@ -1983,6 +1999,7 @@
     "github.com/aws/aws-sdk-go/aws/session",
     "github.com/aws/aws-sdk-go/service/ec2",
     "github.com/beevik/ntp",
+    "github.com/benesch/cgosymbolizer",
     "github.com/cihub/seelog",
     "github.com/clbanning/mxj",
     "github.com/containerd/cgroups",

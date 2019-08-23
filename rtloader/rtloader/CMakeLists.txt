@@ -19,18 +19,20 @@ if(WIN32)
 add_library(datadog-agent-rtloader
     api.cpp
     rtloader.cpp
+    ../common/rtloader_mem.c
 )
 else()
 add_library(datadog-agent-rtloader SHARED
     api.cpp
     rtloader.cpp
+    ../common/rtloader_mem.c
 )
 endif()
 
 set_target_properties(datadog-agent-rtloader PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION 1
-    PUBLIC_HEADER "../include/datadog_agent_rtloader.h;../include/rtloader_types.h"
+    PUBLIC_HEADER "../include/datadog_agent_rtloader.h;../include/rtloader_types.h;../common/rtloader_mem.h"
 )
 
 if(ARCH_I386)
@@ -41,6 +43,7 @@ configure_file(datadog-agent-rtloader.pc.in datadog-agent-rtloader.pc @ONLY)
 target_include_directories(datadog-agent-rtloader PRIVATE ./include)
 target_include_directories(datadog-agent-rtloader PUBLIC
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/common
 )
 
 if(NOT WIN32)

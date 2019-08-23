@@ -6,6 +6,7 @@
 package file
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -53,6 +54,9 @@ type Tailer struct {
 	didFileRotate int32
 	stop          chan struct{}
 	done          chan struct{}
+
+	forwardContext context.Context
+	stopForward    context.CancelFunc
 }
 
 // NewTailer returns an initialized Tailer
@@ -73,6 +77,9 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 	} else {
 		tagProvider = tag.NoopProvider
 	}
+
+	forwardContext, stopForward := context.WithCancel(context.Background())
+
 	return &Tailer{
 		path:           path,
 		outputChan:     outputChan,
@@ -85,6 +92,8 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 		stop:           make(chan struct{}, 1),
 		done:           make(chan struct{}, 1),
 		isWildcardPath: isWildcardPath,
+		forwardContext: forwardContext,
+		stopForward:    stopForward,
 	}
 }
 
@@ -202,6 +211,7 @@ func (t *Tailer) StopAfterFileRotation() {
 func (t *Tailer) startStopTimer() {
 	stopTimer := time.NewTimer(t.closeTimeout)
 	<-stopTimer.C
+	t.stopForward()
 	t.stop <- struct{}{}
 }
 
@@ -217,7 +227,7 @@ func (t *Tailer) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
 		atomic.StoreInt32(&t.shouldStop, 1)
-		t.done <- struct{}{}
+		close(t.done)
 	}()
 	for output := range t.decoder.OutputChan {
 		offset := t.decodedOffset + int64(output.RawDataLen)
@@ -231,7 +241,15 @@ func (t *Tailer) forwardMessages() {
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
-		t.outputChan <- message.NewMessage(output.Content, origin, output.Status)
+
+		// Make the write to the output chan cancellable to be able to stop the tailer
+		// after a file rotation when it is stuck on it.
+		// We don't return directly to keep the same shutdown sequence that in the
+		// normal case.
+		select {
+		case t.outputChan <- message.NewMessage(output.Content, origin, output.Status):
+		case <-t.forwardContext.Done():
+		}
 	}
 }
 

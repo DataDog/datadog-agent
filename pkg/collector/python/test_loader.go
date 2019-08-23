@@ -62,12 +62,23 @@ int get_attr_string(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const c
 
 py_info_t *get_py_info(rtloader_t *sic) {
 	py_info_t *i = malloc(sizeof(py_info_t));
-	i->version = "fake python";
-	i->path = "/fake/path";
+	i->version = strdup("fake python");
+	i->path = strdup("/fake/path");
 
 	return i;
 }
 
+void free_py_info(rtloader_t *sic, py_info_t *info) {
+	if(info->version){
+        free(info->version);
+    }
+    if(info->path){
+        free(info->path);
+    }
+    free(info);
+    return;
+
+}
 void reset_loader_mock() {
 	get_class_calls = 0;
 	get_class_return = 0;

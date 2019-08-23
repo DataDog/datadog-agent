@@ -117,16 +117,16 @@ func (r *HTTPReceiver) Start() {
 
 	r.attachDebugHandlers(mux)
 
-	mux.HandleFunc("/spans", r.httpHandleWithVersion(v01, r.handleTraces))
-	mux.HandleFunc("/services", r.httpHandleWithVersion(v01, r.handleServices))
-	mux.HandleFunc("/v0.1/spans", r.httpHandleWithVersion(v01, r.handleTraces))
-	mux.HandleFunc("/v0.1/services", r.httpHandleWithVersion(v01, r.handleServices))
-	mux.HandleFunc("/v0.2/traces", r.httpHandleWithVersion(v02, r.handleTraces))
-	mux.HandleFunc("/v0.2/services", r.httpHandleWithVersion(v02, r.handleServices))
-	mux.HandleFunc("/v0.3/traces", r.httpHandleWithVersion(v03, r.handleTraces))
-	mux.HandleFunc("/v0.3/services", r.httpHandleWithVersion(v03, r.handleServices))
-	mux.HandleFunc("/v0.4/traces", r.httpHandleWithVersion(v04, r.handleTraces))
-	mux.HandleFunc("/v0.4/services", r.httpHandleWithVersion(v04, r.handleServices))
+	mux.HandleFunc("/spans", r.handleWithVersion(v01, r.handleTraces))
+	mux.HandleFunc("/services", r.handleWithVersion(v01, r.handleServices))
+	mux.HandleFunc("/v0.1/spans", r.handleWithVersion(v01, r.handleTraces))
+	mux.HandleFunc("/v0.1/services", r.handleWithVersion(v01, r.handleServices))
+	mux.HandleFunc("/v0.2/traces", r.handleWithVersion(v02, r.handleTraces))
+	mux.HandleFunc("/v0.2/services", r.handleWithVersion(v02, r.handleServices))
+	mux.HandleFunc("/v0.3/traces", r.handleWithVersion(v03, r.handleTraces))
+	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
+	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
+	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
@@ -257,26 +257,18 @@ func (r *HTTPReceiver) Stop() error {
 	return nil
 }
 
-func (r *HTTPReceiver) httpHandle(fn http.HandlerFunc) http.HandlerFunc {
+func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		req.Body = NewLimitedReader(req.Body, r.maxRequestBodyLength)
-		defer req.Body.Close()
-
-		fn(w, req)
-	}
-}
-
-func (r *HTTPReceiver) httpHandleWithVersion(v Version, f func(Version, http.ResponseWriter, *http.Request)) http.HandlerFunc {
-	return r.httpHandle(func(w http.ResponseWriter, req *http.Request) {
-		mediaType := getMediaType(req)
-		if mediaType == "application/msgpack" && (v == v01 || v == v02) {
-			// msgpack is only supported for versions >= 0.3
+		if mediaType := getMediaType(req); mediaType == "application/msgpack" && (v == v01 || v == v02) {
+			// msgpack is only supported for versions >= v0.3
 			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
 			return
 		}
 
+		req.Body = NewLimitedReader(req.Body, r.maxRequestBodyLength)
+
 		f(v, w, req)
-	})
+	}
 }
 
 func traceCount(req *http.Request) int64 {
@@ -357,20 +349,26 @@ func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
+	ts := r.tagStats(req)
 	traceCount := traceCount(req)
+
 	if !r.RateLimiter.Permits(traceCount) {
+		// this payload can not be accepted
 		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(r.rateLimiterResponse)
 		r.replyOK(v, w)
-		metrics.Count("datadog.trace_agent.receiver.payload_refused", 1, nil, 1)
+		atomic.AddInt64(&ts.PayloadRefused, 1)
 		return
 	}
 
-	ts := r.tagStats(req)
 	traces, err := r.decodeTraces(v, req)
 	if err != nil {
 		httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-		atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
+		if err == ErrLimitedReaderLimitReached {
+			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, traceCount)
+		} else {
+			atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
+		}
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return
 	}

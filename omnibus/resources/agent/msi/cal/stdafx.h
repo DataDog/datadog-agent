@@ -20,12 +20,15 @@
 #include <lm.h>
 #include <lmaccess.h>
 #include <lmerr.h>
+#include <userenv.h>
 
 // std c++ lib
 #include <string>
 #include <sstream>
 #include <map>
 #include <sstream>
+#include <vector>
+#include <optional>
 
 // WiX Header Files:
 #include <wcautil.h>

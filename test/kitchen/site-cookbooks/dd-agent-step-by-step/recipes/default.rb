@@ -40,6 +40,7 @@ when 'rhel'
       gpgcheck=1
       repo_gpgcheck=0
       gpgkey=#{protocol}://yum.datadoghq.com/DATADOG_RPM_KEY.public
+             #{protocol}://yum.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public
     EOF
   end
 
@@ -60,12 +61,14 @@ when 'suse'
       gpgcheck=1
       repo_gpgcheck=0
       gpgkey=https://yum.datadoghq.com/DATADOG_RPM_KEY.public
+             https://yum.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public
     EOF
   end
 
   execute 'install suse' do
     command <<-EOF
       sudo rpm --import https://yum.datadoghq.com/DATADOG_RPM_KEY.public
+      sudo rpm --import https://yum.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public
       sudo zypper --non-interactive refresh datadog
       sudo zypper --non-interactive install #{node['dd-agent-step-by-step']['package_name']}
     EOF

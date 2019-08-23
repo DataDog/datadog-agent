@@ -44,8 +44,26 @@ if [ ! $apikey ]; then
     fi
 fi
 
-# get real user (in case of sudo)
-real_user=`logname`
+
+# SUDO_USER is defined in man sudo: https://linux.die.net/man/8/sudo
+# "SUDO_USER Set to the login name of the user who invoked sudo."
+
+# USER is defined in man login: https://ss64.com/osx/login.html
+# "Login enters information into the environment (see environ(7))
+#  specifying the user's home directory (HOME), command interpreter (SHELL),
+#  search path (PATH), terminal type (TERM) and user name (both LOGNAME and USER)."
+
+# We want to get the real user who executed the command. Two situations can happen:
+# - the command was run as the current user: then $USER contains the user which launched the command, and $SUDO_USER is empty,
+# - the command was run with sudo: then $USER contains the name of the user targeted by the sudo command (by default, root)
+#   and $SUDO_USER contains the user which launched the sudo command.
+# The following block covers both cases so that we have tbe username we want in the real_user variable.
+real_user=`if [ "$SUDO_USER" ]; then
+  echo $SUDO_USER
+else
+  echo $USER
+fi`
+
 export TMPDIR=`sudo -u $real_user getconf DARWIN_USER_TEMP_DIR`
 cmd_real_user="sudo -Eu $real_user"
 

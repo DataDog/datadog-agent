@@ -23,16 +23,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// DefaultForwarderRecoveryInterval is the default recovery interval, also used if
-// the user-provided value is invalid.
-const DefaultForwarderRecoveryInterval = 2
+const (
+	// DefaultSite is the default site the Agent sends data to.
+	DefaultSite    = "datadoghq.com"
+	infraURLPrefix = "https://app."
 
-const megaByte = 1024 * 1024
+	// DefaultNumWorkers default number of workers for our check runner
+	DefaultNumWorkers = 4
+	// MaxNumWorkers maximum number of workers for our check runner
+	MaxNumWorkers = 25
 
-// DefaultSite is the default site the Agent sends data to.
-const DefaultSite = "datadoghq.com"
+	// DefaultForwarderRecoveryInterval is the default recovery interval,
+	// also used if the user-provided value is invalid.
+	DefaultForwarderRecoveryInterval = 2
 
-const infraURLPrefix = "https://app."
+	megaByte = 1024 * 1024
+)
 
 var overrideVars = map[string]interface{}{}
 
@@ -126,9 +132,13 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", "2")
-	// C-land crash feature flags
+	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
 	config.BindEnvAndSetDefault("c_core_dump", false)
+	config.BindEnvAndSetDefault("tracemalloc_debug", false)
+
+	// Python 3 linter timeout, in seconds
+	config.BindEnvAndSetDefault("python3_linter_timeout", 8)
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
@@ -329,6 +339,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("expvar_port", "5000")
 
 	// Trace agent
+	// Note that trace-agent environment variables are parsed in pkg/trace/config/env.go
+	// since some of them require custom parsing algorithms. DO NOT add environment variable
+	// bindings here, add them there instead.
 	config.BindEnvAndSetDefault("apm_config.enabled", true)
 
 	// Process agent
@@ -456,6 +469,9 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.max_connection_state_buffered")
 	config.SetKnown("system_probe_config.excluded_linux_versions")
 	config.SetKnown("system_probe_config.closed_channel_size")
+
+	// Network
+	config.BindEnv("network.id")
 
 	// APM
 	config.SetKnown("apm_config.enabled")
@@ -637,6 +653,9 @@ func load(config Config, origin string, loadSecret bool) error {
 	loadProxyFromEnv(config)
 	sanitizeAPIKey(config)
 	applyOverrides(config)
+	// setTracemallocEnabled *must* be called before setNumWorkers
+	setTracemallocEnabled(config)
+	setNumWorkers(config)
 	return nil
 }
 
@@ -848,4 +867,37 @@ func applyOverrides(config Config) {
 	for k, v := range overrideVars {
 		config.Set(k, v)
 	}
+}
+
+// setTracemallocEnabled is a helper to get the effective tracemalloc
+// configuration.
+func setTracemallocEnabled(config Config) {
+	pyVersion := config.GetString("python_version")
+	wTracemalloc := config.GetBool("tracemalloc_debug")
+	if pyVersion == "2" && wTracemalloc {
+		log.Warnf("Tracemalloc was enabled but unavailable with python version %q, disabling.", pyVersion)
+		wTracemalloc = false
+	}
+
+	// update config with the actual effective tracemalloc
+	config.Set("tracemalloc_debug", wTracemalloc)
+}
+
+// setNumWorkers is a helper to set the effective number of workers for
+// a given config.
+func setNumWorkers(config Config) {
+	wTracemalloc := config.GetBool("tracemalloc_debug")
+	numWorkers := config.GetInt("check_runners")
+	if wTracemalloc {
+		log.Infof("Tracemalloc enabled, only one check runner enabled to run checks serially")
+		numWorkers = 1
+	}
+
+	if numWorkers > MaxNumWorkers {
+		numWorkers = MaxNumWorkers
+		log.Warnf("Configured number of checks workers (%v) is too high: %v will be used", numWorkers, MaxNumWorkers)
+	}
+
+	// update config with the actual effective number of workers
+	config.Set("check_runners", numWorkers)
 }

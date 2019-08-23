@@ -107,6 +107,14 @@ func TestGetClustername(t *testing.T) {
 	}
 }
 
+func TestGetTracemallocEnabled(t *testing.T) {
+	code := `assert datadog_agent.tracemalloc_enabled()`
+	_, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestLog(t *testing.T) {
 	code := `
 	datadog_agent.log("foo message", 99)

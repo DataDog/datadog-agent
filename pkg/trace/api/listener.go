@@ -11,16 +11,23 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // rateLimitedListener wraps a regular TCPListener with rate limiting.
 type rateLimitedListener struct {
-	connLease int32 // How many connections are available for this listener before rate-limiting kicks in
 	*net.TCPListener
 
-	exit   chan struct{}
-	closed uint32
+	lease  int32         // connections allowed until refresh
+	exit   chan struct{} // exit notification channel
+	closed uint32        // closed will be non-zero if the listener was closed
+
+	// stats
+	accepted uint32
+	rejected uint32
+	timedout uint32
+	errored  uint32
 }
 
 // newRateLimitedListener returns a new wrapped listener, which is non-initialized
@@ -32,7 +39,7 @@ func newRateLimitedListener(l net.Listener, conns int) (*rateLimitedListener, er
 	}
 
 	return &rateLimitedListener{
-		connLease:   int32(conns),
+		lease:       int32(conns),
 		TCPListener: tcpL,
 		exit:        make(chan struct{}),
 	}, nil
@@ -44,13 +51,25 @@ func (sl *rateLimitedListener) Refresh(conns int) {
 
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
+	tickStats := time.NewTicker(10 * time.Second)
+	defer tickStats.Stop()
 
 	for {
 		select {
 		case <-sl.exit:
 			return
+		case <-tickStats.C:
+			for tag, stat := range map[string]*uint32{
+				"status:accepted": &sl.accepted,
+				"status:rejected": &sl.rejected,
+				"status:timedout": &sl.timedout,
+				"status:errored":  &sl.errored,
+			} {
+				v := int64(atomic.SwapUint32(stat, 0))
+				metrics.Count("datadog.trace_agent.receiver.tcp_connections", v, []string{tag}, 1)
+			}
 		case <-t.C:
-			atomic.StoreInt32(&sl.connLease, int32(conns))
+			atomic.StoreInt32(&sl.lease, int32(conns))
 			log.Debugf("Refreshed the connection lease: %d conns available", conns)
 		}
 	}
@@ -71,31 +90,35 @@ func (e *rateLimitedError) Timeout() bool { return false }
 
 // Accept reimplements the regular Accept but adds rate limiting.
 func (sl *rateLimitedListener) Accept() (net.Conn, error) {
-	if atomic.LoadInt32(&sl.connLease) <= 0 {
-		// we've reached our cap for this lease period, reject the request
+	if atomic.LoadInt32(&sl.lease) <= 0 {
+		// we've reached our cap for this lease period; reject the request
+		atomic.AddUint32(&sl.rejected, 1)
 		return nil, &rateLimitedError{}
 	}
-
 	for {
-		//Wait up to 1 second for Reads and Writes to the new connection
+		// ensure potential TCP handshake timeouts don't stall us forever
 		sl.SetDeadline(time.Now().Add(time.Second))
-
-		newConn, err := sl.TCPListener.Accept()
-
+		conn, err := sl.TCPListener.Accept()
 		if err != nil {
-			netErr, ok := err.(net.Error)
-
-			//If this is a timeout, then continue to wait for
-			//new connections
-			if ok && netErr.Timeout() && netErr.Temporary() {
-				continue
+			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+				if ne.Temporary() {
+					// deadline expired; continue
+					continue
+				} else {
+					// don't count temporary errors; they usually signify expired deadlines
+					// see (golang/go/src/internal/poll/fd.go).TimeoutError
+					atomic.AddUint32(&sl.timedout, 1)
+				}
+			} else {
+				atomic.AddUint32(&sl.errored, 1)
 			}
+			return conn, err
 		}
 
-		// decrement available conns
-		atomic.AddInt32(&sl.connLease, -1)
+		atomic.AddInt32(&sl.lease, -1)
+		atomic.AddUint32(&sl.accepted, 1)
 
-		return newConn, err
+		return conn, nil
 	}
 }
 

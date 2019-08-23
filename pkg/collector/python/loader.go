@@ -26,8 +26,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// #include <stdlib.h>
-// #include <datadog_agent_rtloader.h>
+/*
+#include <stdlib.h>
+
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
+*/
 import "C"
 
 var (
@@ -122,8 +126,9 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 	var checkModule *C.rtloader_pyobject_t
 	var checkClass *C.rtloader_pyobject_t
 	for _, name = range modules {
-		moduleName := C.CString(name)
-		defer C.free(unsafe.Pointer(moduleName))
+		// TrackedCStrings untracked by memory tracker currently
+		moduleName := TrackedCString(name)
+		defer C._free(unsafe.Pointer(moduleName))
 		if res := C.get_class(rtloader, moduleName, &checkModule, &checkClass); res != 0 {
 			if strings.HasPrefix(name, fmt.Sprintf("%s.", wheelNamespace)) {
 				loadedAsWheel = true
@@ -147,8 +152,11 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 	wheelVersion := "unversioned"
 	// getting the wheel version for the check
 	var version *C.char
-	versionAttr := C.CString("__version__")
-	defer C.free(unsafe.Pointer(versionAttr))
+
+	// TrackedCStrings untracked by memory tracker currently
+	versionAttr := TrackedCString("__version__")
+	defer C._free(unsafe.Pointer(versionAttr))
+	// get_attr_string allocation tracked by memory tracker
 	if res := C.get_attr_string(rtloader, checkModule, versionAttr, &version); res != 0 {
 		wheelVersion = C.GoString(version)
 		C.rtloader_free(rtloader, unsafe.Pointer(version))
@@ -161,8 +169,10 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 		// Let's use the module namespace to try to decide if this was a
 		// custom check, check for py3 compatibility
 		var checkFilePath *C.char
-		fileAttr := C.CString("__file__")
-		defer C.free(unsafe.Pointer(fileAttr))
+
+		fileAttr := TrackedCString("__file__")
+		defer C._free(unsafe.Pointer(fileAttr))
+		// get_attr_string allocation tracked by memory tracker
 		if res := C.get_attr_string(rtloader, checkModule, fileAttr, &checkFilePath); res != 0 {
 			reportPy3Warnings(name, C.GoString(checkFilePath))
 			C.rtloader_free(rtloader, unsafe.Pointer(checkFilePath))
@@ -247,11 +257,16 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 
 		if warnings, err := validatePython3(checkName, checkFilePath); err != nil {
 			status = a7TagUnknown
+			log.Errorf("Failed to validate Python 3 linting for check '%s': '%s'", checkName, err)
 		} else if len(warnings) == 0 {
 			status = a7TagReady
 			metricValue = 1.0
 		} else {
 			status = a7TagNotReady
+			log.Warnf("The Python 3 linter returned the following warnings for check '%s':", checkName)
+			for _, warning := range warnings {
+				log.Warn(warning)
+			}
 		}
 	}
 	py3Warnings[checkName] = status
