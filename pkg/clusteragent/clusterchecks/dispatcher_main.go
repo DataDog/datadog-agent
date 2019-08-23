@@ -15,15 +15,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const runnerStatsMinutes = 5
 
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {
 	store                 *clusterStore
 	nodeExpirationSeconds int64
 	extraTags             []string
+	clcRunnersClient      clusteragent.CLCRunnerClientInterface
+	advancedDispatching   bool
 }
 
 func newDispatcher() *dispatcher {
@@ -39,6 +44,17 @@ func newDispatcher() *dispatcher {
 		d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
 	}
 
+	d.advancedDispatching = config.Datadog.GetBool("cluster_checks.advanced_dispatching_enabled")
+	if !d.advancedDispatching {
+		return d
+	}
+
+	var err error
+	d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
+	if err != nil {
+		log.Warnf("Cannot create CLC runners client, advanced dispatching will be disabled: %v", err)
+		d.advancedDispatching = false
+	}
 	return d
 }
 
@@ -146,6 +162,9 @@ func (d *dispatcher) run(ctx context.Context) {
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()
 
+	runnerStatsTicker := time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
+	defer runnerStatsTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -160,6 +179,12 @@ func (d *dispatcher) run(ctx context.Context) {
 			if d.shouldDispatchDanling() {
 				danglingConfs := d.retrieveAndClearDangling()
 				d.reschedule(danglingConfs)
+			}
+		case <-runnerStatsTicker.C:
+			if d.advancedDispatching {
+				// collect CLC runners stats and update cache
+				// needed for the advanced dispatching logic
+				d.updateRunnersStats()
 			}
 		}
 	}

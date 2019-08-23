@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -79,4 +80,12 @@ func getNameAndNamespaceFromEntity(s string) (string, string) {
 		return split[2], split[3]
 	}
 	return "", ""
+}
+
+func calculateBusyness(checkStats types.CLCRunnersStats) int {
+	busyness := 0.0
+	for _, stats := range checkStats {
+		busyness += 0.8*float64(stats.AverageExecutionTime) + 0.2*float64(stats.MetricSamples)
+	}
+	return int(busyness)
 }

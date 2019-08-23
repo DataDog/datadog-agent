@@ -55,7 +55,7 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 	}
 
 	currentNode, foundCurrent := d.store.getNodeStore(d.store.digestToNode[digest])
-	targetNode := d.store.getOrCreateNodeStore(targetNodeName)
+	targetNode := d.store.getOrCreateNodeStore(targetNodeName, "")
 
 	// Dispatch to target node
 	targetNode.Lock()
