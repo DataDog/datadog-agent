@@ -13,6 +13,7 @@ var testSourceFilters = map[string][]string{
 	"::7f00:35:0:0": {"443"},  // ipv6
 	"10.0.0.10":     {"3333", "*"},
 	"10.0.0.25":     {"30", "ABCD"}, // invalid config
+	"123.ABCD":      {"*"},          // invalid config
 }
 
 var testDestinationFilters = map[string][]string{
@@ -35,6 +36,7 @@ func TestParseConnectionFilters(t *testing.T) {
 	assert.True(t, IsBlacklistedConnection(sourceList, AddressFromString("10.0.0.10"), uint16(6666)))    // port wildcard
 	assert.True(t, IsBlacklistedConnection(sourceList, AddressFromString("10.0.0.10"), uint16(33)))
 	assert.False(t, IsBlacklistedConnection(sourceList, AddressFromString("10.0.0.25"), uint16(30))) // bad port config
+	assert.False(t, IsBlacklistedConnection(sourceList, AddressFromString("123.ABCD"), uint16(30)))  // bad IP config
 
 	// destination
 	assert.True(t, IsBlacklistedConnection(destList, AddressFromString("10.0.0.5"), uint16(8080)))

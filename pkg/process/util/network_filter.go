@@ -37,7 +37,7 @@ func ParseConnectionFilters(filters map[string][]string) (blacklist []*Connectio
 		}
 
 		if err != nil {
-			log.Debugf("Could not parse given IPs: %s", err)
+			log.Errorf("Given filter will not be respected. Could not parse given IPs: %s", err)
 			continue
 		}
 		filter.IP = subnet
@@ -47,7 +47,7 @@ func ParseConnectionFilters(filters map[string][]string) (blacklist []*Connectio
 			if v == "*" {
 				// This means that IP + port are both *, which effectively blacklists all conns, which is invalid.
 				if subnet == nil {
-					log.Debugf("Invalid filter with IP/CIDR as * and port as *: %s", err)
+					log.Errorf("Given rule will not be respected. Invalid filter with IP/CIDR as * and port as *: %s", err)
 					validFilter = false
 					break
 				}
