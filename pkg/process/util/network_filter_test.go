@@ -28,7 +28,6 @@ func TestParseConnectionFilters(t *testing.T) {
 	sourceList := ParseConnectionFilters(testSourceFilters)
 	destList := ParseConnectionFilters(testDestinationFilters)
 
-	// source
 	assert.True(t, IsBlacklistedConnection(sourceList, AddressFromString("172.0.0.1"), uint16(10)))
 	assert.False(t, IsBlacklistedConnection(sourceList, AddressFromString("172.0.0.2"), uint16(10)))
 	assert.True(t, IsBlacklistedConnection(sourceList, AddressFromString("172.0.1.2"), uint16(10001)))
