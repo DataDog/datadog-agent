@@ -5,7 +5,7 @@ package ebpf
 import (
 	"bufio"
 	"bytes"
-	json "encoding/json"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -23,7 +23,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -738,8 +737,9 @@ func isLocalDNS(c ConnectionStats) bool {
 
 func TestShouldSkipBlacklistedConnection(t *testing.T) {
 	// exclude connections from 127.0.0.1:80
-	config.Datadog.SetDefault("system_probe_config.excluded_source_connections", map[string][]string{"127.0.0.1": {"80"}})
 	config := NewDefaultConfig()
+	config.ExcludedSourceConnections = map[string][]string{"127.0.0.1": {"80"}}
+	config.ExcludedDestinationConnections = map[string][]string{"127.0.0.1": {"80"}}
 	tr, err := NewTracer(config)
 	if err != nil {
 		t.Fatal(err)
@@ -761,6 +761,7 @@ func TestShouldSkipBlacklistedConnection(t *testing.T) {
 	// Make sure we're not picking up 127.0.0.1:80
 	for _, c := range getConnections(t, tr).Conns {
 		assert.False(t, c.Source.String() == "127.0.0.1" && c.SPort == 80)
+		assert.False(t, c.Dest.String() == "127.0.0.1" && c.DPort == 80)
 	}
 }
 
