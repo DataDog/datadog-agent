@@ -269,9 +269,9 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 			metricValue = 1.0
 		} else {
 			status = a7TagNotReady
-			log.Warnf("The Python 3 linter returned the following warnings for check '%s':", checkName)
+			log.Warnf("The Python 3 linter returned warnings for check '%s'. Set the log level to \"debug\" and restart the Agent to have the linter warnings logged.", checkName)
 			for _, warning := range warnings {
-				log.Warn(warning)
+				log.Debug(warning)
 			}
 		}
 	}
