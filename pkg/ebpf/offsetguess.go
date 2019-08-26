@@ -312,7 +312,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 			break
 		}
 	case guessDaddrIPv6:
-		if status.ipv6_enabled == disableV6 || compareIPv6(status.daddr_ipv6, expected.daddrIPv6) {
+		if compareIPv6(status.daddr_ipv6, expected.daddrIPv6) {
 			// at this point, we've guessed all the offsets we need,
 			// set the status to "stateReady"
 			return setReadyState(module, mp, status)
@@ -320,6 +320,11 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 		status.offset_daddr_ipv6++
 	default:
 		return fmt.Errorf("unexpected field to guess: %v", whatString[status.what])
+	}
+
+	// This assumes `guessDaddrIPv6` is the last stage of the process.
+	if status.what == guessDaddrIPv6 && status.ipv6_enabled == disableV6 {
+		return setReadyState(module, mp, status)
 	}
 
 	status.state = stateChecking
