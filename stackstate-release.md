@@ -1,16 +1,21 @@
 # StackState Agent v2 releases
 
-## 2.0.4 ( ??? )
+## 2.0.5 ( ??? )
 
 **Features**
 
 - Enable new cluster agent _[(STAC-5008)](https://stackstate.atlassian.net/browse/STAC-5008)_
+
+## 2.0.4 (2019-08-26)
+
+**Features**
+
 - Add topology to python base check _[(STAC-4964)](https://stackstate.atlassian.net/browse/STAC-4964)_
 - Add new stackstate-agent-integrations _[(STAC-4964)](https://stackstate.atlassian.net/browse/STAC-4964)_
 - Add python bindings and handling of topology _[(STAC-4869)](https://stackstate.atlassian.net/browse/STAC-4869)_
 - Enable new trace agent and propagate starttime, pid and hostname tags _[(STAC-4878)](https://stackstate.atlassian.net/browse/STAC-4878)_
 
-** Bug **
+**Bug**
 
 - Fix windows agent branding _[(STAC-3988)](https://stackstate.atlassian.net/browse/STAC-3988)_
 
