@@ -1533,3 +1533,4 @@ pupernetes-tags:
   script:
   # note: it's not the agent-dev
   - inv -e e2e-tests --image=datadog/agent:$CI_COMMIT_TAG
+  - inv -e e2e-tests --image=datadog/agent:${CI_COMMIT_TAG}-py3
