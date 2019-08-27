@@ -50,6 +50,14 @@ void initMemoryTracker(void) {
 }
 
 //
+// init memory tracking facilities method
+//
+void initMemoryModuleTracker(rtloader_t *rtloader) {
+	set_rtloader_memory_tracker_cb(rtloader, MemoryTracker);
+}
+
+
+//
 // init free method
 //
 // On windows we need to free memory in the same DLL where it was allocated.
@@ -297,6 +305,7 @@ func Initialize(paths ...string) error {
 		log.Warnf("unable to complete platform-specific initialization - should be non-fatal")
 	}
 
+	C.initMemoryModuleTracker(rtloader)
 	// Setup custom builtin before RtLoader initialization
 	C.initCgoFree(rtloader)
 	C.initLogger(rtloader)

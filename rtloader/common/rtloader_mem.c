@@ -6,6 +6,8 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <windows.h>
 
 // default memory management functions
 static rtloader_malloc_t rt_malloc = malloc;
@@ -27,7 +29,6 @@ void *_malloc(size_t sz) {
     if (ptr && cb_memory_tracker) {
         cb_memory_tracker(ptr, sz, DATADOG_AGENT_RTLOADER_ALLOCATION);
     }
-
     return ptr;
 }
 

@@ -55,7 +55,18 @@ DATADOG_AGENT_RTLOADER_API rtloader_t *make3(const char *pythonhome, char **erro
 
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
+
+/*! \fn void set_memory_tracker_cb(cb_memory_tracker_t)
+    \brief Sets a callback to be used by rtloader for some memory allocation book-keeping.
+    \param rtloader pointer to the rtloader instance for which memory allocation tracking
+                    will be enabled
+    \param object A function pointer to the callback function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
 DATADOG_AGENT_RTLOADER_API void set_memory_tracker_cb(cb_memory_tracker_t);
+
+DATADOG_AGENT_RTLOADER_API void set_rtloader_memory_tracker_cb(rtloader_t *rtloader, cb_memory_tracker_t cb);
 
 // API
 /*! \fn void destroy(rtloader_t *rtloader)

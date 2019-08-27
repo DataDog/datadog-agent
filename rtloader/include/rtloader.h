@@ -46,6 +46,12 @@ public:
     */
     virtual bool init() = 0;
 
+    //! Pure virtual set_memory_tracker_db member.
+    /*!
+      This member sets the callback interface for memory allocation/deallocation
+      tracking
+      */
+    virtual void set_memory_tracker_cb(cb_memory_tracker_t cb) = 0;
     //! Pure virtual addPythonPath member.
     /*!
       This method adds a python path to the underlying python runtime.

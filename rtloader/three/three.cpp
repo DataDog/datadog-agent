@@ -124,6 +124,12 @@ done:
     return _baseClass != NULL;
 }
 
+void Three::set_memory_tracker_cb(cb_memory_tracker_t cb)
+{
+#ifdef _WIN32
+    ::_set_memory_tracker_cb(cb);
+#endif
+}
 /**
  * getPyInfo()
  */

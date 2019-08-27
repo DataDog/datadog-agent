@@ -55,6 +55,7 @@ public:
     ~Two();
 
     bool init();
+    void set_memory_tracker_cb(cb_memory_tracker_t cb);
     bool addPythonPath(const char *path);
     rtloader_gilstate_t GILEnsure();
     void GILRelease(rtloader_gilstate_t);

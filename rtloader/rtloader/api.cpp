@@ -224,6 +224,11 @@ int init(rtloader_t *rtloader)
     return AS_TYPE(RtLoader, rtloader)->init() ? 1 : 0;
 }
 
+void set_rtloader_memory_tracker_cb(rtloader_t *rtloader, cb_memory_tracker_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->set_memory_tracker_cb(cb);
+}
+
 py_info_t *get_py_info(rtloader_t *rtloader)
 {
     return AS_TYPE(RtLoader, rtloader)->getPyInfo();
