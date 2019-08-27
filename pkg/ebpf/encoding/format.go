@@ -21,6 +21,8 @@ func FormatConnection(conn ebpf.ConnectionStats) *model.Connection {
 		LastBytesSent:      conn.LastSentBytes,
 		LastBytesReceived:  conn.LastRecvBytes,
 		LastRetransmits:    conn.LastRetransmits,
+		Rtt:                conn.RTT,
+		RttVar:             conn.RTTVar,
 		Direction:          model.ConnectionDirection(conn.Direction),
 		NetNS:              conn.NetNS,
 		IpTranslation:      formatIPTranslation(conn.IPTranslation),
