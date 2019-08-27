@@ -135,7 +135,7 @@ public:
       \param pointer the memory region on the heap we wish to free.
       Helper member to free heap memory.
     */
-    void free(void *);
+    virtual void free(void *) = 0;
 
     //! Pure virtual decref member.
     /*!

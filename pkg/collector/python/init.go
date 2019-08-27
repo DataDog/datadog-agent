@@ -293,6 +293,7 @@ func Initialize(paths ...string) error {
 		}
 		return err
 	}
+	C.initMemoryModuleTracker(rtloader)
 
 	// Set the PYTHONPATH if needed.
 	for _, p := range paths {
@@ -305,7 +306,6 @@ func Initialize(paths ...string) error {
 		log.Warnf("unable to complete platform-specific initialization - should be non-fatal")
 	}
 
-	C.initMemoryModuleTracker(rtloader)
 	// Setup custom builtin before RtLoader initialization
 	C.initCgoFree(rtloader)
 	C.initLogger(rtloader)

@@ -756,6 +756,12 @@ bool Two::getAttrString(RtLoaderPyObject *obj, const char *attributeName, char *
     Py_XDECREF(py_attr);
     return res;
 }
+void Two::free(void *ptr)
+{
+    if (ptr != NULL) {
+        _free(ptr);
+    }
+}
 
 void Two::decref(RtLoaderPyObject *obj)
 {

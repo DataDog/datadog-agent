@@ -756,6 +756,13 @@ bool Three::getAttrString(RtLoaderPyObject *obj, const char *attributeName, char
     return res;
 }
 
+void Three::free(void *ptr)
+{
+    if (ptr != NULL) {
+        _free(ptr);
+    }
+}
+
 void Three::decref(RtLoaderPyObject *obj)
 {
     Py_XDECREF(reinterpret_cast<PyObject *>(obj));

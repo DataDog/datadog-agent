@@ -134,10 +134,3 @@ void RtLoader::clearError()
     _errorFlag = false;
     _error = "";
 }
-
-void RtLoader::free(void *ptr)
-{
-    if (ptr != NULL) {
-        _free(ptr);
-    }
-}

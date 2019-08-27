@@ -68,6 +68,7 @@ public:
 
     char *runCheck(RtLoaderPyObject *check);
     char **getCheckWarnings(RtLoaderPyObject *check);
+    void free(void *ptr);
     void decref(RtLoaderPyObject *obj);
     void incref(RtLoaderPyObject *obj);
     void setModuleAttrString(char *module, char *attr, char *value);
