@@ -239,14 +239,19 @@ var checkCmd = &cobra.Command{
 			fmt.Println("Multiple check instances found, running each of them")
 		}
 
-		var instancesData []interface{}
-
-		for _, c := range cs {
-			for _, conf := range allConfigs {
-				if check.IsJMXConfig(conf.Name, conf.InitConfig) {
-					return fmt.Errorf("using the jmx option with the check command directly is not supported, please use the jmx command instead")
-				}
+		// make sure the checks in cs are not JMX checks
+		for _, conf := range allConfigs {
+			if conf.Name != checkName {
+				continue
 			}
+
+			if check.IsJMXConfig(conf.Name, conf.InitConfig) {
+				return fmt.Errorf("using the jmx option with the check command directly is not supported, please use the jmx command instead")
+			}
+		}
+
+		var instancesData []interface{}
+		for _, c := range cs {
 			s := runCheck(c, agg)
 
 			// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
