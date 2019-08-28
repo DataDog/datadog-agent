@@ -18,6 +18,10 @@ void _set_memory_tracker_cb(cb_memory_tracker_t cb) {
     cb_memory_tracker = cb;
 }
 
+cb_memory_tracker_t _get_memory_tracker_cb(void) {
+    return cb_memory_tracker;
+}
+
 void *_malloc(size_t sz) {
     void *ptr = NULL;
     ptr = rt_malloc(sz);

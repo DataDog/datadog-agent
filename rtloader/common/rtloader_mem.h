@@ -30,6 +30,15 @@ extern "C" {
 */
 void _set_memory_tracker_cb(cb_memory_tracker_t);
 
+/*! \fn cb_memory_tracker_t _set_memory_tracker_cb(void)
+    \brief Returns the callback used by rtloader for memory tracking stats.
+    \return object A function pointer to the callback function.
+
+    This function is thread unsafe, be sure to call it early on before multiple threads
+    may start using the allocator.
+*/
+cb_memory_tracker_t _get_memory_tracker_cb(void);
+
 /*! \fn void *_malloc(size_t sz)
     \brief Basic malloc wrapper that will also keep memory stats if enabled.
     \param sz the number of bytes to allocate.
