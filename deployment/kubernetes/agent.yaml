@@ -21,6 +21,9 @@ spec:
           - containerPort: 8126
             name: traceport
             protocol: TCP
+          - containerPort: 5555
+            name: healthport
+            protocol: TCP    
         securityContext:
           privileged: true
         env:
@@ -82,13 +85,13 @@ spec:
           - name: cgroups
             mountPath: /host/sys/fs/cgroup
             readOnly: true
-#        livenessProbe:
-#          httpGet:
-#            path: /health
-#            port: 5555
-#          initialDelaySeconds: 15
-#          periodSeconds: 15
-#          timeoutSeconds: 5
+        livenessProbe:
+         httpGet:
+           path: /health
+           port: 5555
+         initialDelaySeconds: 15
+         periodSeconds: 15
+         timeoutSeconds: 5
       hostNetwork: true
       hostPID: true
       volumes:
