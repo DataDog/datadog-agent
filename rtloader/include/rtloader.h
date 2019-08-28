@@ -6,8 +6,8 @@
 #ifndef DATADOG_AGENT_RTLOADER_RTLOADER_H
 #define DATADOG_AGENT_RTLOADER_RTLOADER_H
 
-#include "rtloader_types.h"
 #include "rtloader_mem.h"
+#include "rtloader_types.h"
 
 #include <map>
 #include <mutex>
