@@ -106,7 +106,7 @@ func GetPlatform() (string, error) {
 		return pyOut, nil
 	}
 
-	unameOut, unameErr := execCmd("uname -a")
+	unameOut, unameErr := execCmd("uname", "-a")
 	if unameErr == nil {
 		return unameOut, nil
 	}
