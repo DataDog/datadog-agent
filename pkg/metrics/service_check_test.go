@@ -165,14 +165,18 @@ func TestPayloadsServiceChecks(t *testing.T) {
 	}
 }
 
-func benchmarkJSONStreamServiceCheck(b *testing.B, numberOfItem int) {
+func createServiceChecks(numberOfItem int) ServiceChecks {
 	var serviceCheckCollections []*ServiceCheck
 
 	for i := 0; i < numberOfItem; i++ {
 		serviceCheckCollections = append(serviceCheckCollections, createServiceCheck(string(i)))
 	}
+	return ServiceChecks(serviceCheckCollections)
+}
+
+func benchmarkPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
 	payloadBuilder := jsonstream.NewPayloadBuilder()
-	serviceChecks := ServiceChecks(serviceCheckCollections)
+	serviceChecks := createServiceChecks(numberOfItem)
 
 	b.ResetTimer()
 
@@ -181,13 +185,21 @@ func benchmarkJSONStreamServiceCheck(b *testing.B, numberOfItem int) {
 	}
 }
 
-func BenchmarkJSONStreamServiceCheck1(b *testing.B)       { benchmarkJSONStreamServiceCheck(b, 1) }
-func BenchmarkJSONStreamServiceCheck10(b *testing.B)      { benchmarkJSONStreamServiceCheck(b, 10) }
-func BenchmarkJSONStreamServiceCheck100(b *testing.B)     { benchmarkJSONStreamServiceCheck(b, 100) }
-func BenchmarkJSONStreamServiceCheck1000(b *testing.B)    { benchmarkJSONStreamServiceCheck(b, 1000) }
-func BenchmarkJSONStreamServiceCheck10000(b *testing.B)   { benchmarkJSONStreamServiceCheck(b, 10000) }
-func BenchmarkJSONStreamServiceCheck100000(b *testing.B)  { benchmarkJSONStreamServiceCheck(b, 100000) }
-func BenchmarkJSONStreamServiceCheck1000000(b *testing.B) { benchmarkJSONStreamServiceCheck(b, 1000000) }
-func BenchmarkJSONStreamServiceCheck10000000(b *testing.B) {
-	benchmarkJSONStreamServiceCheck(b, 10000000)
+func BenchmarkPayloadBuilderServiceCheck1(b *testing.B)   { benchmarkPayloadBuilderServiceCheck(b, 1) }
+func BenchmarkPayloadBuilderServiceCheck10(b *testing.B)  { benchmarkPayloadBuilderServiceCheck(b, 10) }
+func BenchmarkPayloadBuilderServiceCheck100(b *testing.B) { benchmarkPayloadBuilderServiceCheck(b, 100) }
+func BenchmarkPayloadBuilderServiceCheck1000(b *testing.B) {
+	benchmarkPayloadBuilderServiceCheck(b, 1000)
+}
+func BenchmarkPayloadBuilderServiceCheck10000(b *testing.B) {
+	benchmarkPayloadBuilderServiceCheck(b, 10000)
+}
+func BenchmarkPayloadBuilderServiceCheck100000(b *testing.B) {
+	benchmarkPayloadBuilderServiceCheck(b, 100000)
+}
+func BenchmarkPayloadBuilderServiceCheck1000000(b *testing.B) {
+	benchmarkPayloadBuilderServiceCheck(b, 1000000)
+}
+func BenchmarkPayloadBuilderServiceCheck10000000(b *testing.B) {
+	benchmarkPayloadBuilderServiceCheck(b, 10000000)
 }
