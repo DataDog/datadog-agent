@@ -106,6 +106,11 @@ func GetPlatform() (string, error) {
 		return pyOut, nil
 	}
 
+	unameOut, unameErr := execCmd("uname -a")
+	if unameErr == nil {
+		return unameOut, nil
+	}
+
 	lsbOut, lsbErr := execCmd("lsb_release", "-a")
 	if lsbErr == nil {
 		return lsbOut, nil
