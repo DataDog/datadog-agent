@@ -171,11 +171,8 @@ func (t *Tailer) readForever() {
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
 				case isReaderClosed(err):
-					// The reader has been closed during the shut down process of the tailer
-					// because as stated in the code base of docker:
-					// "It's up to the caller to close the stream.".
-					// See here for more information:
-					// https://github.com/moby/moby/blob/master/client/container_logs.go
+					// The reader has been closed during the shut down process
+					// of the tailer, stop reading
 					return
 				case isContextCanceled(err):
 					log.Debugf("Restarting reader for container %v after a read timeout", ShortContainerID(t.ContainerID))
@@ -275,7 +272,7 @@ func isContextCanceled(err error) bool {
 	return err == context.Canceled
 }
 
-// isReaderClosed returns true if the read has been closed.
+// isReaderClosed returns true if a reader has been closed.
 func isReaderClosed(err error) bool {
 	return strings.Contains(err.Error(), "http: read on closed response body")
 }
