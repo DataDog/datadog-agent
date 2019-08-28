@@ -127,10 +127,10 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	//if !config.Datadog.IsSet("api_key") {
-	//	log.Critical("no API key configured, exiting")
-	//	return nil
-	//}
+	if !config.Datadog.IsSet("api_key") {
+		log.Critical("no API key configured, exiting")
+		return nil
+	}
 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")

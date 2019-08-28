@@ -38,6 +38,8 @@ instances:
 
    # Temporarily in main datadog.yaml, will move to DCA
    collect_events: true
+   collect_metrics: true
+   collect_topology: true
    leader_candidate: true
    leader_lease_duration: 1200
    #collect_service_tags: false
@@ -142,6 +144,8 @@ func TestConvertKubernetes(t *testing.T) {
 
 	assert.Equal(t, true, config.Datadog.GetBool("kubernetes_collect_service_tags"))
 	assert.Equal(t, true, config.Datadog.GetBool("collect_kubernetes_events"))
+	assert.Equal(t, true, config.Datadog.GetBool("collect_kubernetes_metrics"))
+	assert.Equal(t, true, config.Datadog.GetBool("collect_kubernetes_topology"))
 	assert.Equal(t, true, config.Datadog.GetBool("leader_election"))
 	assert.Equal(t, 1200, config.Datadog.GetInt("leader_lease_duration"))
 	assert.Equal(t, 3000, config.Datadog.GetInt("kubernetes_service_tag_update_freq"))

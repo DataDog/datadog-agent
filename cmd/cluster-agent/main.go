@@ -21,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster"
+	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/kubeapi"
 	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/net"
 	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/system"
 	"github.com/StackVista/stackstate-agent/pkg/config"

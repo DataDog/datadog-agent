@@ -6,6 +6,8 @@ spec:
   selector:
     matchLabels:
       app: stackstate-agent
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -23,12 +25,12 @@ spec:
             protocol: TCP
           - containerPort: 5555
             name: healthport
-            protocol: TCP    
+            protocol: TCP
         securityContext:
           privileged: true
         env:
           - name: STS_API_KEY
-            value: "<STS_API_KEY>"
+            value: "API_KEY"
           - name: STS_STS_URL
             value: "<STACKSTATE_BACKEND_URL>/stsAgent"
           - name: STS_PROCESS_AGENT_URL
@@ -64,6 +66,10 @@ spec:
 #              secretKeyRef:
 #                name: stackstate-auth-token
 #                key: token
+          - name: STS_LOG_LEVEL
+            value: "DEBUG"
+          - name: LOG_LEVEL
+            value: "DEBUG"
         resources:
           requests:
             memory: "256Mi"

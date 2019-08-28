@@ -198,10 +198,12 @@ build_cluster_agent:
     - deps_deb
   script:
     - inv -e cluster-agent.build
+    - inv -e version
   artifacts:
     paths:
       - $CI_PROJECT_DIR/bin/stackstate-cluster-agent
       - $CI_PROJECT_DIR/Dockerfiles/cluster-agent/stackstate-cluster.yaml
+      - $CI_PROJECT_DIR/version.txt
 
 clear_build_deb_cache:
   stage: build_and_test
@@ -597,7 +599,7 @@ release_cluster_agent_image:
     - export VERSION=`cat version.txt`
     - export PUSH_LATEST=true
     - cp -r ./bin/stackstate-cluster-agent/* ./Dockerfiles/cluster-agent
-    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent
+    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent $PUSH_LATEST
   when: manual
   only:
     - tags

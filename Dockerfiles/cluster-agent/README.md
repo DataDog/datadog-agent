@@ -92,6 +92,28 @@ In order to collect events, you need the following environment variables:
 ```
 Enabling the leader election will ensure that only one agent collects the events.
 
+#### Metric collection
+
+In order to collect metrics, you need the following environment variables:
+```
+          - name: DD_COLLECT_KUBERNETES_METRICS
+            value: "true"
+          - name: DD_LEADER_ELECTION
+            value: "true"
+```
+Enabling the leader election will ensure that only one agent collects the metrics.
+
+#### Topology collection
+
+In order to collect topology, you need the following environment variables:
+```
+          - name: DD_COLLECT_KUBERNETES_TOPOLOGY
+            value: "true"
+          - name: DD_LEADER_ELECTION
+            value: "true"
+```
+Enabling the leader election will ensure that only one agent collects the topology.
+
 #### Cluster metadata provider
 
 Ensure the Node Agents and the Datadog Cluster Agent can properly communicate.
@@ -128,6 +150,8 @@ The following environment variables are supported:
 - `DD_CLUSTER_AGENT_CMD_PORT`: port for the Datadog Cluster Agent to serve, default is `5005`.
 - `DD_USE_METADATA_MAPPER`: enables the cluster level metadata mapping, default is `true`.
 - `DD_COLLECT_KUBERNETES_EVENTS` - configures the agent to collect Kubernetes events. Default to `false`. See the [Event collection section](#event-collection) for more details.
+- `DD_COLLECT_KUBERNETES_METRICS` - configures the agent to collect Kubernetes metrics. Default to `false`.
+- `DD_COLLECT_KUBERNETES_TOPOLOGY` - configures the agent to collect Kubernetes topology. Default to `true`.
 - `DD_LEADER_ELECTION`: activates the [leader election](../../Dockerfiles/agent#leader-election). You must set `DD_COLLECT_KUBERNETES_EVENTS` to `true` to activate this feature. Default value is `false`.
 - `DD_LEADER_LEASE_DURATION`: used only if the leader election is activated. See the details [here](#leader-election-lease). Value in seconds, 60 by default.
 - `DD_CLUSTER_AGENT_AUTH_TOKEN`: 32 characters long token that needs to be shared between the node agent and the Datadog Cluster Agent.

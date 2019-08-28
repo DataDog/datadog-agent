@@ -78,6 +78,9 @@ def apply_branding(ctx):
     """
     Apply stackstate branding
     """
+    sts_camel_replace = 's/Data[dD]og/StackState/g'
+    sts_lower_replace = 's/datadog/stackstate/g'
+
     # Config
     do_go_rename(ctx, '"\\"dd_url\\" -> \\"sts_url\\""', "./pkg/config")
     do_go_rename(ctx, '"\\"https://app.datadoghq.com\\" -> \\"http://localhost:7077\\""', "./pkg/config")
@@ -89,7 +92,7 @@ def apply_branding(ctx):
     do_go_rename(ctx, '"\\"datadog\\" -> \\"stackstate\\""', "./pkg/config")
     do_go_rename(ctx, '"\\"/etc/datadog-agent/conf.d\\" -> \\"/etc/stackstate-agent/conf.d\\""', "./pkg/config")
     do_go_rename(ctx, '"\\"/etc/datadog-agent/checks.d\\" -> \\"/etc/stackstate-agent/checks.d\\""', "./pkg/config")
-    do_go_rename(ctx, '"\\"/opt/datadog-agent/run\\" -> \\"/op/stackstate-agent/run\\""', "./pkg/config")
+    do_go_rename(ctx, '"\\"/opt/datadog-agent/run\\" -> \\"/opt/stackstate-agent/run\\""', "./pkg/config")
 
     # Trace agent
     do_go_rename(ctx, '"\\"DD_PROXY_HTTPS\\" -> \\"STS_PROXY_HTTPS\\""', "./pkg/trace")
@@ -147,9 +150,6 @@ def apply_branding(ctx):
     do_go_rename(ctx, '"\\"path to directory containing datadog.yaml\\" -> \\"path to directory containing stackstate.yaml\\""', "./cmd")
     do_go_rename(ctx, '"\\"unable to load Datadog config file: %s\\" -> \\"unable to load StackState config file: %s\\""', "./cmd/agent/common")
     do_go_rename(ctx, '"\\"Starting Datadog Agent v%v\\" -> \\"Starting StackState Agent v%v\\""', "./cmd/agent/app")
-
-    sts_camel_replace = 's/Data[dD]og/StackState/g'
-    sts_lower_replace = 's/datadog/stackstate/g'
 
     # Dist config templates
     do_sed_rename(ctx, sts_lower_replace, "./cmd/agent/dist/conf.d/go_expvar.d/agent_stats.yaml.example")
@@ -474,3 +474,4 @@ def version(ctx, url_safe=False, git_sha_length=8):
                     (the windows builder and the default ubuntu version have such an incompatibility)
     """
     print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length))
+

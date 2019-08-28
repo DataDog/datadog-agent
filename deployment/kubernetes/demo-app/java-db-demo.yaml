@@ -1,0 +1,127 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  labels:
+    app: stackstate-db
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: db
+  selector:
+    app: stackstate-db
+  clusterIP: None
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db
+  labels:
+    app: stackstate-db
+spec:
+  selector:
+    matchLabels:
+      app: stackstate-db
+  template:
+    metadata:
+      labels:
+        app: stackstate-db
+    spec:
+      containers:
+        - name: db
+          image: 508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-trace-java-demo:db-master
+          env:
+          - name: POSTGRES_USER
+            value: 'app'
+          - name: POSTGRES_PASSWORD
+            value: 'app'
+          - name: POSTGRES_DB
+            value: 'app'
+          ports:
+            - containerPort: 5432
+              name: db
+      hostPID: true
+      imagePullSecrets:
+        - name: ecr-reg-key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: books-app
+  labels:
+    app: stackstate-books-app
+spec:
+  ports:
+    - port: 8080
+      targetPort: 8081
+      name: books-app
+  selector:
+    app: stackstate-books-app
+  clusterIP: None
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: books-app
+  labels:
+    app: stackstate-books-app
+spec:
+  selector:
+    matchLabels:
+      app: stackstate-books-app
+  template:
+    metadata:
+      labels:
+        app: stackstate-books-app
+    spec:
+      containers:
+        - name: books-app
+          image: 508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-trace-java-demo:books-app-master
+          ports:
+            - containerPort: 8081
+              name: books-app
+      hostPID: true
+      imagePullSecrets:
+        - name: ecr-reg-key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authors-app
+  labels:
+    app: stackstate-authors-app
+spec:
+  ports:
+    - port: 8080
+      targetPort: 8081
+      name: authors-app
+  selector:
+    app: stackstate-authors-app
+  clusterIP: None
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authors-app
+  labels:
+    app: stackstate-authors-app
+spec:
+  selector:
+    matchLabels:
+      app: stackstate-authors-app
+  template:
+    metadata:
+      labels:
+        app: stackstate-authors-app
+    spec:
+      containers:
+        - name: authors-app
+          image: 508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-trace-java-demo:authors-app-master
+          ports:
+            - containerPort: 8081
+              name: authors-app
+      hostPID: true
+      imagePullSecrets:
+        - name: ecr-reg-key
+

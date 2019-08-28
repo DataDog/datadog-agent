@@ -30,10 +30,23 @@ def apply_branding(ctx):
     """
     Apply stackstate branding
     """
-    sts_lower_replace = '/www/! s/datadog/stackstate/g'
+    # Config
+    do_go_rename(ctx, '"\\"dd_url\\" -> \\"sts_url\\""', "./pkg/config")
+    do_go_rename(ctx, '"\\"https://app.datadoghq.com\\" -> \\"http://localhost:7077\\""', "./pkg/config")
+    do_go_rename(ctx, '"\\"DD_PROXY_HTTP\\" -> \\"STS_PROXY_HTTP\\""', "./pkg/config")
+    do_go_rename(ctx, '"\\"DD_PROXY_HTTPS\\" -> \\"STS_PROXY_HTTPS\\""', "./pkg/config")
+    do_go_rename(ctx, '"\\"DD_PROXY_NO_PROXY\\" -> \\"STS_PROXY_NO_PROXY\\""', "./pkg/config")
+    do_go_rename(ctx, '"\\"DOCKER_DD_AGENT\\" -> \\"DOCKER_STS_AGENT\\""', "./pkg/config")
+    do_go_rename(ctx, '"\\"DD\\" -> \\"STS\\""', "./pkg/config")
+    do_go_rename(ctx, '"\\"datadog\\" -> \\"stackstate\\""', "./pkg/config")
+    do_go_rename(ctx, '"\\"/etc/datadog-agent/conf.d\\" -> \\"/etc/stackstate-agent/conf.d\\""', "./pkg/config")
+    do_go_rename(ctx, '"\\"/etc/datadog-agent/checks.d\\" -> \\"/etc/stackstate-agent/checks.d\\""', "./pkg/config")
+    do_go_rename(ctx, '"\\"/opt/datadog-agent/run\\" -> \\"/opt/stackstate-agent/run\\""', "./pkg/config")
 
-    do_sed_rename(ctx, sts_lower_replace, "./cmd/cluster-agent/main.go")
-    do_sed_rename(ctx, sts_lower_replace, "./cmd/cluster-agent/app/*")
+    # Cluster Agent
+    cluster_agent_replace = '/www/! s/datadog/stackstate/g'
+    do_sed_rename(ctx, cluster_agent_replace, "./cmd/cluster-agent/main.go")
+    do_sed_rename(ctx, cluster_agent_replace, "./cmd/cluster-agent/app/*")
     do_sed_rename(ctx, 's/Datadog Cluster/StackState Cluster/g', "./cmd/cluster-agent/app/*")
     do_sed_rename(ctx, 's/Datadog Agent/StackState Agent/g', "./cmd/cluster-agent/app/*")
     do_sed_rename(ctx, 's/to Datadog/to StackState/g', "./cmd/cluster-agent/app/*")

@@ -29,8 +29,6 @@ agentmsg.h
 stackstate.yaml
 network-tracer.yaml
 dogstatsd.yaml
-Dockerfiles/cluster-agent/stackstate-cluster.yaml
-Dockerfiles/cluster-agent/dist
 
 # jetbrains IDE directory
 /.idea/
@@ -107,3 +105,10 @@ Pipfile*
 
 # molecule local json files
 /test/molecule-role/molecule/*/topic-*.json
+
+# cluster agent generated files
+Dockerfiles/cluster-agent/stackstate-cluster.yaml
+Dockerfiles/cluster-agent/auth_token
+Dockerfiles/cluster-agent/cluster_agent.auth_token
+Dockerfiles/cluster-agent/stackstate-cluster-agent
+Dockerfiles/cluster-agent/dist/

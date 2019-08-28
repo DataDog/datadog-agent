@@ -21,8 +21,16 @@ spec:
         name: stackstate-cluster-agent
         env:
           - name: STS_API_KEY
-            value: '<YOUR_API_KEY>'
+            value: "API_KEY"
+          - name: STS_STS_URL
+            value: "<STACKSTATE_BACKEND_URL>/stsAgent"
+          - name: STS_CLUSTER_NAME
+            value: "<CLUSTER_NAME>"
           - name: STS_COLLECT_KUBERNETES_EVENTS
+            value: "false"
+          - name: STS_COLLECT_KUBERNETES_METRICS
+            value: "false"
+          - name: STS_COLLECT_KUBERNETES_TOPOLOGY
             value: "true"
           - name: STS_LEADER_ELECTION
             value: "true"
@@ -31,6 +39,10 @@ spec:
               secretKeyRef:
                 name: stackstate-auth-token
                 key: token
+          - name: STS_LOG_LEVEL
+            value: "DEBUG"
+          - name: LOG_LEVEL
+            value: "DEBUG"
 ---
 apiVersion: v1
 kind: Service

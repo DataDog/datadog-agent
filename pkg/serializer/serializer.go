@@ -107,9 +107,9 @@ func (serializer AgentV1MockSerializer) SendJSONToV1Intake(data interface{}) err
 // GetJSONToV1IntakeMessage gets message from the mock
 func (serializer AgentV1MockSerializer) GetJSONToV1IntakeMessage() interface{} {
 	select {
-	case res := <- serializer.sendJSONToV1IntakeMessages:
+	case res := <-serializer.sendJSONToV1IntakeMessages:
 		return res
-	case <-time.After(3*time.Second):
+	case <-time.After(3 * time.Second):
 		log.Error("Timeout retrieving element")
 		return nil
 	}

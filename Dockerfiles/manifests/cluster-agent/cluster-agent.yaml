@@ -27,6 +27,10 @@ spec:
           #   value: '<YOUR_APP_KEY>'
           - name: DD_COLLECT_KUBERNETES_EVENTS
             value: "true"
+          - name: DD_COLLECT_KUBERNETES_METRICS
+            value: "true"
+          - name: DD_COLLECT_KUBERNETES_TOPOLOGY
+            value: "true"
           - name: DD_LEADER_ELECTION
             value: "true"
           - name: DD_CLUSTER_AGENT_AUTH_TOKEN

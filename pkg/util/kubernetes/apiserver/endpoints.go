@@ -9,8 +9,8 @@ package apiserver
 
 import (
 	"errors"
-
 	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	dderrors "github.com/StackVista/stackstate-agent/pkg/errors"
 )
@@ -32,4 +32,14 @@ func SearchTargetPerName(endpoints *v1.Endpoints, targetName string) (v1.Endpoin
 		}
 	}
 	return v1.EndpointAddress{}, dderrors.NewNotFound("target named " + targetName)
+}
+
+// GetEndpoints() retrieves all the endpoints in the Kubernetes cluster across all namespaces.
+func (c *APIClient) GetEndpoints() ([]v1.Endpoints, error) {
+	endpointList, err := c.Cl.CoreV1().Endpoints(metav1.NamespaceAll).List(metav1.ListOptions{})
+	if err != nil {
+		return []v1.Endpoints{}, err
+	}
+
+	return endpointList.Items, nil
 }

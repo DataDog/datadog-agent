@@ -10,6 +10,7 @@ package apiserver
 import (
 	"fmt"
 	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
@@ -81,4 +82,14 @@ func EntityForService(svc *v1.Service) string {
 		return ""
 	}
 	return fmt.Sprintf("%s%s", kubeServiceIDPrefix, svc.ObjectMeta.UID)
+}
+
+// GetEndpoints() retrieves all the endpoints in the Kubernetes cluster across all namespaces.
+func (c *APIClient) GetServices() ([]v1.Service, error) {
+	serviceList, err := c.Cl.CoreV1().Services(metav1.NamespaceAll).List(metav1.ListOptions{})
+	if err != nil {
+		return []v1.Service{}, err
+	}
+
+	return serviceList.Items, nil
 }

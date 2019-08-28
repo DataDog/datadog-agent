@@ -47,4 +47,10 @@ Create the shared token to allow Agent -> Cluster Agent communication:
 
     kubectl apply -f cluster-auth-token.yaml
     
+Before deploying the cluster agent there are few configuration settings to take care of, open the `cluster-agent.yaml` and:
+
+* replace `<STS_API_KEY>` with your StackState backend URL
+* replace `<STACKSTATE_BACKEND_URL>` with your StackState backend URL
+* replace `<STS_CLUSTER_NAME>` with your Cluster name
+    
 Uncomment the `STS_CLUSTER_AGENT_ENABLED` and `STS_CLUSTER_AGENT_AUTH_TOKEN` variables in `agent.yaml` and re-deploy the [main agent](#agent-deployment)

@@ -698,6 +698,10 @@ metadata_providers:
 # To collect Kubernetes events, leader election must be enabled and collect_kubernetes_events set to true.
 # Only the leader will collect events. More details about events [here](https://github.com/StackVista/stackstate-agent/blob/master/Dockerfiles/agent/README.md#event-collection).
 # collect_kubernetes_events: false
+# To collect Kubernetes metrics, leader election must be enabled and collect_kubernetes_metrics set to true.
+# collect_kubernetes_metrics: false
+# To collect Kubernetes topology, leader election must be enabled and collect_kubernetes_topology set to true.
+# collect_kubernetes_topology: true
 #
 #
 # Leader Election settings, more details about leader election [here](https://github.com/StackVista/stackstate-agent/blob/master/Dockerfiles/agent/README.md#leader-election)

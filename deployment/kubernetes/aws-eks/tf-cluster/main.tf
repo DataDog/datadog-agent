@@ -10,7 +10,7 @@
 // Remote state in S3 bucket
 terraform {
   backend "s3" {
-    bucket = "lupulus-terraform-state"
+    bucket = "lupulus-sandbox-terraform-state"
     key    = "aws-eks.terraform.tfstate"
     region = "eu-west-1"
   }

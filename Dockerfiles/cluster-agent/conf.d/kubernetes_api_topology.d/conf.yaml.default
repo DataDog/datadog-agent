@@ -1,0 +1,4 @@
+init_configs:
+instances:
+  - ## Tagging
+    ##
