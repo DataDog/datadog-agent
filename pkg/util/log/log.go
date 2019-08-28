@@ -329,6 +329,14 @@ func (sw *DatadogLogger) criticalf(format string, params ...interface{}) error {
 	return err
 }
 
+// getLogLevel returns the current log level
+func (sw *DatadogLogger) getLogLevel() seelog.LogLevel {
+	sw.l.RLock()
+	defer sw.l.RUnlock()
+
+	return sw.level
+}
+
 func buildLogEntry(v ...interface{}) string {
 	var fmtBuffer bytes.Buffer
 
@@ -538,11 +546,11 @@ func UnregisterAdditionalLogger(n string) error {
 	return errors.New("cannot unregister: logger not initialized")
 }
 
-// GetCurrentLogLevel returns a seelog native representation of the current
+// GetLogLevel returns a seelog native representation of the current
 // log level
-func GetCurrentLogLevel() (seelog.LogLevel, error) {
+func GetLogLevel() (seelog.LogLevel, error) {
 	if logger != nil && logger.inner != nil {
-		return logger.level, nil
+		return logger.getLogLevel(), nil
 	}
 
 	// need to return something, just set to Info (expected default)

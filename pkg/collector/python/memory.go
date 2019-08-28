@@ -68,7 +68,7 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 		bytes, ok := pointerCache.Load(ptr)
 		if !ok {
 			log.Debugf("untracked memory was attempted to be freed - set trace level for details")
-			lvl, err := log.GetCurrentLogLevel()
+			lvl, err := log.GetLogLevel()
 			if err == nil && lvl == seelog.TraceLvl {
 				stack := string(debug.Stack())
 				log.Tracef("Memory Tracker - stacktrace: \n%s", stack)
