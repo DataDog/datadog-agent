@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 )
 
 func TestMarshalServiceChecks(t *testing.T) {
@@ -202,4 +203,27 @@ func BenchmarkPayloadBuilderServiceCheck1000000(b *testing.B) {
 }
 func BenchmarkPayloadBuilderServiceCheck10000000(b *testing.B) {
 	benchmarkPayloadBuilderServiceCheck(b, 10000000)
+}
+
+func benchmarkPayloadsServiceCheck(b *testing.B, numberOfItem int) {
+	serviceChecks := createServiceChecks(numberOfItem)
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		split.Payloads(serviceChecks, true, split.MarshalJSON)
+	}
+}
+
+func BenchmarkPayloadServiceCheck1(b *testing.B)      { benchmarkPayloadsServiceCheck(b, 1) }
+func BenchmarkPayloadServiceCheck10(b *testing.B)     { benchmarkPayloadsServiceCheck(b, 10) }
+func BenchmarkPayloadServiceCheck100(b *testing.B)    { benchmarkPayloadsServiceCheck(b, 100) }
+func BenchmarkPayloadServiceCheck1000(b *testing.B)   { benchmarkPayloadsServiceCheck(b, 1000) }
+func BenchmarkPayloadServiceCheck10000(b *testing.B)  { benchmarkPayloadsServiceCheck(b, 10000) }
+func BenchmarkPayloadServiceCheck100000(b *testing.B) { benchmarkPayloadsServiceCheck(b, 100000) }
+func BenchmarkPayloadServiceCheck1000000(b *testing.B) {
+	benchmarkPayloadsServiceCheck(b, 1000000)
+}
+func BenchmarkPayloadServiceCheck10000000(b *testing.B) {
+	benchmarkPayloadsServiceCheck(b, 10000000)
 }
