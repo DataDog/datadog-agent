@@ -412,6 +412,12 @@ spec:
                 - name: dogstatsd
                   mountPath: /var/run/dogstatsd
                   readOnly: false
+                - name: logsregistry
+                  mountPath: /opt/datadog-agent/run
+                - name: podslogs
+                  mountPath: /var/log/pods
+                - name: dockerlogs
+                  mountPath: /var/lib/docker/containers
               volumes:
               - name: datadog-config
                 configMap:
@@ -428,6 +434,15 @@ spec:
               - hostPath:
                   path: /var/run/dogstatsd
                 name: dogstatsd
+              - hostPath:
+                  path: /opt/datadog-agent/run
+                name: logsregistry
+              - hostPath:
+                  path: /var/log/pods
+                name: podslogs
+              - hostPath:
+                  path: /var/lib/docker/containers
+                name: dockerlogs
 
     - name: fake-datadog-service
       value: |
