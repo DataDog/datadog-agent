@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	_ "github.com/benesch/cgosymbolizer"
+	"github.com/cihub/seelog"
 )
 
 /*
@@ -68,7 +69,7 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 		if !ok {
 			log.Debugf("untracked memory was attempted to be freed - set trace level for details")
 			lvl, err := log.GetCurrentLogLevel()
-			if err == nil && lvl == "trace" {
+			if err == nil && lvl == seelog.TraceLvl {
 				stack := string(debug.Stack())
 				log.Tracef("Memory Tracker - stacktrace: \n%s", stack)
 			}

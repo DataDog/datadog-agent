@@ -538,14 +538,15 @@ func UnregisterAdditionalLogger(n string) error {
 	return errors.New("cannot unregister: logger not initialized")
 }
 
-// GetCurrentLogLevel returns a string representation of the current
+// GetCurrentLogLevel returns a seelog native representation of the current
 // log level
-func GetCurrentLogLevel() (string, error) {
+func GetCurrentLogLevel() (seelog.LogLevel, error) {
 	if logger != nil && logger.inner != nil {
-		return logger.level.String(), nil
+		return logger.level, nil
 	}
 
-	return "", errors.New("cannot get loglevel: logger not initialized")
+	// need to return something, just set to Info (expected default)
+	return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 }
 
 func changeLogLevel(level string) error {
