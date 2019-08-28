@@ -260,7 +260,9 @@ func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetString("python_version")
 
 	// memory related RTLoader-global initialization
-	C.initMemoryTracker()
+	if config.Datadog.GetBool("memtrack_enabled") {
+		C.initMemoryTracker()
+	}
 
 	detectPythonLocation(pythonVersion)
 
