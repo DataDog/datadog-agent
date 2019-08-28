@@ -54,7 +54,6 @@ func init() {
 //export MemoryTracker
 func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 	// run sync for reliability reasons
-	stack := string(debug.Stack())
 	log.Debugf("Memory Tracker - ptr: %v, sz: %v, op: %v", ptr, sz, op)
 	switch op {
 	case C.DATADOG_AGENT_RTLOADER_ALLOCATION:
@@ -66,8 +65,12 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 	case C.DATADOG_AGENT_RTLOADER_FREE:
 		bytes, ok := pointerCache.Load(ptr)
 		if !ok {
-			log.Warnf("untracked memory was attempted to be freed")
-			log.Debugf("Memory Tracker - stacktrace: \n%s", stack)
+			log.Debugf("untracked memory was attempted to be freed")
+			lvl, err := log.GetCurrentLogLevel()
+			if err == nil && lvl == "trace" {
+				stack := string(debug.Stack())
+				log.Tracef("Memory Tracker - stacktrace: \n%s", stack)
+			}
 			untrackedFrees.Add(1)
 			return
 		}

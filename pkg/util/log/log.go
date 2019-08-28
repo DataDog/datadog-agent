@@ -538,9 +538,19 @@ func UnregisterAdditionalLogger(n string) error {
 	return errors.New("cannot unregister: logger not initialized")
 }
 
+// GetCurrentLogLevel returns a string representation of the current
+// log level
+func GetCurrentLogLevel() (string, error) {
+	if logger != nil && logger.inner != nil {
+		return logger.level.String(), nil
+	}
+
+	return "", errors.New("cannot get loglevel: logger not initialized")
+}
+
 func changeLogLevel(level string) error {
 	if logger == nil {
-		return errors.New("logger initialized, cant set log-level")
+		return errors.New("cannot set log-level: logger not initialized")
 	}
 
 	return logger.changeLogLevel(level)
