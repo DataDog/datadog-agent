@@ -16,23 +16,15 @@ static cb_memory_tracker_t cb_memory_tracker = NULL;
 
 void _set_memory_tracker_cb(cb_memory_tracker_t cb) {
 
-    // TODO: we build with gcc on windows so the __sync_synchronize
-    // builtin should work
-#ifndef _WIN32
     // Memory barrier for a little bit of safety on sets
     __sync_synchronize();
-#endif
     cb_memory_tracker = cb;
 }
 
 cb_memory_tracker_t _get_memory_tracker_cb(void) {
 
-    // TODO: we build with gcc on windows so the __sync_synchronize
-    // builtin should work
-#ifndef _WIN32
     // Memory barrier for a little bit of safety on gets
     __sync_synchronize();
-#endif
     return cb_memory_tracker;
 }
 
