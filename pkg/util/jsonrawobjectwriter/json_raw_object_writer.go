@@ -19,12 +19,12 @@ func NewJSONRawObjectWriter(stream *jsoniter.Stream) *JSONRawObjectWriter {
 	return writer
 }
 
-// JSONRawObjectWriterEmptyPolicy defines the behavior when adding an empty string
-type JSONRawObjectWriterEmptyPolicy int
+// EmptyPolicy defines the behavior when adding an empty string
+type EmptyPolicy int
 
 const (
 	// OmitEmpty does not write the field if the string is empty
-	OmitEmpty JSONRawObjectWriterEmptyPolicy = iota
+	OmitEmpty EmptyPolicy = iota
 
 	// AllowEmpty writes the string even if the string is empty
 	AllowEmpty
@@ -42,7 +42,7 @@ func (writer *JSONRawObjectWriter) FinishObject() {
 }
 
 // AddStringField adds a new field of type string
-func (writer *JSONRawObjectWriter) AddStringField(fieldName string, value string, policy JSONRawObjectWriterEmptyPolicy) {
+func (writer *JSONRawObjectWriter) AddStringField(fieldName string, value string, policy EmptyPolicy) {
 	if value != "" || policy == AllowEmpty {
 		writer.writeSeparatorIfNeeded()
 		writer.stream.WriteObjectField(fieldName)
