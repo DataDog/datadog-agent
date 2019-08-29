@@ -82,7 +82,7 @@ var (
 )
 
 func init() {
-	jmxCmd.PersistentFlags().StringVarP(&jmxLogLevel, "log-level", "l", "debug", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
+	jmxCmd.PersistentFlags().StringVarP(&jmxLogLevel, "log-level", "l", "", "set the log level (default 'debug') (deprecated, use the env var DD_LOG_LEVEL instead)")
 
 	// attach list and collect commands to jmx command
 	jmxCmd.AddCommand(jmxListCmd)
@@ -130,7 +130,7 @@ func runJmxCommand(command string) error {
 		overrides["log_level"] = jmxLogLevel
 		config.SetOverrides(overrides)
 	} else {
-		jmxLogLevel = config.GetEnv("DD_LOG_LEVEL", "off")
+		jmxLogLevel = config.GetEnv("DD_LOG_LEVEL", "debug")
 	}
 
 	overrides := make(map[string]interface{})
