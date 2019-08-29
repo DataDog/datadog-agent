@@ -21,9 +21,9 @@
 #include <algorithm>
 #include <sstream>
 
-extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *pythonHome)
+extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *pythonHome, cb_memory_tracker_t memtrack_cb)
 {
-    return new Three(pythonHome);
+    return new Three(pythonHome, memtrack_cb);
 }
 
 extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
@@ -31,8 +31,8 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
     delete p;
 }
 
-Three::Three(const char *python_home)
-    : RtLoader()
+Three::Three(const char *python_home, cb_memory_tracker_t memtrack_cb)
+    : RtLoader(memtrack_cb)
     , _pythonHome(NULL)
     , _baseClass(NULL)
     , _pythonPaths()

@@ -31,7 +31,7 @@ public:
       Basic constructor, initializes the _error string to an empty string and
       errorFlag to false and set the supplied PYTHONHOME.
     */
-    Two(const char *python_home);
+    Two(const char *python_home, cb_memory_tracker_t memtrack_cb);
 
     //! Destructor.
     /*!
