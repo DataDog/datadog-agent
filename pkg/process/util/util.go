@@ -106,6 +106,11 @@ func GetPlatform() (string, error) {
 		return pyOut, nil
 	}
 
+	unameOut, unameErr := execCmd("uname", "-a")
+	if unameErr == nil {
+		return unameOut, nil
+	}
+
 	lsbOut, lsbErr := execCmd("lsb_release", "-a")
 	if lsbErr == nil {
 		return lsbOut, nil
@@ -116,7 +121,7 @@ func GetPlatform() (string, error) {
 		return strings.ToLower(string(redhatRaw)), nil
 	}
 
-	return "", fmt.Errorf("error retrieving platform, with python: %s, with lsb_release: %s, reading redhat-release: %s", pyErr, lsbErr, redhatErr)
+	return "", fmt.Errorf("error retrieving platform, with python: %s, with uname: %s, with lsb_release: %s, reading redhat-release: %s", pyErr, unameErr, lsbErr, redhatErr)
 }
 
 // IsDebugfsMounted would test the existence of file /sys/kernel/debug/tracing/kprobe_events to determine if debugfs is mounted or not
