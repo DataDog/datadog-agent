@@ -16,7 +16,7 @@ import (
 
 const (
 	batchTimeout   = 5 * time.Second
-	maxBatchSize   = 20
+	maxBatchSize   = 200
 	maxContentSize = 1000000
 )
 
