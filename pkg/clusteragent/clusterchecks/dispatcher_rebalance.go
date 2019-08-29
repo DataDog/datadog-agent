@@ -26,19 +26,15 @@ func (w Weights) Less(i, j int) bool { return w[i].busyness > w[j].busyness }
 func (w Weights) Swap(i, j int)      { w[i], w[j] = w[j], w[i] }
 
 func (d *dispatcher) calculateAvg() (int, error) {
-	busyness := 0.0
+	busyness := 0
 	length := 0
 
 	d.store.RLock()
 	defer d.store.RUnlock()
 
 	for _, node := range d.store.nodes {
-		node.RLock()
-		for _, stats := range node.clcRunnerStats {
-			busyness += busynessFunc(stats.AverageExecutionTime, stats.MetricSamples)
-		}
+		busyness = node.GetBusyness(busynessFunc)
 		length += 1
-		node.RUnlock()
 	}
 
 	if length == 0 {
@@ -59,9 +55,7 @@ func (d *dispatcher) getDiffAndWeights(avg int) (map[string]int, Weights) {
 	defer d.store.RUnlock()
 
 	for nodeName, node := range d.store.nodes {
-		node.RLock()
-		busyness := calculateBusyness(node.clcRunnerStats)
-		node.RUnlock()
+		busyness := node.GetBusyness(busynessFunc)
 		diffMap[nodeName] = busyness - avg
 		weights = append(weights, Weight{
 			nodeName: nodeName,
@@ -80,11 +74,10 @@ func (d *dispatcher) updateDiff(avg int) map[string]int {
 	defer d.store.RUnlock()
 
 	for nodeName, node := range d.store.nodes {
-		node.RLock()
-		busyness := calculateBusyness(node.clcRunnerStats)
-		node.RUnlock()
+		busyness := node.GetBusyness(busynessFunc)
 		diffMap[nodeName] = busyness - avg
 	}
+
 	return diffMap
 }
 
@@ -93,25 +86,16 @@ func (d *dispatcher) updateDiff(avg int) map[string]int {
 // Weight(Xi) >  Weight(Xj) (for each j != i, 0 <= j < len(weights))
 // where Weight(X) is the busyness value caused by running the check X.
 func (d *dispatcher) pickCheckToMove(nodeName string) (string, int, error) {
-	(*d.store.nodes[nodeName]).RLock()
-	defer (*d.store.nodes[nodeName]).RUnlock()
+	d.store.RLock()
+	node, found := d.store.getNodeStore(nodeName)
+	d.store.RUnlock()
 
-	if len((*d.store.nodes[nodeName]).clcRunnerStats) == 0 {
-		return "", -1, fmt.Errorf("Node %s has no check stats", nodeName)
+	if !found {
+		log.Debugf("Node %s not found in store. Won't consider moving check", nodeName)
+		return "", -1, fmt.Errorf("node %s not found in store", nodeName)
 	}
 
-	firstItr := true
-	checkID := ""
-	checkWeight := 0
-	for id, stats := range (*d.store.nodes[nodeName]).clcRunnerStats {
-		busyness := int(busynessFunc(stats.AverageExecutionTime, stats.MetricSamples))
-		if busyness > checkWeight || firstItr {
-			checkWeight = busyness
-			checkID = id
-			firstItr = false
-		}
-	}
-	return checkID, checkWeight, nil
+	return node.GetMostWeightedCheck(busynessFunc)
 }
 
 // pickNode select the most appropriate node to receive a specific check.
@@ -146,19 +130,13 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) {
 	d.store.RUnlock()
 
 	if !destFound || !srcFound {
-		log.Debugf("Nodes not found in store: %s, %s. Check %s will not move ", src, dest, checkID)
+		log.Debugf("Nodes not found in store: %s, %s. Check %s will not move", src, dest, checkID)
 		return
 	}
 
-	srcNode.Lock()
-	destNode.Lock()
-
-	runnerStats := srcNode.getRunnerStats(checkID)
-	destNode.addRunnerStats(checkID, runnerStats)
-	srcNode.removeRunnerStats(checkID)
-
-	srcNode.Unlock()
-	destNode.Unlock()
+	runnerStats := srcNode.GetRunnerStats(checkID)
+	destNode.AddRunnerStats(checkID, runnerStats)
+	srcNode.RemoveRunnerStats(checkID)
 
 	config, digest := d.getConfigAndDigest(checkID)
 	log.Tracef("Digest of %s is %s, config: %s", checkID, digest, config.String())

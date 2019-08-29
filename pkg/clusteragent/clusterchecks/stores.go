@@ -8,6 +8,7 @@
 package clusterchecks
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -116,11 +117,19 @@ func (s *nodeStore) removeConfig(digest string) {
 	dispatchedConfigs.WithLabelValues(s.name).Dec()
 }
 
-func (s *nodeStore) addRunnerStats(checkID string, stats types.CLCRunnerStats) {
+// AddRunnerStats stores runner stats for a check
+// The nodeStore handles thread safety for this public method
+func (s *nodeStore) AddRunnerStats(checkID string, stats types.CLCRunnerStats) {
+	s.Lock()
+	defer s.Unlock()
 	s.clcRunnerStats[checkID] = stats
 }
 
-func (s *nodeStore) removeRunnerStats(checkID string) {
+// RemoveRunnerStats deletes runner stats for a check
+// The nodeStore handles thread safety for this public method
+func (s *nodeStore) RemoveRunnerStats(checkID string) {
+	s.Lock()
+	defer s.Unlock()
 	_, found := s.clcRunnerStats[checkID]
 	if !found {
 		log.Debugf("unknown check ID %s, skipping", checkID)
@@ -129,10 +138,49 @@ func (s *nodeStore) removeRunnerStats(checkID string) {
 	delete(s.clcRunnerStats, checkID)
 }
 
-func (s *nodeStore) getRunnerStats(checkID string) types.CLCRunnerStats {
+// GetRunnerStats returns the runner stats of a given check
+// The nodeStore handles thread safety for this public method
+func (s *nodeStore) GetRunnerStats(checkID string) types.CLCRunnerStats {
+	s.RLock()
+	defer s.RUnlock()
 	stats, found := s.clcRunnerStats[checkID]
 	if !found {
 		log.Debugf("unknown check ID %s", checkID)
 	}
 	return stats
+}
+
+// GetBusyness calculates busyness of the node
+// The nodeStore handles thread safety for this public method
+func (s *nodeStore) GetBusyness(busynessFunc func(avgExecTime, mSamples int) float64) int {
+	s.RLock()
+	defer s.RUnlock()
+	busyness := 0.0
+	for _, stats := range s.clcRunnerStats {
+		busyness += busynessFunc(stats.AverageExecutionTime, stats.MetricSamples)
+	}
+	return int(busyness)
+}
+
+// GetMostWeightedCheck returns the check with the most weight on the node
+// The nodeStore handles thread safety for this public method
+func (s *nodeStore) GetMostWeightedCheck(busynessFunc func(avgExecTime, mSamples int) float64) (string, int, error) {
+	s.RLock()
+	defer s.RUnlock()
+	if len(s.clcRunnerStats) == 0 {
+		log.Debugf("Node %s has no check stats", s.name)
+		return "", -1, fmt.Errorf("node %s has no check stats", s.name)
+	}
+	firstItr := true
+	checkID := ""
+	checkWeight := 0
+	for id, stats := range s.clcRunnerStats {
+		busyness := int(busynessFunc(stats.AverageExecutionTime, stats.MetricSamples))
+		if busyness > checkWeight || firstItr {
+			checkWeight = busyness
+			checkID = id
+			firstItr = false
+		}
+	}
+	return checkID, checkWeight, nil
 }
