@@ -21,10 +21,12 @@ func newJSONRawObjectWriterTest() *JSONRawObjectWriter {
 func TestJSONRawObjectWriterSimpleField(t *testing.T) {
 	writer := newJSONRawObjectWriterTest()
 
+	writer.StartObject()
 	writer.AddStringField("f1", "1", AllowEmpty)
 	writer.AddStringField("f2", "", OmitEmpty)
 	writer.AddInt64Field("f3", 3)
-	writer.Close()
+	writer.FinishObject()
+	writer.Flush()
 
 	assert.Equal(t, `{"f1":"1","f3":3}`, writer.toString())
 }
@@ -32,12 +34,14 @@ func TestJSONRawObjectWriterSimpleField(t *testing.T) {
 func TestJSONRawObjectWriterStringArray(t *testing.T) {
 	writer := newJSONRawObjectWriterTest()
 
+	writer.StartObject()
 	writer.StartArrayField("array")
 	writer.AddStringValue("1")
 	writer.AddStringValue("2")
 	writer.AddStringValue("3")
 	writer.FinishArrayField()
-	writer.Close()
+	writer.FinishObject()
+	writer.Flush()
 
 	assert.Equal(t, `{"array":["1","2","3"]}`, writer.toString())
 }

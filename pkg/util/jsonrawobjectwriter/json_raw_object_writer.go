@@ -16,8 +16,6 @@ type JSONRawObjectWriter struct {
 // NewJSONRawObjectWriter creates a new instance of JSONRawObjectWriter
 func NewJSONRawObjectWriter(stream *jsoniter.Stream) *JSONRawObjectWriter {
 	writer := &JSONRawObjectWriter{stream: stream}
-	writer.stream.WriteObjectStart()
-	writer.addScope()
 	return writer
 }
 
@@ -31,6 +29,17 @@ const (
 	// AllowEmpty writes the string even if the string is empty
 	AllowEmpty
 )
+
+// StartObject starts a new JSON object (add '{')
+func (writer *JSONRawObjectWriter) StartObject() {
+	writer.stream.WriteObjectStart()
+	writer.addScope()
+}
+
+// FinishObject finishes a JSON object (add '}')
+func (writer *JSONRawObjectWriter) FinishObject() {
+	writer.stream.WriteObjectEnd()
+}
 
 // AddStringField adds a new field of type string
 func (writer *JSONRawObjectWriter) AddStringField(fieldName string, value string, policy JSONRawObjectWriterEmptyPolicy) {
@@ -68,9 +77,8 @@ func (writer *JSONRawObjectWriter) AddStringValue(value string) {
 	writer.stream.WriteString(value)
 }
 
-// Close closes the JSON object and flush the stream
-func (writer *JSONRawObjectWriter) Close() error {
-	writer.stream.WriteObjectEnd()
+// Flush the stream
+func (writer *JSONRawObjectWriter) Flush() error {
 	return writer.stream.Flush()
 }
 
