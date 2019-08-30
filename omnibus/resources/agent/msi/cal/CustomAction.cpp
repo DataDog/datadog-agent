@@ -410,6 +410,7 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
     LOCALGROUP_MEMBERS_INFO_0 lmi0;
     memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_0));
     BOOL willDeleteUser = false;
+    BOOL isDC = isDomainController(hInstall);
     if (t == UNINSTALL_UNINSTALL) {
         regkey.createSubKey(strUninstallKeyName.c_str(), installState);
     }
@@ -429,9 +430,13 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
         if (installState.getStringValue(installCreatedDDDomain.c_str(), installedDomain)) {
             installedDomainPtr = installedDomain.c_str();
             toMbcs(usershort, installedDomainPtr);
-            WcaLog(LOGMSG_STANDARD, "NOT Removing user from domain %s", usershort);
+            WcaLog(LOGMSG_STANDARD, "NOT Removing user from domain %s", usershort.c_str());
             WcaLog(LOGMSG_STANDARD, "Domain user can be removed.");
             installedComplete = installedDomain + L"\\";
+        } else if (isDC) {
+            WcaLog(LOGMSG_STANDARD, "NOT Removing user %s from domain controller", usershort.c_str());
+            WcaLog(LOGMSG_STANDARD, "Domain user can be removed.");
+    
         } else {
             WcaLog(LOGMSG_STANDARD, "Will delete user %s from local user store", usershort.c_str());
             willDeleteUser = true;
