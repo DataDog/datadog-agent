@@ -14,5 +14,5 @@ apm_config:
   enabled: false
   apm_non_local_traffic: true
 
-# Use java container support
-jmx_use_container_support: true
+# Use java cgroup memory awareness
+jmx_use_cgroup_memory_limit: true
