@@ -188,7 +188,8 @@ func (events Events) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 }
 
 //-----------------------------------------------------------------------------
-// Implements StreamJSONMarshaler by grouping events by source type
+// Implements StreamJSONMarshaler.
+// Each item in StreamJSONMarshaler is composed of all events for a specific source type name.
 //-----------------------------------------------------------------------------
 type eventsSourceType struct {
 	sourceType string
@@ -242,13 +243,13 @@ func (e *eventsBySourceTypeMarshaler) WriteItem(stream *jsoniter.Stream, i int) 
 	return writer.FinishArrayField()
 }
 
-func (s *eventsBySourceTypeMarshaler) Len() int { return len(s.eventsBySourceType) }
+func (e *eventsBySourceTypeMarshaler) Len() int { return len(e.eventsBySourceType) }
 
-func (s *eventsBySourceTypeMarshaler) DescribeItem(i int) string {
-	if i < 0 || i > len(s.eventsBySourceType)-1 {
+func (e *eventsBySourceTypeMarshaler) DescribeItem(i int) string {
+	if i < 0 || i > len(e.eventsBySourceType)-1 {
 		return outOfRangeMsg
 	}
-	return fmt.Sprintf("Source type: %s, events count: %d", s.eventsBySourceType[i].sourceType, len(s.eventsBySourceType[i].events))
+	return fmt.Sprintf("Source type: %s, events count: %d", e.eventsBySourceType[i].sourceType, len(e.eventsBySourceType[i].events))
 }
 
 func writeEvent(event *Event, writer *utiljson.RawObjectWriter) error {
@@ -283,11 +284,13 @@ func writeEvent(event *Event, writer *utiljson.RawObjectWriter) error {
 	return writer.Flush()
 }
 
-func (e Events) CreateMarshalerBySourceType() marshaler.StreamJSONMarshaler {
-	eventsBySourceType := e.getEventsBySourceType()
+// CreateMarshalerBySourceType creates marshaler.StreamJSONMarshaler where each item
+// is composed of all events for a specific source type name.
+func (events Events) CreateMarshalerBySourceType() marshaler.StreamJSONMarshaler {
+	eventsBySourceType := events.getEventsBySourceType()
 	var values []eventsSourceType
 	for sourceType, events := range eventsBySourceType {
 		values = append(values, eventsSourceType{sourceType, events})
 	}
-	return &eventsBySourceTypeMarshaler{e, values}
+	return &eventsBySourceTypeMarshaler{events, values}
 }

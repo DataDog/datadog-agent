@@ -6,6 +6,8 @@
 package metrics
 
 import (
+	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -120,4 +122,114 @@ func TestSplitEvents(t *testing.T) {
 	newEvents, err = events.SplitPayload(3)
 	require.Nil(t, err)
 	require.Len(t, newEvents, 2)
+}
+
+func TestPayloadDescribeItem(t *testing.T) {
+	events := Events{createEvent("sourceTypeName")}
+	assert.Equal(t, `Source type: sourceTypeName, events count: 1`, events.CreateMarshalerBySourceType().DescribeItem(0))
+}
+
+func TestPayloadsNoEvent(t *testing.T) {
+	assertEqualEventsToMarshalJSON(t, Events{})
+}
+
+func TestPayloadsSingleEvent(t *testing.T) {
+	events := Events{createEvent("sourceTypeName")}
+	assertEqualEventsToMarshalJSON(t, events)
+}
+
+func TestPayloadsEmptyEvent(t *testing.T) {
+	assertEqualEventsToMarshalJSON(t, Events{&Event{}})
+}
+
+func TestPayloadsEvents(t *testing.T) {
+	events := Events{
+		createEvent("1"),
+		createEvent("2"),
+		createEvent("3"),
+		createEvent("2"),
+		createEvent("1"),
+		createEvent("3")}
+
+	assertEqualEventsToMarshalJSON(t, events)
+}
+
+func TestPayloadsEventsSeveralPayloads(t *testing.T) {
+	config.Datadog.Set("serializer_max_payload_size", 500)
+	defer config.Datadog.Set("serializer_max_payload_size", nil)
+
+	eventsCollection := []Events{
+		{createEvent("3"), createEvent("3")},
+		{createEvent("2"), createEvent("2")},
+		{createEvent("1"), createEvent("1")}}
+	var allEvents Events
+	var expectedPayloads [][]byte
+
+	for _, events := range eventsCollection {
+		allEvents = append(allEvents, events...)
+		json, err := events.MarshalJSON()
+		assert.NoError(t, err)
+		expectedPayloads = append(expectedPayloads, json)
+	}
+
+	payloads := buildPayload(t, allEvents.CreateMarshalerBySourceType())
+
+	assertEqualEventsPayloads(t, expectedPayloads, payloads)
+}
+
+func createEvent(sourceTypeName string) *Event {
+	return &Event{
+		Title:          "1",
+		Text:           "2",
+		Ts:             3,
+		Priority:       EventPriorityNormal,
+		Host:           "5",
+		Tags:           []string{"6", "7"},
+		AlertType:      EventAlertTypeError,
+		AggregationKey: "9",
+		SourceTypeName: sourceTypeName,
+		EventType:      "10"}
+}
+
+func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
+	payloads := buildPayload(t, events.CreateMarshalerBySourceType())
+	json, err := events.MarshalJSON()
+	assert.NoError(t, err)
+	assertEqualEventsPayloads(t, [][]byte{json}, payloads)
+}
+
+func assertEqualEventsPayloads(t *testing.T, expected [][]byte, actual [][]byte) {
+	// The payload order returned by Events is not deterministic because we use a map inside
+	// getEventsBySourceType().
+	expectedBySourceTypes, err := createEventsJSONCollection(expected)
+	assert.NoError(t, err)
+
+	actualBySourceTypes, err := createEventsJSONCollection(actual)
+	assert.NoError(t, err)
+
+	assert.Equal(t, len(expectedBySourceTypes), len(actualBySourceTypes))
+	assert.True(t, reflect.DeepEqual(expectedBySourceTypes, actualBySourceTypes))
+}
+
+func createEventsJSONCollection(payloads [][]byte) (map[string][]*eventsJSON, error) {
+	eventsJSONBySourceType := make(map[string][]*eventsJSON)
+
+	for _, p := range payloads {
+		events := eventsJSON{}
+		err := json.Unmarshal(p, &events)
+
+		if err != nil {
+			return nil, err
+		}
+		for sourceTypeName := range events.Events {
+			eventsJSONBySourceType[sourceTypeName] = append(eventsJSONBySourceType[sourceTypeName], &events)
+		}
+	}
+	return eventsJSONBySourceType, nil
+}
+
+type eventsJSON struct {
+	APIKey           string
+	Events           map[string][]Event
+	InternalHostname string
 }
