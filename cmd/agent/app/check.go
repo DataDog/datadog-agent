@@ -139,7 +139,7 @@ var checkCmd = &cobra.Command{
 			}
 
 			if check.IsJMXConfig(conf.Name, conf.InitConfig) {
-				return fmt.Errorf("using the jmx option with the check command directly is not supported, please use the jmx command instead")
+				return fmt.Errorf("running a jmx check with the check command is not supported, please use the jmx command instead")
 			}
 		}
 
