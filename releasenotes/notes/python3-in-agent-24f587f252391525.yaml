@@ -11,5 +11,5 @@ features:
     The Agent now includes a Python 3 runtime to run checks.
     By default, the Python 2 runtime is used. See the dedicated `Agent documentation page
     <https://docs.datadoghq.com/agent/guide/python-3/>`_ for details on how to
-    configure the Agent to use the Python 3 runtime and how to migrate checks between
-    Python 2 and Python 3.
+    configure the Agent to use the Python 3 runtime and how to migrate checks from
+    Python 2 to Python 3.
