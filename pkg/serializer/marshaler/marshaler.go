@@ -23,3 +23,12 @@ type StreamJSONMarshaler interface {
 	Len() int
 	DescribeItem(i int) string
 }
+
+// StreamJSONMarshalerFactory is a factory for StreamJSONMarshaler.
+type StreamJSONMarshalerFactory interface {
+	// Create a single marshaler.
+	CreateSingleMarshaler() StreamJSONMarshaler
+
+	// If the single marshaler cannot serialize, use smaller marshalers.
+	CreateMarshalerCollection() []StreamJSONMarshaler
+}

@@ -291,9 +291,9 @@ func writeEvent(event *Event, writer *utiljson.RawObjectWriter) error {
 	return writer.Flush()
 }
 
-// CreateMarshalerBySourceType creates marshaler.StreamJSONMarshaler where each item
+// CreateSingleMarshaler creates marshaler.StreamJSONMarshaler where each item
 // is composed of all events for a specific source type name.
-func (events Events) CreateMarshalerBySourceType() marshaler.StreamJSONMarshaler {
+func (events Events) CreateSingleMarshaler() marshaler.StreamJSONMarshaler {
 	eventsBySourceType := events.getEventsBySourceType()
 	var values []eventsSourceType
 	for sourceType, events := range eventsBySourceType {
@@ -349,9 +349,9 @@ func (e *eventsMarshaler) DescribeItem(i int) string {
 	return fmt.Sprintf("Title: %s, Text: %s, Source Type: %s", event.Title, event.Text, event.SourceTypeName)
 }
 
-// CreateMarshalerForEachSourceType creates a collection of marshaler.StreamJSONMarshaler.
+// CreateMarshalerCollection creates a collection of marshaler.StreamJSONMarshaler.
 // Each StreamJSONMarshaler is composed of all events for a specific source type name.
-func (events Events) CreateMarshalerForEachSourceType() []marshaler.StreamJSONMarshaler {
+func (events Events) CreateMarshalerCollection() []marshaler.StreamJSONMarshaler {
 	e := events.getEventsBySourceType()
 	var values []marshaler.StreamJSONMarshaler
 	for k, v := range e {
