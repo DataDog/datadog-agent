@@ -255,7 +255,7 @@ api_key:
 #
 # disable_py3_validation: false
 #
-## @param disable_py3_validation - integer - optional - default: 120
+## @param python3_linter_timeout - integer - optional - default: 120
 ## Timeout value in seconds for validation of python checks.
 #
 # python3_linter_timeout: 120
