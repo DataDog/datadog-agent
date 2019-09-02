@@ -107,14 +107,14 @@ bool Three::init()
     }
 
     if (init_stringutils() != EXIT_SUCCESS) {
-        setError("error initializing string utils");
+        setError("error initializing string utils: " + _fetchPythonError());
         goto done;
     }
 
     // import the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
     if (_baseClass == NULL) {
-        setError("could not import base class");
+        setError("could not import base class: " + std::string(getError()));
     }
 
 done:
