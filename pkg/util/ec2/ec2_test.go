@@ -20,6 +20,7 @@ import (
 func TestIsDefaultHostname(t *testing.T) {
 	assert.True(t, IsDefaultHostname("IP-FOO"))
 	assert.True(t, IsDefaultHostname("domuarigato"))
+	assert.True(t, IsDefaultHostname("EC2AMAZ-FOO"))
 	assert.False(t, IsDefaultHostname(""))
 }
 
