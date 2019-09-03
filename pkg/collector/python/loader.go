@@ -171,17 +171,19 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 		// Let's use the module namespace to try to decide if this was a
 		// custom check, check for py3 compatibility
 		var checkFilePath *C.char
+		var goCheckFilePath string
 
 		fileAttr := TrackedCString("__file__")
 		defer C._free(unsafe.Pointer(fileAttr))
 		// get_attr_string allocation tracked by memory tracker
 		if res := C.get_attr_string(rtloader, checkModule, fileAttr, &checkFilePath); res != 0 {
-			reportPy3Warnings(name, C.GoString(checkFilePath))
+			goCheckFilePath = C.GoString(checkFilePath)
 			C.rtloader_free(rtloader, unsafe.Pointer(checkFilePath))
 		} else {
-			reportPy3Warnings(name, "")
 			log.Debugf("Could not query the __file__ attribute for check %s: %s", name, getRtLoaderError())
 		}
+
+		go reportPy3Warnings(name, goCheckFilePath)
 	}
 
 	// Get an AgentCheck for each configuration instance and add it to the registry

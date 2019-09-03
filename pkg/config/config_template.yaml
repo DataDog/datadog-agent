@@ -255,6 +255,11 @@ api_key:
 #
 # disable_py3_validation: false
 #
+## @param python3_linter_timeout - integer - optional - default: 120
+## Timeout in seconds for validation of compatibility with python 3 when running python 2.
+#
+# python3_linter_timeout: 120
+
 ## @param memtrack_enabled - boolean - optional - default: true
 ## Enables tracking of memory allocations made from the python runtime loader.
 #
