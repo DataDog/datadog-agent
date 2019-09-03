@@ -1,3 +1,5 @@
+<!-- This page should NOT be deleted. A Datadog short-link (https://dtdg.co/flag-hostname-fqdn) points to this page. The link cannot be changed. -->
+
 # Difference in hostname resolution between Agent v5 and Agent v6
 
 This information is available in the Datadog documentation:
