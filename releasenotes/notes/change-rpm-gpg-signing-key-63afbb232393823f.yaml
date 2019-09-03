@@ -10,6 +10,6 @@ upgrade:
   - |
     The GPG key used to sign the Agent RPM packages has been rotated.
     See the dedicated `Agent documentation page
-    <https://docs.datadoghq.com/agent/guide/python-3/>`_ to know how
-    to make sure that the new Agent RPM packages can be installed on
+    <https://docs.datadoghq.com/agent/faq/rpm-gpg-key-rotation-agent-6/>`_
+    to know how to make sure that the new Agent RPM packages can be installed on
     hosts.
