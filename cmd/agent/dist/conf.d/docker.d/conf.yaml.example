@@ -37,11 +37,6 @@ instances:
     #
     # collect_container_size_frequency: 5
 
-    ## @param collect_volume_count - boolean - optional - default: false
-    ## Set to true to collect the volume count for attached and dangling volumes.
-    #
-    # collect_volume_count: false
-
     ## @param collect_images_stats - boolean - optional - default: false
     ## Set to true to gather the number of available active images and intermediate images as gauges.
     #
