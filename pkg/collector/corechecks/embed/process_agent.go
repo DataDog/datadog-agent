@@ -130,7 +130,6 @@ func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integrat
 	// handle the case when the agent is disabled via the old `datadog.conf` file
 	if enabled := config.Datadog.GetBool("process_config.enabled"); !enabled {
 		log.Info("Process Agent disabled through main configuration file")
-		return nil
 	}
 
 	var checkConf processAgentCheckConf
