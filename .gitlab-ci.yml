@@ -62,6 +62,7 @@ variables:
   RELEASE_VERSION: nightly
   DATADOG_AGENT_BUILDIMAGES: v1709713-2adac2a
   DATADOG_AGENT_BUILDERS: v1755190-c671974
+  DATADOG_AGENT_WINBUILDIMAGES: v1748171-a0bc272
 
 
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
@@ -151,6 +152,35 @@ before_script:
 # source_test
 #
 #
+
+
+# run tests for windows-64
+run_tests_windows-x64:
+  # temporarily allow failure for tests
+  allow_failure: false
+  stage: source_test
+  before_script:
+    - echo "Running windows source tests"
+  variables:
+    WINDOWS_BUILDER: 'true'
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  script:
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES \unittests.bat --release-version %RELEASE_VERSION% 
+
+run_tests_windows-x64:
+  # temporarily allow failure for tests
+  extends: .run_tests_windows_base
+  allow_failure: true
+  variables:
+    ARCH: "x64"
+  
+run_tests_windows-x86:
+  # temporarily allow failure for tests
+  extends: .run_tests_windows_base
+  allow_failure: true
+  variables:
+    ARCH: "x86"
+
 
 .run_tests_preparation: &run_tests_preparation
   before_script:
@@ -604,10 +634,14 @@ agent_suse-x64-a7:
     - inv agent.omnibus-build --release-version %RELEASE_VERSION% --omnibus-s3-cache --base-dir %OMNIBUS_BASE_DIR_WIN_OMNIBUS% --skip-deps
     # copy the results from the build dir to here, because artifacts must be relative to the project directory
     - copy %OMNIBUS_BASE_DIR_WIN%\pkg\* %WIN_CI_PROJECT_DIR%\.omnibus\pkg
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - .omnibus/pkg
+  # remove artifacts (for now) so they don't collide with the docker-generated artifacts
+  # artifacts:
+  #   expire_in: 2 weeks
+  #   paths:
+  #    - .omnibus/pkg
+
+
+
 
 # build Agent package for Windows
 build_windows_msi_x64-a6:
@@ -623,6 +657,49 @@ build_windows_msi_x64-a7:
     CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
     PYTHON_RUNTIMES: '3'
   <<: *agent_build_common_windows
+
+##
+## windows dockerized builds
+##
+.dockerbuild_windows_msi_base:
+  before_script:
+    - mkdir .omnibus\pkg
+  stage: package_build
+  variables:
+    WINDOWS_BUILDER: 'true'
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  script:
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e PYTHON_RUNTIMES=${PYTHON_RUNTIMES} -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES \build-agent6.bat --release-version %RELEASE_VERSION%
+    - copy build-out\*.msi .omnibus\pkg
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - .omnibus/pkg
+
+dockerbuild_windows_msi_x64-a7:
+  extends: .dockerbuild_windows_msi_base
+  variables:
+    ARCH: "x64"
+    PYTHON_RUNTIMES: '3'
+
+dockerbuild_windows_msi_x86-a7:
+  extends: .dockerbuild_windows_msi_base
+  variables:
+    ARCH: "x86"
+    PYTHON_RUNTIMES: '3'
+
+dockerbuild_windows_msi_x64-a6:
+  extends: .dockerbuild_windows_msi_base
+  variables:
+    ARCH: "x64"
+    PYTHON_RUNTIMES: '2,3'
+
+dockerbuild_windows_msi_x86-a6:
+  extends: .dockerbuild_windows_msi_base
+  variables:
+    ARCH: "x86"
+    PYTHON_RUNTIMES: '2,3'
+
 
 # build Agent package for android
 agent_android_apk:

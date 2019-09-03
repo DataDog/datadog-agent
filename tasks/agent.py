@@ -2,6 +2,7 @@
 Agent namespaced tasks
 """
 from __future__ import print_function
+import datetime
 import glob
 import os
 import shutil
@@ -320,8 +321,14 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
     """
     Build the Agent packages with Omnibus Installer.
     """
+    deps_elapsed = None
+    bundle_elapsed = None
+    omnibus_elapsed = None
     if not skip_deps:
+        deps_start = datetime.datetime.now()
         deps(ctx, no_checks=True)  # no_checks since the omnibus build installs checks with a dedicated software def
+        deps_end = datetime.datetime.now()
+        deps_elapsed = deps_end - deps_start
 
     # omnibus config overrides
     overrides = []
@@ -343,10 +350,16 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             pass
 
         env = load_release_versions(ctx, release_version)
+
         cmd = "bundle install"
         if gem_path:
             cmd += " --path {}".format(gem_path)
+
+        bundle_start = datetime.datetime.now()
         ctx.run(cmd, env=env)
+
+        bundle_done = datetime.datetime.now()
+        bundle_elapsed = bundle_done - bundle_start
 
         omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
         cmd = "{omnibus} build {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
@@ -374,7 +387,11 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
 
             env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, env=env)
 
+            omnibus_start = datetime.datetime.now()
             ctx.run(cmd.format(**args), env=env)
+            omnibus_done = datetime.datetime.now()
+            omnibus_elapsed = omnibus_done - omnibus_start
+
 
         except Exception as e:
             if pfxfile:
@@ -384,7 +401,11 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
         if pfxfile:
             os.remove(pfxfile)
 
-
+        print("Build compoonent timing:")
+        if not skip_deps:
+            print("Deps:    {}".format(deps_elapsed))
+        print("Bundle:  {}".format(bundle_elapsed))
+        print("Omnibus: {}".format(omnibus_elapsed))
 
 @task
 def clean(ctx):
