@@ -54,69 +54,6 @@ instances:
     #   - <KEY_1>:<VALUE_1>
     #   - <KEY_2>:<VALUE_2>
 
-    ## @param file_system_blacklist - list of regex - optional
-    ## Instruct the check to not collect from matching file systems.
-    ##
-    ## Character casing is ignored. Regular expressions
-    ## start matching from the beginning. To match anywhere,
-    ## prepend `.*`. For exact matches, append `$`.
-    ##
-    ## When conflicts arise, `file_system_whitelist` is overridden.
-    #
-    # file_system_blacklist:
-    #   - tmpfs$
-    #   - rootfs$
-    #   - autofs$
-
-    ## @param device_whitelist - list of regex - optional
-    ## Instruct the check to only collect from matching devices.
-    ##
-    ## Character casing is ignored on Windows. Regular
-    ## expressions start matching from the beginning. To match
-    ## anywhere, prepend `.*`. For exact matches, append `$`.
-    #
-    # device_whitelist:
-    #   - /dev/sda[1-3]
-    #   - C:
-
-    ## @param device_blacklist - list of regex - optional
-    ## Instruct the check to not collect from matching devices.
-    ##
-    ## Character casing is ignored on Windows. Regular
-    ## expressions start matching from the beginning. To match
-    ## anywhere, prepend `.*`. For exact matches, append `$`.
-    ##
-    ## When conflicts arise, `device_whitelist` is overridden.
-    #
-    # device_blacklist:
-    #   - /dev/sde
-    #   - [FJ]:
-
-    ## @param mount_point_whitelist - list of regex - optional
-    ## Instruct the check to only collect from matching mount points.
-    ##
-    ## Character casing is ignored on Windows. Regular
-    ## expressions start matching from the beginning. To match
-    ## anywhere, prepend `.*`. For exact matches, append `$`.
-    #
-    # mount_point_whitelist:
-    #   - /dev/sda[1-3]
-    #   - C:
-
-    ## @param mount_point_blacklist - list of regex - optional
-    ## Instruct the check to not collect from matching mount points.
-    ##
-    ## Character casing is ignored on Windows. Regular
-    ## expressions start matching from the beginning. To match
-    ## anywhere, prepend `.*`. For exact matches, append `$`.
-    ##
-    ## When conflicts arise, `mount_point_whitelist` is overridden.
-    #
-    # mount_point_blacklist:
-    #   - /proc/sys/fs/binfmt_misc
-    #   - /dev/sde
-    #   - [FJ]:
-
     ## @param service_check_rw - boolean - optional
     ## Instruct the check to notify based on partition state.
     ##
@@ -130,12 +67,6 @@ instances:
     ## Instruct the check to tag all disks with their file system e.g. filesystem:ntfs.
     #
     # tag_by_filesystem: false
-
-    ## @param tag_by_label - boolean - optional - default: true
-    ## Instruct the check to tag all the metrics with disk label if there is one.
-    ## Works on Linux only.
-    #
-    # tag_by_label: true
 
     ## @param device_tag_re - list of regex:tags string - optional
     ## Instruct the check to apply additional tags to matching
