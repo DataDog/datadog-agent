@@ -35,6 +35,7 @@ func initDomainForwarderExpvars() {
 // HTTP and retrying them if needed. One domainForwarder is created per HTTP
 // backend.
 type domainForwarder struct {
+	isRetrying          int32
 	domain              string
 	numberOfWorkers     int
 	highPrio            chan Transaction // use to receive new transactions
@@ -46,8 +47,8 @@ type domainForwarder struct {
 	retryQueueLimit     int
 	internalState       uint32
 	m                   sync.Mutex // To control Start/Stop races
-	isRetrying          int32
-	blockedList         *blockedEndpoints
+
+	blockedList *blockedEndpoints
 }
 
 func newDomainForwarder(domain string, numberOfWorkers int, retryQueueLimit int) *domainForwarder {

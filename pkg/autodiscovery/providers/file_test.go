@@ -43,6 +43,7 @@ func TestGetIntegrationConfig(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, config.Name, "foo")
 	assert.Equal(t, []byte(config.InitConfig), []byte("- test: 21\n"))
+	assert.Equal(t, config.Source, "file:tests/testcheck.yaml")
 	assert.Equal(t, len(config.Instances), 1)
 	assert.Equal(t, []byte(config.Instances[0]), []byte("foo: bar\n"))
 	assert.Len(t, config.ADIdentifiers, 0)

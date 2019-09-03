@@ -248,6 +248,7 @@ func (s *Server) worker(metricOut chan<- []*metrics.MetricSample, eventOut chan<
 func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.MetricSample, events []*metrics.Event, serviceChecks []*metrics.ServiceCheck) ([]*metrics.MetricSample, []*metrics.Event, []*metrics.ServiceCheck) {
 	extraTags := s.extraTags
 
+	log.Tracef("Dogstatsd receive: %s", packet.Contents)
 	if packet.Origin != listeners.NoOrigin {
 		originTags, err := tagger.Tag(packet.Origin, tagger.DogstatsdCardinality)
 		if err != nil {

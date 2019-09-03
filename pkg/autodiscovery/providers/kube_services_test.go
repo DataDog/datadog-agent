@@ -50,6 +50,7 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 					ClusterCheck:  true,
+					Source:        "kube_services:kube_service_uid://test",
 				},
 			},
 		},

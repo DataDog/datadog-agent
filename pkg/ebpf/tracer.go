@@ -68,6 +68,10 @@ type Tracer struct {
 
 	// Internal buffer used to compute bytekeys
 	buf *bytes.Buffer
+
+	// Connections for the tracer to blacklist
+	sourceExcludes []*util.ConnectionFilter
+	destExcludes   []*util.ConnectionFilter
 }
 
 const (
@@ -94,6 +98,24 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not load bpf module: %s", err)
 	}
 
+	// Enable kernel probes used for offset guessing.
+	// TODO: Disable them once offsets have been figured out.
+	for _, probeName := range offsetGuessProbes(config) {
+		if err := m.EnableKprobe(string(probeName), maxActive); err != nil {
+			return nil, fmt.Errorf(
+				"could not enable kprobe(%s) used for offset guessing: %s",
+				probeName,
+				err,
+			)
+		}
+	}
+
+	start := time.Now()
+	if err := guessOffsets(m, config); err != nil {
+		return nil, fmt.Errorf("failed to init module: error guessing offsets: %v", err)
+	}
+	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
+
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes := config.EnabledKProbes()
 	for k := range m.IterKprobes() {
@@ -102,11 +124,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 				return nil, fmt.Errorf("could not enable kprobe(%s): %s", k.Name, err)
 			}
 		}
-	}
-
-	// TODO: Disable TCPv{4,6} connect kernel probes once offsets have been figured out.
-	if err := guess(m, config); err != nil {
-		return nil, fmt.Errorf("failed to init module: error guessing offsets: %v", err)
 	}
 
 	portMapping := NewPortMapping(config.ProcRoot, config)
@@ -134,6 +151,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 		buffer:         make([]ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
 		conntracker:    conntracker,
+		sourceExcludes: util.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:   util.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
 
 	tr.perfMap, err = tr.initPerfPolling()
@@ -249,7 +268,12 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 //  • Local DNS (*:53) requests if configured (default: true)
 func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 	isDNSConnection := conn.DPort == 53 || conn.SPort == 53
-	return !t.config.CollectLocalDNS && isDNSConnection && conn.Direction == LOCAL
+	if !t.config.CollectLocalDNS && isDNSConnection && conn.Direction == LOCAL {
+		return true
+	} else if util.IsBlacklistedConnection(t.sourceExcludes, conn.Source, conn.SPort) || util.IsBlacklistedConnection(t.destExcludes, conn.Dest, conn.DPort) {
+		return true
+	}
+	return false
 }
 
 func (t *Tracer) Stop() {
@@ -395,7 +419,7 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 
 // getTCPStats reads tcp related stats for the given ConnTuple
 func (t *Tracer) getTCPStats(mp *bpflib.Map, tuple *ConnTuple, seen map[ConnTuple]struct{}) *TCPStats {
-	stats := &TCPStats{retransmits: 0}
+	stats := new(TCPStats)
 
 	if !tuple.isTCP() {
 		return stats
@@ -405,17 +429,17 @@ func (t *Tracer) getTCPStats(mp *bpflib.Map, tuple *ConnTuple, seen map[ConnTupl
 	pid := tuple.pid
 	tuple.pid = 0
 
-	// This is required to avoid (over)reporting stats for connections sharing the same socket.
+	_ = t.m.LookupElement(mp, unsafe.Pointer(tuple), unsafe.Pointer(stats))
+
+	// This is required to avoid (over)reporting retransmits for connections sharing the same socket.
 	if _, reported := seen[*tuple]; reported {
 		atomic.AddInt64(&t.pidCollisions, 1)
-		tuple.pid = pid
-		return stats
+		stats.retransmits = 0
+	} else {
+		seen[*tuple] = struct{}{}
 	}
 
-	_ = t.m.LookupElement(mp, unsafe.Pointer(tuple), unsafe.Pointer(stats))
-	seen[*tuple] = struct{}{}
 	tuple.pid = pid
-
 	return stats
 }
 

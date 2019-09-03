@@ -82,7 +82,7 @@ var (
 )
 
 func init() {
-	jmxCmd.PersistentFlags().StringVarP(&jmxLogLevel, "log-level", "l", "debug", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
+	jmxCmd.PersistentFlags().StringVarP(&jmxLogLevel, "log-level", "l", "", "set the log level (default 'debug') (deprecated, use the env var DD_LOG_LEVEL instead)")
 
 	// attach list and collect commands to jmx command
 	jmxCmd.AddCommand(jmxListCmd)
@@ -130,7 +130,7 @@ func runJmxCommand(command string) error {
 		overrides["log_level"] = jmxLogLevel
 		config.SetOverrides(overrides)
 	} else {
-		jmxLogLevel = config.GetEnv("DD_LOG_LEVEL", "off")
+		jmxLogLevel = config.GetEnv("DD_LOG_LEVEL", "debug")
 	}
 
 	overrides := make(map[string]interface{})
@@ -161,7 +161,7 @@ func runJmxCommand(command string) error {
 	runner.Command = command
 	runner.IPCPort = api.ServerAddress().Port
 
-	loadConfigs()
+	loadConfigs(runner)
 
 	err = runner.Start(false)
 	if err != nil {
@@ -180,7 +180,7 @@ func runJmxCommand(command string) error {
 	return nil
 }
 
-func loadConfigs() {
+func loadConfigs(runner *jmxfetch.JMXFetch) {
 	fmt.Println("Loading configs :")
 
 	configs := common.AC.GetAllConfigs()
@@ -190,6 +190,10 @@ func loadConfigs() {
 		if check.IsJMXConfig(c.Name, c.InitConfig) && (includeEverything || configIncluded(c)) {
 			fmt.Println("Config ", c.Name, " was loaded.")
 			jmx.AddScheduledConfig(c)
+			runner.ConfigureFromInitConfig(c.InitConfig)
+			for _, instance := range c.Instances {
+				runner.ConfigureFromInstance(instance)
+			}
 		}
 	}
 }

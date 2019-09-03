@@ -38,6 +38,26 @@ func TestNetIPToAddress(t *testing.T) {
 	assert.NotEqual(t, a, b)
 }
 
+func TestNetIPFromAddress(t *testing.T) {
+	// v4
+	addr := V4Address(889192575)
+	ip := net.ParseIP("127.0.0.53").To4()
+	ipFromAddr := NetIPFromAddress(addr)
+	assert.Equal(t, ip, ipFromAddr)
+
+	// v6
+	addr = V6Address(889192575, 0)
+	ip = net.ParseIP("::7f00:35:0:0")
+	ipFromAddr = NetIPFromAddress(addr)
+	assert.Equal(t, ip, ipFromAddr)
+
+	// v4 + v6 mismatched
+	addr = V4Address(889192575)
+	ip = net.ParseIP("::7f00:35:0:0")
+	ipFromAddr = NetIPFromAddress(addr)
+	assert.NotEqual(t, ip, ipFromAddr)
+}
+
 func TestAddressUsageInMaps(t *testing.T) {
 	addrMap := make(map[Address]struct{})
 

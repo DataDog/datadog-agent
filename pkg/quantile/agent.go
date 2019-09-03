@@ -56,3 +56,17 @@ func (a *Agent) Insert(v float64) {
 
 	a.flush()
 }
+
+// InsertN inserts v, n times into the sketch.
+func (a *Agent) InsertN(v float64, n uint) {
+	a.Sketch.Basic.InsertN(v, n)
+
+	for i := 0; i < int(n); i++ {
+		a.Buf = append(a.Buf, agentConfig.key(v))
+	}
+	if len(a.Buf) < agentBufCap {
+		return
+	}
+
+	a.flush()
+}

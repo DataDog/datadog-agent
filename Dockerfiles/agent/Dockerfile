@@ -23,7 +23,7 @@ RUN apt-get update \
 #   - docs and manpages                  # FIXME: move upstream
 #   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
-RUN dpkg -x /datadog-agent*_amd64.deb . \
+RUN find / -name 'datadog-agent*_amd64.deb' ! -name 'datadog-agent-dbg*_amd64.deb' -exec dpkg -X {} . \; | egrep '.*' \
  && rm -rf usr etc/init lib \
     opt/datadog-agent/sources \
     opt/datadog-agent/embedded/share/doc \
@@ -121,9 +121,13 @@ RUN tar xzf s6.tgz \
  && chmod 500 /readsecret.py
 
 # Update links to python binaries
-RUN ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/python \
+
+RUN if [ ! -z "$PYTHON_VERSION" ]; then \
+ ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/python \
  && ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION}-config /opt/datadog-agent/embedded/bin/python-config \
- && ln -sfn /opt/datadog-agent/embedded/bin/pip${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/pip
+ && ln -sfn /opt/datadog-agent/embedded/bin/pip${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/pip ; \
+ fi
+
 
 # Override the exit script by ours to fix --pid=host operations
 COPY init-stage3 /etc/s6/init/init-stage3

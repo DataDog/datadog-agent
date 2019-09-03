@@ -101,7 +101,10 @@ func (ac *AutoConfig) serviceListening() {
 		case svc := <-ac.newService:
 			ac.processNewService(svc)
 		case svc := <-ac.delService:
-			ac.processDelService(svc)
+			// delay service removal for short lived service detection
+			time.AfterFunc(5*time.Second, func() {
+				ac.processDelService(svc)
+			})
 		case <-tagFreshnessTicker.C:
 			ac.checkTagFreshness()
 		}
@@ -541,7 +544,7 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 
 // GetLoadedConfigs returns configs loaded
 func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
-	if ac.store == nil {
+	if ac == nil || ac.store == nil {
 		log.Error("Autoconfig store not initialized")
 		return map[string]integration.Config{}
 	}

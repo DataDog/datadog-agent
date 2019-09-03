@@ -126,7 +126,7 @@ users and not its developers.
       collection, `kube_service` tagging) is not implemented
   ```
 
-- `upgrade`: List action to take or limitation that could arise upon upgrading the agent.
+- `upgrade`: List actions to take or limitations that could arise upon upgrading the Agent. Notes here must include steps that users can follow to 1. know if they're affected and 2. handle the change gracefully on their end.
 
   example:
   ```yaml

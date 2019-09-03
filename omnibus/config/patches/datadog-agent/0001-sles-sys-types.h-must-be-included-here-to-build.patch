@@ -1,0 +1,24 @@
+From 91f7052d0d3a6b06ca72c40d50ae268789a8ea5e Mon Sep 17 00:00:00 2001
+From: Jaime Fullaondo <jaime.fullaondo@datadoghq.com>
+Date: Wed, 31 Jul 2019 11:40:43 +0200
+Subject: [PATCH] [sles] sys/types.h must be included here to build
+
+---
+ symbolizer.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/symbolizer.c b/symbolizer.c
+index aa18aee..a158edf 100644
+--- a/symbolizer.c
++++ b/symbolizer.c
+@@ -6,6 +6,7 @@
+ 
+ #include <stdint.h>
+ #include <string.h>
++#include <sys/types.h>
+ 
+ #include "backtrace.h"
+ #include "internal.h"
+-- 
+2.20.1
+

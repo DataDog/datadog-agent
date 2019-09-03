@@ -2,22 +2,26 @@
 
 ## Python
 
-The Agent embeds a full-fledged CPython interpreter so it requires the development
-files to be available in the dev env.
+The Agent embeds a full-fledged CPython interpreter so it requires the
+development files to be available in the dev env. The Agent can embed Python2
+and/or Python3, you will need development files for all versions you want to
+support.
 
-If you're on OSX/macOS, installing Python 2.7 with [Homebrew](https://brew.sh) will
+If you're on OSX/macOS, installing Python 2.7 and/or 3.7 with [Homebrew](https://brew.sh) will
 bring along all the development files needed:
 ```
 brew install python@2
+brew install python@3
 ```
 
 On Linux, depending on the distribution, you might need to explicitly install
 the development files, for example on Ubuntu:
 ```
 sudo apt-get install python2.7-dev
+sudo apt-get install python2.3-dev
 ```
 
-On Windows, install Python 2.7 via the [official installer](https://www.python.org/downloads/).
+On Windows, install Python 2.7 and/or 3.7 via the [official installer](https://www.python.org/downloads/).
 
 ### Additional Windows Tools
 You will also need the Visual Studio for [Visual Studio for Python installer](http://aka.ms/vcpython27)
@@ -160,3 +164,12 @@ dev environment.
 [agent-omnibus]: agent_omnibus.md
 [integrations-core]: https://github.com/DataDog/integrations-core
 [datadog_checks_base]: https://github.com/DataDog/integrations-core/tree/master/datadog_checks_base
+
+## Doxygen
+
+We use [Doxygen](http://www.doxygen.nl/) to generate the documentation for the `rtloader` part of the Agent.
+
+To generate it (using the `invoke rtloader.generate-doc` command), you'll need to have Doxygen installed on your system and available in your `$PATH`. You can compile and install Doxygen from source with the instructions available [here](http://www.doxygen.nl/manual/install.html).
+Alternatively, you can use already-compiled Doxygen binaries from [here](http://www.doxygen.nl/download.html).
+
+To get the dependency graphs, you may also need to install the `dot` executable from [graphviz](http://www.graphviz.org/) and add it to your `$PATH`.

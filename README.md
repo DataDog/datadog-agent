@@ -46,8 +46,20 @@ To start working on the Agent, you can build the `master` branch:
 2. cd into the project folder: `cd $GOPATH/src/github.com/DataDog/datadog-agent`.
 3. Install project's dependencies: `invoke deps`.
    Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
-4. Build the `rtloader` dependency with `invoke rtloader.build && invoke rtloader.install`. You will need CMake installed and a C++ compiler for this to work.
-5. Build the agent with `invoke agent.build --build-exclude=systemd`
+4. Build the `rtloader` dependency with `invoke rtloader.build && invoke
+   rtloader.install`. You will need CMake installed and a C++ compiler for this
+   to work.
+   `rtloader` is in charge of loading and running Python. By default `rtloader`
+   will be built for Python2, but you can choose which versions of Python you want
+   to support:
+   - `invoke rtloader.build -p 2` for Python2 only
+   - `invoke rtloader.build -p 3` for Python3 only
+   - `invoke rtloader.build -p 2,3` for both Python2 and Python3
+5. Build the agent with `invoke agent.build --build-exclude=systemd`. You can
+   specify a custom Python location for the agent (useful when using
+   virtualenvs): `invoke agent.build
+   --python-home-2=$GOPATH/src/github.com/DataDog/datadog-agent/venv2
+   --python-home-3=$GOPATH/src/github.com/DataDog/datadog-agent/venv3`.
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
 

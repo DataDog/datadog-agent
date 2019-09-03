@@ -160,6 +160,15 @@ api_key:
 
 {{ end }}
 {{- if .Agent }}
+{{- if .BothPythonPresent -}}
+## @param python_version - integer - optional - default: 2
+## The major version of Python used to run integrations and custom checks.
+## The only supported values are 2 (to use Python 2) or 3 (to use Python 3).
+## Do not change this option when using the official Docker Agent images.
+#
+# python_version: 2
+
+{{ end }}
 
 ############################
 ## Advanced Configuration ##
@@ -245,6 +254,19 @@ api_key:
 ## Disable Python3 validation of python checks.
 #
 # disable_py3_validation: false
+#
+## @param memtrack_enabled - boolean - optional - default: true
+## Enables tracking of memory allocations made from the python runtime loader.
+#
+# memtrack_enabled: true
+
+## @param tracemalloc_debug - boolean - optional - default: false
+## Enables debugging with tracemalloc for python checks.
+## Please note that this option is only available when python_version is set to "3".
+## Additionally when this option becomes effective the number of check runners is
+## overridden to 1.
+#
+# tracemalloc_debug: false
 
 ## @param secret_backend_command - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.

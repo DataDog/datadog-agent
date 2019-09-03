@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
+#ifndef DD_EVENT_H
+#define DD_EVENT_H
+
 #include <windows.h>
 #include <winerror.h>
 #include "winevt.h"
@@ -10,7 +13,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-ULONGLONG startEventSubscribe(char *channel, char* query, ULONGLONG  hBookmark, int flags, PVOID ctx);
+typedef struct RichEvent_t {
+    LPWSTR message;
+    LPWSTR task;
+    LPWSTR opcode;
+    LPWSTR level;
+} RichEvent ;
+
+ULONGLONG startEventSubscribe(char *channel, char* query, ULONGLONG  ullBookmark, int flags, PVOID ctx);
+RichEvent* EnrichEvent(ULONGLONG ullEvent);
 
 /// our version of winerror.h doesn't have these... when we get an up-to-date compiler,
 // should be able to remove.
@@ -363,3 +374,5 @@ ULONGLONG startEventSubscribe(char *channel, char* query, ULONGLONG  hBookmark, 
 // Attempted to create a numeric type that is outside of its valid range.
 //
 #define ERROR_EVT_FILTER_OUT_OF_RANGE    15038L
+
+#endif /* DD_EVENT_H */

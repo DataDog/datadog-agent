@@ -34,7 +34,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 		return nil
 	}
 
-	go newBatchStrategyWithLimits(NewLineSerializer(), 2, 2, 100*time.Millisecond).Send(input, output, success)
+	go newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
 
 	content = []byte("a\nb")
 
@@ -59,7 +59,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 // 		return nil
 // 	}
 
-// 	go newBatchStrategyWithLimits(NewLineSerializer(), 2, 2, 100*time.Millisecond).Send(input, output, success)
+// 	go newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
 
 // 	content = []byte("a")
 
@@ -96,7 +96,7 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 		return nil
 	}
 
-	go newBatchStrategyWithLimits(NewLineSerializer(), 2, 2, 100*time.Millisecond).Send(input, output, success)
+	go newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
 
 	content = []byte("a")
 
@@ -128,7 +128,7 @@ func TestBatchStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
 		close(input)
 	}()
 
-	newBatchStrategyWithLimits(NewLineSerializer(), 2, 2, 100*time.Millisecond).Send(input, output, success)
+	newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
 }
 
 func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
@@ -147,5 +147,5 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 		assert.Equal(t, message, <-output)
 	}()
 
-	newBatchStrategyWithLimits(NewLineSerializer(), 2, 2, 100*time.Millisecond).Send(input, output, success)
+	newBatchStrategyWithLimits(LineSerializer, 2, 2, 100*time.Millisecond).Send(input, output, success)
 }

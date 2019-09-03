@@ -61,6 +61,9 @@ func TestMemoryCheckWindows(t *testing.T) {
 	mock.On("Gauge", "system.swap.pct_free", 0.6, "", []string(nil)).Return().Times(1)
 
 	mock.On("Gauge", "system.mem.pagefile.pct_free", 0.5, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.pagefile.total", 120000/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.pagefile.used", 30000/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.pagefile.free", 90000/mbSize, "", []string(nil)).Return().Times(1)
 
 	mock.On("Commit").Return().Times(1)
 
@@ -68,6 +71,6 @@ func TestMemoryCheckWindows(t *testing.T) {
 	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 10)
+	mock.AssertNumberOfCalls(t, "Gauge", 13)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }

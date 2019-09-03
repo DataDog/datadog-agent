@@ -39,6 +39,7 @@ build do
             # remove the config files for the subservices; they'll be started
             # based on the config file
             delete "#{conf_dir}/apm.yaml.default"
+            delete "#{conf_dir}/process_agent.yaml.default"
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
 
@@ -87,6 +88,7 @@ build do
 
             # remove unused configs
             delete "/etc/datadog-agent/conf.d/apm.yaml.default"
+            delete "/etc/datadog-agent/conf.d/process_agent.yaml.default"
 
             # remove windows specific configs
             delete "/etc/datadog-agent/conf.d/winproc.d"
@@ -114,10 +116,18 @@ build do
                 link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
             end
 
+            # removing the man pages from the embedded folder to reduce package size by ~4MB
+            delete "#{install_dir}/embedded/man"
+            delete "#{install_dir}/embedded/share/man"
 
-        # removing the man pages from the embedded folder to reduce package size by ~4MB
-        delete "#{install_dir}/embedded/man"
-        delete "#{install_dir}/embedded/share/man"
+            # linux build will be stripped - but psycopg2 affected by bug in the way binutils
+            # and patchelf work together:
+            #    https://github.com/pypa/manylinux/issues/119
+            #    https://github.com/NixOS/patchelf
+            #
+            # Only affects psycopg2 - any binary whose path matches the pattern will be
+            # skipped.
+            strip_exclude("*psycopg2*")
 
         elsif osx?
             # Remove linux specific configs

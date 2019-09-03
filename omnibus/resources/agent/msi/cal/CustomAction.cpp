@@ -205,6 +205,10 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
             goto LExit;
         }
+		if (!setUserProfileFolder(data.getUsername(), nullptr, passToUse)) {
+			WcaLog(LOGMSG_STANDARD, "Failed to set the user profile folder. Uninstall will not remove it");
+			// Continue as this error should not prevent the user for installing the agent.
+		}
         hr = 0;
     }
     if (!ddServiceExists) {
@@ -406,6 +410,7 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
     LOCALGROUP_MEMBERS_INFO_0 lmi0;
     memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_0));
     BOOL willDeleteUser = false;
+    BOOL isDC = isDomainController(hInstall);
     if (t == UNINSTALL_UNINSTALL) {
         regkey.createSubKey(strUninstallKeyName.c_str(), installState);
     }
@@ -420,16 +425,24 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
     {
         std::string usershort;
         toMbcs(usershort, installedUser.c_str());
-        WcaLog(LOGMSG_STANDARD, "This install installed user %s, will remove", usershort.c_str());
+        WcaLog(LOGMSG_STANDARD, "This install installed user %s", usershort.c_str());
         installedUserPtr = installedUser.c_str();
         if (installState.getStringValue(installCreatedDDDomain.c_str(), installedDomain)) {
             installedDomainPtr = installedDomain.c_str();
             toMbcs(usershort, installedDomainPtr);
-            WcaLog(LOGMSG_STANDARD, "Removing user from domain %s", usershort);
+            WcaLog(LOGMSG_STANDARD, "NOT Removing user from domain %s", usershort.c_str());
+            WcaLog(LOGMSG_STANDARD, "Domain user can be removed.");
             installedComplete = installedDomain + L"\\";
+        } else if (isDC) {
+            WcaLog(LOGMSG_STANDARD, "NOT Removing user %s from domain controller", usershort.c_str());
+            WcaLog(LOGMSG_STANDARD, "Domain user can be removed.");
+    
+        } else {
+            WcaLog(LOGMSG_STANDARD, "Will delete user %s from local user store", usershort.c_str());
+            willDeleteUser = true;
         }
         installedComplete += installedUser;
-        willDeleteUser = true;
+        
     }
 
     if (willDeleteUser)
@@ -472,9 +485,25 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
                 WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
             }
         }
+
+		std::wstring userProfileFolder;
+		if (!getUserProfileFolder(installedUser.c_str(), userProfileFolder)) {
+			WcaLog(LOGMSG_STANDARD, "Error when retrieving the user profile folder. User profile folder will not be removed.");
+			return false;
+		}
+
         // delete the user
         er = DeleteUser(NULL, installedUser.c_str());
-        if (0 != er) {
+        if (0 == er) {
+			auto userSid = GetSidString(sid);
+			if (userSid && RemoveUserProfile(installedUser, userProfileFolder, *userSid)) {
+				WcaLog(LOGMSG_STANDARD, "User profile removed.");
+			}
+			else {
+				WcaLog(LOGMSG_STANDARD, "Cannot remove user profile.");
+			}
+        }
+        else {
             // don't actually fail on failure.  We're doing an uninstall,
             // and failing will just leave the system in a more confused state
             WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog user %d", er);

@@ -62,6 +62,11 @@ func (p *EtcdConfigProvider) Collect() ([]integration.Config, error) {
 	identifiers := p.getIdentifiers(p.templateDir)
 	for _, id := range identifiers {
 		templates := p.getTemplates(id)
+
+		for idx := range templates {
+			templates[idx].Source = "etcd:" + id
+		}
+
 		configs = append(configs, templates...)
 	}
 	return configs, nil

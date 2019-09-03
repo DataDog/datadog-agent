@@ -159,16 +159,12 @@ func TestProcess(t *testing.T) {
 		}
 
 		agnt.Process(&api.Trace{
-			Spans:  pb.Trace{span},
-			Source: &info.Tags{},
-			ContainerTags: map[string]string{
-				"A": "B",
-				"C": "",
-			},
+			Spans:         pb.Trace{span},
+			Source:        &info.Tags{},
+			ContainerTags: "A:B,C",
 		})
 
-		assert.Equal(t, "B", span.Meta["A"])
-		assert.Equal(t, "", span.Meta["C"])
+		assert.Equal(t, "A:B,C", span.Meta[tagContainersTags])
 	})
 
 	t.Run("Stats/Priority", func(t *testing.T) {

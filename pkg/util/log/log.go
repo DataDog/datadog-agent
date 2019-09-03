@@ -36,7 +36,7 @@ type DatadogLogger struct {
 	inner seelog.LoggerInterface
 	level seelog.LogLevel
 	extra map[string]seelog.LoggerInterface
-	l     sync.Mutex
+	l     sync.RWMutex
 }
 
 // SetupDatadogLogger configure logger singleton with seelog interface
@@ -101,10 +101,11 @@ func (sw *DatadogLogger) changeLogLevel(level string) error {
 }
 
 func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
-	sw.l.Lock()
-	defer sw.l.Unlock()
+	sw.l.RLock()
+	shouldLog := level >= sw.level
+	sw.l.RUnlock()
 
-	return (level >= sw.level)
+	return shouldLog
 }
 
 func (sw *DatadogLogger) registerAdditionalLogger(n string, l seelog.LoggerInterface) error {
@@ -328,6 +329,14 @@ func (sw *DatadogLogger) criticalf(format string, params ...interface{}) error {
 	return err
 }
 
+// getLogLevel returns the current log level
+func (sw *DatadogLogger) getLogLevel() seelog.LogLevel {
+	sw.l.RLock()
+	defer sw.l.RUnlock()
+
+	return sw.level
+}
+
 func buildLogEntry(v ...interface{}) string {
 	var fmtBuffer bytes.Buffer
 
@@ -537,9 +546,20 @@ func UnregisterAdditionalLogger(n string) error {
 	return errors.New("cannot unregister: logger not initialized")
 }
 
+// GetLogLevel returns a seelog native representation of the current
+// log level
+func GetLogLevel() (seelog.LogLevel, error) {
+	if logger != nil && logger.inner != nil {
+		return logger.getLogLevel(), nil
+	}
+
+	// need to return something, just set to Info (expected default)
+	return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
+}
+
 func changeLogLevel(level string) error {
 	if logger == nil {
-		return errors.New("logger initialized, cant set log-level")
+		return errors.New("cannot set log-level: logger not initialized")
 	}
 
 	return logger.changeLogLevel(level)

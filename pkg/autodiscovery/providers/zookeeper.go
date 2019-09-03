@@ -67,6 +67,11 @@ func (z *ZookeeperConfigProvider) Collect() ([]integration.Config, error) {
 	}
 	for _, id := range identifiers {
 		c := z.getTemplates(id)
+
+		for idx := range c {
+			c[idx].Source = "zookeeper:" + id
+		}
+
 		configs = append(configs, c...)
 	}
 	return configs, nil
