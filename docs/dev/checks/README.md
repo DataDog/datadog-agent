@@ -8,6 +8,10 @@ fit for your use case, please [refer to the official documentation][custom-check
 Every check has its own YAML configuration file. The file has one mandatory key,
 `instances` and one optional, `init_config`.
 
+Note: If you want to run the custom check inside your development workspace 
+(github.com/DataDog/datadog-agent), you need to put `MyCheck.yaml` and 
+`MyCheck.py` inside `dev/dist` folder located at the root of the datadog-agent repository.
+
 ### init_config
 
 This section contains any global configuration options for the check, i.e. any
