@@ -139,7 +139,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("tracemalloc_debug", false)
 
 	// Python 3 linter timeout, in seconds
-	config.BindEnvAndSetDefault("python3_linter_timeout", 8)
+	// NOTE: linter is notoriously slow, in the absence of a better solution we
+	//       can only increase this timeout value. Linting operation is async.
+	config.BindEnvAndSetDefault("python3_linter_timeout", 120)
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
