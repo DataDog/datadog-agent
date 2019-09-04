@@ -5,8 +5,11 @@ public:
 	ExplicitAccess();
 	~ExplicitAccess();
 
-	void Build(LPWSTR pTrusteeName, DWORD AccessPermissions, 
-		       ACCESS_MODE AccessMode, DWORD  Inheritance);
+	void Build(
+		LPWSTR trusteeName,
+		DWORD accessPermissions,
+		ACCESS_MODE accessMode,
+		DWORD inheritance);
 
 	void BuildGrantUser(LPCWSTR name, DWORD rights);
     void BuildGrantUser(LPCWSTR name, DWORD rights, DWORD inheritance_flags);
@@ -21,6 +24,7 @@ private:
     bool deleteSid;
 
 };
+
 class WinAcl {
 public:
 	WinAcl();

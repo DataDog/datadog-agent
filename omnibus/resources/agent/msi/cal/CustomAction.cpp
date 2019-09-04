@@ -246,7 +246,10 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     WcaLog(LOGMSG_STANDARD, "%d setting programdata dir perms", er);
     er = addDdUserPermsToFile(data, installdir);
     WcaLog(LOGMSG_STANDARD, "%d setting installdir dir perms", er);
-
+	
+	er = SetPermissionsOnFile(data.getQualifiedUsername(), installdir + L"\\bin\\agent\\process-agent.exe", FILE_GENERIC_READ | FILE_GENERIC_EXECUTE);
+	WcaLog(LOGMSG_STANDARD, "%d setting permissions on process-agent.exe", er);
+	
     er = addDdUserPermsToFile(data, logfilename);
     WcaLog(LOGMSG_STANDARD, "%d setting log file perms", er);
     er = addDdUserPermsToFile(data, authtokenfilename);

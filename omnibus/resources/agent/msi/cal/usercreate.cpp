@@ -117,6 +117,51 @@ DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
 
 }
 
+DWORD SetPermissionsOnFile(
+	std::wstring const& userName,
+	std::wstring const &filePath,
+	const DWORD accessPermissions)
+{
+	if (!PathFileExists(filePath.c_str()))
+	{
+		return E_NOTFOUND;
+	}
+	ExplicitAccess ddUserAccess;
+	ddUserAccess.Build(
+		_wcsdup(userName.c_str()),
+		accessPermissions,
+		SET_ACCESS,
+		NO_INHERITANCE);
+
+	PACL newAcl = nullptr;
+	WinAcl acl;
+	acl.AddToArray(ddUserAccess);
+	
+	DWORD result = acl.SetEntriesInAcl(nullptr, &newAcl);
+	if (ERROR_SUCCESS != result)
+	{
+		return result;
+	}
+	
+	result = SetNamedSecurityInfo(
+		// Fine because SetNamedSecurityInfo should not modify our memory
+		const_cast<LPWSTR>(filePath.c_str()),
+		SE_FILE_OBJECT,
+		DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+		nullptr,
+		nullptr,
+		newAcl,
+		nullptr);
+	
+	if (ERROR_SUCCESS != result)
+	{
+		LocalFree(newAcl);
+		return result;
+	}
+
+	return S_OK;
+}
+
 DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename)
 {
     std::string shortfile;
