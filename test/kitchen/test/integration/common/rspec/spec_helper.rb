@@ -516,7 +516,7 @@ shared_examples_for 'an Agent with python3 enabled' do
       result = true
     end
     expect(result).to be_truthy
-  # end
+  end
 end
 
 shared_examples_for 'an Agent that is removed' do
