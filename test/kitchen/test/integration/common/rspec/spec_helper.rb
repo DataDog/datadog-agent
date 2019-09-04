@@ -484,14 +484,14 @@ shared_examples_for 'an Agent with python3 enabled' do
     expect(output).to be_truthy
   end
 
-  # it 'runs Python 3 after python_version is set to 3' do
-  #   result = false
-  #   pythonV = fetch_python_version
-  #   if Gem::Version.new('3.0.0') <= Gem::Version.new(pythonV)
-  #     result = true
-  #   end
-  #   expect(result).to be_truthy
-  # end
+  it 'runs Python 3 after python_version is set to 3' do
+    result = false
+    pythonV = fetch_python_version
+    if Gem::Version.new('3.0.0') <= Gem::Version.new(pythonV)
+      result = true
+    end
+    expect(result).to be_truthy
+  end
 
   it 'restarts after python_version is set back to 2' do
     conf_path = ""
@@ -509,13 +509,13 @@ shared_examples_for 'an Agent with python3 enabled' do
     expect(output).to be_truthy
   end
 
-  # it 'runs Python 2 after python_version is set back to 2' do
-  #   result = false
-  #   pythonV = fetch_python_version
-  #   if Gem::Version.new('3.0.0') > Gem::Version.new(pythonV)
-  #     result = true
-  #   end
-  #   expect(result).to be_truthy
+  it 'runs Python 2 after python_version is set back to 2' do
+    result = false
+    pythonV = fetch_python_version
+    if Gem::Version.new('3.0.0') > Gem::Version.new(pythonV)
+      result = true
+    end
+    expect(result).to be_truthy
   # end
 end
 

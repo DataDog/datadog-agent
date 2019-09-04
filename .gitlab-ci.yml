@@ -1,18 +1,18 @@
 stages:
-  - source_test
-  - binary_build
-  - integration_test
+  # - source_test
+  # - binary_build
+  # - integration_test
   - package_build
-  - internal_deploy
-  - check_deploy
+  # - internal_deploy
+  # - check_deploy
   - testkitchen_deploy
   - testkitchen_testing
-  - pkg_metrics
-  - image_build
-  - image_deploy
-  - deploy
-  - deploy_invalidate
-  - e2e
+  # - pkg_metrics
+  # - image_build
+  # - image_deploy
+  # - deploy
+  # - deploy_invalidate
+  # - e2e
   - testkitchen_cleanup
 
 variables:
@@ -150,186 +150,186 @@ before_script:
 # source_test
 #
 
-# run tests for deb-x64
-run_tests_deb-x64:
-  stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:2xlarge" ]
-  before_script:
-    - pip install wheel
-    - pip install -r requirements.txt
-    - go get gopkg.in/yaml.v2
-    - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
-    - inv -e rtloader.install
-    - inv -e rtloader.format --raise-if-changed
-    - inv -e rtloader.test
-    - inv deps --verbose --dep-vendor-only
-  script:
-    - inv -e test --race --profile --cpus 4
-
-# run tests for rpm-x64
-run_test_rpm-x64:
-  stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:2xlarge" ]
-  script:
-    # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
-    # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
-    # This is OK because the test on systemd still runs on the debian image above
-    # We also exclude python since centos 6 doesn't ship python and we run 'python' tests on the debian image.
-    - inv -e test --race --profile --cpus 4 --build-exclude=systemd,python
-
-# run tests for eBPF code
-run_tests_ebpf:
-  stage: source_test
-  # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
-  before_script:
-    - cd $SRC_PATH
-    - inv -e deps --verbose --dep-vendor-only
-  tags: [ "runner:main", "size:large" ]
-  script:
-    # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
-    - inv -e system-probe.test --only-check-bpf-bytes
-
-# scan the dependencies for security vulnerabilities with snyk
-run_security_scan_test:
-  stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:latest
-  tags: ["runner:main", "size:large"]
-  only:
-    - master
-  before_script:
-    # this image isn't built in the datadog-agent-builders repo
-    # it doesn't have invoke so we install the dependencies without invoke
-    - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
-    - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
-    - cd $GOPATH/src/github.com/DataDog/datadog-agent
-    - pip install -r requirements.txt
-    - inv deps --dep-vendor-only
-  script:
-    - set +x     # don't print the api key to the logs
-    # send the list of the dependencies to snyk
-    - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
-      snyk monitor --project-name=datadog-agent-requirements.txt --file=requirements.txt --package-manager=pip
-    - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
-      snyk monitor --project-name=datadog-agent-gopkg.lock --file=Gopkg.lock
-
-# check consistency of Gopkg.lock
-run_dep_check_lock:
-  stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
-  before_script:
-    - cd $SRC_PATH
-    - pip install --upgrade --ignore-installed pip setuptools
-    - pip install -r requirements.txt
-    - inv -e deps --no-dep-ensure --no-checks
-  script:
-    # Print a message and fail if dep check fails
-    - dep check --skip-vendor || (echo "Gopkg.lock is out of sync with Gopkg.toml and project imports. Please run 'inv deps' and commit the change on Gopkg.lock." && false)
-
-#
-# binary_build
-#
-
-# build dogstatsd static for deb-x64
-build_dogstatsd_static-deb_x64:
-  stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - inv -e dogstatsd.build --static
-    - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/static/dogstatsd
-
-# build puppy agent for deb-x64, to make sure the build is not broken because of build flags
-build_puppy_agent-deb_x64:
-  stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - inv -e agent.build --puppy
-    - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTEFACTS_URI/puppy/agent
-
-# build puppy agent for ARM, to make sure the build is not broken because of build targets
-build_puppy_agent-deb_x64_arm:
-  stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - GOOS=linux GOARCH=arm inv -e agent.build --puppy
-
-# build dogstatsd for deb-x64
-build_dogstatsd-deb_x64:
-  stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - inv -e dogstatsd.build
-    - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/dogstatsd/dogstatsd
-
-# build cluster-agent bin
-cluster_agent-build:
-  stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - inv -e cluster-agent.build
-    - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTEFACTS_URI/datadog-cluster-agent
-    - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTEFACTS_URI/datadog-cluster.yaml
-    - $S3_CP_CMD --recursive $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/dist/templates $S3_ARTEFACTS_URI/dist/templates
-
-# build system-probe bin
-system_probe-build:
-  stage: binary_build
-  # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
-  before_script:
-    - cd $SRC_PATH
-    - inv -e deps --verbose --dep-vendor-only
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - inv -e system-probe.build
-    - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTEFACTS_URI/system-probe
-
-#
-# integration_test
-#
-
-# run benchmarks on deb
-# run_benchmarks-deb_x64:
-#   stage: integration_test
+# # run tests for deb-x64
+# run_tests_deb-x64:
+#   stage: source_test
 #   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-#   allow_failure: true  # FIXME: this was set to true to temporarily unblock the pipeline
+#   tags: [ "runner:main", "size:2xlarge" ]
+#   before_script:
+#     - pip install wheel
+#     - pip install -r requirements.txt
+#     - go get gopkg.in/yaml.v2
+#     - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
+#     - inv -e rtloader.install
+#     - inv -e rtloader.format --raise-if-changed
+#     - inv -e rtloader.test
+#     - inv deps --verbose --dep-vendor-only
+#   script:
+#     - inv -e test --race --profile --cpus 4
+
+# # run tests for rpm-x64
+# run_test_rpm-x64:
+#   stage: source_test
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
+#   tags: [ "runner:main", "size:2xlarge" ]
+#   script:
+#     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
+#     # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
+#     # This is OK because the test on systemd still runs on the debian image above
+#     # We also exclude python since centos 6 doesn't ship python and we run 'python' tests on the debian image.
+#     - inv -e test --race --profile --cpus 4 --build-exclude=systemd,python
+
+# # run tests for eBPF code
+# run_tests_ebpf:
+#   stage: source_test
+#   # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
+#   before_script:
+#     - cd $SRC_PATH
+#     - inv -e deps --verbose --dep-vendor-only
 #   tags: [ "runner:main", "size:large" ]
 #   script:
-#     - inv -e bench.aggregator
-#     # FIXME: in our docker image, non ascii characters printed by the benchmark
-#     # make invoke traceback. For now, the workaround is to call the benchmarks
-#     # manually
-#     - inv -e bench.build-dogstatsd
+#     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
+#     - inv -e system-probe.test --only-check-bpf-bytes
 
-#     - set +x # make sure we don't output the creds to the build log
-#     - DD_AGENT_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.dd_agent_api_key --with-decryption --query "Parameter.Value" --out text)
+# # scan the dependencies for security vulnerabilities with snyk
+# run_security_scan_test:
+#   stage: source_test
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:latest
+#   tags: ["runner:main", "size:large"]
+#   only:
+#     - master
+#   before_script:
+#     # this image isn't built in the datadog-agent-builders repo
+#     # it doesn't have invoke so we install the dependencies without invoke
+#     - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
+#     - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
+#     - cd $GOPATH/src/github.com/DataDog/datadog-agent
+#     - pip install -r requirements.txt
+#     - inv deps --dep-vendor-only
+#   script:
+#     - set +x     # don't print the api key to the logs
+#     # send the list of the dependencies to snyk
+#     - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
+#       snyk monitor --project-name=datadog-agent-requirements.txt --file=requirements.txt --package-manager=pip
+#     - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
+#       snyk monitor --project-name=datadog-agent-gopkg.lock --file=Gopkg.lock
 
-#     # dogstatsd validation - not really benchmarking: gitlab isn't the right place to do this.
-#     - ./bin/benchmarks/dogstatsd -pps=20000 -dur 30 -ser 5 -branch $DD_REPO_BRANCH_NAME -api-key $DD_AGENT_API_KEY
-#   artifacts:
-#     expire_in: 2 weeks
-#     paths:
-#       - benchmarks
+# # check consistency of Gopkg.lock
+# run_dep_check_lock:
+#   stage: source_test
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+#   tags: [ "runner:main", "size:large" ]
+#   before_script:
+#     - cd $SRC_PATH
+#     - pip install --upgrade --ignore-installed pip setuptools
+#     - pip install -r requirements.txt
+#     - inv -e deps --no-dep-ensure --no-checks
+#   script:
+#     # Print a message and fail if dep check fails
+#     - dep check --skip-vendor || (echo "Gopkg.lock is out of sync with Gopkg.toml and project imports. Please run 'inv deps' and commit the change on Gopkg.lock." && false)
 
-# check the size of the static dogstatsd binary
-run_dogstatsd_size_test:
-  stage: integration_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
-  before_script:
-    # Disable global before_script
-    - mkdir -p $STATIC_BINARIES_DIR
-    - $S3_CP_CMD $S3_ARTEFACTS_URI/static/dogstatsd $STATIC_BINARIES_DIR/dogstatsd
-  script:
-    - inv -e dogstatsd.size-test --skip-build
+# #
+# # binary_build
+# #
+
+# # build dogstatsd static for deb-x64
+# build_dogstatsd_static-deb_x64:
+#   stage: binary_build
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - inv -e dogstatsd.build --static
+#     - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/static/dogstatsd
+
+# # build puppy agent for deb-x64, to make sure the build is not broken because of build flags
+# build_puppy_agent-deb_x64:
+#   stage: binary_build
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - inv -e agent.build --puppy
+#     - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTEFACTS_URI/puppy/agent
+
+# # build puppy agent for ARM, to make sure the build is not broken because of build targets
+# build_puppy_agent-deb_x64_arm:
+#   stage: binary_build
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - GOOS=linux GOARCH=arm inv -e agent.build --puppy
+
+# # build dogstatsd for deb-x64
+# build_dogstatsd-deb_x64:
+#   stage: binary_build
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - inv -e dogstatsd.build
+#     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/dogstatsd/dogstatsd
+
+# # build cluster-agent bin
+# cluster_agent-build:
+#   stage: binary_build
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - inv -e cluster-agent.build
+#     - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTEFACTS_URI/datadog-cluster-agent
+#     - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTEFACTS_URI/datadog-cluster.yaml
+#     - $S3_CP_CMD --recursive $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/dist/templates $S3_ARTEFACTS_URI/dist/templates
+
+# # build system-probe bin
+# system_probe-build:
+#   stage: binary_build
+#   # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
+#   before_script:
+#     - cd $SRC_PATH
+#     - inv -e deps --verbose --dep-vendor-only
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - inv -e system-probe.build
+#     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTEFACTS_URI/system-probe
+
+# #
+# # integration_test
+# #
+
+# # run benchmarks on deb
+# # run_benchmarks-deb_x64:
+# #   stage: integration_test
+# #   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+# #   allow_failure: true  # FIXME: this was set to true to temporarily unblock the pipeline
+# #   tags: [ "runner:main", "size:large" ]
+# #   script:
+# #     - inv -e bench.aggregator
+# #     # FIXME: in our docker image, non ascii characters printed by the benchmark
+# #     # make invoke traceback. For now, the workaround is to call the benchmarks
+# #     # manually
+# #     - inv -e bench.build-dogstatsd
+
+# #     - set +x # make sure we don't output the creds to the build log
+# #     - DD_AGENT_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.dd_agent_api_key --with-decryption --query "Parameter.Value" --out text)
+
+# #     # dogstatsd validation - not really benchmarking: gitlab isn't the right place to do this.
+# #     - ./bin/benchmarks/dogstatsd -pps=20000 -dur 30 -ser 5 -branch $DD_REPO_BRANCH_NAME -api-key $DD_AGENT_API_KEY
+# #   artifacts:
+# #     expire_in: 2 weeks
+# #     paths:
+# #       - benchmarks
+
+# # check the size of the static dogstatsd binary
+# run_dogstatsd_size_test:
+#   stage: integration_test
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+#   tags: [ "runner:main", "size:large" ]
+#   before_script:
+#     # Disable global before_script
+#     - mkdir -p $STATIC_BINARIES_DIR
+#     - $S3_CP_CMD $S3_ARTEFACTS_URI/static/dogstatsd $STATIC_BINARIES_DIR/dogstatsd
+#   script:
+#     - inv -e dogstatsd.size-test --skip-build
 
 #
 # package_build
@@ -857,55 +857,55 @@ kitchen_debian:
 # pkg_metrics: send metrics about packages
 #
 
-send_pkg_size:
-  stage: pkg_metrics
-  <<: *run_when_triggered
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  before_script:
-    # tmp while we uppdate the base image
-    - apt-get install -y wget rpm2cpio cpio
-    - ls -l $OMNIBUS_PACKAGE_DIR
-    - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/puppy
-    - mkdir -p /tmp/rpm/agent /tmp/rpm/dogstatsd
-    - mkdir -p /tmp/suse/agent /tmp/suse/dogstatsd
+# send_pkg_size:
+#   stage: pkg_metrics
+#   <<: *run_when_triggered
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+#   before_script:
+#     # tmp while we uppdate the base image
+#     - apt-get install -y wget rpm2cpio cpio
+#     - ls -l $OMNIBUS_PACKAGE_DIR
+#     - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/puppy
+#     - mkdir -p /tmp/rpm/agent /tmp/rpm/dogstatsd
+#     - mkdir -p /tmp/suse/agent /tmp/suse/dogstatsd
 
-    # we silence dpkg and cpio output so we don't exceed gitlab log limit
+#     # we silence dpkg and cpio output so we don't exceed gitlab log limit
 
-    # debian
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_*_amd64.deb /tmp/deb/agent > /dev/null
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_*_amd64.deb /tmp/deb/dogstatsd > /dev/null
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-puppy_*_amd64.deb /tmp/deb/puppy > /dev/null
-    - DEB_AGENT_SIZE=$(du -sB1 /tmp/deb/agent | sed 's/\([0-9]\+\).\+/\1/')
-    - DEB_DOGSTATSD_SIZE=$(du -sB1 /tmp/deb/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
-    - DEB_PUPPY_SIZE=$(du -sB1 /tmp/deb/puppy | sed 's/\([0-9]\+\).\+/\1/')
-    # centos
-    - cd /tmp/rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-*.x86_64.rpm | cpio -idm > /dev/null
-    - cd /tmp/rpm/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-*.x86_64.rpm | cpio -idm > /dev/null
-    - RPM_AGENT_SIZE=$(du -sB1 /tmp/rpm/agent | sed 's/\([0-9]\+\).\+/\1/')
-    - RPM_DOGSTATSD_SIZE=$(du -sB1 /tmp/rpm/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
-    # suse
-    - cd /tmp/suse/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-*.x86_64.rpm | cpio -idm > /dev/null
-    - cd /tmp/suse/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-*.x86_64.rpm | cpio -idm > /dev/null
-    - SUSE_AGENT_SIZE=$(du -sB1 /tmp/suse/agent | sed 's/\([0-9]\+\).\+/\1/')
-    - SUSE_DOGSTATSD_SIZE=$(du -sB1 /tmp/suse/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
+#     # debian
+#     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_*_amd64.deb /tmp/deb/agent > /dev/null
+#     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_*_amd64.deb /tmp/deb/dogstatsd > /dev/null
+#     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-puppy_*_amd64.deb /tmp/deb/puppy > /dev/null
+#     - DEB_AGENT_SIZE=$(du -sB1 /tmp/deb/agent | sed 's/\([0-9]\+\).\+/\1/')
+#     - DEB_DOGSTATSD_SIZE=$(du -sB1 /tmp/deb/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
+#     - DEB_PUPPY_SIZE=$(du -sB1 /tmp/deb/puppy | sed 's/\([0-9]\+\).\+/\1/')
+#     # centos
+#     - cd /tmp/rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-*.x86_64.rpm | cpio -idm > /dev/null
+#     - cd /tmp/rpm/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-*.x86_64.rpm | cpio -idm > /dev/null
+#     - RPM_AGENT_SIZE=$(du -sB1 /tmp/rpm/agent | sed 's/\([0-9]\+\).\+/\1/')
+#     - RPM_DOGSTATSD_SIZE=$(du -sB1 /tmp/rpm/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
+#     # suse
+#     - cd /tmp/suse/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-*.x86_64.rpm | cpio -idm > /dev/null
+#     - cd /tmp/suse/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-*.x86_64.rpm | cpio -idm > /dev/null
+#     - SUSE_AGENT_SIZE=$(du -sB1 /tmp/suse/agent | sed 's/\([0-9]\+\).\+/\1/')
+#     - SUSE_DOGSTATSD_SIZE=$(du -sB1 /tmp/suse/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
 
-    - currenttime=$(date +%s)
-    - DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key --with-decryption --query "Parameter.Value" --out text)
-    - |
-      curl  -X POST -H "Content-type: application/json" \
-      -d "{\"series\":[
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_DOGSTATSD_SIZE]], \"tags\":[\"os:debian\", \"package:dogstatsd\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[${currenttime}, ${DEB_PUPPY_SIZE}]], \"tags\":[\"os:debian\", \"package:puppy\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_DOGSTATSD_SIZE]], \"tags\":[\"os:centos\", \"package:dogstatsd\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_DOGSTATSD_SIZE]], \"tags\":[\"os:suse\", \"package:dogstatsd\"]}
-          ]}" \
-      "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"
+#     - currenttime=$(date +%s)
+#     - DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key --with-decryption --query "Parameter.Value" --out text)
+#     - |
+#       curl  -X POST -H "Content-type: application/json" \
+#       -d "{\"series\":[
+#             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\"]},
+#             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_DOGSTATSD_SIZE]], \"tags\":[\"os:debian\", \"package:dogstatsd\"]},
+#             {\"metric\":\"datadog.agent.package.size\",\"points\":[[${currenttime}, ${DEB_PUPPY_SIZE}]], \"tags\":[\"os:debian\", \"package:puppy\"]},
+#             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\"]},
+#             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_DOGSTATSD_SIZE]], \"tags\":[\"os:centos\", \"package:dogstatsd\"]},
+#             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\"]},
+#             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_DOGSTATSD_SIZE]], \"tags\":[\"os:suse\", \"package:dogstatsd\"]}
+#           ]}" \
+#       "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"
 
 # run dd-agent-testing
 testkitchen_cleanup_s3:
@@ -941,602 +941,602 @@ testkitchen_cleanup_azure:
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/clean.sh
 
-#
-# image_build
-#
+# #
+# # image_build
+# #
 
-.docker_build_job_definition: &docker_build_job_definition
-  stage: image_build
-  tags: [ "runner:docker", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
-  before_script: [ "# noop" ] # Override top level entry
-  dependencies: [] # Don't download Gitlab artifacts
-  script:
-    - aws s3 sync --only-show-errors "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID" $BUILD_CONTEXT
-    - TAG_SUFFIX=${TAG_SUFFIX:-}
-    - BUILD_ARG=${BUILD_ARG:-}
-    - TARGET_TAG=$IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
-    # Pull base image(s) with content trust enabled
-    - pip install -r requirements.txt
-    - inv -e docker.pull-base-images --signed-pull $BUILD_CONTEXT/Dockerfile
-    # Build testing stage if provided
-    - test "$TESTING_ARG" && docker build $TESTING_ARG $BUILD_CONTEXT
-    # Build release stage and push to ECR
-    - docker build $BUILD_ARG --pull --tag $TARGET_TAG $BUILD_CONTEXT
-    - docker push $TARGET_TAG
+# .docker_build_job_definition: &docker_build_job_definition
+#   stage: image_build
+#   tags: [ "runner:docker", "size:large" ]
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
+#   before_script: [ "# noop" ] # Override top level entry
+#   dependencies: [] # Don't download Gitlab artifacts
+#   script:
+#     - aws s3 sync --only-show-errors "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID" $BUILD_CONTEXT
+#     - TAG_SUFFIX=${TAG_SUFFIX:-}
+#     - BUILD_ARG=${BUILD_ARG:-}
+#     - TARGET_TAG=$IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
+#     # Pull base image(s) with content trust enabled
+#     - pip install -r requirements.txt
+#     - inv -e docker.pull-base-images --signed-pull $BUILD_CONTEXT/Dockerfile
+#     # Build testing stage if provided
+#     - test "$TESTING_ARG" && docker build $TESTING_ARG $BUILD_CONTEXT
+#     # Build release stage and push to ECR
+#     - docker build $BUILD_ARG --pull --tag $TARGET_TAG $BUILD_CONTEXT
+#     - docker push $TARGET_TAG
 
-# build agent6 image
-build_agent6:
-  <<: *docker_build_job_definition
-  variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
-    BUILD_CONTEXT: Dockerfiles/agent
-    TAG_SUFFIX: -py2
-    BUILD_ARG: --target release --build-arg PYTHON_VERSION=2
-    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=2
+# # build agent6 image
+# build_agent6:
+#   <<: *docker_build_job_definition
+#   variables:
+#     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+#     BUILD_CONTEXT: Dockerfiles/agent
+#     TAG_SUFFIX: -py2
+#     BUILD_ARG: --target release --build-arg PYTHON_VERSION=2
+#     TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=2
 
-# build agent6 jmx image
-build_agent6_jmx:
-  <<: *docker_build_job_definition
-  variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
-    BUILD_CONTEXT: Dockerfiles/agent
-    TAG_SUFFIX: -py2-jmx
-    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2
-    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2
+# # build agent6 jmx image
+# build_agent6_jmx:
+#   <<: *docker_build_job_definition
+#   variables:
+#     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+#     BUILD_CONTEXT: Dockerfiles/agent
+#     TAG_SUFFIX: -py2-jmx
+#     BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2
+#     TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2
 
-# TESTING ONLY: This image is for internal testing purposes, not customer facing.
-# build agent6 jmx unified image (including python3)
-build_agent6_py2py3_jmx:
-  <<: *docker_build_job_definition
-  variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
-    BUILD_CONTEXT: Dockerfiles/agent
-    TAG_SUFFIX: -py2py3-jmx
-    BUILD_ARG: --target release --build-arg WITH_JMX=true
-    TESTING_ARG:  --target testing --build-arg WITH_JMX=true
+# # TESTING ONLY: This image is for internal testing purposes, not customer facing.
+# # build agent6 jmx unified image (including python3)
+# build_agent6_py2py3_jmx:
+#   <<: *docker_build_job_definition
+#   variables:
+#     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+#     BUILD_CONTEXT: Dockerfiles/agent
+#     TAG_SUFFIX: -py2py3-jmx
+#     BUILD_ARG: --target release --build-arg WITH_JMX=true
+#     TESTING_ARG:  --target testing --build-arg WITH_JMX=true
 
-# build agent7 image
-build_agent7:
-  <<: *docker_build_job_definition
-  variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
-    BUILD_CONTEXT: Dockerfiles/agent
-    TAG_SUFFIX: -py3
-    BUILD_ARG: --target release --build-arg PYTHON_VERSION=3
-    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3
+# # build agent7 image
+# build_agent7:
+#   <<: *docker_build_job_definition
+#   variables:
+#     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+#     BUILD_CONTEXT: Dockerfiles/agent
+#     TAG_SUFFIX: -py3
+#     BUILD_ARG: --target release --build-arg PYTHON_VERSION=3
+#     TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3
 
-# build agent7 jmx image
-build_agent7_jmx:
-  <<: *docker_build_job_definition
-  variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
-    BUILD_CONTEXT: Dockerfiles/agent
-    TAG_SUFFIX: -py3-jmx
-    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3
-    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3
+# # build agent7 jmx image
+# build_agent7_jmx:
+#   <<: *docker_build_job_definition
+#   variables:
+#     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+#     BUILD_CONTEXT: Dockerfiles/agent
+#     TAG_SUFFIX: -py3-jmx
+#     BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3
+#     TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3
 
-# build the cluster-agent image
-build_cluster_agent:
-  <<: *docker_build_job_definition
-  variables:
-    IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
-    BUILD_CONTEXT: Dockerfiles/cluster-agent
+# # build the cluster-agent image
+# build_cluster_agent:
+#   <<: *docker_build_job_definition
+#   variables:
+#     IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+#     BUILD_CONTEXT: Dockerfiles/cluster-agent
 
-# build the dogstatsd image
-build_dogstatsd:
-  <<: *docker_build_job_definition
-  variables:
-    IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
-    BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
+# # build the dogstatsd image
+# build_dogstatsd:
+#   <<: *docker_build_job_definition
+#   variables:
+#     IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+#     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
 
-#
-# Docker dev image deployments
-#
+# #
+# # Docker dev image deployments
+# #
 
-twistlock_scan:
-  stage: image_deploy
-  tags: [ "runner:docker", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
-  dependencies: [] # Don't download Gitlab artefacts
-  allow_failure: true # Don't block the pipeline
-  variables:
-    SRC_AGENT: *agent_ecr
-    SRC_DSD: *dogstatsd_ecr
-    SRC_DCA: *cluster-agent_ecr
-  before_script:
-    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
-    - export DOCKER_CLIENT_ADDRESS=$DOCKER_HOST
-    - TWISTLOCK_PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.twistlock_password --with-decryption --query "Parameter.Value" --out text)
-    - scan () { echo -e "\n==== Scanning $1 ====\n"; docker pull $1 > /dev/null; /twistcli images scan --address="$TWISTLOCK_URL" --user="$TWISTLOCK_USER" --password="$TWISTLOCK_PASS" --vulnerability-threshold=$THRESHOLD --details $1; }
-  script:
-    - scan ${SRC_AGENT}:${SRC_TAG}-py2
-    - scan ${SRC_AGENT}:${SRC_TAG}-py3
-    - scan ${SRC_AGENT}:${SRC_TAG}-py2-jmx
-    - scan ${SRC_AGENT}:${SRC_TAG}-py3-jmx
-    - scan ${SRC_DSD}:${SRC_TAG}
-    - scan ${SRC_DCA}:${SRC_TAG}
+# twistlock_scan:
+#   stage: image_deploy
+#   tags: [ "runner:docker", "size:large" ]
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
+#   dependencies: [] # Don't download Gitlab artefacts
+#   allow_failure: true # Don't block the pipeline
+#   variables:
+#     SRC_AGENT: *agent_ecr
+#     SRC_DSD: *dogstatsd_ecr
+#     SRC_DCA: *cluster-agent_ecr
+#   before_script:
+#     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
+#     - export DOCKER_CLIENT_ADDRESS=$DOCKER_HOST
+#     - TWISTLOCK_PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.twistlock_password --with-decryption --query "Parameter.Value" --out text)
+#     - scan () { echo -e "\n==== Scanning $1 ====\n"; docker pull $1 > /dev/null; /twistcli images scan --address="$TWISTLOCK_URL" --user="$TWISTLOCK_USER" --password="$TWISTLOCK_PASS" --vulnerability-threshold=$THRESHOLD --details $1; }
+#   script:
+#     - scan ${SRC_AGENT}:${SRC_TAG}-py2
+#     - scan ${SRC_AGENT}:${SRC_TAG}-py3
+#     - scan ${SRC_AGENT}:${SRC_TAG}-py2-jmx
+#     - scan ${SRC_AGENT}:${SRC_TAG}-py3-jmx
+#     - scan ${SRC_DSD}:${SRC_TAG}
+#     - scan ${SRC_DCA}:${SRC_TAG}
 
-.docker_tag_job_definition: &docker_tag_job_definition
-  stage: image_deploy
-  tags: [ "runner:docker", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
-  before_script:
-    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
-    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
-    - pip install -r requirements.txt
-    - if [[ -z "$DELEGATION_PASS_SSM_KEY" ]]; then echo "No signing key set"; exit 0; fi
-    - echo "Importing delegation signing key"
-    - export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DELEGATION_PASS_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DELEGATION_KEY_SSM_KEY --with-decryption --query "Parameter.Value" --out text > /tmp/docker.key
-    - notary -d ~/.docker/trust key import /tmp/docker.key; rm /tmp/docker.key
-  dependencies: [] # Don't download Gitlab artefacts
+# .docker_tag_job_definition: &docker_tag_job_definition
+#   stage: image_deploy
+#   tags: [ "runner:docker", "size:large" ]
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
+#   before_script:
+#     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
+#     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+#     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+#     - pip install -r requirements.txt
+#     - if [[ -z "$DELEGATION_PASS_SSM_KEY" ]]; then echo "No signing key set"; exit 0; fi
+#     - echo "Importing delegation signing key"
+#     - export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DELEGATION_PASS_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+#     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DELEGATION_KEY_SSM_KEY --with-decryption --query "Parameter.Value" --out text > /tmp/docker.key
+#     - notary -d ~/.docker/trust key import /tmp/docker.key; rm /tmp/docker.key
+#   dependencies: [] # Don't download Gitlab artefacts
 
-.docker_hub_variables: &docker_hub_variables
-  DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
-  DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
-  DELEGATION_KEY_SSM_KEY: docker_hub_signing_key
-  DELEGATION_PASS_SSM_KEY: docker_hub_signing_pass
-  DOCKER_REGISTRY_URL: docker.io
-  SRC_AGENT: *agent_ecr
-  SRC_DSD: *dogstatsd_ecr
-  SRC_DCA: *cluster-agent_ecr
+# .docker_hub_variables: &docker_hub_variables
+#   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
+#   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
+#   DELEGATION_KEY_SSM_KEY: docker_hub_signing_key
+#   DELEGATION_PASS_SSM_KEY: docker_hub_signing_pass
+#   DOCKER_REGISTRY_URL: docker.io
+#   SRC_AGENT: *agent_ecr
+#   SRC_DSD: *dogstatsd_ecr
+#   SRC_DCA: *cluster-agent_ecr
 
-.quay_variables: &quay_variables
-  <<: *docker_hub_variables
-  DOCKER_REGISTRY_LOGIN_SSM_KEY: quay_login
-  DOCKER_REGISTRY_PWD_SSM_KEY: quay_pwd
-  DOCKER_REGISTRY_URL: quay.io
+# .quay_variables: &quay_variables
+#   <<: *docker_hub_variables
+#   DOCKER_REGISTRY_LOGIN_SSM_KEY: quay_login
+#   DOCKER_REGISTRY_PWD_SSM_KEY: quay_pwd
+#   DOCKER_REGISTRY_URL: quay.io
 
-dev_branch_docker_hub:
-  <<: *docker_tag_job_definition
-  when: manual
-  except:
-    - master
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:${CI_COMMIT_REF_SLUG}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2py3-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2py3-jmx
-    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
+# dev_branch_docker_hub:
+#   <<: *docker_tag_job_definition
+#   when: manual
+#   except:
+#     - master
+#   variables:
+#     <<: *docker_hub_variables
+#   script:
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:${CI_COMMIT_REF_SLUG}
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2-jmx
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2py3-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2py3-jmx
+#     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
 
-dev_master_docker_hub:
-  <<: *docker_tag_job_definition
-  only:
-    - master
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:master
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:master-py2
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent-dev:master-py3
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:master-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:master-py2-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent-dev:master-py3-jmx
-    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:master
+# dev_master_docker_hub:
+#   <<: *docker_tag_job_definition
+#   only:
+#     - master
+#   variables:
+#     <<: *docker_hub_variables
+#   script:
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:master
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:master-py2
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent-dev:master-py3
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:master-jmx
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:master-py2-jmx
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent-dev:master-py3-jmx
+#     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:master
 
-dca_dev_branch_docker_hub:
-  <<: *docker_tag_job_definition
-  when: manual
-  except:
-    - master
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
+# dca_dev_branch_docker_hub:
+#   <<: *docker_tag_job_definition
+#   when: manual
+#   except:
+#     - master
+#   variables:
+#     <<: *docker_hub_variables
+#   script:
+#     - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
 
-dca_dev_master_docker_hub:
-  <<: *docker_tag_job_definition
-  only:
-    - master
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:master
+# dca_dev_master_docker_hub:
+#   <<: *docker_tag_job_definition
+#   only:
+#     - master
+#   variables:
+#     <<: *docker_hub_variables
+#   script:
+#     - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:master
 
-# deploys nightlies to agent-dev
-dev_nightly_docker_hub:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_nightly
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx
-    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:nightly-${CI_COMMIT_SHORT_SHA}
+# # deploys nightlies to agent-dev
+# dev_nightly_docker_hub:
+#   <<: *docker_tag_job_definition
+#   <<: *run_when_triggered_on_nightly
+#   variables:
+#     <<: *docker_hub_variables
+#   script:
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-jmx
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2-jmx
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx
+#     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:nightly-${CI_COMMIT_SHORT_SHA}
 
-#
-# Check Deploy
-#
+# #
+# # Check Deploy
+# #
 
-# Check that the current version hasn't already been deployed (we don't want to
-# overwrite a public package). To update an erroneous package, first remove it
-# from our S3 bucket.
-check_already_deployed_version:
-  <<: *run_when_triggered
-  stage: check_deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh
+# # Check that the current version hasn't already been deployed (we don't want to
+# # overwrite a public package). To update an erroneous package, first remove it
+# # from our S3 bucket.
+# check_already_deployed_version:
+#   <<: *run_when_triggered
+#   stage: check_deploy
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh
 
-# If we trigger a build only pipeline we stop here.
-check_if_build_only:
-  <<: *run_when_triggered
-  stage: check_deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - if [ "$DEB_RPM_BUCKET_BRANCH" == "none" ]; then echo "Stopping pipeline"; exit 1; fi
+# # If we trigger a build only pipeline we stop here.
+# check_if_build_only:
+#   <<: *run_when_triggered
+#   stage: check_deploy
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - if [ "$DEB_RPM_BUCKET_BRANCH" == "none" ]; then echo "Stopping pipeline"; exit 1; fi
 
-#
-# deploy
-#
+# #
+# # deploy
+# #
 
-# deploy debian packages to apt staging repo
-deploy_deb:
-  <<: *run_when_triggered
-  stage: deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  tags: [ "runner:main", "size:large" ]
-  script:
-    # We first check that the current version hasn't already been deployed
-    # (same as the check_already_deployed_version). We do this twice to mitigate
-    # races and issues with retries while failing early if there is an issue.
-    - pushd $OMNIBUS_PACKAGE_DIR
-    - /deploy_scripts/fail_deb_is_pkg_already_exists.sh
-    - popd
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
+# # deploy debian packages to apt staging repo
+# deploy_deb:
+#   <<: *run_when_triggered
+#   stage: deploy
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     # We first check that the current version hasn't already been deployed
+#     # (same as the check_already_deployed_version). We do this twice to mitigate
+#     # races and issues with retries while failing early if there is an issue.
+#     - pushd $OMNIBUS_PACKAGE_DIR
+#     - /deploy_scripts/fail_deb_is_pkg_already_exists.sh
+#     - popd
+#     - source /usr/local/rvm/scripts/rvm
+#     - rvm use 2.4
 
-    - set +x # make sure we don't output the creds to the build log
+#     - set +x # make sure we don't output the creds to the build log
 
-    - APT_SIGNING_KEY_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_id --with-decryption --query "Parameter.Value" --out text)
-    - APT_SIGNING_PRIVATE_KEY_PART1=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part1 --with-decryption --query "Parameter.Value" --out text)
-    - APT_SIGNING_PRIVATE_KEY_PART2=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part2 --with-decryption --query "Parameter.Value" --out text)
-    - APT_SIGNING_KEY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
+#     - APT_SIGNING_KEY_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_id --with-decryption --query "Parameter.Value" --out text)
+#     - APT_SIGNING_PRIVATE_KEY_PART1=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part1 --with-decryption --query "Parameter.Value" --out text)
+#     - APT_SIGNING_PRIVATE_KEY_PART2=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part2 --with-decryption --query "Parameter.Value" --out text)
+#     - APT_SIGNING_KEY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
 
-    - echo "$APT_SIGNING_KEY_ID"
-    - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
+#     - echo "$APT_SIGNING_KEY_ID"
+#     - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
 
-    # Release the artifacts to the "6" component
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
+#     # Release the artifacts to the "6" component
+#     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
+#     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
 
-# deploy windows packages to a public s3 bucket when pushed on master
-deploy_windows_master:
-  stage: deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  <<: *run_when_triggered_on_nightly
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/master/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-*-x86_64.msi "s3://$WINDOWS_BUILDS_S3_BUCKET/master/datadog-agent-6-latest.amd64.msi" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+# # deploy windows packages to a public s3 bucket when pushed on master
+# deploy_windows_master:
+#   stage: deploy
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR
+#   <<: *run_when_triggered_on_nightly
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/master/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+#     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-*-x86_64.msi "s3://$WINDOWS_BUILDS_S3_BUCKET/master/datadog-agent-6-latest.amd64.msi" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# deploy windows packages to a public s3 bucket when tagged
-deploy_windows_tags:
-  stage: deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  <<: *run_when_triggered_on_tag
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
-    # By default we update the "latest" artifacts on our s3 bucket so the
-    # staging box can pick it up. Allow the job to skip this step if needed
-    # (when building a custom beta for example).
-    - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-6-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
+# # deploy windows packages to a public s3 bucket when tagged
+# deploy_windows_tags:
+#   stage: deploy
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR
+#   <<: *run_when_triggered_on_tag
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+#     # By default we update the "latest" artifacts on our s3 bucket so the
+#     # staging box can pick it up. Allow the job to skip this step if needed
+#     # (when building a custom beta for example).
+#     - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-6-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
 
-# deploy android packages to a public s3 bucket when tagged
-deploy_android_tags:
-  stage: deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  <<: *run_when_triggered_on_tag
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*.apk" $OMNIBUS_PACKAGE_DIR s3://$ANDROID_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+# # deploy android packages to a public s3 bucket when tagged
+# deploy_android_tags:
+#   stage: deploy
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR
+#   <<: *run_when_triggered_on_tag
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - $S3_CP_CMD --recursive --exclude "*" --include "*.apk" $OMNIBUS_PACKAGE_DIR s3://$ANDROID_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# deploy rpm packages to yum staging repo
-deploy_rpm:
-  <<: *run_when_triggered
-  stage: deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
-    - mkdir -p ./rpmrepo/6/x86_64/
-    - aws s3 sync s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/6/ ./rpmrepo/6/
+# # deploy rpm packages to yum staging repo
+# deploy_rpm:
+#   <<: *run_when_triggered
+#   stage: deploy
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - source /usr/local/rvm/scripts/rvm
+#     - rvm use 2.4
+#     - mkdir -p ./rpmrepo/6/x86_64/
+#     - aws s3 sync s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/6/ ./rpmrepo/6/
 
-    # add RPMs to new "6" branch
-    - cp $OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/6/x86_64/
-    - createrepo --update -v --checksum sha ./rpmrepo/6/x86_64
+#     # add RPMs to new "6" branch
+#     - cp $OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/6/x86_64/
+#     - createrepo --update -v --checksum sha ./rpmrepo/6/x86_64
 
-    # sync to S3
-    - aws s3 sync ./rpmrepo/6/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/6/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+#     # sync to S3
+#     - aws s3 sync ./rpmrepo/6/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/6/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# deploy suse rpm packages to yum staging repo
-deploy_suse_rpm:
-  <<: *run_when_triggered
-  stage: deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR_SUSE
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
-    - mkdir -p ./rpmrepo/6/x86_64/
-    - aws s3 sync s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/6/ ./rpmrepo/6/
+# # deploy suse rpm packages to yum staging repo
+# deploy_suse_rpm:
+#   <<: *run_when_triggered
+#   stage: deploy
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR_SUSE
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - source /usr/local/rvm/scripts/rvm
+#     - rvm use 2.4
+#     - mkdir -p ./rpmrepo/6/x86_64/
+#     - aws s3 sync s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/6/ ./rpmrepo/6/
 
-    # add RPMs to new "6" branch
-    - cp $OMNIBUS_PACKAGE_DIR_SUSE/*x86_64.rpm ./rpmrepo/6/x86_64/
-    - createrepo --update -v --checksum sha ./rpmrepo/6/x86_64
+#     # add RPMs to new "6" branch
+#     - cp $OMNIBUS_PACKAGE_DIR_SUSE/*x86_64.rpm ./rpmrepo/6/x86_64/
+#     - createrepo --update -v --checksum sha ./rpmrepo/6/x86_64
 
-    # sync to S3
-    - aws s3 sync ./rpmrepo/6/ s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/6/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+#     # sync to S3
+#     - aws s3 sync ./rpmrepo/6/ s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/6/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# deploy dsd binary to staging bucket
-deploy_dsd:
-  <<: *run_when_triggered
-  stage: deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - $S3_CP_CMD $S3_ARTEFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
-    - export PACKAGE_VERSION=$(inv agent.version --url-safe)
-    - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+# # deploy dsd binary to staging bucket
+# deploy_dsd:
+#   <<: *run_when_triggered
+#   stage: deploy
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - $S3_CP_CMD $S3_ARTEFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
+#     - export PACKAGE_VERSION=$(inv agent.version --url-safe)
+#     - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# deploy dsd binary to staging bucket
-deploy_puppy:
-  <<: *run_when_triggered
-  stage: deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - $S3_CP_CMD $S3_ARTEFACTS_URI/puppy/agent ./agent
-    - export PACKAGE_VERSION=$(inv agent.version --url-safe)
-    - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/puppy/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+# # deploy dsd binary to staging bucket
+# deploy_puppy:
+#   <<: *run_when_triggered
+#   stage: deploy
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - $S3_CP_CMD $S3_ARTEFACTS_URI/puppy/agent ./agent
+#     - export PACKAGE_VERSION=$(inv agent.version --url-safe)
+#     - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/puppy/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# deploy process agent and system-probe to staging bucket
-deploy_process_and_sysprobe:
-  stage: internal_deploy
-  when: manual
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - cd $OMNIBUS_PACKAGE_DIR
-    - ls
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - dpkg -x datadog-agent_*_amd64.deb ./out
-    # Use tag or shortened branch with short commit hash to identify the binary
-    - export SHORT_REF=$(echo $CI_COMMIT_REF_NAME | cut -d'/' -f2- | cut -c -10 | sed -E 's/[^[:alnum:]]+/-/g')
-    - export NAME="${CI_COMMIT_TAG:-$SHORT_REF}-${CI_COMMIT_SHA:0:7}"
-    - echo "Uploading with name=$NAME"
-    - $S3_CP_CMD ./out/opt/datadog-agent/embedded/bin/process-agent s3://$PROCESS_S3_BUCKET/process-agent-amd64-$NAME --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
-    - $S3_CP_CMD ./out/opt/datadog-agent/embedded/bin/system-probe s3://$PROCESS_S3_BUCKET/system-probe-amd64-$NAME --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
+# # deploy process agent and system-probe to staging bucket
+# deploy_process_and_sysprobe:
+#   stage: internal_deploy
+#   when: manual
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - cd $OMNIBUS_PACKAGE_DIR
+#     - ls
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - dpkg -x datadog-agent_*_amd64.deb ./out
+#     # Use tag or shortened branch with short commit hash to identify the binary
+#     - export SHORT_REF=$(echo $CI_COMMIT_REF_NAME | cut -d'/' -f2- | cut -c -10 | sed -E 's/[^[:alnum:]]+/-/g')
+#     - export NAME="${CI_COMMIT_TAG:-$SHORT_REF}-${CI_COMMIT_SHA:0:7}"
+#     - echo "Uploading with name=$NAME"
+#     - $S3_CP_CMD ./out/opt/datadog-agent/embedded/bin/process-agent s3://$PROCESS_S3_BUCKET/process-agent-amd64-$NAME --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
+#     - $S3_CP_CMD ./out/opt/datadog-agent/embedded/bin/system-probe s3://$PROCESS_S3_BUCKET/system-probe-amd64-$NAME --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
 
-#
-# Docker releases
-#
+# #
+# # Docker releases
+# #
 
-tag_release_6:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
-  stage: deploy
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:${CI_COMMIT_TAG}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:${CI_COMMIT_TAG}-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:${CI_COMMIT_TAG}-py3
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:${CI_COMMIT_TAG}-py3-jmx
-    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:${CI_COMMIT_TAG}
+# tag_release_6:
+#   <<: *docker_tag_job_definition
+#   <<: *run_when_triggered_on_tag
+#   stage: deploy
+#   when: manual
+#   variables:
+#     <<: *docker_hub_variables
+#   script:
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:${CI_COMMIT_TAG}
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:${CI_COMMIT_TAG}-jmx
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:${CI_COMMIT_TAG}-py3
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:${CI_COMMIT_TAG}-py3-jmx
+#     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:${CI_COMMIT_TAG}
 
-tag_release_7:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
-  stage: deploy
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:${CI_COMMIT_TAG}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:${CI_COMMIT_TAG}-jmx
+# tag_release_7:
+#   <<: *docker_tag_job_definition
+#   <<: *run_when_triggered_on_tag
+#   stage: deploy
+#   when: manual
+#   variables:
+#     <<: *docker_hub_variables
+#   script:
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:${CI_COMMIT_TAG}
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:${CI_COMMIT_TAG}-jmx
 
-latest_release_6:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
-  stage: deploy
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:latest
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:latest-jmx
-    # TODO: remove previous lines when agent 7 is released
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:latest-py2
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:latest-py2-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:6-py2
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:6-py3
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:6-py2-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:6-py3-jmx
-    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:latest
+# latest_release_6:
+#   <<: *docker_tag_job_definition
+#   <<: *run_when_triggered_on_tag
+#   stage: deploy
+#   when: manual
+#   variables:
+#     <<: *docker_hub_variables
+#   script:
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:latest
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:latest-jmx
+#     # TODO: remove previous lines when agent 7 is released
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:latest-py2
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:latest-py2-jmx
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:6-py2
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:6-py3
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:6-py2-jmx
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:6-py3-jmx
+#     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:latest
 
-latest_release_7:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
-  stage: deploy
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-  script:
-    # TODO: uncomment the following when agent 7 is released
-    #- inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:latest
-    #- inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:latest-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:7
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:7-jmx
+# latest_release_7:
+#   <<: *docker_tag_job_definition
+#   <<: *run_when_triggered_on_tag
+#   stage: deploy
+#   when: manual
+#   variables:
+#     <<: *docker_hub_variables
+#   script:
+#     # TODO: uncomment the following when agent 7 is released
+#     #- inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:latest
+#     #- inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:latest-jmx
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:7
+#     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:7-jmx
 
-#
-# Use these steps to revert the latest tags to a previous release
-# while maintaining content trust signatures
-# - remove the leading dot from the name
-# - set the RELEASE envvar
-# - in the gitlab pipeline view, trigger the step (in the first column)
-#
+# #
+# # Use these steps to revert the latest tags to a previous release
+# # while maintaining content trust signatures
+# # - remove the leading dot from the name
+# # - set the RELEASE envvar
+# # - in the gitlab pipeline view, trigger the step (in the first column)
+# #
 
-.latest_revert_to_previous_release_6:
-  <<: *docker_tag_job_definition
-  stage: source_test
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-    RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
-  script:
-    - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
-    # TODO: remove previous lines and uncomment the following when agent 7 is released
-    #- inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest-py2
-    #- inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-py2-jmx
-    - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
+# .latest_revert_to_previous_release_6:
+#   <<: *docker_tag_job_definition
+#   stage: source_test
+#   when: manual
+#   variables:
+#     <<: *docker_hub_variables
+#     RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
+#   script:
+#     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
+#     - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest
+#     - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
+#     # TODO: remove previous lines and uncomment the following when agent 7 is released
+#     #- inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest-py2
+#     #- inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-py2-jmx
+#     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
 
-.latest_revert_to_previous_release_7:
-  <<: *docker_tag_job_definition
-  stage: source_test
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-    RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
-  script:
-    - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest-py3
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-py3-jmx
+# .latest_revert_to_previous_release_7:
+#   <<: *docker_tag_job_definition
+#   stage: source_test
+#   when: manual
+#   variables:
+#     <<: *docker_hub_variables
+#     RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
+#   script:
+#     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
+#     - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest-py3
+#     - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-py3-jmx
 
-#
-# Use this step to delete a tag of a given image
-# We call the Docker Hub API because docker cli doesn't support deleting tags
-# - remove the leading dot from the name
-# - set the IMAGE and TAG envvars
-# - in the gitlab pipeline view, trigger the step (in the first column)
-#
-.delete_docker_tag:
-  tags: [ "runner:docker", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
-  before_script:
-    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - pip install -r requirements.txt
-    - |
-      export DOCKER_TOKEN=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/ | python -c 'import sys, json; print(json.load(sys.stdin)["token"].strip())'`
-  dependencies: [] # Don't download Gitlab artefacts
-  stage: source_test
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-    IMAGE: ""  # image name, for example "agent"
-    TAG: ""  # tag name, for example "6.9.0"
-    ORGANIZATION: "datadog"
-  script:
-    - if [[ -z "$IMAGE" ]]; then echo "Need an image"; exit 1; fi
-    - if [[ -z "$TAG" ]]; then echo "Need a tag to delete"; exit 1; fi
-    - inv -e docker.delete ${ORGANIZATION} ${IMAGE} ${TAG} ${DOCKER_TOKEN} &>/dev/null
+# #
+# # Use this step to delete a tag of a given image
+# # We call the Docker Hub API because docker cli doesn't support deleting tags
+# # - remove the leading dot from the name
+# # - set the IMAGE and TAG envvars
+# # - in the gitlab pipeline view, trigger the step (in the first column)
+# #
+# .delete_docker_tag:
+#   tags: [ "runner:docker", "size:large" ]
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
+#   before_script:
+#     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+#     - PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+#     - pip install -r requirements.txt
+#     - |
+#       export DOCKER_TOKEN=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/ | python -c 'import sys, json; print(json.load(sys.stdin)["token"].strip())'`
+#   dependencies: [] # Don't download Gitlab artefacts
+#   stage: source_test
+#   when: manual
+#   variables:
+#     <<: *docker_hub_variables
+#     IMAGE: ""  # image name, for example "agent"
+#     TAG: ""  # tag name, for example "6.9.0"
+#     ORGANIZATION: "datadog"
+#   script:
+#     - if [[ -z "$IMAGE" ]]; then echo "Need an image"; exit 1; fi
+#     - if [[ -z "$TAG" ]]; then echo "Need a tag to delete"; exit 1; fi
+#     - inv -e docker.delete ${ORGANIZATION} ${IMAGE} ${TAG} ${DOCKER_TOKEN} &>/dev/null
 
-dca_tag_release:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
-  stage: deploy
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent:${CI_COMMIT_TAG#$(echo "dca-")}
+# dca_tag_release:
+#   <<: *docker_tag_job_definition
+#   <<: *run_when_triggered_on_tag
+#   stage: deploy
+#   when: manual
+#   variables:
+#     <<: *docker_hub_variables
+#   script:
+#     - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent:${CI_COMMIT_TAG#$(echo "dca-")}
 
-dca_latest_release:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
-  stage: deploy
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent:latest
+# dca_latest_release:
+#   <<: *docker_tag_job_definition
+#   <<: *run_when_triggered_on_tag
+#   stage: deploy
+#   when: manual
+#   variables:
+#     <<: *docker_hub_variables
+#   script:
+#     - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent:latest
 
-# invalidate cloudfront cache
-deploy_cloudfront_invalidate:
-  <<: *run_when_triggered
-  stage: deploy_invalidate
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  tags: [ "runner:main", "size:large" ]
-  when: always
-  script:
-    - cd /deploy_scripts/cloudfront-invalidation
-    - "REPO=apt PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
-    - "REPO=yum PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
+# # invalidate cloudfront cache
+# deploy_cloudfront_invalidate:
+#   <<: *run_when_triggered
+#   stage: deploy_invalidate
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR
+#   tags: [ "runner:main", "size:large" ]
+#   when: always
+#   script:
+#     - cd /deploy_scripts/cloudfront-invalidation
+#     - "REPO=apt PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
+#     - "REPO=yum PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
 
-#
-# end to end
-#
+# #
+# # end to end
+# #
 
-.pupernetes_template: &pupernetes_template
-  stage: e2e
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  tags: [ "runner:main", "size:large" ]
-  before_script: [ "# noop" ] # Override top level entry
-  script:
-  - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
-  - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
+# .pupernetes_template: &pupernetes_template
+#   stage: e2e
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   tags: [ "runner:main", "size:large" ]
+#   before_script: [ "# noop" ] # Override top level entry
+#   script:
+#   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
+#   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
 
-pupernetes-dev:
-  <<: *pupernetes_template
-  when: manual
-  except:
-    - master
-    - tags
+# pupernetes-dev:
+#   <<: *pupernetes_template
+#   when: manual
+#   except:
+#     - master
+#     - tags
 
-pupernetes-master:
-  <<: *pupernetes_template
-  only:
-    - master
-  script:
-  - inv -e e2e-tests --image=datadog/agent-dev:master-py2
-  - inv -e e2e-tests --image=datadog/agent-dev:master-py3
+# pupernetes-master:
+#   <<: *pupernetes_template
+#   only:
+#     - master
+#   script:
+#   - inv -e e2e-tests --image=datadog/agent-dev:master-py2
+#   - inv -e e2e-tests --image=datadog/agent-dev:master-py3
 
-pupernetes-tags:
-  <<: *pupernetes_template
-  <<: *run_when_triggered_on_tag
-  when: manual
-  script:
-  # note: it's not the agent-dev
-  - inv -e e2e-tests --image=datadog/agent:$CI_COMMIT_TAG
-  - inv -e e2e-tests --image=datadog/agent:${CI_COMMIT_TAG}-py3
+# pupernetes-tags:
+#   <<: *pupernetes_template
+#   <<: *run_when_triggered_on_tag
+#   when: manual
+#   script:
+#   # note: it's not the agent-dev
+#   - inv -e e2e-tests --image=datadog/agent:$CI_COMMIT_TAG
+#   - inv -e e2e-tests --image=datadog/agent:${CI_COMMIT_TAG}-py3
