@@ -188,7 +188,9 @@ func (sc ServiceChecks) DescribeItem(i int) string {
 func writeServiceCheck(sc *ServiceCheck, stream *jsoniter.Stream) error {
 	writer := jsonrawobjectwriter.NewJSONRawObjectWriter(stream)
 
-	writer.StartObject()
+	if err := writer.StartObject(); err != nil {
+		return err
+	}
 	writer.AddStringField("check", sc.CheckName, jsonrawobjectwriter.AllowEmpty)
 	writer.AddStringField("host_name", sc.Host, jsonrawobjectwriter.AllowEmpty)
 	writer.AddInt64Field("timestamp", sc.Ts)
@@ -202,12 +204,16 @@ func writeServiceCheck(sc *ServiceCheck, stream *jsoniter.Stream) error {
 		stream.WriteObjectField(tagsField)
 		stream.WriteNil()
 	} else {
-		writer.StartArrayField(tagsField)
+		if err := writer.StartArrayField(tagsField); err != nil {
+			return err
+		}
 		for _, tag := range sc.Tags {
 			writer.AddStringValue(tag)
 		}
 		writer.FinishArrayField()
 	}
-	writer.FinishObject()
+	if err := writer.FinishObject(); err != nil {
+		return err
+	}
 	return writer.Flush()
 }

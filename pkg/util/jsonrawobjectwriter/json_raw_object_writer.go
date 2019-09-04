@@ -5,17 +5,23 @@
 
 package jsonrawobjectwriter
 
-import jsoniter "github.com/json-iterator/go"
+import (
+	"errors"
+
+	jsoniter "github.com/json-iterator/go"
+)
 
 // JSONRawObjectWriter contains helper functions to write JSON using the raw API.
 type JSONRawObjectWriter struct {
 	stream                  *jsoniter.Stream
-	requireSeparatorByScope []bool
+	requireSeparatorByScope [8]bool
+	scopeLevel              int
 }
 
 // NewJSONRawObjectWriter creates a new instance of JSONRawObjectWriter
 func NewJSONRawObjectWriter(stream *jsoniter.Stream) *JSONRawObjectWriter {
 	writer := &JSONRawObjectWriter{stream: stream}
+	writer.scopeLevel = -1
 	return writer
 }
 
@@ -31,14 +37,15 @@ const (
 )
 
 // StartObject starts a new JSON object (add '{')
-func (writer *JSONRawObjectWriter) StartObject() {
+func (writer *JSONRawObjectWriter) StartObject() error {
 	writer.stream.WriteObjectStart()
-	writer.addScope()
+	return writer.addScope()
 }
 
 // FinishObject finishes a JSON object (add '}')
-func (writer *JSONRawObjectWriter) FinishObject() {
+func (writer *JSONRawObjectWriter) FinishObject() error {
 	writer.stream.WriteObjectEnd()
+	return writer.removeScope()
 }
 
 // AddStringField adds a new field of type string
@@ -58,17 +65,17 @@ func (writer *JSONRawObjectWriter) AddInt64Field(fieldName string, value int64) 
 }
 
 // StartArrayField starts a new field of type array
-func (writer *JSONRawObjectWriter) StartArrayField(fieldName string) {
+func (writer *JSONRawObjectWriter) StartArrayField(fieldName string) error {
 	writer.writeSeparatorIfNeeded()
 	writer.stream.WriteObjectField(fieldName)
 	writer.stream.WriteArrayStart()
-	writer.addScope()
+	return writer.addScope()
 }
 
 // FinishArrayField finishes an array field
-func (writer *JSONRawObjectWriter) FinishArrayField() {
+func (writer *JSONRawObjectWriter) FinishArrayField() error {
 	writer.stream.WriteArrayEnd()
-	writer.removeScope()
+	return writer.removeScope()
 }
 
 // AddStringValue adds a string (for example inside an array)
@@ -87,23 +94,28 @@ func (writer *JSONRawObjectWriter) toString() string {
 }
 
 func (writer *JSONRawObjectWriter) writeSeparatorIfNeeded() {
-	if len(writer.requireSeparatorByScope) > 0 {
-		index := len(writer.requireSeparatorByScope) - 1
-		if writer.requireSeparatorByScope[index] {
+	if writer.scopeLevel >= 0 && writer.scopeLevel < len(writer.requireSeparatorByScope) {
+		if writer.requireSeparatorByScope[writer.scopeLevel] {
 			writer.stream.WriteMore()
 		} else {
-			writer.requireSeparatorByScope[index] = true
+			writer.requireSeparatorByScope[writer.scopeLevel] = true
 		}
 	}
 }
 
-func (writer *JSONRawObjectWriter) addScope() {
-	writer.requireSeparatorByScope = append(writer.requireSeparatorByScope, false)
+func (writer *JSONRawObjectWriter) addScope() error {
+	writer.scopeLevel++
+	if writer.scopeLevel >= len(writer.requireSeparatorByScope) {
+		return errors.New("Too many scopes")
+	}
+	writer.requireSeparatorByScope[writer.scopeLevel] = false
+	return nil
 }
 
-func (writer *JSONRawObjectWriter) removeScope() {
-	len := len(writer.requireSeparatorByScope)
-	if len > 0 {
-		writer.requireSeparatorByScope = writer.requireSeparatorByScope[:len-1]
+func (writer *JSONRawObjectWriter) removeScope() error {
+	if writer.scopeLevel < 0 {
+		return errors.New("No scope to remove")
 	}
+	writer.scopeLevel--
+	return nil
 }
