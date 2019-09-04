@@ -130,7 +130,7 @@ func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integrat
 	// only log whether process check is enabled or not but don't return early, because we still need to initialize "binPath", "source" and
 	// start up process-agent. Ultimately it's up to process-agent to decide whether to run or not based on the config
 	if enabled := config.Datadog.GetBool("process_config.enabled"); !enabled {
-		log.Info("process-check is disabled through main configuration file")
+		log.Info("live process monitoring is disabled through main configuration file")
 	}
 
 	var checkConf processAgentCheckConf
