@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: stackstate-agent
+spec:
+  selector:
+    matchLabels:
+      app: stackstate-agent
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: stackstate-agent
+      name: stackstate-agent
+    spec:
+      serviceAccountName: stackstate-agent
+      containers:
+      - image: stackstate/stackstate-agent-2-test:master
+        imagePullPolicy: Always
+        name: stackstate-agent
+        ports:
+          - containerPort: 8126
+            name: traceport
+            protocol: TCP
+          - containerPort: 5555
+            name: healthport
+            protocol: TCP
+        securityContext:
+          privileged: true
+        envFrom:
+          - configMapRef:
+              name: sts-agent-config
+        env:
+          - name: STS_KUBERNETES_KUBELET_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: HOST_PROC
+            value: "/host/proc"
+          - name: HOST_SYS
+            value: "/host/sys"
+          - name: KUBERNETES
+            value: "true"
+#          - name: STS_CLUSTER_AGENT_ENABLED
+#            value: "true"
+#          - name: STS_CLUSTER_AGENT_AUTH_TOKEN
+#            valueFrom:
+#              secretKeyRef:
+#                name: stackstate-auth-token
+#                key: token
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        volumeMounts:
+          - name: sys-kernel-debug
+            mountPath: /sys/kernel/debug
+          - name: dockersocket
+            mountPath: /var/run/docker.sock
+          - name: procdir
+            mountPath: /host/proc
+            readOnly: true
+          - name: passwd
+            mountPath: /etc/passwd
+            readOnly: true
+          - name: cgroups
+            mountPath: /host/sys/fs/cgroup
+            readOnly: true
+        livenessProbe:
+         httpGet:
+           path: /health
+           port: 5555
+         initialDelaySeconds: 15
+         periodSeconds: 15
+         timeoutSeconds: 5
+      hostNetwork: true
+      hostPID: true
+      volumes:
+        - hostPath:
+            path: /sys/kernel/debug
+          name: sys-kernel-debug
+        - hostPath:
+            path: /var/run/docker.sock
+          name: dockersocket
+        - hostPath:
+            path: /proc
+          name: procdir
+        - hostPath:
+            path: /etc/passwd
+          name: passwd
+        - hostPath:
+            path: /sys/fs/cgroup
+          name: cgroups

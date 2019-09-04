@@ -1,8 +1,1 @@
-apiVersion: v1
-kind: Secret
-metadata:
-  name: stackstate-auth-token
-type: Opaque
-data:
-  # You can generate with: `echo -n '<ThirtyX2XcharactersXlongXtoken>' | base64`
-  token: PFRoaXJ0eVgyWGNoYXJhY3RlcnNYbG9uZ1h0b2tlbj4=
+../kubernetes/k8s/base/cluster-auth-token.yaml

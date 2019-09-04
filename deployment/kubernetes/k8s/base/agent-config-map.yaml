@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sts-agent-config
+  namespace: default
+data:
+  STS_API_KEY: "API_KEY"
+  STS_STS_URL: "<STACKSTATE_BACKEND_URL>/stsAgent"
+  STS_PROCESS_AGENT_URL: "<STACKSTATE_BACKEND_URL>/stsAgent"
+  STS_APM_URL: "<STACKSTATE_BACKEND_URL>/stsAgent"
+  STS_PROCESS_AGENT_ENABLED: "true"
+  STS_APM_ENABLED: "true"
+  STS_NETWORK_TRACING_ENABLED: "true"
+  STS_SKIP_SSL_VALIDATION: "false"
+  STS_PROCESS_BLACKLIST_PATTERNS: "^s6-,^/sbin/,^/usr/sbin,^/pause,^/usr/bin/dbus-daemon,^-bash,^su$,^/bin/bash,/lib/systemd/"
+  STS_HEALTH_PORT: "5555"
+  STS_LOG_LEVEL: "DEBUG"
+  LOG_LEVEL: "DEBUG"

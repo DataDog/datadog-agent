@@ -1,0 +1,43 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: stackstate-cluster-agent
+  namespace: default
+spec:
+  template:
+    metadata:
+      labels:
+        app: stackstate-cluster-agent
+      name: stackstate-agent
+      annotations:
+        ad.stackstatehq.com/stackstate-cluster-agent.check_names: '["prometheus"]'
+        ad.stackstatehq.com/stackstate-cluster-agent.init_configs: '[{}]'
+        ad.stackstatehq.com/stackstate-cluster-agent.instances: '[{"prometheus_url": "http://%%host%%:5000/metrics","namespace": "stackstate.cluster_agent","metrics": ["go_goroutines","go_memstats_*","process_*","api_requests","stackstate_requests","external_metrics", "cluster_checks_*"]}]'
+    spec:
+      serviceAccountName: stackstate-cluster-agent
+      containers:
+      - image: stackstate/stackstate-cluster-agent-test:master
+        imagePullPolicy: Always
+        name: stackstate-cluster-agent
+        envFrom:
+          - configMapRef:
+              name: sts-clusteragent-config
+        env:
+          - name: STS_CLUSTER_AGENT_AUTH_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: stackstate-auth-token
+                key: token
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stackstate-cluster-agent
+  labels:
+    app: stackstate-cluster-agent
+spec:
+  ports:
+    - port: 5005
+      protocol: TCP
+  selector:
+    app: stackstate-cluster-agent
