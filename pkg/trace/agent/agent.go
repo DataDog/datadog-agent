@@ -198,6 +198,10 @@ func (a *Agent) Process(t *api.Trace) {
 		sampler.AddGlobalRate(root, rateLimiterRate)
 
 		if t.ContainerTags != "" {
+			// TODO: investigate why this is nil
+			if root.Meta == nil {
+				root.Meta = make(map[string]string)
+			}
 			root.Meta[tagContainersTags] = t.ContainerTags
 		}
 	}
