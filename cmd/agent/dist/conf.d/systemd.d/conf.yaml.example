@@ -8,17 +8,6 @@ instances:
   - unit_names:
       - <UNIT_NAME>
 
-    ## @param unit_regexes - list of strings - optional
-    ## Regex pattern[s] matching the names of units to monitor.
-    ## If `unit_names` and `unit_regexes` are both NOT specified, the check monitors all units.
-    ##
-    ## If the number of units managed by systemd is unbounded, it might increase
-    ## the number of custom metrics send by this check which may impact your billing.
-    ## Learn more about custom metrics: https://docs.datadoghq.com/developers/metrics/custom_metrics/#how-is-a-custom-metric-defined
-    #
-    # unit_regexes:
-    #   - ^<UNIT_NAME>$        # match exactly the unit name "<UNIT_NAME>"
-
     ## @param private_socket - string - optional
     ## Path to systemd private socket needed to retrieve systemd data.
     ## Defaults to `/run/systemd/private` or `/host/run/systemd/private` when
