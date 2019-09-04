@@ -87,7 +87,7 @@ func (t *TopologyCheck) Run() error {
 
 	// set the check "instance id" for snapshots
 	t.instance.CheckID = kubernetesAPITopologyCheckName
-	t.instance.Instance = topology.Instance{Type: "kubernetes", URL: t.KubeAPIServerHostname}
+	t.instance.Instance = topology.Instance{Type: "kubernetes", URL: t.instance.ClusterName}
 
 	// start the topology snapshot with the batch-er
 	batcher.GetBatcher().SubmitStartSnapshot(t.instance.CheckID, t.instance.Instance)
@@ -309,6 +309,9 @@ func (t *TopologyCheck) nodeToStackStateComponent(node v1.Node) topology.Compone
 	nodeStatus.Conditions = make([]v1.NodeCondition, 0)
 	nodeStatus.Images = make([]v1.ContainerImage, 0)
 
+	tags := node.Labels
+	tags = t.addClusterNameTag(tags)
+
 	component := topology.Component{
 		ExternalID: nodeExternalID,
 		Type:       topology.Type{Name: "kubernetes-node"},
@@ -316,7 +319,7 @@ func (t *TopologyCheck) nodeToStackStateComponent(node v1.Node) topology.Compone
 			"name":              node.Name,
 			"kind":              node.Kind,
 			"creationTimestamp": node.CreationTimestamp,
-			"tags":              node.Labels,
+			"tags":              tags,
 			"status":            nodeStatus,
 			"namespace":         node.Namespace,
 			"identifiers":       identifiers,
@@ -347,6 +350,9 @@ func (t *TopologyCheck) podToStackStateComponent(pod v1.Pod) topology.Component 
 	podStatus.Conditions = make([]v1.PodCondition, 0)
 	podStatus.ContainerStatuses = make([]v1.ContainerStatus, 0)
 
+	tags := pod.Labels
+	tags = t.addClusterNameTag(tags)
+
 	component := topology.Component{
 		ExternalID: podExternalID,
 		Type:       topology.Type{Name: "kubernetes-pod"},
@@ -354,7 +360,7 @@ func (t *TopologyCheck) podToStackStateComponent(pod v1.Pod) topology.Component 
 			"name":              pod.Name,
 			"kind":              pod.Kind,
 			"creationTimestamp": pod.CreationTimestamp,
-			"tags":              pod.Labels,
+			"tags":              tags,
 			"status":            podStatus,
 			"namespace":         pod.Namespace,
 			//"tolerations": pod.Spec.Tolerations,
@@ -409,6 +415,9 @@ func (t *TopologyCheck) containerToStackStateComponent(node v1.Node, pod v1.Pod,
 
 	containerExternalID := buildContainerExternalID(t.instance.ClusterName, pod.Name, container.Name)
 
+	tags := pod.Labels
+	tags = t.addClusterNameTag(tags)
+
 	data := map[string]interface{}{
 		"name": container.Name,
 		"docker": map[string]interface{}{
@@ -417,6 +426,7 @@ func (t *TopologyCheck) containerToStackStateComponent(node v1.Node, pod v1.Pod,
 		},
 		"restartCount": container.RestartCount,
 		"identifiers":  identifiers,
+		"tags": tags,
 	}
 
 	if container.State.Running != nil {
@@ -484,11 +494,14 @@ func (t *TopologyCheck) serviceToStackStateComponent(service v1.Service, endpoin
 
 	serviceExternalID := buildServiceExternalID(t.instance.ClusterName, serviceID)
 
+	tags := service.Labels
+	tags = t.addClusterNameTag(tags)
+
 	data := map[string]interface{}{
 		"name":              service.Name,
 		"namespace":         service.Namespace,
 		"creationTimestamp": service.CreationTimestamp,
-		"tags":              service.Labels,
+		"tags":              tags,
 		"identifiers":       identifiers,
 	}
 
@@ -524,6 +537,11 @@ func podToServiceStackStateRelation(refExternalID, serviceExternalID string) top
 	return relation
 }
 
+func (t *TopologyCheck) addClusterNameTag(tags map[string]string) map[string]string {
+	tags["cluster-name"] = t.instance.ClusterName
+	return tags
+}
+
 func extractLastFragment(value string) string {
 	lastSlash := strings.LastIndex(value, "/")
 	return value[lastSlash+1:]
@@ -534,22 +552,18 @@ func extractInstanceIdFromProviderId(spec v1.NodeSpec) string {
 	return extractLastFragment(spec.ProviderID)
 }
 
-// buildNodeExternalID
 func buildNodeExternalID(clusterName, nodeName string) string {
 	return fmt.Sprintf("urn:/kubernetes:%s:node:%s", clusterName, nodeName)
 }
 
-// buildPodExternalID
 func buildPodExternalID(clusterName, podName string) string {
 	return fmt.Sprintf("urn:/kubernetes:%s:pod:%s", clusterName, podName)
 }
 
-// buildContainerExternalID
 func buildContainerExternalID(clusterName, podName, containerName string) string {
 	return fmt.Sprintf("urn:/kubernetes:%s:pod:%s:container:%s", clusterName, podName, containerName)
 }
 
-// buildServiceExternalID
 func buildServiceExternalID(clusterName, serviceID string) string {
 	return fmt.Sprintf("urn:/kubernetes:%s:service:%s", clusterName, serviceID)
 }
