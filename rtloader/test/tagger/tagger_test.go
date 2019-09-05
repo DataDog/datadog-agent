@@ -5,6 +5,9 @@ import (
 	"os"
 	"regexp"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMain(m *testing.M) {
@@ -33,6 +36,9 @@ func TestGetTags(t *testing.T) {
 	if out != "[\"a\", \"b\", \"c\"]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
+		"Number of allocations doesn't match number of frees")
 }
 
 func TestGetTagsHighCard(t *testing.T) {
@@ -48,6 +54,9 @@ func TestGetTagsHighCard(t *testing.T) {
 	if out != "[\"A\", \"B\", \"C\"]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
+		"Number of allocations doesn't match number of frees")
 }
 
 func TestGetTagsUnknown(t *testing.T) {
@@ -63,6 +72,9 @@ func TestGetTagsUnknown(t *testing.T) {
 	if out != "[]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
+		"Number of allocations doesn't match number of frees")
 }
 
 func TestGetTagsErrorType(t *testing.T) {
@@ -74,6 +86,9 @@ func TestGetTagsErrorType(t *testing.T) {
 	if matched, err := regexp.Match("TypeError: argument 1 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
+		"Number of allocations doesn't match number of frees")
 }
 
 func TestTagsLow(t *testing.T) {
@@ -89,6 +104,9 @@ func TestTagsLow(t *testing.T) {
 	if out != "[\"a\", \"b\", \"c\"]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
+		"Number of allocations doesn't match number of frees")
 }
 
 func TestTagsHigh(t *testing.T) {
@@ -104,6 +122,9 @@ func TestTagsHigh(t *testing.T) {
 	if out != "[\"A\", \"B\", \"C\"]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
+		"Number of allocations doesn't match number of frees")
 }
 
 func TestTagsOrchestrator(t *testing.T) {
@@ -119,6 +140,9 @@ func TestTagsOrchestrator(t *testing.T) {
 	if out != "[\"1\", \"2\", \"3\"]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
+		"Number of allocations doesn't match number of frees")
 }
 
 func TestTagsInvalidCardinality(t *testing.T) {
@@ -134,6 +158,9 @@ func TestTagsInvalidCardinality(t *testing.T) {
 	if out != "TypeError: Invalid cardinality" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
+		"Number of allocations doesn't match number of frees")
 }
 
 func TestTagsUnknown(t *testing.T) {
@@ -149,6 +176,9 @@ func TestTagsUnknown(t *testing.T) {
 	if out != "[]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
+		"Number of allocations doesn't match number of frees")
 }
 
 func TestTagsErrorType(t *testing.T) {
@@ -160,4 +190,7 @@ func TestTagsErrorType(t *testing.T) {
 	if matched, err := regexp.Match("TypeError: argument 1 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
+		"Number of allocations doesn't match number of frees")
 }

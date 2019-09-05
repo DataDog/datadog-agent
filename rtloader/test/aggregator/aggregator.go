@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
 // #cgo CFLAGS: -I../../include
@@ -85,6 +86,9 @@ func setUp() error {
 	if rtloader == nil {
 		return fmt.Errorf("make failed")
 	}
+
+	// Initialize memory tracking
+	helpers.InitMemoryTracker()
 
 	C.initAggregatorTests(rtloader)
 

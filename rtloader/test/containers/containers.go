@@ -9,6 +9,7 @@ import (
 	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
 // #cgo CFLAGS: -I../../include
@@ -26,8 +27,8 @@ import (
 import "C"
 
 var (
-	rtloader     *C.rtloader_t
-	tmpfile *os.File
+	rtloader *C.rtloader_t
+	tmpfile  *os.File
 )
 
 type message struct {
@@ -41,6 +42,9 @@ func setUp() error {
 	if rtloader == nil {
 		return fmt.Errorf("make failed")
 	}
+
+	// Initialize memory tracking
+	helpers.InitMemoryTracker()
 
 	var err error
 	tmpfile, err = ioutil.TempFile("", "testout")

@@ -9,22 +9,25 @@ import (
 	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
-// #cgo CFLAGS: -I../../include -I../../common
-// #cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
-// #cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
-//
-// #include "datadog_agent_rtloader.h"
-// #include "rtloader_mem.h"
-//
-// #include <stdlib.h>
-//
-// extern char **Tags(char*, int);
-//
-// static void initTaggerTests(rtloader_t *rtloader) {
-//    set_tags_cb(rtloader, Tags);
-// }
+/*
+#cgo CFLAGS: -I../../include -I../../common
+#cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
+
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
+
+#include <stdlib.h>
+
+extern char **Tags(char*, int);
+
+static void initTaggerTests(rtloader_t *rtloader) {
+   set_tags_cb(rtloader, Tags);
+}
+*/
 import "C"
 
 var (
@@ -37,6 +40,9 @@ func setUp() error {
 	if rtloader == nil {
 		return fmt.Errorf("make failed")
 	}
+
+	// Initialize memory tracking
+	helpers.InitMemoryTracker()
 
 	var err error
 	tmpfile, err = ioutil.TempFile("", "testout")

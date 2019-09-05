@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -26,7 +27,7 @@ import (
 import "C"
 
 var (
-	rtloader        *C.rtloader_t
+	rtloader   *C.rtloader_t
 	tmpfile    *os.File
 	returnNull bool
 )
@@ -36,6 +37,9 @@ func setUp() error {
 	if rtloader == nil {
 		return fmt.Errorf("make failed")
 	}
+
+	// Initialize memory tracking
+	helpers.InitMemoryTracker()
 
 	var err error
 	tmpfile, err = ioutil.TempFile("", "testout")
