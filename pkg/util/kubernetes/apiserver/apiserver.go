@@ -27,6 +27,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+
+	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
+	wpa_informers "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 )
 
 var (
@@ -51,6 +54,8 @@ type APIClient struct {
 	// InformerFactory gives access to informers.
 	InformerFactory informers.SharedInformerFactory
 
+	// WPAInformerFactory gives access to informers for Watermark Pod Autoscalers.
+	WPAInformerFactory wpa_informers.SharedInformerFactory
 	// used to setup the APIClient
 	initRetry      retry.Retrier
 	Cl             kubernetes.Interface
@@ -78,8 +83,7 @@ func GetAPIClient() (*APIClient, error) {
 	}
 	return globalAPIClient, nil
 }
-
-func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+func getClientConfig() (*rest.Config, error) {
 	var clientConfig *rest.Config
 	var err error
 	cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
@@ -97,12 +101,40 @@ func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 			return nil, err
 		}
 	}
-	clientConfig.Timeout = timeout
 
 	if config.Datadog.GetBool("kubernetes_apiserver_use_protobuf") {
 		clientConfig.ContentType = "application/vnd.kubernetes.protobuf"
 	}
+	return clientConfig, nil
+}
+
+func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+	clientConfig, err := getClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientConfig.Timeout = timeout
 	return kubernetes.NewForConfig(clientConfig)
+}
+
+func getWPAClient(timeout time.Duration) (wpa_client.Interface, error) {
+	clientConfig, err := getClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientConfig.Timeout = timeout
+	return wpa_client.NewForConfig(clientConfig)
+}
+
+func getWPAInformerFactory() (wpa_informers.SharedInformerFactory, error) {
+	// default to 300s
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	client, err := getWPAClient(0) // No timeout for the Informers, to allow long watch.
+	if err != nil {
+		log.Infof("Could not get apiserver client: %v", err)
+		return nil, err
+	}
+	return wpa_informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
 }
 
 func getInformerFactory() (informers.SharedInformerFactory, error) {
@@ -127,7 +159,13 @@ func (c *APIClient) connect() error {
 	if err != nil {
 		return err
 	}
-
+	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
+		c.WPAInformerFactory, err = getWPAInformerFactory()
+		if err != nil {
+			log.Errorf("Error getting WPA Informer Factory: %s", err.Error())
+			return err
+		}
+	}
 	// Try to get apiserver version to confim connectivity
 	APIversion := c.Cl.Discovery().RESTClient().APIVersion()
 	if APIversion.Empty() {
