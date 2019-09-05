@@ -53,47 +53,51 @@
 
 [[override]]
   name = "github.com/kubernetes/apimachinery"
-  branch = "release-1.11"
+  branch = "release-1.15"
 
 [[override]]
   name = "k8s.io/apimachinery"
-  branch = "release-1.11"
+  branch = "release-1.15"
 
 [[override]]
   name = "github.com/kubernetes/client-go"
-  branch = "release-8.0"
+    branch = "release-12.0"
 
 [[override]]
     name = "k8s.io/client-go"
-    branch = "release-8.0"
+    branch = "release-12.0"
 
 [[override]]
   name = "github.com/kubernetes/api"
-  branch = "release-1.11"
+  branch = "release-1.15"
 
 [[override]]
   name = "k8s.io/api"
-  branch = "release-1.11"
+  branch = "release-1.15"
 
 [[override]]
   name = "github.com/kubernetes/apiserver"
-  branch = "release-1.11"
+  branch = "release-1.15"
+
+[[override]]
+  name = "github.com/prometheus/client_golang"
+  revision = "e7e903064f5e9eb5da98208bae10b475d4db0f8c"
 
 [[override]]
   name = "k8s.io/apiserver"
-  branch = "release-1.11"
+  branch = "release-1.15"
 
 [[override]]
   name = "github.com/kubernetes/metrics"
-  branch = "release-1.11"
+  branch = "release-1.15"
 
 [[override]]
   name = "k8s.io/metrics"
-  branch = "release-1.11"
+  branch = "release-1.15"
 
 [[override]]
   name = "github.com/kubernetes-incubator/custom-metrics-apiserver"
-  revision = "85ebc283a57287a8fcb3ad4b488d633cd63ef7d8"
+  revision = "3d9be26a50eb64531fc40eb31a5f3e6720956dc6"
 
 [[constraint]]
   name = "github.com/gorilla/mux"
@@ -169,7 +173,15 @@
 
 [[constraint]]
   name = "k8s.io/kubernetes"
-  version = "1.11.2"
+  version = "1.13.1"
+
+[[override]]
+  name = "sigs.k8s.io/structured-merge-diff"
+  revision = "e85c7b244fd2cc57bb829d73a061f93a441e63ce"
+
+[[override]]
+  name = "k8s.io/kube-openapi"
+  revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[override]]
   name = "github.com/docker/distribution"
@@ -210,3 +222,16 @@
   name = "github.com/ianlancetaylor/cgosymbolizer"
   source = "github.com/ianlancetaylor/cgosymbolizer"
   revision = "f5072df9c550dc687157e5d7efb50825cdf8f0eb"
+
+[[override]]
+  name = "sigs.k8s.io/controller-runtime"
+  source = "https://github.com/kubernetes-sigs/controller-runtime"
+  version = "v0.2.0"
+
+[[override]]
+  name = "gopkg.in/fsnotify.v1"
+  source = "https://github.com/fsnotify/fsnotify.git"
+
+[[constraint]]
+  name = "github.com/DataDog/watermarkpodautoscaler"
+  revision = "f3a3312c2504e59e4997c346d034d7c1642bc13c"

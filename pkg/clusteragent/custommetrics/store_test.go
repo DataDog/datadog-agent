@@ -57,24 +57,24 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 				"external_metric-default-foo-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
 				},
 				"external_metric-default-bar-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					HPA:        ObjectReference{Name: "bar", Namespace: "default"},
+					Ref:        ObjectReference{Name: "bar", Namespace: "default"},
 				},
 			},
 			[]ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
 				},
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					HPA:        ObjectReference{Name: "bar", Namespace: "default"},
+					Ref:        ObjectReference{Name: "bar", Namespace: "default"},
 				},
 			},
 		},
@@ -84,24 +84,24 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 				"external_metric-default-foo-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
 				},
 				"external_metric-default-bar-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "bar", Namespace: "default"},
+					Ref:        ObjectReference{Name: "bar", Namespace: "default"},
 				},
 			},
 			[]ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
 				},
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "bar", Namespace: "default"},
+					Ref:        ObjectReference{Name: "bar", Namespace: "default"},
 				},
 			},
 		},
@@ -111,23 +111,23 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 				"external_metric-default-foo-requests_per_s_2": {
 					MetricName: "requests_per_s_2",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
 				},
 				"external_metric-default-foo-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
 				},
 			},
 			[]ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
 				}, {
 					MetricName: "requests_per_s_2",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
 				},
 			},
 		},
@@ -166,7 +166,7 @@ func TestExternalMetricValueKeyFunc(t *testing.T) {
 			desc: "default case",
 			emval: ExternalMetricValue{
 				MetricName: "foo",
-				HPA: ObjectReference{
+				Ref: ObjectReference{
 					Name:      "bar",
 					Namespace: "default",
 				},
@@ -177,7 +177,7 @@ func TestExternalMetricValueKeyFunc(t *testing.T) {
 			desc: "custom case",
 			emval: ExternalMetricValue{
 				MetricName: "FoO",
-				HPA: ObjectReference{
+				Ref: ObjectReference{
 					Name:      "bar",
 					Namespace: "DefauLt",
 				},

@@ -11,13 +11,14 @@ type ExternalMetricValue struct {
 	MetricName string            `json:"metricName"`
 	Labels     map[string]string `json:"labels"`
 	Timestamp  int64             `json:"ts"`
-	HPA        ObjectReference   `json:"hpa"`
+	Ref        ObjectReference   `json:"reference"`
 	Value      float64           `json:"value"`
 	Valid      bool              `json:"valid"`
 }
 
 // ObjectReference contains enough information to let you identify the referred resource.
 type ObjectReference struct {
+	Type      string `json:"type"`
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
 	UID       string `json:"uid"`

@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 )
 
 type DatadogClient interface {
@@ -31,9 +32,10 @@ type DatadogClient interface {
 type ProcessorInterface interface {
 	UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue)
 	ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) map[string]custommetrics.ExternalMetricValue
+	ProcessWPAs(wpa *v1alpha1.WatermarkPodAutoscaler) map[string]custommetrics.ExternalMetricValue
 }
 
-// Processor embeds the configuration to refresh metrics from Datadog and process HPA structs to ExternalMetrics.
+// Processor embeds the configuration to refresh metrics from Datadog and process Ref structs to ExternalMetrics.
 type Processor struct {
 	externalMaxAge time.Duration
 	datadogClient  DatadogClient
@@ -89,6 +91,21 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) map[string]custommetrics.ExternalMetricValue {
 	externalMetrics := make(map[string]custommetrics.ExternalMetricValue)
 	emList := Inspect(hpa)
+	for _, em := range emList {
+		em.Value = 0
+		em.Timestamp = time.Now().Unix()
+		em.Valid = false
+		log.Tracef("Created a boilerplate for the external metrics %#v", em)
+		id := custommetrics.ExternalMetricValueKeyFunc(em)
+		externalMetrics[id] = em
+	}
+	return externalMetrics
+}
+
+// ProcessWPAs processes the WatermarkPodAutoscalers into a list of ExternalMetricValues.
+func (p *Processor) ProcessWPAs(wpa *v1alpha1.WatermarkPodAutoscaler) map[string]custommetrics.ExternalMetricValue {
+	externalMetrics := make(map[string]custommetrics.ExternalMetricValue)
+	emList := InspectWPA(wpa)
 	for _, em := range emList {
 		em.Value = 0
 		em.Timestamp = time.Now().Unix()

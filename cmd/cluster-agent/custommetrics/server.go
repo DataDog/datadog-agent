@@ -120,7 +120,7 @@ func (o *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 	)
 	serverConfig := genericapiserver.NewConfig(codecs)
 
-	err := o.SecureServing.ApplyTo(serverConfig)
+	err := o.SecureServing.ApplyTo(&serverConfig.SecureServing, &serverConfig.LoopbackClientConfig)
 	if err != nil {
 		log.Errorf("Error while converting SecureServing type %v", err)
 		return nil, err
