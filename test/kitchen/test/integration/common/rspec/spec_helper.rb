@@ -243,8 +243,10 @@ def fetch_python_version(timeout = 30)
       json_info_output['metadata'].key?('systemStats') &&
       json_info_output['metadata']['systemStats'].key?('pythonV') &&
       Gem::Version.correct?(json_info_output['metadata']['systemStats']['pythonV']) # Check that we do have a version number
+        p "Took #{i} tries"
         return json_info_output['metadata']['systemStats']['pythonV']
     end
+    p json_info_output&.dig(:metadata, :systemStats, :pythonV)
     sleep 1
   end
   return nil
