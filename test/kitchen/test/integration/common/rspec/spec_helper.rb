@@ -234,7 +234,7 @@ def read_conf_file
 end
 
 # TODO: fix this, this is flaky
-def fetch_python_version(timeout = 20)
+def fetch_python_version(timeout = 30)
   # Try to fetch the metadata.systemStats.pythonV from the Agent status
   # Timeout after the given number of seconds
   for _ in 1..timeout do
