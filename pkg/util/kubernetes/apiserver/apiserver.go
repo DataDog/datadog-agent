@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
+	"github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
 )
 
 var (
@@ -50,6 +52,8 @@ const (
 type APIClient struct {
 	// InformerFactory gives access to informers.
 	InformerFactory informers.SharedInformerFactory
+	// WPAInformerFactory
+	WPAInformerFactory externalversions.SharedInformerFactory
 
 	// used to setup the APIClient
 	initRetry      retry.Retrier
@@ -78,8 +82,7 @@ func GetAPIClient() (*APIClient, error) {
 	}
 	return globalAPIClient, nil
 }
-
-func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+func getClientConfig() (*rest.Config, error) {
 	var clientConfig *rest.Config
 	var err error
 	cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
@@ -97,12 +100,40 @@ func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 			return nil, err
 		}
 	}
-	clientConfig.Timeout = timeout
+
 
 	if config.Datadog.GetBool("kubernetes_apiserver_use_protobuf") {
 		clientConfig.ContentType = "application/vnd.kubernetes.protobuf"
 	}
+	return clientConfig, nil
+}
+
+func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+	clientConfig, err := getClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientConfig.Timeout = timeout
 	return kubernetes.NewForConfig(clientConfig)
+}
+
+func getWPAClient(timeout time.Duration) (versioned.Interface, error) {
+	clientConfig, err := getClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientConfig.Timeout = timeout
+	return versioned.NewForConfig(clientConfig)
+}
+
+func getWPAInformerFactory() (externalversions.SharedInformerFactory, error) {
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	client, err := getWPAClient(0) // No timeout for the Informers, to allow long watch.
+	if err != nil {
+		log.Infof("Could not get apiserver client: %v", err)
+		return nil, err
+	}
+	return externalversions.NewSharedInformerFactory(client, resyncPeriodSeconds* time.Second), nil
 }
 
 func getInformerFactory() (informers.SharedInformerFactory, error) {
@@ -124,6 +155,10 @@ func (c *APIClient) connect() error {
 	}
 	// informer factory uses its own clientset with a larger timeout
 	c.InformerFactory, err = getInformerFactory()
+	if err != nil {
+		return err
+	}
+	c.WPAInformerFactory, err = getWPAInformerFactory()
 	if err != nil {
 		return err
 	}

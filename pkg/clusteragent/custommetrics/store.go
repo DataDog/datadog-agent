@@ -149,7 +149,7 @@ func (c *configMapStore) DeleteExternalMetricValues(deleted []ExternalMetricValu
 	for _, m := range deleted {
 		key := ExternalMetricValueKeyFunc(m)
 		delete(c.cm.Data, key)
-		log.Debugf("Deleted metric %s for HPA %s/%s from the configmap %s", m.MetricName, m.HPA.Namespace, m.HPA.Name, c.name)
+		log.Debugf("Deleted metric %s for Ref %s/%s from the configmap %s", m.MetricName, m.Ref.Namespace, m.Ref.Name, c.name)
 	}
 	return c.updateConfigMap()
 }
@@ -216,14 +216,15 @@ func (c *configMapStore) updateConfigMap() error {
 }
 
 // ExternalMetricValueKeyFunc knows how to make keys for storing external metrics. The key
-// is unique for each metric of an HPA. This means that the keys for the same metric from two
+// is unique for each metric of an Ref. This means that the keys for the same metric from two
 // different HPAs will be different (important for external metrics that may use different labels
 // for the same metric).
 func ExternalMetricValueKeyFunc(val ExternalMetricValue) string {
 	parts := []string{
 		"external_metric",
-		val.HPA.Namespace,
-		val.HPA.Name,
+		val.Ref.Type,
+		val.Ref.Namespace,
+		val.Ref.Name,
 		val.MetricName,
 	}
 	return strings.Join(parts, keyDelimeter)

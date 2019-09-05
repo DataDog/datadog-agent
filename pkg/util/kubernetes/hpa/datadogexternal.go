@@ -60,7 +60,7 @@ const (
 	timestamp = 0
 )
 
-// queryDatadogExternal converts the metric name and labels from the HPA format into a Datadog metric.
+// queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
 func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point, error) {
 	if metricNames == nil {

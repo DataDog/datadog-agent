@@ -14,6 +14,7 @@ import (
 
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 )
 
 type controllerFuncs struct {
@@ -38,6 +39,7 @@ var controllerCatalog = map[string]controllerFuncs{
 
 type ControllerContext struct {
 	InformerFactory informers.SharedInformerFactory
+	WPAInformerFactory		externalversions.SharedInformerFactory
 	Client          kubernetes.Interface
 	LeaderElector   LeaderElectorInterface
 	StopCh          chan struct{}
@@ -61,6 +63,7 @@ func StartControllers(ctx ControllerContext) error {
 	// factory uses lazy initialization (delays the creation of an informer until the first
 	// time it's needed).
 	ctx.InformerFactory.Start(ctx.StopCh)
+	ctx.WPAInformerFactory.Start(ctx.StopCh)
 
 	return nil
 }
@@ -85,6 +88,7 @@ func startAutoscalersController(ctx ControllerContext) error {
 		ctx.LeaderElector,
 		dogCl,
 		ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
+		ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers(),
 	)
 	if err != nil {
 		return err
@@ -93,6 +97,24 @@ func startAutoscalersController(ctx ControllerContext) error {
 
 	return nil
 }
+
+
+//func startWatermarkAutoscalerController(ctx ControllerContext) error {
+//	v1alpha1.WatermarkPodAutoscalerInformer()
+//
+//	autoscalersController, err := NewWatermarkAutoscalersController(
+//		ctx.Client,
+//		ctx.LeaderElector,
+//		ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
+//	)
+//	if err != nil {
+//		return err
+//	}
+//	go autoscalersController.Run(ctx.StopCh)
+//
+//	return nil
+//}
+
 
 func startServicesInformer(ctx ControllerContext) error {
 	// Just start the shared informer, the autodiscovery

@@ -186,7 +186,7 @@ func TestUpdate(t *testing.T) {
 		"external_metric-default-foo-metric1": {
 			MetricName: "metric1",
 			Labels:     map[string]string{"foo": "bar"},
-			HPA: custommetrics.ObjectReference{
+			Ref: custommetrics.ObjectReference{
 				Name:      "foo",
 				Namespace: "default",
 			},
@@ -218,7 +218,7 @@ func TestUpdate(t *testing.T) {
 	hctrl.toStore.data["external_metric-default-foo-metric2"] = custommetrics.ExternalMetricValue{
 		MetricName: "metric2",
 		Labels:     map[string]string{"foo": "bar"},
-		HPA: custommetrics.ObjectReference{
+		Ref: custommetrics.ObjectReference{
 			Name:      "foo",
 			Namespace: "default",
 		},
@@ -238,7 +238,7 @@ func TestUpdate(t *testing.T) {
 	hctrl.toStore.data["external_metric-default-foo-metric2"] = custommetrics.ExternalMetricValue{
 		MetricName: "metric2",
 		Labels:     map[string]string{"foo": "baz"},
-		HPA: custommetrics.ObjectReference{
+		Ref: custommetrics.ObjectReference{
 			Name:      "foo",
 			Namespace: "default",
 		},
@@ -392,7 +392,7 @@ func TestAutoscalerController(t *testing.T) {
 		require.NotEmpty(t, st)
 		require.Len(t, st, 1)
 		// Not comparing timestamps to avoid flakyness.
-		require.Equal(t, ExtVal[0].HPA, st[key].HPA)
+		require.Equal(t, ExtVal[0].Ref, st[key].Ref)
 		require.Equal(t, ExtVal[0].MetricName, st[key].MetricName)
 		require.Equal(t, ExtVal[0].Labels, st[key].Labels)
 	case <-timeout.C:
@@ -573,7 +573,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 				"external_metric-default-foo-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"bar": "baz"},
-					HPA:        custommetrics.ObjectReference{Name: "foo", Namespace: "default", UID: "1111"},
+					Ref:        custommetrics.ObjectReference{Name: "foo", Namespace: "default", UID: "1111"},
 					Timestamp:  12,
 					Value:      1,
 					Valid:      false,
@@ -604,7 +604,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"bar": "baz"},
-					HPA:        custommetrics.ObjectReference{Name: "foo", Namespace: "default", UID: "1111"},
+					Ref:        custommetrics.ObjectReference{Name: "foo", Namespace: "default", UID: "1111"},
 					Timestamp:  12,
 					Value:      1,
 					Valid:      false,
@@ -617,7 +617,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 				"external_metric-default-foo-requests_per_s_b": {
 					MetricName: "requests_per_s_b",
 					Labels:     map[string]string{"bar": "baz"},
-					HPA:        custommetrics.ObjectReference{Name: "foo", Namespace: "default", UID: "1111"},
+					Ref:        custommetrics.ObjectReference{Name: "foo", Namespace: "default", UID: "1111"},
 					Timestamp:  12,
 					Value:      1,
 					Valid:      false,
