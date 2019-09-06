@@ -233,18 +233,15 @@ def read_conf_file
     confYaml
 end
 
-# TODO: fix this, this is flaky
-def fetch_python_version(timeout = 30)
-  # Try to fetch the python_version from the Agent status
+def fetch_python_version(timeout = 10)
+  # Fetch the python_version from the Agent status
   # Timeout after the given number of seconds
-  for i in 1..timeout do
+  for _ in 1..timeout do
     json_info_output = json_info
     if json_info_output.key?('python_version') &&
       Gem::Version.correct?(json_info_output['python_version']) # Check that we do have a version number
-        p "Took #{i} tries"
         return json_info_output['python_version']
     end
-    p json_info_output&.dig(:python_version)
     sleep 1
   end
   return nil
@@ -486,10 +483,8 @@ shared_examples_for 'an Agent with python3 enabled' do
 
   it 'runs Python 3 after python_version is set to 3' do
     result = false
-    pythonV = fetch_python_version
-    p "Python version:"
-    p pythonV
-    if Gem::Version.new('3.0.0') <= Gem::Version.new(pythonV)
+    python_version = fetch_python_version
+    if ! python_version.nil? && Gem::Version.new('3.0.0') <= Gem::Version.new(python_version)
       result = true
     end
     expect(result).to be_truthy
@@ -513,10 +508,8 @@ shared_examples_for 'an Agent with python3 enabled' do
 
   it 'runs Python 2 after python_version is set back to 2' do
     result = false
-    pythonV = fetch_python_version
-    p "Python version:"
-    p pythonV
-    if Gem::Version.new('3.0.0') > Gem::Version.new(pythonV)
+    python_version = fetch_python_version
+    if ! python_version.nil? && Gem::Version.new('3.0.0') > Gem::Version.new(python_version)
       result = true
     end
     expect(result).to be_truthy
