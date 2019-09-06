@@ -315,9 +315,8 @@ func StopAgent() {
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
-	if common.Forwarder != nil {
-		common.Forwarder.Stop()
-	}
+	aggregator.StopDefaultAggregator()
+	common.Forwarder.Stop()
 	logs.Stop()
 	gui.StopGUIServer()
 	os.Remove(pidfilePath)
