@@ -166,7 +166,7 @@ type BufferedAggregator struct {
 	checkMetricIn          chan senderMetricSample
 	checkHistogramBucketIn chan senderHistogramBucket
 
-	sampler            TimeSampler
+	statsdSampler      TimeSampler
 	checkSamplers      map[check.ID]*CheckSampler
 	serviceChecks      metrics.ServiceChecks
 	events             metrics.Events
@@ -195,7 +195,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName st
 		checkMetricIn:          make(chan senderMetricSample, 100),    // TODO make buffer size configurable
 		checkHistogramBucketIn: make(chan senderHistogramBucket, 100), // TODO make buffer size configurable
 
-		sampler:            *NewTimeSampler(bucketSize),
+		statsdSampler:      *NewTimeSampler(bucketSize),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
 		flushInterval:      flushInterval,
 		serializer:         s,
@@ -349,13 +349,13 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 // addSample adds the metric sample
 func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, timestamp float64) {
 	metricSample.Tags = deduplicateTags(metricSample.Tags)
-	agg.sampler.addSample(metricSample, timestamp)
+	agg.statsdSampler.addSample(metricSample, timestamp)
 }
 
 // GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 func (agg *BufferedAggregator) GetSeriesAndSketches() (metrics.Series, metrics.SketchSeriesList) {
 	agg.mu.Lock()
-	series, sketches := agg.sampler.flush(timeNowNano())
+	series, sketches := agg.statsdSampler.flush(timeNowNano())
 
 	for _, checkSampler := range agg.checkSamplers {
 		s, sk := checkSampler.flush()
