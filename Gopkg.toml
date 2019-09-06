@@ -3,6 +3,10 @@
   version = "4.12.0"
 
 [[constraint]]
+  name = "github.com/google/gopacket"
+  branch = "master"
+
+[[constraint]]
   name = "github.com/DataDog/gohai"
   branch = "master"
 

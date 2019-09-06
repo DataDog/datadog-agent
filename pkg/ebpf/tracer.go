@@ -42,6 +42,8 @@ type Tracer struct {
 
 	conntracker netlink.Conntracker
 
+	reverseDNS ReverseDNS
+
 	perfMap *bpflib.PerfMap
 
 	// Telemetry
@@ -145,6 +147,19 @@ func NewTracer(config *Config) (*Tracer, error) {
 		}
 	}
 
+	var reverseDNS ReverseDNS = nullReverseDNS{}
+	if config.DNSSnooping {
+		filter := m.SocketFilter("socket/dns_filter")
+		if filter == nil {
+			return nil, fmt.Errorf("error retrieving socket filter")
+		}
+
+		reverseDNS, err = NewSocketFilterSnooper(filter)
+		if err != nil {
+			return nil, fmt.Errorf("error creating dns snooper: %s", err)
+		}
+	}
+
 	portMapping := NewPortMapping(config.ProcRoot, config)
 	if err := portMapping.ReadInitialState(); err != nil {
 		return nil, fmt.Errorf("failed to read initial pid->port mapping: %s", err)
@@ -166,6 +181,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		config:         config,
 		state:          state,
 		portMapping:    portMapping,
+		reverseDNS:     reverseDNS,
 		localAddresses: readLocalAddresses(),
 		buffer:         make([]ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
@@ -261,6 +277,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 					atomic.AddInt64(&t.skippedConns, 1)
 				} else {
 					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort)
+					cs = t.resolveConnections(cs)[0]
 					t.state.StoreClosedConnection(cs)
 				}
 			case lostCount, ok := <-lostChannel:
@@ -296,6 +313,7 @@ func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 }
 
 func (t *Tracer) Stop() {
+	t.reverseDNS.Close()
 	_ = t.m.Close()
 	t.perfMap.PollStop()
 	t.conntracker.Close()
@@ -387,6 +405,9 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 	t.state.RemoveExpiredClients(time.Now())
 
 	t.conntracker.ClearShortLived()
+
+	// Resolve IPs to names
+	active = t.resolveConnections(active...)
 
 	for _, key := range closedPortBindings {
 		t.portMapping.RemoveMapping(key)
@@ -644,6 +665,17 @@ func (t *Tracer) isLocalAddress(address util.Address) bool {
 	return ok
 }
 
+func (t *Tracer) resolveConnections(connections ...ConnectionStats) []ConnectionStats {
+	names := t.reverseDNS.Resolve(connections)
+
+	for i := range connections {
+		connections[i].SourceDNS = names[i].Source
+		connections[i].DestDNS = names[i].Dest
+	}
+
+	return connections
+}
+
 func readLocalAddresses() map[util.Address]struct{} {
 	addresses := make(map[util.Address]struct{}, 0)
 
@@ -690,5 +722,6 @@ func SectionsFromConfig(c *Config) map[string]bpflib.SectionParams {
 		tcpCloseEventMap.sectionName(): {
 			MapMaxEntries: 1024,
 		},
+		"socket/dns_filter": {},
 	}
 }

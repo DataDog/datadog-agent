@@ -18,6 +18,10 @@ type Config struct {
 	// CollectLocalDNS specifies whether the tracer should capture traffic for local DNS calls
 	CollectLocalDNS bool
 
+	// DNSSnooping specifies whether the tracer should enhance connection data with domain names by snooping DNS traffic
+	// Notice this does *not* depend on CollectLocalDNS
+	DNSSnooping bool
+
 	// UDPConnTimeout determines the length of traffic inactivity between two (IP, port)-pairs before declaring a UDP
 	// connection as inactive.
 	// Note: As UDP traffic is technically "connection-less", for tracking, we consider a UDP connection to be traffic
@@ -76,6 +80,7 @@ func NewDefaultConfig() *Config {
 		CollectUDPConns:       true,
 		CollectIPv6Conns:      true,
 		CollectLocalDNS:       false,
+		DNSSnooping:           true,
 		UDPConnTimeout:        30 * time.Second,
 		TCPConnTimeout:        2 * time.Minute,
 		MaxTrackedConnections: 65536,

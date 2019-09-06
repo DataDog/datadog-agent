@@ -75,6 +75,9 @@ type ConnectionStats struct {
 	Source util.Address
 	Dest   util.Address
 
+	SourceDNS string
+	DestDNS   string
+
 	MonotonicSentBytes uint64
 	LastSentBytes      uint64
 
@@ -106,9 +109,9 @@ func (c ConnectionStats) String() string {
 		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] (%s) %s sent (+%s), %s received (+%s)",
 		c.Type,
 		c.Pid,
-		c.Source,
+		printAddress(c.Source, c.SourceDNS),
 		c.SPort,
-		c.Dest,
+		printAddress(c.Dest, c.DestDNS),
 		c.DPort,
 		c.Direction,
 		humanize.Bytes(c.MonotonicSentBytes), humanize.Bytes(c.LastSentBytes),
@@ -197,4 +200,12 @@ func BeautifyKey(key string) string {
 	dest := bytesToAddress(raw[9+addrSize : 9+2*addrSize])
 
 	return fmt.Sprintf(keyFmt, pid, source, sport, dest, dport, family, typ)
+}
+
+func printAddress(address util.Address, dns string) string {
+	if len(dns) == 0 {
+		return address.String()
+	}
+
+	return dns
 }
