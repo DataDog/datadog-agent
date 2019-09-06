@@ -4,6 +4,9 @@ metadata:
   name: datadog-agent
   namespace: default
 spec:
+  selector:
+    matchLabels:
+      app: datadog-agent
   template:
     metadata:
       labels:
