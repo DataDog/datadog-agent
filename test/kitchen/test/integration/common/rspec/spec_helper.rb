@@ -237,7 +237,7 @@ end
 def fetch_python_version(timeout = 30)
   # Try to fetch the metadata.systemStats.pythonV from the Agent status
   # Timeout after the given number of seconds
-  for _ in 1..timeout do
+  for i in 1..timeout do
     json_info_output = json_info
     if json_info_output.key?('metadata') &&
       json_info_output['metadata'].key?('systemStats') &&
