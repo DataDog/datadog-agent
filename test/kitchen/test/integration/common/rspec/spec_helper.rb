@@ -235,18 +235,16 @@ end
 
 # TODO: fix this, this is flaky
 def fetch_python_version(timeout = 30)
-  # Try to fetch the metadata.systemStats.pythonV from the Agent status
+  # Try to fetch the python_version from the Agent status
   # Timeout after the given number of seconds
   for i in 1..timeout do
     json_info_output = json_info
-    if json_info_output.key?('metadata') &&
-      json_info_output['metadata'].key?('systemStats') &&
-      json_info_output['metadata']['systemStats'].key?('pythonV') &&
-      Gem::Version.correct?(json_info_output['metadata']['systemStats']['pythonV']) # Check that we do have a version number
+    if json_info_output.key?('python_version') &&
+      Gem::Version.correct?(json_info_output['python_version']) # Check that we do have a version number
         p "Took #{i} tries"
-        return json_info_output['metadata']['systemStats']['pythonV']
+        return json_info_output['python_version']
     end
-    p json_info_output&.dig(:metadata, :systemStats, :pythonV)
+    p json_info_output&.dig(:python_version)
     sleep 1
   end
   return nil
