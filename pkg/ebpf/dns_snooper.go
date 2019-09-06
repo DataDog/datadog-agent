@@ -3,6 +3,11 @@ package ebpf
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"net"
+	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/afpacket"
@@ -16,6 +21,7 @@ import (
 const (
 	dnsCacheTTL              = 3 * time.Minute
 	dnsCacheExpirationPeriod = 1 * time.Minute
+	packetBufferSize         = 100
 )
 
 type NamePair struct {
@@ -31,9 +37,11 @@ var _ ReverseDNS = &SocketFilterSnooper{}
 
 type SocketFilterSnooper struct {
 	tpacket      *afpacket.TPacket
+	source       *gopacket.PacketSource
 	socketFilter *bpflib.SocketFilter
 	ipsToNames   *reverseDNSCache
 	exit         chan struct{}
+	wg           sync.WaitGroup
 }
 
 type translation struct {
@@ -42,10 +50,12 @@ type translation struct {
 }
 
 func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, error) {
-	tpacket, err := afpacket.NewTPacket()
+	tpacket, err := afpacket.NewTPacket(afpacket.OptPollTimeout(1 * time.Second))
 	if err != nil {
 		return nil, fmt.Errorf("error creating raw socket: %s", err)
 	}
+
+	packetSrc := gopacket.NewPacketSource(tpacket, layers.LayerTypeEthernet)
 
 	err = bpflib.AttachSocketFilter(filter, tpacket.Fd())
 	if err != nil {
@@ -54,12 +64,20 @@ func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, 
 
 	snooper := &SocketFilterSnooper{
 		tpacket:      tpacket,
+		source:       packetSrc,
 		socketFilter: filter,
 		exit:         make(chan struct{}),
 		ipsToNames:   newReverseDNSCache(dnsCacheTTL, dnsCacheExpirationPeriod),
 	}
 
-	go snooper.run()
+	// Start consuming packets
+	packetChan := snooper.createPacketStream(1000)
+	snooper.wg.Add(1)
+	go func() {
+		snooper.run(packetChan)
+		snooper.wg.Done()
+	}()
+
 	return snooper, nil
 }
 
@@ -68,39 +86,78 @@ func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) []NamePair 
 }
 
 func (s *SocketFilterSnooper) Close() {
+	s.exit <- struct{}{}
+	close(s.exit)
+	s.wg.Wait()
 	err := bpflib.DetachSocketFilter(s.socketFilter, s.tpacket.Fd())
 	if err != nil {
 		log.Errorf("error detaching socket filter: %s", err)
 	}
-	s.exit <- struct{}{}
 	s.tpacket.Close()
 	s.ipsToNames.Close()
 }
 
-func (s *SocketFilterSnooper) run() {
-	packets := gopacket.NewPacketSource(s.tpacket, layers.LayerTypeEthernet).Packets()
-	for {
-		select {
-		case packet := <-packets:
-			layer := packet.Layer(layers.LayerTypeDNS)
-			if layer.LayerType() != layers.LayerTypeDNS {
-				continue
-			}
-			dns, ok := layer.(*layers.DNS)
-			if !ok {
-				continue
-			}
-
-			translation := parseAnswer(dns)
-			if translation == nil {
-				continue
-			}
-
-			s.ipsToNames.Add(translation)
-		case <-s.exit:
-			return
+func (s *SocketFilterSnooper) run(packets <-chan gopacket.Packet) {
+	for packet := range packets {
+		layer := packet.Layer(layers.LayerTypeDNS)
+		if layer.LayerType() != layers.LayerTypeDNS {
+			continue
 		}
+		dns, ok := layer.(*layers.DNS)
+		if !ok {
+			continue
+		}
+
+		translation := parseAnswer(dns)
+		if translation == nil {
+			continue
+		}
+
+		s.ipsToNames.Add(translation)
 	}
+}
+
+func (s *SocketFilterSnooper) createPacketStream(chanSize int) <-chan gopacket.Packet {
+	packetChan := make(chan gopacket.Packet, packetBufferSize)
+	go func() {
+		defer close(packetChan)
+		for {
+			packet, err := s.source.NextPacket()
+			if err == nil {
+				packetChan <- packet
+				continue
+			}
+
+			// Properly synchronizes termination process
+			select {
+			case <-s.exit:
+				return
+			default:
+			}
+
+			// Immediately retry for temporary network errors
+			if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
+				continue
+			}
+
+			// Immediately retry for EAGAIN
+			if err == syscall.EAGAIN {
+				continue
+			}
+
+			// Immediately break for known unrecoverable errors
+			if err == io.EOF || err == io.ErrUnexpectedEOF ||
+				err == io.ErrNoProgress || err == io.ErrClosedPipe || err == io.ErrShortBuffer ||
+				err == syscall.EBADF ||
+				strings.Contains(err.Error(), "use of closed file") {
+				break
+			}
+
+			// Sleep briefly and try again
+			time.Sleep(5 * time.Millisecond)
+		}
+	}()
+	return packetChan
 }
 
 // source: https://github.com/weaveworks/scope/blob/c5ac315b383fdf47c57cebb30bb2b7edd437ec74/probe/endpoint/dns_snooper_linux_amd64.go
