@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"reflect"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/afpacket"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
+	"github.com/google/gopacket/afpacket"
 	"github.com/google/gopacket/layers"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
@@ -39,6 +40,7 @@ type SocketFilterSnooper struct {
 	tpacket      *afpacket.TPacket
 	source       *gopacket.PacketSource
 	socketFilter *bpflib.SocketFilter
+	socketFD     int
 	ipsToNames   *reverseDNSCache
 	exit         chan struct{}
 	wg           sync.WaitGroup
@@ -57,7 +59,10 @@ func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, 
 
 	packetSrc := gopacket.NewPacketSource(tpacket, layers.LayerTypeEthernet)
 
-	err = bpflib.AttachSocketFilter(filter, tpacket.Fd())
+	// Unfortunately the underlying socket file descriptor is private
+	socketFD := int(reflect.ValueOf(tpacket).Elem().FieldByName("fd").Int())
+
+	err = bpflib.AttachSocketFilter(filter, socketFD)
 	if err != nil {
 		return nil, fmt.Errorf("error attaching filter to socket: %s", err)
 	}
@@ -66,6 +71,7 @@ func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, 
 		tpacket:      tpacket,
 		source:       packetSrc,
 		socketFilter: filter,
+		socketFD:     socketFD,
 		exit:         make(chan struct{}),
 		ipsToNames:   newReverseDNSCache(dnsCacheTTL, dnsCacheExpirationPeriod),
 	}
@@ -89,7 +95,7 @@ func (s *SocketFilterSnooper) Close() {
 	s.exit <- struct{}{}
 	close(s.exit)
 	s.wg.Wait()
-	err := bpflib.DetachSocketFilter(s.socketFilter, s.tpacket.Fd())
+	err := bpflib.DetachSocketFilter(s.socketFilter, s.socketFD)
 	if err != nil {
 		log.Errorf("error detaching socket filter: %s", err)
 	}
