@@ -92,7 +92,6 @@ func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) []NamePair 
 }
 
 func (s *SocketFilterSnooper) Close() {
-	s.exit <- struct{}{}
 	close(s.exit)
 	s.wg.Wait()
 	err := bpflib.DetachSocketFilter(s.socketFilter, s.socketFD)
