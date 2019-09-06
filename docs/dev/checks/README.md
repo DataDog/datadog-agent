@@ -9,8 +9,10 @@ Every check has its own YAML configuration file. The file has one mandatory key,
 `instances` and one optional, `init_config`.
 
 Note: If you want to run the custom check inside your development workspace 
-(github.com/DataDog/datadog-agent), you need to put `MyCheck.yaml` and 
+(github.com/DataDog/datadog-agent), you must put `MyCheck.yaml` and 
 `MyCheck.py` inside `dev/dist` folder located at the root of the datadog-agent repository.
+These files are copied to the proper location (`bin/agent/dist/`) when 
+`invoke agent.build` is executed.
 
 ### init_config
 
