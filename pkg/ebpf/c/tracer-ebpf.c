@@ -17,6 +17,9 @@
 #pragma clang diagnostic pop
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
+#include <uapi/linux/ip.h>
+#include <uapi/linux/ipv6.h>
+#include <uapi/linux/udp.h>
 
 /* Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
  */
@@ -816,6 +819,35 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
 
     log_debug("kprobe/tcp_v4_destroy_sock: lport: %d\n", lport);
     return 0;
+}
+
+SEC("socket/dns_filter")
+int socket__dns_filter(struct __sk_buff *skb) {
+    __u16 l3_proto = load_half(skb, offsetof(struct ethhdr, h_proto));
+    __u8 l4_proto;
+    size_t ip_hdr_size;
+
+    switch(l3_proto) {
+    case ETH_P_IP:
+        ip_hdr_size = sizeof(struct iphdr);
+        l4_proto = load_byte(skb, ETH_HLEN + offsetof(struct iphdr, protocol));
+        break;
+    case ETH_P_IPV6:
+        ip_hdr_size = sizeof(struct ipv6hdr);
+        l4_proto = load_byte(skb, ETH_HLEN + offsetof(struct ipv6hdr, nexthdr));
+        break;
+    default:
+        return 0;
+    }
+
+    if (l4_proto != IPPROTO_UDP)
+        return 0;
+
+    __u16 src_port = load_half(skb, ETH_HLEN + ip_hdr_size + offsetof(struct udphdr, source));
+    if (src_port != 53)
+        return 0;
+
+    return -1;
 }
 
 // This number will be interpreted by gobpf-elf-loader to set the current running kernel version
