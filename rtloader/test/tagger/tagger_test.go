@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestMain(m *testing.M) {
@@ -37,8 +36,8 @@ func TestGetTags(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 
-	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
-		"Number of allocations doesn't match number of frees")
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestGetTagsHighCard(t *testing.T) {
@@ -55,8 +54,8 @@ func TestGetTagsHighCard(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 
-	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
-		"Number of allocations doesn't match number of frees")
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestGetTagsUnknown(t *testing.T) {
@@ -73,8 +72,8 @@ func TestGetTagsUnknown(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 
-	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
-		"Number of allocations doesn't match number of frees")
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestGetTagsErrorType(t *testing.T) {
@@ -87,8 +86,8 @@ func TestGetTagsErrorType(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 
-	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
-		"Number of allocations doesn't match number of frees")
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestTagsLow(t *testing.T) {
@@ -105,8 +104,8 @@ func TestTagsLow(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 
-	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
-		"Number of allocations doesn't match number of frees")
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestTagsHigh(t *testing.T) {
@@ -123,8 +122,8 @@ func TestTagsHigh(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 
-	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
-		"Number of allocations doesn't match number of frees")
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestTagsOrchestrator(t *testing.T) {
@@ -141,8 +140,8 @@ func TestTagsOrchestrator(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 
-	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
-		"Number of allocations doesn't match number of frees")
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestTagsInvalidCardinality(t *testing.T) {
@@ -159,8 +158,8 @@ func TestTagsInvalidCardinality(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 
-	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
-		"Number of allocations doesn't match number of frees")
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestTagsUnknown(t *testing.T) {
@@ -177,8 +176,8 @@ func TestTagsUnknown(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 
-	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
-		"Number of allocations doesn't match number of frees")
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestTagsErrorType(t *testing.T) {
@@ -191,6 +190,6 @@ func TestTagsErrorType(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 
-	assert.Equal(t, helpers.Allocations.Value(), helpers.Frees.Value(),
-		"Number of allocations doesn't match number of frees")
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
