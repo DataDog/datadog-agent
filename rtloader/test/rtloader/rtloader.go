@@ -1,10 +1,12 @@
 package testrtloader
 
 /*
-#cgo CFLAGS: -I../../include
+#cgo CFLAGS: -I../../include -I../../common
 #cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl -lstdc++
 #cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
+
 #include <datadog_agent_rtloader.h>
+#include "rtloader_mem.h"
 */
 import "C"
 
@@ -75,7 +77,10 @@ func runString(code string) (string, error) {
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
-	ret := C.run_simple_string(rtloader, C.CString(code)) == 1
+	codeStr := (*C.char)(helpers.TrackedCString(code))
+	defer C._free(unsafe.Pointer(codeStr))
+
+	ret := C.run_simple_string(rtloader, codeStr) == 1
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()
@@ -100,7 +105,10 @@ func getError() string {
 	state := C.ensure_gil(rtloader)
 
 	// following is supposed to raise an error
-	C.get_class(rtloader, C.CString("foo"), nil, nil)
+	classStr := (*C.char)(helpers.TrackedCString("foo"))
+	defer C._free(unsafe.Pointer(classStr))
+
+	C.get_class(rtloader, classStr, nil, nil)
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()
@@ -113,7 +121,10 @@ func hasError() bool {
 	state := C.ensure_gil(rtloader)
 
 	// following is supposed to raise an error
-	C.get_class(rtloader, C.CString("foo"), nil, nil)
+	classStr := (*C.char)(helpers.TrackedCString("foo"))
+	defer C._free(unsafe.Pointer(classStr))
+
+	C.get_class(rtloader, classStr, nil, nil)
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()
@@ -133,19 +144,35 @@ func getFakeCheck() (string, error) {
 	state := C.ensure_gil(rtloader)
 
 	// class
-	ret := C.get_class(rtloader, C.CString("fake_check"), &module, &class)
+	classStr := (*C.char)(helpers.TrackedCString("fake_check"))
+	defer C._free(unsafe.Pointer(classStr))
+
+	ret := C.get_class(rtloader, classStr, &module, &class)
 	if ret != 1 || module == nil || class == nil {
 		return "", fmt.Errorf(C.GoString(C.get_error(rtloader)))
 	}
 
 	// version
-	ret = C.get_attr_string(rtloader, module, C.CString("__version__"), &version)
+	verStr := (*C.char)(helpers.TrackedCString("__version__"))
+	defer C._free(unsafe.Pointer(verStr))
+
+	ret = C.get_attr_string(rtloader, module, verStr, &version)
 	if ret != 1 || version == nil {
 		return "", fmt.Errorf(C.GoString(C.get_error(rtloader)))
 	}
+	defer C._free(unsafe.Pointer(version))
 
 	// check instance
-	ret = C.get_check(rtloader, class, C.CString(""), C.CString("{\"fake_check\": \"/\"}"), C.CString("checkID"), C.CString("fake_check"), &check)
+	emptyStr := (*C.char)(helpers.TrackedCString(""))
+	defer C._free(unsafe.Pointer(emptyStr))
+	checkIdStr := (*C.char)(helpers.TrackedCString("checkID"))
+	defer C._free(unsafe.Pointer(checkIdStr))
+	configStr := (*C.char)(helpers.TrackedCString("{\"fake_check\": \"/\"}"))
+	defer C._free(unsafe.Pointer(configStr))
+	classStr = (*C.char)(helpers.TrackedCString("fake_check"))
+	defer C._free(unsafe.Pointer(classStr))
+
+	ret = C.get_check(rtloader, class, emptyStr, configStr, checkIdStr, classStr, &check)
 	if ret != 1 || check == nil {
 		return "", fmt.Errorf(C.GoString(C.get_error(rtloader)))
 	}
@@ -165,11 +192,30 @@ func runFakeCheck() (string, error) {
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
-	C.get_class(rtloader, C.CString("fake_check"), &module, &class)
-	C.get_attr_string(rtloader, module, C.CString("__version__"), &version)
-	C.get_check(rtloader, class, C.CString(""), C.CString("{\"fake_check\": \"/\"}"), C.CString("checkID"), C.CString("fake_check"), &check)
+	classStr := (*C.char)(helpers.TrackedCString("fake_check"))
+	defer C._free(unsafe.Pointer(classStr))
+	C.get_class(rtloader, classStr, &module, &class)
 
-	out, err := C.GoString(C.run_check(rtloader, check)), fetchError()
+	verStr := (*C.char)(helpers.TrackedCString("__version__"))
+	defer C._free(unsafe.Pointer(verStr))
+
+	C.get_attr_string(rtloader, module, verStr, &version)
+	defer C._free(unsafe.Pointer(version))
+
+	emptyStr := (*C.char)(helpers.TrackedCString(""))
+	defer C._free(unsafe.Pointer(emptyStr))
+	checkIdStr := (*C.char)(helpers.TrackedCString("checkID"))
+	defer C._free(unsafe.Pointer(checkIdStr))
+	configStr := (*C.char)(helpers.TrackedCString("{\"fake_check\": \"/\"}"))
+	defer C._free(unsafe.Pointer(configStr))
+	classStr = (*C.char)(helpers.TrackedCString("fake_check"))
+	defer C._free(unsafe.Pointer(classStr))
+
+	C.get_check(rtloader, class, emptyStr, configStr, checkIdStr, classStr, &check)
+
+	checkResultStr := C.run_check(rtloader, check)
+	defer C._free(unsafe.Pointer(checkResultStr))
+	out, err := C.GoString(checkResultStr), fetchError()
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()
@@ -186,8 +232,21 @@ func runFakeGetWarnings() ([]string, error) {
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
-	C.get_class(rtloader, C.CString("fake_check"), &module, &class)
-	C.get_check(rtloader, class, C.CString(""), C.CString("{\"fake_check\": \"/\"}"), C.CString("checkID"), C.CString("fake_check"), &check)
+	classStr := (*C.char)(helpers.TrackedCString("fake_check"))
+	defer C._free(unsafe.Pointer(classStr))
+
+	C.get_class(rtloader, classStr, &module, &class)
+
+	emptyStr := (*C.char)(helpers.TrackedCString(""))
+	defer C._free(unsafe.Pointer(emptyStr))
+	checkIdStr := (*C.char)(helpers.TrackedCString("checkID"))
+	defer C._free(unsafe.Pointer(checkIdStr))
+	configStr := (*C.char)(helpers.TrackedCString("{\"fake_check\": \"/\"}"))
+	defer C._free(unsafe.Pointer(configStr))
+	classStr = (*C.char)(helpers.TrackedCString("fake_check"))
+	defer C._free(unsafe.Pointer(classStr))
+
+	C.get_check(rtloader, class, emptyStr, configStr, checkIdStr, classStr, &check)
 
 	warns := C.get_checks_warnings(rtloader, check)
 
@@ -199,6 +258,7 @@ func runFakeGetWarnings() ([]string, error) {
 	}
 
 	pWarns := uintptr(unsafe.Pointer(warns))
+	defer C._free(unsafe.Pointer(pWarns))
 	ptrSize := unsafe.Sizeof(warns)
 
 	warnings := []string{}
@@ -207,6 +267,8 @@ func runFakeGetWarnings() ([]string, error) {
 		if warnPtr == nil {
 			break
 		}
+		defer C._free(unsafe.Pointer(warnPtr))
+
 		warn := C.GoString(warnPtr)
 		warnings = append(warnings, warn)
 	}
@@ -218,7 +280,10 @@ func getIntegrationList() ([]string, error) {
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
-	cstr := C.GoString(C.get_integration_list(rtloader))
+	integrationStr := C.get_integration_list(rtloader)
+	defer C._free(unsafe.Pointer(integrationStr))
+
+	cstr := C.GoString(integrationStr)
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()
@@ -238,7 +303,14 @@ func setModuleAttrString(module string, attr string, value string) {
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
-	C.set_module_attr_string(rtloader, C.CString(module), C.CString(attr), C.CString(value))
+	moduleStr := (*C.char)(helpers.TrackedCString(module))
+	defer C._free(unsafe.Pointer(moduleStr))
+	attrStr := (*C.char)(helpers.TrackedCString(attr))
+	defer C._free(unsafe.Pointer(attrStr))
+	valueStr := (*C.char)(helpers.TrackedCString(value))
+	defer C._free(unsafe.Pointer(valueStr))
+
+	C.set_module_attr_string(rtloader, moduleStr, attrStr, valueStr)
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()
