@@ -29,6 +29,7 @@ const (
 
 var _ ReverseDNS = &SocketFilterSnooper{}
 
+// SocketFilterSnooper is a DNS traffic snooper built on top of an eBPF SOCKET_FILTER
 type SocketFilterSnooper struct {
 	tpacket      *afpacket.TPacket
 	source       *gopacket.PacketSource
@@ -44,6 +45,7 @@ type translation struct {
 	ips  map[util.Address]struct{}
 }
 
+// NewSocketFilterSnooper returns a new SocketFilterSnooper
 func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, error) {
 	tpacket, err := afpacket.NewTPacket(afpacket.OptPollTimeout(1 * time.Second))
 	if err != nil {
@@ -80,10 +82,12 @@ func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, 
 	return snooper, nil
 }
 
+// Resolve IPs to Names
 func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) []NamePair {
 	return s.ipsToNames.Get(connections)
 }
 
+// Close terminates the DNS traffic snooper as well as the underlying socket and the attached filter
 func (s *SocketFilterSnooper) Close() {
 	close(s.exit)
 	s.wg.Wait()
