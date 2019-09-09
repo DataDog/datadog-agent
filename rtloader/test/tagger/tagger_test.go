@@ -23,6 +23,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetTags(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -41,6 +44,9 @@ func TestGetTags(t *testing.T) {
 }
 
 func TestGetTagsHighCard(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -59,6 +65,9 @@ func TestGetTagsHighCard(t *testing.T) {
 }
 
 func TestGetTagsUnknown(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -77,6 +86,9 @@ func TestGetTagsUnknown(t *testing.T) {
 }
 
 func TestGetTagsErrorType(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`tagger.get_tags(1234, True)`)
 	out, err := run(code)
 	if err != nil {
@@ -91,6 +103,9 @@ func TestGetTagsErrorType(t *testing.T) {
 }
 
 func TestTagsLow(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -109,6 +124,9 @@ func TestTagsLow(t *testing.T) {
 }
 
 func TestTagsHigh(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -127,6 +145,9 @@ func TestTagsHigh(t *testing.T) {
 }
 
 func TestTagsOrchestrator(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -145,6 +166,9 @@ func TestTagsOrchestrator(t *testing.T) {
 }
 
 func TestTagsInvalidCardinality(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -163,6 +187,9 @@ func TestTagsInvalidCardinality(t *testing.T) {
 }
 
 func TestTagsUnknown(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -181,6 +208,9 @@ func TestTagsUnknown(t *testing.T) {
 }
 
 func TestTagsErrorType(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`tagger.tag(1234, tagger.LOW)`)
 	out, err := run(code)
 	if err != nil {

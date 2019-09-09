@@ -17,16 +17,16 @@ import (
 #cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
 
-#include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
-
-#include <stdlib.h>
+#include "datadog_agent_rtloader.h"
 
 extern char **Tags(char*, int);
 
 static void initTaggerTests(rtloader_t *rtloader) {
    set_tags_cb(rtloader, Tags);
+   set_cgo_free_cb(rtloader, _free);
 }
+
 */
 import "C"
 
@@ -68,20 +68,20 @@ func tearDown() {
 
 func run(call string) (string, error) {
 	tmpfile.Truncate(0)
-	code := C.CString(fmt.Sprintf(`
+	code := (*C.char)(helpers.TrackedCString(fmt.Sprintf(`
 try:
 	import tagger
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
 		f.write("{}: {}\n".format(type(e).__name__, e))
-`, call, tmpfile.Name()))
+`, call, tmpfile.Name())))
+	defer C._free(unsafe.Pointer(code))
 
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
 	ret := C.run_simple_string(rtloader, code) == 1
-	C._free(unsafe.Pointer(code))
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()
@@ -98,30 +98,30 @@ except Exception as e:
 func Tags(id *C.char, cardinality C.int) **C.char {
 	goId := C.GoString(id)
 
+	if goId != "base" {
+		return nil
+	}
+
 	length := 4
 	cTags := C._malloc(C.size_t(length) * C.size_t(unsafe.Sizeof(uintptr(0))))
 	// convert the C array to a Go Array so we can index it
 	indexTag := (*[1<<29 - 1]*C.char)(cTags)[:length:length]
 	indexTag[length-1] = nil
 
-	if goId != "base" {
-		return nil
-	}
-
 	// dummy value for each cardinality value
 	switch cardinality {
 	case C.DATADOG_AGENT_RTLOADER_TAGGER_LOW:
-		indexTag[0] = C.CString("a")
-		indexTag[1] = C.CString("b")
-		indexTag[2] = C.CString("c")
+		indexTag[0] = (*C.char)(helpers.TrackedCString("a"))
+		indexTag[1] = (*C.char)(helpers.TrackedCString("b"))
+		indexTag[2] = (*C.char)(helpers.TrackedCString("c"))
 	case C.DATADOG_AGENT_RTLOADER_TAGGER_HIGH:
-		indexTag[0] = C.CString("A")
-		indexTag[1] = C.CString("B")
-		indexTag[2] = C.CString("C")
+		indexTag[0] = (*C.char)(helpers.TrackedCString("A"))
+		indexTag[1] = (*C.char)(helpers.TrackedCString("B"))
+		indexTag[2] = (*C.char)(helpers.TrackedCString("C"))
 	case C.DATADOG_AGENT_RTLOADER_TAGGER_ORCHESTRATOR:
-		indexTag[0] = C.CString("1")
-		indexTag[1] = C.CString("2")
-		indexTag[2] = C.CString("3")
+		indexTag[0] = (*C.char)(helpers.TrackedCString("1"))
+		indexTag[1] = (*C.char)(helpers.TrackedCString("2"))
+		indexTag[2] = (*C.char)(helpers.TrackedCString("3"))
 	default:
 		C._free(cTags)
 		return nil
