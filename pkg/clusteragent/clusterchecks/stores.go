@@ -152,19 +152,19 @@ func (s *nodeStore) GetRunnerStats(checkID string) types.CLCRunnerStats {
 
 // GetBusyness calculates busyness of the node
 // The nodeStore handles thread safety for this public method
-func (s *nodeStore) GetBusyness(busynessFunc func(avgExecTime, mSamples int) float64) int {
+func (s *nodeStore) GetBusyness(busynessFunc func(avgExecTime, mSamples int) int) int {
 	s.RLock()
 	defer s.RUnlock()
-	busyness := 0.0
+	busyness := 0
 	for _, stats := range s.clcRunnerStats {
 		busyness += busynessFunc(stats.AverageExecutionTime, stats.MetricSamples)
 	}
-	return int(busyness)
+	return busyness
 }
 
 // GetMostWeightedCheck returns the check with the most weight on the node
 // The nodeStore handles thread safety for this public method
-func (s *nodeStore) GetMostWeightedCheck(busynessFunc func(avgExecTime, mSamples int) float64) (string, int, error) {
+func (s *nodeStore) GetMostWeightedCheck(busynessFunc func(avgExecTime, mSamples int) int) (string, int, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if len(s.clcRunnerStats) == 0 {
@@ -175,7 +175,7 @@ func (s *nodeStore) GetMostWeightedCheck(busynessFunc func(avgExecTime, mSamples
 	checkID := ""
 	checkWeight := 0
 	for id, stats := range s.clcRunnerStats {
-		busyness := int(busynessFunc(stats.AverageExecutionTime, stats.MetricSamples))
+		busyness := busynessFunc(stats.AverageExecutionTime, stats.MetricSamples)
 		if busyness > checkWeight || firstItr {
 			checkWeight = busyness
 			checkID = id

@@ -25,7 +25,9 @@ Client to query the Datadog Cluster Level Check Runner API.
 */
 
 const (
-	clcRunnerPath = "api/v1/clcrunner"
+	clcRunnerPath        = "api/v1/clcrunner"
+	clcRunnerVersionPath = "version"
+	clcRunnerStatsPath   = "stats"
 )
 
 var globalCLCRunnerClient *CLCRunnerClient
@@ -46,7 +48,8 @@ type CLCRunnerClient struct {
 // resetGlobalCLCRunnerClient is a helper to remove the current CLCRunnerClient global
 // It is ONLY to be used for tests
 func resetGlobalCLCRunnerClient() {
-	globalClusterAgentClient = nil
+	globalCLCRunnerClient = &CLCRunnerClient{}
+	globalCLCRunnerClient.init()
 }
 
 // GetCLCRunnerClient returns or init the CLCRunnerClient
@@ -84,7 +87,6 @@ func (c *CLCRunnerClient) init() error {
 
 // GetVersion fetches the version of the CLC Runner
 func (c *CLCRunnerClient) GetVersion(IP string) (version.Version, error) {
-	const clcRunnerVersionPath = "version"
 	var version version.Version
 	var err error
 
@@ -118,7 +120,6 @@ func (c *CLCRunnerClient) GetVersion(IP string) (version.Version, error) {
 
 // GetRunnerStats fetches the runner stats exposed by the Cluster Level Check Runner
 func (c *CLCRunnerClient) GetRunnerStats(IP string) (types.CLCRunnersStats, error) {
-	const clcRunnerStatsPath = "stats"
 	var stats types.CLCRunnersStats
 	var err error
 
@@ -148,4 +149,13 @@ func (c *CLCRunnerClient) GetRunnerStats(IP string) (types.CLCRunnersStats, erro
 	err = json.Unmarshal(body, &stats)
 
 	return stats, err
+}
+
+// init globalCLCRunnerClient
+func init() {
+	globalCLCRunnerClient = &CLCRunnerClient{}
+	if err := globalCLCRunnerClient.init(); err != nil {
+		log.Debugf("CLC Runner client init error: %v", err)
+		globalCLCRunnerClient = nil
+	}
 }

@@ -50,7 +50,13 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 			return
 		}
 
-		clientIP := parseClientIP(r.RemoteAddr)
+		clientIP, err := parseClientIP(r.RemoteAddr)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			incrementRequestMetric("postCheckStatus", http.StatusInternalServerError)
+			return
+		}
+
 		response, err := sc.ClusterCheckHandler.PostStatus(nodeName, clientIP, status)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -154,12 +160,12 @@ func clusterChecksDisabledHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseClientIP retrieves the http client IP from the remoteAddr attribute
-func parseClientIP(remoteAddr string) string {
+func parseClientIP(remoteAddr string) (string, error) {
 	clientIP, _, err := net.SplitHostPort(remoteAddr)
 	if err != nil {
 		log.Debugf("Error while parsing CLC worker address %s: %v", remoteAddr, err)
-		clientIP = ""
+		return "", err
 	}
 
-	return clientIP
+	return clientIP, nil
 }

@@ -103,12 +103,12 @@ func (d *dispatcher) pickCheckToMove(nodeName string) (string, int, error) {
 // if it satisfies the following
 // Diff(Ni) < Diff(Nj) (for each j != i, 0 <= j < len(nodes))
 // where Diff(N) is the difference between the busyness on N and the total average busyness.
-func pickNode(diffMap map[string]int, srcNode string) string {
+func pickNode(diffMap map[string]int, sourceNode string) string {
 	firstItr := true
 	minDiff := 0
 	pickedNode := ""
 	for _, node := range orderedKeys(diffMap) {
-		if node == srcNode {
+		if node == sourceNode {
 			continue
 		}
 		if diffMap[node] < minDiff || firstItr {
@@ -126,7 +126,7 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) {
 
 	d.store.RLock()
 	destNode, destFound := d.store.getNodeStore(dest)
-	srcNode, srcFound := d.store.getNodeStore(src)
+	sourceNode, srcFound := d.store.getNodeStore(src)
 	d.store.RUnlock()
 
 	if !destFound || !srcFound {
@@ -134,9 +134,9 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) {
 		return
 	}
 
-	runnerStats := srcNode.GetRunnerStats(checkID)
+	runnerStats := sourceNode.GetRunnerStats(checkID)
 	destNode.AddRunnerStats(checkID, runnerStats)
-	srcNode.RemoveRunnerStats(checkID)
+	sourceNode.RemoveRunnerStats(checkID)
 
 	config, digest := d.getConfigAndDigest(checkID)
 	log.Tracef("Digest of %s is %s, config: %s", checkID, digest, config.String())
@@ -163,18 +163,19 @@ func (d *dispatcher) rebalance() {
 	for _, nodeWeight := range weights {
 		for diffMap[nodeWeight.nodeName] > 0 {
 			// try to move checks from a node only of the node busyness is above the average
-			srcNodeName := nodeWeight.nodeName
-			checkID, checkWeight, err := d.pickCheckToMove(srcNodeName)
+			sourceNodeName := nodeWeight.nodeName
+			checkID, checkWeight, err := d.pickCheckToMove(sourceNodeName)
 			if err != nil {
+				log.Debugf("Cannot pick a destination node to receive check: %v", err)
 				continue
 			}
 
-			pickedNodeName := pickNode(diffMap, srcNodeName)
-			if diffMap[pickedNodeName]+checkWeight < diffMap[srcNodeName] {
+			pickedNodeName := pickNode(diffMap, sourceNodeName)
+			if diffMap[pickedNodeName]+checkWeight < diffMap[sourceNodeName] {
 				// move a check to a new node only if it keeps the busyness of the new node
 				// lower than the original node's busyness
-				d.moveCheck(srcNodeName, pickedNodeName, checkID)
-				log.Tracef("Check %s with weight %d moved, total avg: %d, src diff: %d, dest diff: %d", checkID, checkWeight, totalAvg, diffMap[srcNodeName], diffMap[pickedNodeName])
+				d.moveCheck(sourceNodeName, pickedNodeName, checkID)
+				log.Tracef("Check %s with weight %d moved, total avg: %d, source diff: %d, dest diff: %d", checkID, checkWeight, totalAvg, diffMap[sourceNodeName], diffMap[pickedNodeName])
 
 				// diffMap needs to be updated on every check moved
 				diffMap = d.updateDiff(totalAvg)

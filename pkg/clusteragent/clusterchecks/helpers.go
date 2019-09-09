@@ -87,16 +87,16 @@ func getNameAndNamespaceFromEntity(s string) (string, string) {
 
 // calculateBusyness returns the busyness value of a node
 func calculateBusyness(checkStats types.CLCRunnersStats) int {
-	busyness := 0.0
+	busyness := 0
 	for _, stats := range checkStats {
 		busyness += busynessFunc(stats.AverageExecutionTime, stats.MetricSamples)
 	}
-	return int(busyness)
+	return busyness
 }
 
 // busynessFunc returns the weight of a check
-func busynessFunc(avgExecTime, mSamples int) float64 {
-	return checkExecutionTimeWeight*float64(avgExecTime) + checkMetricSamplesWeight*float64(mSamples)
+func busynessFunc(avgExecTime, mSamples int) int {
+	return int(checkExecutionTimeWeight*float64(avgExecTime) + checkMetricSamplesWeight*float64(mSamples))
 }
 
 // orderedKeys sorts the keys of a map and return them in a slice
