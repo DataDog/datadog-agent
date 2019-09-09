@@ -75,8 +75,13 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 
 	storedTags.Lock()
 	defer storedTags.Unlock()
-	if exist && info.CacheMiss {
-		return log.Errorf("processTagInfo err: try to overwrite an existing entry with and empty cache-miss entry, info.Source: %s, info.Entity: %s", info.Source, info.Entity)
+	_, found := storedTags.lowCardTags[info.Source]
+	if found && info.CacheMiss {
+		// check if the source tags is already present for this entry
+		// Only check once since we always write all cardinality tag levels.
+		err := fmt.Errorf("try to overwrite an existing entry with and empty cache-miss entry, info.Source: %s, info.Entity: %s", info.Source, info.Entity)
+		log.Tracef("processTagInfo err: %v", err)
+		return err
 	}
 	storedTags.lowCardTags[info.Source] = info.LowCardTags
 	storedTags.orchestratorCardTags[info.Source] = info.OrchestratorCardTags
