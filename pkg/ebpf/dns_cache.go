@@ -1,6 +1,7 @@
 package ebpf
 
 import (
+	"sort"
 	"sync"
 	"time"
 
@@ -14,11 +15,6 @@ type reverseDNSCache struct {
 	exit chan struct{}
 	wg   sync.WaitGroup
 	ttl  time.Duration
-}
-
-type dnsCacheVal struct {
-	name       string
-	expiration int64
 }
 
 func newReverseDNSCache(ttl, expirationPeriod time.Duration) *reverseDNSCache {
@@ -56,10 +52,11 @@ func (c *reverseDNSCache) Add(translations ...*translation) {
 			val, ok := c.data[addr]
 			if ok {
 				val.expiration = exp
+				val.merge(t.name)
 				continue
 			}
 
-			c.data[addr] = &dnsCacheVal{name: t.name, expiration: exp}
+			c.data[addr] = &dnsCacheVal{names: []string{t.name}, expiration: exp}
 		}
 	}
 	c.mux.Unlock()
@@ -75,8 +72,8 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats) []NamePair {
 
 	c.mux.Lock()
 	for i, conn := range conns {
-		names[i].Source = c.getNameForIP(conn.Source, expiration)
-		names[i].Dest = c.getNameForIP(conn.Dest, expiration)
+		names[i].Source = c.getNamesForIP(conn.Source, expiration)
+		names[i].Dest = c.getNamesForIP(conn.Dest, expiration)
 	}
 	c.mux.Unlock()
 	return names
@@ -87,14 +84,14 @@ func (c *reverseDNSCache) Close() {
 	c.wg.Wait()
 }
 
-func (c *reverseDNSCache) getNameForIP(ip util.Address, expiration int64) string {
+func (c *reverseDNSCache) getNamesForIP(ip util.Address, expiration int64) []string {
 	val, ok := c.data[ip]
 	if !ok {
-		return ""
+		return nil
 	}
 
 	val.expiration = expiration
-	return val.name
+	return val.copy()
 }
 
 func (c *reverseDNSCache) expire() {
@@ -118,4 +115,25 @@ func (c *reverseDNSCache) expire() {
 		"dns entries expired. took=%s total=%d expired=%d\n",
 		time.Now().Sub(start), total, expired,
 	)
+}
+
+type dnsCacheVal struct {
+	// opting for a []string instead of map[string]struct{} since common case is len(names) == 1
+	names      []string
+	expiration int64
+}
+
+func (v *dnsCacheVal) merge(name string) {
+	if sort.SearchStrings(v.names, name) < len(v.names) {
+		return
+	}
+
+	v.names = append(v.names, name)
+	sort.Strings(v.names)
+}
+
+func (v *dnsCacheVal) copy() []string {
+	cpy := make([]string, len(v.names))
+	copy(cpy, v.names)
+	return cpy
 }

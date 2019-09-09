@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
@@ -75,8 +76,8 @@ type ConnectionStats struct {
 	Source util.Address
 	Dest   util.Address
 
-	SourceDNS string
-	DestDNS   string
+	SourceDNS []string
+	DestDNS   []string
 
 	MonotonicSentBytes uint64
 	LastSentBytes      uint64
@@ -202,10 +203,10 @@ func BeautifyKey(key string) string {
 	return fmt.Sprintf(keyFmt, pid, source, sport, dest, dport, family, typ)
 }
 
-func printAddress(address util.Address, dns string) string {
-	if len(dns) == 0 {
+func printAddress(address util.Address, names []string) string {
+	if len(names) == 0 {
 		return address.String()
 	}
 
-	return dns
+	return strings.Join(names, ",")
 }

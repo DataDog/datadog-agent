@@ -2,7 +2,7 @@ package ebpf
 
 // NamePair contains DNS entries for both Source and Destination
 type NamePair struct {
-	Source, Dest string
+	Source, Dest []string
 }
 
 // ReverseDNS translates IPs to names

@@ -45,5 +45,5 @@ func TestDNSSnooping(t *testing.T) {
 	payload := []ConnectionStats{{Dest: destAddr}}
 	names := reverseDNS.Resolve(payload)
 	require.Len(t, names, 1)
-	assert.Equal(t, "golang.org", names[0].Dest)
+	assert.Contains(t, names[0].Dest, "golang.org")
 }
