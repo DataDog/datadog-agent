@@ -75,6 +75,9 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 
 	storedTags.Lock()
 	defer storedTags.Unlock()
+	if exist && info.CacheMiss {
+		return log.Errorf("processTagInfo err: try to overwrite an existing entry with and empty cache-miss entry, info.Source: %s, info.Entity: %s", info.Source, info.Entity)
+	}
 	storedTags.lowCardTags[info.Source] = info.LowCardTags
 	storedTags.orchestratorCardTags[info.Source] = info.OrchestratorCardTags
 	storedTags.highCardTags[info.Source] = info.HighCardTags
