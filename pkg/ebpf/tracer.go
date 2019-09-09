@@ -154,9 +154,10 @@ func NewTracer(config *Config) (*Tracer, error) {
 			return nil, fmt.Errorf("error retrieving socket filter")
 		}
 
-		reverseDNS, err = NewSocketFilterSnooper(filter)
-		if err != nil {
-			return nil, fmt.Errorf("error creating dns snooper: %s", err)
+		if snooper, err := NewSocketFilterSnooper(filter); err == nil {
+			reverseDNS = snooper
+		} else {
+			fmt.Errorf("error enabling DNS traffic inspection: %s", err)
 		}
 	}
 
