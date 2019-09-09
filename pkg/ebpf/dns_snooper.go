@@ -1,3 +1,5 @@
+// +build linux_bpf
+
 package ebpf
 
 import (
@@ -24,15 +26,6 @@ const (
 	dnsCacheExpirationPeriod = 1 * time.Minute
 	packetBufferSize         = 100
 )
-
-type NamePair struct {
-	Source, Dest string
-}
-
-type ReverseDNS interface {
-	Resolve([]ConnectionStats) []NamePair
-	Close()
-}
 
 var _ ReverseDNS = &SocketFilterSnooper{}
 
@@ -210,15 +203,3 @@ func parseAnswer(dns *layers.DNS) *translation {
 
 	return &translation{name: string(domainQueried), ips: ips}
 }
-
-type nullReverseDNS struct{}
-
-func (nullReverseDNS) Resolve(_ []ConnectionStats) []NamePair {
-	return nil
-}
-
-func (nullReverseDNS) Close() {
-	return
-}
-
-var _ ReverseDNS = nullReverseDNS{}
