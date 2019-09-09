@@ -48,7 +48,7 @@ func TestParseClientIP(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := parseClientIP(tt.args); got != tt.expected {
+			if got, _ := parseClientIP(tt.args); got != tt.expected {
 				t.Errorf("parseClientIP() == %v, expected %v", got, tt.expected)
 			}
 		})
