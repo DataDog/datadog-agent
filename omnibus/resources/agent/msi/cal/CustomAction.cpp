@@ -19,6 +19,51 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
 
     std::wstring waitval;
 
+    const std::map<std::wstring, std::vector<dd::Permission>> ddUserAgentPermissionsMap =
+    {
+        {
+            programdataroot,
+            {
+                dd::Permission
+                {
+                    GRANT_ACCESS,
+                    FILE_ALL_ACCESS,
+                    SUB_CONTAINERS_AND_OBJECTS_INHERIT
+                }
+            }
+        },
+        {
+            installdir,
+            {
+                dd::Permission
+                {
+                    GRANT_ACCESS,
+                    FILE_ALL_ACCESS,
+                    SUB_CONTAINERS_AND_OBJECTS_INHERIT
+                }
+            }
+        },
+        {
+            installdir + L"bin\\",
+            {
+                dd::Permission
+                {
+                    DENY_ACCESS,
+                    FILE_WRITE_DATA         |
+                    FILE_APPEND_DATA        |
+                    FILE_DELETE_CHILD       |
+                    FILE_WRITE_ATTRIBUTES   |
+                    FILE_WRITE_EA           |
+                    FILE_DELETE_CHILD       |
+                    DELETE                  |
+                    WRITE_DAC               |
+                    WRITE_OWNER             ,
+                    SUB_CONTAINERS_AND_OBJECTS_INHERIT
+                },
+            }
+        },
+    };
+
     // first, get the necessary initialization data
     // need the dd-agent-username (if provided)
     // need the dd-agent-password (if provided)
@@ -242,24 +287,14 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             goto LExit;
         }
     }
-    er = addDdUserPermsToFile(data, programdataroot);
-    WcaLog(LOGMSG_STANDARD, "%d setting programdata dir perms", er);
-    er = addDdUserPermsToFile(data, installdir);
-    WcaLog(LOGMSG_STANDARD, "%d setting installdir dir perms", er);
-	
-	er = SetPermissionsOnFile(data.getQualifiedUsername(), installdir + L"\\bin\\agent\\process-agent.exe", FILE_GENERIC_READ | FILE_GENERIC_EXECUTE);
-	WcaLog(LOGMSG_STANDARD, "%d setting permissions on process-agent.exe", er);
-	
-    er = addDdUserPermsToFile(data, logfilename);
-    WcaLog(LOGMSG_STANDARD, "%d setting log file perms", er);
-    er = addDdUserPermsToFile(data, authtokenfilename);
-    WcaLog(LOGMSG_STANDARD, "%d setting token file perms", er);
-    er = addDdUserPermsToFile(data, datadogyamlfile);
-    WcaLog(LOGMSG_STANDARD, "%d setting datadog.yaml file perms", er);
-    er = addDdUserPermsToFile(data, confddir);
-    WcaLog(LOGMSG_STANDARD, "%d setting confd dir perms", er);
-    er = addDdUserPermsToFile(data, logdir);
-    WcaLog(LOGMSG_STANDARD, "%d setting log dir perms", er);
+
+    {
+        const auto& ddUserAgent = data.getQualifiedUsername();
+        for (const auto& permissionKeyValue : ddUserAgentPermissionsMap)
+        {
+            SetPermissionsOnFile(ddUserAgent, permissionKeyValue.first, permissionKeyValue.second);
+        }
+    }
     
     if (0 == changeRegistryAcls(data, datadog_acl_key_datadog.c_str())) {
         WcaLog(LOGMSG_STANDARD, "registry perms updated");

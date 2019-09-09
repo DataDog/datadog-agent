@@ -1,6 +1,17 @@
 #pragma once
 #define MIN_PASS_LEN 12
 #define MAX_PASS_LEN 18
+
+namespace dd
+{
+    struct Permission
+    {
+        ACCESS_MODE AccessMode;
+        DWORD AccessPermissions;
+        DWORD Inheritance;
+    };
+}
+
 // usercreate.cpp
 bool generatePassword(wchar_t* passbuf, int passbuflen);
 int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring& comment, const wchar_t* passbuf);
@@ -8,8 +19,7 @@ DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name);
 DWORD SetPermissionsOnFile(
 	std::wstring const& userName,
 	std::wstring const& filePath,
-	DWORD accessPermissions);
-DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename);
+    std::vector<dd::Permission> const& permissions);
 bool isDomainController(MSIHANDLE hInstall);
 int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data, bool isDC = false);
 

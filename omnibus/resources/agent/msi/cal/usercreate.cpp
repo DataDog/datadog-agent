@@ -118,99 +118,68 @@ DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
 }
 
 DWORD SetPermissionsOnFile(
-	std::wstring const& userName,
-	std::wstring const &filePath,
-	const DWORD accessPermissions)
+    std::wstring const& userName,
+    std::wstring const& filePath,
+    std::vector<dd::Permission> const& permissions)
 {
-	if (!PathFileExists(filePath.c_str()))
-	{
-		return E_NOTFOUND;
-	}
-	ExplicitAccess ddUserAccess;
-	ddUserAccess.Build(
-		_wcsdup(userName.c_str()),
-		accessPermissions,
-		SET_ACCESS,
-		NO_INHERITANCE);
-
-	PACL newAcl = nullptr;
-	WinAcl acl;
-	acl.AddToArray(ddUserAccess);
-	
-	DWORD result = acl.SetEntriesInAcl(nullptr, &newAcl);
-	if (ERROR_SUCCESS != result)
-	{
-		return result;
-	}
-	
-	result = SetNamedSecurityInfo(
-		// Fine because SetNamedSecurityInfo should not modify our memory
-		const_cast<LPWSTR>(filePath.c_str()),
-		SE_FILE_OBJECT,
-		DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-		nullptr,
-		nullptr,
-		newAcl,
-		nullptr);
-	
-	if (ERROR_SUCCESS != result)
-	{
-		LocalFree(newAcl);
-		return result;
-	}
-
-	return S_OK;
-}
-
-DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename)
-{
-    std::string shortfile;
-    toMbcs(shortfile, (LPCWSTR)filename.c_str());
-
-    if(!PathFileExistsW((LPCWSTR) filename.c_str()))
+    if (!PathFileExists(filePath.c_str()))
     {
-        // return success; we don't need to do anything
-        WcaLog(LOGMSG_STANDARD, "file %s doesn't exist, not doing anything", shortfile.c_str());
-        return 0;
+        return ERROR_FILE_NOT_FOUND;
     }
-    WcaLog(LOGMSG_STANDARD, "Changing file permissions on %s", shortfile.c_str());
-    PSID  usersid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
-    ExplicitAccess dduser;
-    dduser.BuildGrantUser((SID *)usersid, FILE_ALL_ACCESS,
-                          SUB_CONTAINERS_AND_OBJECTS_INHERIT);
 
-    // get the current ACLs and append, rather than just set; if the file exists,
-    // the user may have already set custom ACLs on the file, and we don't want
-    // to disrupt that
+    std::vector<EXPLICIT_ACCESS> explicitAccesses;
+    for (const auto permission : permissions)
+    {
+        EXPLICIT_ACCESS explicitAccess = {};
+        BuildExplicitAccessWithName(
+            &explicitAccess,
+            const_cast<LPWSTR>(userName.c_str()),
+            permission.AccessPermissions,
+            permission.AccessMode,
+            permission.Inheritance);
+        explicitAccesses.push_back(explicitAccess);
+    }
 
-    DWORD dwRes = 0;
-    PACL pOldDACL = NULL, pNewDACL = NULL;
-    PSECURITY_DESCRIPTOR pSD = NULL;
-    WinAcl acl;
-    acl.AddToArray(dduser);
+    PACL oldAcl, newAcl = nullptr;
+    PSECURITY_DESCRIPTOR securityDescr = nullptr;
+    DWORD result =
+        GetNamedSecurityInfo(
+            filePath.c_str(),
+            SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION,
+            nullptr,
+            nullptr,
+            &oldAcl,
+            nullptr,
+            &securityDescr);
+    if (ERROR_SUCCESS != result)
+    {
+        return result;
+    }
 
-    dwRes = GetNamedSecurityInfo(filename.c_str(), SE_FILE_OBJECT, 
-          DACL_SECURITY_INFORMATION,
-          NULL, NULL, &pOldDACL, NULL, &pSD);
-    if (ERROR_SUCCESS == dwRes) {
-        dwRes = acl.SetEntriesInAclW(pOldDACL, &pNewDACL);
-        if(dwRes == 0) {
-            dwRes = SetNamedSecurityInfoW((LPWSTR) filename.c_str(), SE_FILE_OBJECT, 
-            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-            NULL, NULL, pNewDACL, NULL);
-        } else {
-            WcaLog(LOGMSG_STANDARD, "%d setting entries in acl", dwRes);    
-        }
-    } else {
-        WcaLog(LOGMSG_STANDARD, "%d getting existing perms", dwRes);
+    result = SetEntriesInAcl(explicitAccesses.size(), &explicitAccesses[0], oldAcl, &newAcl);
+    if (ERROR_SUCCESS != result)
+    {
+        LocalFree(oldAcl);
+        LocalFree(securityDescr);
+        return result;
     }
-    if(pSD){
-        LocalFree((HLOCAL) pSD);
-    }
-    if(pNewDACL) {
-        LocalFree((HLOCAL) pNewDACL);
-    }
-    return dwRes;
+
+    result = SetNamedSecurityInfo(
+        // Fine because SetNamedSecurityInfo should not modify our memory
+        const_cast<LPWSTR>(filePath.c_str()),
+        SE_FILE_OBJECT,
+        DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+        nullptr,
+        nullptr,
+        newAcl,
+        nullptr);
+
+    LocalFree(securityDescr);
+    LocalFree(oldAcl);
+    LocalFree(newAcl);
+
+    return result;
 }
 
 void removeUserPermsFromFile(std::wstring &filename, PSID sidremove)
