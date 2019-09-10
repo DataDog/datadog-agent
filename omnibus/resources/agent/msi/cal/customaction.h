@@ -15,6 +15,15 @@ namespace dd
     };
 }
 
+#ifndef RETURN_IF_FAILED
+    /**
+     * \brief Check the return value of a Win32 API and return its value
+     * if it is not successful.
+     * \param res The return value of the Win32 API call.
+     */
+#   define RETURN_IF_FAILED(res) if (ERROR_SUCCESS != (res)) return res;  // NOLINT(cppcoreguidelines-macro-usage)
+#endif
+
 // usercreate.cpp
 bool generatePassword(wchar_t* passbuf, int passbuflen);
 int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring& comment, const wchar_t* passbuf);
