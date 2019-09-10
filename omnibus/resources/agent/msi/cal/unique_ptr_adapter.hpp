@@ -29,12 +29,12 @@ namespace dd
      * \tparam Converter A converter type to convert between RawPtr and the pointer type of Ptr
      */
     template
-        <
+    <
         class Ptr,
         class RawPtr = typename Ptr::pointer,
         class Converter = details::ptr_converter<RawPtr, typename Ptr::pointer>
-        >
-        class unique_ptr_adapter
+    >
+    class unique_ptr_adapter
     {
     public:
         /**
@@ -42,8 +42,8 @@ namespace dd
          * \param uniquePtr The smart pointer to initialize
          */
         explicit unique_ptr_adapter(Ptr& uniquePtr)
-            : _uniquePtr(uniquePtr)
-            , _pointer(nullptr)
+        : _uniquePtr(uniquePtr)
+        , _pointer(nullptr)
         {
 
         }

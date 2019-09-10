@@ -226,6 +226,7 @@ DWORD SetPermissionsOnFile(
 
     return ERROR_SUCCESS;
 }
+
 void removeUserPermsFromFile(std::wstring &filename, PSID sidremove)
 {
     if(!PathFileExistsW((LPCWSTR) filename.c_str()))
