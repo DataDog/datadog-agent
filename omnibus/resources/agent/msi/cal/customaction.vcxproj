@@ -178,6 +178,7 @@
     <ClInclude Include="strings.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="customaction.h" />
+    <ClInclude Include="unique_ptr_adapter.hpp" />
     <ClInclude Include="winacl.h" />
   </ItemGroup>
   <ItemGroup>
