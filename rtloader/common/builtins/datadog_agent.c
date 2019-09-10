@@ -531,6 +531,15 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
             _free(tags[j]);
         }
         _free(tags);
+
+        if (hostname) {
+            _free(hostname);
+            hostname = NULL;
+        }
+        if (source_type) {
+            _free(source_type);
+            source_type = NULL;
+        }
     }
 
 done:
