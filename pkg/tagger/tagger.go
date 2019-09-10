@@ -245,9 +245,11 @@ IterCollectors:
 		}
 		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)
 		low, orch, high, err := collector.Fetch(entity)
+		cacheMiss := false
 		switch {
 		case errors.IsNotFound(err):
 			log.Debugf("entity %s not found in %s, skipping: %v", entity, name, err)
+			cacheMiss = true
 		case err != nil:
 			log.Warnf("error collecting from %s: %s", name, err)
 			continue // don't store empty tags, retry next time
@@ -266,6 +268,7 @@ IterCollectors:
 			LowCardTags:          low,
 			OrchestratorCardTags: orch,
 			HighCardTags:         high,
+			CacheMiss:            cacheMiss,
 		})
 	}
 	t.RUnlock()
