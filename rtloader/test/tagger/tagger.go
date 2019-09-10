@@ -23,8 +23,8 @@ import (
 extern char **Tags(char*, int);
 
 static void initTaggerTests(rtloader_t *rtloader) {
-   set_tags_cb(rtloader, Tags);
    set_cgo_free_cb(rtloader, _free);
+   set_tags_cb(rtloader, Tags);
 }
 
 */

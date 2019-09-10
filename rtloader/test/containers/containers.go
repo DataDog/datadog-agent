@@ -12,18 +12,20 @@ import (
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
-// #cgo CFLAGS: -I../../include
-// #cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
-// #cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
-//
-// #include <stdlib.h>
-// #include <datadog_agent_rtloader.h>
-//
-// extern int is_excluded(char *, char*);
-//
-// static void initContainersTests(rtloader_t *rtloader) {
-//    set_is_excluded_cb(rtloader, is_excluded);
-// }
+/*
+#cgo CFLAGS: -I../../include -I../../common
+#cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
+
+#include "rtloader_mem.h"
+#include "datadog_agent_rtloader.h"
+
+extern int is_excluded(char *, char*);
+
+static void initContainersTests(rtloader_t *rtloader) {
+   set_is_excluded_cb(rtloader, is_excluded);
+}
+*/
 import "C"
 
 var (
@@ -70,20 +72,20 @@ func tearDown() {
 
 func run(call string) (string, error) {
 	tmpfile.Truncate(0)
-	code := C.CString(fmt.Sprintf(`
+	code := (*C.char)(helpers.TrackedCString(fmt.Sprintf(`
 try:
 	import containers
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
 		f.write("{}: {}\n".format(type(e).__name__, e))
-`, call, tmpfile.Name()))
+`, call, tmpfile.Name())))
+	defer C._free(unsafe.Pointer(code))
 
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
 	ret := C.run_simple_string(rtloader, code) == 1
-	C.free(unsafe.Pointer(code))
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()
