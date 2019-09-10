@@ -84,7 +84,7 @@ func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, 
 
 // Resolve IPs to Names
 func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) []NamePair {
-	return s.ipsToNames.Get(connections)
+	return s.ipsToNames.Get(connections, time.Now())
 }
 
 // Close terminates the DNS traffic snooper as well as the underlying socket and the attached filter
@@ -115,7 +115,7 @@ func (s *SocketFilterSnooper) run(packets <-chan gopacket.Packet) {
 			continue
 		}
 
-		s.ipsToNames.Add(translation)
+		s.ipsToNames.Add(translation, time.Now())
 	}
 }
 

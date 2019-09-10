@@ -37,12 +37,12 @@ func newReverseDNSCache(ttl, expirationPeriod time.Duration) *reverseDNSCache {
 	return cache
 }
 
-func (c *reverseDNSCache) Add(translations ...*translation) {
+func (c *reverseDNSCache) Add(translations ...*translation, now time.Time) {
 	if len(translations) == 0 {
 		return
 	}
 
-	exp := time.Now().Add(c.ttl).Unix()
+	exp := now.Add(c.ttl).Unix()
 	c.mux.Lock()
 	for _, t := range translations {
 		for addr := range t.ips {
@@ -59,13 +59,13 @@ func (c *reverseDNSCache) Add(translations ...*translation) {
 	c.mux.Unlock()
 }
 
-func (c *reverseDNSCache) Get(conns []ConnectionStats) []NamePair {
+func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) []NamePair {
 	if len(conns) == 0 {
 		return nil
 	}
 
 	names := make([]NamePair, len(conns))
-	expiration := time.Now().Add(c.ttl).Unix()
+	expiration := now.Add(c.ttl).Unix()
 
 	c.mux.Lock()
 	for i, conn := range conns {
