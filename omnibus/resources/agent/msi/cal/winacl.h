@@ -24,7 +24,6 @@ private:
     bool deleteSid;
 
 };
-
 class WinAcl {
 public:
 	WinAcl();
