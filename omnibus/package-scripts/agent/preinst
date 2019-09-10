@@ -74,9 +74,14 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # Starting with 6.10, integrations are also uninstalled on package removal
         # See https://github.com/DataDog/datadog-agent/pull/3066 for more details
         PIP_PATH=$INSTALL_DIR/embedded/bin/pip
+        PIP3_PATH=$INSTALL_DIR/embedded/bin/pip3
         if [ -x $PIP_PATH ]; then
-            echo "Uninstalling integrations..."
+            echo "Uninstalling Python 2 integrations..."
             $PIP_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP_PATH uninstall -y -q --no-cache-dir || true
+        fi
+        if [ -x $PIP3_PATH ]; then
+            echo "Uninstalling Python 3 integrations..."
+            $PIP3_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP3_PATH uninstall -y -q --no-cache-dir || true
         fi
 
         # Delete all the .pyc/.pyo files in the embedded dir that are part of the old agent's package
