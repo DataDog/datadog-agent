@@ -1,7 +1,50 @@
 #include "stdafx.h"
 #include <filesystem>
+#include "unique_ptr_adapter.hpp"
 
 #pragma comment(lib, "shlwapi.lib")
+
+namespace dd
+{
+    template <>
+    struct details::ptr_converter<PSECURITY_DESCRIPTOR, SECURITY_DESCRIPTOR*>
+    {
+        static SECURITY_DESCRIPTOR* convert(PSECURITY_DESCRIPTOR p)
+        {
+            return reinterpret_cast<SECURITY_DESCRIPTOR*>(p);
+        }
+    };
+
+   /**
+    * \brief Deleter that uses LocalFree
+    */
+    struct LocalFreeDeleter
+    {
+        // ReSharper disable once CppMemberFunctionMayBeConst
+        void operator()(HLOCAL handle)
+        {
+            LocalFree(handle);
+        }
+    };
+
+    template <>
+    struct ptr_traits<ACL>
+    {
+        typedef std::unique_ptr<ACL, LocalFreeDeleter> unique_ptr;
+        typedef unique_ptr_adapter<unique_ptr, PACL> store_ptr;
+    };
+
+    using acl_traits = ptr_traits<ACL>;
+
+    template <>
+    struct ptr_traits<SECURITY_DESCRIPTOR>
+    {
+        typedef std::unique_ptr<SECURITY_DESCRIPTOR, LocalFreeDeleter> unique_ptr;
+        typedef unique_ptr_adapter<unique_ptr, PSECURITY_DESCRIPTOR> store_ptr;
+    };
+
+    using security_descriptor_traits = ptr_traits<SECURITY_DESCRIPTOR>;
+}
 
 
 bool generatePassword(wchar_t* passbuf, int passbuflen) {
@@ -127,22 +170,28 @@ DWORD SetPermissionsOnFile(
         return ERROR_FILE_NOT_FOUND;
     }
 
+    // BuildExplicitAccessWithName needs access to a contiguous non-const chunk of memory
+    // +1 because std::string.length() doesn't include the null terminator
+    std::vector<std::wstring::value_type> userNameForExplicitAccess(userName.length() + 1);
+    std::copy(userName.begin(), userName.end(), userNameForExplicitAccess.begin());
+
     std::vector<EXPLICIT_ACCESS> explicitAccesses;
     for (const auto permission : permissions)
     {
         EXPLICIT_ACCESS explicitAccess = {};
         BuildExplicitAccessWithName(
             &explicitAccess,
-            const_cast<LPWSTR>(userName.c_str()),
+            &userNameForExplicitAccess[0],
             permission.AccessPermissions,
             permission.AccessMode,
             permission.Inheritance);
         explicitAccesses.push_back(explicitAccess);
     }
 
-    PACL oldAcl, newAcl = nullptr;
-    PSECURITY_DESCRIPTOR securityDescr = nullptr;
-    DWORD result =
+    PACL oldAcl;
+    dd::acl_traits::unique_ptr newAcl;
+    dd::security_descriptor_traits::unique_ptr securityDescr;
+    RETURN_IF_FAILED(
         GetNamedSecurityInfo(
             filePath.c_str(),
             SE_FILE_OBJECT,
@@ -151,37 +200,32 @@ DWORD SetPermissionsOnFile(
             nullptr,
             &oldAcl,
             nullptr,
-            &securityDescr);
-    if (ERROR_SUCCESS != result)
-    {
-        return result;
-    }
+            &dd::security_descriptor_traits::store_ptr(securityDescr)));
 
-    result = SetEntriesInAcl(explicitAccesses.size(), &explicitAccesses[0], oldAcl, &newAcl);
-    if (ERROR_SUCCESS != result)
-    {
-        LocalFree(oldAcl);
-        LocalFree(securityDescr);
-        return result;
-    }
+    RETURN_IF_FAILED(
+        SetEntriesInAcl(
+            explicitAccesses.size(),
+            &explicitAccesses[0],
+            oldAcl,
+            &dd::acl_traits::store_ptr(newAcl)));
 
-    result = SetNamedSecurityInfo(
-        // Fine because SetNamedSecurityInfo should not modify our memory
-        const_cast<LPWSTR>(filePath.c_str()),
-        SE_FILE_OBJECT,
-        DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-        nullptr,
-        nullptr,
-        newAcl,
-        nullptr);
+    // SetNamedSecurityInfo needs access to a contiguous non-const chunk of memory
+    // +1 because std::string.length() doesn't include the null terminator
+    std::vector<std::wstring::value_type> filePathForNamedSecurityInfo(filePath.length() + 1);
+    std::copy(filePath.begin(), filePath.end(), filePathForNamedSecurityInfo.begin());
 
-    LocalFree(securityDescr);
-    LocalFree(oldAcl);
-    LocalFree(newAcl);
+    RETURN_IF_FAILED(
+        SetNamedSecurityInfo(
+            &filePathForNamedSecurityInfo[0],
+            SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+            nullptr,
+            nullptr,
+            newAcl.get(),
+            nullptr));
 
-    return result;
+    return ERROR_SUCCESS;
 }
-
 void removeUserPermsFromFile(std::wstring &filename, PSID sidremove)
 {
     if(!PathFileExistsW((LPCWSTR) filename.c_str()))
