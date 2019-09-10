@@ -4,6 +4,9 @@
 
 namespace dd
 {
+    /**
+     * \brief A POCO object to help specify the permissions
+     */
     struct Permission
     {
         ACCESS_MODE AccessMode;
