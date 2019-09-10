@@ -5,11 +5,8 @@ public:
 	ExplicitAccess();
 	~ExplicitAccess();
 
-	void Build(
-		LPWSTR trusteeName,
-		DWORD accessPermissions,
-		ACCESS_MODE accessMode,
-		DWORD inheritance);
+	void Build(LPWSTR pTrusteeName, DWORD AccessPermissions, 
+		       ACCESS_MODE AccessMode, DWORD  Inheritance);
 
 	void BuildGrantUser(LPCWSTR name, DWORD rights);
     void BuildGrantUser(LPCWSTR name, DWORD rights, DWORD inheritance_flags);
