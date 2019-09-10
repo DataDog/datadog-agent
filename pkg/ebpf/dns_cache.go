@@ -13,7 +13,6 @@ type reverseDNSCache struct {
 	mux  sync.Mutex
 	data map[util.Address]*dnsCacheVal
 	exit chan struct{}
-	wg   sync.WaitGroup
 	ttl  time.Duration
 }
 
@@ -25,14 +24,12 @@ func newReverseDNSCache(ttl, expirationPeriod time.Duration) *reverseDNSCache {
 	}
 
 	ticker := time.NewTicker(expirationPeriod)
-	cache.wg.Add(1)
 	go func() {
 		for {
 			select {
 			case <-ticker.C:
 				cache.expire()
 			case <-cache.exit:
-				cache.wg.Done()
 				return
 			}
 		}
@@ -80,8 +77,7 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats) []NamePair {
 }
 
 func (c *reverseDNSCache) Close() {
-	close(c.exit)
-	c.wg.Wait()
+	c.exit <- struct{}{}
 }
 
 func (c *reverseDNSCache) getNamesForIP(ip util.Address, expiration int64) []string {
