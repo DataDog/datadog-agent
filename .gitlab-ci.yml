@@ -159,6 +159,7 @@ run_tests_deb-x64:
     - pip install wheel
     - pip install -r requirements.txt
     - go get gopkg.in/yaml.v2
+    - go get github.com/stretchr/testify
     - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed
