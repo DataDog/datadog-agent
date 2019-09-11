@@ -3,8 +3,33 @@
     "apiVersion": "v1",
     "metadata": {},
     "items": [
-        {},
+        {
+            "metadata": {
+              "name": "dd-agent-ntepl",
+              "generateName": "dd-agent-",
+              "namespace": "default",
+              "selfLink": "/api/v1/namespaces/default/pods/dd-agent-ntepl",
+              "uid": "sdfsgdfgdfg"
+            },
+            "spec": {},
+            "status": {
+              "phase": "Running"
+            }
+        },
         null,
+        {
+            "metadata": {
+              "name": "dd-agent-barbbb",
+              "generateName": "dd-agent-",
+              "namespace": "default",
+              "selfLink": "/api/v1/namespaces/default/pods/dd-agent-barbbb",
+              "uid": "sdfsddsdsgdfgdfg"
+            },
+            "spec": {},
+            "status": {
+              "phase": "Running"
+            }
+        },
         {}
     ]
 }

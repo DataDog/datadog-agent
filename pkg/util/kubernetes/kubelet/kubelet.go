@@ -200,7 +200,7 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	}
 
 	// ensure we dont have nil pods
-	tmpSlice := make([]*Pod, 0, len(pods.Items))
+	tmpSlice := []*Pod{}
 	for _, pod := range pods.Items {
 		if pod != nil {
 			tmpSlice = append(tmpSlice, pod)

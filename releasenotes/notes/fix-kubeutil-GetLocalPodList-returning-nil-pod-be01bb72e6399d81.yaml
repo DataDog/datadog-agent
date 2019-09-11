@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Fix kubeutil.GetLocalPodList() that possibly returns nil pod(s) in the output slice.
+

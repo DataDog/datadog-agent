@@ -944,7 +944,7 @@ func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 	pods, err := kubeutil.ForceGetLocalPodList()
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
-	require.Len(suite.T(), pods, 2)
+	require.Len(suite.T(), pods, 3)
 
 	for _, po := range pods {
 		require.NotNil(suite.T(), po)
