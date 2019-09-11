@@ -29,6 +29,7 @@ var (
 	ntpExpVar = expvar.NewFloat("ntpOffset")
 	// for testing purpose
 	ntpQuery = ntp.QueryWithOptions
+	defaultMinCollectionInterval = 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
 )
 
 // NTPCheck only has sender and config
@@ -46,7 +47,6 @@ type ntpInstanceConfig struct {
 	Port                   int      `yaml:"port"`
 	Timeout                int      `yaml:"timeout"`
 	Version                int      `yaml:"version"`
-	MinCollectionInterval  int      `yaml:"min_collection_interval"`
 	UseLocalDefinedServers bool     `yaml:"use_local_defined_servers"`
 }
 
@@ -61,6 +61,13 @@ func (c *NTPCheck) String() string {
 	return "ntp"
 }
 
+func (c *NTPCheck) Interval() time.Duration {
+	if c.CheckBase.Interval() == 0 {
+		return time.Second * time.Duration(defaultMinCollectionInterval)
+	}
+	return c.CheckBase.Interval()
+}
+
 func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() ([]string, error)) error {
 	var instance ntpInstanceConfig
 	var initConf ntpInitConfig
@@ -68,7 +75,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	defaultTimeout := 5
 	defaultPort := 123
 	defaultOffsetThreshold := 60
-	defaultMinCollectionInterval := 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
+
 	defaultHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 
 	if err := yaml.Unmarshal(data, &instance); err != nil {
@@ -117,9 +124,6 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	if c.instance.OffsetThreshold == 0 {
 		c.instance.OffsetThreshold = defaultOffsetThreshold
 	}
-	if c.instance.MinCollectionInterval == 0 {
-		c.instance.MinCollectionInterval = defaultMinCollectionInterval
-	}
 	c.initConf = initConf
 
 	return nil
@@ -146,11 +150,6 @@ func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data,
 
 // Run runs the check
 func (c *NTPCheck) Run() error {
-	if time.Now().Before(c.lastCollection.Add(time.Second * time.Duration(c.cfg.instance.MinCollectionInterval))) {
-		log.Debugf("Skipping this check run, last run was less than %vs ago", c.cfg.instance.MinCollectionInterval)
-		return nil
-	}
-
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
