@@ -484,8 +484,6 @@ shared_examples_for 'an Agent with python3 enabled' do
   it 'runs Python 3 after python_version is set to 3' do
     result = false
     python_version = fetch_python_version
-    p "Python version (should be 2):"
-    p python_version
     if ! python_version.nil? && Gem::Version.new('3.0.0') <= Gem::Version.new(python_version)
       result = true
     end
@@ -511,8 +509,6 @@ shared_examples_for 'an Agent with python3 enabled' do
   it 'runs Python 2 after python_version is set back to 2' do
     result = false
     python_version = fetch_python_version
-    p "Python version (should be 2):"
-    p python_version
     if ! python_version.nil? && Gem::Version.new('3.0.0') > Gem::Version.new(python_version)
       result = true
     end
