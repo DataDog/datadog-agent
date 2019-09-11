@@ -61,6 +61,9 @@ func (c *NTPCheck) String() string {
 	return "ntp"
 }
 
+// Interval returns the scheduling time for the check.
+// Override the CheckBase.Interval() method to return a default collection interval of 15min if none is specified
+// in the config file.
 func (c *NTPCheck) Interval() time.Duration {
 	if c.CheckBase.Interval() == 0 {
 		return time.Second * time.Duration(defaultMinCollectionInterval)
