@@ -28,7 +28,7 @@ const ntpCheckName = "ntp"
 var (
 	ntpExpVar = expvar.NewFloat("ntpOffset")
 	// for testing purpose
-	ntpQuery = ntp.QueryWithOptions
+	ntpQuery                     = ntp.QueryWithOptions
 	defaultMinCollectionInterval = 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
 )
 
