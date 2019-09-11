@@ -13,15 +13,24 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestIsDefaultHostname(t *testing.T) {
-	assert.True(t, IsDefaultHostname("IP-FOO"))
-	assert.True(t, IsDefaultHostname("domuarigato"))
-	assert.True(t, IsDefaultHostname("EC2AMAZ-FOO"))
-	assert.False(t, IsDefaultHostname(""))
+	const key = "ec2.use_windows_prefix_detection"
+	prefix_detection := config.Datadog.GetBool(key)
+	defer config.Datadog.SetDefault(key, prefix_detection)
+
+	for _, prefix := range []bool{true, false} {
+		config.Datadog.SetDefault(key, prefix)
+
+		assert.True(t, IsDefaultHostname("IP-FOO"))
+		assert.True(t, IsDefaultHostname("domuarigato"))
+		assert.Equal(t, prefix, IsDefaultHostname("EC2AMAZ-FOO"))
+		assert.False(t, IsDefaultHostname(""))
+	}
 }
 
 func TestGetInstanceID(t *testing.T) {
