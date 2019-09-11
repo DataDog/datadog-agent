@@ -128,6 +128,7 @@ build do
             # Only affects psycopg2 - any binary whose path matches the pattern will be
             # skipped.
             strip_exclude("*psycopg2*")
+            strip_exclude("*cffi_backend*")
 
         elsif osx?
             # Remove linux specific configs

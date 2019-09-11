@@ -117,12 +117,12 @@ func (ac *AutoConfig) checkTagFreshness() {
 	for _, service := range ac.store.getServices() {
 		previousHash := ac.store.getTagsHashForService(service.GetTaggerEntity())
 		currentHash := tagger.GetEntityHash(service.GetTaggerEntity())
+		// Since an empty hash is a valid value, and we are not able to differentiate
+		// an empty tagger or store with an empty value.
+		// So we only look at the difference between current and previous
 		if currentHash != previousHash {
 			ac.store.setTagsHashForService(service.GetTaggerEntity(), currentHash)
-			if previousHash != "" {
-				// only refresh service if we already had a hash to avoid resetting it
-				servicesToRefresh = append(servicesToRefresh, service)
-			}
+			servicesToRefresh = append(servicesToRefresh, service)
 		}
 	}
 	for _, service := range servicesToRefresh {
