@@ -239,6 +239,7 @@ def fetch_python_version(timeout = 15)
   for _ in 1..timeout do
     json_info_output = json_info
     if json_info_output.key?('python_version') &&
+      ! json_info_output['python_version'].nil? && # nil is considered a correct version by Gem::Version
       Gem::Version.correct?(json_info_output['python_version']) # Check that we do have a version number
         return json_info_output['python_version']
     end
