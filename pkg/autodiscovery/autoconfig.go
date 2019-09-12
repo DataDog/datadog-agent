@@ -571,6 +571,10 @@ func GetResolveWarnings() map[string][]string {
 func (ac *AutoConfig) processNewService(svc listeners.Service) {
 	// in any case, register the service and store its tag hash
 	ac.store.setServiceForEntity(svc, svc.GetEntity())
+	ac.store.setTagsHashForService(
+		svc.GetTaggerEntity(),
+		tagger.GetEntityHash(svc.GetTaggerEntity()),
+	)
 
 	// get all the templates matching service identifiers
 	var templates []integration.Config
