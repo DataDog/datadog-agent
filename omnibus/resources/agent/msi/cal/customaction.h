@@ -21,7 +21,7 @@ namespace dd
      * if it is not successful.
      * \param res The return value of the Win32 API call.
      */
-#   define RETURN_IF_FAILED(res) if (ERROR_SUCCESS != (res)) return res;  // NOLINT(cppcoreguidelines-macro-usage)
+#   define RETURN_IF_FAILED(res) do { if (ERROR_SUCCESS != (res)) return res; } while (false)  // NOLINT(cppcoreguidelines-macro-usage)
 #endif
 
 // usercreate.cpp
@@ -29,9 +29,9 @@ bool generatePassword(wchar_t* passbuf, int passbuflen);
 int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring& comment, const wchar_t* passbuf);
 DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name);
 DWORD SetPermissionsOnFile(
-	std::wstring const& userName,
-	std::wstring const& filePath,
-    std::vector<dd::Permission> const& permissions);
+    const std::wstring& userName,
+    const std::wstring& filePath,
+    const std::vector<dd::Permission>& permissions);
 bool isDomainController(MSIHANDLE hInstall);
 int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data, bool isDC = false);
 

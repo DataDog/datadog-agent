@@ -161,9 +161,9 @@ DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
 }
 
 DWORD SetPermissionsOnFile(
-    std::wstring const& userName,
-    std::wstring const& filePath,
-    std::vector<dd::Permission> const& permissions)
+    const std::wstring& userName,
+    const std::wstring& filePath,
+    const std::vector<dd::Permission>& permissions)
 {
     if (!PathFileExists(filePath.c_str()))
     {
@@ -214,7 +214,7 @@ DWORD SetPermissionsOnFile(
     std::vector<std::wstring::value_type> filePathForNamedSecurityInfo(filePath.length() + 1);
     std::copy(filePath.begin(), filePath.end(), filePathForNamedSecurityInfo.begin());
 
-    RETURN_IF_FAILED(
+    return
         SetNamedSecurityInfo(
             &filePathForNamedSecurityInfo[0],
             SE_FILE_OBJECT,
@@ -222,9 +222,7 @@ DWORD SetPermissionsOnFile(
             nullptr,
             nullptr,
             newAcl.get(),
-            nullptr));
-
-    return ERROR_SUCCESS;
+            nullptr);
 }
 
 void removeUserPermsFromFile(std::wstring &filename, PSID sidremove)
