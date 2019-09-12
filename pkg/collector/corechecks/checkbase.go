@@ -49,7 +49,7 @@ func NewCheckBase(name string) CheckBase {
 	return NewCheckBaseWithInterval(name, defaults.DefaultCheckInterval)
 }
 
-// NewCheckBase returns a check base struct with a given check name and interval
+// NewCheckBaseWithInterval returns a check base struct with a given check name and interval
 func NewCheckBaseWithInterval(name string, defaultInterval time.Duration) CheckBase {
 	return CheckBase{
 		checkName:     name,
