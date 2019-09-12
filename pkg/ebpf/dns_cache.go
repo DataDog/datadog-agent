@@ -3,6 +3,7 @@ package ebpf
 import (
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -15,11 +16,22 @@ type reverseDNSCache struct {
 	exit chan struct{}
 	ttl  time.Duration
 	size int
+
+	// Telemetry
+	len      int64
+	lookups  int64
+	resolved int64
 }
 
 type translation struct {
 	name string
 	ips  map[util.Address]struct{}
+}
+
+type cacheStats struct {
+	lookups  int64
+	resolved int64
+	len      int64
 }
 
 func newReverseDNSCache(size int, ttl, expirationPeriod time.Duration) *reverseDNSCache {
@@ -67,6 +79,9 @@ func (c *reverseDNSCache) Add(translation *translation, now time.Time) bool {
 		c.data[addr] = &dnsCacheVal{names: []string{translation.name}, expiration: exp}
 	}
 
+	// Update cache length for telemetry purposes
+	atomic.StoreInt64(&c.len, int64(len(c.data)))
+
 	return true
 }
 
@@ -78,13 +93,43 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) []NamePair
 	names := make([]NamePair, len(conns))
 	expiration := now.Add(c.ttl).Unix()
 
+	lookups := len(conns)
+	resolved := 0
+
 	c.mux.Lock()
 	for i, conn := range conns {
 		names[i].Source = c.getNamesForIP(conn.Source, expiration)
 		names[i].Dest = c.getNamesForIP(conn.Dest, expiration)
+
+		// Track number of successful resolutions for destination IP only
+		if names[i].Dest != nil {
+			resolved++
+		}
 	}
 	c.mux.Unlock()
+
+	// Update stats for telemetry
+	atomic.AddInt64(&c.lookups, int64(lookups))
+	atomic.AddInt64(&c.resolved, int64(resolved))
+
 	return names
+}
+
+func (c *reverseDNSCache) Len() int {
+	return int(atomic.LoadInt64(&c.len))
+}
+
+func (c *reverseDNSCache) Stats() cacheStats {
+	var (
+		lookups  = atomic.SwapInt64(&c.lookups, 0)
+		resolved = atomic.SwapInt64(&c.resolved, 0)
+	)
+
+	return cacheStats{
+		lookups:  lookups,
+		resolved: resolved,
+		len:      int64(c.Len()),
+	}
 }
 
 func (c *reverseDNSCache) Close() {
@@ -118,6 +163,7 @@ func (c *reverseDNSCache) expire() {
 	total := len(c.data)
 	c.mux.Unlock()
 
+	atomic.StoreInt64(&c.len, int64(total))
 	log.Debugf(
 		"dns entries expired. took=%s total=%d expired=%d\n",
 		time.Now().Sub(start), total, expired,

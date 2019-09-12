@@ -39,7 +39,18 @@ func TestDNSSnooping(t *testing.T) {
 	require.NoError(t, err)
 	destAddr := util.AddressFromString(destIP)
 
-	time.Sleep(100 * time.Millisecond)
+Loop:
+	// Wait until DNS entry becomes available (with a timeout)
+	for {
+		select {
+		case <-time.After(1 * time.Second):
+			break Loop
+		default:
+			if reverseDNS.cache.Len() >= 1 {
+				break Loop
+			}
+		}
+	}
 
 	// Verify that the IP from the connections above maps to the right name
 	payload := []ConnectionStats{{Dest: destAddr}}
