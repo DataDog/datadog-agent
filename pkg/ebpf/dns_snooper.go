@@ -41,11 +41,6 @@ type SocketFilterSnooper struct {
 	wg           sync.WaitGroup
 }
 
-type translation struct {
-	name string
-	ips  map[util.Address]struct{}
-}
-
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
 func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, error) {
 	tpacket, err := afpacket.NewTPacket(afpacket.OptPollTimeout(1 * time.Second))
