@@ -24,6 +24,7 @@ import (
 const (
 	dnsCacheTTL              = 3 * time.Minute
 	dnsCacheExpirationPeriod = 1 * time.Minute
+	dnsCacheSize             = 100000
 	packetBufferSize         = 100
 )
 
@@ -62,13 +63,14 @@ func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, 
 		return nil, fmt.Errorf("error attaching filter to socket: %s", err)
 	}
 
+	reverseDNSCache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
 	snooper := &SocketFilterSnooper{
 		tpacket:      tpacket,
 		source:       packetSrc,
 		socketFilter: filter,
 		socketFD:     socketFD,
 		exit:         make(chan struct{}),
-		ipsToNames:   newReverseDNSCache(dnsCacheTTL, dnsCacheExpirationPeriod),
+		ipsToNames:   reverseDNSCache,
 	}
 
 	// Start consuming packets

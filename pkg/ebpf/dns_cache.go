@@ -14,13 +14,15 @@ type reverseDNSCache struct {
 	data map[util.Address]*dnsCacheVal
 	exit chan struct{}
 	ttl  time.Duration
+	size int
 }
 
-func newReverseDNSCache(ttl, expirationPeriod time.Duration) *reverseDNSCache {
+func newReverseDNSCache(size int, ttl, expirationPeriod time.Duration) *reverseDNSCache {
 	cache := &reverseDNSCache{
 		data: make(map[util.Address]*dnsCacheVal),
 		exit: make(chan struct{}),
 		ttl:  ttl,
+		size: size,
 	}
 
 	ticker := time.NewTicker(expirationPeriod)
@@ -37,13 +39,18 @@ func newReverseDNSCache(ttl, expirationPeriod time.Duration) *reverseDNSCache {
 	return cache
 }
 
-func (c *reverseDNSCache) Add(translations ...*translation, now time.Time) {
+func (c *reverseDNSCache) Add(translations ...*translation, now time.Time) bool {
 	if len(translations) == 0 {
 		return
 	}
 
-	exp := now.Add(c.ttl).Unix()
 	c.mux.Lock()
+	defer c.mux.Unlock()
+	if len(c.data) >= size {
+		return false
+	}
+
+	exp := now.Add(c.ttl).Unix()
 	for _, t := range translations {
 		for addr := range t.ips {
 			val, ok := c.data[addr]
@@ -56,7 +63,7 @@ func (c *reverseDNSCache) Add(translations ...*translation, now time.Time) {
 			c.data[addr] = &dnsCacheVal{names: []string{t.name}, expiration: exp}
 		}
 	}
-	c.mux.Unlock()
+	return true
 }
 
 func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) []NamePair {
