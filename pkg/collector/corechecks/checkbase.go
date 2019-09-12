@@ -46,15 +46,10 @@ type CheckBase struct {
 
 // NewCheckBase returns a check base struct with a given check name
 func NewCheckBase(name string) CheckBase {
-	return NewCheckBaseWithInterval(name, defaults.DefaultCheckInterval)
-}
-
-// NewCheckBaseWithInterval returns a check base struct with a given check name and interval
-func NewCheckBaseWithInterval(name string, defaultInterval time.Duration) CheckBase {
 	return CheckBase{
 		checkName:     name,
 		checkID:       check.ID(name),
-		checkInterval: defaultInterval,
+		checkInterval: defaults.DefaultCheckInterval,
 	}
 }
 
