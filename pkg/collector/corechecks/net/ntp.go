@@ -24,12 +24,12 @@ import (
 )
 
 const ntpCheckName = "ntp"
+const defaultMinCollectionInterval = 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
 
 var (
 	ntpExpVar = expvar.NewFloat("ntpOffset")
 	// for testing purpose
-	ntpQuery                     = ntp.QueryWithOptions
-	defaultMinCollectionInterval = 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
+	ntpQuery = ntp.QueryWithOptions
 )
 
 // NTPCheck only has sender and config
@@ -59,16 +59,6 @@ type ntpConfig struct {
 
 func (c *NTPCheck) String() string {
 	return "ntp"
-}
-
-// Interval returns the scheduling time for the check.
-// Override the CheckBase.Interval() method to return a default collection interval of 15min if none is specified
-// in the config file.
-func (c *NTPCheck) Interval() time.Duration {
-	if c.CheckBase.Interval() == 0 {
-		return time.Second * time.Duration(defaultMinCollectionInterval)
-	}
-	return c.CheckBase.Interval()
 }
 
 func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() ([]string, error)) error {
@@ -230,7 +220,7 @@ func (c *NTPCheck) queryOffset() (float64, error) {
 
 func ntpFactory() check.Check {
 	return &NTPCheck{
-		CheckBase: core.NewCheckBase(ntpCheckName),
+		CheckBase: core.NewCheckBaseWithInterval(ntpCheckName, time.Duration(defaultMinCollectionInterval)*time.Second),
 	}
 }
 
