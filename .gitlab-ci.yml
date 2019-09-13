@@ -767,6 +767,7 @@ kitchen_centos:
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="centos-69,OpenLogic:CentOS:6.9:6.9.20180530"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-80,RedHat:RHEL:8:8.0.2019062020"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks
