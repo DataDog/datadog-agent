@@ -60,7 +60,7 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging/linux
   RELEASE_VERSION: nightly
   DATADOG_AGENT_BUILDIMAGES: v1631023-f2ae59b
-  DATADOG_AGENT_BUILDERS: v1613952-f072482
+  DATADOG_AGENT_BUILDERS: v1694687-834dd8c
 
 
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
