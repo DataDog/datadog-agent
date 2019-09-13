@@ -8,6 +8,8 @@ package inventories
 import (
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 )
 
 type checkMetadataCacheEntry struct {
@@ -16,10 +18,17 @@ type checkMetadataCacheEntry struct {
 }
 
 var (
+	// For testing purposes
+	getLoadedConfigs  = common.AC.GetLoadedConfigs
+	getAllInstanceIDs = common.Coll.GetAllInstanceIDs
+	nowNano           = func() int64 { return time.Now().UnixNano() }
+
 	checkMetadataCache = make(map[string]*checkMetadataCacheEntry) // by check ID
 	checkCacheMutex    = &sync.Mutex{}
 	agentMetadataCache = make(AgentMetadata)
 	agentCacheMutex    = &sync.Mutex{}
+
+	agentStartupTime = nowNano()
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
@@ -43,6 +52,61 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 		checkMetadataCache[checkID] = entry
 	}
 
-	entry.LastUpdated = time.Now().UnixNano()
+	entry.LastUpdated = nowNano()
 	entry.CheckInstanceMetadata[key] = value
+}
+
+func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMetadata {
+
+	var checkInstanceMetadata CheckInstanceMetadata
+	lastUpdated := agentStartupTime
+
+	entry, found := checkMetadataCache[checkID]
+	if found {
+		checkInstanceMetadata = entry.CheckInstanceMetadata
+		lastUpdated = entry.LastUpdated
+	} else {
+		checkInstanceMetadata = make(CheckInstanceMetadata)
+	}
+
+	checkInstanceMetadata["last_updated"] = lastUpdated
+	checkInstanceMetadata["config.hash"] = checkID
+	checkInstanceMetadata["config.provider"] = configProvider
+
+	return &checkInstanceMetadata
+}
+
+// GetPayload fills and returns the check metadata payload
+func GetPayload() *Payload {
+	checkCacheMutex.Lock()
+	defer checkCacheMutex.Unlock()
+
+	checkMetadata := make(CheckMetadata)
+
+	newCheckMetadataCache := make(map[string]*checkMetadataCacheEntry)
+
+	configs := getLoadedConfigs()
+	for _, config := range configs {
+		checkMetadata[config.Name] = make([]*CheckInstanceMetadata, 0)
+		instanceIDs := getAllInstanceIDs(config.Name)
+		for _, id := range instanceIDs {
+			checkInstanceMetadata := getCheckInstanceMetadata(string(id), config.Provider)
+			checkMetadata[config.Name] = append(checkMetadata[config.Name], checkInstanceMetadata)
+			if entry, found := checkMetadataCache[string(id)]; found {
+				newCheckMetadataCache[string(id)] = entry
+			}
+		}
+	}
+
+	// newCheckMetadataCache only contains checks that are still running, this way it doesn't grow forever
+	checkMetadataCache = newCheckMetadataCache
+
+	agentCacheMutex.Lock()
+	defer agentCacheMutex.Unlock()
+
+	return &Payload{
+		Timestamp:     nowNano(),
+		CheckMetadata: &checkMetadata,
+		AgentMetadata: &agentMetadataCache,
+	}
 }
