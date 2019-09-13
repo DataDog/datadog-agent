@@ -519,6 +519,28 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     return handle_message(&t, size, 0);
 }
 
+SEC("kprobe/tcp_sendmsg/rhel")
+int kprobe__tcp_sendmsg__rhel(struct pt_regs* ctx) {
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    size_t size = (size_t)PT_REGS_PARM4(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 zero = 0;
+
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL) {
+        return 0;
+    }
+    log_debug("kprobe/tcp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    handle_tcp_stats(&t, status, sk);
+    return handle_message(&t, size, 0);
+}
+
 SEC("kretprobe/tcp_sendmsg")
 int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
     int ret = PT_REGS_RC(ctx);
@@ -619,6 +641,29 @@ SEC("kprobe/udp_sendmsg")
 int kprobe__udp_sendmsg(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     size_t size = (size_t)PT_REGS_PARM3(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 zero = 0;
+
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL) {
+        return 0;
+    }
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_UDP)) {
+        return 0;
+    }
+
+    log_debug("kprobe/udp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    handle_message(&t, size, 0);
+
+    return 0;
+}
+
+SEC("kprobe/udp_sendmsg/rhel")
+int kprobe__udp_sendmsg__rhel(struct pt_regs* ctx) {
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    size_t size = (size_t)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 zero = 0;
 

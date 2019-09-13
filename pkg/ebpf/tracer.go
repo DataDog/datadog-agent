@@ -116,11 +116,25 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
 
+	// check if current platform is Rhel or CentOS because it affects what kprobe are we going to enable
+	isRhel, err := isRhelOrCentOS()
+	if err != nil {
+		return nil, err
+	}
+
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes := config.EnabledKProbes()
+	enabledProbes := config.EnabledKProbes(isRhel)
+
 	for k := range m.IterKprobes() {
-		if _, ok := enabledProbes[KProbeName(k.Name)]; ok {
-			if err = m.EnableKprobe(k.Name, maxActive); err != nil {
+		probeName := KProbeName(k.Name)
+		if _, ok := enabledProbes[probeName]; ok {
+			// check if we should override kprobe name
+			if override, ok := kprobeOverrides[probeName]; ok {
+				if err = m.UpdateSecName(bpflib.TypeProbe, string(probeName), string(override)); err != nil {
+					return nil, fmt.Errorf("could not update kprobe \"%s\" to \"%s\" : %s", k.Name, string(override), err)
+				}
+			}
+			if err = m.EnableKprobe(string(probeName), maxActive); err != nil {
 				return nil, fmt.Errorf("could not enable kprobe(%s): %s", k.Name, err)
 			}
 		}
