@@ -16,7 +16,7 @@ spec:
     spec:
       serviceAccountName: stackstate-agent
       containers:
-      - image: stackstate/stackstate-agent-2-test:master
+      - image: docker.io/stackstate/stackstate-agent-2-test:master
         imagePullPolicy: Always
         name: stackstate-agent
         ports:

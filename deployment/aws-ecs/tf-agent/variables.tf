@@ -10,7 +10,7 @@ variable "sts_agent_task_family" {
 
 variable "sts_agent_image" {
   description = "version of agent to execute"
-  default = "stackstate/stackstate-agent-2-test:2.0.2.git.482.db7dccee"
+  default = "docker.io/stackstate/stackstate-agent-2-test:2.0.2.git.482.db7dccee"
 }
 
 variable "STS_URL" {
@@ -35,4 +35,3 @@ variable "STS_PROCESS_AGENT_ENABLED" {
    description = "Log level"
    default = "debug"
  }
-

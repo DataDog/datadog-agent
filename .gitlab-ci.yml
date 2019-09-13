@@ -1,4 +1,4 @@
-image: stackstate/stackstate-agent-runner-gitlab:deb_20190429
+image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb_20190429
 
 stages:
 - prepare
@@ -94,7 +94,7 @@ deps_deb:
 
 deps_rpm:
   stage: prepare
-  image: stackstate/stackstate-agent-runner-gitlab:centos6
+  image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6
   cache:
     key: "deps-rpm-$CI_COMMIT_REF_SLUG"
     paths:
@@ -281,7 +281,7 @@ build_deb:
 
 build_rpm:
   stage: build_and_test
-  image: stackstate/stackstate-agent-runner-gitlab:centos6_20190429
+  image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_20190429
   dependencies:
     - deps_rpm
   tags:
@@ -361,7 +361,7 @@ test_deb_renaming:
 
 test_rpm_renaming:
   stage: pre_release
-  image: stackstate/stackstate-agent-runner-gitlab:centos6_20190429
+  image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_20190429
   dependencies:
     - build_rpm
   before_script: []
@@ -402,7 +402,7 @@ pre_release_win:
 
 pre_release_rpm:
   stage: pre_release
-#  image: stackstate/stackstate-agent-runner-gitlab:rpm.latest
+#  image: docker.io/stackstate/stackstate-agent-runner-gitlab:rpm.latest
   dependencies:
     - build_rpm
   before_script: []
@@ -462,9 +462,9 @@ molecule_tests_vms:
   dependencies: []
   before_script: []
   script:
-   - export MOLECULE_RUN_ID=${CI_JOB_ID}
-   - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
-   - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s vms
+    - export MOLECULE_RUN_ID=${CI_JOB_ID}
+    - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
+    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s vms
   artifacts:
     when: always
     paths:
@@ -477,9 +477,9 @@ molecule_tests_compose:
   dependencies: []
   before_script: []
   script:
-   - export MOLECULE_RUN_ID=${CI_JOB_ID}
-   - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
-   - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s compose
+    - export MOLECULE_RUN_ID=${CI_JOB_ID}
+    - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
+    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s compose
   artifacts:
     when: always
     paths:

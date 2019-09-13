@@ -16,7 +16,7 @@ spec:
     spec:
       serviceAccountName: stackstate-cluster-agent
       containers:
-      - image: stackstate/stackstate-cluster-agent-test:master
+      - image: docker.io/stackstate/stackstate-cluster-agent-test:master
         imagePullPolicy: Always
         name: stackstate-cluster-agent
         envFrom:

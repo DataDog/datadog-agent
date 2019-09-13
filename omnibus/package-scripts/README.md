@@ -25,3 +25,22 @@ lead to some rather sneaky bugs. Here's the standard order for updates.
 
 **Note:** if you remove files or other components in the `postrm` script, updates
 won't work as expected with YUM.
+
+
+# Getting repo up
+
+/etc/yum.repos.d/myrepo.repo
+
+```
+[myrepo]
+name=This is my repo
+baseurl=https://repobase/master
+enabled=1
+gpgcheck=0
+```
+
+yum makecache --disablerepo=* --enablerepo=myrepo
+
+# Checking packages in repo
+
+yum --disablerepo="*" --enablerepo="myrepo" list available

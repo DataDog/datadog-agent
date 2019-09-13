@@ -2,7 +2,7 @@
 
 Run the stackstate agent runner gitlab docker container:
 ```bash
-docker run -ti stackstate/stackstate-agent-runner-gitlab:deb_20190429
+docker run -ti docker.io/stackstate/stackstate-agent-runner-gitlab:deb_20190429
 ```
 
 inside the container execute the following command:

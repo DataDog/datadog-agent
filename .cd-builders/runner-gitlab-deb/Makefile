@@ -1,4 +1,4 @@
 build:
-	docker build -t stackstate/stackstate-agent-runner-gitlab:latest .
+	docker build -t docker.io/stackstate/stackstate-agent-runner-gitlab:latest .
 push:
-	docker push stackstate/stackstate-agent-runner-gitlab:latest
+	docker push docker.io/stackstate/stackstate-agent-runner-gitlab:latest

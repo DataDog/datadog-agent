@@ -14,7 +14,7 @@ spec:
     spec:
       serviceAccountName: stackstate-agent
       containers:
-      - image: stackstate/tcptracer-bpf-nettop:latest
+      - image: docker.io/stackstate/tcptracer-bpf-nettop:latest
         imagePullPolicy: Always
         name: stackstate-agent
         securityContext:

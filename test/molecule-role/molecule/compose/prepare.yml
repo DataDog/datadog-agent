@@ -69,7 +69,7 @@
           output=json
         dest: /home/ubuntu/.aws/config
     - name: Run Docker login
-      shell: eval $(aws ecr get-login --no-include-email)
+      shell: echo "{{ quay_password }}" | docker login --username={{ quay_user }} --password-stdin quay.io
     - name: Install Docker Compose
       become: true
       get_url:
