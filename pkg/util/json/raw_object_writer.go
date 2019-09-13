@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 
-package jsonrawobjectwriter
+package json
 
 import (
 	"errors"
@@ -11,16 +11,16 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
-// JSONRawObjectWriter contains helper functions to write JSON using the raw API.
-type JSONRawObjectWriter struct {
+// RawObjectWriter contains helper functions to write JSON using the raw API.
+type RawObjectWriter struct {
 	stream                  *jsoniter.Stream
 	requireSeparatorByScope [8]bool
 	scopeLevel              int
 }
 
-// NewJSONRawObjectWriter creates a new instance of JSONRawObjectWriter
-func NewJSONRawObjectWriter(stream *jsoniter.Stream) *JSONRawObjectWriter {
-	writer := &JSONRawObjectWriter{stream: stream}
+// NewRawObjectWriter creates a new instance of RawObjectWriter
+func NewRawObjectWriter(stream *jsoniter.Stream) *RawObjectWriter {
+	writer := &RawObjectWriter{stream: stream}
 	writer.scopeLevel = -1
 	return writer
 }
@@ -37,19 +37,19 @@ const (
 )
 
 // StartObject starts a new JSON object (add '{')
-func (writer *JSONRawObjectWriter) StartObject() error {
+func (writer *RawObjectWriter) StartObject() error {
 	writer.stream.WriteObjectStart()
 	return writer.addScope()
 }
 
 // FinishObject finishes a JSON object (add '}')
-func (writer *JSONRawObjectWriter) FinishObject() error {
+func (writer *RawObjectWriter) FinishObject() error {
 	writer.stream.WriteObjectEnd()
 	return writer.removeScope()
 }
 
 // AddStringField adds a new field of type string
-func (writer *JSONRawObjectWriter) AddStringField(fieldName string, value string, policy EmptyPolicy) {
+func (writer *RawObjectWriter) AddStringField(fieldName string, value string, policy EmptyPolicy) {
 	if value != "" || policy == AllowEmpty {
 		writer.writeSeparatorIfNeeded()
 		writer.stream.WriteObjectField(fieldName)
@@ -58,14 +58,14 @@ func (writer *JSONRawObjectWriter) AddStringField(fieldName string, value string
 }
 
 // AddInt64Field adds a new field of type int64
-func (writer *JSONRawObjectWriter) AddInt64Field(fieldName string, value int64) {
+func (writer *RawObjectWriter) AddInt64Field(fieldName string, value int64) {
 	writer.writeSeparatorIfNeeded()
 	writer.stream.WriteObjectField(fieldName)
 	writer.stream.WriteInt64(value)
 }
 
 // StartArrayField starts a new field of type array
-func (writer *JSONRawObjectWriter) StartArrayField(fieldName string) error {
+func (writer *RawObjectWriter) StartArrayField(fieldName string) error {
 	writer.writeSeparatorIfNeeded()
 	writer.stream.WriteObjectField(fieldName)
 	writer.stream.WriteArrayStart()
@@ -73,27 +73,27 @@ func (writer *JSONRawObjectWriter) StartArrayField(fieldName string) error {
 }
 
 // FinishArrayField finishes an array field
-func (writer *JSONRawObjectWriter) FinishArrayField() error {
+func (writer *RawObjectWriter) FinishArrayField() error {
 	writer.stream.WriteArrayEnd()
 	return writer.removeScope()
 }
 
 // AddStringValue adds a string (for example inside an array)
-func (writer *JSONRawObjectWriter) AddStringValue(value string) {
+func (writer *RawObjectWriter) AddStringValue(value string) {
 	writer.writeSeparatorIfNeeded()
 	writer.stream.WriteString(value)
 }
 
 // Flush the stream
-func (writer *JSONRawObjectWriter) Flush() error {
+func (writer *RawObjectWriter) Flush() error {
 	return writer.stream.Flush()
 }
 
-func (writer *JSONRawObjectWriter) toString() string {
+func (writer *RawObjectWriter) toString() string {
 	return string(writer.stream.Buffer())
 }
 
-func (writer *JSONRawObjectWriter) writeSeparatorIfNeeded() {
+func (writer *RawObjectWriter) writeSeparatorIfNeeded() {
 	if writer.scopeLevel >= 0 && writer.scopeLevel < len(writer.requireSeparatorByScope) {
 		if writer.requireSeparatorByScope[writer.scopeLevel] {
 			writer.stream.WriteMore()
@@ -103,7 +103,7 @@ func (writer *JSONRawObjectWriter) writeSeparatorIfNeeded() {
 	}
 }
 
-func (writer *JSONRawObjectWriter) addScope() error {
+func (writer *RawObjectWriter) addScope() error {
 	writer.scopeLevel++
 	if writer.scopeLevel >= len(writer.requireSeparatorByScope) {
 		return errors.New("Too many scopes")
@@ -112,7 +112,7 @@ func (writer *JSONRawObjectWriter) addScope() error {
 	return nil
 }
 
-func (writer *JSONRawObjectWriter) removeScope() error {
+func (writer *RawObjectWriter) removeScope() error {
 	if writer.scopeLevel < 0 {
 		return errors.New("No scope to remove")
 	}

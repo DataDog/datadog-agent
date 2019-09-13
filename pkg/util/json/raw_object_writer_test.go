@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 
-package jsonrawobjectwriter
+package json
 
 import (
 	"testing"
@@ -12,14 +12,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newJSONRawObjectWriterTest() *JSONRawObjectWriter {
+func newRawObjectWriterTest() *RawObjectWriter {
 	jsonStream := jsoniter.NewStream(jsoniter.ConfigDefault, nil, 0)
 
-	return NewJSONRawObjectWriter(jsonStream)
+	return NewRawObjectWriter(jsonStream)
 }
 
-func TestJSONRawObjectWriterSimpleField(t *testing.T) {
-	writer := newJSONRawObjectWriterTest()
+func TestRawObjectWriterSimpleField(t *testing.T) {
+	writer := newRawObjectWriterTest()
 
 	assert.NoError(t, writer.StartObject())
 	writer.AddStringField("f1", "1", AllowEmpty)
@@ -31,8 +31,8 @@ func TestJSONRawObjectWriterSimpleField(t *testing.T) {
 	assert.Equal(t, `{"f1":"1","f3":3}`, writer.toString())
 }
 
-func TestJSONRawObjectWriterStringArray(t *testing.T) {
-	writer := newJSONRawObjectWriterTest()
+func TestRawObjectWriterStringArray(t *testing.T) {
+	writer := newRawObjectWriterTest()
 
 	assert.NoError(t, writer.StartObject())
 	assert.NoError(t, writer.StartArrayField("array"))
@@ -46,8 +46,8 @@ func TestJSONRawObjectWriterStringArray(t *testing.T) {
 	assert.Equal(t, `{"array":["1","2","3"]}`, writer.toString())
 }
 
-func TestJSONRawObjectWriterInvalidScope(t *testing.T) {
-	writer := newJSONRawObjectWriterTest()
+func TestRawObjectWriterInvalidScope(t *testing.T) {
+	writer := newRawObjectWriterTest()
 
 	assert.NoError(t, writer.StartObject())
 	assert.NoError(t, writer.FinishObject())
