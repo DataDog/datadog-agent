@@ -197,9 +197,10 @@ func TestSendEvents(t *testing.T) {
 func TestSendV1ServiceChecks(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1CheckRuns", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
+	config.Datadog.Set("enable_service_checks_stream_payload_serialization", false)
+	defer config.Datadog.Set("enable_service_checks_stream_payload_serialization", nil)
 
 	s := NewSerializer(f)
-	s.enableServiceChecksJSONStream = false
 	payload := &testPayload{}
 	err := s.SendServiceChecks(payload)
 	require.Nil(t, err)

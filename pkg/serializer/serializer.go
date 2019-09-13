@@ -205,8 +205,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 	if useV1API && s.enableServiceChecksJSONStream {
 		serviceCheckPayloads, extraHeaders, err = s.serializeStreamablePayload(sc)
 	} else {
-		compress := true
-		serviceCheckPayloads, extraHeaders, err = s.serializePayload(sc, compress, useV1API)
+		serviceCheckPayloads, extraHeaders, err = s.serializePayload(sc, true, useV1API)
 	}
 	if err != nil {
 		return fmt.Errorf("dropping service check payload: %s", err)

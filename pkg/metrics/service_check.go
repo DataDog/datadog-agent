@@ -210,7 +210,9 @@ func writeServiceCheck(sc *ServiceCheck, stream *jsoniter.Stream) error {
 		for _, tag := range sc.Tags {
 			writer.AddStringValue(tag)
 		}
-		writer.FinishArrayField()
+		if err := writer.FinishArrayField(); err != nil {
+			return err
+		}
 	}
 	if err := writer.FinishObject(); err != nil {
 		return err
