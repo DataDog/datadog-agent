@@ -56,6 +56,13 @@ var (
 		RunE:  doJmxListMatching,
 	}
 
+	jmxListWithMetricsCmd = &cobra.Command{
+		Use:   "with-metrics",
+		Short: "List attributes and metrics data that match at least one of your instances configuration.",
+		Long:  ``,
+		RunE:  doJmxListWithMetrics,
+	}
+
 	jmxListLimitedCmd = &cobra.Command{
 		Use:   "limited",
 		Short: "List attributes that do match one of your instances configuration but that are not being collected because it would exceed the number of metrics that can be collected.",
@@ -89,7 +96,7 @@ func init() {
 	jmxCmd.AddCommand(jmxCollectCmd)
 
 	//attach list commands to list root
-	jmxListCmd.AddCommand(jmxListEverythingCmd, jmxListMatchingCmd, jmxListLimitedCmd, jmxListCollectedCmd, jmxListNotMatchingCmd)
+	jmxListCmd.AddCommand(jmxListEverythingCmd, jmxListMatchingCmd, jmxListLimitedCmd, jmxListCollectedCmd, jmxListNotMatchingCmd, jmxListWithMetricsCmd)
 
 	jmxListCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
 	jmxCollectCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
@@ -108,6 +115,10 @@ func doJmxListEverything(cmd *cobra.Command, args []string) error {
 
 func doJmxListMatching(cmd *cobra.Command, args []string) error {
 	return RunJmxCommand("list_matching_attributes", jmxfetch.ReporterConsole)
+}
+
+func doJmxListWithMetrics(cmd *cobra.Command, args []string) error {
+	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterConsole)
 }
 
 func doJmxListLimited(cmd *cobra.Command, args []string) error {
