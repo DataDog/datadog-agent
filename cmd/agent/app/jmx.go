@@ -99,30 +99,30 @@ func init() {
 }
 
 func doJmxCollect(cmd *cobra.Command, args []string) error {
-	return runJmxCommand("collect")
+	return RunJmxCommand("collect", jmxfetch.ReporterConsole)
 }
 
 func doJmxListEverything(cmd *cobra.Command, args []string) error {
-	return runJmxCommand("list_everything")
+	return RunJmxCommand("list_everything", jmxfetch.ReporterConsole)
 }
 
 func doJmxListMatching(cmd *cobra.Command, args []string) error {
-	return runJmxCommand("list_matching_attributes")
+	return RunJmxCommand("list_matching_attributes", jmxfetch.ReporterConsole)
 }
 
 func doJmxListLimited(cmd *cobra.Command, args []string) error {
-	return runJmxCommand("list_limited_attributes")
+	return RunJmxCommand("list_limited_attributes", jmxfetch.ReporterConsole)
 }
 
 func doJmxListCollected(cmd *cobra.Command, args []string) error {
-	return runJmxCommand("list_collected_attributes")
+	return RunJmxCommand("list_collected_attributes", jmxfetch.ReporterConsole)
 }
 
 func doJmxListNotCollected(cmd *cobra.Command, args []string) error {
-	return runJmxCommand("list_not_matching_attributes")
+	return RunJmxCommand("list_not_matching_attributes", jmxfetch.ReporterConsole)
 }
 
-func runJmxCommand(command string) error {
+func RunJmxCommand(command string, reporter jmxfetch.JMXReporter) error {
 
 	if jmxLogLevel != "" {
 		// Honour the deprecated --log-level argument
@@ -157,7 +157,7 @@ func runJmxCommand(command string) error {
 
 	runner := &jmxfetch.JMXFetch{}
 
-	runner.ReportOnConsole = true
+	runner.Reporter = reporter
 	runner.Command = command
 	runner.IPCPort = api.ServerAddress().Port
 
