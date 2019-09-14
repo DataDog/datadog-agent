@@ -254,8 +254,10 @@
                 Source="$(var.BinFiles)/libdatadog-agent-three.dll"/>
             <?endif ?>
         </Component>
+        
         <?if $(var.IncludePython2) = true ?>
         <Component Id="MSVCRUNTIME" Guid="30ce4f57-47ce-47c0-8564-e510d69787a9">
+        
             <Condition> <![CDATA[VersionNT <= 601]]> </Condition>
             <File Id="msvcm90.dll"
                 Name="msvcm90.dll"
@@ -278,6 +280,7 @@
                 Vital="yes"
                 DiskId="1"
                 Source="$(var.BinFiles)/Microsoft.VC90.CRT.manifest"/>
+        
         </Component>
         <?endif ?>
         <Directory Id="AGENT" Name="agent">
@@ -454,7 +457,9 @@
       <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />
       <ComponentRef Id="CleanupMainApplicationFolder" />
       <ComponentRef Id="RegisterConfVariables" />
-      <ComponentRef Id="MSVCRUNTIME" />
+      <?if $(var.IncludePython2) = true ?>
+        <ComponentRef Id="MSVCRUNTIME" />
+      <?endif ?>
     </Feature>
 
     <!-- UI Stuff: 100% Omnibus Generated -->
