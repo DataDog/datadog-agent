@@ -233,15 +233,23 @@ def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix
     # version could be unicode as it comes from `query_version`
     return str(version)
 
-def get_version_numeric_only(ctx):
-    version, _, _, _ = query_version(ctx)
+def get_version_numeric_only(ctx, prefix=None):
+    version, _, _, _ = query_version(ctx, prefix=prefix)
     return version
 
-def load_release_versions(ctx, target_version):
+def load_release_versions(ctx, target_version, prefix):
     with open("release.json", "r") as f:
         versions = json.load(f)
         if target_version in versions:
             # windows runners don't accepts anything else than strings in the
             # environment when running a subprocess.
-            return {str(k):str(v) for k, v in versions[target_version].items()}
-    raise Exception("Could not find '{}' version in release.json".format(target_version))
+
+            # first read in the 'default' section. Then load the prefix-specific
+            # information on top
+            if "default" in versions[target_version]:
+                default = {str(k):str(v) for k, v in versions[target_version]["default"].items()}
+                if prefix in versions[target_version]:
+                    for k, v in versions[target_version][prefix].items():
+                        default[k] = "{}".format(v)
+                    return default
+    raise Exception("Could not find '{}' '{}' version in release.json".format(target_version, prefix))

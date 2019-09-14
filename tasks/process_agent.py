@@ -15,12 +15,12 @@ BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent", android=False))
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 @task
-def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False, arch="x64"):
+def build(ctx, race=False, prefix=None, go_version=None, incremental_build=False, puppy=False, arch="x64"):
     """
     Build the process agent
     """
 
-    ldflags, gcflags, env = get_build_flags(ctx, arch=arch)
+    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, prefix=prefix)
 
     # generate windows resources
     if sys.platform == 'win32':
@@ -29,7 +29,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
             env["GOARCH"] = "386"
             windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx)
+        ver = get_version_numeric_only(ctx,prefix)
         maj_ver, min_ver, patch_ver = ver.split(".")
         resdir = os.path.join(".", "cmd", "process-agent", "windows_resources")
 
@@ -48,7 +48,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
     # TODO use pkg/version for this
     main = "main."
     ld_vars = {
-        "Version": get_version(ctx),
+        "Version": get_version(ctx, prefix),
         "GoVersion": get_go_version(),
         "GitBranch": get_git_branch_name(),
         "GitCommit": get_git_commit(),

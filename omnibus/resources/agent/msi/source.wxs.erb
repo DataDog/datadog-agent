@@ -254,6 +254,7 @@
                 Source="$(var.BinFiles)/libdatadog-agent-three.dll"/>
             <?endif ?>
         </Component>
+        <?if $(var.IncludePython2) = true ?>
         <Component Id="MSVCRUNTIME" Guid="30ce4f57-47ce-47c0-8564-e510d69787a9">
             <Condition> <![CDATA[VersionNT <= 601]]> </Condition>
             <File Id="msvcm90.dll"
@@ -278,6 +279,7 @@
                 DiskId="1"
                 Source="$(var.BinFiles)/Microsoft.VC90.CRT.manifest"/>
         </Component>
+        <?endif ?>
         <Directory Id="AGENT" Name="agent">
           <!-- Windows service declaration for APM agent -->
           <Component Id="DATADOGAPMSERVICE" Guid="a8e611fa-aedb-4c16-969c-bb827af0bd53">

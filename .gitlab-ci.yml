@@ -61,6 +61,8 @@ variables:
   RELEASE_VERSION: nightly
   DATADOG_AGENT_BUILDIMAGES: v1631023-f2ae59b
   DATADOG_AGENT_BUILDERS: v1613952-f072482
+  BUILD_AGENT6: "true"
+  BUILD_AGENT7: "true"
 
 
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
@@ -468,7 +470,7 @@ agent_suse-x64:
       - $OMNIBUS_PACKAGE_DIR_SUSE
 
 # build Agent package for Windows
-build_windows_msi_x64:
+.build_windows_msi_64:
   ## this is a weird workaround. Can't use the built-in CI_PROJECT_DIR because the path separators
   ## are wrong.  Record the PROJECT dir with the correct path separators to be used later
   before_script:
@@ -492,13 +494,31 @@ build_windows_msi_x64:
     # remove artifacts from previous pipelines that may come from the cache
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
     # use --skip-deps since the deps are installed by `before_script`
-    - inv agent.omnibus-build --release-version %RELEASE_VERSION% --omnibus-s3-cache --base-dir %OMNIBUS_BASE_DIR_WIN_OMNIBUS% --skip-deps
+    - inv agent.omnibus-build --prefix %PREFIX_VERSION% --release-version %RELEASE_VERSION% --omnibus-s3-cache --base-dir %OMNIBUS_BASE_DIR_WIN_OMNIBUS% --skip-deps
     # copy the results from the build dir to here, because artifacts must be relative to the project directory
     - copy %OMNIBUS_BASE_DIR_WIN%\pkg\* %WIN_CI_PROJECT_DIR%\.omnibus\pkg
   artifacts:
     expire_in: 2 weeks
     paths:
       - .omnibus/pkg
+
+build_windows_a6_msi_x64:
+  extends: .build_windows_msi_64
+  variables:
+    PREFIX_VERSION: "A6"
+  only:
+    variables:
+      - $BUILD_AGENT6 == "true"
+  
+
+build_windows_a7_msi_x64:
+  extends: .build_windows_msi_64
+  variables:
+    PREFIX_VERSION: "A7"
+  only:
+    variables:
+      - $BUILD_AGENT7 == "true"
+
 
 # build Agent package for android
 agent_android_apk:
