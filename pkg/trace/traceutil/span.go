@@ -47,3 +47,11 @@ func setMetric(s *pb.Span, key string, val float64) {
 	}
 	s.Metrics[key] = val
 }
+
+// SetMeta sets the metadata at key to the val on the span s.
+func SetMeta(s *pb.Span, key, val string) {
+	if s.Meta == nil {
+		s.Meta = make(map[string]string)
+	}
+	s.Meta[key] = val
+}
