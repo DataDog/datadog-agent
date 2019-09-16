@@ -130,7 +130,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		if _, ok := enabledProbes[probeName]; ok {
 			// check if we should override kprobe name
 			if override, ok := kprobeOverrides[probeName]; ok {
-				if err = m.UpdateSecName(bpflib.TypeProbe, string(probeName), string(override)); err != nil {
+				if err = m.UpdateKprobeSecName(string(probeName), string(override)); err != nil {
 					return nil, fmt.Errorf("could not update kprobe \"%s\" to \"%s\" : %s", k.Name, string(override), err)
 				}
 			}
