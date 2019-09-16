@@ -83,7 +83,7 @@
         dest: "/home/ubuntu/{{ item }}"
       with_items:
         - docker-compose.yml
-    - name: Gather facts (we need docker network interface ip)
+    - name: Gather facts (we need the docker network interface ip)
       setup:
     - name: Run Docker compose
       command: docker-compose up --scale stackstate-books-app=2 --scale stackstate-authors-app=2 -d

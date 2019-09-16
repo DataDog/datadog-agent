@@ -18,7 +18,7 @@
             skip_instances: true
 
     - name: Destroy molecule instance(s)
-      ec2:
+      ec2_instance:
         state: absent
         instance_ids: "{{ item.instance_ids }}"
       register: server

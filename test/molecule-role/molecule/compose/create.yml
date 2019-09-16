@@ -63,23 +63,23 @@
       when: keypair.changed
 
     - name: Create molecule instance(s)
-      ec2:
+      ec2_instance:
         key_name: "{{ keypair_name }}"
-        image: "{{ item.image }}"
+        image_id: "{{ item.image }}"
         instance_type: "{{ item.instance_type }}"
         vpc_subnet_id: "{{ item.vpc_subnet_id }}"
-        group: "{{ security_group_name }}"
-        instance_tags:
+        security_group: "{{ security_group_name }}"
+        tags:
           Name: "{{ item.name }}"
           instance: "{{ item.name }}"
           molecule_run_id: "{{ molecule_run_id }}"
           molecule: yes
         wait: true
-        assign_public_ip: true
-        exact_count: 1
-        count_tag:
-          instance: "{{ item.name }}"
-          molecule_run_id: "{{ molecule_run_id }}"
+        network:
+          assign_public_ip: true
+        filters:
+          tag:Name: "{{ item.name }}"
+          instance-state-name: pending
       register: server
       with_items: "{{ molecule_yml.platforms }}"
       async: 7200
@@ -100,9 +100,9 @@
     - name: Populate instance config dict
       set_fact:
         instance_conf_dict: {
-          'instance': "{{ item.tagged_instances[0].tags.instance }}",
-          'address': "{{ item.tagged_instances[0].public_ip }}",
-          'private_address': "{{ item.tagged_instances[0].private_ip }}",
+          'instance': "{{ item.instances[0].tags.instance }}",
+          'address': "{{ item.instances[0].public_ip_address }}",
+          'private_address': "{{ item.instances[0].private_ip_address }}",
           'user': "{{ item.item.item.ssh_user }}",
           'port': "{{ ssh_port }}",
           'identity_file': "{{ keypair_path }}",

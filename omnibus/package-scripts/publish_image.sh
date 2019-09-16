@@ -14,7 +14,7 @@ echo "${IMAGE_REPO}"
 echo "${DOCKERFILE_PATH}"
 
 docker build -t "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${IMAGE_TAG}" "${DOCKERFILE_PATH}"
-docker login -u "${DOCKER_USER}" -p "${DOCKER_PASS}" "${REGISTRY}"
+docker login -u "${docker_user}" -p "${docker_password}" "${REGISTRY}"
 docker push "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${IMAGE_TAG}"
 
 if [ "$PUSH_LATEST" = "true" ]; then

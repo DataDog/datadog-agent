@@ -1,14 +1,9 @@
 ---
-
 - hosts: all
-
   tasks:
-
     # - name: Wait until the file provisioned.txt is present before continuing
     #   wait_for:
     #     path: c:\provisioned.txt
-
     - pause:
         minutes: 10
-
     - win_ping:
