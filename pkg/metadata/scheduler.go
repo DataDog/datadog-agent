@@ -24,7 +24,6 @@ var catalog = make(map[string]Collector)
 // time intervals
 type Scheduler struct {
 	srl           *serializer.Serializer
-	hostname      string
 	tickers       []*time.Ticker
 	healthHandles []*health.Handle
 	context       context.Context
@@ -32,10 +31,9 @@ type Scheduler struct {
 }
 
 // NewScheduler builds and returns a new Metadata Scheduler
-func NewScheduler(s *serializer.Serializer, hostname string) *Scheduler {
+func NewScheduler(s *serializer.Serializer) *Scheduler {
 	scheduler := &Scheduler{
-		srl:      s,
-		hostname: hostname,
+		srl: s,
 	}
 
 	err := scheduler.firstRun()

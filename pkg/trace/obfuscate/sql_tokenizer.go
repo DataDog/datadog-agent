@@ -22,39 +22,41 @@ import (
 // list of available tokens; this list has been reduced because we don't
 // need a full-fledged tokenizer to implement a Lexer
 const (
-	EOFChar           = 0x100
-	LexError          = 57346
-	ID                = 57347
-	Limit             = 57348
-	Null              = 57349
-	String            = 57350
-	Number            = 57351
-	BooleanLiteral    = 57352
-	ValueArg          = 57353
-	ListArg           = 57354
-	Comment           = 57355
-	Variable          = 57356
-	Savepoint         = 57357
-	PreparedStatement = 57358
-	EscapeSequence    = 57359
-	NullSafeEqual     = 57360
-	LE                = 57361
-	GE                = 57362
-	NE                = 57363
-	As                = 57365
+	EOFChar  = 0x100
+	LexError = 57346 + iota
+	ID
+	Limit
+	Null
+	String
+	DoubleQuotedString
+	Number
+	BooleanLiteral
+	ValueArg
+	ListArg
+	Comment
+	Variable
+	Savepoint
+	PreparedStatement
+	EscapeSequence
+	NullSafeEqual
+	LE
+	GE
+	NE
+	As
 
-	// Filtered specifies that the given token has been discarded by one of the
-	// token filters.
-	Filtered = 57364
+	// FilteredGroupable specifies that the given token has been discarded by one of the
+	// token filters and that it is groupable together with consecutive FilteredGroupable
+	// tokens.
+	FilteredGroupable
 
-	// FilteredComma specifies that the token is a comma and was discarded by one
+	// Filtered specifies that the token is a comma and was discarded by one
 	// of the filters.
-	FilteredComma = 57366
+	Filtered
 
 	// FilteredBracketedIdentifier specifies that we are currently discarding
 	// a bracketed identifier (MSSQL).
 	// See issue https://github.com/DataDog/datadog-trace-agent/issues/475.
-	FilteredBracketedIdentifier = 57367
+	FilteredBracketedIdentifier
 )
 
 // Tokenizer is the struct used to generate SQL
@@ -173,7 +175,7 @@ func (tkn *Tokenizer) Scan() (int, []byte) {
 		case '\'':
 			return tkn.scanString(ch, String)
 		case '"':
-			return tkn.scanString(ch, ID)
+			return tkn.scanString(ch, DoubleQuotedString)
 		case '`':
 			return tkn.scanLiteralIdentifier('`')
 		case '%':
