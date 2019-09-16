@@ -37,14 +37,12 @@ def get_gopath(ctx):
 
 def get_multi_python_location(embedded_path=None, rtloader_root=None):
     if rtloader_root is None:
-        rtloader_lib = "{}/lib".format(rtloader_root or embedded_path)
-        rtloader_headers = "{}/include".format(rtloader_root or embedded_path)
-        rtloader_common_headers = "{}/common".format(rtloader_root or embedded_path)
-    # if rtloader_root is specified we're working in dev mode from the rtloader folder
-    else:
+        rtloader_lib = "{}/lib".format(embedded_path)
+    else: # if rtloader_root is specified we're working in dev mode from the rtloader folder
         rtloader_lib = "{}/rtloader".format(rtloader_root)
-        rtloader_headers = "{}/include".format(rtloader_root)
-        rtloader_common_headers = "{}/common".format(rtloader_root)
+
+    rtloader_headers = "{}/include".format(rtloader_root or embedded_path)
+    rtloader_common_headers = "{}/common".format(rtloader_root or embedded_path)
 
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
