@@ -225,7 +225,7 @@ func StartAgent() error {
 	common.StartAutoConfig()
 
 	// setup the metadata collector
-	common.MetadataScheduler = metadata.NewScheduler(s, hostname)
+	common.MetadataScheduler = metadata.NewScheduler(s)
 	if err := metadata.SetupMetadataCollection(common.MetadataScheduler, metadata.AllDefaultCollectors); err != nil {
 		return err
 	}
