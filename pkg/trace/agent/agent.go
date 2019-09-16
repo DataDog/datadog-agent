@@ -198,12 +198,7 @@ func (a *Agent) Process(t *api.Trace) {
 		sampler.AddGlobalRate(root, rateLimiterRate)
 
 		if t.ContainerTags != "" {
-			// At this point of Process(), the `Meta` map may not be initialized. This case happens
-			// when there is a Trace with a root span without tags.
-			if root.Meta == nil {
-				root.Meta = make(map[string]string)
-			}
-			root.Meta[tagContainersTags] = t.ContainerTags
+			traceutil.SetMeta(root, tagContainersTags, t.ContainerTags)
 		}
 	}
 
