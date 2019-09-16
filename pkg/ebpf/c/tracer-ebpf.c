@@ -530,7 +530,7 @@ int kprobe__tcp_sendmsg__rhel(struct pt_regs* ctx) {
     if (status == NULL) {
         return 0;
     }
-    log_debug("kprobe/tcp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    log_debug("kprobe/tcp_sendmsg/rhel: pid_tgid: %d, size: %d\n", pid_tgid, size);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -677,7 +677,7 @@ int kprobe__udp_sendmsg__rhel(struct pt_regs* ctx) {
         return 0;
     }
 
-    log_debug("kprobe/udp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    log_debug("kprobe/udp_sendmsg/rhel: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0);
 
     return 0;
