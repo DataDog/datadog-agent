@@ -15,6 +15,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type MockCollector struct {
+	SendCalledC chan bool
+}
+
+func (c MockCollector) Send(s *serializer.Serializer) error {
+	c.SendCalledC <- true
+	return nil
+}
+
 func TestNewScheduler(t *testing.T) {
 	firstRun = false
 	defer func() { firstRun = true }()
@@ -35,9 +44,17 @@ func TestStopScheduler(t *testing.T) {
 	fwd.Start()
 	s := serializer.NewSerializer(fwd)
 	c := NewScheduler(s)
-	c.AddCollector("test", time.Duration(60))
-	c.AddCollector("test2", time.Duration(60))
+
+	mockCollector := MockCollector{
+		SendCalledC: make(chan bool, 3),
+	}
+	RegisterCollector("test", mockCollector)
+
+	err := c.AddCollector("test", time.Duration(60))
+	assert.NoError(t, err)
+
 	c.Stop()
+
 	assert.Equal(t, context.Canceled, c.context.Err())
 }
 
@@ -51,15 +68,7 @@ func mockNewTicker(d time.Duration) *time.Ticker {
 
 func mockNewTickerNoTick(d time.Duration) *time.Ticker {
 	return time.NewTicker(1000 * time.Hour)
-}
 
-type MockCollector struct {
-	SendCalledC chan bool
-}
-
-func (c MockCollector) Send(s *serializer.Serializer) error {
-	c.SendCalledC <- true
-	return nil
 }
 
 func TestCollectorSendLogic(t *testing.T) {
