@@ -1,5 +1,7 @@
 package quantile
 
+import "math"
+
 const (
 	agentBufCap = 512
 )
@@ -55,6 +57,46 @@ func (a *Agent) Insert(v float64) {
 	}
 
 	a.flush()
+}
+
+// InsertBucket inserts `count` points assuming a uniform distribution between `low` and `high`.
+// TODO: Summary statistics.
+func (a *Agent) InsertBucket(low, high float64, count uint) {
+	lowKey := agentConfig.key(low)
+	highKey := agentConfig.key(high)
+
+	var bins []bin
+	if lowKey == highKey { // Everything goes in the one sketch bucket.
+		bins = appendSafe(bins, lowKey, int(count))
+	} else if lowKey+1 == highKey { // Balance between two sketch buckets.
+		bound := agentConfig.f64(highKey)
+		// Add points to the lower key based on the amount the two sketch buckets overlap with the
+		// provided bucket.
+		lowPoints := int(math.Round((bound - low) / (high - low) * float64(count)))
+		bins = appendSafe(bins, lowKey, lowPoints)
+		bins = appendSafe(bins, highKey, int(count)-lowPoints)
+	} else { // More than two sketch buckets.
+		// Add the points for the bottom bucket.
+		ratio := float64(count) / (high - low)
+		lowPoints := int(math.Round((agentConfig.f64(lowKey+1) - low) * ratio))
+		bins = appendSafe(bins, lowKey, lowPoints)
+
+		// Add the middle points.
+		addedPoints := lowPoints
+		for key := lowKey + 1; key < highKey; key++ {
+			// TODO: It might be more efficient to multiple by `gamma` here.
+			bucketLen := agentConfig.f64(key+1) - agentConfig.f64(key)
+			points := int(math.Round(bucketLen * ratio))
+			bins = appendSafe(bins, key, points)
+			addedPoints += points
+		}
+
+		// Add the remaining points.
+		bins = appendSafe(bins, highKey, int(count)-addedPoints)
+	}
+
+	sparse := &sparseStore{count: int(count), bins: bins}
+	a.Sketch.merge(agentConfig, sparse)
 }
 
 // InsertN inserts v, n times into the sketch.
