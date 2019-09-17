@@ -20,12 +20,23 @@ import (
 // Catalog keeps track of metadata collectors by name
 var catalog = make(map[string]Collector)
 
+var (
+	// For testing purposes
+	newTicker = time.NewTicker
+)
+
+type scheduledCollector struct {
+	interval     time.Duration
+	sendTicker   *time.Ticker
+	healthHandle *health.Handle
+	forceC       chan bool
+}
+
 // Scheduler takes care of sending metadata at specific
 // time intervals
 type Scheduler struct {
 	srl           *serializer.Serializer
-	tickers       []*time.Ticker
-	healthHandles []*health.Handle
+	collectors    map[string]*scheduledCollector
 	context       context.Context
 	contextCancel context.CancelFunc
 }
@@ -33,7 +44,8 @@ type Scheduler struct {
 // NewScheduler builds and returns a new Metadata Scheduler
 func NewScheduler(s *serializer.Serializer) *Scheduler {
 	scheduler := &Scheduler{
-		srl: s,
+		srl:        s,
+		collectors: make(map[string]*scheduledCollector),
 	}
 
 	err := scheduler.firstRun()
@@ -48,13 +60,12 @@ func NewScheduler(s *serializer.Serializer) *Scheduler {
 
 // Stop scheduling collectors
 func (c *Scheduler) Stop() {
-	for _, t := range c.tickers {
-		t.Stop()
-	}
-	for _, h := range c.healthHandles {
-		h.Deregister()
-	}
 	c.contextCancel()
+	for _, sc := range c.collectors {
+		sc.sendTicker.Stop()
+		sc.healthHandle.Deregister()
+		sc.forceC = nil //No need to close it, will be GC'd once the goroutine using it ends
+	}
 }
 
 // AddCollector schedules a Metadata Collector at the given interval
@@ -64,8 +75,12 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 		return fmt.Errorf("Unable to find metadata collector: %s", name)
 	}
 
-	sendTicker := time.NewTicker(interval)
-	health := health.Register("metadata-" + name)
+	sc := &scheduledCollector{
+		interval:     interval,
+		sendTicker:   newTicker(interval),
+		healthHandle: health.Register("metadata-" + name),
+		forceC:       make(chan bool, 1),
+	}
 
 	go func() {
 		ctx, cancelCtxFunc := context.WithCancel(c.context)
@@ -74,18 +89,42 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 			select {
 			case <-ctx.Done():
 				return
-			case <-health.C:
-			case <-sendTicker.C:
+			case <-sc.healthHandle.C:
+				// Purposely empty
+			case <-sc.sendTicker.C:
+				if err := p.Send(c.srl); err != nil {
+					log.Errorf("Unable to send '%s' metadata: %v", name, err)
+				}
+			case <-sc.forceC:
 				if err := p.Send(c.srl); err != nil {
 					log.Errorf("Unable to send '%s' metadata: %v", name, err)
 				}
 			}
 		}
 	}()
-	c.tickers = append(c.tickers, sendTicker)
-	c.healthHandles = append(c.healthHandles, health)
+	c.collectors[name] = sc
 
 	return nil
+}
+
+// SendNow runs a collector immediately and resets its ticker
+func (c *Scheduler) SendNow(name string) {
+	sc, found := c.collectors[name]
+
+	if !found {
+		log.Errorf("Unable to find '" + name + "' metadata collector in the catalog!")
+	}
+
+	if sc.forceC == nil {
+		log.Debugf("Ignoring SendNow for '" + name + "', looks like the Scheduler has been stopped.")
+	}
+
+	// There is no function to reset a ticker. We have to Stop it and create a new one.
+	sc.sendTicker.Stop()
+	sc.sendTicker = newTicker(sc.interval)
+
+	// Signal *after* reseting the ticker so the goroutine picks up the new ticker on the next iteration.
+	sc.forceC <- true
 }
 
 // Always send host metadata at the first run

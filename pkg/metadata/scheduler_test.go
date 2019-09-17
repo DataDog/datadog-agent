@@ -33,3 +33,69 @@ func TestStopScheduler(t *testing.T) {
 	c.Stop()
 	assert.Equal(t, context.Canceled, c.context.Err())
 }
+
+func mockNewTicker(d time.Duration) *time.Ticker {
+	c := make(chan time.Time, 1)
+	ticker := time.NewTicker(1000 * time.Hour)
+	ticker.C = c
+	c <- time.Now() // Ticks as soon as it's created
+	return ticker
+}
+
+func mockNewTickerNoTick(d time.Duration) *time.Ticker {
+	return time.NewTicker(1000 * time.Hour)
+}
+
+type MockCollector struct {
+	SendCalledC chan bool
+}
+
+func (c MockCollector) Send(s *serializer.Serializer) error {
+	c.SendCalledC <- true
+	return nil
+}
+
+func TestCollectorSendLogic(t *testing.T) {
+	newTicker = mockNewTicker
+	defer func() { newTicker = time.NewTicker }()
+
+	mockCollector := MockCollector{
+		SendCalledC: make(chan bool, 3),
+	}
+
+	fwd := forwarder.NewDefaultForwarder(nil)
+	fwd.Start()
+	s := serializer.NewSerializer(fwd)
+	c := NewScheduler(s)
+	RegisterCollector("testCollector", mockCollector)
+
+	c.AddCollector("testCollector", 1000)
+
+	select {
+	case called := <-mockCollector.SendCalledC:
+		assert.Equal(t, true, called)
+	case <-time.After(5 * time.Second):
+		assert.Fail(t, "Timeout waiting for send to be called")
+	}
+	select {
+	case <-mockCollector.SendCalledC:
+		assert.Fail(t, "Send was called more than once")
+	default:
+	}
+
+	newTicker = mockNewTickerNoTick
+	c.SendNow("testCollector")
+
+	select {
+	case called := <-mockCollector.SendCalledC:
+		assert.Equal(t, true, called)
+	case <-time.After(5 * time.Second):
+		assert.Fail(t, "Timeout waiting for send to be called")
+	}
+	select {
+	case <-mockCollector.SendCalledC:
+		assert.Fail(t, "Send was called more than once")
+	default:
+	}
+
+}
