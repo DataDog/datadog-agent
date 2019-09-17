@@ -20,14 +20,14 @@ def clear_cmake_cache(rtloader_path, settings):
     if not os.path.exists(cmake_cache):
         return
 
-    settings = settings.copy()
+    settings_dupe = settings.copy()
     with open(cmake_cache) as cache:
         for line in cache.readlines():
             for key, value in settings.items():
                 if line.strip() == key + "=" + value:
-                    settings.pop(key)
+                    settings_dupe.pop(key)
 
-    if settings:
+    if settings_dupe:
         os.remove(cmake_cache)
 
 @task
@@ -39,7 +39,7 @@ def build(ctx, install_prefix=None, python_runtimes=None, cmake_options='', arch
 
     cmake_args = cmake_options + " -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={}".format(install_prefix or dev_path)
 
-    python_runtimes = python_runtimes or os.environ.get("PYTHON_RUNTIMES") or "2"
+    python_runtimes = python_runtimes or os.environ.get("PYTHON_RUNTIMES") or "3"
     python_runtimes = python_runtimes.split(',')
 
     settings = {
