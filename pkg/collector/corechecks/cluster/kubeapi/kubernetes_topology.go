@@ -480,10 +480,8 @@ func containerToPodStackStateRelation(containerExternalID, podExternalID string)
 func (t *TopologyCheck) serviceToStackStateComponent(service v1.Service, endpoints []EndpointID) topology.Component {
 	log.Tracef("Mapping kubernetes pod service to StackState component: %s", service.String())
 	// create identifier list to merge with StackState components
+	var identifiers []string
 	serviceID := buildServiceID(service.Namespace, service.Name)
-	identifiers := []string{
-		fmt.Sprintf("urn:service:/%s", serviceID),
-	}
 
 	// all external ip's which are associated with this service, but are not managed by kubernetes
 	for _, ip := range service.Spec.ExternalIPs {
@@ -494,14 +492,14 @@ func (t *TopologyCheck) serviceToStackStateComponent(service v1.Service, endpoin
 
 	// all endpoints for this service
 	for _, endpoint := range endpoints {
-		identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", serviceID, endpoint.URL))
+		identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", t.instance.ClusterName, endpoint.URL))
 	}
 
 	switch service.Spec.Type {
 	case v1.ServiceTypeClusterIP:
-		identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", serviceID, service.Spec.ClusterIP))
+		identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", t.instance.ClusterName, service.Spec.ClusterIP))
 	case v1.ServiceTypeLoadBalancer:
-		identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", serviceID, service.Spec.LoadBalancerIP))
+		identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", t.instance.ClusterName, service.Spec.LoadBalancerIP))
 	default:
 	}
 
