@@ -191,6 +191,9 @@ func RunJmxCommand(command string, reporter jmxfetch.JMXReporter) error {
 	return nil
 }
 
+// RunJmxListWithMetrics runs the JMX command with "with-metrics", reporting
+// the data as a JSON on the console. It is used by the `check jmx` cli command
+// of the Agent.
 func RunJmxListWithMetrics() error {
 	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterJson)
 }

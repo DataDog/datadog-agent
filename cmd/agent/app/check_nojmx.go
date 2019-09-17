@@ -9,7 +9,8 @@ package app
 
 import "fmt"
 
-// The Puppy Agent doesn't support JMX.
+// RunJmxListWithMetrics is not supported in the Puppy Agent because it doesn't
+// support JMXFetch.
 func RunJmxListWithMetrics() error {
 	return fmt.Errorf("Not supported in the Puppy Agent.")
 }
