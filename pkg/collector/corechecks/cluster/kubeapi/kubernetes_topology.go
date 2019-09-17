@@ -25,10 +25,17 @@ const (
 	kubernetesAPITopologyCheckName = "kubernetes_api_topology"
 )
 
+type ClusterType string
+
+const (
+	Kubernetes ClusterType = "kubernetes"
+	OpenShift              = "openshift"
+)
+
 // TopologyConfig is the config of the API server.
 type TopologyConfig struct {
 	ClusterName     string `yaml:"cluster_name"`
-	CollectTopology bool `yaml:"collect_topology"`
+	CollectTopology bool   `yaml:"collect_topology"`
 	CheckID         check.ID
 	Instance        topology.Instance
 }
@@ -87,7 +94,17 @@ func (t *TopologyCheck) Run() error {
 
 	// set the check "instance id" for snapshots
 	t.instance.CheckID = kubernetesAPITopologyCheckName
-	t.instance.Instance = topology.Instance{Type: "kubernetes", URL: t.instance.ClusterName}
+
+	var instanceCluterType ClusterType
+	switch openshiftPresence := t.ac.DetectOpenShiftAPILevel(); openshiftPresence {
+	case apiserver.OpenShiftAPIGroup:
+	case apiserver.OpenShiftOAPI:
+		instanceCluterType = OpenShift
+		break
+	case apiserver.NotOpenShift:
+		instanceCluterType = Kubernetes
+	}
+	t.instance.Instance = topology.Instance{Type: string(instanceCluterType), URL: t.instance.ClusterName}
 
 	// start the topology snapshot with the batch-er
 	batcher.GetBatcher().SubmitStartSnapshot(t.instance.CheckID, t.instance.Instance)
@@ -309,12 +326,12 @@ func (t *TopologyCheck) nodeToStackStateComponent(node v1.Node) topology.Compone
 	nodeStatus.Conditions = make([]v1.NodeCondition, 0)
 	nodeStatus.Images = make([]v1.ContainerImage, 0)
 
-	tags := node.Labels
+	tags := emptyIfNil(node.Labels)
 	tags = t.addClusterNameTag(tags)
 
 	component := topology.Component{
 		ExternalID: nodeExternalID,
-		Type:       topology.Type{Name: "kubernetes-node"},
+		Type:       topology.Type{Name: fmt.Sprintf("%s-node", t.instance.Instance.Type)},
 		Data: map[string]interface{}{
 			"name":              node.Name,
 			"kind":              node.Kind,
@@ -350,12 +367,12 @@ func (t *TopologyCheck) podToStackStateComponent(pod v1.Pod) topology.Component 
 	podStatus.Conditions = make([]v1.PodCondition, 0)
 	podStatus.ContainerStatuses = make([]v1.ContainerStatus, 0)
 
-	tags := pod.Labels
+	tags := emptyIfNil(pod.Labels)
 	tags = t.addClusterNameTag(tags)
 
 	component := topology.Component{
 		ExternalID: podExternalID,
-		Type:       topology.Type{Name: "kubernetes-pod"},
+		Type:       topology.Type{Name: fmt.Sprintf("%s-pod", t.instance.Instance.Type)},
 		Data: map[string]interface{}{
 			"name":              pod.Name,
 			"kind":              pod.Kind,
@@ -415,7 +432,7 @@ func (t *TopologyCheck) containerToStackStateComponent(node v1.Node, pod v1.Pod,
 
 	containerExternalID := buildContainerExternalID(t.instance.ClusterName, pod.Name, container.Name)
 
-	tags := pod.Labels
+	tags := emptyIfNil(pod.Labels)
 	tags = t.addClusterNameTag(tags)
 
 	data := map[string]interface{}{
@@ -426,7 +443,7 @@ func (t *TopologyCheck) containerToStackStateComponent(node v1.Node, pod v1.Pod,
 		},
 		"restartCount": container.RestartCount,
 		"identifiers":  identifiers,
-		"tags": tags,
+		"tags":         tags,
 	}
 
 	if container.State.Running != nil {
@@ -435,7 +452,7 @@ func (t *TopologyCheck) containerToStackStateComponent(node v1.Node, pod v1.Pod,
 
 	component := topology.Component{
 		ExternalID: containerExternalID,
-		Type:       topology.Type{Name: "kubernetes-container"},
+		Type:       topology.Type{Name: fmt.Sprintf("%s-container", t.instance.Instance.Type)},
 		Data:       data,
 	}
 
@@ -494,7 +511,7 @@ func (t *TopologyCheck) serviceToStackStateComponent(service v1.Service, endpoin
 
 	serviceExternalID := buildServiceExternalID(t.instance.ClusterName, serviceID)
 
-	tags := service.Labels
+	tags := emptyIfNil(service.Labels)
 	tags = t.addClusterNameTag(tags)
 
 	data := map[string]interface{}{
@@ -511,7 +528,7 @@ func (t *TopologyCheck) serviceToStackStateComponent(service v1.Service, endpoin
 
 	component := topology.Component{
 		ExternalID: serviceExternalID,
-		Type:       topology.Type{Name: "kubernetes-service"},
+		Type:       topology.Type{Name: fmt.Sprintf("%s-service", t.instance.Instance.Type)},
 		Data:       data,
 	}
 
@@ -540,6 +557,13 @@ func podToServiceStackStateRelation(refExternalID, serviceExternalID string) top
 func (t *TopologyCheck) addClusterNameTag(tags map[string]string) map[string]string {
 	tags["cluster-name"] = t.instance.ClusterName
 	return tags
+}
+
+func emptyIfNil(m map[string]string) map[string]string {
+	if m == nil {
+		m = make(map[string]string, 0)
+	}
+	return m
 }
 
 func extractLastFragment(value string) string {
