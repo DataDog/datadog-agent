@@ -17,8 +17,6 @@ func (nullReverseDNS) Resolve(_ []ConnectionStats) []NamePair {
 	return nil
 }
 
-func (nullReverseDNS) Close() {
-	return
-}
+func (nullReverseDNS) Close() {}
 
 var _ ReverseDNS = nullReverseDNS{}

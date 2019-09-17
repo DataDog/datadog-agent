@@ -23,15 +23,10 @@ type reverseDNSCache struct {
 	resolved int64
 }
 
-type translation struct {
-	name string
-	ips  map[util.Address]struct{}
-}
-
-type cacheStats struct {
-	lookups  int64
-	resolved int64
-	len      int64
+type DNSStats struct {
+	Lookups  int64
+	Resolved int64
+	IPs      int64
 }
 
 func newReverseDNSCache(size int, ttl, expirationPeriod time.Duration) *reverseDNSCache {
@@ -119,16 +114,16 @@ func (c *reverseDNSCache) Len() int {
 	return int(atomic.LoadInt64(&c.len))
 }
 
-func (c *reverseDNSCache) Stats() cacheStats {
+func (c *reverseDNSCache) Stats() DNSStats {
 	var (
 		lookups  = atomic.SwapInt64(&c.lookups, 0)
 		resolved = atomic.SwapInt64(&c.resolved, 0)
 	)
 
-	return cacheStats{
-		lookups:  lookups,
-		resolved: resolved,
-		len:      int64(c.Len()),
+	return DNSStats{
+		Lookups:  lookups,
+		Resolved: resolved,
+		IPs:      int64(c.Len()),
 	}
 }
 
@@ -189,4 +184,20 @@ func (v *dnsCacheVal) copy() []string {
 	cpy := make([]string, len(v.names))
 	copy(cpy, v.names)
 	return cpy
+}
+
+type translation struct {
+	name string
+	ips  map[util.Address]struct{}
+}
+
+func newTranslation(domain []byte) *translation {
+	return &translation{
+		name: string(domain),
+		ips:  make(map[util.Address]struct{}),
+	}
+}
+
+func (t *translation) add(addr util.Address) {
+	t.ips[addr] = struct{}{}
 }

@@ -36,7 +36,7 @@ type SocketFilterSnooper struct {
 	source       *gopacket.PacketSource
 	socketFilter *bpflib.SocketFilter
 	socketFD     int
-	ipsToNames   *reverseDNSCache
+	cache        *reverseDNSCache
 	exit         chan struct{}
 	wg           sync.WaitGroup
 }
@@ -47,25 +47,22 @@ func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, 
 	if err != nil {
 		return nil, fmt.Errorf("error creating raw socket: %s", err)
 	}
-
 	packetSrc := gopacket.NewPacketSource(tpacket, layers.LayerTypeEthernet)
 
-	// Unfortunately the underlying socket file descriptor is private
+	// The underlying socket file descriptor is private, hence the use of reflection
 	socketFD := int(reflect.ValueOf(tpacket).Elem().FieldByName("fd").Int())
-
-	err = bpflib.AttachSocketFilter(filter, socketFD)
-	if err != nil {
+	if err := bpflib.AttachSocketFilter(filter, socketFD); err != nil {
 		return nil, fmt.Errorf("error attaching filter to socket: %s", err)
 	}
 
-	reverseDNSCache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
+	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
 	snooper := &SocketFilterSnooper{
 		tpacket:      tpacket,
 		source:       packetSrc,
 		socketFilter: filter,
 		socketFD:     socketFD,
+		cache:        cache,
 		exit:         make(chan struct{}),
-		ipsToNames:   reverseDNSCache,
 	}
 
 	// Start consuming packets
@@ -81,19 +78,20 @@ func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, 
 
 // Resolve IPs to Names
 func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) []NamePair {
-	return s.ipsToNames.Get(connections, time.Now())
+	return s.cache.Get(connections, time.Now())
 }
 
 // Close terminates the DNS traffic snooper as well as the underlying socket and the attached filter
 func (s *SocketFilterSnooper) Close() {
 	close(s.exit)
 	s.wg.Wait()
-	err := bpflib.DetachSocketFilter(s.socketFilter, s.socketFD)
-	if err != nil {
+
+	if err := bpflib.DetachSocketFilter(s.socketFilter, s.socketFD); err != nil {
 		log.Errorf("error detaching socket filter: %s", err)
 	}
+
 	s.tpacket.Close()
-	s.ipsToNames.Close()
+	s.cache.Close()
 }
 
 func (s *SocketFilterSnooper) run(packets <-chan gopacket.Packet) {
@@ -112,7 +110,7 @@ func (s *SocketFilterSnooper) run(packets <-chan gopacket.Packet) {
 			continue
 		}
 
-		s.ipsToNames.Add(translation, time.Now())
+		s.cache.Add(translation, time.Now())
 	}
 }
 
@@ -173,8 +171,8 @@ func parseAnswer(dns *layers.DNS) *translation {
 	var (
 		domainQueried = question.Name
 		records       = append(dns.Answers, dns.Additionals...)
-		ips           = map[util.Address]struct{}{}
 		aliases       = [][]byte{}
+		translation   = newTranslation(domainQueried)
 	)
 
 	// Traverse all the CNAME records and the get the aliases. There are when the A record is for only one of the aliases.
@@ -191,16 +189,16 @@ func parseAnswer(dns *layers.DNS) *translation {
 			continue
 		}
 		if bytes.Equal(domainQueried, record.Name) {
-			ips[util.AddressFromNetIP(record.IP)] = struct{}{}
+			translation.add(util.AddressFromNetIP(record.IP))
 			continue
 		}
 		for _, alias := range aliases {
 			if bytes.Equal(alias, record.Name) {
-				ips[util.AddressFromNetIP(record.IP)] = struct{}{}
+				translation.add(util.AddressFromNetIP(record.IP))
 				break
 			}
 		}
 	}
 
-	return &translation{name: string(domainQueried), ips: ips}
+	return translation
 }
