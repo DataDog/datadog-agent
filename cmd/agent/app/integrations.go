@@ -38,7 +38,10 @@ const (
 	pythonMinorVersionScript = "import sys;print(sys.version_info[1])"
 	integrationVersionScript = `
 import pkg_resources
-print(pkg_resources.get_distribution('%s')._version)
+try:
+	print(pkg_resources.get_distribution('%s').version)
+except pkg_resources.DistributionNotFound:
+	pass
 `
 )
 
@@ -670,7 +673,7 @@ func installedVersion(integration string) (*semver.Version, bool, error) {
 	}
 
 	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(integrationVersionScript, integration))
-	versionStr, err := pythonCmd.Output()
+	output, err := pythonCmd.Output()
 
 	if err != nil {
 		errMsg := ""
@@ -683,8 +686,12 @@ func installedVersion(integration string) (*semver.Version, bool, error) {
 		return nil, false, fmt.Errorf("error executing python: %s", errMsg)
 	}
 
-	version, err := semver.NewVersion(string(versionStr))
+	outputStr := strings.TrimSpace(string(output))
+	if outputStr == "" {
+		return nil, false, nil
+	}
 
+	version, err := semver.NewVersion(string(outputStr))
 	if err != nil {
 		return nil, true, fmt.Errorf("error parsing version %s: %s", version, err)
 	}
