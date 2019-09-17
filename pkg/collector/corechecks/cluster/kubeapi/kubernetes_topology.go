@@ -95,16 +95,14 @@ func (t *TopologyCheck) Run() error {
 	// set the check "instance id" for snapshots
 	t.instance.CheckID = kubernetesAPITopologyCheckName
 
-	var instanceCluterType ClusterType
+	var instanceClusterType ClusterType
 	switch openshiftPresence := t.ac.DetectOpenShiftAPILevel(); openshiftPresence {
-	case apiserver.OpenShiftAPIGroup:
-	case apiserver.OpenShiftOAPI:
-		instanceCluterType = OpenShift
-		break
+	case apiserver.OpenShiftAPIGroup, apiserver.OpenShiftOAPI:
+		instanceClusterType = OpenShift
 	case apiserver.NotOpenShift:
-		instanceCluterType = Kubernetes
+		instanceClusterType = Kubernetes
 	}
-	t.instance.Instance = topology.Instance{Type: string(instanceCluterType), URL: t.instance.ClusterName}
+	t.instance.Instance = topology.Instance{Type: string(instanceClusterType), URL: t.instance.ClusterName}
 
 	// start the topology snapshot with the batch-er
 	batcher.GetBatcher().SubmitStartSnapshot(t.instance.CheckID, t.instance.Instance)
@@ -211,7 +209,7 @@ func (t *TopologyCheck) getAllServices() error {
 						switch kind := address.TargetRef.Kind; kind {
 						// add endpoint url as identifier and create service -> pod relation
 						case "Pod":
-							endpointID.RefExternalID = buildPodExternalID(t.instance.ClusterName, address.TargetRef.Name)
+							endpointID.RefExternalID = t.buildPodExternalID(t.instance.ClusterName, address.TargetRef.Name)
 						// ignore different Kind's for now, create no relation
 						default:
 						}
@@ -319,7 +317,7 @@ func (t *TopologyCheck) nodeToStackStateComponent(node v1.Node) topology.Compone
 
 	log.Tracef("Created identifiers for %s: %v", node.Name, identifiers)
 
-	nodeExternalID := buildNodeExternalID(t.instance.ClusterName, node.Name)
+	nodeExternalID := t.buildNodeExternalID(t.instance.ClusterName, node.Name)
 
 	// clear out the unnecessary status array values
 	nodeStatus := node.Status
@@ -360,7 +358,7 @@ func (t *TopologyCheck) podToStackStateComponent(pod v1.Pod) topology.Component 
 	}
 	log.Tracef("Created identifiers for %s: %v", pod.Name, identifiers)
 
-	podExternalID := buildPodExternalID(t.instance.ClusterName, pod.Name)
+	podExternalID := t.buildPodExternalID(t.instance.ClusterName, pod.Name)
 
 	// clear out the unnecessary status array values
 	podStatus := pod.Status
@@ -395,8 +393,8 @@ func (t *TopologyCheck) podToStackStateComponent(pod v1.Pod) topology.Component 
 
 // Creates a StackState relation from a Kubernetes Pod to Node relation
 func (t *TopologyCheck) podToNodeStackStateRelation(pod v1.Pod) topology.Relation {
-	podExternalID := buildPodExternalID(t.instance.ClusterName, pod.Name)
-	nodeExternalID := buildNodeExternalID(t.instance.ClusterName, pod.Spec.NodeName)
+	podExternalID := t.buildPodExternalID(t.instance.ClusterName, pod.Name)
+	nodeExternalID := t.buildNodeExternalID(t.instance.ClusterName, pod.Spec.NodeName)
 
 	log.Tracef("Mapping kubernetes pod to node relation: %s -> %s", podExternalID, nodeExternalID)
 
@@ -430,7 +428,7 @@ func (t *TopologyCheck) containerToStackStateComponent(node v1.Node, pod v1.Pod,
 	}
 	log.Tracef("Created identifiers for %s: %v", container.Name, identifiers)
 
-	containerExternalID := buildContainerExternalID(t.instance.ClusterName, pod.Name, container.Name)
+	containerExternalID := t.buildContainerExternalID(t.instance.ClusterName, pod.Name, container.Name)
 
 	tags := emptyIfNil(pod.Labels)
 	tags = t.addClusterNameTag(tags)
@@ -509,7 +507,7 @@ func (t *TopologyCheck) serviceToStackStateComponent(service v1.Service, endpoin
 
 	log.Tracef("Created identifiers for %s: %v", service.Name, identifiers)
 
-	serviceExternalID := buildServiceExternalID(t.instance.ClusterName, serviceID)
+	serviceExternalID := t.buildServiceExternalID(t.instance.ClusterName, serviceID)
 
 	tags := emptyIfNil(service.Labels)
 	tags = t.addClusterNameTag(tags)
@@ -559,6 +557,22 @@ func (t *TopologyCheck) addClusterNameTag(tags map[string]string) map[string]str
 	return tags
 }
 
+func (t *TopologyCheck) buildNodeExternalID(clusterName, nodeName string) string {
+	return fmt.Sprintf("urn:/%s:%s:node:%s", t.instance.Instance.Type, clusterName, nodeName)
+}
+
+func (t *TopologyCheck) buildPodExternalID(clusterName, podName string) string {
+	return fmt.Sprintf("urn:/%s:%s:pod:%s", t.instance.Instance.Type, clusterName, podName)
+}
+
+func (t *TopologyCheck) buildContainerExternalID(clusterName, podName, containerName string) string {
+	return fmt.Sprintf("urn:/%s:%s:pod:%s:container:%s", t.instance.Instance.Type, clusterName, podName, containerName)
+}
+
+func (t *TopologyCheck) buildServiceExternalID(clusterName, serviceID string) string {
+	return fmt.Sprintf("urn:/%s:%s:service:%s", t.instance.Instance.Type, clusterName, serviceID)
+}
+
 func emptyIfNil(m map[string]string) map[string]string {
 	if m == nil {
 		m = make(map[string]string, 0)
@@ -574,22 +588,6 @@ func extractLastFragment(value string) string {
 func extractInstanceIdFromProviderId(spec v1.NodeSpec) string {
 	//parse node id from cloud provider (for AWS is the ec2 instance id)
 	return extractLastFragment(spec.ProviderID)
-}
-
-func buildNodeExternalID(clusterName, nodeName string) string {
-	return fmt.Sprintf("urn:/kubernetes:%s:node:%s", clusterName, nodeName)
-}
-
-func buildPodExternalID(clusterName, podName string) string {
-	return fmt.Sprintf("urn:/kubernetes:%s:pod:%s", clusterName, podName)
-}
-
-func buildContainerExternalID(clusterName, podName, containerName string) string {
-	return fmt.Sprintf("urn:/kubernetes:%s:pod:%s:container:%s", clusterName, podName, containerName)
-}
-
-func buildServiceExternalID(clusterName, serviceID string) string {
-	return fmt.Sprintf("urn:/kubernetes:%s:service:%s", clusterName, serviceID)
 }
 
 // buildServiceID - combination of the service namespace and service name
