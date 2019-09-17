@@ -21,7 +21,7 @@ import (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = [5]string{"conntrack", "state", "tracer", "ebpf", "kprobes"}
+	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns"}
 )
 
 func init() {
@@ -598,6 +598,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		},
 		"ebpf":    t.getEbpfTelemetry(),
 		"kprobes": GetProbeStats(),
+		"dns":     t.reverseDNS.GetStats(),
 	}, nil
 }
 

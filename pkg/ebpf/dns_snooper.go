@@ -81,6 +81,10 @@ func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) []NamePair 
 	return s.cache.Get(connections, time.Now())
 }
 
+func (s *SocketFilterSnooper) GetStats() map[string]int64 {
+	return s.cache.Stats()
+}
+
 // Close terminates the DNS traffic snooper as well as the underlying socket and the attached filter
 func (s *SocketFilterSnooper) Close() {
 	close(s.exit)

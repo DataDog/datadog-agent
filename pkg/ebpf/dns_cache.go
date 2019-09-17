@@ -23,12 +23,6 @@ type reverseDNSCache struct {
 	resolved int64
 }
 
-type DNSStats struct {
-	Lookups  int64
-	Resolved int64
-	IPs      int64
-}
-
 func newReverseDNSCache(size int, ttl, expirationPeriod time.Duration) *reverseDNSCache {
 	cache := &reverseDNSCache{
 		data: make(map[util.Address]*dnsCacheVal),
@@ -114,16 +108,17 @@ func (c *reverseDNSCache) Len() int {
 	return int(atomic.LoadInt64(&c.len))
 }
 
-func (c *reverseDNSCache) Stats() DNSStats {
+func (c *reverseDNSCache) Stats() map[string]int64 {
 	var (
 		lookups  = atomic.SwapInt64(&c.lookups, 0)
 		resolved = atomic.SwapInt64(&c.resolved, 0)
+		ips      = int64(c.Len())
 	)
 
-	return DNSStats{
-		Lookups:  lookups,
-		Resolved: resolved,
-		IPs:      int64(c.Len()),
+	return map[string]int64{
+		"lookups":  lookups,
+		"resolved": resolved,
+		"ips":      ips,
 	}
 }
 
