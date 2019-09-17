@@ -821,6 +821,9 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
     return 0;
 }
 
+// This function is meant to be used as a BPF_PROG_TYPE_SOCKET_FILTER.
+// When attached to a RAW_SOCKET, this code filters out everything but DNS traffic.
+// All structs referenced here are kernel independent as they simply map protocol headers (Ethernet, IP and UDP).
 SEC("socket/dns_filter")
 int socket__dns_filter(struct __sk_buff *skb) {
     __u16 l3_proto = load_half(skb, offsetof(struct ethhdr, h_proto));
