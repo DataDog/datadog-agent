@@ -172,15 +172,15 @@ func isCentOS(platform string) bool {
 	return strings.Contains(strings.ToLower(platform), "centos")
 }
 
-func isRhel(platform string) bool {
+func isRHEL(platform string) bool {
 	p := strings.ToLower(platform)
 	return strings.Contains(p, "redhat") || strings.Contains(p, "red hat") || strings.Contains(p, "rhel")
 }
 
-func isRhelOrCentOS() (bool, error) {
+func isRHELOrCentOS() (bool, error) {
 	platform, err := util.GetPlatform()
 	if err != nil {
 		return false, err
 	}
-	return isCentOS(platform) || isRhel(platform), nil
+	return isCentOS(platform) || isRHEL(platform), nil
 }

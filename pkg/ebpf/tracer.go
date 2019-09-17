@@ -116,14 +116,14 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
 
-	// check if current platform is Rhel or CentOS because it affects what kprobe are we going to enable
-	isRhel, err := isRhelOrCentOS()
+	// check if current platform is RHEL or CentOS because it affects what kprobe are we going to enable
+	isRHEL, err := isRHELOrCentOS()
 	if err != nil {
 		return nil, err
 	}
 
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes := config.EnabledKProbes(isRhel)
+	enabledProbes := config.EnabledKProbes(isRHEL)
 
 	for k := range m.IterKprobes() {
 		probeName := KProbeName(k.Name)
