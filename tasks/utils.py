@@ -37,9 +37,10 @@ def get_gopath(ctx):
 
 def get_multi_python_location(embedded_path=None, rtloader_root=None):
     if rtloader_root is None:
-        rtloader_lib = "{}/lib".format(embedded_path)
+        rtloader_lib = ["{}/lib".format(embedded_path),
+                        "{}/lib64".format(embedded_path)]
     else: # if rtloader_root is specified we're working in dev mode from the rtloader folder
-        rtloader_lib = "{}/rtloader".format(rtloader_root)
+        rtloader_lib = ["{}/rtloader".format(rtloader_root)]
 
     rtloader_headers = "{}/include".format(rtloader_root or embedded_path)
     rtloader_common_headers = "{}/common".format(rtloader_root or embedded_path)
@@ -75,9 +76,9 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
         ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, python_home_3)
 
     # adding rtloader libs and headers to the env
-    env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + ":{}".format(rtloader_lib) # OSX
-    env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + ":{}".format(rtloader_lib) # linux
-    env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + " -L{}".format(rtloader_lib)
+    env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + ":{}".format(':'.join(rtloader_lib)) # OSX
+    env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + ":{}".format(':'.join(rtloader_lib)) # linux
+    env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + " -L{}".format(' -L '.join(rtloader_lib))
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + " -w -I{} -I{}".format(rtloader_headers,
                                                                                   rtloader_common_headers)
 
