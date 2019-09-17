@@ -40,7 +40,7 @@ This is the complete list of the available components:
 * `clusterchecks`: enable cluster-level checks
 * `cri` : add support for the CRI integration
 * `containerd`: add support for the containerd integration
-* `kubeapiserver`: enable interaction with kubernetes apiserver (required by the cluster agent)
+* `kubeapiserver`: enable interaction with Kubernetes API server (required by the cluster Agent)
 
 Please note you might need to provide some extra dependencies in your dev
 environment to build certain bits (see [development environment][dev-env]).
