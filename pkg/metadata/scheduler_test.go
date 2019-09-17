@@ -16,14 +16,21 @@ import (
 )
 
 func TestNewScheduler(t *testing.T) {
+	firstRun = false
+	defer func() { firstRun = true }()
+
 	fwd := forwarder.NewDefaultForwarder(nil)
 	fwd.Start()
 	s := serializer.NewSerializer(fwd)
 	c := NewScheduler(s)
+
 	assert.Equal(t, fwd, c.srl.Forwarder)
 }
 
 func TestStopScheduler(t *testing.T) {
+	firstRun = false
+	defer func() { firstRun = true }()
+
 	fwd := forwarder.NewDefaultForwarder(nil)
 	fwd.Start()
 	s := serializer.NewSerializer(fwd)
@@ -56,6 +63,9 @@ func (c MockCollector) Send(s *serializer.Serializer) error {
 }
 
 func TestCollectorSendLogic(t *testing.T) {
+	firstRun = false
+	defer func() { firstRun = true }()
+
 	newTicker = mockNewTicker
 	defer func() { newTicker = time.NewTicker }()
 
