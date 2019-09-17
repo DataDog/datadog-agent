@@ -22,13 +22,13 @@ var catalog = make(map[string]Collector)
 
 var (
 	// For testing purposes
-	newTicker = time.NewTicker
-	firstRun  = true
+	newTimer = time.NewTimer
+	firstRun = true
 )
 
 type scheduledCollector struct {
 	interval     time.Duration
-	sendTicker   *time.Ticker
+	sendTimer    *time.Timer
 	healthHandle *health.Handle
 	forceC       chan bool
 }
@@ -65,7 +65,7 @@ func NewScheduler(s *serializer.Serializer) *Scheduler {
 func (c *Scheduler) Stop() {
 	c.contextCancel()
 	for _, sc := range c.collectors {
-		sc.sendTicker.Stop()
+		sc.sendTimer.Stop()
 		sc.healthHandle.Deregister()
 		sc.forceC = nil //No need to close it, will be GC'd once the goroutine using it ends
 	}
@@ -80,7 +80,7 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 
 	sc := &scheduledCollector{
 		interval:     interval,
-		sendTicker:   newTicker(interval),
+		sendTimer:    newTimer(interval),
 		healthHandle: health.Register("metadata-" + name),
 		forceC:       make(chan bool, 1),
 	}
@@ -94,7 +94,8 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 				return
 			case <-sc.healthHandle.C:
 				// Purposely empty
-			case <-sc.sendTicker.C:
+			case <-sc.sendTimer.C:
+				sc.sendTimer.Reset(sc.interval)
 				if err := p.Send(c.srl); err != nil {
 					log.Errorf("Unable to send '%s' metadata: %v", name, err)
 				}
@@ -122,12 +123,15 @@ func (c *Scheduler) SendNow(name string) {
 		log.Debugf("Ignoring SendNow for '" + name + "', looks like the Scheduler has been stopped.")
 	}
 
-	// There is no function to reset a ticker. We have to Stop it and create a new one.
-	sc.sendTicker.Stop()
-	sc.sendTicker = newTicker(sc.interval)
+	if !sc.sendTimer.Stop() {
+		// Drain the channel after stoping, as per Timer's documentation
+		// Explanation here: https://blogtitle.github.io/go-advanced-concurrency-patterns-part-2-timers/
+		<-sc.sendTimer.C
+	}
 
-	// Signal *after* reseting the ticker so the goroutine picks up the new ticker on the next iteration.
 	sc.forceC <- true
+
+	sc.sendTimer.Reset(sc.interval)
 }
 
 // Always send host metadata at the first run
