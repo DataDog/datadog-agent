@@ -104,7 +104,7 @@ bool Two::init()
 
     // init custom builtins
     if (init_stringutils() != EXIT_SUCCESS) {
-        setError("error initializing string utils");
+        setError("error initializing string utils: " + _fetchPythonError());
         goto done;
     }
     Py2_init_aggregator();
@@ -118,7 +118,7 @@ bool Two::init()
     // import the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
     if (_baseClass == NULL) {
-        setError("could not import base class");
+        setError("could not import base class: " + std::string(getError()));
     }
 
 done:

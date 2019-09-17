@@ -165,7 +165,7 @@ func start(cmd *cobra.Command, args []string) error {
 	log.Debugf("Using hostname: %s", hname)
 
 	// setup the metadata collector
-	metaScheduler := metadata.NewScheduler(s, hname)
+	metaScheduler := metadata.NewScheduler(s)
 	if err := metadata.SetupMetadataCollection(metaScheduler, []string{"host"}); err != nil {
 		metaScheduler.Stop()
 		return err

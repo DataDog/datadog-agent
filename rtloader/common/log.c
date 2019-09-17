@@ -14,7 +14,7 @@ void _set_log_cb(cb_log_t cb)
 
 // Logs a message to the agent logger. Caller is in charge of freeing the
 // message if needed.
-void agent_log(log_level_t log_level, char *message) {
+void agent_log(log_level_t log_level, const char *message) {
     if (cb_log == NULL || message == NULL) {
         return;
     }

@@ -27,12 +27,12 @@ extern "C" {
 */
 void _set_log_cb(cb_log_t);
 
-/*! \fn void agent_log( log_level_t, char *)
+/*! \fn void agent_log( log_level_t, const char *)
     \brief Logs the message to the agent loggers.
     \param log_level_t The log level to use to log the message.
-    \param char* A pointer to the message.
+    \param const char* A pointer to the message.
 */
-void agent_log(log_level_t, char *);
+void agent_log(log_level_t, const char *);
 
 #ifdef __cplusplus
 }

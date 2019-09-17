@@ -19,16 +19,15 @@ func TestNewScheduler(t *testing.T) {
 	fwd := forwarder.NewDefaultForwarder(nil)
 	fwd.Start()
 	s := serializer.NewSerializer(fwd)
-	c := NewScheduler(s, "hostname")
+	c := NewScheduler(s)
 	assert.Equal(t, fwd, c.srl.Forwarder)
-	assert.Equal(t, "hostname", c.hostname)
 }
 
 func TestStopScheduler(t *testing.T) {
 	fwd := forwarder.NewDefaultForwarder(nil)
 	fwd.Start()
 	s := serializer.NewSerializer(fwd)
-	c := NewScheduler(s, "hostname")
+	c := NewScheduler(s)
 	c.AddCollector("test", time.Duration(60))
 	c.AddCollector("test2", time.Duration(60))
 	c.Stop()
