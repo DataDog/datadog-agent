@@ -27,10 +27,8 @@ var (
 )
 
 type scheduledCollector struct {
-	interval     time.Duration
 	sendTimer    *time.Timer
 	healthHandle *health.Handle
-	forceC       chan bool
 }
 
 // Scheduler takes care of sending metadata at specific
@@ -67,7 +65,6 @@ func (c *Scheduler) Stop() {
 	for _, sc := range c.collectors {
 		sc.sendTimer.Stop()
 		sc.healthHandle.Deregister()
-		sc.forceC = nil //No need to close it, will be GC'd once the goroutine using it ends
 	}
 }
 
@@ -79,10 +76,8 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 	}
 
 	sc := &scheduledCollector{
-		interval:     interval,
 		sendTimer:    newTimer(interval),
 		healthHandle: health.Register("metadata-" + name),
-		forceC:       make(chan bool, 1),
 	}
 
 	go func() {
@@ -95,11 +90,9 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 			case <-sc.healthHandle.C:
 				// Purposely empty
 			case <-sc.sendTimer.C:
-				sc.sendTimer.Reset(sc.interval)
-				if err := p.Send(c.srl); err != nil {
-					log.Errorf("Unable to send '%s' metadata: %v", name, err)
-				}
-			case <-sc.forceC:
+				sc.sendTimer.Reset(interval) // Reset the timer, so it fires again after `interval`.
+				// Note we call `p.Send` on the collector *after* resetting the Timer, so
+				// the time spent by `p.Send` is not added to the total time between runs.
 				if err := p.Send(c.srl); err != nil {
 					log.Errorf("Unable to send '%s' metadata: %v", name, err)
 				}
@@ -111,16 +104,14 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 	return nil
 }
 
-// SendNow runs a collector immediately and resets its ticker
+// SendNow runs a collector immediately and resets its ticker.
+// Does nothing if the Scheduler has been stopped, since the
+// goroutine that listens on the Timer will not be running.
 func (c *Scheduler) SendNow(name string) {
 	sc, found := c.collectors[name]
 
 	if !found {
 		log.Errorf("Unable to find '" + name + "' metadata collector in the catalog!")
-	}
-
-	if sc.forceC == nil {
-		log.Debugf("Ignoring SendNow for '" + name + "', looks like the Scheduler has been stopped.")
 	}
 
 	if !sc.sendTimer.Stop() {
@@ -129,9 +120,7 @@ func (c *Scheduler) SendNow(name string) {
 		<-sc.sendTimer.C
 	}
 
-	sc.forceC <- true
-
-	sc.sendTimer.Reset(sc.interval)
+	sc.sendTimer.Reset(0) // Fire immediately
 }
 
 // Always send host metadata at the first run
