@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -119,7 +120,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	// check if current platform is RHEL or CentOS because it affects what kprobe are we going to enable
 	isRHEL, err := isRHELOrCentOS()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "cannot enable the correct kprobes because error in detecting platform")
 	}
 
 	// Use the config to determine what kernel probes should be enabled
