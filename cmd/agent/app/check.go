@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -143,7 +142,7 @@ var checkCmd = &cobra.Command{
 				// we'll mimic the check command behavior with JMXFetch by running
 				// it with the JSON reporter and the list_with_metrics command.
 				fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
-				if err := RunJmxCommand("list_with_metrics", jmxfetch.ReporterJson); err != nil {
+				if err := RunJmxListWithMetrics(); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 				return nil

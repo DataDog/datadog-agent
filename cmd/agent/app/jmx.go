@@ -191,6 +191,10 @@ func RunJmxCommand(command string, reporter jmxfetch.JMXReporter) error {
 	return nil
 }
 
+func RunJmxListWithMetrics() error {
+	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterJson)
+}
+
 func loadConfigs(runner *jmxfetch.JMXFetch) {
 	fmt.Println("Loading configs :")
 
