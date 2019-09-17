@@ -59,7 +59,7 @@ variables:
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   S3_DSD6_URI: s3://dsd6-staging/linux
   RELEASE_VERSION: nightly
-  DATADOG_AGENT_BUILDIMAGES: v1631023-f2ae59b
+  DATADOG_AGENT_BUILDIMAGES: v1707453-4ebe3c7
   DATADOG_AGENT_BUILDERS: v1613952-f072482
 
 
@@ -168,16 +168,27 @@ run_tests_deb-x64:
     - inv -e test --race --profile --cpus 4
 
 # run tests for rpm-x64
-run_test_rpm-x64:
+run_tests_rpm-x64:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
+  before_script:
+    - scl enable rh-python36 bash
+    - python2 -m pip install wheel
+    - python2 -m pip install -r requirements.txt
+    - python3 -m pip install wheel
+    - python3 -m pip pip install -r requirements.txt
+    - go get gopkg.in/yaml.v2
+    - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
+    - inv -e rtloader.install
+    - inv -e rtloader.format --raise-if-changed
+    - inv -e rtloader.test
+    - inv deps --verbose --dep-vendor-only
   script:
     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
     # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
     # This is OK because the test on systemd still runs on the debian image above
-    # We also exclude python since centos 6 doesn't ship python and we run 'python' tests on the debian image.
-    - inv -e test --race --profile --cpus 4 --build-exclude=systemd,python
+    - inv -e test --race --profile --cpus 4 --build-exclude=systemd
 
 # run tests for eBPF code
 run_tests_ebpf:
