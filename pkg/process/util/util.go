@@ -100,7 +100,7 @@ func GetDockerSocketPath() (string, error) {
 }
 
 // GetPlatform returns the current platform we are running on by calling
-// 1. python -mplatform
+// 1. python -m platform
 // 2. "uname -a"
 // 3. "lsb_release -a"
 // 4. reading redhat-release

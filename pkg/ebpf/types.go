@@ -37,7 +37,7 @@ const (
 
 	// UDPSendMsg traces the udp_sendmsg() system call
 	UDPSendMsg KProbeName = "kprobe/udp_sendmsg"
-	// UDPSendMsg traces the udp_sendmsg() system call on RHEL and CentOS.
+	// UDPSendMsgRHEL traces the udp_sendmsg() system call on RHEL and CentOS.
 	UDPSendMsgRHEL KProbeName = "kprobe/udp_sendmsg/rhel"
 	// UDPRecvMsg traces the udp_recvmsg() system call
 	UDPRecvMsg KProbeName = "kprobe/udp_recvmsg"
