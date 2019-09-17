@@ -37,11 +37,8 @@ const (
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
 	pythonMinorVersionScript = "import sys;print(sys.version_info[1])"
 	integrationVersionScript = `
-try:
-	from datadog_checks.%s import __version__
-	print(__version__)
-except ImportError:
-	pass
+import pkg_resources
+print(pkg_resources.get_distribution('%s')._version)
 `
 )
 
@@ -663,7 +660,7 @@ func installedVersion(integration string) (*semver.Version, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	integrationName := getIntegrationName(integration)
+
 	validName, err := regexp.MatchString("^[0-9a-z_-]+$", integration)
 	if err != nil {
 		return nil, false, fmt.Errorf("Error validating integration name: %s", err)
@@ -671,8 +668,9 @@ func installedVersion(integration string) (*semver.Version, bool, error) {
 	if !validName {
 		return nil, false, fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
 	}
-	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(integrationVersionScript, integrationName))
-	output, err := pythonCmd.Output()
+
+	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(integrationVersionScript, integration))
+	versionStr, err := pythonCmd.Output()
 
 	if err != nil {
 		errMsg := ""
@@ -685,14 +683,10 @@ func installedVersion(integration string) (*semver.Version, bool, error) {
 		return nil, false, fmt.Errorf("error executing python: %s", errMsg)
 	}
 
-	outputStr := strings.TrimSpace(string(output))
-	if outputStr == "" {
-		return nil, false, nil
-	}
+	version, err := semver.NewVersion(string(versionStr))
 
-	version, err := semver.NewVersion(outputStr)
 	if err != nil {
-		return nil, true, fmt.Errorf("error parsing version %s: %s", outputStr, err)
+		return nil, true, fmt.Errorf("error parsing version %s: %s", version, err)
 	}
 
 	return version, true, nil
