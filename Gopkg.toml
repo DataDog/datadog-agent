@@ -4,7 +4,7 @@
 
 [[constraint]]
   name = "github.com/google/gopacket"
-  branch = "master"
+  revision = "c340012d34adb8462b1e23ad4d7a73944f4224b8"
 
 [[constraint]]
   name = "github.com/DataDog/gohai"

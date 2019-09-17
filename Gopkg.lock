@@ -681,10 +681,13 @@
   revision = "24818f796faf91cd76ec7bddd72458fbced7a6c1"
 
 [[projects]]
-  branch = "master"
   digest = "1:e1e098ae35522f3dbf47319bceba5c98daa5aaae6c87aeb6bbe39d4e77fda83f"
   name = "github.com/google/gopacket"
-  packages = ["."]
+  packages = [
+    ".",
+    "afpacket",
+    "layers",
+  ]
   pruneopts = ""
   revision = "c340012d34adb8462b1e23ad4d7a73944f4224b8"
 
@@ -2045,6 +2048,8 @@
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/types",
     "github.com/google/gopacket",
+    "github.com/google/gopacket/afpacket",
+    "github.com/google/gopacket/layers",
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
     "github.com/hectane/go-acl",
@@ -2081,7 +2086,6 @@
     "github.com/tinylib/msgp/msgp",
     "github.com/urfave/negroni",
     "golang.org/x/mobile/asset",
-    "golang.org/x/net/bpf",
     "golang.org/x/net/context",
     "golang.org/x/net/proxy",
     "golang.org/x/sys/unix",
