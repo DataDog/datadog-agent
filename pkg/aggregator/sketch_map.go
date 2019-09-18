@@ -44,6 +44,15 @@ func (m sketchMap) insertN(ts int64, ck ckey.ContextKey, v float64, n uint) bool
 	return true
 }
 
+func (m sketchMap) insertBucket(ts int64, ck ckey.ContextKey, low, high float64, count uint) bool {
+	if math.IsInf(low, 0) || math.IsNaN(low) || math.IsInf(high, 0) || math.IsNaN(high) {
+		return false
+	}
+
+	m.getOrCreate(ts, ck).InsertBucket(low, high, count)
+	return true
+}
+
 func (m sketchMap) getOrCreate(ts int64, ck ckey.ContextKey) *quantile.Agent {
 	// level 1: ts -> ctx
 	byCtx, ok := m[ts]
