@@ -2,22 +2,26 @@
 
 ## Python
 
-The Agent embeds a full-fledged CPython interpreter so it requires the development
-files to be available in the dev env.
+The Agent embeds a full-fledged CPython interpreter so it requires the
+development files to be available in the dev env. The Agent can embed Python2
+and/or Python3, you will need development files for all versions you want to
+support.
 
-If you're on OSX/macOS, installing Python 2.7 with [Homebrew](https://brew.sh) will
+If you're on OSX/macOS, installing Python 2.7 and/or 3.7 with [Homebrew](https://brew.sh) will
 bring along all the development files needed:
 ```
 brew install python@2
+brew install python@3
 ```
 
 On Linux, depending on the distribution, you might need to explicitly install
 the development files, for example on Ubuntu:
 ```
 sudo apt-get install python2.7-dev
+sudo apt-get install python2.3-dev
 ```
 
-On Windows, install Python 2.7 via the [official installer](https://www.python.org/downloads/).
+On Windows, install Python 2.7 and/or 3.7 via the [official installer](https://www.python.org/downloads/).
 
 ### Additional Windows Tools
 You will also need the Visual Studio for [Visual Studio for Python installer](http://aka.ms/vcpython27)

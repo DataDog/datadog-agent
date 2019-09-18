@@ -51,6 +51,8 @@ blacklist_folders = [
   'docker_daemon',
   'kubernetes',
   'ntp',                           # provided as a go check by the core agent
+  # Python 2-only
+  'tokumx',
 ]
 
 # package names of dependencies that won't be added to the Agent Python environment
@@ -70,7 +72,7 @@ if arm?
 end
 
 if windows? && windows_arch_i386?
-  blacklist_folders.push('oracle') 
+  blacklist_folders.push('oracle')
   blacklist_packages.push(/^cx-Oracle==/)
   blacklist_packages.push(/^jpype1==/)
   blacklist_packages.push(/^Jpype1==/)
@@ -148,6 +150,9 @@ build do
         requirements.push(line)
       end
     end
+
+    # Adding pympler for memory debug purposes
+    requirements.push("pympler==0.7")
 
     # Render the filtered requirements file
     erb source: "static_requirements.txt.erb",

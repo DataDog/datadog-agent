@@ -117,16 +117,16 @@ func (r *HTTPReceiver) Start() {
 
 	r.attachDebugHandlers(mux)
 
-	mux.HandleFunc("/spans", r.httpHandleWithVersion(v01, r.handleTraces))
-	mux.HandleFunc("/services", r.httpHandleWithVersion(v01, r.handleServices))
-	mux.HandleFunc("/v0.1/spans", r.httpHandleWithVersion(v01, r.handleTraces))
-	mux.HandleFunc("/v0.1/services", r.httpHandleWithVersion(v01, r.handleServices))
-	mux.HandleFunc("/v0.2/traces", r.httpHandleWithVersion(v02, r.handleTraces))
-	mux.HandleFunc("/v0.2/services", r.httpHandleWithVersion(v02, r.handleServices))
-	mux.HandleFunc("/v0.3/traces", r.httpHandleWithVersion(v03, r.handleTraces))
-	mux.HandleFunc("/v0.3/services", r.httpHandleWithVersion(v03, r.handleServices))
-	mux.HandleFunc("/v0.4/traces", r.httpHandleWithVersion(v04, r.handleTraces))
-	mux.HandleFunc("/v0.4/services", r.httpHandleWithVersion(v04, r.handleServices))
+	mux.HandleFunc("/spans", r.handleWithVersion(v01, r.handleTraces))
+	mux.HandleFunc("/services", r.handleWithVersion(v01, r.handleServices))
+	mux.HandleFunc("/v0.1/spans", r.handleWithVersion(v01, r.handleTraces))
+	mux.HandleFunc("/v0.1/services", r.handleWithVersion(v01, r.handleServices))
+	mux.HandleFunc("/v0.2/traces", r.handleWithVersion(v02, r.handleTraces))
+	mux.HandleFunc("/v0.2/services", r.handleWithVersion(v02, r.handleServices))
+	mux.HandleFunc("/v0.3/traces", r.handleWithVersion(v03, r.handleTraces))
+	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
+	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
+	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
@@ -257,26 +257,18 @@ func (r *HTTPReceiver) Stop() error {
 	return nil
 }
 
-func (r *HTTPReceiver) httpHandle(fn http.HandlerFunc) http.HandlerFunc {
+func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		req.Body = NewLimitedReader(req.Body, r.maxRequestBodyLength)
-		defer req.Body.Close()
-
-		fn(w, req)
-	}
-}
-
-func (r *HTTPReceiver) httpHandleWithVersion(v Version, f func(Version, http.ResponseWriter, *http.Request)) http.HandlerFunc {
-	return r.httpHandle(func(w http.ResponseWriter, req *http.Request) {
-		mediaType := getMediaType(req)
-		if mediaType == "application/msgpack" && (v == v01 || v == v02) {
-			// msgpack is only supported for versions >= 0.3
+		if mediaType := getMediaType(req); mediaType == "application/msgpack" && (v == v01 || v == v02) {
+			// msgpack is only supported for versions >= v0.3
 			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
 			return
 		}
 
+		req.Body = NewLimitedReader(req.Body, r.maxRequestBodyLength)
+
 		f(v, w, req)
-	})
+	}
 }
 
 func traceCount(req *http.Request) int64 {
@@ -372,7 +364,11 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	traces, err := r.decodeTraces(v, req)
 	if err != nil {
 		httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
-		atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
+		if err == ErrLimitedReaderLimitReached {
+			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, traceCount)
+		} else {
+			atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
+		}
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return
 	}
@@ -400,8 +396,8 @@ type Trace struct {
 	Source *info.Tags
 
 	// ContainerTags specifies orchestrator tags corresponding to the origin of this
-	// trace (e.g. K8S pod, Docker image, ECS, etc).
-	ContainerTags map[string]string
+	// trace (e.g. K8S pod, Docker image, ECS, etc). They are of the type "k1:v1,k2:v2".
+	ContainerTags string
 
 	// Spans holds the spans of this trace.
 	Spans pb.Trace
@@ -588,33 +584,16 @@ func tracesFromSpans(spans []pb.Span) pb.Traces {
 	return traces
 }
 
-// getContainerTags returns container and orchestrator tags belonging to containerID. If containerID
-// is empty or no tags are found, an empty map is returned.
-func getContainerTags(containerID string) map[string]string {
+// getContainerTag returns container and orchestrator tags belonging to containerID. If containerID
+// is empty or no tags are found, an empty string is returned.
+func getContainerTags(containerID string) string {
 	list, err := tagger.Tag("container_id://"+containerID, collectors.HighCardinality)
 	if err != nil {
 		log.Tracef("Getting container tags for ID %q: %v", containerID, err)
-		return map[string]string{}
+		return ""
 	}
 	log.Tracef("Getting container tags for ID %q: %v", containerID, list)
-	tags := make(map[string]string, len(list))
-	for _, tag := range list {
-		// this is a metrics product style tag; either a "key:value" pair,
-		// or simply "key", without a value.
-		parts := strings.Split(tag, ":")
-		if parts[0] == "" {
-			continue
-		}
-		k := "container." + parts[0]
-		if len(parts) > 1 {
-			// key and value
-			tags[k] = parts[1]
-		} else {
-			// key only
-			tags[k] = ""
-		}
-	}
-	return tags
+	return strings.Join(list, ",")
 }
 
 // getMediaType attempts to return the media type from the Content-Type MIME header. If it fails

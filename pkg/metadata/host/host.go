@@ -40,6 +40,7 @@ func GetPayload(hostname string) *Payload {
 		Meta:          meta,
 		HostTags:      getHostTags(),
 		ContainerMeta: getContainerMeta(1 * time.Second),
+		NetworkMeta:   getNetworkMeta(),
 	}
 
 	// Cache the metadata for use in other payloads
@@ -143,6 +144,15 @@ func getMeta() *Meta {
 	cache.Cache.Set(key, m, cache.NoExpiration)
 
 	return m
+}
+
+func getNetworkMeta() *NetworkMeta {
+	nid, err := util.GetNetworkID()
+	if err != nil {
+		log.Infof("could not get network metadata: %s", err)
+		return nil
+	}
+	return &NetworkMeta{ID: nid}
 }
 
 func getContainerMeta(timeout time.Duration) map[string]string {

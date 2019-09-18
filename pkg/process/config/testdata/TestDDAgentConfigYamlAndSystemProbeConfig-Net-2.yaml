@@ -8,3 +8,17 @@ system_probe_config:
       - 5.5.0
       - 4.2.1
     closed_channel_size: 1000
+    source_excludes:
+      127.0.0.1:
+        - "5005"
+      172.0.0.1/20:
+        - "*"
+      "*":
+        - "443"
+    dest_excludes:
+      2001:db8::2:1:
+        - "5005"
+      172.0.0.1/20:
+        - "*"
+      "*":
+        - "*"

@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include <io.h>
+#include <shellapi.h>
+
 BOOL IsDots(const TCHAR* str) {
     if (wcscmp(str, L".") && wcscmp(str, L"..")) return FALSE;
     return TRUE;

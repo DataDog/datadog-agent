@@ -19,6 +19,7 @@ import (
 type context struct {
 	Common            bool
 	Agent             bool
+	BothPythonPresent bool
 	Metadata          bool
 	Dogstatsd         bool
 	LogsAgent         bool
@@ -42,28 +43,33 @@ type context struct {
 func mkContext(buildType string) context {
 	buildType = strings.ToLower(buildType)
 
+	agentContext := context{
+		Common:            true,
+		Agent:             true,
+		Metadata:          true,
+		Dogstatsd:         true,
+		LogsAgent:         true,
+		JMX:               true,
+		Autoconfig:        true,
+		Logging:           true,
+		Autodiscovery:     true,
+		DockerTagging:     true,
+		KubernetesTagging: true,
+		ECS:               true,
+		Containerd:        true,
+		CRI:               true,
+		ProcessAgent:      true,
+		TraceAgent:        true,
+		Kubelet:           true,
+		KubeApiServer:     true, // TODO: remove when phasing out from node-agent
+	}
+
 	switch buildType {
-	case "agent":
-		return context{
-			Common:            true,
-			Agent:             true,
-			Metadata:          true,
-			Dogstatsd:         true,
-			LogsAgent:         true,
-			JMX:               true,
-			Autoconfig:        true,
-			Logging:           true,
-			Autodiscovery:     true,
-			DockerTagging:     true,
-			KubernetesTagging: true,
-			ECS:               true,
-			Containerd:        true,
-			CRI:               true,
-			ProcessAgent:      true,
-			TraceAgent:        true,
-			Kubelet:           true,
-			KubeApiServer:     true, // TODO: remove when phasing out from node-agent
-		}
+	case "agent-py3":
+		return agentContext
+	case "agent-py2py3":
+		agentContext.BothPythonPresent = true
+		return agentContext
 	case "system-probe":
 		return context{
 			SystemProbe: true,

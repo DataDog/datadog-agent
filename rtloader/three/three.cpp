@@ -21,9 +21,9 @@
 #include <algorithm>
 #include <sstream>
 
-extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *pythonHome)
+extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *pythonHome, cb_memory_tracker_t memtrack_cb)
 {
-    return new Three(pythonHome);
+    return new Three(pythonHome, memtrack_cb);
 }
 
 extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
@@ -31,8 +31,8 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
     delete p;
 }
 
-Three::Three(const char *python_home)
-    : RtLoader()
+Three::Three(const char *python_home, cb_memory_tracker_t memtrack_cb)
+    : RtLoader(memtrack_cb)
     , _pythonHome(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
@@ -77,6 +77,7 @@ bool Three::init()
     Py_Initialize();
 
     if (!Py_IsInitialized()) {
+        setError("Python not initialized");
         return false;
     }
 
@@ -106,11 +107,15 @@ bool Three::init()
     }
 
     if (init_stringutils() != EXIT_SUCCESS) {
+        setError("error initializing string utils: " + _fetchPythonError());
         goto done;
     }
 
     // import the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
+    if (_baseClass == NULL) {
+        setError("could not import base class: " + std::string(getError()));
+    }
 
 done:
     // save thread state and release the GIL
@@ -504,11 +509,13 @@ error:
 
 PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)
 {
+    // baseClass is not a Class type
     if (base == NULL || !PyType_Check(base)) {
         setError("base class is not of type 'Class'");
         return NULL;
     }
 
+    // module is not a Module object
     if (module == NULL || !PyModule_Check(module)) {
         setError("module is not of type 'Module'");
         return NULL;
@@ -516,50 +523,64 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)
 
     PyObject *dir = PyObject_Dir(module);
     if (dir == NULL) {
+        PyErr_Clear();
         setError("there was an error calling dir() on module object");
         return NULL;
     }
 
     PyObject *klass = NULL;
     for (int i = 0; i < PyList_GET_SIZE(dir); i++) {
-        // get symbol name
-        char *symbol_name;
-        PyObject *symbol = PyList_GetItem(dir, i);
-        if (symbol != NULL) {
-            symbol_name = as_string(symbol);
-            if (symbol_name == NULL)
-                continue;
-        } else {
-            // Gets exception reason
-            PyObject *reason = PyUnicodeDecodeError_GetReason(PyExc_IndexError);
+        // Reset `klass` at every iteration so its state is always clean when we
+        // continue the loop or return early. Reset at first iteration is useless
+        // but it keeps the code readable.
+        Py_XDECREF(klass);
+        klass = NULL;
 
-            // Clears exception and sets error
-            PyException_SetTraceback(PyExc_IndexError, Py_None);
-            setError((const char *)PyBytes_AsString(reason));
+        // get the symbol in current list item
+        PyObject *symbol = PyList_GetItem(dir, i);
+        if (symbol == NULL) {
+            // This should never happen as it means we're out of bounds
+            PyErr_Clear();
+            setError("there was an error browsing dir() output");
             goto done;
         }
 
+        // get symbol name, as_string returns a new object that we have to free
+        char *symbol_name = as_string(symbol);
+        if (symbol_name == NULL) {
+            // as_string returns NULL if `symbol` is not a string object
+            // and raises TypeError. Let's clear the error and keep going.
+            PyErr_Clear();
+            continue;
+        }
+
+        // get symbol instance. It's a new ref but in case of success we don't
+        // DecRef since we return it and the caller will be owner
         klass = PyObject_GetAttrString(module, symbol_name);
         ::_free(symbol_name);
         if (klass == NULL) {
+            PyErr_Clear();
             continue;
         }
 
         // Not a class, ignore
         if (!PyType_Check(klass)) {
-            Py_XDECREF(klass);
             continue;
         }
 
         // Unrelated class, ignore
         if (!PyType_IsSubtype((PyTypeObject *)klass, (PyTypeObject *)base)) {
-            Py_XDECREF(klass);
             continue;
         }
 
-        // `klass` is actually `base` itself, ignore
-        if (PyObject_RichCompareBool(klass, base, Py_EQ) == 1) {
-            Py_XDECREF(klass);
+        // check whether `klass` is actually `base` itself
+        int retval = PyObject_RichCompareBool(klass, base, Py_EQ);
+        if (retval == 1) {
+            // `klass` is indeed `base`, continue
+            continue;
+        } else if (retval == -1) {
+            // an error occurred calling __eq__, clear and continue
+            PyErr_Clear();
             continue;
         }
 
@@ -567,7 +588,7 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)
         char func_name[] = "__subclasses__";
         PyObject *children = PyObject_CallMethod(klass, func_name, NULL);
         if (children == NULL) {
-            Py_XDECREF(klass);
+            PyErr_Clear();
             continue;
         }
 
@@ -577,7 +598,6 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)
 
         // Agent integrations are supposed to have no subclasses
         if (children_count > 0) {
-            Py_XDECREF(klass);
             continue;
         }
 
@@ -585,11 +605,14 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)
         goto done;
     }
 
+    // we couldn't find any good subclass, set an error and reset
+    // `klass` state for one last time before moving to `done`.
     setError("cannot find a subclass");
+    Py_XDECREF(klass);
     klass = NULL;
 
 done:
-    Py_DECREF(dir);
+    Py_XDECREF(dir);
     return klass;
 }
 
@@ -770,6 +793,11 @@ void Three::setSubmitEventCb(cb_submit_event_t cb)
     _set_submit_event_cb(cb);
 }
 
+void Three::setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t cb)
+{
+    _set_submit_histogram_bucket_cb(cb);
+}
+
 void Three::setGetVersionCb(cb_get_version_t cb)
 {
     _set_get_version_cb(cb);
@@ -793,6 +821,11 @@ void Three::setGetHostnameCb(cb_get_hostname_t cb)
 void Three::setGetClusternameCb(cb_get_clustername_t cb)
 {
     _set_get_clustername_cb(cb);
+}
+
+void Three::setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t cb)
+{
+    _set_tracemalloc_enabled_cb(cb);
 }
 
 void Three::setLogCb(cb_log_t cb)
@@ -886,4 +919,52 @@ done:
     GILRelease(state);
 
     return wheels;
+}
+
+// getInterpreterMemoryUsage return a dict with the python interpreters memory
+// usage snapshot. The returned dict must be freed by calling....
+char *Three::getInterpreterMemoryUsage()
+{
+    PyObject *pyMemory = NULL;
+    PyObject *memSummary = NULL;
+    PyObject *args = NULL;
+    PyObject *summary = NULL;
+    char *memUsage = NULL;
+
+    rtloader_gilstate_t state = GILEnsure();
+
+    pyMemory = PyImport_ImportModule(_PY_MEM_MODULE);
+    if (pyMemory == NULL) {
+        setError("could not import " _PY_MEM_MODULE ": " + _fetchPythonError());
+        goto done;
+    }
+
+    memSummary = PyObject_GetAttrString(pyMemory, _PY_MEM_SUMMARY_FUNC);
+    if (memSummary == NULL) {
+        setError("could not fetch " _PY_MEM_SUMMARY_FUNC " attr: " + _fetchPythonError());
+        goto done;
+    }
+
+    args = PyTuple_New(0);
+    summary = PyObject_Call(memSummary, args, NULL);
+    if (summary == NULL) {
+        setError("error fetching interpreter memory usage: " + _fetchPythonError());
+        goto done;
+    }
+
+    if (PyDict_Check(summary) == 0) {
+        setError("'" _PY_MEM_SUMMARY_FUNC "' did not return a dictionary");
+        goto done;
+    }
+
+    memUsage = as_yaml(summary);
+
+done:
+    Py_XDECREF(summary);
+    Py_XDECREF(args);
+    Py_XDECREF(memSummary);
+    Py_XDECREF(pyMemory);
+    GILRelease(state);
+
+    return memUsage;
 }

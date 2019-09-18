@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.7.1"
+default_version "3.7.4"
 
 if ohai["platform"] != "windows"
   dependency "libffi"
@@ -12,15 +12,8 @@ if ohai["platform"] != "windows"
   dependency "liblzma"
   dependency "libyaml"
 
-  version "3.6.7" do
-    source :sha256 => "b7c36f7ed8f7143b2c46153b7332db2227669f583ea0cce753facf549d1a4239"
-  end
-
-  version "3.7.1" do
-    source :sha256 => "36c1b81ac29d0f8341f727ef40864d99d8206897be96be73dc34d4739c9c9f06"
-  end
-
-  source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz"
+  source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
+         :sha256 => "d63e63e14e6d29e17490abbe6f7d17afb3db182dbd801229f14e55f4157c4ba3"
 
   relative_path "Python-#{version}"
 
@@ -55,7 +48,7 @@ if ohai["platform"] != "windows"
     command python_configure.join(" "), :env => env
     command "make -j #{workers}", :env => env
     command "make install", :env => env
-    # delete "#{install_dir}/embedded/lib/python2.7/test"
+    delete "#{install_dir}/embedded/lib/python3.7/test"
 
     # There exists no configure flag to tell Python to not compile readline support :(
     major, minor, bugfix = version.split(".")
@@ -66,7 +59,6 @@ if ohai["platform"] != "windows"
 
 else
   dependency "vc_redist_14"
-  default_version "3.7.4"
 
   if windows_arch_i386?
     dependency "vc_ucrt_redist"

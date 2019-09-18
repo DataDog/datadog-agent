@@ -42,19 +42,26 @@ char *as_string(PyObject *object)
         // PyString_AsString might raise an error when python can't encode a
         // unicode string to byte
         PyErr_Clear();
-        return  NULL;
+        return NULL;
     }
     retval = strdupe(tmp);
 #else
-    if (!PyUnicode_Check(object)) {
-        return NULL;
-    }
+    PyObject *temp_bytes = NULL;
 
-    PyObject *temp_bytes = PyUnicode_AsEncodedString(object, "UTF-8", "strict");
-    if (temp_bytes == NULL) {
-        // PyUnicode_AsEncodedString might raise an error if the codec raised an
-        // exception
-        PyErr_Clear();
+    if (PyBytes_Check(object)) {
+        // We already have an encoded string, we suppose it has the correct encoding (UTF-8)
+        temp_bytes = object;
+        Py_INCREF(temp_bytes);
+    } else if (PyUnicode_Check(object)) {
+        // Encode the Unicode string that was given
+        temp_bytes = PyUnicode_AsEncodedString(object, "UTF-8", "strict");
+        if (temp_bytes == NULL) {
+            // PyUnicode_AsEncodedString might raise an error if the codec raised an
+            // exception
+            PyErr_Clear();
+            return NULL;
+        }
+    } else {
         return NULL;
     }
 
@@ -153,6 +160,7 @@ char *as_yaml(PyObject *object) {
 
     PyObject *args = PyTuple_New(0);
     PyObject *kwargs = Py_BuildValue("{s:O, s:O}", "data", object, "Dumper", dumper);
+
     dumped = PyObject_Call(ydump, args, kwargs);
     if (dumped == NULL) {
         goto done;

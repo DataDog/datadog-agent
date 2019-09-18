@@ -6,6 +6,7 @@
 #ifndef DATADOG_AGENT_RTLOADER_RTLOADER_H
 #define DATADOG_AGENT_RTLOADER_RTLOADER_H
 
+#include "rtloader_mem.h"
 #include "rtloader_types.h"
 
 #include <map>
@@ -32,9 +33,12 @@ class RtLoader
 {
 public:
     //! Constructor.
-    RtLoader()
+    RtLoader(cb_memory_tracker_t memtrack_cb)
         : _error()
-        , _errorFlag(false){};
+        , _errorFlag(false)
+    {
+        _set_memory_tracker_cb(memtrack_cb);
+    };
 
     //! Destructor.
     virtual ~RtLoader(){};
@@ -235,6 +239,9 @@ public:
       \return A yaml-encoded C-string with the list of every datadog integration wheel installed.
     */
     virtual char *getIntegrationList() = 0;
+#define _PY_MEM_MODULE "utils.py_mem"
+#define _PY_MEM_SUMMARY_FUNC "get_mem_stats"
+    virtual char *getInterpreterMemoryUsage() = 0;
 
     // aggregator API
     //! setSubmitMetricCb member.
@@ -260,6 +267,14 @@ public:
       Actual events are submitted from go-land, this allows us to set the CGO callback.
     */
     virtual void setSubmitEventCb(cb_submit_event_t) = 0;
+
+    //! setSubmitHistogramBucketCb member.
+    /*!
+      \param A cb_submit_histogram_bucket_t function pointer to the CGO callback.
+
+      Actual histogram buckets are submitted from go-land, this allows us to set the CGO callback.
+    */
+    virtual void setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t) = 0;
 
     // datadog_agent API
 
@@ -295,6 +310,15 @@ public:
       the agent.
     */
     virtual void setGetHostnameCb(cb_get_hostname_t) = 0;
+
+    //! setGetTracemallocEnabledCb member.
+    /*!
+      \param A cb_tracemalloc_enabled_t function pointer to the CGO callback.
+
+      This allows us to set the CGO callback that will provide the tracemalloc enabled
+      configuration setting.
+    */
+    virtual void setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t) = 0;
 
     //! setGetClusternameCb member.
     /*!
@@ -387,7 +411,7 @@ private:
   \param python_home A C-string path to the python home for the target python runtime.
   \return A pointer to the RtLoader instance created by the implementing function.
 */
-typedef RtLoader *(create_t)(const char *python_home);
+typedef RtLoader *(create_t)(const char *python_home, cb_memory_tracker_t memtrack_cb);
 
 /*! destroy_t function prototype
   \typedef destroy_t defines the destructor function prototype to destroy existing RtLoader instances.

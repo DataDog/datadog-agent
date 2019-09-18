@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
 // declare these as vars not const to ease testing
@@ -73,6 +75,41 @@ func GetClusterName() (string, error) {
 		return "", fmt.Errorf("unable to retrieve clustername from GCE: %s", err)
 	}
 	return clusterName, nil
+}
+
+// GetNetworkID retrieves the network ID using the metadata endpoint. For
+// GCE instances, the the network ID is the VPC ID, if the instance is found to
+// be a part of exactly one VPC.
+func GetNetworkID() (string, error) {
+	resp, err := getResponse(metadataURL + "/instance/network-interfaces/")
+	if err != nil {
+		return "", fmt.Errorf("unable to retrieve network-interfaces from GCE: %s", err)
+	}
+
+	interfaceIDs := strings.Split(strings.TrimSpace(resp), "\n")
+	vpcIDs := common.NewStringSet()
+
+	for _, interfaceID := range interfaceIDs {
+		if interfaceID == "" {
+			continue
+		}
+		interfaceID = strings.TrimSuffix(interfaceID, "/")
+		id, err := getResponse(metadataURL + fmt.Sprintf("/instance/network-interfaces/%s/network", interfaceID))
+		if err != nil {
+			return "", err
+		}
+		vpcIDs.Add(id)
+	}
+
+	switch len(vpcIDs) {
+	case 0:
+		return "", fmt.Errorf("zero network interfaces detected")
+	case 1:
+		return vpcIDs.GetAll()[0], nil
+	default:
+		return "", fmt.Errorf("more than one network interface detected, cannot get network ID")
+	}
+
 }
 
 func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {

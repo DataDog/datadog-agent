@@ -26,7 +26,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const processStatsInterval = time.Minute
+// tagContainersTags specifies the name of the tag which holds key/value
+// pairs representing information about the container (Docker, EC2, etc).
+const tagContainersTags = "_dd.tags.container"
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
@@ -195,8 +197,8 @@ func (a *Agent) Process(t *api.Trace) {
 		sampler.SetPreSampleRate(root, rateLimiterRate)
 		sampler.AddGlobalRate(root, rateLimiterRate)
 
-		for k, v := range t.ContainerTags {
-			root.Meta[k] = v
+		if t.ContainerTags != "" {
+			traceutil.SetMeta(root, tagContainersTags, t.ContainerTags)
 		}
 	}
 

@@ -233,12 +233,30 @@ def read_conf_file
     confYaml
 end
 
+# TODO: fix this, this is flaky
+def fetch_python_version(timeout = 15)
+  # Try to fetch the metadata.systemStats.pythonV from the Agent status
+  # Timeout after the given number of seconds
+  for _ in 1..timeout do
+    json_info_output = json_info
+    if json_info_output.key?('metadata') &&
+      json_info_output['metadata'].key?('systemStats') &&
+      json_info_output['metadata']['systemStats'].key?('pythonV') &&
+      Gem::Version.correct?(json_info_output['metadata']['systemStats']['pythonV']) # Check that we do have a version number
+        return json_info_output['metadata']['systemStats']['pythonV']
+    end
+    sleep 1
+  end
+  return nil
+end
+
 
 shared_examples_for 'Agent' do
   it_behaves_like 'an installed Agent'
   it_behaves_like 'a running Agent with no errors'
   it_behaves_like 'a running Agent with APM'
   it_behaves_like 'a running Agent with APM manually disabled'
+  it_behaves_like 'an Agent with python3 enabled'
   it_behaves_like 'an Agent that stops'
   it_behaves_like 'an Agent that restarts'
   it_behaves_like 'an Agent that is removed'
@@ -270,12 +288,22 @@ shared_examples_for "an installed Agent" do
     JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('skip_windows_signing_test')
   }
   
+  
   it 'is properly signed' do
     puts "swsc is #{skip_windows_signing_check}"
+    #puts "is an upgrade is #{is_upgrade}"
     if os == :windows and !skip_windows_signing_check
       # The user in the yaml file is "datadog", however the default test kitchen user is azure.
       # This allows either to be used without changing the test.
       msi_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-cli.msi"
+      msi_path_upgrade = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-up.msi"
+      
+      # The upgrade file should only be present when doing an upgrade test.  Therefore,
+      # check the file we're upgrading to, not the file we're upgrading from
+      if File.file?(msi_path_upgrade)
+        msi_path = msi_path_upgrade
+      end
+      puts "checking file #{msi_path}"
       expect(File).to exist(msi_path)
       output = `powershell -command "get-authenticodesignature #{msi_path}"`
       signature_hash = "3B79DBE9410471E4FFBDFDAD646A83A1CD47D5AA"
@@ -437,6 +465,58 @@ shared_examples_for 'an Agent that restarts' do
     end
     expect(status).to be_truthy
   end
+end
+
+shared_examples_for 'an Agent with python3 enabled' do
+  it 'restarts after python_version is set to 3' do
+    conf_path = ""
+    if os != :windows
+      conf_path = "/etc/datadog-agent/datadog.yaml"
+    else
+      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
+    end
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
+    confYaml["python_version"] = 3
+    File.write(conf_path, confYaml.to_yaml)
+
+    output = restart
+    expect(output).to be_truthy
+  end
+
+  # it 'runs Python 3 after python_version is set to 3' do
+  #   result = false
+  #   pythonV = fetch_python_version
+  #   if Gem::Version.new('3.0.0') <= Gem::Version.new(pythonV)
+  #     result = true
+  #   end
+  #   expect(result).to be_truthy
+  # end
+
+  it 'restarts after python_version is set back to 2' do
+    conf_path = ""
+    if os != :windows
+      conf_path = "/etc/datadog-agent/datadog.yaml"
+    else
+      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
+    end
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
+    confYaml["python_version"] = 2
+    File.write(conf_path, confYaml.to_yaml)
+
+    output = restart
+    expect(output).to be_truthy
+  end
+
+  # it 'runs Python 2 after python_version is set back to 2' do
+  #   result = false
+  #   pythonV = fetch_python_version
+  #   if Gem::Version.new('3.0.0') > Gem::Version.new(pythonV)
+  #     result = true
+  #   end
+  #   expect(result).to be_truthy
+  # end
 end
 
 shared_examples_for 'an Agent that is removed' do

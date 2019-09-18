@@ -193,6 +193,9 @@ func mapToString(m map[string]int64) string {
 type TracesDropped struct {
 	// DecodingError is when the agent fails to decode a trace payload
 	DecodingError int64
+	// PayloadTooLarge specifies the number of traces dropped due to the payload
+	// being too large to be accepted.
+	PayloadTooLarge int64
 	// EmptyTrace is when the trace contains no spans
 	EmptyTrace int64
 	// TraceIDZero is when any spans in a trace have TraceId=0
@@ -206,11 +209,12 @@ type TracesDropped struct {
 // tagValues converts TracesDropped into a map representation with keys matching standardized names for all reasons
 func (s *TracesDropped) tagValues() map[string]int64 {
 	return map[string]int64{
-		"decoding_error": atomic.LoadInt64(&s.DecodingError),
-		"empty_trace":    atomic.LoadInt64(&s.EmptyTrace),
-		"trace_id_zero":  atomic.LoadInt64(&s.TraceIDZero),
-		"span_id_zero":   atomic.LoadInt64(&s.SpanIDZero),
-		"foreign_span":   atomic.LoadInt64(&s.ForeignSpan),
+		"payload_too_large": atomic.LoadInt64(&s.PayloadTooLarge),
+		"decoding_error":    atomic.LoadInt64(&s.DecodingError),
+		"empty_trace":       atomic.LoadInt64(&s.EmptyTrace),
+		"trace_id_zero":     atomic.LoadInt64(&s.TraceIDZero),
+		"span_id_zero":      atomic.LoadInt64(&s.SpanIDZero),
+		"foreign_span":      atomic.LoadInt64(&s.ForeignSpan),
 	}
 }
 

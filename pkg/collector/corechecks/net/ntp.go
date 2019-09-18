@@ -24,6 +24,7 @@ import (
 )
 
 const ntpCheckName = "ntp"
+const defaultMinCollectionInterval = 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
 
 var (
 	ntpExpVar = expvar.NewFloat("ntpOffset")
@@ -36,16 +37,17 @@ type NTPCheck struct {
 	core.CheckBase
 	cfg            *ntpConfig
 	lastCollection time.Time
+	errCount       int
 }
 
 type ntpInstanceConfig struct {
-	OffsetThreshold       int      `yaml:"offset_threshold"`
-	Host                  string   `yaml:"host"`
-	Hosts                 []string `yaml:"hosts"`
-	Port                  int      `yaml:"port"`
-	Timeout               int      `yaml:"timeout"`
-	Version               int      `yaml:"version"`
-	MinCollectionInterval int      `yaml:"min_collection_interval"`
+	OffsetThreshold        int      `yaml:"offset_threshold"`
+	Host                   string   `yaml:"host"`
+	Hosts                  []string `yaml:"hosts"`
+	Port                   int      `yaml:"port"`
+	Timeout                int      `yaml:"timeout"`
+	Version                int      `yaml:"version"`
+	UseLocalDefinedServers bool     `yaml:"use_local_defined_servers"`
 }
 
 type ntpInitConfig struct{}
@@ -59,14 +61,14 @@ func (c *NTPCheck) String() string {
 	return "ntp"
 }
 
-func (c *ntpConfig) parse(data []byte, initData []byte) error {
+func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() ([]string, error)) error {
 	var instance ntpInstanceConfig
 	var initConf ntpInitConfig
 	defaultVersion := 3
-	defaultTimeout := 1
+	defaultTimeout := 5
 	defaultPort := 123
 	defaultOffsetThreshold := 60
-	defaultMinCollectionInterval := 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
+
 	defaultHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 
 	if err := yaml.Unmarshal(data, &instance); err != nil {
@@ -78,7 +80,19 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 	}
 
 	c.instance = instance
-	if c.instance.Host != "" {
+	var localNtpServers []string
+	var err error
+	if c.instance.UseLocalDefinedServers {
+		localNtpServers, err = getLocalServers()
+		if err != nil {
+			return err
+		}
+		log.Infof("Use local defined servers: %v", localNtpServers)
+	}
+
+	if len(localNtpServers) > 0 {
+		c.instance.Hosts = localNtpServers
+	} else if c.instance.Host != "" {
 		hosts := []string{c.instance.Host}
 		// If config contains both host and hosts
 		for _, h := range c.instance.Hosts {
@@ -103,9 +117,6 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 	if c.instance.OffsetThreshold == 0 {
 		c.instance.OffsetThreshold = defaultOffsetThreshold
 	}
-	if c.instance.MinCollectionInterval == 0 {
-		c.instance.MinCollectionInterval = defaultMinCollectionInterval
-	}
 	c.initConf = initConf
 
 	return nil
@@ -113,12 +124,8 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 
 // Configure configure the data from the yaml
 func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(data, source)
-	if err != nil {
-		return err
-	}
 	cfg := new(ntpConfig)
-	err = cfg.parse(data, initConfig)
+	err := cfg.parse(data, initConfig, getLocalDefinedNTPServers)
 	if err != nil {
 		log.Errorf("Error parsing configuration file: %s", err)
 		return err
@@ -127,16 +134,16 @@ func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data,
 	c.BuildID(data, initConfig)
 	c.cfg = cfg
 
+	err = c.CommonConfigure(data, source)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // Run runs the check
 func (c *NTPCheck) Run() error {
-	if time.Now().Before(c.lastCollection.Add(time.Second * time.Duration(c.cfg.instance.MinCollectionInterval))) {
-		log.Debugf("Skipping this check run, last run was less than %vs ago", c.cfg.instance.MinCollectionInterval)
-		return nil
-	}
-
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
@@ -175,11 +182,18 @@ func (c *NTPCheck) queryOffset() (float64, error) {
 	offsets := []float64{}
 
 	for _, host := range c.cfg.instance.Hosts {
-		response, err := ntpQuery(host, ntp.QueryOptions{Version: c.cfg.instance.Version, Port: c.cfg.instance.Port})
+		response, err := ntpQuery(host, ntp.QueryOptions{Version: c.cfg.instance.Version, Port: c.cfg.instance.Port, Timeout: time.Duration(c.cfg.instance.Timeout) * time.Second})
 		if err != nil {
-			log.Infof("There was an error querying the ntp host %s: %s", host, err)
+			if c.errCount >= 10 {
+				c.errCount = 0
+				log.Warnf("Couldn't query the ntp host %s for 10 times in a row: %s", host, err)
+			} else {
+				c.errCount++
+				log.Debugf("There was an error querying the ntp host %s: %s", host, err)
+			}
 			continue
 		}
+		c.errCount = 0
 		err = response.Validate()
 		if err != nil {
 			log.Infof("The ntp response is not valid for host %s: %s", host, err)
@@ -207,7 +221,7 @@ func (c *NTPCheck) queryOffset() (float64, error) {
 
 func ntpFactory() check.Check {
 	return &NTPCheck{
-		CheckBase: core.NewCheckBase(ntpCheckName),
+		CheckBase: core.NewCheckBaseWithInterval(ntpCheckName, time.Duration(defaultMinCollectionInterval)*time.Second),
 	}
 }
 

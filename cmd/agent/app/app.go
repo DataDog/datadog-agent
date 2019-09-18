@@ -26,6 +26,7 @@ var (
 The Datadog Agent faithfully collects events and metrics and brings them
 to Datadog on your behalf so that you can do something useful with your
 monitoring and performance data.`,
+		SilenceUsage: true,
 	}
 	// confFilePath holds the path to the folder containing the configuration
 	// file, to allow overrides from the command line

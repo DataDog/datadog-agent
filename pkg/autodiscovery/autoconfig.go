@@ -101,7 +101,10 @@ func (ac *AutoConfig) serviceListening() {
 		case svc := <-ac.newService:
 			ac.processNewService(svc)
 		case svc := <-ac.delService:
-			ac.processDelService(svc)
+			// delay service removal for short lived service detection
+			time.AfterFunc(5*time.Second, func() {
+				ac.processDelService(svc)
+			})
 		case <-tagFreshnessTicker.C:
 			ac.checkTagFreshness()
 		}
@@ -114,12 +117,12 @@ func (ac *AutoConfig) checkTagFreshness() {
 	for _, service := range ac.store.getServices() {
 		previousHash := ac.store.getTagsHashForService(service.GetTaggerEntity())
 		currentHash := tagger.GetEntityHash(service.GetTaggerEntity())
+		// Since an empty hash is a valid value, and we are not able to differentiate
+		// an empty tagger or store with an empty value.
+		// So we only look at the difference between current and previous
 		if currentHash != previousHash {
 			ac.store.setTagsHashForService(service.GetTaggerEntity(), currentHash)
-			if previousHash != "" {
-				// only refresh service if we already had a hash to avoid resetting it
-				servicesToRefresh = append(servicesToRefresh, service)
-			}
+			servicesToRefresh = append(servicesToRefresh, service)
 		}
 	}
 	for _, service := range servicesToRefresh {
@@ -541,7 +544,7 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 
 // GetLoadedConfigs returns configs loaded
 func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
-	if ac.store == nil {
+	if ac == nil || ac.store == nil {
 		log.Error("Autoconfig store not initialized")
 		return map[string]integration.Config{}
 	}
@@ -568,6 +571,10 @@ func GetResolveWarnings() map[string][]string {
 func (ac *AutoConfig) processNewService(svc listeners.Service) {
 	// in any case, register the service and store its tag hash
 	ac.store.setServiceForEntity(svc, svc.GetEntity())
+	ac.store.setTagsHashForService(
+		svc.GetTaggerEntity(),
+		tagger.GetEntityHash(svc.GetTaggerEntity()),
+	)
 
 	// get all the templates matching service identifiers
 	var templates []integration.Config

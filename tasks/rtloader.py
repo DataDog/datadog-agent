@@ -20,14 +20,14 @@ def clear_cmake_cache(rtloader_path, settings):
     if not os.path.exists(cmake_cache):
         return
 
-    settings = settings.copy()
+    settings_not_found = settings.copy()
     with open(cmake_cache) as cache:
         for line in cache.readlines():
             for key, value in settings.items():
                 if line.strip() == key + "=" + value:
-                    settings.pop(key)
+                    settings_not_found.pop(key)
 
-    if settings:
+    if settings_not_found:
         os.remove(cmake_cache)
 
 @task
@@ -92,6 +92,12 @@ def generate_doc(ctx):
     Returns 1 if errors were found (by default, doxygen returns 0 even if errors are present).
     """
     rtloader_path = get_rtloader_path()
+
+    # Clean up Doxyfile options that are not supported on the version of Doxygen used
+    result = ctx.run("doxygen -u '{}/doxygen/Doxyfile'".format(rtloader_path), warn=True)
+    if result.exited != 0:
+        print("Fatal error encountered while trying to clean up the Doxyfile.")
+        raise Exit(code=result.exited)
 
     # doxygen puts both errors and warnings in stderr
     result = ctx.run("doxygen '{0}/doxygen/Doxyfile' 2>'{0}/doxygen/errors.log'".format(rtloader_path), warn=True)

@@ -95,7 +95,7 @@ rtloader_t *make2(const char *python_home, char **error)
     if (!create) {
         return NULL;
     }
-    return AS_TYPE(rtloader_t, create(python_home));
+    return AS_TYPE(rtloader_t, create(python_home, _get_memory_tracker_cb()));
 }
 
 rtloader_t *make3(const char *python_home, char **error)
@@ -109,7 +109,7 @@ rtloader_t *make3(const char *python_home, char **error)
     if (!create_three) {
         return NULL;
     }
-    return AS_TYPE(rtloader_t, create_three(python_home));
+    return AS_TYPE(rtloader_t, create_three(python_home, _get_memory_tracker_cb()));
 }
 
 /*! \fn void destroy(rtloader_t *rtloader)
@@ -162,7 +162,7 @@ rtloader_t *make2(const char *python_home, char **error)
         return NULL;
     }
 
-    return AS_TYPE(rtloader_t, create(python_home));
+    return AS_TYPE(rtloader_t, create(python_home, _get_memory_tracker_cb()));
 }
 
 rtloader_t *make3(const char *python_home, char **error)
@@ -195,7 +195,7 @@ rtloader_t *make3(const char *python_home, char **error)
         return NULL;
     }
 
-    return AS_TYPE(rtloader_t, create_three(python_home));
+    return AS_TYPE(rtloader_t, create_three(python_home, _get_memory_tracker_cb()));
 }
 
 void destroy(rtloader_t *rtloader)
@@ -377,6 +377,11 @@ void set_submit_event_cb(rtloader_t *rtloader, cb_submit_event_t cb)
     AS_TYPE(RtLoader, rtloader)->setSubmitEventCb(cb);
 }
 
+void set_submit_histogram_bucket_cb(rtloader_t *rtloader, cb_submit_histogram_bucket_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitHistogramBucketCb(cb);
+}
+
 /*
  * datadog_agent API
  */
@@ -406,6 +411,11 @@ void set_get_clustername_cb(rtloader_t *rtloader, cb_get_clustername_t cb)
     AS_TYPE(RtLoader, rtloader)->setGetClusternameCb(cb);
 }
 
+void set_tracemalloc_enabled_cb(rtloader_t *rtloader, cb_tracemalloc_enabled_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setGetTracemallocEnabledCb(cb);
+}
+
 void set_log_cb(rtloader_t *rtloader, cb_log_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setLogCb(cb);
@@ -419,6 +429,11 @@ void set_set_external_tags_cb(rtloader_t *rtloader, cb_set_external_tags_t cb)
 char *get_integration_list(rtloader_t *rtloader)
 {
     return AS_TYPE(RtLoader, rtloader)->getIntegrationList();
+}
+
+char *get_interpreter_memory_usage(rtloader_t *rtloader)
+{
+    return AS_TYPE(RtLoader, rtloader)->getInterpreterMemoryUsage();
 }
 
 /*

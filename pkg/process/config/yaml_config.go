@@ -47,6 +47,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
 		a.EnabledChecks = append(a.EnabledChecks, "connections")
+		if !a.Enabled {
+			log.Info("enabling process-agent for connections check as the system-probe is enabled")
+			a.Enabled = true
+		}
 		a.EnableSystemProbe = true
 	}
 
@@ -118,6 +122,14 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.SystemProbeDebugPort = debugPort
 	}
 
+	if sourceExclude := key(spNS, "source_excludes"); config.Datadog.IsSet(sourceExclude) {
+		a.ExcludedSourceConnections = config.Datadog.GetStringMapStringSlice(sourceExclude)
+	}
+
+	if destinationExclude := key(spNS, "dest_excludes"); config.Datadog.IsSet(destinationExclude) {
+		a.ExcludedDestinationConnections = config.Datadog.GetStringMapStringSlice(destinationExclude)
+	}
+
 	return nil
 }
 
@@ -161,10 +173,13 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 		//   If "true" we will collect containers and processes.
 		//   If "disabled" the agent will be disabled altogether and won't start.
 		enabled := config.Datadog.GetString(k)
-		if ok, _ := isAffirmative(enabled); ok {
+		ok, err := isAffirmative(enabled)
+		if ok {
 			a.Enabled, a.EnabledChecks = true, processChecks
 		} else if enabled == "disabled" {
 			a.Enabled = false
+		} else if !ok && err == nil {
+			a.Enabled, a.EnabledChecks = true, containerChecks
 		}
 	}
 

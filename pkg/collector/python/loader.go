@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -47,6 +48,7 @@ const (
 	a7TagReady     = "ready"
 	a7TagNotReady  = "not_ready"
 	a7TagUnknown   = "unknown"
+	a7TagPython3   = "python3" //Already running on python3, linting is disabled
 )
 
 func init() {
@@ -169,17 +171,19 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 		// Let's use the module namespace to try to decide if this was a
 		// custom check, check for py3 compatibility
 		var checkFilePath *C.char
+		var goCheckFilePath string
 
 		fileAttr := TrackedCString("__file__")
 		defer C._free(unsafe.Pointer(fileAttr))
 		// get_attr_string allocation tracked by memory tracker
 		if res := C.get_attr_string(rtloader, checkModule, fileAttr, &checkFilePath); res != 0 {
-			reportPy3Warnings(name, C.GoString(checkFilePath))
+			goCheckFilePath = C.GoString(checkFilePath)
 			C.rtloader_free(rtloader, unsafe.Pointer(checkFilePath))
 		} else {
-			reportPy3Warnings(name, "")
 			log.Debugf("Could not query the __file__ attribute for check %s: %s", name, getRtLoaderError())
 		}
+
+		go reportPy3Warnings(name, goCheckFilePath)
 	}
 
 	// Get an AgentCheck for each configuration instance and add it to the registry
@@ -255,13 +259,22 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 			checkFilePath = checkFilePath[:len(checkFilePath)-1]
 		}
 
-		if warnings, err := validatePython3(checkName, checkFilePath); err != nil {
+		if strings.HasPrefix(host.GetPythonVersion(), "3") {
+			// the linter used by validatePython3 doesn't work when run from python3
+			status = a7TagPython3
+			metricValue = 1.0
+		} else if warnings, err := validatePython3(checkName, checkFilePath); err != nil {
 			status = a7TagUnknown
+			log.Errorf("Failed to validate Python 3 linting for check '%s': '%s'", checkName, err)
 		} else if len(warnings) == 0 {
 			status = a7TagReady
 			metricValue = 1.0
 		} else {
 			status = a7TagNotReady
+			log.Warnf("The Python 3 linter returned warnings for check '%s'. Set the log level to \"debug\" and restart the Agent to have the linter warnings logged.", checkName)
+			for _, warning := range warnings {
+				log.Debug(warning)
+			}
 		}
 	}
 	py3Warnings[checkName] = status

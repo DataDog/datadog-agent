@@ -23,7 +23,8 @@ open an issue or submit a Pull Request.
   * [Custom Checks](#custom-checks)
 * [JMX](#jmx)
 * [GCE hostname](#gce-hostname)
-
+* [System Metrics](#system-metrics)
+  
 ## Configuration Files
 
 Prior releases of Datadog Agent stored configuration files in `/etc/dd-agent`.
@@ -31,6 +32,9 @@ Starting with the 6.0 release configuration files will now be stored in
 `/etc/datadog-agent`.
 
 ### Agent configuration file
+
+Refer to the [Configuration Options][config] for a detailed list
+of the configuration options that were either changed or deprecated in the new Agent.
 
 In addition to the location change, the primary agent configuration file has been
 transitioned from **INI** format to **YAML** to better support complex configurations and
@@ -42,9 +46,6 @@ may use the agent command: `sudo -u dd-agent -- datadog-agent import`.
 The command will parse an existing `datadog.conf` and convert all the bits that
 the new Agent still supports to the new format, in the new file. It also copies
 configuration files for checks that are currently enabled.
-
-Please refer to [this section][config] of the documentation for a detailed list
-of the configuration options that were either changed or deprecated in the new Agent.
 
 ### Checks configuration files
 
@@ -566,3 +567,11 @@ will change from the GCE instance _name_ to the full GCE instance _hostname_ (wh
 [python-dev]: https://github.com/DataDog/datadog-agent/tree/master/docs/dev/checks#python-checks
 [config]: config.md
 [integrations-core]: https://github.com/DataDog/integrations-core
+
+## System Metrics
+
+_Only affects Windows Agents_
+
+When running the Windows Agent 5, the metrics _system.mem.pagefile.*_ display inconsistent units (they're off by 10^6).
+This problem has been fixed on Windows Agent6; however, the Agent 5 discrepancy remains for backwards compatibility.  Therefore,
+reported values (and associated monitors) will be different upon upgrade from Agent v5 to Agent v6.
