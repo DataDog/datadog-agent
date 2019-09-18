@@ -59,7 +59,7 @@ variables:
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   S3_DSD6_URI: s3://dsd6-staging/linux
   RELEASE_VERSION: nightly
-  DATADOG_AGENT_BUILDIMAGES: v1707453-4ebe3c7
+  DATADOG_AGENT_BUILDIMAGES: v1709713-2adac2a
   DATADOG_AGENT_BUILDERS: v1613952-f072482
 
 
@@ -151,11 +151,33 @@ before_script:
 #
 
 # run tests for deb-x64
-run_tests_deb-x64:
+run_tests_deb-x64-py2:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    PYTHON_RUNTIMES: 2
   before_script:
+    - conda activate ddpy2
+    - pip install wheel
+    - pip install -r requirements.txt
+    - go get gopkg.in/yaml.v2
+    - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
+    - inv -e rtloader.install
+    - inv -e rtloader.format --raise-if-changed
+    - inv -e rtloader.test
+    - inv deps --verbose --dep-vendor-only
+  script:
+    - inv -e test --race --profile --cpus 4
+
+run_tests_deb-x64-py3:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    PYTHON_RUNTIMES: 3
+  before_script:
+    - conda activate ddpy3
     - pip install wheel
     - pip install -r requirements.txt
     - go get gopkg.in/yaml.v2
@@ -168,16 +190,36 @@ run_tests_deb-x64:
     - inv -e test --race --profile --cpus 4
 
 # run tests for rpm-x64
-run_tests_rpm-x64:
+run_tests_rpm-x64-py2:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    PYTHON_RUNTIMES: 2
   before_script:
-    - scl enable rh-python36 bash
-    - python2 -m pip install wheel
-    - python2 -m pip install -r requirements.txt
-    - python3 -m pip install wheel
-    - python3 -m pip pip install -r requirements.txt
+    - conda activate ddpy2
+    - pip install -r requirements.txt
+    - go get gopkg.in/yaml.v2
+    - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
+    - inv -e rtloader.install
+    - inv -e rtloader.format --raise-if-changed
+    - inv -e rtloader.test
+    - inv deps --verbose --dep-vendor-only
+  script:
+    # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
+    # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
+    # This is OK because the test on systemd still runs on the debian image above
+    - inv -e test --race --profile --cpus 4 --build-exclude=systemd
+
+run_tests_rpm-x64-py3:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    PYTHON_RUNTIMES: 3
+  before_script:
+    - conda activate ddpy3
+    - pip install -r requirements.txt
     - go get gopkg.in/yaml.v2
     - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
     - inv -e rtloader.install
@@ -347,12 +389,44 @@ run_dogstatsd_size_test:
 #
 
 # build Agent package for deb-x64
-agent_deb-x64:
+agent_deb-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    PYTHON_RUNTIMES: 2,3
+  script:
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    # Retrieve the system-probe from S3
+    - $S3_CP_CMD $S3_ARTEFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
+    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
+    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
+    # Use --skip-deps since the deps are installed by `before_script`.
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
+    - find $OMNIBUS_BASE_DIR/pkg -name "datadog-agent*_amd64.deb" -exec dpkg -c {} \;
+    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent_*_amd64.deb $S3_ARTEFACTS_URI/datadog-agent_amd64.deb
+    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent-dbg_*_amd64.deb $S3_ARTEFACTS_URI/datadog-agent-dbg_amd64.deb
+    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-agent*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
+  # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
+  # cache:
+  #   # cache per branch
+  #   key: $CI_COMMIT_REF_NAME
+  #   paths:
+  #     - $OMNIBUS_BASE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+
+agent_deb-x64-a7:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    PYTHON_RUNTIMES: 3
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -406,12 +480,49 @@ puppy_deb-x64:
       - $OMNIBUS_PACKAGE_DIR
 
 # build Agent package for rpm-x64
-agent_rpm-x64:
+agent_rpm-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    PYTHON_RUNTIMES: 2,3
+  script:
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
+    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
+    - set +x
+    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key_e09422b3 --with-decryption --query "Parameter.Value" --out text)
+    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
+    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
+    - set -x
+    # Retrieve the system-probe from S3
+    - $S3_CP_CMD $S3_ARTEFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
+    # use --skip-deps since the deps are installed by `before_script`
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
+    - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
+    - find $OMNIBUS_BASE_DIR/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
+    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
+  # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
+  # cache:
+  #   # cache per branch
+  #   key: $CI_COMMIT_REF_NAME
+  #   paths:
+  #     - $OMNIBUS_BASE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+
+# build Agent package for rpm-x64
+agent_rpm-x64-a7:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    PYTHON_RUNTIMES: 3
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
