@@ -117,7 +117,10 @@ func (c *Scheduler) SendNow(name string) {
 	if !sc.sendTimer.Stop() {
 		// Drain the channel after stoping, as per Timer's documentation
 		// Explanation here: https://blogtitle.github.io/go-advanced-concurrency-patterns-part-2-timers/
-		<-sc.sendTimer.C
+		select {
+		case <-sc.sendTimer.C:
+		default: //So we don't block if the channel is empty
+		}
 	}
 
 	sc.sendTimer.Reset(0) // Fire immediately
