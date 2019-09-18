@@ -158,8 +158,7 @@ run_tests_deb-x64-py2:
   variables:
     PYTHON_RUNTIMES: 2
   before_script:
-    - conda init bash
-    - conda activate ddpy2
+    - source /root/.bashrc && conda activate ddpy2
     - pip install wheel
     - pip install -r requirements.txt
     - go get gopkg.in/yaml.v2
@@ -178,8 +177,7 @@ run_tests_deb-x64-py3:
   variables:
     PYTHON_RUNTIMES: 3
   before_script:
-    - conda init bash
-    - conda activate ddpy3
+    - source /root/.bashrc && conda activate ddpy3
     - pip install wheel
     - pip install -r requirements.txt
     - go get gopkg.in/yaml.v2
@@ -199,8 +197,7 @@ run_tests_rpm-x64-py2:
   variables:
     PYTHON_RUNTIMES: 2
   before_script:
-    - conda init bash
-    - conda activate ddpy2
+    - source /root/.bashrc && conda activate ddpy2
     - pip install -r requirements.txt
     - go get gopkg.in/yaml.v2
     - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
@@ -221,8 +218,7 @@ run_tests_rpm-x64-py3:
   variables:
     PYTHON_RUNTIMES: 3
   before_script:
-    - conda init bash
-    - conda activate ddpy3
+    - source /root/.bashrc && conda activate ddpy3
     - pip install -r requirements.txt
     - go get gopkg.in/yaml.v2
     - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
@@ -295,6 +291,9 @@ build_dogstatsd_static-deb_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv deps --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build --static
     - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/static/dogstatsd
@@ -304,6 +303,9 @@ build_puppy_agent-deb_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv deps --verbose --dep-vendor-only
   script:
     - inv -e agent.build --puppy
     - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTEFACTS_URI/puppy/agent
@@ -313,6 +315,9 @@ build_puppy_agent-deb_x64_arm:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv deps --verbose --dep-vendor-only
   script:
     - GOOS=linux GOARCH=arm inv -e agent.build --puppy
 
@@ -321,6 +326,9 @@ build_dogstatsd-deb_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv deps --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build
     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/dogstatsd/dogstatsd
@@ -330,6 +338,9 @@ cluster_agent-build:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv deps --verbose --dep-vendor-only
   script:
     - inv -e cluster-agent.build
     - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTEFACTS_URI/datadog-cluster-agent
@@ -382,6 +393,7 @@ run_dogstatsd_size_test:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
   before_script:
+    - source /root/.bashrc && conda activate ddpy3
     # Disable global before_script
     - mkdir -p $STATIC_BINARIES_DIR
     - $S3_CP_CMD $S3_ARTEFACTS_URI/static/dogstatsd $STATIC_BINARIES_DIR/dogstatsd
@@ -400,6 +412,8 @@ agent_deb-x64-a6:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     PYTHON_RUNTIMES: 2,3
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -431,6 +445,8 @@ agent_deb-x64-a7:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     PYTHON_RUNTIMES: 3
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -462,6 +478,8 @@ puppy_deb-x64:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -491,6 +509,8 @@ agent_rpm-x64-a6:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     PYTHON_RUNTIMES: 2,3
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -527,6 +547,8 @@ agent_rpm-x64-a7:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     PYTHON_RUNTIMES: 3
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -556,12 +578,52 @@ agent_rpm-x64-a7:
       - $OMNIBUS_PACKAGE_DIR
 
 # build Agent package for suse-x64
-agent_suse-x64:
+agent_suse-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    PYTHON_RUNTIMES: '2,3'
+  script:
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
+    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
+    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
+    - set +x
+    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key_e09422b3 --with-decryption --query "Parameter.Value" --out text)
+    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
+    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
+    - set -x
+    # Retrieve the system-probe from S3
+    - $S3_CP_CMD $S3_ARTEFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
+    # use --skip-deps since the deps are installed by `before_script`
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache --skip-deps
+    - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
+    - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
+    - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR_SUSE/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR_SUSE
+    # FIXME: skip the installation step until we fix the preinst/postinst scripts in the rpm package
+    # to also work with SUSE11
+    # - rpm -i $OMNIBUS_PACKAGE_DIR_SUSE/*.rpm
+  # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
+  # cache:
+  #   # cache per branch
+  #   key: $CI_COMMIT_REF_NAME
+  #   paths:
+  #     - $OMNIBUS_BASE_DIR_SUSE
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR_SUSE
+
+# build Agent package for suse-x64
+agent_suse-x64-a7:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    PYTHON_RUNTIMES: '3'
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
@@ -594,7 +656,7 @@ agent_suse-x64:
       - $OMNIBUS_PACKAGE_DIR_SUSE
 
 # build Agent package for Windows
-build_windows_msi_x64:
+build_windows_msi_x64-a6:
   ## this is a weird workaround. Can't use the built-in CI_PROJECT_DIR because the path separators
   ## are wrong.  Record the PROJECT dir with the correct path separators to be used later
   before_script:
@@ -613,6 +675,40 @@ build_windows_msi_x64:
   variables:
     WINDOWS_BUILDER: 'true'
     CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
+    PYTHON_RUNTIMES: '2,3'
+  tags: ["runner:windows-agent6"]
+  script:
+    # remove artifacts from previous pipelines that may come from the cache
+    - cd %GOPATH%\src\github.com\DataDog\datadog-agent
+    # use --skip-deps since the deps are installed by `before_script`
+    - inv agent.omnibus-build --release-version %RELEASE_VERSION% --omnibus-s3-cache --base-dir %OMNIBUS_BASE_DIR_WIN_OMNIBUS% --skip-deps
+    # copy the results from the build dir to here, because artifacts must be relative to the project directory
+    - copy %OMNIBUS_BASE_DIR_WIN%\pkg\* %WIN_CI_PROJECT_DIR%\.omnibus\pkg
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - .omnibus/pkg
+
+build_windows_msi_x64-a7:
+  ## this is a weird workaround. Can't use the built-in CI_PROJECT_DIR because the path separators
+  ## are wrong.  Record the PROJECT dir with the correct path separators to be used later
+  before_script:
+    - set WIN_CI_PROJECT_DIR=%CD%
+    - if exist .omnibus rd /s/q .omnibus
+    - mkdir .omnibus\pkg
+    - if exist \omnibus-ruby rd /s/q \omnibus-ruby
+    - if exist %OMNIBUS_BASE_DIR_WIN% rd /s/q %OMNIBUS_BASE_DIR_WIN%
+    - if exist \opt\datadog-agent rd /s/q \opt\datadog-agent
+    - if exist %GOPATH%\src rd /s/q %GOPATH%\src
+    - mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
+    - xcopy /q/h/e/s * %GOPATH%\src\github.com\DataDog\datadog-agent
+    - cd %GOPATH%\src\github.com\DataDog\datadog-agent
+    - inv -e deps --verbose --dep-vendor-only --no-checks
+  stage: package_build
+  variables:
+    WINDOWS_BUILDER: 'true'
+    CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
+    PYTHON_RUNTIMES: '3'
   tags: ["runner:windows-agent6"]
   script:
     # remove artifacts from previous pipelines that may come from the cache
