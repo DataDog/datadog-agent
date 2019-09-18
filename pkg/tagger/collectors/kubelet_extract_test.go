@@ -94,6 +94,29 @@ func TestParsePods(t *testing.T) {
 		},
 	}
 
+	dockerContainerSpecCassandraMultiplePvcs := kubelet.Spec{
+		Containers: []kubelet.ContainerSpec{
+			{
+				Name:  "cassandra",
+				Image: "gcr.io/google-samples/cassandra:v13",
+			},
+		},
+		Volumes: []kubelet.VolumeSpec{
+			{
+				Name: "cassandra-data",
+				PersistentVolumeClaim: &kubelet.PersistentVolumeClaimSpec{
+					ClaimName: "cassandra-data-cassandra-0",
+				},
+			},
+			{
+				Name: "another-pvc",
+				PersistentVolumeClaim: &kubelet.PersistentVolumeClaimSpec{
+					ClaimName: "another-pvc-data-0",
+				},
+			},
+		},
+	}
+
 	criEntityId := "container_id://acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1"
 	criContainerStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
@@ -602,6 +625,44 @@ func TestParsePods(t *testing.T) {
 					"pod_phase:running",
 					"kube_stateful_set:cassandra",
 					"persistentvolumeclaim:cassandra-data-cassandra-0",
+				},
+				OrchestratorCardTags: []string{"pod_name:cassandra-0"},
+				HighCardTags: []string{
+					"container_id:6eaa4782de428f5ea639e33a837ed47aa9fa9e6969f8cb23e39ff788a751ce7d",
+					"display_container_name:cassandra_cassandra-0",
+				},
+			}},
+		},
+		{
+			desc: "statefulset 2 pvcs",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "cassandra-0",
+					Namespace: "default",
+					Owners: []kubelet.PodOwner{
+						{
+							Kind: "StatefulSet",
+							Name: "cassandra",
+							ID:   "0fa7e650-da09-11e9-b8b8-42010af002dd",
+						},
+					},
+				},
+				Status: dockerContainerStatusCassandra,
+				Spec:   dockerContainerSpecCassandraMultiplePvcs,
+			},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityIDCassandra,
+				LowCardTags: []string{
+					"kube_namespace:default",
+					"image_name:gcr.io/google-samples/cassandra",
+					"image_tag:v13",
+					"kube_container_name:cassandra",
+					"short_image:cassandra",
+					"pod_phase:running",
+					"kube_stateful_set:cassandra",
+					"persistentvolumeclaim:cassandra-data-cassandra-0",
+					"persistentvolumeclaim:another-pvc-data-0",
 				},
 				OrchestratorCardTags: []string{"pod_name:cassandra-0"},
 				HighCardTags: []string{

@@ -89,10 +89,13 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				tags.AddLow("kube_replication_controller", owner.Name)
 			case "StatefulSet":
 				tags.AddLow("kube_stateful_set", owner.Name)
-				persistentvolumeclaim := getPersistentVolumeClaimName(pod)
-				if persistentvolumeclaim != "" {
-					tags.AddLow("persistentvolumeclaim", persistentvolumeclaim)
+				pvcs := getPersistentVolumeClaimName(pod)
+				for _, pvc := range pvcs {
+					if pvc != "" {
+						tags.AddLow("persistentvolumeclaim", pvc)
+					}
 				}
+
 			case "Job":
 				cronjob := parseCronJobForJob(owner.Name)
 				if cronjob != "" {
@@ -263,13 +266,14 @@ func parseJSONValue(value string) (map[string]string, error) {
 	return result, nil
 }
 
-// getPersistentVolumeClaimName gets the persistent volume name from a statefulset pod
-// returns empty string if no persistent volume claim was found
-func getPersistentVolumeClaimName(pod *kubelet.Pod) string {
+// getPersistentVolumeClaimName gets the persistent volume names from a statefulset pod
+// returns empty slice if no persistent volume claim was found
+func getPersistentVolumeClaimName(pod *kubelet.Pod) []string {
+	pvcs := []string{}
 	for _, volume := range pod.Spec.Volumes {
 		if volume.PersistentVolumeClaim != nil {
-			return volume.PersistentVolumeClaim.ClaimName
+			pvcs = append(pvcs, volume.PersistentVolumeClaim.ClaimName)
 		}
 	}
-	return ""
+	return pvcs
 }
