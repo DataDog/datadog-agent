@@ -414,6 +414,7 @@ agent_deb-x64-a6:
     PYTHON_RUNTIMES: 2,3
   before_script:
     - source /root/.bashrc && conda activate ddpy3
+    - inv -e deps --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -447,6 +448,7 @@ agent_deb-x64-a7:
     PYTHON_RUNTIMES: 3
   before_script:
     - source /root/.bashrc && conda activate ddpy3
+    - inv -e deps --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -480,6 +482,7 @@ puppy_deb-x64:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
     - source /root/.bashrc && conda activate ddpy3
+    - inv -e deps --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -511,6 +514,7 @@ agent_rpm-x64-a6:
     PYTHON_RUNTIMES: 2,3
   before_script:
     - source /root/.bashrc && conda activate ddpy3
+    - inv -e deps --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -549,6 +553,7 @@ agent_rpm-x64-a7:
     PYTHON_RUNTIMES: 3
   before_script:
     - source /root/.bashrc && conda activate ddpy3
+    - inv -e deps --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -761,6 +766,9 @@ dogstatsd_deb-x64:
   tags: [ "runner:main", "size:large" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv -e deps --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -789,6 +797,9 @@ dogstatsd_rpm-x64:
   tags: [ "runner:main", "size:large" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv -e deps --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
