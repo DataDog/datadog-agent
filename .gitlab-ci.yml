@@ -156,7 +156,7 @@ run_tests_deb-x64-py2:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
-    PYTHON_RUNTIMES: 2
+    PYTHON_RUNTIMES: '2'
   before_script:
     - source /root/.bashrc && conda activate ddpy2
     - pip install wheel
@@ -175,7 +175,7 @@ run_tests_deb-x64-py3:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
-    PYTHON_RUNTIMES: 3
+    PYTHON_RUNTIMES: '3'
   before_script:
     - source /root/.bashrc && conda activate ddpy3
     - pip install wheel
@@ -195,7 +195,7 @@ run_tests_rpm-x64-py2:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
-    PYTHON_RUNTIMES: 2
+    PYTHON_RUNTIMES: '2'
   before_script:
     - source /root/.bashrc && conda activate ddpy2
     - pip install -r requirements.txt
@@ -216,7 +216,7 @@ run_tests_rpm-x64-py3:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
-    PYTHON_RUNTIMES: 3
+    PYTHON_RUNTIMES: '3'
   before_script:
     - source /root/.bashrc && conda activate ddpy3
     - pip install -r requirements.txt
@@ -411,7 +411,7 @@ agent_deb-x64-a6:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
-    PYTHON_RUNTIMES: 2,3
+    PYTHON_RUNTIMES: '2,3'
   before_script:
     - source /root/.bashrc && conda activate ddpy3
     - inv -e deps --verbose --dep-vendor-only
@@ -445,7 +445,7 @@ agent_deb-x64-a7:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
-    PYTHON_RUNTIMES: 3
+    PYTHON_RUNTIMES: '3'
   before_script:
     - source /root/.bashrc && conda activate ddpy3
     - inv -e deps --verbose --dep-vendor-only
@@ -511,7 +511,7 @@ agent_rpm-x64-a6:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
-    PYTHON_RUNTIMES: 2,3
+    PYTHON_RUNTIMES: '2,3'
   before_script:
     - source /root/.bashrc && conda activate ddpy3
     - inv -e deps --verbose --dep-vendor-only
@@ -550,7 +550,7 @@ agent_rpm-x64-a7:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
-    PYTHON_RUNTIMES: 3
+    PYTHON_RUNTIMES: '3'
   before_script:
     - source /root/.bashrc && conda activate ddpy3
     - inv -e deps --verbose --dep-vendor-only
