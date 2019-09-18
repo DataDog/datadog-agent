@@ -37,8 +37,8 @@ func mockNewTimerNoTick(d time.Duration) *time.Timer {
 }
 
 func TestNewScheduler(t *testing.T) {
-	firstRun = false
-	defer func() { firstRun = true }()
+	enableFirstRunCollection = false
+	defer func() { enableFirstRunCollection = true }()
 
 	fwd := forwarder.NewDefaultForwarder(nil)
 	fwd.Start()
@@ -49,8 +49,8 @@ func TestNewScheduler(t *testing.T) {
 }
 
 func TestStopScheduler(t *testing.T) {
-	firstRun = false
-	defer func() { firstRun = true }()
+	enableFirstRunCollection = false
+	defer func() { enableFirstRunCollection = true }()
 
 	fwd := forwarder.NewDefaultForwarder(nil)
 	fwd.Start()
@@ -69,8 +69,8 @@ func TestStopScheduler(t *testing.T) {
 }
 
 func TestAddCollector(t *testing.T) {
-	firstRun = false
-	defer func() { firstRun = true }()
+	enableFirstRunCollection = false
+	defer func() { enableFirstRunCollection = true }()
 
 	newTimer = mockNewTimer
 	defer func() { newTimer = time.NewTimer }()
@@ -107,8 +107,8 @@ func TestAddCollector(t *testing.T) {
 }
 
 func TestSendNow(t *testing.T) {
-	firstRun = false
-	defer func() { firstRun = true }()
+	enableFirstRunCollection = false
+	defer func() { enableFirstRunCollection = true }()
 
 	newTimer = mockNewTimerNoTick
 	defer func() { newTimer = time.NewTimer }()

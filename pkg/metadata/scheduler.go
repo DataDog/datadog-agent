@@ -22,8 +22,8 @@ var catalog = make(map[string]Collector)
 
 var (
 	// For testing purposes
-	newTimer = time.NewTimer
-	firstRun = true
+	newTimer                 = time.NewTimer
+	enableFirstRunCollection = true
 )
 
 type scheduledCollector struct {
@@ -47,7 +47,7 @@ func NewScheduler(s *serializer.Serializer) *Scheduler {
 		collectors: make(map[string]*scheduledCollector),
 	}
 
-	if firstRun {
+	if enableFirstRunCollection {
 		err := scheduler.firstRun()
 		if err != nil {
 			log.Errorf("Unable to send host metadata at first run: %v", err)
