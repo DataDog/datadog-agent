@@ -1,6 +1,8 @@
 package quantile
 
-import "math"
+import (
+	"math"
+)
 
 const (
 	agentBufCap = 512
@@ -79,21 +81,31 @@ func (a *Agent) InsertBucket(low, high float64, count uint) {
 		// Add the points for the bottom bucket.
 		ratio := float64(count) / (high - low)
 		firstPow := agentConfig.f64(lowKey + 1)
-		lowPoints := int(math.Round((firstPow - low) * ratio))
-		bins = appendSafe(bins, lowKey, lowPoints)
+		lowBucket := (firstPow - low) * ratio
+		lowPoints := int(math.Round(lowBucket))
+		if lowPoints > 0 {
+			bins = appendSafe(bins, lowKey, lowPoints)
+		}
 
 		// Add the middle points.
 		addedPoints := lowPoints
+		// We calculate the partial sums and add points as we go to ~match the partial sums.
+		totalSeen := lowBucket
 		bucketLen := firstPow - agentConfig.f64(lowKey)
-		for key := lowKey + 1; key < highKey; key++ {
+		for key := lowKey + 1; key < highKey-1; key++ {
 			bucketLen = agentConfig.gamma.v * bucketLen
-			points := int(math.Round(bucketLen * ratio))
-			bins = appendSafe(bins, key, points)
-			addedPoints += points
+			totalSeen += bucketLen * ratio
+			points := int(math.Round(totalSeen))
+			if points > addedPoints {
+				bins = appendSafe(bins, key, points-addedPoints)
+			}
+			addedPoints = points
 		}
 
 		// Add the remaining points.
-		bins = appendSafe(bins, highKey, int(count)-addedPoints)
+		if int(count) > addedPoints {
+			bins = appendSafe(bins, highKey, int(count)-addedPoints)
+		}
 	}
 
 	sparse := &sparseStore{count: int(count), bins: bins}

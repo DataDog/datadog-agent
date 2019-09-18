@@ -1,10 +1,12 @@
 package quantile
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"unsafe"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -109,4 +111,31 @@ func TestAgentFinish(t *testing.T) {
 		a := &Agent{}
 		require.Nil(t, a.Finish())
 	})
+}
+
+func TestInsertBucket(t *testing.T) {
+	a := &Agent{}
+
+	a.InsertBucket(1, 2, 10)
+	fmt.Printf("key of 1: %v\n", agentConfig.key(1.0))
+	fmt.Printf("%v\n", a.Sketch.bins)
+
+	sum := 0
+	for _, bin := range a.Sketch.bins {
+		sum += int(bin.n)
+	}
+	assert.Equal(t, 10, sum)
+	expectedBins := binList{
+		bin{1341, 1},
+		bin{1347, 1},
+		bin{1352, 1},
+		bin{1357, 1},
+		bin{1361, 1},
+		bin{1366, 1},
+		bin{1370, 1},
+		bin{1374, 1},
+		bin{1377, 1},
+		bin{1381, 1},
+	}
+	assert.Equal(t, expectedBins, a.Sketch.bins)
 }
