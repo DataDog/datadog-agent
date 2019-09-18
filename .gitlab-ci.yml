@@ -92,7 +92,6 @@ before_script:
     - tags
     - triggers
     - web
-    - branches # enable branches for now 
 
 # run job only when triggered by an external tool (ex: Jenkins) and when
 # RELEASE_VERSION is NOT "nightly". In this setting we are building either a
