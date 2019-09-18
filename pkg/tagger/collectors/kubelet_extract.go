@@ -89,7 +89,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				tags.AddLow("kube_replication_controller", owner.Name)
 			case "StatefulSet":
 				tags.AddLow("kube_stateful_set", owner.Name)
-				pvcs := getPersistentVolumeClaimName(pod)
+				pvcs := getPersistentVolumeClaimNames(pod)
 				for _, pvc := range pvcs {
 					if pvc != "" {
 						tags.AddLow("persistentvolumeclaim", pvc)
@@ -266,9 +266,9 @@ func parseJSONValue(value string) (map[string]string, error) {
 	return result, nil
 }
 
-// getPersistentVolumeClaimName gets the persistent volume names from a statefulset pod
+// getPersistentVolumeClaimNames gets the persistent volume names from a statefulset pod
 // returns empty slice if no persistent volume claim was found
-func getPersistentVolumeClaimName(pod *kubelet.Pod) []string {
+func getPersistentVolumeClaimNames(pod *kubelet.Pod) []string {
 	pvcs := []string{}
 	for _, volume := range pod.Spec.Volumes {
 		if volume.PersistentVolumeClaim != nil {
