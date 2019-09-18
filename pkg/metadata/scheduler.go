@@ -20,12 +20,22 @@ import (
 // Catalog keeps track of metadata collectors by name
 var catalog = make(map[string]Collector)
 
+var (
+	// For testing purposes
+	newTimer                 = time.NewTimer
+	enableFirstRunCollection = true
+)
+
+type scheduledCollector struct {
+	sendTimer    *time.Timer
+	healthHandle *health.Handle
+}
+
 // Scheduler takes care of sending metadata at specific
 // time intervals
 type Scheduler struct {
 	srl           *serializer.Serializer
-	tickers       []*time.Ticker
-	healthHandles []*health.Handle
+	collectors    map[string]*scheduledCollector
 	context       context.Context
 	contextCancel context.CancelFunc
 }
@@ -33,12 +43,15 @@ type Scheduler struct {
 // NewScheduler builds and returns a new Metadata Scheduler
 func NewScheduler(s *serializer.Serializer) *Scheduler {
 	scheduler := &Scheduler{
-		srl: s,
+		srl:        s,
+		collectors: make(map[string]*scheduledCollector),
 	}
 
-	err := scheduler.firstRun()
-	if err != nil {
-		log.Errorf("Unable to send host metadata at first run: %v", err)
+	if enableFirstRunCollection {
+		err := scheduler.firstRun()
+		if err != nil {
+			log.Errorf("Unable to send host metadata at first run: %v", err)
+		}
 	}
 
 	scheduler.context, scheduler.contextCancel = context.WithCancel(context.Background())
@@ -48,13 +61,11 @@ func NewScheduler(s *serializer.Serializer) *Scheduler {
 
 // Stop scheduling collectors
 func (c *Scheduler) Stop() {
-	for _, t := range c.tickers {
-		t.Stop()
-	}
-	for _, h := range c.healthHandles {
-		h.Deregister()
-	}
 	c.contextCancel()
+	for _, sc := range c.collectors {
+		sc.sendTimer.Stop()
+		sc.healthHandle.Deregister()
+	}
 }
 
 // AddCollector schedules a Metadata Collector at the given interval
@@ -64,8 +75,10 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 		return fmt.Errorf("Unable to find metadata collector: %s", name)
 	}
 
-	sendTicker := time.NewTicker(interval)
-	health := health.Register("metadata-" + name)
+	sc := &scheduledCollector{
+		sendTimer:    newTimer(interval),
+		healthHandle: health.Register("metadata-" + name),
+	}
 
 	go func() {
 		ctx, cancelCtxFunc := context.WithCancel(c.context)
@@ -74,18 +87,43 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 			select {
 			case <-ctx.Done():
 				return
-			case <-health.C:
-			case <-sendTicker.C:
+			case <-sc.healthHandle.C:
+				// Purposely empty
+			case <-sc.sendTimer.C:
+				sc.sendTimer.Reset(interval) // Reset the timer, so it fires again after `interval`.
+				// Note we call `p.Send` on the collector *after* resetting the Timer, so
+				// the time spent by `p.Send` is not added to the total time between runs.
 				if err := p.Send(c.srl); err != nil {
 					log.Errorf("Unable to send '%s' metadata: %v", name, err)
 				}
 			}
 		}
 	}()
-	c.tickers = append(c.tickers, sendTicker)
-	c.healthHandles = append(c.healthHandles, health)
+	c.collectors[name] = sc
 
 	return nil
+}
+
+// SendNow runs a collector immediately and resets its ticker.
+// Does nothing if the Scheduler has been stopped, since the
+// goroutine that listens on the Timer will not be running.
+func (c *Scheduler) SendNow(name string) {
+	sc, found := c.collectors[name]
+
+	if !found {
+		log.Errorf("Unable to find '" + name + "' in the running metadata collectors!")
+	}
+
+	if !sc.sendTimer.Stop() {
+		// Drain the channel after stoping, as per Timer's documentation
+		// Explanation here: https://blogtitle.github.io/go-advanced-concurrency-patterns-part-2-timers/
+		select {
+		case <-sc.sendTimer.C:
+		default: //So we don't block if the channel is empty
+		}
+	}
+
+	sc.sendTimer.Reset(0) // Fire immediately
 }
 
 // Always send host metadata at the first run
