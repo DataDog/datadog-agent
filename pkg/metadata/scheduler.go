@@ -111,7 +111,7 @@ func (c *Scheduler) SendNow(name string) {
 	sc, found := c.collectors[name]
 
 	if !found {
-		log.Errorf("Unable to find '" + name + "' metadata collector in the catalog!")
+		log.Errorf("Unable to find '" + name + "' in the running metadata collectors!")
 	}
 
 	if !sc.sendTimer.Stop() {
