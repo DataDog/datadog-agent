@@ -78,14 +78,15 @@ func (a *Agent) InsertBucket(low, high float64, count uint) {
 	} else { // More than two sketch buckets.
 		// Add the points for the bottom bucket.
 		ratio := float64(count) / (high - low)
-		lowPoints := int(math.Round((agentConfig.f64(lowKey+1) - low) * ratio))
+		firstPow := agentConfig.f64(lowKey + 1)
+		lowPoints := int(math.Round((firstPow - low) * ratio))
 		bins = appendSafe(bins, lowKey, lowPoints)
 
 		// Add the middle points.
 		addedPoints := lowPoints
+		bucketLen := firstPow - agentConfig.f64(lowKey)
 		for key := lowKey + 1; key < highKey; key++ {
-			// TODO: It might be more efficient to multiple by `gamma` here.
-			bucketLen := agentConfig.f64(key+1) - agentConfig.f64(key)
+			bucketLen = agentConfig.gamma.v * bucketLen
 			points := int(math.Round(bucketLen * ratio))
 			bins = appendSafe(bins, key, points)
 			addedPoints += points
