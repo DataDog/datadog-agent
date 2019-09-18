@@ -192,7 +192,7 @@ def query_version(ctx, git_sha_length=7, prefix=None, hint=None):
         cmd += " --match \"{}-*\"".format(prefix)
     else:
         if hint:
-            cmd += " --match \"{}*\"".format(hint)
+            cmd += " --match \"{}\.*\"".format(hint)
         else:
             cmd += " --match \"[0-9]*\""
     if git_sha_length and type(git_sha_length) == int:
@@ -249,7 +249,10 @@ def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix
     return str(version)
 
 def get_version_numeric_only(ctx, env={}):
-    version, _, _, _ = query_version(ctx, env=env)
+    # we only need the git info for the non omnibus builds, omnibus includes all this information by default
+    version_hint = '7' if env.get('PYTHON_RUNTIMES', '') == '3' else '6'
+
+    version, _, _, _ = query_version(ctx, hint=version_hint)
     return version
 
 def load_release_versions(ctx, target_version):
