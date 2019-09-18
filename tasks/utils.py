@@ -75,6 +75,8 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     if python_home_3:
         ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, python_home_3)
 
+    ldflags += "-X {}/pkg/config.DefaultPython={} ".format(REPO_PATH, get_default_python())
+
     # adding rtloader libs and headers to the env
     env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + ":{}".format(':'.join(rtloader_lib)) # OSX
     env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + ":{}".format(':'.join(rtloader_lib)) # linux
@@ -153,6 +155,14 @@ def get_git_commit():
     Get the current commit
     """
     return check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('utf-8').strip()
+
+def get_default_python():
+    """
+    Get the default python for the current build
+    """
+    py_runtimes = os.environ.get("PYTHON_RUNTIMES", "2")
+    return py_runtimes if ',' not in py_runtimes else "2"
+
 
 def get_go_version():
     """
@@ -238,9 +248,15 @@ def get_version_numeric_only(ctx):
     return version
 
 def load_release_versions(ctx, target_version):
+    # allow overriding python runtimes with env var
+    py_runtimes = os.environ.get("PYTHON_RUNTIMES")
+
     with open("release.json", "r") as f:
         versions = json.load(f)
         if target_version in versions:
+            if py_runtimes:
+                versions[target_version]["PYTHON_RUNTIMES"] = py_runtimes
+
             # windows runners don't accepts anything else than strings in the
             # environment when running a subprocess.
             return {str(k):str(v) for k, v in versions[target_version].items()}

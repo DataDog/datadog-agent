@@ -48,6 +48,11 @@ var (
 	proxies *Proxy
 )
 
+// Variables to initialize at build time
+var (
+	DefaultPython string
+)
+
 // MetadataProviders helps unmarshalling `metadata_providers` config param
 type MetadataProviders struct {
 	Name     string        `mapstructure:"name"`
@@ -131,7 +136,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("bind_host", "localhost")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
-	config.BindEnvAndSetDefault("python_version", "3")
+	config.BindEnvAndSetDefault("python_version", DefaultPython)
 	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
 	config.BindEnvAndSetDefault("c_core_dump", false)
