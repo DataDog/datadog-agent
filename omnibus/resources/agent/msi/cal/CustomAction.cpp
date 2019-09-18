@@ -51,10 +51,6 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
             goto LExit;
         }
-		if (!setUserProfileFolder(data.getUsername(), nullptr, passToUse)) {
-			WcaLog(LOGMSG_STANDARD, "Failed to set the user profile folder. Uninstall will not remove it");
-			// Continue as this error should not prevent the user for installing the agent.
-		}
         hr = 0;
     } else {
         WcaLog(LOGMSG_STANDARD, "Machine is a domain controller.  Not adding to groups");
