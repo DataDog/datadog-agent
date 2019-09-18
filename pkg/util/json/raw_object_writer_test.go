@@ -57,3 +57,19 @@ func TestRawObjectWriterInvalidScope(t *testing.T) {
 	assert.NoError(t, writer.FinishArrayField())
 	assert.Error(t, writer.FinishArrayField())
 }
+
+func TestRawObjectWriterInnerObjectArray(t *testing.T) {
+	writer := newRawObjectWriterTest()
+
+	assert.NoError(t, writer.StartObject())
+	assert.NoError(t, writer.StartObject())
+	assert.NoError(t, writer.StartArrayField("array"))
+
+	assert.NoError(t, writer.FinishArrayField())
+	assert.NoError(t, writer.FinishObject())
+	assert.NoError(t, writer.FinishObject())
+
+	writer.Flush()
+
+	assert.Equal(t, `{{"array":[]}}`, writer.toString())
+}

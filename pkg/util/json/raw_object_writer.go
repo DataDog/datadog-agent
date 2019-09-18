@@ -20,8 +20,7 @@ type RawObjectWriter struct {
 
 // NewRawObjectWriter creates a new instance of RawObjectWriter
 func NewRawObjectWriter(stream *jsoniter.Stream) *RawObjectWriter {
-	writer := &RawObjectWriter{stream: stream}
-	writer.scopeLevel = -1
+	writer := &RawObjectWriter{stream: stream, scopeLevel: -1}
 	return writer
 }
 
