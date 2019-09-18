@@ -184,14 +184,17 @@ def get_git_branch_name():
     return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).decode('utf-8').strip()
 
 
-def query_version(ctx, git_sha_length=7, prefix=None):
+def query_version(ctx, git_sha_length=7, prefix=None, hint=None):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
     cmd = "git describe --tags --candidates=50"
     if prefix and type(prefix) == str:
         cmd += " --match \"{}-*\"".format(prefix)
     else:
-        cmd += " --match \"[0-9]*\""
+        if hint:
+            cmd += " --match \"{}*\"".format(hint)
+        else:
+            cmd += " --match \"[0-9]*\""
     if git_sha_length and type(git_sha_length) == int:
         cmd += " --abbrev={}".format(git_sha_length)
     described_version = ctx.run(cmd, hide=True).stdout.strip()
@@ -228,10 +231,12 @@ def query_version(ctx, git_sha_length=7, prefix=None):
     return version, pre, commit_number, git_sha
 
 
-def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None):
+def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, env={}):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
+    version_hint = '7' if env.get('PYTHON_RUNTIMES', '') == '3' else None
+
     version = ""
-    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length, prefix)
+    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length, prefix, hint=version_hint)
     if pre:
         version = "{0}-{1}".format(version, pre)
     if commits_since_version and include_git:
@@ -243,8 +248,8 @@ def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix
     # version could be unicode as it comes from `query_version`
     return str(version)
 
-def get_version_numeric_only(ctx):
-    version, _, _, _ = query_version(ctx)
+def get_version_numeric_only(ctx, env={}):
+    version, _, _, _ = query_version(ctx, env=env)
     return version
 
 def load_release_versions(ctx, target_version):
