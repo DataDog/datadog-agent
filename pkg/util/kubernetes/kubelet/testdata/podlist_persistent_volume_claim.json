@@ -520,7 +520,7 @@
               "command": [
                 "/bin/sh",
                 "-c",
-                "exec kube-proxy --master=https://35.187.58.48 --kubeconfig=/var/lib/kube-proxy/kubeconfig --cluster-cidr=10.0.0.0/14 --resource-container=\"\" --oom-score-adj=-998 --v=2 --feature-gates=DynamicKubeletConfig=false,RotateKubeletServerCertificate=true,ExperimentalCriticalPodAnnotation=true --iptables-sync-period=1m --iptables-min-sync-period=10s --ipvs-sync-period=1m --ipvs-min-sync-period=10s 1>>/var/log/kube-proxy.log 2>&1"
+                "exec kube-proxy --master=https://XX.XXX.XX.XX --kubeconfig=/var/lib/kube-proxy/kubeconfig --cluster-cidr=10.0.0.0/14 --resource-container=\"\" --oom-score-adj=-998 --v=2 --feature-gates=DynamicKubeletConfig=false,RotateKubeletServerCertificate=true,ExperimentalCriticalPodAnnotation=true --iptables-sync-period=1m --iptables-min-sync-period=10s --ipvs-sync-period=1m --ipvs-min-sync-period=10s 1>>/var/log/kube-proxy.log 2>&1"
               ],
               "resources": {
                 "requests": {
