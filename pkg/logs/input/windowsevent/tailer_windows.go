@@ -241,7 +241,7 @@ func ConvertWindowsString(winput []uint8) string {
 // than 256kB when serialized and then dropped
 func LPWSTRToString(cwstr C.LPWSTR) string {
 	ptr := unsafe.Pointer(cwstr)
-	sz := C.wcslen((*C.wchar_t)(ptr))
+	sz := C.ULONGLONG(C.wcslen((*C.wchar_t)(ptr)))
 	sz = min(sz, maxRunes)
 	wstr := (*[maxRunes]uint16)(ptr)[:sz:sz]
 	return string(utf16.Decode(wstr))
