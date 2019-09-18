@@ -24,6 +24,18 @@ func (c MockCollector) Send(s *serializer.Serializer) error {
 	return nil
 }
 
+func mockNewTimer(d time.Duration) *time.Timer {
+	c := make(chan time.Time, 1)
+	timer := time.NewTimer(10 * time.Hour)
+	timer.C = c
+	c <- time.Now() // Ticks as soon as it's created
+	return timer
+}
+
+func mockNewTimerNoTick(d time.Duration) *time.Timer {
+	return time.NewTimer(10 * time.Hour)
+}
+
 func TestNewScheduler(t *testing.T) {
 	firstRun = false
 	defer func() { firstRun = true }()
@@ -54,18 +66,6 @@ func TestStopScheduler(t *testing.T) {
 	c.Stop()
 
 	assert.Equal(t, context.Canceled, c.context.Err())
-}
-
-func mockNewTimer(d time.Duration) *time.Timer {
-	c := make(chan time.Time, 1)
-	timer := time.NewTimer(10 * time.Hour)
-	timer.C = c
-	c <- time.Now() // Ticks as soon as it's created
-	return timer
-}
-
-func mockNewTimerNoTick(d time.Duration) *time.Timer {
-	return time.NewTimer(10 * time.Hour)
 }
 
 func TestAddCollector(t *testing.T) {
