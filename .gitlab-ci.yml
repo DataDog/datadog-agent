@@ -158,6 +158,7 @@ run_tests_deb-x64-py2:
   variables:
     PYTHON_RUNTIMES: 2
   before_script:
+    - conda init bash
     - conda activate ddpy2
     - pip install wheel
     - pip install -r requirements.txt
@@ -177,6 +178,7 @@ run_tests_deb-x64-py3:
   variables:
     PYTHON_RUNTIMES: 3
   before_script:
+    - conda init bash
     - conda activate ddpy3
     - pip install wheel
     - pip install -r requirements.txt
@@ -197,6 +199,7 @@ run_tests_rpm-x64-py2:
   variables:
     PYTHON_RUNTIMES: 2
   before_script:
+    - conda init bash
     - conda activate ddpy2
     - pip install -r requirements.txt
     - go get gopkg.in/yaml.v2
@@ -218,6 +221,7 @@ run_tests_rpm-x64-py3:
   variables:
     PYTHON_RUNTIMES: 3
   before_script:
+    - conda init bash
     - conda activate ddpy3
     - pip install -r requirements.txt
     - go get gopkg.in/yaml.v2
