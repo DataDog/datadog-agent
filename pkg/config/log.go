@@ -186,7 +186,7 @@ func createSyslogHeaderFormatter(params string) seelog.FormatterFunc {
 
 		rfc = (ps[1] == "true")
 	} else {
-		fmt.Printf("badly formatted syslog header parameters - using defaults")
+		fmt.Println("badly formatted syslog header parameters - using defaults")
 	}
 
 	pid := os.Getpid()

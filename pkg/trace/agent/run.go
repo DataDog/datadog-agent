@@ -48,7 +48,7 @@ func Run(ctx context.Context) {
 
 	if flags.Info {
 		if err := info.Info(os.Stdout, cfg); err != nil {
-			osutil.Exitf("failed to print info: %s\n", err)
+			osutil.Exitf("failed to print info: %s", err)
 		}
 		return
 	}

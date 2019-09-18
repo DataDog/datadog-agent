@@ -126,7 +126,7 @@ func main() {
 	flag.Parse()
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
-		fmt.Printf("failed to determine if we are running in an interactive session: %v", err)
+		fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
 	}
 	if !isIntSess {
 		runService(false)
@@ -136,10 +136,10 @@ func main() {
 	// make sure more than one wasn't specified
 	optcount := 0
 	if winopts.installService {
-		fmt.Printf("Installservice")
+		fmt.Println("Installservice")
 		optcount++
 	} else {
-		fmt.Printf("no Installservice")
+		fmt.Println("no Installservice")
 	}
 	if winopts.uninstallService {
 		optcount++
@@ -151,7 +151,7 @@ func main() {
 		optcount++
 	}
 	if optcount > 1 {
-		fmt.Printf("Incompatible options chosen")
+		fmt.Println("Incompatible options chosen")
 		return
 	}
 	if winopts.installService {

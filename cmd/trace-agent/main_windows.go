@@ -95,7 +95,7 @@ func runService(isDebug bool) {
 func main() {
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
-		fmt.Printf("failed to determine if we are running in an interactive session: %v", err)
+		fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
 	}
 	if !isIntSess {
 		runService(false)
@@ -117,7 +117,7 @@ func main() {
 		optcount++
 	}
 	if optcount > 1 {
-		fmt.Printf("Incompatible options chosen")
+		fmt.Println("Incompatible options chosen")
 		return
 	}
 	if flags.Win.InstallService {
