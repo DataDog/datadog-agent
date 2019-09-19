@@ -17,6 +17,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -148,6 +149,11 @@ func NewDatadogClient() (*datadog.Client, error) {
 	if appKey == "" || apiKey == "" {
 		return nil, errors.New("missing the api/app key pair to query Datadog")
 	}
+
 	log.Infof("Initialized the Datadog Client for HPA")
-	return datadog.NewClient(apiKey, appKey), nil
+
+	client := datadog.NewClient(apiKey, appKey)
+	client.HttpClient.Transport = httputils.CreateHTTPTransport()
+
+	return client, nil
 }
