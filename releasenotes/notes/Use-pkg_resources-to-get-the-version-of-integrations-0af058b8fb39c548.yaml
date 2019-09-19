@@ -1,4 +1,4 @@
 fixes:
   - |
-    Use 'pkg_resources' to collect the version of the integrations
+    Use ``pkg_resources`` to collect the version of the integrations
     instead of importing them.
