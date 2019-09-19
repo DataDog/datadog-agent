@@ -59,6 +59,9 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     ldflags = get_version_ldflags(ctx, prefix)
     env = {}
 
+    # lets pass the build runtimes around with the env
+    env['PYTHON_RUNTIMES'] = os.environ.get('PYTHON_RUNTIMES', '')
+
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
 
@@ -230,7 +233,7 @@ def query_version(ctx, git_sha_length=7, prefix=None, hint=None):
     return version, pre, commit_number, git_sha
 
 
-def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, env={}):
+def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, env=os.environ):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
     version_hint = '7' if env.get('PYTHON_RUNTIMES', '') == '3' else '6'
 
@@ -247,7 +250,7 @@ def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix
     # version could be unicode as it comes from `query_version`
     return str(version)
 
-def get_version_numeric_only(ctx, env={}):
+def get_version_numeric_only(ctx, env=os.environ):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
     version_hint = '7' if env.get('PYTHON_RUNTIMES', '') == '3' else '6'
 
