@@ -4,7 +4,8 @@
 
 **Features**
 
-- Enable new cluster agent _[(STAC-5008)](https://stackstate.atlassian.net/browse/STAC-5008)_
+- Make cluster agent gather OpenShift topology _[(STAC-5847)](https://stackstate.atlassian.net/browse/STAC-5847)_
+- Enable new cluster agent to gather Kubernetes topology _[(STAC-5008)](https://stackstate.atlassian.net/browse/STAC-5008)_
 
 ## 2.0.4 (2019-08-26)
 
