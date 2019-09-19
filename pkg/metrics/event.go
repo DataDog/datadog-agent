@@ -357,5 +357,10 @@ func (events Events) CreateMarshalerForEachSourceType() []marshaler.StreamJSONMa
 	for k, v := range e {
 		values = append(values, &eventsMarshaler{k, v})
 	}
+
+	// Make sure we return at least one marshaler to have non-empty JSON.
+	if len(values) == 0 {
+		values = append(values, &eventsBySourceTypeMarshaler{events, nil})
+	}
 	return values
 }
