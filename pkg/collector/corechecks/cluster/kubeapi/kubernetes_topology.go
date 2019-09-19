@@ -329,7 +329,7 @@ func (t *TopologyCheck) nodeToStackStateComponent(node v1.Node) topology.Compone
 
 	component := topology.Component{
 		ExternalID: nodeExternalID,
-		Type:       topology.Type{Name: fmt.Sprintf("%s-node", t.instance.Instance.Type)},
+		Type:       topology.Type{Name: "node"},
 		Data: map[string]interface{}{
 			"name":              node.Name,
 			"kind":              node.Kind,
@@ -370,7 +370,7 @@ func (t *TopologyCheck) podToStackStateComponent(pod v1.Pod) topology.Component 
 
 	component := topology.Component{
 		ExternalID: podExternalID,
-		Type:       topology.Type{Name: fmt.Sprintf("%s-pod", t.instance.Instance.Type)},
+		Type:       topology.Type{Name: "pod"},
 		Data: map[string]interface{}{
 			"name":              pod.Name,
 			"kind":              pod.Kind,
@@ -450,7 +450,7 @@ func (t *TopologyCheck) containerToStackStateComponent(node v1.Node, pod v1.Pod,
 
 	component := topology.Component{
 		ExternalID: containerExternalID,
-		Type:       topology.Type{Name: fmt.Sprintf("%s-container", t.instance.Instance.Type)},
+		Type:       topology.Type{Name: "container"},
 		Data:       data,
 	}
 
@@ -524,7 +524,7 @@ func (t *TopologyCheck) serviceToStackStateComponent(service v1.Service, endpoin
 
 	component := topology.Component{
 		ExternalID: serviceExternalID,
-		Type:       topology.Type{Name: fmt.Sprintf("%s-service", t.instance.Instance.Type)},
+		Type:       topology.Type{Name: "service"},
 		Data:       data,
 	}
 
