@@ -1,7 +1,6 @@
 package quantile
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 	"unsafe"
@@ -114,28 +113,31 @@ func TestAgentFinish(t *testing.T) {
 }
 
 func TestInsertBucket(t *testing.T) {
-	a := &Agent{}
-
-	a.InsertBucket(1, 2, 10)
-	fmt.Printf("key of 1: %v\n", agentConfig.key(1.0))
-	fmt.Printf("%v\n", a.Sketch.bins)
-
-	sum := 0
-	for _, bin := range a.Sketch.bins {
-		sum += int(bin.n)
+	type testcase struct {
+		// The bucket insertion parameters
+		low, high float64
+		count     uint
+		// The expected bins
+		bins binList
 	}
-	assert.Equal(t, 10, sum)
-	expectedBins := binList{
-		bin{1341, 1},
-		bin{1347, 1},
-		bin{1352, 1},
-		bin{1357, 1},
-		bin{1361, 1},
-		bin{1366, 1},
-		bin{1370, 1},
-		bin{1374, 1},
-		bin{1377, 1},
-		bin{1381, 1},
+
+	for _, tt := range []testcase{
+		{1, 2, 10, binList{ // Basic case
+			{1341, 1},
+			{1347, 1},
+			{1352, 1},
+			{1357, 1},
+			{1361, 1},
+			{1366, 1},
+			{1370, 1},
+			{1374, 1},
+			{1377, 1},
+			{1381, 1}}},
+		{129, 130, 10, binList{{1650, 10}}}, // All of the points go into one bucket
+	} {
+		a := &Agent{}
+
+		a.InsertBucket(tt.low, tt.high, tt.count)
+		assert.Equal(t, tt.bins, a.Sketch.bins)
 	}
-	assert.Equal(t, expectedBins, a.Sketch.bins)
 }
