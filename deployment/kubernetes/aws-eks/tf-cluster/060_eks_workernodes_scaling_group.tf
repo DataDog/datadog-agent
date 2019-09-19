@@ -29,7 +29,7 @@ locals {
 CA_CERTIFICATE_DIRECTORY=/etc/kubernetes/pki
 CA_CERTIFICATE_FILE_PATH=$CA_CERTIFICATE_DIRECTORY/ca.crt
 mkdir -p $CA_CERTIFICATE_DIRECTORY
-echo "${aws_eks_cluster.eks-cluster.certificate_authority.0.data}" | base64 -d >  $CA_CERTIFICATE_FILE_PATH
+echo "${aws_eks_cluster.eks-cluster.certificate_authority[0].data}" | base64 -d >  $CA_CERTIFICATE_FILE_PATH
 INTERNAL_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
 sed -i s,MASTER_ENDPOINT,${aws_eks_cluster.eks-cluster.endpoint},g /var/lib/kubelet/kubeconfig
 sed -i s,CLUSTER_NAME,${local.cluster_name},g /var/lib/kubelet/kubeconfig
@@ -45,32 +45,33 @@ sed -i s,CLIENT_CA_FILE,$CA_CERTIFICATE_FILE_PATH,g  /etc/systemd/system/kubelet
 systemctl daemon-reload
 systemctl restart kubelet
 USERDATA
+
 }
 
 resource "tls_private_key" "eks_rsa" {
   algorithm = "RSA"
   rsa_bits  = 4096
 }
+
 resource "aws_key_pair" "eks-key-pair" {
   key_name   = "eks-deployer-${local.cluster_name}"
-  public_key = "${tls_private_key.eks_rsa.public_key_openssh}"
+  public_key = tls_private_key.eks_rsa.public_key_openssh
 }
 
 resource "aws_launch_configuration" "eks-launch-configuration" {
   associate_public_ip_address = true
-  iam_instance_profile        = "${aws_iam_instance_profile.eks-node-instance-profile.name}"
-  image_id                    = "${data.aws_ami.eks-worker.id}"
+  iam_instance_profile        = aws_iam_instance_profile.eks-node-instance-profile.name
+  image_id                    = data.aws_ami.eks-worker.id
   instance_type               = "t2.small"
   name_prefix                 = "eks-${local.cluster_name}"
-  security_groups             = ["${aws_security_group.eks-nodes-sg.id}"]
-  user_data_base64            = "${base64encode(local.eks-node-userdata)}"
-  key_name                    = "${aws_key_pair.eks-key-pair.key_name}"
+  security_groups             = [aws_security_group.eks-nodes-sg.id]
+  user_data_base64            = base64encode(local.eks-node-userdata)
+  key_name                    = aws_key_pair.eks-key-pair.key_name
 
   lifecycle {
     create_before_destroy = true
   }
 }
-
 
 //Finally, we create an AutoScaling Group that actually launches EC2 instances based on the
 //AutoScaling Launch Configuration.
@@ -79,17 +80,16 @@ resource "aws_launch_configuration" "eks-launch-configuration" {
 //and Kubernetes to discover and manage compute resources.
 
 resource "aws_autoscaling_group" "eks-autoscaling-group" {
-  desired_capacity     = "${var.SCALING_DESIRED_CAPACITY}"
-  launch_configuration = "${aws_launch_configuration.eks-launch-configuration.id}"
+  desired_capacity     = var.SCALING_DESIRED_CAPACITY
+  launch_configuration = aws_launch_configuration.eks-launch-configuration.id
   max_size             = 2
   min_size             = 0
   name                 = "eks-${local.cluster_name}"
-  vpc_zone_identifier  = ["${aws_subnet.eks-private.id}", "${aws_subnet.eks-private-2.id}"]
-
+  vpc_zone_identifier  = [aws_subnet.eks-private.id, aws_subnet.eks-private-2.id]
 
   tag {
     key                 = "Environment"
-    value               = "${var.CLUSTER_NAME}"
+    value               = var.CLUSTER_NAME
     propagate_at_launch = true
   }
 
@@ -110,18 +110,14 @@ resource "aws_autoscaling_group" "eks-autoscaling-group" {
 //not be able to join the Kubernetes cluster quite yet. The next section has the required Kubernetes configuration to
 //enable the worker nodes to join the cluster.
 
-
 //Required Kubernetes Configuration to Join Worker Nodes
 //The EKS service does not provide a cluster-level API parameter or resource to automatically configure the underlying
 //Kubernetes cluster to allow worker nodes to join the cluster via AWS IAM role authentication.
-
 
 //To output an IAM Role authentication ConfigMap from your Terraform configuration:
 
 locals {
   config-map-aws-auth = <<CONFIGMAPAWSAUTH
-
-
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -135,23 +131,14 @@ data:
         - system:bootstrappers
         - system:nodes
 CONFIGMAPAWSAUTH
+
 }
 
 output "config-map-aws-auth" {
-  value = "${local.config-map-aws-auth}"
+  value = local.config-map-aws-auth
 }
 
-output "eks_rsa"{
-  value= "${tls_private_key.eks_rsa.private_key_pem}"
+output "eks_rsa" {
+  value = tls_private_key.eks_rsa.private_key_pem
 }
 
-//Run
-//
-//terraform output config-map-aws-auth and save the configuration into a file,
-//e.g. config-map-aws-auth.yaml
-//
-//Run kubectl apply -f config-map-aws-auth.yaml
-//
-//You can verify the worker nodes are joining the cluster via: kubectl get nodes --watch
-//At this point, you should be able to utilize Kubernetes as expected!
-//

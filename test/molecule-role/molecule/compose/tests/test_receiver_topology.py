@@ -27,7 +27,7 @@ def _relation_data(json_data, type_name, external_id_assert_fn):
     return None
 
 
-def test_receiver_ok(host):
+def test_receiver_healthy(host):
     def assert_healthy():
         c = "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:7077/health"
         assert host.check_output(c) == "200"

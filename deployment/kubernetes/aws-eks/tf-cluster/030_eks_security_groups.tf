@@ -6,13 +6,13 @@
 resource "aws_security_group" "eks-control-plane-sg" {
   name        = "${var.CLUSTER_NAME}-control-plane"
   description = "Cluster communication with worker nodes [${var.CLUSTER_NAME}]"
-  vpc_id      = "${aws_vpc.cluster.id}"
+  vpc_id      = aws_vpc.cluster.id
 
   egress {
-    from_port       = 0
-    to_port         = 0
-    protocol        = "-1"
-    cidr_blocks     = ["0.0.0.0/0"]
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
@@ -28,5 +28,3 @@ resource "aws_security_group" "eks-control-plane-sg" {
 //  to_port           = 443
 //  type              = "ingress"
 //}
-
-

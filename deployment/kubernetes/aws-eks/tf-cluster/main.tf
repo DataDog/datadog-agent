@@ -6,7 +6,6 @@
 //Associated IAM Roles and Policies:
 //Operator managed access resources for EKS and worker node instances
 
-
 // Remote state in S3 bucket
 terraform {
   backend "s3" {
@@ -16,11 +15,9 @@ terraform {
   }
 }
 
-
 // AWS setup
 provider "aws" {
   version = "~> 2.0"
-  region = "${var.AWS_REGION}"
-  //  secret_key = "${var.AWS_ACCESS_KEY_ID}"
-  //  access_key = "${var.AWS_SECRET_ACCESS_KEY}"
+  region  = var.AWS_REGION
 }
+
