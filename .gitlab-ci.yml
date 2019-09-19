@@ -1046,7 +1046,7 @@ kitchen_centos-a6:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a6
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1073,7 +1073,7 @@ kitchen_centos-a7:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1102,7 +1102,7 @@ kitchen_ubuntu-a6:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a6
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1130,7 +1130,7 @@ kitchen_ubuntu-a7:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1159,7 +1159,7 @@ kitchen_suse-a6:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a6
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1186,7 +1186,7 @@ kitchen_suse-a7:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1215,7 +1215,7 @@ kitchen_debian-a6:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a6
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1243,7 +1243,7 @@ kitchen_debian-a7:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
