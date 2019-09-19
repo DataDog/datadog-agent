@@ -1,0 +1,8 @@
+---
+molecule_run_id: "{{ lookup('env', 'MOLECULE_RUN_ID') or lookup('env', 'USER') }}"
+agent_repo_url: "https://stackstate-agent-2-test.s3.amazonaws.com"
+agent_current_branch: "{{ lookup('env', 'AGENT_CURRENT_BRANCH') }}"
+quay_password: "{{ lookup('env', 'quay_password') }}"
+quay_user: "{{ lookup('env', 'quay_user') }}"
+
+cluster_name: "molecule_k8s_test"

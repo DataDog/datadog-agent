@@ -10,7 +10,7 @@
 data "aws_ami" "eks-worker" {
   filter {
     name   = "name"
-    values = ["eks-worker-*"]
+    values = ["amazon-eks-node-*"]
   }
 
   most_recent = true
@@ -47,9 +47,13 @@ systemctl restart kubelet
 USERDATA
 }
 
+resource "tls_private_key" "eks_rsa" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
 resource "aws_key_pair" "eks-key-pair" {
   key_name   = "eks-deployer-${local.cluster_name}"
-  public_key = "${file("./eks_rsa.pub")}"
+  public_key = "${tls_private_key.eks_rsa.public_key_openssh}"
 }
 
 resource "aws_launch_configuration" "eks-launch-configuration" {
@@ -75,10 +79,10 @@ resource "aws_launch_configuration" "eks-launch-configuration" {
 //and Kubernetes to discover and manage compute resources.
 
 resource "aws_autoscaling_group" "eks-autoscaling-group" {
-  desired_capacity     = 2
+  desired_capacity     = "${var.SCALING_DESIRED_CAPACITY}"
   launch_configuration = "${aws_launch_configuration.eks-launch-configuration.id}"
   max_size             = 2
-  min_size             = 1
+  min_size             = 0
   name                 = "eks-${local.cluster_name}"
   vpc_zone_identifier  = ["${aws_subnet.eks-private.id}", "${aws_subnet.eks-private-2.id}"]
 
@@ -137,6 +141,9 @@ output "config-map-aws-auth" {
   value = "${local.config-map-aws-auth}"
 }
 
+output "eks_rsa"{
+  value= "${tls_private_key.eks_rsa.private_key_pem}"
+}
 
 //Run
 //

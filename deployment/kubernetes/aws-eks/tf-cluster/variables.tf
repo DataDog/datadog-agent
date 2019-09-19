@@ -1,7 +1,10 @@
 variable "AWS_ACCESS_KEY_ID" {}
 variable "AWS_SECRET_ACCESS_KEY" {}
 variable "AWS_REGION" {
-  default = "us-east-1"
+  default = "eu-west-1"
+}
+variable "SCALING_DESIRED_CAPACITY" {
+  default = 2
 }
 variable "CLUSTER_NAME" {}
 

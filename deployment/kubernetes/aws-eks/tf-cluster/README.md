@@ -15,9 +15,6 @@ In order to start with cluster setup, you will need:
 
 ## Variables
 
-Create an ssh key pair that will be used for login in to the EC2 instances:
-
-`ssh-keygen -f eks_rsa`
 
 Set the following environment variables:
 
@@ -28,6 +25,7 @@ export TF_VAR_AWS_SECRET_ACCESS_KEY=
 export TF_VAR_AWS_ACCESS_KEY_ID=
 export TF_VAR_AWS_REGION=us-east-1
 export TF_VAR_CLUSTER_NAME=
+export TF_VAR_SCALING_DESIRED_CAPACITY=
 ```
 
 ## Deploy
@@ -40,6 +38,12 @@ $ make apply
 ```
 
 Plan will check what changes Terraform needs to apply, then apply deploys the changes.
+
+To logon to the instances the private key can be generated from the terraform output.
+
+```bash 
+$ terraform output eks_rsa > eks_rsa 
+```
 
 The operation takes around 20 minutes.
 

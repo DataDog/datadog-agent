@@ -1,0 +1,29 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+bases:
+  - ../base
+
+configMapGenerator:
+  - name: sts-agent-config
+    behavior: merge
+    literals:
+      - STS_API_KEY=API_KEY
+      - STS_STS_URL="{{ ansible_default_ipv4['address'] }}/stsAgent"
+      - STS_PROCESS_AGENT_URL="{{ ansible_default_ipv4['address'] }}/stsAgent"
+      - STS_APM_URL="{{ ansible_default_ipv4['address'] }}/stsAgent"
+  - name: sts-clusteragent-config
+    behavior: merge
+    literals:
+      - STS_API_KEY=API_KEY
+      - STS_STS_URL="{{ ansible_default_ipv4['address'] }}/stsAgent"
+      - STS_CLUSTER_NAME={{ cluster_name }}
+
+secretGenerator:
+  - name: stackstate-auth-token
+    behavior: merge
+    env: env.txt
+    type: Opaque
+
+generatorOptions:
+  disableNameSuffixHash: true
