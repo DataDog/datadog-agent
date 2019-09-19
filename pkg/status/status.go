@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -250,6 +251,23 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
 	forwarderStats := make(map[string]interface{})
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats)
+
+	// ---------------------- XXX(remy):
+
+	counters, err := telemetry.GetCounters("datadog_agent_forwarder")
+	if err != nil {
+		return nil, err
+	}
+	endpointsTransactions := make(map[string]map[string]float64)
+	for _, endpoint := range counters.Keys() {
+		labelEndpoint := strings.TrimSuffix(endpoint, "endpoint:")
+		routes := counters.Subset(endpoint)
+		endpointsTransactions[labelEndpoint] = routes.KV()
+	}
+	forwarderStats["endpointsTransactions"] = endpointsTransactions
+
+	// ----------------------
+
 	stats["forwarderStats"] = forwarderStats
 
 	runnerStatsJSON := []byte(expvar.Get("runner").String())

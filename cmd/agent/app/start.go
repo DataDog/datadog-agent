@@ -17,6 +17,7 @@ import (
 
 	"os"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
@@ -126,6 +127,11 @@ func StartAgent() error {
 	// Setup expvar server
 	var port = config.Datadog.GetString("expvar_port")
 	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+
+	// Expose the registered metrics via HTTP.
+	http.Handle("/metrics", promhttp.Handler())
+	fmt.Println(config.Datadog.GetInt("metrics_port"))
+	go http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("metrics_port")), nil)
 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")

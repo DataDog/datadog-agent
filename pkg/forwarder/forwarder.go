@@ -13,9 +13,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -31,6 +32,15 @@ var (
 	transactionsTimeseriesV1  = expvar.Int{}
 	transactionsCheckRunsV1   = expvar.Int{}
 	transactionsIntakeV1      = expvar.Int{}
+
+	tlm = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "datadog_agent",
+			Name:      "forwarder",
+			Help:      "Series telemetry",
+		},
+		[]string{"endpoint", "route"},
+	)
 )
 
 func init() {
@@ -48,6 +58,8 @@ func init() {
 	initDomainForwarderExpvars()
 	initTransactionExpvars()
 	initForwarderHealthExpvars()
+
+	prometheus.MustRegister(tlm)
 }
 
 const (
@@ -191,7 +203,7 @@ func (f *DefaultForwarder) State() uint32 {
 	return f.internalState
 }
 
-func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
+func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payloads Payloads, apiKeyInQueryString bool, extra http.Header, typ string) []*HTTPTransaction {
 	transactions := []*HTTPTransaction{}
 	for _, payload := range payloads {
 		for domain, apiKeys := range f.keysPerDomains {
@@ -207,6 +219,8 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payloads Payl
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+
+				tlm.WithLabelValues(t.Domain, typ).Inc() // telemetry
 
 				for key := range extra {
 					t.Headers.Set(key, extra.Get(key))
@@ -233,42 +247,42 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 
 // SubmitSeries will send a series type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(seriesEndpoint, payload, false, extra)
+	transactions := f.createHTTPTransactions(seriesEndpoint, payload, false, extra, "series")
 	transactionsSeries.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitEvents will send an event type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(eventsEndpoint, payload, false, extra)
+	transactions := f.createHTTPTransactions(eventsEndpoint, payload, false, extra, "events")
 	transactionsEvents.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitServiceChecks will send a service check type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitServiceChecks(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(serviceChecksEndpoint, payload, false, extra)
+	transactions := f.createHTTPTransactions(serviceChecksEndpoint, payload, false, extra, "service_checks")
 	transactionsServiceChecks.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
-// SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
+// SubmitSketchSeries will send payloads to Datadog bakend - PROTOTYPE FOR PERCENTILE
 func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(sketchSeriesEndpoint, payload, true, extra)
+	transactions := f.createHTTPTransactions(sketchSeriesEndpoint, payload, true, extra, "sketch_series")
 	transactionsSketchSeries.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(hostMetadataEndpoint, payload, false, extra)
+	transactions := f.createHTTPTransactions(hostMetadataEndpoint, payload, false, extra, "host_metadata")
 	transactionsHostMetadata.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, extra)
+	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, extra, "metadata")
 	transactionsMetadata.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
@@ -276,7 +290,7 @@ func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) e
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
 // the backend handles v2 endpoints).
 func (f *DefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(v1SeriesEndpoint, payload, true, extra)
+	transactions := f.createHTTPTransactions(v1SeriesEndpoint, payload, true, extra, "series_v1")
 	transactionsTimeseriesV1.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
@@ -284,14 +298,14 @@ func (f *DefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) e
 // SubmitV1CheckRuns will send service checks to v1 endpoint (this will be removed once
 // the backend handles v2 endpoints).
 func (f *DefaultForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(v1CheckRunsEndpoint, payload, true, extra)
+	transactions := f.createHTTPTransactions(v1CheckRunsEndpoint, payload, true, extra, "check_run_v1")
 	transactionsCheckRunsV1.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
 func (f *DefaultForwarder) SubmitV1Intake(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(v1IntakeEndpoint, payload, true, extra)
+	transactions := f.createHTTPTransactions(v1IntakeEndpoint, payload, true, extra, "intake_v1")
 
 	// the intake endpoint requires the Content-Type header to be set
 	for _, t := range transactions {

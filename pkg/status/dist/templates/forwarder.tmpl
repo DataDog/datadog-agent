@@ -50,3 +50,13 @@ Forwarder
   {{- end }}
 {{- end}}
 
+Transactions per endpoints
+==========================
+{{ if .endpointsTransactions }}
+  {{- range $endpoint, $values := .endpointsTransactions }}
+  - {{$endpoint}}
+    {{- range $route, $value := $values }}
+      {{formatTitle $route}}: {{humanize $value}}
+    {{- end }}
+  {{- end }}
+{{ end }}
