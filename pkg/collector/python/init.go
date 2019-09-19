@@ -250,9 +250,20 @@ func detectPythonLocation(pythonVersion string) {
 	}
 
 	if runtime.GOOS == "windows" {
+		// The python binary is either:
+		//  - X:/Program Files/Datadog/Datadog Agent/embedded2/python.exe or
+		//  - X:/Program Files/Datadog/Datadog Agent/embedded3/python.exe
+		// Thus it's python.exe in both cases.
 		pythonBinPath = filepath.Join(PythonHome, "python.exe")
 	} else {
-		pythonBinPath = filepath.Join(PythonHome, "bin", "python")
+		// The python binary is either:
+		//  - /opt/datadog-agent/embedded/bin/python2 or
+		//  - /opt/datadog-agent/embedded/bin/python3
+		pythonBin := "python3"
+		if pythonVersion == "2" {
+			pythonBin = "python2"
+		}
+		pythonBinPath = filepath.Join(PythonHome, "bin", pythonBin)
 	}
 }
 

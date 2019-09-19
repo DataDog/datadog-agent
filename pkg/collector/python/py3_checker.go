@@ -26,7 +26,7 @@ type warning struct {
 	Message string
 }
 
-// verifyPython3 checks that a check can run on python 3
+// validatePython3 checks that a check can run on python 3.
 func validatePython3(moduleName string, modulePath string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), linterTimeout)
 	defer cancel()
