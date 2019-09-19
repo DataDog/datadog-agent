@@ -861,7 +861,7 @@ dogstatsd_suse-x64:
       - $OMNIBUS_PACKAGE_DIR_SUSE
 
 # deploy debian packages to apt staging repo
-deploy_deb_testing:
+deploy_deb_testing-a6:
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -882,12 +882,36 @@ deploy_deb_testing:
     - echo "$APT_SIGNING_KEY_ID"
     - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
 
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID" -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID" -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID-a6" -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_6*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID-a6" -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_6*amd64.deb
+
+deploy_deb_testing-a7:
+  stage: testkitchen_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  <<: *run_when_testkitchen_triggered
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - source /usr/local/rvm/scripts/rvm
+    - rvm use 2.4
+
+    - set +x # make sure we don't output the creds to the build log
+
+    - APT_SIGNING_KEY_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_id --with-decryption --query "Parameter.Value" --out text)
+    - APT_SIGNING_PRIVATE_KEY_PART1=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part1 --with-decryption --query "Parameter.Value" --out text)
+    - APT_SIGNING_PRIVATE_KEY_PART2=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part2 --with-decryption --query "Parameter.Value" --out text)
+    - APT_SIGNING_KEY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
+
+    - echo "$APT_SIGNING_KEY_ID"
+    - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
+
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID-a7" -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID-a7" -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
 
 
 # deploy rpm packages to yum staging repo
-deploy_rpm_testing:
+deploy_rpm_testing-a6:
   <<: *run_when_testkitchen_triggered
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -898,13 +922,29 @@ deploy_rpm_testing:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
     - mkdir -p ./rpmrepo/x86_64/
-    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID ./rpmrepo/
-    - cp $OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/x86_64/
+    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a6 ./rpmrepo/
+    - cp $OMNIBUS_PACKAGE_DIR/datadog-*-6.*x86_64.rpm ./rpmrepo/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/x86_64
-    - aws s3 sync ./rpmrepo/ s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 sync ./rpmrepo/ s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+deploy_rpm_testing-a7:
+  <<: *run_when_testkitchen_triggered
+  stage: testkitchen_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - source /usr/local/rvm/scripts/rvm
+    - rvm use 2.4
+    - mkdir -p ./rpmrepo/x86_64/
+    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a7 ./rpmrepo/
+    - cp $OMNIBUS_PACKAGE_DIR/datadog-*-7.*x86_64.rpm ./rpmrepo/x86_64/
+    - createrepo --update -v --checksum sha ./rpmrepo/x86_64
+    - aws s3 sync ./rpmrepo/ s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy rpm packages to yum staging repo
-deploy_suse_rpm_testing:
+deploy_suse_rpm_testing-a6:
   <<: *run_when_testkitchen_triggered
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -915,10 +955,26 @@ deploy_suse_rpm_testing:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
     - mkdir -p ./rpmrepo/suse/x86_64/
-    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID ./rpmrepo/
-    - cp $OMNIBUS_PACKAGE_DIR_SUSE/*x86_64.rpm ./rpmrepo/suse/x86_64/
+    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a6 ./rpmrepo/
+    - cp $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-6.*x86_64.rpm ./rpmrepo/suse/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/suse/x86_64
-    - aws s3 sync ./rpmrepo/suse/ s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 sync ./rpmrepo/suse/ s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+deploy_suse_rpm_testing-a7:
+  <<: *run_when_testkitchen_triggered
+  stage: testkitchen_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR_SUSE
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - source /usr/local/rvm/scripts/rvm
+    - rvm use 2.4
+    - mkdir -p ./rpmrepo/suse/x86_64/
+    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a7 ./rpmrepo/
+    - cp $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*x86_64.rpm ./rpmrepo/suse/x86_64/
+    - createrepo --update -v --checksum sha ./rpmrepo/suse/x86_64
+    - aws s3 sync ./rpmrepo/suse/ s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy windows packages to our testing bucket
 deploy_windows_testing:
@@ -990,6 +1046,7 @@ kitchen_centos-a6:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1016,6 +1073,7 @@ kitchen_centos-a7:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1044,6 +1102,7 @@ kitchen_ubuntu-a6:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1071,6 +1130,7 @@ kitchen_ubuntu-a7:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1099,6 +1159,7 @@ kitchen_suse-a6:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1125,6 +1186,7 @@ kitchen_suse-a7:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1153,6 +1215,7 @@ kitchen_debian-a6:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1180,6 +1243,7 @@ kitchen_debian-a7:
   <<: *run_when_testkitchen_triggered
   variables:
     PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: pipeline-$CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1305,7 +1369,7 @@ send_pkg_size-a7:
       "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"
 
 # run dd-agent-testing
-testkitchen_cleanup_s3:
+testkitchen_cleanup_s3-a6:
   stage: testkitchen_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
@@ -1316,9 +1380,27 @@ testkitchen_cleanup_s3:
   allow_failure: true
   when: always
   script:
-    - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$CI_PIPELINE_ID --recursive
-    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID --recursive
-    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID --recursive
+    - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$CI_PIPELINE_ID-a6 --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a6 --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a6 --recursive
+    - aws s3 rm s3://$WINDOWS_TESTING_S3_BUCKET --recursive
+    - cd $OMNIBUS_PACKAGE_DIR
+    - for deb in $(ls *amd64.deb); do aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/$deb --recursive; done
+
+testkitchen_cleanup_s3-a7:
+  stage: testkitchen_cleanup
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  tags: [ "runner:main", "size:large" ]
+  before_script:
+    - ls
+  # even if this fails, it shouldn't block the pipeline.
+  allow_failure: true
+  when: always
+  script:
+    - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$CI_PIPELINE_ID-a7 --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a7 --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a7 --recursive
     - aws s3 rm s3://$WINDOWS_TESTING_S3_BUCKET --recursive
     - cd $OMNIBUS_PACKAGE_DIR
     - for deb in $(ls *amd64.deb); do aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/$deb --recursive; done
