@@ -76,7 +76,7 @@ type realConntracker struct {
 		unregistersTotalTime int64
 		expiresTotal         int64
 	}
-	timesExceededSize int64
+	exceededSizeLogLimit *util.LogLimit
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
@@ -120,13 +120,14 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	}
 
 	ctr := &realConntracker{
-		nfct:                nfct,
-		nfctDel:             nfctDel,
-		compactTicker:       time.NewTicker(compactInterval),
-		state:               make(map[connKey]*connValue),
-		shortLivedBuffer:    make(map[connKey]*IPTranslation),
-		maxShortLivedBuffer: deleteBufferSize,
-		maxStateSize:        maxStateSize,
+		nfct:                 nfct,
+		nfctDel:              nfctDel,
+		compactTicker:        time.NewTicker(compactInterval),
+		state:                make(map[connKey]*connValue),
+		shortLivedBuffer:     make(map[connKey]*IPTranslation),
+		maxShortLivedBuffer:  deleteBufferSize,
+		maxStateSize:         maxStateSize,
+		exceededSizeLogLimit: util.NewLogLimit(10, time.Minute*10),
 	}
 
 	// seed the state
@@ -258,8 +259,8 @@ func (ctr *realConntracker) register(c ct.Conn) int {
 }
 
 func (ctr *realConntracker) logExceededSize() {
-	if ctr.timesExceededSize < 10 || ctr.timesExceededSize%100 == 0 {
-		log.Warnf("exceeded maximum conntrack state size: %d entries. You may need to increase system_probe_config.max_tracked_connections (will log first ten times, and then every 100th time)", ctr.maxStateSize)
+	if ctr.exceededSizeLogLimit.ShouldLog() {
+		log.Warnf("exceeded maximum conntrack state size: %d entries. You may need to increase system_probe_config.max_tracked_connections (will log first ten times, and then once every 10 minutes)", ctr.maxStateSize)
 	}
 }
 
