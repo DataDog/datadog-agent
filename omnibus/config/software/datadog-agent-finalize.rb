@@ -111,10 +111,9 @@ build do
             delete "#{install_dir}/embedded/share/examples"
 
             # Setup pip aliases: `/opt/datadog-agent/embedded/bin/pip` will default to `pip2`
-            delete "#{install_dir}/embedded/bin/python"
-            delete "#{install_dir}/embedded/bin/pip"
             if with_python_runtime? "2"
-                #link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
+                delete "#{install_dir}/embedded/bin/pip"
+                link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
             end
 
             # removing the man pages from the embedded folder to reduce package size by ~4MB
