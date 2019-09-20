@@ -12,6 +12,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -159,19 +160,30 @@ func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 }
 
 type testEventsPayload struct {
-	marshaler.StreamJSONMarshaler
+	marshaler.Marshaler
+	mock.Mock
+}
+
+func createTestEventsPayloadMock(marshaler marshaler.StreamJSONMarshaler) *testEventsPayload {
+	p := &testEventsPayload{}
+	p.Marshaler = marshaler
+	return p
 }
 
 func createTestEventsPayload(marshaler marshaler.StreamJSONMarshaler) *testEventsPayload {
-	return &testEventsPayload{marshaler}
+	p := createTestEventsPayloadMock(marshaler)
+	p.On("CreateSingleMarshaler").Return(marshaler)
+	return p
 }
 
 func (t *testEventsPayload) CreateSingleMarshaler() marshaler.StreamJSONMarshaler {
-	return t.StreamJSONMarshaler
+	args := t.Called()
+	return args.Get(0).(marshaler.StreamJSONMarshaler)
 }
 
-func (*testEventsPayload) CreateMarshalerCollection() []marshaler.StreamJSONMarshaler {
-	return nil
+func (t *testEventsPayload) CreateMarshalerCollection() []marshaler.StreamJSONMarshaler {
+	args := t.Called()
+	return args.Get(0).([]marshaler.StreamJSONMarshaler)
 }
 
 func TestSendV1Events(t *testing.T) {
@@ -191,6 +203,27 @@ func TestSendV1Events(t *testing.T) {
 	errPayload := createTestEventsPayload(&testErrorPayload{})
 	err = s.SendEvents(errPayload)
 	require.NotNil(t, err)
+}
+
+func TestSendV1EventsCreateMarshalerCollection(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	f.On("SubmitV1Intake", mock.Anything, jsonExtraHeadersWithCompression).Return(nil)
+	s := NewSerializer(f)
+
+	payload := &testPayload{}
+
+	eventPayload := createTestEventsPayloadMock(payload)
+	eventPayload.On("CreateSingleMarshaler").Return(payload)
+	err := s.SendEvents(eventPayload)
+	assert.NoError(t, err)
+	eventPayload.AssertExpectations(t)
+
+	config.Datadog.Set("serializer_max_payload_size", 0)
+	defer config.Datadog.Set("serializer_max_payload_size", nil)
+	eventPayload.On("CreateMarshalerCollection").Return([]marshaler.StreamJSONMarshaler{payload})
+	err = s.SendEvents(eventPayload)
+	assert.NoError(t, err)
+	eventPayload.AssertExpectations(t)
 }
 
 func TestSendEvents(t *testing.T) {
