@@ -194,7 +194,7 @@ func (l *Collector) postMessage(checkPath string, m model.MessageBody) {
 
 	responses := make(chan postResponse)
 	for _, ep := range l.cfg.APIEndpoints {
-		go l.postToAPI(ep, checkPath, body, responses)
+		go l.postToAPI(ep, checkPath, body, responses, m)
 	}
 
 	// Wait for all responses to come back before moving on.
@@ -273,7 +273,7 @@ func errResponse(format string, a ...interface{}) postResponse {
 	return postResponse{err: fmt.Errorf(format, a...)}
 }
 
-func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, body []byte, responses chan postResponse) {
+func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, body []byte, responses chan postResponse, mb model.MessageBody) {
 	endpoint.Endpoint.Path = checkPath
 	url := endpoint.Endpoint.String()
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
@@ -285,8 +285,8 @@ func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, bod
 	req.Header.Add("X-Dd-APIKey", endpoint.APIKey)
 	req.Header.Add("X-Dd-Hostname", l.cfg.HostName)
 	req.Header.Add("X-Dd-Processagentversion", Version)
-	if hasContainers(body) {
-		req.Header.Add("X-Has-Containers", "True")
+	if hasContainers(mb) {
+		req.Header.Add("X-Dd-Has-Containers", "true")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), ReqCtxTimeout)
@@ -340,29 +340,16 @@ func isHTTPTimeout(err error) bool {
 	return false
 }
 
-func hasContainers(body []byte) bool {
-	m, err := model.DecodeMessage(body)
-	if err != nil {
-		log.Errorf("Unable to decode message body: %s", err)
-		return false
-	}
-	switch v := m.Body.(type) {
+func hasContainers(mb model.MessageBody) bool {
+	switch v := mb.(type) {
 	case *model.CollectorProc:
-		if v.GetContainers() != nil {
-			return true
-		}
+		return len(v.GetContainers()) > 0
 	case *model.CollectorRealTime:
-		if v.GetContainerStats() != nil {
-			return true
-		}
+		return len(v.GetContainerStats()) > 0
 	case *model.CollectorContainer:
-		if v.GetContainers() != nil {
-			return true
-		}
+		return len(v.GetContainers()) > 0
 	case *model.CollectorContainerRealTime:
-		if v.GetStats() != nil {
-			return true
-		}
+		return len(v.GetStats()) > 0
 	case *model.CollectorConnections:
 		return false
 	}
