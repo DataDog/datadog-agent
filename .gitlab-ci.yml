@@ -1308,13 +1308,13 @@ send_pkg_size-a6:
     - |
       curl  -X POST -H "Content-type: application/json" \
       -d "{\"series\":[
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_DOGSTATSD_SIZE]], \"tags\":[\"os:debian\", \"package:dogstatsd\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[${currenttime}, ${DEB_PUPPY_SIZE}]], \"tags\":[\"os:debian\", \"package:puppy\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_DOGSTATSD_SIZE]], \"tags\":[\"os:centos\", \"package:dogstatsd\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_DOGSTATSD_SIZE]], \"tags\":[\"os:suse\", \"package:dogstatsd\"]}
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:6\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_DOGSTATSD_SIZE]], \"tags\":[\"os:debian\", \"package:dogstatsd\", \"agent:6\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_PUPPY_SIZE]], \"tags\":[\"os:debian\", \"package:puppy\", \"agent:6\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:6\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_DOGSTATSD_SIZE]], \"tags\":[\"os:centos\", \"package:dogstatsd\", \"agent:6\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\", \"agent:6\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_DOGSTATSD_SIZE]], \"tags\":[\"os:suse\", \"package:dogstatsd\", \"agent:6\"]}
           ]}" \
       "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"
 
@@ -1343,13 +1343,13 @@ send_pkg_size-a7:
     - DEB_DOGSTATSD_SIZE=$(du -sB1 /tmp/deb/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
     - DEB_PUPPY_SIZE=$(du -sB1 /tmp/deb/puppy | sed 's/\([0-9]\+\).\+/\1/')
     # centos
-    - cd /tmp/rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-*.x86_64.rpm | cpio -idm > /dev/null
-    - cd /tmp/rpm/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-*.x86_64.rpm | cpio -idm > /dev/null
+    - cd /tmp/rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
+    - cd /tmp/rpm/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-7.*.x86_64.rpm | cpio -idm > /dev/null
     - RPM_AGENT_SIZE=$(du -sB1 /tmp/rpm/agent | sed 's/\([0-9]\+\).\+/\1/')
     - RPM_DOGSTATSD_SIZE=$(du -sB1 /tmp/rpm/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
     # suse
-    - cd /tmp/suse/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-*.x86_64.rpm | cpio -idm > /dev/null
-    - cd /tmp/suse/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-*.x86_64.rpm | cpio -idm > /dev/null
+    - cd /tmp/suse/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
+    - cd /tmp/suse/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-7.*.x86_64.rpm | cpio -idm > /dev/null
     - SUSE_AGENT_SIZE=$(du -sB1 /tmp/suse/agent | sed 's/\([0-9]\+\).\+/\1/')
     - SUSE_DOGSTATSD_SIZE=$(du -sB1 /tmp/suse/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
 
@@ -1358,13 +1358,13 @@ send_pkg_size-a7:
     - |
       curl  -X POST -H "Content-type: application/json" \
       -d "{\"series\":[
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_DOGSTATSD_SIZE]], \"tags\":[\"os:debian\", \"package:dogstatsd\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[${currenttime}, ${DEB_PUPPY_SIZE}]], \"tags\":[\"os:debian\", \"package:puppy\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_DOGSTATSD_SIZE]], \"tags\":[\"os:centos\", \"package:dogstatsd\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_DOGSTATSD_SIZE]], \"tags\":[\"os:suse\", \"package:dogstatsd\"]}
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:7\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_DOGSTATSD_SIZE]], \"tags\":[\"os:debian\", \"package:dogstatsd\", \"agent:7\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_PUPPY_SIZE]], \"tags\":[\"os:debian\", \"package:puppy\", \"agent:7\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:7\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_DOGSTATSD_SIZE]], \"tags\":[\"os:centos\", \"package:dogstatsd\", \"agent:7\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\", \"agent:7\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_DOGSTATSD_SIZE]], \"tags\":[\"os:suse\", \"package:dogstatsd\", \"agent:7\"]}
           ]}" \
       "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"
 
@@ -1406,7 +1406,7 @@ testkitchen_cleanup_s3-a7:
     - for deb in $(ls *amd64.deb); do aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/$deb --recursive; done
 
 # run dd-agent-testing
-testkitchen_cleanup_azure:
+testkitchen_cleanup_azure-a6:
   stage: testkitchen_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
@@ -1414,6 +1414,24 @@ testkitchen_cleanup_azure:
   allow_failure: true
   when: always
   tags: [ "runner:main", "size:large" ]
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+  script:
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/clean.sh
+
+testkitchen_cleanup_azure-a7:
+  stage: testkitchen_cleanup
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  # even if this fails, it shouldn't block the pipeline.
+  allow_failure: true
+  when: always
+  tags: [ "runner:main", "size:large" ]
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   script:
@@ -1451,8 +1469,8 @@ build_agent6:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -py2
-    BUILD_ARG: --target release --build-arg PYTHON_VERSION=2
-    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=2
+    BUILD_ARG: --target release --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT_BLOB=datadog-agent_6*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT_BLOB=datadog-agent_6*_amd64.deb
 
 # build agent6 jmx image
 build_agent6_jmx:
@@ -1461,8 +1479,8 @@ build_agent6_jmx:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -py2-jmx
-    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2
-    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT_BLOB=datadog-agent_6*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT_BLOB=datadog-agent_6*_amd64.deb
 
 # TESTING ONLY: This image is for internal testing purposes, not customer facing.
 # build agent6 jmx unified image (including python3)
@@ -1472,8 +1490,8 @@ build_agent6_py2py3_jmx:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -py2py3-jmx
-    BUILD_ARG: --target release --build-arg WITH_JMX=true
-    TESTING_ARG:  --target testing --build-arg WITH_JMX=true
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT_BLOB=datadog-agent_6*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT_BLOB=datadog-agent_6*_amd64.deb
 
 # build agent7 image
 build_agent7:
@@ -1482,8 +1500,8 @@ build_agent7:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -py3
-    BUILD_ARG: --target release --build-arg PYTHON_VERSION=3
-    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3
+    BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT_BLOB=datadog-agent_7*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT_BLOB=datadog-agent_7*_amd64.deb
 
 # build agent7 jmx image
 build_agent7_jmx:
@@ -1492,8 +1510,8 @@ build_agent7_jmx:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -py3-jmx
-    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3
-    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT_BLOB=datadog-agent_7*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT_BLOB=datadog-agent_7*_amd64.deb
 
 # build the cluster-agent image
 build_cluster_agent:
@@ -1667,7 +1685,7 @@ check_if_build_only:
 #
 
 # deploy debian packages to apt staging repo
-deploy_deb:
+deploy_deb-6:
   <<: *run_when_triggered
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -1695,8 +1713,39 @@ deploy_deb:
     - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
 
     # Release the artifacts to the "6" component
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*amd64.deb
+
+deploy_deb-7:
+  <<: *run_when_triggered
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    # We first check that the current version hasn't already been deployed
+    # (same as the check_already_deployed_version). We do this twice to mitigate
+    # races and issues with retries while failing early if there is an issue.
+    - pushd $OMNIBUS_PACKAGE_DIR
+    - /deploy_scripts/fail_deb_is_pkg_already_exists.sh
+    - popd
+    - source /usr/local/rvm/scripts/rvm
+    - rvm use 2.4
+
+    - set +x # make sure we don't output the creds to the build log
+
+    - APT_SIGNING_KEY_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_id --with-decryption --query "Parameter.Value" --out text)
+    - APT_SIGNING_PRIVATE_KEY_PART1=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part1 --with-decryption --query "Parameter.Value" --out text)
+    - APT_SIGNING_PRIVATE_KEY_PART2=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part2 --with-decryption --query "Parameter.Value" --out text)
+    - APT_SIGNING_KEY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
+
+    - echo "$APT_SIGNING_KEY_ID"
+    - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
+
+    # Release the artifacts to the "6" component
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
 
 # deploy windows packages to a public s3 bucket when pushed on master
 deploy_windows_master:
@@ -1737,7 +1786,7 @@ deploy_android_tags:
     - $S3_CP_CMD --recursive --exclude "*" --include "*.apk" $OMNIBUS_PACKAGE_DIR s3://$ANDROID_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy rpm packages to yum staging repo
-deploy_rpm:
+deploy_rpm-6:
   <<: *run_when_triggered
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -1751,14 +1800,34 @@ deploy_rpm:
     - aws s3 sync s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/6/ ./rpmrepo/6/
 
     # add RPMs to new "6" branch
-    - cp $OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/6/x86_64/
+    - cp $OMNIBUS_PACKAGE_DIR/*-6.*x86_64.rpm ./rpmrepo/6/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/6/x86_64
 
     # sync to S3
     - aws s3 sync ./rpmrepo/6/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/6/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
+deploy_rpm-7:
+  <<: *run_when_triggered
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - source /usr/local/rvm/scripts/rvm
+    - rvm use 2.4
+    - mkdir -p ./rpmrepo/7/x86_64/
+    - aws s3 sync s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/7/ ./rpmrepo/7/
+
+    # add RPMs to new "7" branch
+    - cp $OMNIBUS_PACKAGE_DIR/*-7.*x86_64.rpm ./rpmrepo/7/x86_64/
+    - createrepo --update -v --checksum sha ./rpmrepo/7/x86_64
+
+    # sync to S3
+    - aws s3 sync ./rpmrepo/7/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/7/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
 # deploy suse rpm packages to yum staging repo
-deploy_suse_rpm:
+deploy_suse_rpm-6:
   <<: *run_when_triggered
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -1772,11 +1841,31 @@ deploy_suse_rpm:
     - aws s3 sync s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/6/ ./rpmrepo/6/
 
     # add RPMs to new "6" branch
-    - cp $OMNIBUS_PACKAGE_DIR_SUSE/*x86_64.rpm ./rpmrepo/6/x86_64/
+    - cp $OMNIBUS_PACKAGE_DIR_SUSE/*-6.*x86_64.rpm ./rpmrepo/6/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/6/x86_64
 
     # sync to S3
     - aws s3 sync ./rpmrepo/6/ s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/6/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+deploy_suse_rpm-7:
+  <<: *run_when_triggered
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR_SUSE
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - source /usr/local/rvm/scripts/rvm
+    - rvm use 2.4
+    - mkdir -p ./rpmrepo/7/x86_64/
+    - aws s3 sync s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/7/ ./rpmrepo/7/
+
+    # add RPMs to new "7" branch
+    - cp $OMNIBUS_PACKAGE_DIR_SUSE/*-7.*x86_64.rpm ./rpmrepo/7/x86_64/
+    - createrepo --update -v --checksum sha ./rpmrepo/7/x86_64
+
+    # sync to S3
+    - aws s3 sync ./rpmrepo/7/ s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/7/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy dsd binary to staging bucket
 deploy_dsd:
