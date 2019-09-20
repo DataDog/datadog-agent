@@ -100,12 +100,6 @@ build do
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.py_compiled_files.txt"
             command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print >> #{install_dir}/embedded/.py_compiled_files.txt"
 
-            # The prerm and preinst scripts of the package will use this list to detect which files
-            # have been setup by the installer, this way, on removal, we'll be able to delete only files
-            # which have not been created by the package.
-            command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.installed_by_pkg.txt"
-            command "find #{install_dir}/embedded/lib/python*/site-packages >> #{install_dir}/embedded/.installed_by_pkg.txt"
-
             # removing the doc from the embedded folder to reduce package size by ~3MB
             delete "#{install_dir}/embedded/share/doc"
 
@@ -122,10 +116,19 @@ build do
                 link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
             end
 
+            # removing the man pages from the embedded folder to reduce package size by ~4MB
+            delete "#{install_dir}/embedded/man"
+            delete "#{install_dir}/embedded/share/man"
 
-        # removing the man pages from the embedded folder to reduce package size by ~4MB
-        delete "#{install_dir}/embedded/man"
-        delete "#{install_dir}/embedded/share/man"
+            # linux build will be stripped - but psycopg2 affected by bug in the way binutils
+            # and patchelf work together:
+            #    https://github.com/pypa/manylinux/issues/119
+            #    https://github.com/NixOS/patchelf
+            #
+            # Only affects psycopg2 - any binary whose path matches the pattern will be
+            # skipped.
+            strip_exclude("*psycopg2*")
+            strip_exclude("*cffi_backend*")
 
         elsif osx?
             # Remove linux specific configs

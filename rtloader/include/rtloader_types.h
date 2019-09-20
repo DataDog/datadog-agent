@@ -98,6 +98,8 @@ typedef void (*cb_submit_metric_t)(char *, metric_type_t, char *, float, char **
 typedef void (*cb_submit_service_check_t)(char *, char *, int, char **, char *, char *);
 // (id, event)
 typedef void (*cb_submit_event_t)(char *, event_t *);
+// (id, metric_name, value, lower_bound, upper_bound, monotonic, hostname, tags)
+typedef void (*cb_submit_histogram_bucket_t)(char *, char *, int, float, float, int, char *, char **);
 
 // datadog_agent
 //
@@ -114,7 +116,7 @@ typedef void (*cb_get_clustername_t)(char **);
 // (tracemalloc_enabled)
 typedef bool (*cb_tracemalloc_enabled_t)(void);
 // (message, level)
-typedef void (*cb_log_t)(char *, int);
+typedef void (*cb_log_t)(const char *, int);
 // (hostname, source_type_name, list of tags)
 typedef void (*cb_set_external_tags_t)(char *, char *, char **);
 

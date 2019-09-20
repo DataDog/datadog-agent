@@ -11,6 +11,7 @@ config_providers:
   # needed to support legacy docker label config templates
   - name: docker
     polling: true
+    poll_interval: 1s
 
 # Enable APM by setting the DD_APM_ENABLED envvar to true, or override this configuration
 apm_config:

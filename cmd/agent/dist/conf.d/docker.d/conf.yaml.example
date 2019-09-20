@@ -1,77 +1,82 @@
+## The agent honors the DOCKER_HOST, DOCKER_CERT_PATH and DOCKER_TLS_VERIFY
+## environment variables to set up the connection to the server.
+## See https://docs.docker.com/engine/reference/commandline/cli/#environment-variables
+
 init_config:
 
 instances:
-  - ## The agent honors the DOCKER_HOST, DOCKER_CERT_PATH and DOCKER_TLS_VERIFY
-    ## environment variables to setup the connection to the server.
-    ## See https://docs.docker.com/engine/reference/commandline/cli/#environment-variables
 
-    ## Data collection
-    ##
+  -
 
-    # Create events whenever a container status change.
-    # Defaults to true.
+    ## @param collect_events - boolean - optional - default: true
+    ## Create events whenever a container status changes.
     #
-    # collect_events: false
+    # collect_events: true
 
-    # By default we do not collect events with a status ['top', 'exec_start', 'exec_create', 'exec_die'].
-    # Here can be added additional statuses to be filtered.
-    # List of available statuses can be found here https://docs.docker.com/engine/reference/commandline/events/#object-types
+    ## @param filtered_event_types - list of strings - optional - default: ['top', 'exec_start', 'exec_create', 'exec_die']
+    ## List of excluded (filtered out) event types. Docker events of this type are not collected.
+    ## A list of available statuses can be found at:
+    ## https://docs.docker.com/engine/reference/commandline/events/#object-types
+    #
     # filtered_event_types:
-    #    - 'top'
-    #    - 'exec_start'
-    #    - 'exec_create'
-    #    - 'exec_die'
+    #   - 'top'
+    #   - 'exec_start'
+    #   - 'exec_create'
+    #   - 'exec_die'
 
-    # Collect disk usage per container with docker.container.size_rw and
-    # docker.container.size_rootfs metrics.
-    # Warning: This might take time for Docker daemon to generate,
-    # ensure that `docker ps -a -q` run fast before enabling it.
-    # Defaults to false.
+    ## @param collect_container_size - boolean - optional - default: false
+    ## Collect disk usage per container with docker.container.size_rw and
+    ## docker.container.size_rootfs metrics.
+    ## Warning: This might take time for Docker daemon to generate,
+    ## ensure that `docker ps -a -q` runs fast before enabling it.
     #
-    # collect_container_size: true
+    # collect_container_size: false
+
+    ## @param collect_container_size_frequency - integer - optional - default: 5
+    ## Set the collection frequency (once every X check runs) of disk user per container metrics.
     #
-    # Set the frequency of collection of disk user per container metrics, default is once every 5 check runs
     # collect_container_size_frequency: 5
 
-    # Collect images stats
-    # Number of available active images and intermediate images as gauges.
-    # Defaults to false.
+    ## @param collect_images_stats - boolean - optional - default: false
+    ## Set to true to gather the number of available active images and intermediate images as gauges.
     #
-    # collect_images_stats: true
+    # collect_images_stats: false
 
-    # Collect disk usage per image with docker.image.size and docker.image.virtual_size metrics.
-    # The check gets this size with the `docker images` command.
-    # Requires collect_images_stats to be enabled.
-    # Defaults to false.
+    ## @param collect_image_size - boolean - optional - default: false
+    ## Set to true to collect disk usage per image with docker.image.size and docker.image.virtual_size metrics.
+    ## The check gets this size with the `docker images` command. It requires collect_images_stats to be enabled.
     #
     # collect_image_size: true
 
-    # Collect disk metrics (total, used, free) through the docker info command for data and metadata.
-    # This is useful when these values can't be obtained by the disk check.
-    # Example: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
-    # Note that it only works when the storage driver is devicemapper.
-    # Explanation of these metrics can be found here:
-    # https://github.com/docker/docker/blob/v1.11.1/daemon/graphdriver/devmapper/README.md
-    # Defaults to false.
+    ## @param collect_disk_stats - boolean - optional - default: false
+    ## Collect disk metrics (total, used, free) through the Docker info command for data and metadata.
+    ## This is useful when these values can't be obtained by the disk check.
+    ## Example: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
+    ##
+    ## Note: This only works when the storage driver is devicemapper.
+    ## Explanation of these metrics can be found here:
+    ## https://github.com/docker/docker/blob/v1.11.1/daemon/graphdriver/devmapper/README.md
     #
-    # collect_disk_stats: true
+    # collect_disk_stats: false
 
-    # Monitor exiting containers and send service checks based on exit code value
-    # (OK if 0, CRITICAL otherwise)
-    # Defaults to false.
+    ## @param collect_exit_codes - boolean - optional - default: false
+    ## Collect containers exit codes and send service checks critical when exit code is not 0.
     #
-    # collect_exit_codes: true
+    # collect_exit_codes: false
 
-    # Allows ad-hoc spike filtering in some rare cases when the system happen to report incorrect metrics.
-    # This will drop points if the computed rate is higher than the cap value
+    ## @param tags - list of key:value element - optional
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
+
+    ## @param capped_metrics - list of key:value elements - optional
+    ## Allows ad-hoc spike filtering if the system reports incorrect metrics.
+    ## This drops points if the computed rate is higher than the cap value.
+    #
     # capped_metrics:
     #   docker.cpu.user: 1000
     #   docker.cpu.system: 1000
-
-    ## Tagging
-    ##
-
-    # You can add extra tags to your Docker metrics with the tags list option.
-    # Example: ["extra_tag", "env:testing"]
-    #
-    # tags: []

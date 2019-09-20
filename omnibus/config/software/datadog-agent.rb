@@ -49,17 +49,23 @@ build do
           :target => "#{gopath.to_path}/src/github.com/DataDog/datadog-agent/vendor/github.com/ianlancetaylor/cgosymbolizer/symbolizer.c"
   end
 
+  # Flag to generate additional datadog.yaml options if we ship both python versions
+  with_both_python = ""
+  if (with_python_runtime? "2") && (with_python_runtime? "3")
+    with_both_python = "--with-both-python"
+  end
+
   # we assume the go deps are already installed before running omnibus
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
     command "inv -e rtloader.build --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
     command "mv rtloader/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
-    command "inv -e agent.build --rtloader-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded --arch #{platform}", env: env
+    command "inv -e agent.build --rtloader-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded #{with_both_python} --arch #{platform}", env: env
     command "inv -e systray.build --rebuild --no-development --arch #{platform}", env: env
   else
     command "inv -e rtloader.build --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
     command "inv -e rtloader.install"
-    command "inv -e agent.build --rebuild --no-development --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded", env: env
+    command "inv -e agent.build --rebuild --no-development --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded #{with_both_python}", env: env
   end
 
   if osx?
@@ -113,7 +119,6 @@ build do
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
     # We don't use the system-probe in macOS builds
     if !osx?
-      command "inv -e system-probe.build"
       copy 'bin/system-probe/system-probe', "#{install_dir}/embedded/bin"
       block { File.chmod(0755, "#{install_dir}/embedded/bin/system-probe") }
     end

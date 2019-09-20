@@ -31,7 +31,7 @@ public:
       Basic constructor, initializes the _error string to an empty string and
       errorFlag to false and set the supplied PYTHONHOME.
     */
-    Two(const char *python_home);
+    Two(const char *python_home, cb_memory_tracker_t memtrack_cb);
 
     //! Destructor.
     /*!
@@ -88,6 +88,7 @@ public:
     void setSubmitMetricCb(cb_submit_metric_t);
     void setSubmitServiceCheckCb(cb_submit_service_check_t);
     void setSubmitEventCb(cb_submit_event_t);
+    void setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t);
 
     // datadog_agent API
     void setGetVersionCb(cb_get_version_t);

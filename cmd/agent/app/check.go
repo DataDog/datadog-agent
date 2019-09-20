@@ -132,6 +132,17 @@ var checkCmd = &cobra.Command{
 
 		allConfigs := common.AC.GetAllConfigs()
 
+		// make sure the checks in cs are not JMX checks
+		for _, conf := range allConfigs {
+			if conf.Name != checkName {
+				continue
+			}
+
+			if check.IsJMXConfig(conf.Name, conf.InitConfig) {
+				return fmt.Errorf("running a jmx check with the check command is not supported, please use the jmx command instead")
+			}
+		}
+
 		if profileMemory {
 			// If no directory is specified, make a temporary one
 			if profileMemoryDir == "" {
@@ -240,13 +251,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		var instancesData []interface{}
-
 		for _, c := range cs {
-			for _, conf := range allConfigs {
-				if check.IsJMXConfig(conf.Name, conf.InitConfig) {
-					return fmt.Errorf("using the jmx option with the check command directly is not supported, please use the jmx command instead")
-				}
-			}
 			s := runCheck(c, agg)
 
 			// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc

@@ -8,4 +8,5 @@
 ---
 enhancements:
   - |
-    Removing an RPM of the Datadog Agent will no longer throw missing files warning.
+    On Windows, adds system.mem.pagefile.* stats, previously available
+    only in Agent 5.

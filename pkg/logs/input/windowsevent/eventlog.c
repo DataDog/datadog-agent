@@ -309,7 +309,10 @@ LPWSTR FormatEvtField(EVT_HANDLE hMetadata, EVT_HANDLE hEvent, EVT_FORMAT_MESSAG
             ;
         else
         {
-            wprintf(L"EvtFormatMessage failed with %u\n", status);
+        // Remove this log because it can get very spammy. It should be using
+        // a function that will send logs to DD agent in debug / trace mode
+        // TODO(achntrl): Replace the wprintf with DD agent logger
+        //     wprintf(L"EvtFormatMessage failed with %u\n", status);
         }
     }
 

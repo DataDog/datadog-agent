@@ -160,6 +160,15 @@ api_key:
 
 {{ end }}
 {{- if .Agent }}
+{{- if .BothPythonPresent -}}
+## @param python_version - integer - optional - default: 2
+## The major version of Python used to run integrations and custom checks.
+## The only supported values are 2 (to use Python 2) or 3 (to use Python 3).
+## Do not change this option when using the official Docker Agent images.
+#
+# python_version: 2
+
+{{ end }}
 
 ############################
 ## Advanced Configuration ##
@@ -246,9 +255,19 @@ api_key:
 #
 # disable_py3_validation: false
 #
+## @param python3_linter_timeout - integer - optional - default: 120
+## Timeout in seconds for validation of compatibility with python 3 when running python 2.
+#
+# python3_linter_timeout: 120
+
+## @param memtrack_enabled - boolean - optional - default: true
+## Enables tracking of memory allocations made from the python runtime loader.
+#
+# memtrack_enabled: true
+
 ## @param tracemalloc_debug - boolean - optional - default: false
 ## Enables debugging with tracemalloc for python checks.
-## Please not that this option is only available when python_version is set to "3".
+## Please note that this option is only available when python_version is set to "3".
 ## Additionally when this option becomes effective the number of check runners is
 ## overridden to 1.
 #

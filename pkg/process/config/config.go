@@ -73,23 +73,25 @@ type AgentConfig struct {
 	ProcessExpVarPort  int
 
 	// System probe collection configuration
-	EnableSystemProbe            bool
-	EnableLocalSystemProbe       bool // To have the system probe embedded in the process-agent
-	DisableTCPTracing            bool
-	DisableUDPTracing            bool
-	DisableIPv6Tracing           bool
-	CollectLocalDNS              bool
-	SystemProbeSocketPath        string
-	SystemProbeLogFile           string
-	MaxTrackedConnections        uint
-	SysProbeBPFDebug             bool
-	ExcludedBPFLinuxVersions     []string
-	EnableConntrack              bool
-	ConntrackShortTermBufferSize int
-	SystemProbeDebugPort         int
-	ClosedChannelSize            int
-	MaxClosedConnectionsBuffered int
-	MaxConnectionsStateBuffered  int
+	EnableSystemProbe              bool
+	EnableLocalSystemProbe         bool // To have the system probe embedded in the process-agent
+	DisableTCPTracing              bool
+	DisableUDPTracing              bool
+	DisableIPv6Tracing             bool
+	CollectLocalDNS                bool
+	SystemProbeSocketPath          string
+	SystemProbeLogFile             string
+	MaxTrackedConnections          uint
+	SysProbeBPFDebug               bool
+	ExcludedBPFLinuxVersions       []string
+	ExcludedSourceConnections      map[string][]string
+	ExcludedDestinationConnections map[string][]string
+	EnableConntrack                bool
+	ConntrackShortTermBufferSize   int
+	SystemProbeDebugPort           int
+	ClosedChannelSize              int
+	MaxClosedConnectionsBuffered   int
+	MaxConnectionsStateBuffered    int
 
 	// Check config
 	EnabledChecks  []string

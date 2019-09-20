@@ -15,7 +15,17 @@ static rtloader_free_t rt_free = free;
 static cb_memory_tracker_t cb_memory_tracker = NULL;
 
 void _set_memory_tracker_cb(cb_memory_tracker_t cb) {
+
+    // Memory barrier for a little bit of safety on sets
+    __sync_synchronize();
     cb_memory_tracker = cb;
+}
+
+cb_memory_tracker_t _get_memory_tracker_cb(void) {
+
+    // Memory barrier for a little bit of safety on gets
+    __sync_synchronize();
+    return cb_memory_tracker;
 }
 
 void *_malloc(size_t sz) {

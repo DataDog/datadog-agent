@@ -95,7 +95,7 @@ rtloader_t *make2(const char *python_home, char **error)
     if (!create) {
         return NULL;
     }
-    return AS_TYPE(rtloader_t, create(python_home));
+    return AS_TYPE(rtloader_t, create(python_home, _get_memory_tracker_cb()));
 }
 
 rtloader_t *make3(const char *python_home, char **error)
@@ -109,7 +109,7 @@ rtloader_t *make3(const char *python_home, char **error)
     if (!create_three) {
         return NULL;
     }
-    return AS_TYPE(rtloader_t, create_three(python_home));
+    return AS_TYPE(rtloader_t, create_three(python_home, _get_memory_tracker_cb()));
 }
 
 /*! \fn void destroy(rtloader_t *rtloader)
@@ -162,7 +162,7 @@ rtloader_t *make2(const char *python_home, char **error)
         return NULL;
     }
 
-    return AS_TYPE(rtloader_t, create(python_home));
+    return AS_TYPE(rtloader_t, create(python_home, _get_memory_tracker_cb()));
 }
 
 rtloader_t *make3(const char *python_home, char **error)
@@ -195,7 +195,7 @@ rtloader_t *make3(const char *python_home, char **error)
         return NULL;
     }
 
-    return AS_TYPE(rtloader_t, create_three(python_home));
+    return AS_TYPE(rtloader_t, create_three(python_home, _get_memory_tracker_cb()));
 }
 
 void destroy(rtloader_t *rtloader)
@@ -375,6 +375,11 @@ void set_submit_service_check_cb(rtloader_t *rtloader, cb_submit_service_check_t
 void set_submit_event_cb(rtloader_t *rtloader, cb_submit_event_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setSubmitEventCb(cb);
+}
+
+void set_submit_histogram_bucket_cb(rtloader_t *rtloader, cb_submit_histogram_bucket_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitHistogramBucketCb(cb);
 }
 
 /*

@@ -10,15 +10,15 @@
   source = "github.com/adjust/goautoneg"
 
 [[projects]]
-  digest = "1:dfa126c123ce1bef1328b4d5b025ca5f0bb72a4ceebf2da1da680058f0ea276c"
+  digest = "1:2a1277418c550089fd8b8d82a7d636a01d94c6c12e86dafe6b8b5dc9b2814b1c"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "bd00819f7e33ddcf00a0fdc4f71847229e5c2998"
-  version = "4.11.0"
+  revision = "997110e4ab87b03a1457ab0532c4b1745e543e54"
+  version = "4.12.0"
 
 [[projects]]
   digest = "1:e64fddc819e2abc68792a743dd857c379449a56f2b9eaf030c03fb0ec19de884"
@@ -817,7 +817,7 @@
   version = "v1.0"
 
 [[projects]]
-  digest = "1:5ca19ae59ae03be8e9a97f39bb705938cf8174b4c8cb4b037accdbb99decfe8a"
+  digest = "1:3e7518df4c30983b334eeefd02d4c8a97788a1ea44c48e44eacd509b1623af7e"
   name = "github.com/iovisor/gobpf"
   packages = [
     "elf",
@@ -825,7 +825,7 @@
     "pkg/cpuonline",
   ]
   pruneopts = ""
-  revision = "dfb11c17a0746e78b1bd96b6eea766f2a4a2ce8a"
+  revision = "42285a7409f87cb399476b132e726aacfc63fbdc"
   source = "github.com/DataDog/gobpf"
 
 [[projects]]

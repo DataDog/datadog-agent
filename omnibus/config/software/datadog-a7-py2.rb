@@ -1,5 +1,5 @@
 name "datadog-a7-py2"
-default_version "0.0.6"
+default_version "0.0.7"
 
 dependency "pip2"
 

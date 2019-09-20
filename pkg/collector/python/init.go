@@ -101,11 +101,13 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 void SubmitMetric(char *, metric_type_t, char *, float, char **, int, char *);
 void SubmitServiceCheck(char *, char *, int, char **, int, char *, char *);
 void SubmitEvent(char *, event_t *, int);
+void SubmitHistogramBucket(char *, char *, int, float, float, int, char *, char **);
 
 void initAggregatorModule(rtloader_t *rtloader) {
 	set_submit_metric_cb(rtloader, SubmitMetric);
 	set_submit_service_check_cb(rtloader, SubmitServiceCheck);
 	set_submit_event_cb(rtloader, SubmitEvent);
+	set_submit_histogram_bucket_cb(rtloader, SubmitHistogramBucket);
 }
 
 //
@@ -258,7 +260,9 @@ func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetString("python_version")
 
 	// memory related RTLoader-global initialization
-	C.initMemoryTracker()
+	if config.Datadog.GetBool("memtrack_enabled") {
+		C.initMemoryTracker()
+	}
 
 	detectPythonLocation(pythonVersion)
 

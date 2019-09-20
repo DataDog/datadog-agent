@@ -198,7 +198,7 @@ func (a *Agent) Process(t *api.Trace) {
 		sampler.AddGlobalRate(root, rateLimiterRate)
 
 		if t.ContainerTags != "" {
-			root.Meta[tagContainersTags] = t.ContainerTags
+			traceutil.SetMeta(root, tagContainersTags, t.ContainerTags)
 		}
 	}
 

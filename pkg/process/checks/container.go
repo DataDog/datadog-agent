@@ -75,7 +75,7 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	}
 
 	groupSize := len(ctrList) / cfg.MaxPerMessage
-	if len(ctrList) != cfg.MaxPerMessage*groupSize {
+	if len(ctrList)%cfg.MaxPerMessage != 0 {
 		groupSize++
 	}
 	chunked := chunkContainers(ctrList, c.lastRates, c.lastRun, groupSize, cfg.MaxPerMessage)

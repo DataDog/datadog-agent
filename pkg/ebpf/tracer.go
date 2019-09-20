@@ -68,6 +68,10 @@ type Tracer struct {
 
 	// Internal buffer used to compute bytekeys
 	buf *bytes.Buffer
+
+	// Connections for the tracer to blacklist
+	sourceExcludes []*util.ConnectionFilter
+	destExcludes   []*util.ConnectionFilter
 }
 
 const (
@@ -112,11 +116,30 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
 
+	// check if current platform is RHEL or CentOS because it affects what kprobe are we going to enable
+	isRHELOrCentos, err := isRHELOrCentOS()
+	if err != nil {
+		// if the platform couldn't be determined, treat it as non RHEL case
+		log.Warn("could not detect the platform, will use kprobes from kernel version > 4.1.x")
+	}
+
+	if isRHELOrCentos {
+		log.Info("detected platform as RHEL/CentOS, switch to use kprobes from kernel version 3.3.x")
+	}
+
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes := config.EnabledKProbes()
+	enabledProbes := config.EnabledKProbes(isRHELOrCentos)
+
 	for k := range m.IterKprobes() {
-		if _, ok := enabledProbes[KProbeName(k.Name)]; ok {
-			if err = m.EnableKprobe(k.Name, maxActive); err != nil {
+		probeName := KProbeName(k.Name)
+		if _, ok := enabledProbes[probeName]; ok {
+			// check if we should override kprobe name
+			if override, ok := kprobeOverrides[probeName]; ok {
+				if err = m.SetKprobeForSection(string(probeName), string(override)); err != nil {
+					return nil, fmt.Errorf("could not update kprobe \"%s\" to \"%s\" : %s", k.Name, string(override), err)
+				}
+			}
+			if err = m.EnableKprobe(string(probeName), maxActive); err != nil {
 				return nil, fmt.Errorf("could not enable kprobe(%s): %s", k.Name, err)
 			}
 		}
@@ -147,6 +170,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 		buffer:         make([]ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
 		conntracker:    conntracker,
+		sourceExcludes: util.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:   util.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
 
 	tr.perfMap, err = tr.initPerfPolling()
@@ -262,7 +287,12 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 //  • Local DNS (*:53) requests if configured (default: true)
 func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 	isDNSConnection := conn.DPort == 53 || conn.SPort == 53
-	return !t.config.CollectLocalDNS && isDNSConnection && conn.Direction == LOCAL
+	if !t.config.CollectLocalDNS && isDNSConnection && conn.Direction == LOCAL {
+		return true
+	} else if util.IsBlacklistedConnection(t.sourceExcludes, conn.Source, conn.SPort) || util.IsBlacklistedConnection(t.destExcludes, conn.Dest, conn.DPort) {
+		return true
+	}
+	return false
 }
 
 func (t *Tracer) Stop() {
