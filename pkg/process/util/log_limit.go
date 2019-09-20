@@ -11,7 +11,9 @@ type LogLimit struct {
 	// we repeatedly add 1 to it.
 	n int32
 
-	// reset will be channel that belongs to the ticket
+	// exit and ticker must be different channels
+	// becaues Stopping a ticker will not close the ticker channel,
+	// and we will otherwise leak memory
 	ticker *time.Ticker
 	exit   chan struct{}
 }
@@ -21,11 +23,7 @@ type LogLimit struct {
 // interval thereafter.
 func NewLogLimit(n int, interval time.Duration) *LogLimit {
 	l := &LogLimit{
-		n: int32(n),
-
-		// exit and ticker must be different channels
-		// becaues Stopping a ticker will not close the ticker channel,
-		// and we will otherwise leak memory
+		n:      int32(n),
 		ticker: time.NewTicker(interval),
 		exit:   make(chan struct{}),
 	}
