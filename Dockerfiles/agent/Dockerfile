@@ -5,7 +5,9 @@
 FROM debian:buster-slim AS extract
 ARG WITH_JMX
 ARG PYTHON_VERSION
-COPY datadog-agent*_amd64.deb /
+ARG DD_AGENT_ARTIFACT_BLOB=datadog-agent_7*_amd64.deb
+
+COPY $DD_AGENT_ARTIFACT_BLOB /
 WORKDIR /output
 
 # Get s6-overlay and check gpg signature
