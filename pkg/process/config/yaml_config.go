@@ -86,11 +86,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	// The maximum number of connections the tracer can track
 	if mtc := config.Datadog.GetInt64(key(spNS, "max_tracked_connections")); mtc > 0 {
-		if mtc <= maxMaxTrackedConnections {
-			a.MaxTrackedConnections = uint(mtc)
-		} else {
-			log.Warnf("Overriding the configured max tracked connections limit because it exceeds maximum 65536, got: %v", mtc)
-		}
+		a.MaxTrackedConnections = uint(mtc)
 	}
 
 	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
