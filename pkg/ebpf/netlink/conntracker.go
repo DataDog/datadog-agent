@@ -257,8 +257,8 @@ func (ctr *realConntracker) register(c ct.Conn) int {
 	return 0
 }
 
-func (c *realConntracker) logExceededSize() {
-	if c.timesExceededSize < 10 || c.timesExceededSize%100 == 0 {
+func (ctr *realConntracker) logExceededSize() {
+	if ctr.timesExceededSize < 10 || ctr.timesExceededSize%100 == 0 {
 		log.Warnf("exceeded maximum conntrack state size: %d entries. You may need to increase system_probe_config.max_tracked_connections (will log first ten times, and then every 100th time)", ctr.maxStateSize)
 	}
 }
