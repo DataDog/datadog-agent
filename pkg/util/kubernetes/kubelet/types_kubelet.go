@@ -44,6 +44,7 @@ type Spec struct {
 	HostNetwork bool            `json:"hostNetwork,omitempty"`
 	NodeName    string          `json:"nodeName,omitempty"`
 	Containers  []ContainerSpec `json:"containers,omitempty"`
+	Volumes     []VolumeSpec    `json:"volumes,omitempty"`
 }
 
 // ContainerSpec contains fields for unmarshalling a Pod.Spec.Containers
@@ -65,6 +66,18 @@ type ContainerPortSpec struct {
 // ContainerProbe contains fields for unmarshalling a Pod.Spec.Containers.ReadinessProbe
 type ContainerProbe struct {
 	InitialDelaySeconds int `json:"initialDelaySeconds"`
+}
+
+// VolumeSpec contains fields for unmarshalling a Pod.Spec.Volumes
+type VolumeSpec struct {
+	Name string `json:"name"`
+	// Only try to retrieve persistent volume claim to tag statefulsets
+	PersistentVolumeClaim *PersistentVolumeClaimSpec `json:"persistentVolumeClaim,omitempty"`
+}
+
+// PersistentVolumeClaimSpec contains fields for unmarshalling a Pod.Spec.Volumes.PersistentVolumeClaim
+type PersistentVolumeClaimSpec struct {
+	ClaimName string `json:"claimName"`
 }
 
 // Status contains fields for unmarshalling a Pod.Status

@@ -91,3 +91,89 @@ func TestPodOwners(t *testing.T) {
 		})
 	}
 }
+
+func TestPodGetPersistentVolumeClaimNames(t *testing.T) {
+	for nb, tc := range []struct {
+		pod  *Pod
+		pvcs []string
+	}{
+		{
+			pod:  &Pod{},
+			pvcs: []string{},
+		},
+		{
+			pod: &Pod{
+				Metadata: PodMetadata{
+					Name: "cassandra-0",
+				},
+				Spec: Spec{
+					Containers: []ContainerSpec{
+						{
+							Name:  "cassandra",
+							Image: "gcr.io/google-samples/cassandra:v13",
+						},
+					},
+				},
+			},
+			pvcs: []string{},
+		},
+		{
+			pod: &Pod{
+				Metadata: PodMetadata{
+					Name: "cassandra-0",
+				},
+				Spec: Spec{
+					Containers: []ContainerSpec{
+						{
+							Name:  "cassandra",
+							Image: "gcr.io/google-samples/cassandra:v13",
+						},
+					},
+					Volumes: []VolumeSpec{
+						{
+							Name: "cassandra-data",
+							PersistentVolumeClaim: &PersistentVolumeClaimSpec{
+								ClaimName: "cassandra-data-cassandra-0",
+							},
+						},
+					},
+				},
+			},
+			pvcs: []string{"cassandra-data-cassandra-0"},
+		},
+		{
+			pod: &Pod{
+				Metadata: PodMetadata{
+					Name: "cassandra-0",
+				},
+				Spec: Spec{
+					Containers: []ContainerSpec{
+						{
+							Name:  "cassandra",
+							Image: "gcr.io/google-samples/cassandra:v13",
+						},
+					},
+					Volumes: []VolumeSpec{
+						{
+							Name: "cassandra-data",
+							PersistentVolumeClaim: &PersistentVolumeClaimSpec{
+								ClaimName: "cassandra-data-cassandra-0",
+							},
+						},
+						{
+							Name: "another-pvc",
+							PersistentVolumeClaim: &PersistentVolumeClaimSpec{
+								ClaimName: "another-pvc-data-0",
+							},
+						},
+					},
+				},
+			},
+			pvcs: []string{"cassandra-data-cassandra-0", "another-pvc-data-0"},
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d", nb), func(t *testing.T) {
+			assert.EqualValues(t, tc.pvcs, tc.pod.GetPersistentVolumeClaimNames())
+		})
+	}
+}
