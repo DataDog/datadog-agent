@@ -10,13 +10,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -40,6 +40,8 @@ type CLCRunnerClientInterface interface {
 
 // CLCRunnerClient is required to query the API of Datadog Cluster Level Check Runner
 type CLCRunnerClient struct {
+	sync.Once
+	initErr                    error
 	clcRunnerAPIRequestHeaders http.Header
 	clcRunnerAPIClient         *http.Client
 	clcRunnerPort              int
@@ -54,20 +56,17 @@ func resetGlobalCLCRunnerClient() {
 
 // GetCLCRunnerClient returns or init the CLCRunnerClient
 func GetCLCRunnerClient() (CLCRunnerClientInterface, error) {
-	if globalCLCRunnerClient == nil {
-		globalCLCRunnerClient = &CLCRunnerClient{}
-		if err := globalCLCRunnerClient.init(); err != nil {
-			log.Debugf("CLC Runner client init error: %v", err)
-			return nil, err
-		}
-	}
-	return globalCLCRunnerClient, nil
+	globalCLCRunnerClient.Do(globalCLCRunnerClient.init)
+	return globalCLCRunnerClient, globalCLCRunnerClient.initErr
 }
 
-func (c *CLCRunnerClient) init() error {
+func (c *CLCRunnerClient) init() {
+	c.initErr = nil
+
 	authToken, err := security.GetClusterAgentAuthToken()
 	if err != nil {
-		return err
+		c.initErr = err
+		return
 	}
 
 	// Set headers
@@ -81,8 +80,6 @@ func (c *CLCRunnerClient) init() error {
 
 	// Set http port used by the CLC Runners
 	c.clcRunnerPort = config.Datadog.GetInt("cmd_port")
-
-	return nil
 }
 
 // GetVersion fetches the version of the CLC Runner
@@ -154,8 +151,4 @@ func (c *CLCRunnerClient) GetRunnerStats(IP string) (types.CLCRunnersStats, erro
 // init globalCLCRunnerClient
 func init() {
 	globalCLCRunnerClient = &CLCRunnerClient{}
-	if err := globalCLCRunnerClient.init(); err != nil {
-		log.Debugf("CLC Runner client init error: %v", err)
-		globalCLCRunnerClient = nil
-	}
 }
