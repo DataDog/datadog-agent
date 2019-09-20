@@ -118,9 +118,9 @@ func (b *PayloadBuilder) BuildWithOnErrTooBigPolicy(
 			i++
 			expvarsTotalItems.Add(1)
 			continue
-		case errTooBig:
+		case ErrTooBig:
 			if policy == FailedErrTooBig {
-				return nil, err
+				return nil, ErrTooBig
 			}
 			fallthrough
 		default:

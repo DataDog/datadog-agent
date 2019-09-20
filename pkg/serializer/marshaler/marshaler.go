@@ -26,6 +26,8 @@ type StreamJSONMarshaler interface {
 
 // StreamJSONMarshalerFactory is a factory for StreamJSONMarshaler.
 type StreamJSONMarshalerFactory interface {
+	Marshaler
+
 	// Create a single marshaler.
 	CreateSingleMarshaler() StreamJSONMarshaler
 

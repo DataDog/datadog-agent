@@ -72,7 +72,7 @@ func initExtraHeaders() {
 
 // MetricSerializer represents the interface of method needed by the aggregator to serialize its data
 type MetricSerializer interface {
-	SendEvents(e marshaler.Marshaler) error
+	SendEvents(e marshaler.StreamJSONMarshalerFactory) error
 	SendServiceChecks(sc marshaler.StreamJSONMarshaler) error
 	SendSeries(series marshaler.StreamJSONMarshaler) error
 	SendSketch(sketches marshaler.Marshaler) error
@@ -99,6 +99,7 @@ type Serializer struct {
 	enableJSONToV1Intake          bool
 	enableJSONStream              bool
 	enableServiceChecksJSONStream bool
+	enableEventsJSONStream        bool
 }
 
 // NewSerializer returns a new Serializer initialized
@@ -113,6 +114,7 @@ func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
 		enableJSONToV1Intake:          config.Datadog.GetBool("enable_payloads.json_to_v1_intake"),
 		enableJSONStream:              jsonstream.Available && config.Datadog.GetBool("enable_stream_payload_serialization"),
 		enableServiceChecksJSONStream: jsonstream.Available && config.Datadog.GetBool("enable_service_checks_stream_payload_serialization"),
+		enableEventsJSONStream:        jsonstream.Available && config.Datadog.GetBool("enable_events_stream_payload_serialization"),
 	}
 
 	if !s.enableEvents {
@@ -168,17 +170,41 @@ func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarsh
 	return payloads, jsonExtraHeadersWithCompression, err
 }
 
+func (s Serializer) serializeStreamJSONMarshalerFactoryPayload(
+	streamJSONMarshalerFactory marshaler.StreamJSONMarshalerFactory) (forwarder.Payloads, http.Header, error) {
+	marshaler := streamJSONMarshalerFactory.CreateSingleMarshaler()
+	eventPayloads, extraHeaders, err := s.serializeStreamablePayload(marshaler, jsonstream.FailedErrTooBig)
+
+	if err == jsonstream.ErrTooBig {
+		for _, v := range streamJSONMarshalerFactory.CreateMarshalerCollection() {
+			var eventPayloadsForSourceType forwarder.Payloads
+			eventPayloadsForSourceType, extraHeaders, err = s.serializeStreamablePayload(v, jsonstream.ContinueOnErrTooBig)
+			if err != nil {
+				return nil, nil, err
+			}
+			eventPayloads = append(eventPayloads, eventPayloadsForSourceType...)
+		}
+	}
+	return eventPayloads, extraHeaders, err
+}
+
 // SendEvents serializes a list of event and sends the payload to the forwarder
-func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
+func (s *Serializer) SendEvents(e marshaler.StreamJSONMarshalerFactory) error {
 	if !s.enableEvents {
 		log.Debug("events payloads are disabled: dropping it")
 		return nil
 	}
 
 	useV1API := !config.Datadog.GetBool("use_v2_api.events")
+	var eventPayloads forwarder.Payloads
+	var extraHeaders http.Header
+	var err error
 
-	compress := true
-	eventPayloads, extraHeaders, err := s.serializePayload(e, compress, useV1API)
+	if useV1API && s.enableEventsJSONStream {
+		eventPayloads, extraHeaders, err = s.serializeStreamJSONMarshalerFactoryPayload(e)
+	} else {
+		eventPayloads, extraHeaders, err = s.serializePayload(e, true, useV1API)
+	}
 	if err != nil {
 		return fmt.Errorf("dropping event payload: %s", err)
 	}
