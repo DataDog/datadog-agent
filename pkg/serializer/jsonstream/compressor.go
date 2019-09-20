@@ -53,7 +53,9 @@ var (
 
 var (
 	errPayloadFull = errors.New("reached maximum payload size")
-	ErrTooBig      = errors.New("item alone exceeds maximum payload size")
+
+	// ErrTooBig is returned when a item alone exceeds maximum payload size
+	ErrTooBig = errors.New("item alone exceeds maximum payload size")
 )
 
 var jsonSeparator = []byte(",")

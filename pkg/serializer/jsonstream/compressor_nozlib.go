@@ -8,6 +8,7 @@
 package jsonstream
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -17,6 +18,11 @@ import (
 const (
 	// Available is true if the code is compiled in
 	Available = false
+)
+
+var (
+	// ErrTooBig is returned when a item alone exceeds maximum payload size
+	ErrTooBig = errors.New("item alone exceeds maximum payload size")
 )
 
 // Payloads serializes a metadata payload and sends it to the forwarder

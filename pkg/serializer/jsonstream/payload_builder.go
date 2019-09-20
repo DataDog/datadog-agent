@@ -37,6 +37,7 @@ func NewPayloadBuilder() *PayloadBuilder {
 	}
 }
 
+// OnErrTooBigPolicy defines the behavior when OnErrTooBig occurs.
 type OnErrTooBigPolicy int
 
 const (
