@@ -192,9 +192,11 @@ func (l *Collector) postMessage(checkPath string, m model.MessageBody) {
 		log.Errorf("Unable to encode message: %s", err)
 	}
 
+	hasCont := hasContainers(m)
+
 	responses := make(chan postResponse)
 	for _, ep := range l.cfg.APIEndpoints {
-		go l.postToAPI(ep, checkPath, body, responses, m)
+		go l.postToAPI(ep, checkPath, body, responses, hasCont)
 	}
 
 	// Wait for all responses to come back before moving on.
@@ -273,7 +275,7 @@ func errResponse(format string, a ...interface{}) postResponse {
 	return postResponse{err: fmt.Errorf(format, a...)}
 }
 
-func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, body []byte, responses chan postResponse, mb model.MessageBody) {
+func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, body []byte, responses chan postResponse, hasContainers bool) {
 	endpoint.Endpoint.Path = checkPath
 	url := endpoint.Endpoint.String()
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
@@ -285,7 +287,7 @@ func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, bod
 	req.Header.Add("X-Dd-APIKey", endpoint.APIKey)
 	req.Header.Add("X-Dd-Hostname", l.cfg.HostName)
 	req.Header.Add("X-Dd-Processagentversion", Version)
-	if hasContainers(mb) {
+	if hasContainers {
 		req.Header.Add("X-Dd-HasContainers", "true")
 	}
 
