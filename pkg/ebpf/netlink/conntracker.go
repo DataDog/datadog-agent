@@ -76,6 +76,7 @@ type realConntracker struct {
 		unregistersTotalTime int64
 		expiresTotal         int64
 	}
+	timesExceededSize int64
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
@@ -242,7 +243,7 @@ func (ctr *realConntracker) register(c ct.Conn) int {
 	defer ctr.Unlock()
 
 	if len(ctr.state) >= ctr.maxStateSize {
-		log.Warnf("exceeded maximum conntrack state size: %d entries", ctr.maxStateSize)
+		ctr.logExceededSize()
 		return 0
 	}
 
@@ -254,6 +255,12 @@ func (ctr *realConntracker) register(c ct.Conn) int {
 	atomic.AddInt64(&ctr.stats.registersTotalTime, then-now)
 
 	return 0
+}
+
+func (c *realConntracker) logExceededSize() {
+	if c.timesExceededSize < 10 || c.timesExceededSize%100 == 0 {
+		log.Warnf("exceeded maximum conntrack state size: %d entries. You may need to increase system_probe_config.max_tracked_connections (will log first ten times, and then every 100th time)", ctr.maxStateSize)
+	}
 }
 
 // unregister is registered to be called whenever a conntrack entry is destroyed.
