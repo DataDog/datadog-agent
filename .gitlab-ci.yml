@@ -48,7 +48,7 @@ variables:
   DEB_RPM_BUCKET_BRANCH: nightly  # branch of the DEB_S3_BUCKET and RPM_S3_BUCKET repos to release to, 'nightly' or 'beta'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
-  WINDOWS_TESTING_S3_BUCKET: $WIN_S3_BUCKET/pipelines/$CI_PIPELINE_ID
+  WINDOWS_TESTING_S3_BUCKET_PREFIX: $WIN_S3_BUCKET/pipelines/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
   ANDROID_BUILDS_S3_BUCKET: $ANDROID_S3_BUCKET/builds
   DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
@@ -977,22 +977,40 @@ deploy_suse_rpm_testing-a7:
     - aws s3 sync ./rpmrepo/suse/ s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy windows packages to our testing bucket
-deploy_windows_testing:
+deploy_windows_testing-a6:
   <<: *run_when_testkitchen_triggered
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  variables:
+    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A6"
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+deploy_windows_testing-a7:
+  <<: *run_when_testkitchen_triggered
+  stage: testkitchen_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  variables:
+    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A7"
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # run dd-agent-testing on windows
-kitchen_windows:
+kitchen_windows-a6:
   stage: testkitchen_testing
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A6"
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1015,11 +1033,73 @@ kitchen_windows:
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
 
-kitchen_windows_installer:
+kitchen_windows-a7:
   stage: testkitchen_testing
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A7"
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd $CI_PROJECT_DIR
+    - cd $DD_AGENT_TESTING_DIR
+    - rm -rf $CI_PROJECT_DIR/kitchen_logs
+    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
+    - mkdir $CI_PROJECT_DIR/kitchen_logs
+    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
+    - bash -l tasks/run-test-kitchen.sh
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+
+kitchen_windows_installer-a6:
+  stage: testkitchen_testing
+  allow_failure: false
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A6"
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd $CI_PROJECT_DIR
+    - cd $DD_AGENT_TESTING_DIR
+    - rm -rf $CI_PROJECT_DIR/kitchen_logs
+    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
+    - mkdir $CI_PROJECT_DIR/kitchen_logs
+    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
+    - bash -l tasks/run-test-kitchen.sh windows-install-test
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+
+kitchen_windows_installer-a7:
+  stage: testkitchen_testing
+  allow_failure: false
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A7"
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1374,15 +1454,18 @@ testkitchen_cleanup_s3-a6:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
   tags: [ "runner:main", "size:large" ]
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A6"
   before_script:
     - ls
   # even if this fails, it shouldn't block the pipeline.
   allow_failure: true
   when: always
   script:
-    - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$CI_PIPELINE_ID-a6 --recursive
-    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a6 --recursive
-    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a6 --recursive
+    - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$DD_PIPELINE_ID --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$DD_PIPELINE_ID --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$DD_PIPELINE_ID --recursive
     - aws s3 rm s3://$WINDOWS_TESTING_S3_BUCKET --recursive
     - cd $OMNIBUS_PACKAGE_DIR
     - for deb in $(ls *amd64.deb); do aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/$deb --recursive; done
@@ -1392,15 +1475,18 @@ testkitchen_cleanup_s3-a7:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
   tags: [ "runner:main", "size:large" ]
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A7"
   before_script:
     - ls
   # even if this fails, it shouldn't block the pipeline.
   allow_failure: true
   when: always
   script:
-    - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$CI_PIPELINE_ID-a7 --recursive
-    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a7 --recursive
-    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a7 --recursive
+    - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$DD_PIPELINE_ID --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$DD_PIPELINE_ID --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$DD_PIPELINE_ID --recursive
     - aws s3 rm s3://$WINDOWS_TESTING_S3_BUCKET --recursive
     - cd $OMNIBUS_PACKAGE_DIR
     - for deb in $(ls *amd64.deb); do aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/$deb --recursive; done
