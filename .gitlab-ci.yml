@@ -48,7 +48,8 @@ variables:
   DEB_RPM_BUCKET_BRANCH: nightly  # branch of the DEB_S3_BUCKET and RPM_S3_BUCKET repos to release to, 'nightly' or 'beta'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
-  WINDOWS_TESTING_S3_BUCKET_PREFIX: $WIN_S3_BUCKET/pipelines/$CI_PIPELINE_ID
+  WINDOWS_TESTING_S3_BUCKET_A6: $WIN_S3_BUCKET/pipelines/A6_$CI_PIPELINE_ID
+  WINDOWS_TESTING_S3_BUCKET_A7: $WIN_S3_BUCKET/pipelines/A7_$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
   ANDROID_BUILDS_S3_BUCKET: $ANDROID_S3_BUCKET/builds
   DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
@@ -982,7 +983,7 @@ deploy_windows_testing-a6:
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   variables:
-    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A6"
+    WINDOWS_TESTING_S3_BUCKET: $WINDOWS_TESTING_S3_BUCKET_A6
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
@@ -994,7 +995,7 @@ deploy_windows_testing-a7:
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   variables:
-    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A7"
+    WINDOWS_TESTING_S3_BUCKET: $WINDOWS_TESTING_S3_BUCKET_A7
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
@@ -1010,7 +1011,7 @@ kitchen_windows-a6:
   variables:
     PYTHON_RUNTIMES: '2,3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A6"
+    WINDOWS_TESTING_S3_BUCKET: $WINDOWS_TESTING_S3_BUCKET_A6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1041,7 +1042,7 @@ kitchen_windows-a7:
   variables:
     PYTHON_RUNTIMES: '3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A7"
+    WINDOWS_TESTING_S3_BUCKET: $WINDOWS_TESTING_S3_BUCKET_A7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1072,7 +1073,7 @@ kitchen_windows_installer-a6:
   variables:
     PYTHON_RUNTIMES: '2,3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A6"
+    WINDOWS_TESTING_S3_BUCKET: $WINDOWS_TESTING_S3_BUCKET_A6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1099,7 +1100,7 @@ kitchen_windows_installer-a7:
   variables:
     PYTHON_RUNTIMES: '2,3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A7"
+    WINDOWS_TESTING_S3_BUCKET: $WINDOWS_TESTING_S3_BUCKET_A7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -1454,7 +1455,7 @@ testkitchen_cleanup_s3-a6:
   tags: [ "runner:main", "size:large" ]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A6"
+    WINDOWS_TESTING_S3_BUCKET: $WINDOWS_TESTING_S3_BUCKET_A6
   before_script:
     - ls
   # even if this fails, it shouldn't block the pipeline.
@@ -1475,7 +1476,7 @@ testkitchen_cleanup_s3-a7:
   tags: [ "runner:main", "size:large" ]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
-    WINDOWS_TESTING_S3_BUCKET: "${WINDOWS_TESTING_S3_BUCKET_PREFIX}_A7"
+    WINDOWS_TESTING_S3_BUCKET: $WINDOWS_TESTING_S3_BUCKET_A7
   before_script:
     - ls
   # even if this fails, it shouldn't block the pipeline.
