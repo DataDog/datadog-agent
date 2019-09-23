@@ -45,7 +45,7 @@ func stop(*cobra.Command, []string) error {
 		return e
 	}
 
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/stop", config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/stop", config.Datadog.GetString("bind_ipc"), config.Datadog.GetInt("cmd_port"))
 
 	_, e = util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if e != nil {

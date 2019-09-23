@@ -22,7 +22,7 @@ import (
 
 // GetClusterChecks dumps the clustercheck dispatching state to the writer
 func GetClusterChecks(w io.Writer) error {
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks", config.Datadog.GetInt("cluster_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/api/v1/clusterchecks", config.Datadog.GetString("bind_ipc"), config.Datadog.GetInt("cluster_agent.cmd_port"))
 
 	if w != color.Output {
 		color.NoColor = true

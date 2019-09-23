@@ -179,7 +179,7 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 		return
 	}
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/flare", config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", config.Datadog.GetString("bind_ipc"), config.Datadog.GetInt("cmd_port"))
 
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {

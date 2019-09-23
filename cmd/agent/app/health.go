@@ -54,7 +54,7 @@ var healthCmd = &cobra.Command{
 func requestHealth() error {
 
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/status/health", config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/status/health", config.Datadog.GetString("bind_ipc"), config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
 	err := util.SetAuthToken()
