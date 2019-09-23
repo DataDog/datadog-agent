@@ -278,7 +278,6 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 					atomic.AddInt64(&t.skippedConns, 1)
 				} else {
 					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort)
-					cs = t.resolveConnections(cs)[0]
 					t.state.StoreClosedConnection(cs)
 				}
 			case lostCount, ok := <-lostChannel:
@@ -336,7 +335,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)/2)
 	}
 
-	return &Connections{Conns: t.state.Connections(clientID, latestTime, latestConns)}, nil
+	conns := t.state.Connections(clientID, latestTime, latestConns)
+	names := t.reverseDNS.Resolve(conns)
+	return &Connections{Conns: conns, Names: names}, nil
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
@@ -407,9 +408,6 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 	t.conntracker.ClearShortLived()
 
-	// Resolve IPs to names
-	active = t.resolveConnections(active...)
-
 	for _, key := range closedPortBindings {
 		t.portMapping.RemoveMapping(key)
 		_ = t.m.DeleteElement(portMp, unsafe.Pointer(&key))
@@ -430,7 +428,6 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 	keys := make([]string, 0, len(entries))
 	// Used to create the keys
 	statsWithTs, tcpStats := &ConnStatsWithTimestamp{}, &TCPStats{}
-
 	// Remove the entries from the eBPF Map
 	for i := range entries {
 		err := t.m.DeleteElement(mp, unsafe.Pointer(entries[i]))
@@ -665,17 +662,6 @@ func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionD
 func (t *Tracer) isLocalAddress(address util.Address) bool {
 	_, ok := t.localAddresses[address]
 	return ok
-}
-
-func (t *Tracer) resolveConnections(connections ...ConnectionStats) []ConnectionStats {
-	names := t.reverseDNS.Resolve(connections)
-
-	for i := range connections {
-		connections[i].SourceDNS = names[i].Source
-		connections[i].DestDNS = names[i].Dest
-	}
-
-	return connections
 }
 
 func readLocalAddresses() map[util.Address]struct{} {

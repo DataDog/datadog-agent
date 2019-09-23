@@ -56,5 +56,5 @@ Loop:
 	payload := []ConnectionStats{{Dest: destAddr}}
 	names := reverseDNS.Resolve(payload)
 	require.Len(t, names, 1)
-	assert.Contains(t, names[0].Dest, "golang.org")
+	assert.Contains(t, names[destAddr], "golang.org")
 }

@@ -1,20 +1,17 @@
 package ebpf
 
-// NamePair contains DNS entries for both Source and Destination
-type NamePair struct {
-	Source, Dest []string
-}
+import "github.com/DataDog/datadog-agent/pkg/process/util"
 
 // ReverseDNS translates IPs to names
 type ReverseDNS interface {
-	Resolve([]ConnectionStats) []NamePair
+	Resolve([]ConnectionStats) map[util.Address][]string
 	GetStats() map[string]int64
 	Close()
 }
 
 type nullReverseDNS struct{}
 
-func (nullReverseDNS) Resolve(_ []ConnectionStats) []NamePair {
+func (nullReverseDNS) Resolve(_ []ConnectionStats) map[util.Address][]string {
 	return nil
 }
 

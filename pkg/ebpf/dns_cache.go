@@ -74,34 +74,36 @@ func (c *reverseDNSCache) Add(translation *translation, now time.Time) bool {
 	return true
 }
 
-func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) []NamePair {
+func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.Address][]string {
 	if len(conns) == 0 {
 		return nil
 	}
 
-	names := make([]NamePair, len(conns))
+	ipToNames := make(map[util.Address][]string)
+	visited := make(map[util.Address]struct{})
 	expiration := now.Add(c.ttl).Unix()
 
-	lookups := len(conns)
-	resolved := 0
-
 	c.mux.Lock()
-	for i, conn := range conns {
-		names[i].Source = c.getNamesForIP(conn.Source, expiration)
-		names[i].Dest = c.getNamesForIP(conn.Dest, expiration)
+	for _, conn := range conns {
+		if _, ok := visited[conn.Source]; !ok {
+			if names := c.getNamesForIP(conn.Source, expiration); names != nil {
+				ipToNames[conn.Source] = names
+			}
+		}
 
-		// Track number of successful resolutions for destination IP only
-		if names[i].Dest != nil {
-			resolved++
+		if _, ok := visited[conn.Dest]; !ok {
+			if names := c.getNamesForIP(conn.Dest, expiration); names != nil {
+				ipToNames[conn.Dest] = names
+			}
 		}
 	}
 	c.mux.Unlock()
 
 	// Update stats for telemetry
-	atomic.AddInt64(&c.lookups, int64(lookups))
-	atomic.AddInt64(&c.resolved, int64(resolved))
+	atomic.AddInt64(&c.lookups, int64(len(visited)))
+	atomic.AddInt64(&c.resolved, int64(len(ipToNames)))
 
-	return names
+	return ipToNames
 }
 
 func (c *reverseDNSCache) Len() int {

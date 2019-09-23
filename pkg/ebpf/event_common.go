@@ -68,6 +68,7 @@ func (d ConnectionDirection) String() string {
 
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
+	Names map[util.Address][]string
 	Conns []ConnectionStats
 }
 
@@ -75,9 +76,6 @@ type Connections struct {
 type ConnectionStats struct {
 	Source util.Address
 	Dest   util.Address
-
-	SourceDNS []string
-	DestDNS   []string
 
 	MonotonicSentBytes uint64
 	LastSentBytes      uint64
@@ -106,29 +104,7 @@ type ConnectionStats struct {
 }
 
 func (c ConnectionStats) String() string {
-	str := fmt.Sprintf(
-		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] (%s) %s sent (+%s), %s received (+%s)",
-		c.Type,
-		c.Pid,
-		printAddress(c.Source, c.SourceDNS),
-		c.SPort,
-		printAddress(c.Dest, c.DestDNS),
-		c.DPort,
-		c.Direction,
-		humanize.Bytes(c.MonotonicSentBytes), humanize.Bytes(c.LastSentBytes),
-		humanize.Bytes(c.MonotonicRecvBytes), humanize.Bytes(c.LastRecvBytes),
-	)
-
-	if c.Type == TCP {
-		str += fmt.Sprintf(
-			", %d retransmits (+%d), RTT %s (± %s)",
-			c.MonotonicRetransmits, c.LastRetransmits,
-			time.Duration(c.RTT)*time.Microsecond,
-			time.Duration(c.RTTVar)*time.Microsecond,
-		)
-	}
-
-	return str
+	return ConnectionSummary(c, nil)
 }
 
 // ByteKey returns a unique key for this connection represented as a byte array
@@ -201,6 +177,33 @@ func BeautifyKey(key string) string {
 	dest := bytesToAddress(raw[9+addrSize : 9+2*addrSize])
 
 	return fmt.Sprintf(keyFmt, pid, source, sport, dest, dport, family, typ)
+}
+
+// ConnectionSummary returns a string summarizing a connection
+func ConnectionSummary(c ConnectionStats, names map[util.Address][]string) string {
+	str := fmt.Sprintf(
+		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] (%s) %s sent (+%s), %s received (+%s)",
+		c.Type,
+		c.Pid,
+		printAddress(c.Source, names[c.Source]),
+		c.SPort,
+		printAddress(c.Dest, names[c.Dest]),
+		c.DPort,
+		c.Direction,
+		humanize.Bytes(c.MonotonicSentBytes), humanize.Bytes(c.LastSentBytes),
+		humanize.Bytes(c.MonotonicRecvBytes), humanize.Bytes(c.LastRecvBytes),
+	)
+
+	if c.Type == TCP {
+		str += fmt.Sprintf(
+			", %d retransmits (+%d), RTT %s (± %s)",
+			c.MonotonicRetransmits, c.LastRetransmits,
+			time.Duration(c.RTT)*time.Microsecond,
+			time.Duration(c.RTTVar)*time.Microsecond,
+		)
+	}
+
+	return str
 }
 
 func printAddress(address util.Address, names []string) string {

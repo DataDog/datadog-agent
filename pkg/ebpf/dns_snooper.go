@@ -77,7 +77,7 @@ func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, 
 }
 
 // Resolve IPs to Names
-func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) []NamePair {
+func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Address][]string {
 	return s.cache.Get(connections, time.Now())
 }
 
