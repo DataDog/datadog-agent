@@ -18,7 +18,7 @@ services:
       KAFKA_BROKERS: kafka:9092
     mem_limit: 1G
   correlate:
-    image: "quay.io/stackstate/stackstate-correlate:master"
+    image: "quay.io/stackstate/stackstate-correlate:stac-5376-dnat"
     entrypoint: "bin/stackstate-correlate -J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
     depends_on:
       - receiver

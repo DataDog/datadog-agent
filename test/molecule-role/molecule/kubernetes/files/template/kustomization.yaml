@@ -9,15 +9,21 @@ configMapGenerator:
     behavior: merge
     literals:
       - STS_API_KEY=API_KEY
-      - STS_STS_URL="{{ ansible_default_ipv4['address'] }}/stsAgent"
-      - STS_PROCESS_AGENT_URL="{{ ansible_default_ipv4['address'] }}/stsAgent"
-      - STS_APM_URL="{{ ansible_default_ipv4['address'] }}/stsAgent"
+      - STS_STS_URL="http://{{ hostvars['kubernetes-cluster-agent']['ansible_host'] }}:7077/stsAgent"
+      - STS_PROCESS_AGENT_URL="http://{{ hostvars['kubernetes-cluster-agent']['ansible_host'] }}:7077/stsAgent"
+      - STS_APM_URL="http://{{ hostvars['kubernetes-cluster-agent']['ansible_host'] }}:7077/stsAgent"
   - name: sts-clusteragent-config
     behavior: merge
     literals:
       - STS_API_KEY=API_KEY
-      - STS_STS_URL="{{ ansible_default_ipv4['address'] }}/stsAgent"
+      - STS_STS_URL="http://{{ hostvars['kubernetes-cluster-agent']['ansible_host'] }}:7077/stsAgent"
       - STS_CLUSTER_NAME={{ cluster_name }}
+
+images:
+  - name: stackstate-agent
+    newTag: {{ agent_current_branch }}
+  - name: stackstate-cluster-agent
+    newTag: {{ agent_current_branch }}
 
 secretGenerator:
   - name: stackstate-auth-token

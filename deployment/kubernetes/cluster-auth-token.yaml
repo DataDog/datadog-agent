@@ -1,1 +1,1 @@
-../kubernetes/k8s/base/cluster-auth-token.yaml
+k8s/base/cluster-agent-auth-token.yaml

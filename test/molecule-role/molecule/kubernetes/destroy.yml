@@ -6,12 +6,6 @@
   vars_files:
     - common_vars.yml
   tasks:
-    - name: Downsize the cluster
-      ec2_asg:
-        name: "eks-{{ cluster_name }}-cluster"
-        desired_capacity: 0
-      ignore_errors: yes
-
     - block:
         - name: Populate instance config
           set_fact:

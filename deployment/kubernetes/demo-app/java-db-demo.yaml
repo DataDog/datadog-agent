@@ -11,7 +11,6 @@ spec:
       name: db
   selector:
     app: stackstate-db
-  clusterIP: None
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -43,7 +42,7 @@ spec:
               name: db
       hostPID: true
       imagePullSecrets:
-        - name: ecr-reg-key
+        - name: docker-registry-key
 ---
 apiVersion: v1
 kind: Service
@@ -83,7 +82,7 @@ spec:
               name: books-app
       hostPID: true
       imagePullSecrets:
-        - name: ecr-reg-key
+        - name: docker-registry-key
 ---
 apiVersion: v1
 kind: Service
@@ -123,5 +122,4 @@ spec:
               name: authors-app
       hostPID: true
       imagePullSecrets:
-        - name: ecr-reg-key
-
+        - name: docker-registry-key

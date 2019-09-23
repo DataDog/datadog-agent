@@ -42,13 +42,13 @@ spec:
             value: "/host/sys"
           - name: KUBERNETES
             value: "true"
-#          - name: STS_CLUSTER_AGENT_ENABLED
-#            value: "true"
-#          - name: STS_CLUSTER_AGENT_AUTH_TOKEN
-#            valueFrom:
-#              secretKeyRef:
-#                name: stackstate-auth-token
-#                key: token
+          - name: STS_CLUSTER_AGENT_ENABLED
+            value: "true"
+          - name: STS_CLUSTER_AGENT_AUTH_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: stackstate-auth-token
+                key: token
         resources:
           requests:
             memory: "256Mi"
@@ -95,3 +95,16 @@ spec:
         - hostPath:
             path: /sys/fs/cgroup
           name: cgroups
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stackstate-agent
+  labels:
+    app: stackstate-agent
+spec:
+  ports:
+    - port: 8126
+      protocol: TCP
+  selector:
+    app: stackstate-agent

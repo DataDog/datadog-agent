@@ -1,5 +1,5 @@
 ---
-- name: Prepare Receiver
+- name: Prepare Receiver and EKS cluster
   hosts: kubernetes-cluster-agent
   gather_facts: true
   vars_files:
@@ -19,7 +19,7 @@
       delay: 25
       register: pip_result
       until: pip_result is not failed
-    - name: Installing python  packages
+    - name: Installing python packages
       pip:
         name: boto,boto3,docker
     - name: Add Docker GPG APT key
@@ -155,23 +155,19 @@
         target: config-map-aws-auth
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-    - name: Create secret for java demo app
-      shell: kubectl get secret ecr-reg-key || kubectl create secret generic ecr-reg-key --from-file=.dockerconfigjson=/home/ubuntu/.docker/config.json --type=kubernetes.io/dockerconfigjson
+    - name: Create secret to allow pulling from private docker registry
+      shell: kubectl get secret docker-registry-key || kubectl create secret generic docker-registry-key --from-file=.dockerconfigjson=/home/ubuntu/.docker/config.json --type=kubernetes.io/dockerconfigjson
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-    - name: Apply config files for cluster agent setup
+    - name: Apply manifests for stackstate node agent and cluster agent
       command: kubectl apply -k overlays
       args:
         chdir: /home/ubuntu/deployment/k8s
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-    - name: Gather facts (we need the docker network interface ip)
-      setup:
-    - name: Apply demo app config
-      command: kubectl apply -f java-db-demo.yaml
-      args:
-        chdir: /home/ubuntu/deployment/demo-app
-      environment:
-        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-        AGENT_VERSION: "{{ agent_current_branch }}"
-        DOCKER_HOST_IP: "{{ ansible_docker0['ipv4']['address'] }}"
+#    - name: Apply demo app config
+#      command: kubectl apply -f java-db-demo.yaml
+#      args:
+#        chdir: /home/ubuntu/deployment/demo-app
+#      environment:
+#        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig

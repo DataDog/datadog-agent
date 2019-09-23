@@ -1,7 +1,9 @@
 # declare ConfigMap as a resource
 resources:
-  - agent-config-map.yaml
-  - clusteragent-config-map.yaml
-  - cluster-auth-token.yaml
+  - cluster-agent-rbac.yaml
+  - cluster-agent-auth-token.yaml
+  - cluster-agent-config-map.yaml
   - cluster-agent.yaml
+  - agent-rbac.yaml
+  - agent-config-map.yaml
   - agent.yaml
