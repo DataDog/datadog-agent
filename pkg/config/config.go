@@ -469,6 +469,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.disable_tcp")
 	config.SetKnown("system_probe_config.disable_udp")
 	config.SetKnown("system_probe_config.disable_ipv6")
+	config.SetKnown("system_probe_config.disable_dns_inspection")
 	config.SetKnown("system_probe_config.collect_local_dns")
 	config.SetKnown("system_probe_config.use_local_system_probe")
 	config.SetKnown("system_probe_config.enable_conntrack")
