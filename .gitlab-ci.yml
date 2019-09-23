@@ -1032,7 +1032,7 @@ kitchen_windows-a6:
 
 kitchen_windows-a7:
   stage: testkitchen_testing
-  allow_failure: true
+  allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
   variables:
@@ -1120,7 +1120,7 @@ kitchen_windows_installer-a7:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
   variables:
-    PYTHON_RUNTIMES: '2,3'
+    PYTHON_RUNTIMES: '3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
@@ -1477,7 +1477,6 @@ testkitchen_cleanup_s3-a6:
   tags: [ "runner:main", "size:large" ]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-    WINDOWS_TESTING_S3_BUCKET: $WINDOWS_TESTING_S3_BUCKET_A6
   before_script:
     - ls
   # even if this fails, it shouldn't block the pipeline.
@@ -1487,7 +1486,7 @@ testkitchen_cleanup_s3-a6:
     - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$DD_PIPELINE_ID --recursive
     - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$DD_PIPELINE_ID --recursive
     - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$DD_PIPELINE_ID --recursive
-    - aws s3 rm s3://$WINDOWS_TESTING_S3_BUCKET --recursive
+    - aws s3 rm s3://$WINDOWS_TESTING_S3_BUCKET_A6 --recursive
     - cd $OMNIBUS_PACKAGE_DIR
     - for deb in $(ls *amd64.deb); do aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/$deb --recursive; done
 
@@ -1498,7 +1497,6 @@ testkitchen_cleanup_s3-a7:
   tags: [ "runner:main", "size:large" ]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
-    WINDOWS_TESTING_S3_BUCKET: $WINDOWS_TESTING_S3_BUCKET_A7
   before_script:
     - ls
   # even if this fails, it shouldn't block the pipeline.
@@ -1508,7 +1506,7 @@ testkitchen_cleanup_s3-a7:
     - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$DD_PIPELINE_ID --recursive
     - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$DD_PIPELINE_ID --recursive
     - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$DD_PIPELINE_ID --recursive
-    - aws s3 rm s3://$WINDOWS_TESTING_S3_BUCKET --recursive
+    - aws s3 rm s3://$WINDOWS_TESTING_S3_BUCKET_A7 --recursive
     - cd $OMNIBUS_PACKAGE_DIR
     - for deb in $(ls *amd64.deb); do aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/$deb --recursive; done
 
