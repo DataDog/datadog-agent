@@ -1032,7 +1032,7 @@ kitchen_windows-a6:
 
 kitchen_windows-a7:
   stage: testkitchen_testing
-  allow_failure: false
+  allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
   variables:
@@ -1090,7 +1090,7 @@ kitchen_windows_installer-a6:
 
 kitchen_windows_installer-a7:
   stage: testkitchen_testing
-  allow_failure: false
+  allow_failure: true 
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
   variables:
