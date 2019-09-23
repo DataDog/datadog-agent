@@ -24,7 +24,7 @@ service 'datadog-agent' do
   service_name node['dd-agent-install']['agent_name']
   action [agent_enable, agent_start]
   supports :restart => true, :start => true, :stop => true
-  subscribes :restart, "template[#{agent_config_file}]", :delayed unless node['dd-agent-install']['agent_start'] == false
+  subscribes :restart, "template[#{agent_config_file}]", :immediate unless node['dd-agent-install']['agent_start'] == false
   restart_command "powershell -Command \"restart-service -Force -Name datadogagent\""
   # HACK: the restart can fail when we hit systemd's restart limits (by default, 5 starts every 10 seconds)
   # To workaround this, retry once after 5 seconds, and a second time after 10 seconds
