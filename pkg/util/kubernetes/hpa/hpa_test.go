@@ -555,7 +555,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
-			got := DiffExternalMetrics(testCase.lhs, testCase.rhs)
+			got := DiffExternalMetrics(testCase.lhs, nil, testCase.rhs)
 			assert.ElementsMatch(t, testCase.expected, got)
 		})
 	}

@@ -94,7 +94,7 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 			p.isServing = false
 		} else {
 			for _, metric := range rawMetrics {
-				// Only metrics that exist in Datadog and available are eligible to be evaluated in the Ref process.
+				// Only metrics that exist in Datadog and available are eligible to be evaluated in the Autoscaler Controller process.
 				if !metric.Valid {
 					continue
 				}
@@ -168,7 +168,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 	return externalMetricsInfoList
 }
 
-// GetExternalMetric is called by the PodAutoscaler Controller to get the value of the external metric it is currently evaluating.
+// GetExternalMetric is called by the Autoscaler Controller to get the value of the external metric it is currently evaluating.
 func (p *datadogProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 
 	if !p.isServing || time.Now().Unix()-p.timestamp > 2*p.maxAge {
@@ -182,10 +182,10 @@ func (p *datadogProvider) GetExternalMetric(namespace string, metricSelector lab
 			MetricLabels: metric.value.MetricLabels,
 			Value:        metric.value.Value,
 		}
-		// Datadog metrics are not case sensitive but the Ref Controller lower cases the metric name as it queries the metrics provider.
-		// Lowering the metric name retrieved by the Ref Informer here, allows for users to use metrics with capital letters.
+		// Datadog metrics are not case sensitive but the Autoscaler Controller lower cases the metric name as it queries the metrics provider.
+		// Lowering the metric name retrieved by the Autoscaler Informer here, allows for users to use metrics with capital letters.
 		// Datadog tags are lower cased, but metrics labels are not case sensitive.
-		// If tags with capital letters are used (as the label selector in the Ref), no metrics will be retrieved from Datadog.
+		// If tags with capital letters are used (as the label selector in the Autoscaler), no metrics will be retrieved from Datadog.
 		if info.Metric == strings.ToLower(metric.info.Metric) &&
 			metricSelector.Matches(labels.Set(metric.value.MetricLabels)) {
 			metricValue := metricFromDatadog

@@ -87,34 +87,33 @@ func startAutoscalersController(ctx ControllerContext) error {
 		ctx.Client,
 		ctx.LeaderElector,
 		dogCl,
-		ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
-		ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers(),
 	)
 	if err != nil {
 		return err
 	}
-	go autoscalersController.Run(ctx.StopCh)
+	if config.Datadog.GetBool("watermark_pod_autoscaler_controller.enabled"){
+		log.Info("autoscalerCtrl1 %#v", autoscalersController)
 
+		autoscalersController.wpaEnabled = true
+		autoscalersController, err  = ExtendToWPAController(autoscalersController, ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
+		log.Info("Starting the WPA controller")
+		go autoscalersController.RunWPA(ctx.StopCh)
+	}
+	log.Info("autoscalerCtrl2 %#v", autoscalersController)
+
+	autoscalersController, err = ExtendToHPAController(autoscalersController, 	ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
+	if err != nil {
+		return err
+	}
+	log.Info("autoscalerCtrl3 %#v", autoscalersController)
+	go autoscalersController.RunHPA(ctx.StopCh)
+	log.Info("extended with HPA too")
+
+	autoscalersController.RunControllerLoop(ctx.StopCh)
+
+	log.Info("Running controller loop")
 	return nil
 }
-
-
-//func startWatermarkAutoscalerController(ctx ControllerContext) error {
-//	v1alpha1.WatermarkPodAutoscalerInformer()
-//
-//	autoscalersController, err := NewWatermarkAutoscalersController(
-//		ctx.Client,
-//		ctx.LeaderElector,
-//		ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
-//	)
-//	if err != nil {
-//		return err
-//	}
-//	go autoscalersController.Run(ctx.StopCh)
-//
-//	return nil
-//}
-
 
 func startServicesInformer(ctx ControllerContext) error {
 	// Just start the shared informer, the autodiscovery

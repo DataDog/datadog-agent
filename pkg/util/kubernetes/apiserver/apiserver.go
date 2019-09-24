@@ -158,9 +158,11 @@ func (c *APIClient) connect() error {
 	if err != nil {
 		return err
 	}
-	c.WPAInformerFactory, err = getWPAInformerFactory()
-	if err != nil {
-		return err
+	if config.Datadog.Get("watermark_pod_autoscaler_controller.enabled") == true {
+		c.WPAInformerFactory, err = getWPAInformerFactory()
+		if err != nil {
+			return err
+		}
 	}
 
 	// Try to get apiserver version to confim connectivity
