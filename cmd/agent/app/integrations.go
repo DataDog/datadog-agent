@@ -691,7 +691,7 @@ func installedVersion(integration string) (*semver.Version, bool, error) {
 		return nil, false, nil
 	}
 
-	version, err := semver.NewVersion(string(outputStr))
+	version, err := semver.NewVersion(outputStr)
 	if err != nil {
 		return nil, true, fmt.Errorf("error parsing version %s: %s", version, err)
 	}
