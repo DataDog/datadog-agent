@@ -76,6 +76,7 @@ type realConntracker struct {
 		unregistersTotalTime int64
 		expiresTotal         int64
 	}
+	exceededSizeLogLimit *util.LogLimit
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
@@ -119,13 +120,14 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	}
 
 	ctr := &realConntracker{
-		nfct:                nfct,
-		nfctDel:             nfctDel,
-		compactTicker:       time.NewTicker(compactInterval),
-		state:               make(map[connKey]*connValue),
-		shortLivedBuffer:    make(map[connKey]*IPTranslation),
-		maxShortLivedBuffer: deleteBufferSize,
-		maxStateSize:        maxStateSize,
+		nfct:                 nfct,
+		nfctDel:              nfctDel,
+		compactTicker:        time.NewTicker(compactInterval),
+		state:                make(map[connKey]*connValue),
+		shortLivedBuffer:     make(map[connKey]*IPTranslation),
+		maxShortLivedBuffer:  deleteBufferSize,
+		maxStateSize:         maxStateSize,
+		exceededSizeLogLimit: util.NewLogLimit(10, time.Minute*10),
 	}
 
 	// seed the state
@@ -218,6 +220,7 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 
 func (ctr *realConntracker) Close() {
 	ctr.compactTicker.Stop()
+	ctr.exceededSizeLogLimit.Close()
 }
 
 func (ctr *realConntracker) loadInitialState(sessions []ct.Conn) {
@@ -242,7 +245,7 @@ func (ctr *realConntracker) register(c ct.Conn) int {
 	defer ctr.Unlock()
 
 	if len(ctr.state) >= ctr.maxStateSize {
-		log.Warnf("exceeded maximum conntrack state size: %d entries", ctr.maxStateSize)
+		ctr.logExceededSize()
 		return 0
 	}
 
@@ -254,6 +257,12 @@ func (ctr *realConntracker) register(c ct.Conn) int {
 	atomic.AddInt64(&ctr.stats.registersTotalTime, then-now)
 
 	return 0
+}
+
+func (ctr *realConntracker) logExceededSize() {
+	if ctr.exceededSizeLogLimit.ShouldLog() {
+		log.Warnf("exceeded maximum conntrack state size: %d entries. You may need to increase system_probe_config.max_tracked_connections (will log first ten times, and then once every 10 minutes)", ctr.maxStateSize)
+	}
 }
 
 // unregister is registered to be called whenever a conntrack entry is destroyed.
