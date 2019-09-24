@@ -273,6 +273,18 @@ api_key:
 #
 # tracemalloc_debug: false
 
+## @param tracemalloc_whitelist - string - optional
+## Comma-separated list of Python checks to enable tracemalloc for when `tracemalloc_debug` is true.
+## By default, all Python checks are enabled.
+#
+# tracemalloc_whitelist: <TRACEMALLOC_WHITELIST>
+
+## @param tracemalloc_blacklist - string - optional
+## Comma-separated list of Python checks to disable tracemalloc for when `tracemalloc_debug` is true.
+## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_whitelist`.
+#
+# tracemalloc_blacklist: <TRACEMALLOC_BLACKLIST>
+
 ## @param secret_backend_command - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
