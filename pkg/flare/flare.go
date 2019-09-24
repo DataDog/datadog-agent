@@ -72,7 +72,7 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 			return
 		}
 
-		agentFullVersion, _ := version.New(version.AgentVersion, version.Commit)
+		agentFullVersion, _ := version.Agent()
 		writer.WriteField("agent_version", agentFullVersion.String())
 		writer.WriteField("hostname", hostname)
 
