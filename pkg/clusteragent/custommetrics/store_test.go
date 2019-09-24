@@ -54,80 +54,106 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 		{
 			"same metric with different hpas and labels",
 			map[string]ExternalMetricValue{
-				"external_metric-default-foo-requests_per_s": {
+				"external_metric-horizontal-default-foo-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Type: "horizontal", Name: "foo", Namespace: "default"},
 				},
-				"external_metric-default-bar-requests_per_s": {
+				"external_metric-horizontal-default-bar-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					Ref:        ObjectReference{Name: "bar", Namespace: "default"},
+					Ref:        ObjectReference{Type: "horizontal", Name: "bar", Namespace: "default"},
 				},
 			},
 			[]ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Type: "horizontal", Name: "foo", Namespace: "default"},
 				},
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					Ref:        ObjectReference{Name: "bar", Namespace: "default"},
+					Ref:        ObjectReference{Type: "horizontal", Name: "bar", Namespace: "default"},
+				},
+			},
+		},{
+			"same metric with different hpas and labels",
+			map[string]ExternalMetricValue{
+				"external_metric-watermark-default-foo-requests_per_s": {
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "frontend"},
+					Ref:        ObjectReference{Type: "watermark", Name: "foo", Namespace: "default"},
+				},
+				"external_metric-watermark-default-bar-requests_per_s": {
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "backend"},
+					Ref:        ObjectReference{Type: "watermark", Name: "bar", Namespace: "default"},
+				},
+			},
+			[]ExternalMetricValue{
+				{
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "frontend"},
+					Ref:        ObjectReference{Type: "watermark", Name: "foo", Namespace: "default"},
+				},
+				{
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "backend"},
+					Ref:        ObjectReference{Type: "watermark", Name: "bar", Namespace: "default"},
 				},
 			},
 		},
 		{
 			"same metric with different owners and same labels",
 			map[string]ExternalMetricValue{
-				"external_metric-default-foo-requests_per_s": {
+				"external_metric-watermark-default-foo-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Type: "watermark", Name: "foo", Namespace: "default"},
 				},
-				"external_metric-default-bar-requests_per_s": {
+				"external_metric-horizontal-default-bar-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					Ref:        ObjectReference{Name: "bar", Namespace: "default"},
+					Ref:        ObjectReference{Type: "horizontal", Name: "bar", Namespace: "default"},
 				},
 			},
 			[]ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Type: "watermark", Name: "foo", Namespace: "default"},
 				},
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					Ref:        ObjectReference{Name: "bar", Namespace: "default"},
+					Ref:        ObjectReference{Type: "horizontal", Name: "bar", Namespace: "default"},
 				},
 			},
 		},
 		{
 			"different metric with same owners and different labels",
 			map[string]ExternalMetricValue{
-				"external_metric-default-foo-requests_per_s_2": {
+				"external_metric-watermark-default-foo-requests_per_s_2": {
 					MetricName: "requests_per_s_2",
 					Labels:     map[string]string{"role": "frontend"},
-					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Type: "watermark", Name: "foo", Namespace: "default"},
 				},
-				"external_metric-default-foo-requests_per_s": {
+				"external_metric-watermark-default-foo-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Type: "watermark", Name: "foo", Namespace: "default"},
 				},
 			},
 			[]ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Type: "watermark", Name: "foo", Namespace: "default"},
 				}, {
 					MetricName: "requests_per_s_2",
 					Labels:     map[string]string{"role": "frontend"},
-					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
+					Ref:        ObjectReference{Type: "watermark", Name: "foo", Namespace: "default"},
 				},
 			},
 		},
@@ -167,22 +193,48 @@ func TestExternalMetricValueKeyFunc(t *testing.T) {
 			emval: ExternalMetricValue{
 				MetricName: "foo",
 				Ref: ObjectReference{
+					Type: "horizontal",
 					Name:      "bar",
 					Namespace: "default",
 				},
 			},
-			output: "external_metric-default-bar-foo",
+			output: "external_metric-default-horizontal-bar-foo",
 		},
 		{
 			desc: "custom case",
 			emval: ExternalMetricValue{
 				MetricName: "FoO",
 				Ref: ObjectReference{
+					Type: "horizontal",
 					Name:      "bar",
 					Namespace: "DefauLt",
 				},
 			},
-			output: "external_metric-DefauLt-bar-FoO",
+			output: "external_metric-DefauLt-horizontal-bar-FoO",
+		},
+		{
+			desc: "default case",
+			emval: ExternalMetricValue{
+				MetricName: "foo",
+				Ref: ObjectReference{
+					Type: "watermark",
+					Name:      "bar",
+					Namespace: "default",
+				},
+			},
+			output: "external_metric-default-watermark-bar-foo",
+		},
+		{
+			desc: "custom case",
+			emval: ExternalMetricValue{
+				MetricName: "FoO",
+				Ref: ObjectReference{
+					Type: "watermark",
+					Name:      "bar",
+					Namespace: "DefauLt",
+				},
+			},
+			output: "external_metric-DefauLt-watermark-bar-FoO",
 		},
 	}
 

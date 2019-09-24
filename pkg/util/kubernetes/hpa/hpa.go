@@ -99,7 +99,8 @@ func DiffExternalMetrics(informerList []*autoscalingv2.HorizontalPodAutoscaler, 
 		for _, m := range emList {
 			// We have previously processed an external metric from this Ref.
 			// Check that it's still the same. If not, remove the entry from the Global Store.
-			if em.MetricName == m.MetricName && reflect.DeepEqual(em.Labels, m.Labels) {
+			// Use the Ref Type to get rid of the old template in the Store
+			if em.MetricName == m.MetricName && reflect.DeepEqual(em.Labels, m.Labels) && em.Ref.Type == m.Ref.Type{
 				found = true
 				break
 			}

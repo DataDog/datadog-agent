@@ -8,8 +8,6 @@
 package apiserver
 
 import (
-	"fmt"
-	"reflect"
 	"sync"
 	"time"
 
@@ -25,14 +23,11 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	v1alpha13 "github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
-	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions/datadoghq/v1alpha1"
 	v1alpha12 "github.com/DataDog/watermarkpodautoscaler/pkg/client/listers/datadoghq/v1alpha1"
+	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 )
 
 const (
@@ -62,7 +57,7 @@ type metricsBatch struct {
 type AutoscalersController struct {
 	autoscalersLister       autoscalerslister.HorizontalPodAutoscalerLister
 	autoscalersListerSynced cache.InformerSynced
-
+	wpaEnabled      bool
 	wpaLister       v1alpha12.WatermarkPodAutoscalerLister
 	wpaListerSynced cache.InformerSynced
 
@@ -126,6 +121,7 @@ func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInter
 		return nil, err
 	}
 
+func ExtendToHPAController(h *AutoscalersController, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) (*AutoscalersController, error) {
 	autoscalingInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    h.addAutoscaler,
@@ -135,101 +131,19 @@ func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInter
 	)
 	h.autoscalersLister = autoscalingInformer.Lister()
 	h.autoscalersListerSynced = autoscalingInformer.Informer().HasSynced
-
-	wpaInformer.Informer().AddEventHandler(
-		cache.ResourceEventHandlerFuncs{
-			AddFunc:    h.addWPAutoscaler,
-			UpdateFunc: h.updateWPAutoscaler,
-			DeleteFunc: h.deleteWPAutoscaler,
-		},
-	)
-	h.wpaLister = wpaInformer.Lister()
-	h.wpaListerSynced = wpaInformer.Informer().HasSynced
-
 	return h, nil
 }
 
-func (h *AutoscalersController) Run(stopCh <-chan struct{}) {
+func (h *AutoscalersController) RunHPA(stopCh <-chan struct{}) {
 	defer h.queue.ShutDown()
 
-	log.Infof("Starting Ref & WPA Controller ... ")
-	defer log.Infof("Stopping Ref & WPA Controller")
-
+	log.Infof("Starting HPA Controller ... ")
+	defer log.Infof("Stopping HPA Controller")
 	if !cache.WaitForCacheSync(stopCh, h.autoscalersListerSynced) {
-		return
+			return
 	}
-	if !cache.WaitForCacheSync(stopCh, h.wpaListerSynced) {
-		return
-	}
-	h.processingLoop()
-
 	go wait.Until(h.worker, time.Second, stopCh)
-	<-stopCh
-}
-
-// processingLoop is a go routine that schedules the garbage collection and the refreshing of external metrics
-// in the GlobalStore.
-func (c *AutoscalersController) processingLoop() {
-	tickerHPARefreshProcess := time.NewTicker(time.Duration(c.poller.refreshPeriod) * time.Second)
-	gcPeriodSeconds := time.NewTicker(time.Duration(c.poller.gcPeriodSeconds) * time.Second)
-
-	go func() {
-		for {
-			select {
-			case <-tickerHPARefreshProcess.C:
-				if !c.le.IsLeader() {
-					continue
-				}
-				// Updating the metrics against Datadog should not affect the Ref pipeline.
-				// If metrics are temporarily unavailable for too long, they will become `Valid=false` and won't be evaluated.
-				c.updateExternalMetrics()
-			case <-gcPeriodSeconds.C:
-				if !c.le.IsLeader() {
-					continue
-				}
-				c.gc()
-			}
-		}
-	}()
-}
-
-func (h *AutoscalersController) updateExternalMetrics() {
-	// Grab what is available in the Global store.
-	emList, err := h.store.ListAllExternalMetricValues()
-	if err != nil {
-		log.Errorf("Error while retrieving external metrics from the store: %s", err)
-		return
-	}
-	// This could be avoided, in addition to other places, if we returned a map[string]custommetrics.ExternalMetricValue from ListAllExternalMetricValues
-	globalCache := make(map[string]custommetrics.ExternalMetricValue)
-	for _, e := range emList {
-		i := custommetrics.ExternalMetricValueKeyFunc(e)
-		globalCache[i] = e
-	}
-
-	// using several metrics with the same name with different labels in the same Ref is not supported.
-	h.toStore.m.Lock()
-	for i, j := range h.toStore.data {
-		if _, ok := globalCache[i]; !ok {
-			globalCache[i] = j
-		} else {
-			if !reflect.DeepEqual(j.Labels, globalCache[i].Labels) {
-				globalCache[i] = j
-			}
-		}
-	}
-	h.toStore.m.Unlock()
-
-	if len(globalCache) == 0 {
-		log.Debugf("No External Metrics to evaluate at the moment")
-		return
-	}
-
-	updated := h.hpaProc.UpdateExternalMetrics(globalCache)
-	err = h.store.SetExternalMetricValues(updated)
-	if err != nil {
-		log.Errorf("Not able to store the updated metrics in the Global Store: %v", err)
-	}
+	<- stopCh
 }
 
 // gc checks if any hpas have been deleted (possibly while the Datadog Cluster Agent was
@@ -244,9 +158,12 @@ func (h *AutoscalersController) gc() {
 		log.Errorf("Could not list hpas: %v", err)
 	}
 
-	listWPA, err := h.wpaLister.WatermarkPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
-	if err != nil {
-		return
+	listWPA := []*v1alpha1.WatermarkPodAutoscaler{}
+	if h.wpaEnabled {
+		listWPA, err = h.wpaLister.WatermarkPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
+		if err != nil {
+			return
+		}
 	}
 	processedList := removeIgnoredHPAs(h.overFlowingHPAs, list)
 	emList, err := h.store.ListAllExternalMetricValues()
@@ -298,22 +215,6 @@ func (h *AutoscalersController) processNext() bool {
 	return true
 }
 
-func (h *AutoscalersController) handleErr(err error, key interface{}) {
-	if err == nil {
-		log.Tracef("Faithfully dropping key %v", key)
-		h.queue.Forget(key)
-		return
-	}
-
-	if h.queue.NumRequeues(key) < maxRetries {
-		log.Debugf("Error syncing the autoscaler %v, will rety for another %d times: %v", key, maxRetries-h.queue.NumRequeues(key), err)
-		h.queue.AddRateLimited(key)
-		return
-	}
-	log.Errorf("Too many errors trying to sync the autoscaler %v, dropping out of the queue: %v", key, err)
-	h.queue.Forget(key)
-}
-
 func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
 	if !h.le.IsLeader() {
 		log.Trace("Only the leader needs to sync the Autoscalers")
@@ -360,42 +261,7 @@ func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
 		h.metricsProcessedCount += len(new)
 		log.Tracef("Local batch cache of Ref is %v", h.toStore.data)
 	}
-	if err == nil {
-		return nil
-	}
-	wpa, err := h.wpaLister.WatermarkPodAutoscalers(ns).Get(name)
-	switch {
-	case errors.IsNotFound(err):
-		log.Infof("WatermarkPodAutoscaler %v has been deleted but was not caught in the EventHandler. GC will cleanup.", key)
-	case err != nil:
-		log.Errorf("Unable to retrieve Watermark Pod Autoscaler %v from store: %v", key, err)
-	default:
-		if wpa == nil {
-			log.Errorf("Could not parse empty hpa %s/%s from local store", ns, name)
-			return ErrIsEmpty
-		}
-		new := h.hpaProc.ProcessWPAs(wpa)
-		h.toStore.m.Lock()
-		for metric, value := range new {
-			// We should only insert placeholders in the local cache.
-			h.toStore.data[metric] = value
-		}
-		h.toStore.m.Unlock()
-
-		log.Tracef("Local batch cache of WPA is %v", h.toStore.data)
-	}
-
 	return err
-}
-
-func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
-	newAutoscaler, ok := obj.(*v1alpha13.WatermarkPodAutoscaler)
-	if !ok {
-		log.Errorf("Expected an WatermarkPodAutoscaler type, got: %v", obj)
-		return
-	}
-	log.Debugf("Adding WPA %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
-	h.enqueue(newAutoscaler)
 }
 
 func (h *AutoscalersController) addAutoscaler(obj interface{}) {
@@ -405,31 +271,6 @@ func (h *AutoscalersController) addAutoscaler(obj interface{}) {
 		return
 	}
 	log.Debugf("Adding autoscaler %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
-	h.enqueue(newAutoscaler)
-}
-
-func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
-	newAutoscaler, ok := obj.(*v1alpha13.WatermarkPodAutoscaler)
-	if !ok {
-		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", obj)
-		return
-	}
-	oldAutoscaler, ok := old.(*v1alpha13.WatermarkPodAutoscaler)
-	if !ok {
-		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", old)
-		h.enqueue(newAutoscaler) // We still want to enqueue the newAutoscaler to get the new change
-		return
-	}
-
-	if !hpa.WPAutoscalerMetricsUpdate(newAutoscaler, oldAutoscaler) {
-		log.Tracef("Update received for the %s/%s, without a relevant change to the configuration", newAutoscaler.Namespace, newAutoscaler.Name)
-		return
-	}
-	// Need to delete the old object from the local cache. If the labels have changed, the syncAutoscaler would not override the old key.
-	toDelete := hpa.InspectWPA(oldAutoscaler)
-	h.deleteFromLocalStore(toDelete)
-
-	log.Tracef("Processing update event for autoscaler %s/%s with configuration: %s", newAutoscaler.Namespace, newAutoscaler.Name, newAutoscaler.Annotations)
 	h.enqueue(newAutoscaler)
 }
 
@@ -529,66 +370,3 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 	delete(h.overFlowingHPAs, deletedHPA.UID)
 }
 
-// Processing the Delete Events in the Eventhandler as obj is deleted from the local store thereafter.
-// Only here can we retrieve the content of the WPA to properly process and delete it.
-// FIXME we could have an update in the queue while processing the deletion, we should make
-// sure we process them in order instead. For now, the gc logic allows us to recover.
-func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	deletedWPA, ok := obj.(*v1alpha13.WatermarkPodAutoscaler)
-	if ok {
-		toDelete := hpa.InspectWPA(deletedWPA)
-		h.deleteFromLocalStore(toDelete)
-		log.Debugf("Deleting %s/%s from the local cache", deletedWPA.Namespace, deletedWPA.Name)
-		if !h.le.IsLeader() {
-			return
-		}
-		log.Infof("Deleting entries of metrics from Ref %s/%s in the Global Store", deletedWPA.Namespace, deletedWPA.Name)
-		if err := h.store.DeleteExternalMetricValues(toDelete); err != nil {
-			h.enqueue(deletedWPA)
-			return
-		}
-		return
-	}
-
-	tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-	if !ok {
-		log.Errorf("Could not get object from tombstone %#v", obj)
-		return
-	}
-
-	deletedWPA, ok = tombstone.Obj.(*v1alpha13.WatermarkPodAutoscaler)
-	if !ok {
-		log.Errorf("Tombstone contained object that is not an Autoscaler: %#v", obj)
-		return
-	}
-
-	log.Debugf("Deleting Metrics from Ref %s/%s", deletedWPA.Namespace, deletedWPA.Name)
-	toDelete := hpa.InspectWPA(deletedWPA)
-	log.Debugf("Deleting %s/%s from the local cache", deletedWPA.Namespace, deletedWPA.Name)
-	h.deleteFromLocalStore(toDelete)
-	if err := h.store.DeleteExternalMetricValues(toDelete); err != nil {
-		h.enqueue(deletedWPA)
-		return
-	}
-}
-
-func (h *AutoscalersController) enqueue(obj interface{}) {
-	key, err := cache.MetaNamespaceKeyFunc(obj)
-	if err != nil {
-		log.Debugf("Couldn't get key for object %v: %v", obj, err)
-		return
-	}
-	h.queue.AddRateLimited(key)
-}
-
-func (h *AutoscalersController) deleteFromLocalStore(toDelete []custommetrics.ExternalMetricValue) {
-	h.toStore.m.Lock()
-	for _, d := range toDelete {
-		key := custommetrics.ExternalMetricValueKeyFunc(d)
-		delete(h.toStore.data, key)
-	}
-	h.toStore.m.Unlock()
-}

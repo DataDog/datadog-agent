@@ -206,7 +206,7 @@ func start(cmd *cobra.Command, args []string) error {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 	wg := sync.WaitGroup{}
-	// Ref Process
+	// Autoscaler Controller Process
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		// Start the k8s custom metrics server. This is a blocking call
 		wg.Add(1)
