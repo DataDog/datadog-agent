@@ -22,6 +22,7 @@ type Version struct {
 	Commit string
 }
 
+// Agent returns the Datadog Agent version.
 func Agent() (Version, error) {
 	return New(AgentVersion, Commit)
 }
