@@ -80,8 +80,8 @@ func TestHasContainers(t *testing.T) {
 	assert.Equal(false, hasContainers(&collectorContainerRealTime))
 	assert.Equal(false, hasContainers(&collectorConnections))
 
-	c := &model.Container{Type:"Docker"}
-	cs := &model.ContainerStat{Id:"1234"}
+	c := &model.Container{Type: "Docker"}
+	cs := &model.ContainerStat{Id: "1234"}
 
 	collectorProc.Containers = append(collectorProc.Containers, c)
 	collectorContainer.Containers = append(collectorContainer.Containers, c)
