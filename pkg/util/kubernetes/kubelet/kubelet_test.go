@@ -950,3 +950,39 @@ func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 		require.NotNil(suite.T(), po)
 	}
 }
+
+func (suite *KubeletTestSuite) TestPodListWithPersistentVolumeClaim() {
+	mockConfig := config.Mock()
+	mockConfig.Set("kubernetes_pod_expiration_duration", 0)
+
+	kubelet, err := newDummyKubelet("./testdata/podlist_persistent_volume_claim.json")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.Nil(suite.T(), err)
+
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubelet_auth_token_path", "")
+
+	kubeutil, err := GetKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
+	kubelet.dropRequests() // Throwing away first GETs
+
+	pods, err := kubeutil.ForceGetLocalPodList()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), pods)
+	require.Len(suite.T(), pods, 9)
+
+	found := false
+	for _, po := range pods {
+		if po.Metadata.Name == "cassandra-0" {
+			found = po.Spec.Volumes[0].PersistentVolumeClaim.ClaimName == "cassandra-data-cassandra-0"
+			break
+		}
+	}
+
+	require.True(suite.T(), found)
+}

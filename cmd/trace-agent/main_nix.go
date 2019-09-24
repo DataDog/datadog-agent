@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"flag"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
@@ -23,6 +24,8 @@ func main() {
 		defer watchdog.LogOnPanic()
 		handleSignal(cancelFunc)
 	}()
+
+	flag.Parse()
 
 	agent.Run(ctx)
 }

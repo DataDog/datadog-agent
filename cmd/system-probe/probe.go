@@ -23,6 +23,8 @@ import (
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
 var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 
+var inactivityLogDuration = 10 * time.Minute
+
 // SystemProbe maintains and starts the underlying network connection collection process as well as
 // exposes these connections over HTTP (via UDS)
 type SystemProbe struct {
@@ -35,9 +37,6 @@ type SystemProbe struct {
 // CreateSystemProbe creates a SystemProbe as well as it's UDS socket after confirming that the OS supports BPF-based
 // system probe
 func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
-	var err error
-	nt := &SystemProbe{}
-
 	// Checking whether the current OS + kernel version is supported by the tracer
 	if supported, msg := ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); !supported {
 		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
@@ -61,10 +60,11 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		return nil, err
 	}
 
-	nt.tracer = t
-	nt.cfg = cfg
-	nt.conn = uds
-	return nt, nil
+	return &SystemProbe{
+		tracer: t,
+		cfg:    cfg,
+		conn:   uds,
+	}, nil
 }
 
 // Run makes available the HTTP endpoint for network collection
@@ -74,13 +74,14 @@ func (nt *SystemProbe) Run() {
 		go http.ListenAndServe(fmt.Sprintf("localhost:%d", nt.cfg.SystemProbeDebugPort), http.DefaultServeMux)
 	}
 
-	// We don't want the endpoint for systemprobe output to be mixed with pprof and expvar
+	var runCounter uint64
+
+	// We don't want the endpoint for the system-probe output to be mixed with pprof and expvar
 	// We can only do this by creating a new HTTP Mux that does not have these endpoints handled
 	httpMux := http.NewServeMux()
 
 	httpMux.HandleFunc("/status", func(w http.ResponseWriter, req *http.Request) {})
 
-	var runCounter uint64
 	httpMux.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		id := getClientID(req)
@@ -143,6 +144,14 @@ func (nt *SystemProbe) Run() {
 			statsd.Client.Gauge("datadog.system_probe.agent", 1, tags, 1)
 		}
 	}()
+
+	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
+	// This should be helpful for customers + support to debug the underlying issue.
+	time.AfterFunc(inactivityLogDuration, func() {
+		if run := atomic.LoadUint64(&runCounter); run == 0 {
+			log.Warnf("%v since the agent started without activity, the process-agent may not be configured correctly and/or running", inactivityLogDuration)
+		}
+	})
 
 	http.Serve(nt.conn.GetListener(), httpMux)
 }

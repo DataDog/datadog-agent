@@ -191,12 +191,13 @@ func (a *Agent) Process(t *api.Trace) {
 	{
 		// this section sets up any necessary tags on the root:
 		clientSampleRate := sampler.GetGlobalRate(root)
-		rateLimiterRate := a.Receiver.RateLimiter.RealRate()
-
 		sampler.SetClientRate(root, clientSampleRate)
-		sampler.SetPreSampleRate(root, rateLimiterRate)
-		sampler.AddGlobalRate(root, rateLimiterRate)
 
+		if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
+			rate := ratelimiter.RealRate()
+			sampler.SetPreSampleRate(root, rate)
+			sampler.AddGlobalRate(root, rate)
+		}
 		if t.ContainerTags != "" {
 			traceutil.SetMeta(root, tagContainersTags, t.ContainerTags)
 		}

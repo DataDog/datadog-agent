@@ -20,14 +20,14 @@ def clear_cmake_cache(rtloader_path, settings):
     if not os.path.exists(cmake_cache):
         return
 
-    settings_dupe = settings.copy()
+    settings_not_found = settings.copy()
     with open(cmake_cache) as cache:
         for line in cache.readlines():
             for key, value in settings.items():
                 if line.strip() == key + "=" + value:
-                    settings_dupe.pop(key)
+                    settings_not_found.pop(key)
 
-    if settings_dupe:
+    if settings_not_found:
         os.remove(cmake_cache)
 
 @task

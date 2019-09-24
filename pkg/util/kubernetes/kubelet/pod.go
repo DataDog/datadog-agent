@@ -49,3 +49,15 @@ func (p *Pod) Owners() []PodOwner {
 	owners = []PodOwner{ref.Reference}
 	return owners
 }
+
+// GetPersistentVolumeClaimNames gets the persistent volume names from a statefulset pod
+// returns empty slice if no persistent volume claim was found
+func (p *Pod) GetPersistentVolumeClaimNames() []string {
+	pvcs := []string{}
+	for _, volume := range p.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil {
+			pvcs = append(pvcs, volume.PersistentVolumeClaim.ClaimName)
+		}
+	}
+	return pvcs
+}
