@@ -131,8 +131,9 @@ func TestRateLimiterActive(t *testing.T) {
 
 	ps := newRateLimiter()
 	ps.Permits(0)
-	ps.Permits(-1)
 	assert.False(ps.Active(), "no traces should be seen")
+	ps.Permits(-1)
+	assert.False(ps.Active(), "still nothing")
 	ps.Permits(10)
 	assert.True(ps.Active(), "we should now be active")
 }
