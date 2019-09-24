@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Disable debug log lines for the 'hostname' command since it's directly used
+    by other agents.
