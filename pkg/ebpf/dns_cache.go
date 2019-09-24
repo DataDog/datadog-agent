@@ -79,23 +79,27 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 		return nil
 	}
 
-	ipToNames := make(map[util.Address][]string)
-	visited := make(map[util.Address]struct{})
-	expiration := now.Add(c.ttl).Unix()
+	var (
+		ipToNames  = make(map[util.Address][]string)
+		visited    = make(map[util.Address]struct{})
+		expiration = now.Add(c.ttl).Unix()
+	)
+
+	collectNamesForIP := func(addr util.Address) {
+		if _, ok := visited[addr]; ok {
+			return
+		}
+		visited[addr] = struct{}{}
+
+		if names := c.getNamesForIP(addr, expiration); names != nil {
+			ipToNames[addr] = names
+		}
+	}
 
 	c.mux.Lock()
 	for _, conn := range conns {
-		if _, ok := visited[conn.Source]; !ok {
-			if names := c.getNamesForIP(conn.Source, expiration); names != nil {
-				ipToNames[conn.Source] = names
-			}
-		}
-
-		if _, ok := visited[conn.Dest]; !ok {
-			if names := c.getNamesForIP(conn.Dest, expiration); names != nil {
-				ipToNames[conn.Dest] = names
-			}
-		}
+		collectNamesForIP(conn.Source)
+		collectNamesForIP(conn.Dest)
 	}
 	c.mux.Unlock()
 
