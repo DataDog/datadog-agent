@@ -126,34 +126,45 @@ func TestRateLimiterRace(t *testing.T) {
 	wg.Wait()
 }
 
+func TestRateLimiterActive(t *testing.T) {
+	assert := assert.New(t)
+
+	ps := newRateLimiter()
+	ps.Permits(0)
+	ps.Permits(-1)
+	assert.False(ps.Active(), "no traces should be seen")
+	ps.Permits(10)
+	assert.True(ps.Active(), "we should now be active")
+}
+
 func TestRateLimiterPermits(t *testing.T) {
 	assert := assert.New(t)
 
 	ps := newRateLimiter()
 	ps.SetTargetRate(0.2)
-	assert.Equal(1., ps.RealRate(), "by default, RealRate returns 1")
-	assert.False(ps.Permits(100), "always accept first payload")
+	assert.Equal(0.2, ps.RealRate(), "by default, RealRate returns wished rate")
+	assert.True(ps.Permits(100), "always accept first payload")
 	ps.decayScore()
-	assert.True(ps.Permits(10), "refuse as this accepting this would make 100%")
+	assert.False(ps.Permits(10), "refuse as this accepting this would make 100%")
 	ps.decayScore()
-	assert.Equal(0.101123595505618, ps.RealRate())
-	assert.True(ps.Permits(290), "still refuse")
+	assert.Equal(0.898876404494382, ps.RealRate())
+	assert.False(ps.Permits(290), "still refuse")
 	ps.decayScore()
 	assert.False(ps.Permits(99), "just below the limit")
 	ps.decayScore()
-	assert.False(ps.Permits(1), "should there be no decay, this one would be dropped, but with decay, the rate decreased as the recently dropped gain importance over the old initially accepted")
+	assert.True(ps.Permits(1), "should there be no decay, this one would be dropped, but with decay, the rate decreased as the recently dropped gain importance over the old initially accepted")
 	ps.decayScore()
-	assert.Equal(0.6093035345692378, ps.RealRate(), "well below 20%, again, decay speaks")
-	assert.False(ps.Permits(1000000), "accepting payload with many traces")
+	assert.Equal(0.16365162139216005, ps.RealRate(), "well below 20%, again, decay speaks")
+	assert.True(ps.Permits(1000000), "accepting payload with many traces")
 	ps.decayScore()
-	assert.Equal(0.0002098469224923738, ps.RealRate(), "real rate is almost 1, as we accepted a hudge payload")
-	assert.True(ps.Permits(100000), "rejecting, real rate is too high now")
+	assert.Equal(0.9997119577953764, ps.RealRate(), "real rate is almost 1, as we accepted a hudge payload")
+	assert.False(ps.Permits(100000), "rejecting, real rate is too high now")
 	ps.decayScore()
-	assert.Equal(0.10128092187833293, ps.RealRate(), "real rate should be now around 90%")
+	assert.Equal(0.8986487877795845, ps.RealRate(), "real rate should be now around 90%")
 	assert.Equal(info.RateLimiterStats{
 		TargetRate:          0.2,
 		RecentPayloadsSeen:  4.492300911839488, // seen more than this... but decay in action
 		RecentTracesSeen:    879284.5615616576,
-		RecentTracesDropped: 790229.8105733071,
+		RecentTracesDropped: 89116.55620097058,
 	}, ps.stats)
 }
