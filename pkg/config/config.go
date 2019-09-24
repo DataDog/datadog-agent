@@ -40,7 +40,7 @@ const (
 	megaByte = 1024 * 1024
 )
 
-var overrideVars = map[string]interface{}{}
+var overrideVars = make(map[string]interface{})
 
 // Datadog is the global configuration object
 var (
@@ -663,6 +663,15 @@ func load(config Config, origin string, loadSecret bool) error {
 		}
 	}
 
+	// If we run Agent > 6, we want to use Python 3.
+	if av, err := version.New(version.AgentVersion, version.Commit); err != nil {
+		log.Warnf("Can't ready Agent version: %s", err)
+	} else if av.Major > 6 {
+		override := make(map[string]interface{})
+		override["python_version"] = "3"
+		AddOverrides(override)
+	}
+
 	loadProxyFromEnv(config)
 	sanitizeAPIKey(config)
 	applyOverrides(config)
@@ -868,11 +877,13 @@ func IsKubernetes() bool {
 	return false
 }
 
-// SetOverrides provides an externally accessible method for
+// AddOverrides provides an externally accessible method for
 // overriding config variables.
 // This method must be called before Load() to be effective.
-func SetOverrides(vars map[string]interface{}) {
-	overrideVars = vars
+func AddOverrides(vars map[string]interface{}) {
+	for k, v := range vars {
+		overrideVars[k] = v
+	}
 }
 
 // applyOverrides overrides config variables.
