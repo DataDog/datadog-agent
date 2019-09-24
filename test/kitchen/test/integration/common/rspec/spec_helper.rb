@@ -34,7 +34,7 @@ def agent_command
   end
 end
 
-def wait_until_stopped(timeout = 30)
+def wait_until_stopped(timeout = 45)
   # Check if the agent has stopped every second
   # Timeout after the given number of seconds
   for _ in 1..timeout do
@@ -43,7 +43,7 @@ def wait_until_stopped(timeout = 30)
   end
 end
 
-def wait_until_started(timeout = 30)
+def wait_until_started(timeout = 45)
   # Check if the agent has started every second
   # Timeout after the given number of seconds
   for _ in 1..timeout do
