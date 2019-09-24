@@ -16,6 +16,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     std::wstring propval;
     ddRegKey regkeybase;
     RegKey keyRollback, keyInstall;
+    DWORD nErr = NERR_Success;
 
     std::wstring waitval;
 
@@ -164,37 +165,43 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             keyInstall.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
         }
     }
+    
+    // since we just created the user, fix up all the rights we want
+
+    // set the account privileges regardless; if they're already set the OS will silently
+    // ignore the request.    
+    hr = -1;
+    sid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
+    if (!sid) {
+        WcaLog(LOGMSG_STANDARD, "Failed to get SID for %s", data.getFullUsernameMbcs().c_str());
+        goto LExit;
+    }
+    if ((hLsa = GetPolicyHandle()) == NULL) {
+        WcaLog(LOGMSG_STANDARD, "Failed to get policy handle for %s", data.getFullUsernameMbcs().c_str());
+        goto LExit;
+    }
+    if (!AddPrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to add deny interactive login right");
+        goto LExit;
+    }
+
+    if (!AddPrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to add deny network login right");
+        goto LExit;
+    }
+    if (!AddPrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to add deny remote interactive login right");
+        goto LExit;
+    }
+    if (!AddPrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to add service login right");
+        goto LExit;
+    }
+    hr = 0;
+
     if(!ddUserExists)
     {
-        // since we just created the user, fix up all the rights we want
-        DWORD nErr = NERR_Success;
         hr = -1;
-        sid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
-        if (!sid) {
-            WcaLog(LOGMSG_STANDARD, "Failed to get SID for %s", data.getFullUsernameMbcs().c_str());
-            goto LExit;
-        }
-        if ((hLsa = GetPolicyHandle()) == NULL) {
-            WcaLog(LOGMSG_STANDARD, "Failed to get policy handle for %s", data.getFullUsernameMbcs().c_str());
-            goto LExit;
-        }
-        if (!AddPrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
-            WcaLog(LOGMSG_STANDARD, "failed to add deny interactive login right");
-            goto LExit;
-        }
-
-        if (!AddPrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
-            WcaLog(LOGMSG_STANDARD, "failed to add deny network login right");
-            goto LExit;
-        }
-        if (!AddPrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
-            WcaLog(LOGMSG_STANDARD, "failed to add deny remote interactive login right");
-            goto LExit;
-        }
-        if (!AddPrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
-            WcaLog(LOGMSG_STANDARD, "failed to add service login right");
-            goto LExit;
-        }
         nErr = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
         if (nErr != NERR_Success) {
             WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
