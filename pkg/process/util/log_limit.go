@@ -34,8 +34,9 @@ func NewLogLimit(n int, interval time.Duration) *LogLimit {
 
 // ShouldLog returns true if the caller should log
 func (l *LogLimit) ShouldLog() bool {
-	if l.n > 0 {
-		l.n--
+	n := atomic.LoadInt32(&l.n)
+	if n > 0 {
+		atomic.CompareAndSwapInt32(&l.n, n, n-1)
 		return true
 	}
 

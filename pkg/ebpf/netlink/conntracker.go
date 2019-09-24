@@ -220,6 +220,7 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 
 func (ctr *realConntracker) Close() {
 	ctr.compactTicker.Stop()
+	ctr.exceededSizeLogLimit.Close()
 }
 
 func (ctr *realConntracker) loadInitialState(sessions []ct.Conn) {
