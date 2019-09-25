@@ -1382,6 +1382,7 @@ send_pkg_size-a6:
     - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
   tags: [ "runner:main", "size:large" ]
   script:
+    - source /root/.bashrc && conda activate ddpy3
     - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/puppy
     - mkdir -p /tmp/rpm/agent /tmp/rpm/dogstatsd
     - mkdir -p /tmp/suse/agent /tmp/suse/dogstatsd
@@ -1432,6 +1433,7 @@ send_pkg_size-a7:
     - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
   tags: [ "runner:main", "size:large" ]
   script:
+    - source /root/.bashrc && conda activate ddpy3
     - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/puppy
     - mkdir -p /tmp/rpm/agent /tmp/rpm/dogstatsd
     - mkdir -p /tmp/suse/agent /tmp/suse/dogstatsd
