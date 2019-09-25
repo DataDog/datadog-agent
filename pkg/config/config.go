@@ -666,7 +666,7 @@ func load(config Config, origin string, loadSecret bool) error {
 	}
 
 	// If we run Agent > 6, we want to use Python 3.
-	if av, err := version.New(version.AgentVersion, version.Commit); err != nil {
+	if av, err := version.Agent(); err != nil {
 		log.Warnf("Can't read Agent version: %s", err)
 	} else if av.Major > 6 {
 		override := make(map[string]interface{})
