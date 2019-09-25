@@ -7,7 +7,8 @@ ARG WITH_JMX
 ARG PYTHON_VERSION
 ARG DD_AGENT_ARTIFACT=datadog-agent*_amd64.deb
 
-COPY datadog-agent*_amd64.deb /  # copy everything - globbing with args wont work
+# copy everything - globbing with args wont work
+COPY datadog-agent*_amd64.deb /
 WORKDIR /output
 
 # Get s6-overlay and check gpg signature
