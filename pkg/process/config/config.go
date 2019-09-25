@@ -142,17 +142,12 @@ func NewDefaultTransport() *http.Transport {
 }
 
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
-func NewDefaultAgentConfig() *AgentConfig {
+func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	u, err := url.Parse(defaultEndpoint)
 	if err != nil {
 		// This is a hardcoded URL so parsing it should not fail
 		panic(err)
 	}
-
-	// Note: This only considers container sources that are already setup. It's possible that container sources may
-	//       need a few minutes to be ready.
-	_, err = util.GetContainers()
-	canAccessContainers := err == nil
 
 	var enabledChecks []string
 	if canAccessContainers {
@@ -246,7 +241,13 @@ func loadConfigIfExists(path string) error {
 // if there is no file available. In this case we'll configure only via environment.
 func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) (*AgentConfig, error) {
 	var err error
-	cfg := NewDefaultAgentConfig()
+
+	// Note: This only considers container sources that are already setup. It's possible that container sources may
+	//       need a few minutes to be ready on newly provisioned hosts.
+	_, err = util.GetContainers()
+	canAccessContainers := err == nil
+
+	cfg := NewDefaultAgentConfig(canAccessContainers)
 
 	// For Agent 6 we will have a YAML config file to use.
 	if err := loadConfigIfExists(yamlPath); err != nil {
@@ -310,7 +311,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 // NewSystemProbeConfig returns a system-probe specific AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
 func NewSystemProbeConfig(loggerName config.LoggerName, yamlPath string) (*AgentConfig, error) {
-	cfg := NewDefaultAgentConfig()
+	cfg := NewDefaultAgentConfig(false) // We don't access the container APIs in the system-probe
 
 	// When the system-probe is enabled in a separate container, we need a way to also disable the system-probe
 	// packaged in the main agent container (without disabling network collection on the process-agent).
