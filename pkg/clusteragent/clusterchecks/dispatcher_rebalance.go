@@ -134,18 +134,20 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) {
 		return
 	}
 
-	runnerStats := sourceNode.GetRunnerStats(checkID)
+	runnerStats, err := sourceNode.GetRunnerStats(checkID)
+	if err != nil {
+		log.Debugf("Cannot get runner stats on node %s, check %s will not move: %v", src, checkID, err)
+		return
+	}
+
 	destNode.AddRunnerStats(checkID, runnerStats)
 	sourceNode.RemoveRunnerStats(checkID)
 
 	config, digest := d.getConfigAndDigest(checkID)
-	log.Tracef("Digest of %s is %s, config: %s", checkID, digest, config.String())
+	log.Tracef("Moving check %s with digest %s and config %s from %s to %s", checkID, digest, config.String(), src, dest)
 
 	d.removeConfig(digest)
-	log.Tracef("Check %s with digest %s removed from %s", checkID, digest, src)
-
 	d.addConfig(config, dest)
-	log.Tracef("Check %s with digest %s added to %s", checkID, digest, dest)
 
 	log.Debugf("Check %s moved from %s to %s", checkID, src, dest)
 }

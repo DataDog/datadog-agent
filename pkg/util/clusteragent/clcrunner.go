@@ -145,6 +145,9 @@ func (c *CLCRunnerClient) GetRunnerStats(IP string) (types.CLCRunnersStats, erro
 
 	err = json.Unmarshal(body, &stats)
 
+	// clean stats map if it contains an empty entry
+	delete(stats, "")
+
 	return stats, err
 }
 

@@ -40,7 +40,7 @@ func newDummyCLCRunner() (*dummyCLCRunner, error) {
 	clcRunner := &dummyCLCRunner{
 		rawResponses: map[string]string{
 			"/api/v1/clcrunner/version": `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
-			"/api/v1/clcrunner/stats":   `{"http_check:My Nginx Service:b0041608e66d20ba":{"AverageExecutionTime":241,"MetricSamples":3},"kube_apiserver_metrics:c5d2d20ccb4bb880":{"AverageExecutionTime":858,"MetricSamples":1562}}`,
+			"/api/v1/clcrunner/stats":   `{"http_check:My Nginx Service:b0041608e66d20ba":{"AverageExecutionTime":241,"MetricSamples":3},"kube_apiserver_metrics:c5d2d20ccb4bb880":{"AverageExecutionTime":858,"MetricSamples":1562},"":{"AverageExecutionTime":100,"MetricSamples":10}}`,
 		},
 		token:    config.Datadog.GetString("cluster_agent.auth_token"),
 		requests: make(chan *http.Request, 100),

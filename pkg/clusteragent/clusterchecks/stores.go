@@ -130,8 +130,7 @@ func (s *nodeStore) AddRunnerStats(checkID string, stats types.CLCRunnerStats) {
 func (s *nodeStore) RemoveRunnerStats(checkID string) {
 	s.Lock()
 	defer s.Unlock()
-	_, found := s.clcRunnerStats[checkID]
-	if !found {
+	if _, found := s.clcRunnerStats[checkID]; !found {
 		log.Debugf("unknown check ID %s, skipping", checkID)
 		return
 	}
@@ -140,14 +139,15 @@ func (s *nodeStore) RemoveRunnerStats(checkID string) {
 
 // GetRunnerStats returns the runner stats of a given check
 // The nodeStore handles thread safety for this public method
-func (s *nodeStore) GetRunnerStats(checkID string) types.CLCRunnerStats {
+func (s *nodeStore) GetRunnerStats(checkID string) (types.CLCRunnerStats, error) {
 	s.RLock()
 	defer s.RUnlock()
 	stats, found := s.clcRunnerStats[checkID]
 	if !found {
 		log.Debugf("unknown check ID %s", checkID)
+		return stats, fmt.Errorf("check ID not found: %s", checkID)
 	}
-	return stats
+	return stats, nil
 }
 
 // GetBusyness calculates busyness of the node

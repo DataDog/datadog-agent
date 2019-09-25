@@ -155,7 +155,7 @@ func shouldHandle(w http.ResponseWriter, r *http.Request, h *clusterchecks.Handl
 
 // clusterChecksDisabledHandler returns a 404 response when cluster-checks are disabled
 func clusterChecksDisabledHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotFound)
+	w.WriteHeader(http.StatusPreconditionFailed)
 	w.Write([]byte("Cluster-checks are not enabled"))
 }
 
