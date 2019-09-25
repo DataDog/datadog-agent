@@ -1574,8 +1574,8 @@ build_agent6:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -py2
-    BUILD_ARG: --target release --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT_BLOB=Dockerfiles/agent/datadog-agent_6*_amd64.deb
-    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT_BLOB=Dockerfiles/agent/datadog-agent_6*_amd64.deb
+    BUILD_ARG: --target release --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
 
 # build agent6 jmx image
 build_agent6_jmx:
@@ -1583,9 +1583,10 @@ build_agent6_jmx:
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
+    BUILD_ARTIFACT_GLOB: datadog-agent_6*_amd64.deb
     TAG_SUFFIX: -py2-jmx
-    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT_BLOB=Dockerfiles/agent/datadog-agent_6*_amd64.deb
-    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT_BLOB=Dockerfiles/agent/datadog-agent_6*_amd64.deb
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
 
 # TESTING ONLY: This image is for internal testing purposes, not customer facing.
 # build agent6 jmx unified image (including python3)
@@ -1595,8 +1596,8 @@ build_agent6_py2py3_jmx:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -py2py3-jmx
-    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT_BLOB=Dockerfiles/agent/datadog-agent_6*_amd64.deb
-    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT_BLOB=Dockerfiles/agent/datadog-agent_6*_amd64.deb
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
 
 # build agent7 image
 build_agent7:
@@ -1605,8 +1606,8 @@ build_agent7:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -py3
-    BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT_BLOB=Dockerfiles/agent/datadog-agent_7*_amd64.deb
-    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT_BLOB=Dockerfiles/agent/datadog-agent_7*_amd64.deb
+    BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
 
 # build agent7 jmx image
 build_agent7_jmx:
@@ -1615,8 +1616,8 @@ build_agent7_jmx:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -py3-jmx
-    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT_BLOB=Dockerfiles/agent/datadog-agent_7*_amd64.deb
-    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT_BLOB=Dockerfiles/agent/datadog-agent_7*_amd64.deb
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
 
 # build the cluster-agent image
 build_cluster_agent:
