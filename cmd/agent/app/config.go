@@ -62,7 +62,11 @@ var configCommand = &cobra.Command{
 
 func requestConfig() (string, error) {
 	c := util.GetClient(false)
-	apiConfigURL := fmt.Sprintf("https://%v:%v/agent/config", config.Datadog.GetString("bind_ipc"), config.Datadog.GetInt("cmd_port"))
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return "", err
+	}
+	apiConfigURL := fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	r, err := util.DoGet(c, apiConfigURL)
 	if err != nil {

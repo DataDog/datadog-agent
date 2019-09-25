@@ -76,7 +76,11 @@ func requestFlare(caseID string) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", config.Datadog.GetString("bind_ipc"), config.Datadog.GetInt("cmd_port"))
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {

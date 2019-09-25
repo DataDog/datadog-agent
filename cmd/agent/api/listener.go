@@ -14,5 +14,9 @@ import (
 
 // getListener returns a listening connection
 func getListener() (net.Listener, error) {
-	return net.Listen("tcp", fmt.Sprintf("%v:%v", config.Datadog.GetString("bind_ipc"), config.Datadog.GetInt("cmd_port")))
+	address, err := config.GetIPCAddress()
+	if err != nil {
+		return nil, err
+	}
+	return net.Listen("tcp", fmt.Sprintf("%v:%v", address, config.Datadog.GetInt("cmd_port")))
 }
