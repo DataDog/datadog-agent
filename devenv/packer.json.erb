@@ -3,7 +3,7 @@
     <% builders.each do |builder| %>
     {
       "type":               "<%= builder.vmtype %>",
-      "vm_name":            "PackerBuildWindows10",
+      "vm_name":            "DogDev",
       "communicator":       "winrm",
       "cpus":               "2",
       "memory":             "2048",
@@ -24,12 +24,6 @@
         "./scripts/Fix-network.ps1",
         "./scripts/Enable-WinRM.ps1"
       ],
-      <% if builder.vmtype == "hyperv-iso" %>
-      "enable_secure_boot": true,
-      "enable_virtualization_extensions": true,
-      "guest_additions_mode": "disable",
-      "switch_name": "{{user `hyperv_switchname`}}"
-      <% end %>
       <% if builder.vmtype == "vmware-iso" %>
       "guest_os_type": "<%= builder.ostype %>",
       "disk_adapter_type": "lsisas1068",
@@ -43,19 +37,8 @@
         "RemoteDisplay.vnc.port": "5900",
         "vhv.enable": false
       },
-      "vmx_remove_ethernet_interfaces": true,
       "vnc_port_max": 5980,
-      "vnc_port_min": 5900,
-      "vboxmanage": [
-        ["modifyvm", "{{.Name}}", "--firmware", "efi"],
-      ]
-      <% end %>
-      <% if builder.vmtype == "virtualbox-iso" %>
-      "guest_os_type":        "<%= builder.ostype %>",
-      "headless":             false,
-      "post_shutdown_delay":  "10s",
-      "guest_additions_mode": "upload",
-      "guest_additions_path": "c:/Windows/Temp/windows.iso"
+      "vnc_port_min": 5900
       <% end %>
       <% if builder.vmtype == "parallels-iso" %>
       "guest_os_type":              "<%= builder.ostype %>",
@@ -63,6 +46,7 @@
       "parallels_tools_mode":       "upload",
       "parallels_tools_guest_path": "c:/Windows/Temp/windows.iso",
       "prlctl": [
+        ["set", "{{.Name}}", "--efi-boot",               "off"],
         ["set", "{{.Name}}", "--nested-virt",            "off"],
         ["set", "{{.Name}}", "--faster-vm",              "on"],
         ["set", "{{.Name}}", "--disable-winlogo",        "on"],
@@ -75,6 +59,14 @@
         ["set", "{{.Name}}", "--sh-app-guest-to-host",   "off"],
         ["set", "{{.Name}}", "--sh-app-host-to-guest",   "off"]
       ]
+      <% end %>
+      <% if builder.vmtype == "virtualbox-iso" %>
+      "guest_os_type":        "<%= builder.ostype %>",
+      "headless":             false,
+      "post_shutdown_delay":  "10s",
+      "guest_additions_mode": "upload",
+      "guest_additions_path": "c:/Windows/Temp/windows.iso",
+      "hard_drive_interface": "sata"
       <% end %>
     }
     <% if(builder != builders.last) %>
@@ -100,11 +92,6 @@
         "./scripts/Setup-DevEnv.ps1"
       ]
     }
-  ],
-  "variables": {
-    "docker_images": "",
-    "docker_provider": "ee",
-    "docker_version": "19-03-0"
-  }
+  ]
 }
 

@@ -6,9 +6,7 @@ class Builder
         if type == "client"
             @name = "windows_10_ent"
             @autounattend = "./answer_files/10_Ent/Autounattend.xml"
-            # @isourl = "iso/17763.107.101029-1455.rs5_release_svc_refresh_CLIENT_LTSC_EVAL_x64FRE_en-us.iso"
             @isourl = "iso/18362.30.190401-1528.19h1_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso"
-            # @checksum = "668fe1af70c2f7416328aee3a0bb066b12dc6bbd2576f40f812b95741e18bc3a"
             @checksum = "ab4862ba7d1644c27f27516d24cb21e6b39234eb3301e5f1fb365a78b22f79b3"
         else
             @name = "windows_2019"
@@ -89,9 +87,9 @@ def build(name, type)
     template = ERB.new(File.read('packer.json.erb'))
 
     print template.result_with_hash(
-        name: name,
-        vagrantfile: "vagrantfile-" + name + ".template",
+        vagrantfile: "Vagrantfile.template",
         builders: [
-            Parallels.new(type)
+            Parallels.new(type),
+            VMWare.new(type)
         ])
 end
