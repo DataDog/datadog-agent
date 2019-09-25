@@ -29,4 +29,31 @@ Vagrant.configure("2") do |config|
   config.vm.define "win-srv-vbx", autostart: false do |cfg|
     cfg.vm.box     = "windows_2019_core_virtualbox.box"
   end
+
+  ["vmware_fusion", "vmware_workstation"].each do |provider|
+    config.vm.provider provider do |v, override|
+      v.cpus = 4
+      v.memory = 4096
+      v.enable_vmrun_ip_lookup = false
+      v.linked_clone = true
+      # nested virtualization
+      v.vmx["vhv.enable"] = "TRUE"
+      v.ssh_info_public = true
+    end
+  end
+
+  config.vm.provider "virtualbox" do |v, override|
+    v.cpus = 4
+    v.memory = 4096
+    v.linked_clone = true
+    override.vm.network :private_network, ip: "192.168.99.90", gateway: "192.168.99.1"
+  end
+
+  config.vm.provider "parallels" do |prl, override|
+    prl.cpus = 4
+    prl.memory = 4096
+    prl.linked_clone = true
+    prl.customize ["--nested-virt", "on"]
+  end
+
 end

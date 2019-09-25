@@ -8,16 +8,23 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
+DEFAULT_BUILDERS = [
+    "parallels-iso",
+    "vmware-iso",
+    "virtualbox-iso"
+]
+
 @task
-def build(ctx, os):
+def build(ctx, os = "windows-10", build_exclude = None):
     """
     Build the Vagrant box
     
     Example invokation:
-        inv agent.build --os=windows-10
+        inv packer.build --os=windows-10
     """
 
-    print(os)
+    build_exclude = [] if build_exclude is None else build_exclude.split(",")
+    builders = ",".join(set(DEFAULT_BUILDERS) - set(build_exclude))
 
     command = "ruby -r \"./gen-packer.rb\" -e \"build('{name}', '{type}')\" > packer.json"
 
@@ -35,4 +42,4 @@ def build(ctx, os):
         print("Error: unknown OS")
         raise Exit(code=1)
 
-    ctx.run("packer build packer.json")
+    ctx.run("packer build --only=" + builders + " packer.json")

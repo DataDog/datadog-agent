@@ -87,9 +87,11 @@ def build(name, type)
     template = ERB.new(File.read('packer.json.erb'))
 
     print template.result_with_hash(
+        name: name,
         vagrantfile: "Vagrantfile.template",
         builders: [
             Parallels.new(type),
-            VMWare.new(type)
+            VMWare.new(type),
+            Virtualbox.new(type)
         ])
 end

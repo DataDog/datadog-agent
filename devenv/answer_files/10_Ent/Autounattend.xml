@@ -138,9 +138,14 @@
                     <Order>2</Order>
                 </SynchronousCommand>
                 <SynchronousCommand wcm:action="add">
+                    <CommandLine>cmd.exe /c wmic useraccount where "name='dogdev'" set PasswordExpires=FALSE</CommandLine>
+                    <Order>3</Order>
+                    <Description>Disable password expiration for dogdev user</Description>
+                </SynchronousCommand>
+                <SynchronousCommand wcm:action="add">
                     <CommandLine>cmd.exe /c C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -File a:\Enable-Winrm.ps1</CommandLine>
                     <Description>Enable WinRM</Description>
-                    <Order>3</Order>
+                    <Order>4</Order>
                 </SynchronousCommand>
             </FirstLogonCommands>
             <OOBE>
