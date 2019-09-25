@@ -64,7 +64,7 @@ func GetPythonPaths() []string {
 // GetVersion returns the version of the agent in a http response json
 func GetVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	av, _ := version.New(version.AgentVersion, version.Commit)
+	av, _ := version.Agent()
 	j, _ := json.Marshal(av)
 	w.Write(j)
 }
