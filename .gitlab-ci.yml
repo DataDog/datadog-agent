@@ -1557,6 +1557,7 @@ send_pkg_size-a7:
   dependencies: [] # Don't download Gitlab artifacts
   script:
     - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
+    - ls -l  $BUILD_CONTEXT || true
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
     - TARGET_TAG=$IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX

@@ -28,8 +28,8 @@ RUN apt-get update \
 #   - jmxfetch on nojmx build
 
 # DEBUGGING
-RUN ls datadog-agent*_amd64.deb
-RUN find / -maxdepth 1 -type f -name 'datadog-agent*_amd64.deb'
+RUN ls datadog-agent*_amd64.deb || true
+RUN find / -maxdepth 1 -type f -name 'datadog-agent*_amd64.deb' || true
 RUN find / -maxdepth 1 -type f -name 'datadog-agent*_amd64.deb' ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
 
 RUN find / -maxdepth 1 -name 'datadog-agent*_amd64.deb' -exec dpkg -X {} . \; | egrep '.*' \
