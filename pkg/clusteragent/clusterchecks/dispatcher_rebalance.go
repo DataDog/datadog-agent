@@ -121,7 +121,7 @@ func pickNode(diffMap map[string]int, sourceNode string) string {
 }
 
 // moveCheck moves a check by its ID from a node to another
-func (d *dispatcher) moveCheck(src, dest, checkID string) {
+func (d *dispatcher) moveCheck(src, dest, checkID string) error {
 	log.Debugf("Moving %s from %s to %s", checkID, src, dest)
 
 	d.store.RLock()
@@ -131,13 +131,13 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) {
 
 	if !destFound || !srcFound {
 		log.Debugf("Nodes not found in store: %s, %s. Check %s will not move", src, dest, checkID)
-		return
+		return fmt.Errorf("node %s not found", src)
 	}
 
 	runnerStats, err := sourceNode.GetRunnerStats(checkID)
 	if err != nil {
-		log.Debugf("Cannot get runner stats on node %s, check %s will not move: %v", src, checkID, err)
-		return
+		log.Debugf("Cannot get runner stats on node %s, check %s will not move", src, checkID)
+		return err
 	}
 
 	destNode.AddRunnerStats(checkID, runnerStats)
@@ -150,6 +150,8 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) {
 	d.addConfig(config, dest)
 
 	log.Debugf("Check %s moved from %s to %s", checkID, src, dest)
+
+	return nil
 }
 
 // rebalance tries to optimize the checks repartition on cluster level check
@@ -176,7 +178,12 @@ func (d *dispatcher) rebalance() {
 			if diffMap[pickedNodeName]+checkWeight < diffMap[sourceNodeName] {
 				// move a check to a new node only if it keeps the busyness of the new node
 				// lower than the original node's busyness
-				d.moveCheck(sourceNodeName, pickedNodeName, checkID)
+				err = d.moveCheck(sourceNodeName, pickedNodeName, checkID)
+				if err != nil {
+					log.Debugf("Cannot move check %s: %v", checkID, err)
+					continue
+				}
+
 				log.Tracef("Check %s with weight %d moved, total avg: %d, source diff: %d, dest diff: %d", checkID, checkWeight, totalAvg, diffMap[sourceNodeName], diffMap[pickedNodeName])
 
 				// diffMap needs to be updated on every check moved

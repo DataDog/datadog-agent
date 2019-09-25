@@ -1027,18 +1027,23 @@ func TestMoveCheck(t *testing.T) {
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
 			dispatcher := newDispatcher()
 
+			// setup check id
+			id := check.BuildID(tc.check.config.Name, tc.check.config.Instances[0], tc.check.config.InitConfig)
+
 			// prepare store
 			dispatcher.store.active = true
 			for _, node := range tc.nodes {
 				// init nodeStore
 				dispatcher.store.nodes[node] = newNodeStore(node, "") // no need to setup the clientIP in this test
 			}
-
 			dispatcher.addConfig(tc.check.config, tc.check.node)
+			dispatcher.store.nodes[tc.check.node].clcRunnerStats = types.CLCRunnersStats{string(id): types.CLCRunnerStats{}}
 
 			// move check
-			id := check.BuildID(tc.check.config.Name, tc.check.config.Instances[0], tc.check.config.InitConfig)
-			dispatcher.moveCheck(tc.check.node, tc.dest, string(id))
+			err := dispatcher.moveCheck(tc.check.node, tc.dest, string(id))
+
+			// assert no error
+			assert.Nil(t, err)
 
 			// assert checks repartition is updated correctly
 			assert.EqualValues(t, tc.dest, dispatcher.store.digestToNode[tc.check.config.Digest()])
