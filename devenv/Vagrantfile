@@ -1,0 +1,12 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.require_version ">= 1.8.4"
+
+Vagrant.configure("2") do |config|
+
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+  gopath = ENV['GOPATH'].gsub('\\', '/')
+  config.vm.synced_folder gopath + "/src/github.com/DataDog", /Users/dogdev/go/src/github.com/DataDog
+
+end
