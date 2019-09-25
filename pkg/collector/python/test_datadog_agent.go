@@ -27,7 +27,7 @@ func testGetVersion(t *testing.T) {
 	GetVersion(&v)
 	require.NotNil(t, v)
 
-	av, _ := version.New(version.AgentVersion, version.Commit)
+	av, _ := version.Agent()
 	assert.Equal(t, av.GetNumber(), C.GoString(v))
 }
 

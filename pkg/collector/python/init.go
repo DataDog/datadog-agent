@@ -204,7 +204,7 @@ func sendTelemetry(pythonVersion string) {
 	tags := []string{
 		fmt.Sprintf("python_version:%s", pythonVersion),
 	}
-	if agentVersion, err := version.New(version.AgentVersion, version.Commit); err == nil {
+	if agentVersion, err := version.Agent(); err == nil {
 		tags = append(tags,
 			fmt.Sprintf("agent_version_major:%d", agentVersion.Major),
 			fmt.Sprintf("agent_version_minor:%d", agentVersion.Minor),

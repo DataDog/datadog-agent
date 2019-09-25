@@ -64,7 +64,7 @@ func init() {
 	pyLoaderStats.Set("Py3Warnings", expvar.Func(expvarPy3Warnings))
 
 	agentVersionTags = []string{}
-	if agentVersion, err := version.New(version.AgentVersion, version.Commit); err == nil {
+	if agentVersion, err := version.Agent(); err == nil {
 		agentVersionTags = []string{
 			fmt.Sprintf("agent_version_major:%d", agentVersion.Major),
 			fmt.Sprintf("agent_version_minor:%d", agentVersion.Minor),

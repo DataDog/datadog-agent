@@ -34,7 +34,7 @@ import (
 // GetVersion exposes the version of the agent to Python checks.
 //export GetVersion
 func GetVersion(agentVersion **C.char) {
-	av, _ := version.New(version.AgentVersion, version.Commit)
+	av, _ := version.Agent()
 	// version will be free by rtloader when it's done with it
 	*agentVersion = TrackedCString(av.GetNumber())
 }
