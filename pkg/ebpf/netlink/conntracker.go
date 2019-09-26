@@ -20,7 +20,7 @@ import (
 const (
 	initializationTimeout = time.Second * 10
 
-	compactInterval = time.Minute * 4
+	compactInterval = time.Minute * 3
 
 	// generationLength must be greater than compactInterval to ensure we have  multiple compactions per generation
 	generationLength = compactInterval + time.Minute
@@ -239,7 +239,7 @@ func (ctr *realConntracker) loadInitialState(sessions []ct.Con) {
 // register is registered to be called whenever a conntrack update/create is called.
 // it will keep being called until it returns nonzero.
 func (ctr *realConntracker) register(c ct.Con) int {
-	// don't both storing if the connection is not NAT
+	// don't bother storing if the connection is not NAT
 	if !isNAT(c) {
 		return 0
 	}
