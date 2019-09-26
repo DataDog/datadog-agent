@@ -35,6 +35,12 @@ type dummyCLCRunner struct {
 	token string
 }
 
+// resetGlobalCLCRunnerClient is a helper to remove the current CLCRunnerClient global
+func resetGlobalCLCRunnerClient() {
+	globalCLCRunnerClient = &CLCRunnerClient{}
+	globalCLCRunnerClient.init()
+}
+
 func newDummyCLCRunner() (*dummyCLCRunner, error) {
 	resetGlobalCLCRunnerClient()
 	clcRunner := &dummyCLCRunner{

@@ -157,6 +157,7 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) error {
 // rebalance tries to optimize the checks repartition on cluster level check
 // runners with less possible check moves based on the runner stats.
 func (d *dispatcher) rebalance() {
+	log.Trace("Trying to rebalance cluster checks distribution if needed")
 	totalAvg, err := d.calculateAvg()
 	if err != nil {
 		log.Debugf("Cannot rebalance checks: %v", err)

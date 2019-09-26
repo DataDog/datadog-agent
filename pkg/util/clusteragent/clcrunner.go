@@ -47,13 +47,6 @@ type CLCRunnerClient struct {
 	clcRunnerPort              int
 }
 
-// resetGlobalCLCRunnerClient is a helper to remove the current CLCRunnerClient global
-// It is ONLY to be used for tests
-func resetGlobalCLCRunnerClient() {
-	globalCLCRunnerClient = &CLCRunnerClient{}
-	globalCLCRunnerClient.init()
-}
-
 // GetCLCRunnerClient returns or init the CLCRunnerClient
 func GetCLCRunnerClient() (CLCRunnerClientInterface, error) {
 	globalCLCRunnerClient.Do(globalCLCRunnerClient.init)
