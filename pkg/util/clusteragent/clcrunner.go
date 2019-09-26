@@ -79,7 +79,7 @@ func (c *CLCRunnerClient) init() {
 	c.clcRunnerAPIClient.Timeout = 2 * time.Second
 
 	// Set http port used by the CLC Runners
-	c.clcRunnerPort = config.Datadog.GetInt("cmd_port")
+	c.clcRunnerPort = config.Datadog.GetInt("cluster_checks.clc_runners_port")
 }
 
 // GetVersion fetches the version of the CLC Runner
