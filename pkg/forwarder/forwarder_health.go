@@ -39,8 +39,7 @@ func initForwarderHealthExpvars() {
 }
 
 // forwarderHealth report the health status of the Forwarder. A Forwarder is
-// unhealthy if the API keys are not longer valid or if too many transactions
-// were dropped
+// unhealthy if the API keys are not longer valid
 type forwarderHealth struct {
 	health         *health.Handle
 	stop           chan bool
@@ -103,7 +102,6 @@ func (fh *forwarderHealth) healthCheckLoop() {
 				return
 			}
 		case <-fh.health.C:
-			continue
 		}
 	}
 }
