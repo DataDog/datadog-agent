@@ -5,6 +5,13 @@
 
 package inventories
 
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+)
+
 // AgentMetadata contains metadata provided by the agent itself
 type AgentMetadata map[string]interface{}
 
@@ -21,4 +28,20 @@ type Payload struct {
 	Timestamp     int64          `json:"timestamp"`
 	CheckMetadata *CheckMetadata `json:"check_metadata"`
 	AgentMetadata *AgentMetadata `json:"agent_metadata"`
+}
+
+// MarshalJSON serialization a Payload to JSON
+func (p *Payload) MarshalJSON() ([]byte, error) {
+	type PayloadAlias Payload
+	return json.Marshal((*PayloadAlias)(p))
+}
+
+// Marshal not implemented
+func (p *Payload) Marshal() ([]byte, error) {
+	return nil, fmt.Errorf("V5 Payload serialization is not implemented")
+}
+
+// SplitPayload breaks the payload into times number of pieces
+func (p *Payload) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+	return nil, fmt.Errorf("Inventories Payload splitting is not implemented")
 }
