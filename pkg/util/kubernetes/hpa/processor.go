@@ -33,6 +33,8 @@ type ProcessorInterface interface {
 	UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue)
 	ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) map[string]custommetrics.ExternalMetricValue
 	ProcessWPAs(wpa *v1alpha1.WatermarkPodAutoscaler) map[string]custommetrics.ExternalMetricValue
+    ProcessEMList(emList []custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue
+
 }
 
 // Processor embeds the configuration to refresh metrics from Datadog and process Ref structs to ExternalMetrics.
@@ -81,10 +83,24 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 		em.Valid = true
 		em.Value = metric.value
 		em.Timestamp = metric.timestamp
-		log.Debugf("Updated the external metric %#v", em)
+		log.Debugf("Updated the external metric %s{%v} for %s %s/%s", em.MetricName, em.Labels, em.Ref.Type, em.Ref.Namespace, em.Ref.Name)
 		updated[id] = em
 	}
 	return updated
+}
+
+// ProcessHPAs processes the HorizontalPodAutoscalers into a list of ExternalMetricValues.
+func (p *Processor) ProcessEMList(emList []custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue {
+	externalMetrics := make(map[string]custommetrics.ExternalMetricValue)
+	for _, em := range emList {
+		em.Value = 0
+		em.Timestamp = time.Now().Unix()
+		em.Valid = false
+		log.Tracef("Created a boilerplate for the external metrics %s{%v} for %s %s/%s", em.MetricName, em.Labels, em.Ref.Type, em.Ref.Namespace, em.Ref.Name)
+		id := custommetrics.ExternalMetricValueKeyFunc(em)
+		externalMetrics[id] = em
+	}
+	return externalMetrics
 }
 
 // ProcessHPAs processes the HorizontalPodAutoscalers into a list of ExternalMetricValues.
@@ -95,7 +111,7 @@ func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) map[
 		em.Value = 0
 		em.Timestamp = time.Now().Unix()
 		em.Valid = false
-		log.Tracef("Created a boilerplate for the external metrics %#v", em)
+		log.Tracef("Created a boilerplate for the external metrics %s{%v} for %s %s/%s", em.MetricName, em.Labels, em.Ref.Type, em.Ref.Namespace, em.Ref.Name)
 		id := custommetrics.ExternalMetricValueKeyFunc(em)
 		externalMetrics[id] = em
 	}
@@ -110,7 +126,7 @@ func (p *Processor) ProcessWPAs(wpa *v1alpha1.WatermarkPodAutoscaler) map[string
 		em.Value = 0
 		em.Timestamp = time.Now().Unix()
 		em.Valid = false
-		log.Tracef("Created a boilerplate for the external metrics %#v", em)
+		log.Tracef("Created a boilerplate for the external metrics %s{%v} for %s %s/%s", em.MetricName, em.Labels, em.Ref.Type, em.Ref.Namespace, em.Ref.Name)
 		id := custommetrics.ExternalMetricValueKeyFunc(em)
 		externalMetrics[id] = em
 	}
