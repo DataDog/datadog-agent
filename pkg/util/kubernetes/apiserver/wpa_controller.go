@@ -1,17 +1,31 @@
 package apiserver
 
 import (
-	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions/datadoghq/v1alpha1"
-	"time"
-	"k8s.io/client-go/tools/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"k8s.io/apimachinery/pkg/util/wait"
-	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
+	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions/datadoghq/v1alpha1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/cache"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 )
 
+// RunWPA starts the controller to process events about Watermark Pod Autoscalers
+func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}) {
+	defer h.queue.ShutDown()
+
+	log.Infof("Starting WPA Controller ... ")
+	defer log.Infof("Stopping WPA Controller")
+	if !cache.WaitForCacheSync(stopCh, h.wpaListerSynced) {
+		return
+	}
+	go wait.Until(h.workerWPA, time.Second, stopCh)
+	<-stopCh
+}
+
+// ExtendToWPAController adds the handlers to the AutoscalersController to support WPAs
 func ExtendToWPAController(h *AutoscalersController, wpaInformer v1alpha1.WatermarkPodAutoscalerInformer) (*AutoscalersController, error) {
 	wpaInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
@@ -24,18 +38,6 @@ func ExtendToWPAController(h *AutoscalersController, wpaInformer v1alpha1.Waterm
 	h.wpaListerSynced = wpaInformer.Informer().HasSynced
 
 	return h, nil
-}
-
-func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}) {
-	defer h.queue.ShutDown()
-
-	log.Infof("Starting WPA Controller ... ")
-	defer log.Infof("Stopping WPA Controller")
-	if !cache.WaitForCacheSync(stopCh, h.wpaListerSynced) {
-		return
-	}
-	go wait.Until(h.workerWPA, time.Second, stopCh)
-	<- stopCh
 }
 
 func (h *AutoscalersController) workerWPA() {
@@ -86,7 +88,8 @@ func (h *AutoscalersController) syncWatermarkPoAutoscalers(key interface{}) erro
 			log.Errorf("Could not parse empty wpa %s/%s from local store", ns, name)
 			return ErrIsEmpty
 		}
-		new := h.hpaProc.ProcessWPAs(wpa)
+		emList := hpa.InspectWPA(wpa)
+		new := h.hpaProc.ProcessEMList(emList)
 		h.toStore.m.Lock()
 		for metric, value := range new {
 			// We should only insert placeholders in the local cache.
@@ -99,7 +102,6 @@ func (h *AutoscalersController) syncWatermarkPoAutoscalers(key interface{}) erro
 
 	return err
 }
-
 
 func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
 	newAutoscaler, ok := obj.(*apis_v1alpha1.WatermarkPodAutoscaler)

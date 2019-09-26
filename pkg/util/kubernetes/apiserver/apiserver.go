@@ -27,8 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
+	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 )
 
 var (
@@ -101,7 +101,6 @@ func getClientConfig() (*rest.Config, error) {
 		}
 	}
 
-
 	if config.Datadog.GetBool("kubernetes_apiserver_use_protobuf") {
 		clientConfig.ContentType = "application/vnd.kubernetes.protobuf"
 	}
@@ -133,7 +132,7 @@ func getWPAInformerFactory() (externalversions.SharedInformerFactory, error) {
 		log.Infof("Could not get apiserver client: %v", err)
 		return nil, err
 	}
-	return externalversions.NewSharedInformerFactory(client, resyncPeriodSeconds* time.Second), nil
+	return externalversions.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
 }
 
 func getInformerFactory() (informers.SharedInformerFactory, error) {

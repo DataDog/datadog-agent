@@ -1,16 +1,16 @@
 package apiserver
 
 import (
-	"time"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"k8s.io/client-go/tools/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"reflect"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"fmt"
-	"k8s.io/client-go/util/workqueue"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
+	"reflect"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 )
@@ -56,7 +56,6 @@ func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInter
 	return h, nil
 }
 
-
 func (h *AutoscalersController) enqueue(obj interface{}) {
 	key, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
@@ -66,8 +65,9 @@ func (h *AutoscalersController) enqueue(obj interface{}) {
 	h.queue.AddRateLimited(key)
 }
 
-func (c *AutoscalersController) RunControllerLoop(stopCh <-chan struct{}) {
-	c.processingLoop()
+// RunControllerLoop is the public method to trigger the lifecycle loop of the External Metrics store
+func (h *AutoscalersController) RunControllerLoop(stopCh <-chan struct{}) {
+	h.processingLoop()
 }
 
 func (h *AutoscalersController) deleteFromLocalStore(toDelete []custommetrics.ExternalMetricValue) {
