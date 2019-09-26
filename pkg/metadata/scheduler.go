@@ -70,6 +70,10 @@ func (c *Scheduler) Stop() {
 
 // AddCollector schedules a Metadata Collector at the given interval
 func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
+	if c.IsScheduled(name) {
+		return fmt.Errorf("trying to schedule %s twice", name)
+	}
+
 	p, found := catalog[name]
 	if !found {
 		return fmt.Errorf("Unable to find metadata collector: %s", name)
@@ -104,10 +108,18 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 	return nil
 }
 
-// SendNow runs a collector immediately and resets its ticker.
-// Does nothing if the Scheduler has been stopped, since the
-// goroutine that listens on the Timer will not be running.
-func (c *Scheduler) SendNow(name string) {
+// IsScheduled returns wether a given Collector has been added to this Scheduler
+func (c *Scheduler) IsScheduled(name string) bool {
+	_, found := c.collectors[name]
+	return found
+}
+
+// SendNow runs a collector manually, on demand. The delay parameter can be set
+// to 0 to run it immediately, or to a duration after which the collector will
+// run. The runs at regular intervals of the collector will be resumed *after*
+// this manual run. Calling SendNow on a stopped Scheduler does nothing, since
+// the goroutine that waits on the Timer will not be running.
+func (c *Scheduler) SendNow(name string, delay time.Duration) {
 	sc, found := c.collectors[name]
 
 	if !found {
@@ -123,7 +135,7 @@ func (c *Scheduler) SendNow(name string) {
 		}
 	}
 
-	sc.sendTimer.Reset(0) // Fire immediately
+	sc.sendTimer.Reset(delay)
 }
 
 // Always send host metadata at the first run

@@ -131,7 +131,7 @@ func TestSendNow(t *testing.T) {
 	default:
 	}
 
-	c.SendNow("testCollector")
+	c.SendNow("testCollector", 0)
 
 	select {
 	case <-mockCollector.SendCalledC:
