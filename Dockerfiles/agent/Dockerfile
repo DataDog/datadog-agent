@@ -68,10 +68,15 @@ ENV DOCKER_DD_AGENT=true \
     S6_READ_ONLY_ROOT=1
 
 # Install openjdk-11-jre-headless on jmx flavor
-RUN if [ -n "$WITH_JMX" ]; then apt-get update \
+# Due to this bug https://bugs.openjdk.java.net/browse/JDK-8217766, we need to be able to
+# pull from testing since this is the only place for now where a version > 11.0.4 is available.
+RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
+ && echo "deb http://deb.debian.org/debian testing main" > /etc/apt/sources.list.d/testing.list \
+ && apt-get update \
  && mkdir /usr/share/man/man1 \
  && apt-get install --no-install-recommends -y openjdk-11-jre-headless \
  && apt-get clean \
+ && rm /etc/apt/sources.list.d/testing.list \
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*; fi
 
 # make sure we have recent dependencies
