@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -282,6 +283,12 @@ func StartAgent() error {
 	common.MetadataScheduler = metadata.NewScheduler(s)
 	if err := metadata.SetupMetadataCollection(common.MetadataScheduler, metadata.AllDefaultCollectors); err != nil {
 		return err
+	}
+
+	if config.Datadog.GetBool("inventories_enabled") {
+		if err := inventories.Setup(common.MetadataScheduler, common.AC, common.Coll); err != nil {
+			return err
+		}
 	}
 
 	// start dependent services
