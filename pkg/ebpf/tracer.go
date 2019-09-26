@@ -270,7 +270,7 @@ func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 	isDNSConnection := conn.DPort == 53 || conn.SPort == 53
 	if !t.config.CollectLocalDNS && isDNSConnection && conn.Direction == LOCAL {
 		return true
-	} else if util.IsBlacklistedConnection(t.sourceExcludes, conn.Source, conn.SPort) || util.IsBlacklistedConnection(t.destExcludes, conn.Dest, conn.DPort) {
+	} else if util.IsBlacklistedConnection(t.sourceExcludes, conn.Source, conn.SPort, conn.Type.String()) || util.IsBlacklistedConnection(t.destExcludes, conn.Dest, conn.DPort, conn.Type.String()) {
 		return true
 	}
 	return false
