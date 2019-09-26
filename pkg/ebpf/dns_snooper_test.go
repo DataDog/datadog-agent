@@ -38,6 +38,7 @@ func TestDNSSnooping(t *testing.T) {
 	conn.Close()
 	require.NoError(t, err)
 	destAddr := util.AddressFromString(destIP)
+	srcAddr := util.AddressFromString("127.0.0.1")
 
 Loop:
 	// Wait until DNS entry becomes available (with a timeout)
@@ -53,8 +54,14 @@ Loop:
 	}
 
 	// Verify that the IP from the connections above maps to the right name
-	payload := []ConnectionStats{{Dest: destAddr}}
+	payload := []ConnectionStats{{Source: srcAddr, Dest: destAddr}}
 	names := reverseDNS.Resolve(payload)
 	require.Len(t, names, 1)
 	assert.Contains(t, names[destAddr], "golang.org")
+
+	// Verify telemetry
+	stats := reverseDNS.GetStats()
+	assert.True(t, stats["ips"] >= 1)
+	assert.Equal(t, int64(2), stats["lookups"])
+	assert.Equal(t, int64(1), stats["resolved"])
 }
