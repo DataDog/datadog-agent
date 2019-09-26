@@ -234,4 +234,4 @@
 
 [[constraint]]
   name = "github.com/DataDog/watermarkpodautoscaler"
-  revision = "f3a3312c2504e59e4997c346d034d7c1642bc13c"
+  revision = "0efcebe266331b85b12ef5ea734bc0cf5216bcbe"

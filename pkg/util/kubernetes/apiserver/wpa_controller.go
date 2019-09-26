@@ -46,13 +46,13 @@ func (h *AutoscalersController) workerWPA() {
 func (h *AutoscalersController) processNextWPA() bool {
 	key, quit := h.queue.Get()
 	if quit {
-		log.Infof("Autoscaler queue is shutting down, stopping processing")
+		log.Infof("WPA controller queue is shutting down, stopping processing")
 		return false
 	}
 	log.Tracef("Processing %s", key)
 	defer h.queue.Done(key)
 
-	err := h.syncAutoscalers(key)
+	err := h.syncWatermarkPoAutoscalers(key)
 	h.handleErr(err, key)
 
 	// Debug output for unit tests only
@@ -64,7 +64,6 @@ func (h *AutoscalersController) processNextWPA() bool {
 
 func (h *AutoscalersController) syncWatermarkPoAutoscalers(key interface{}) error {
 	if !h.le.IsLeader() {
-		log.Trace("Only the leader needs to sync the Autoscalers")
 		return nil
 	}
 	h.mu.Lock()
@@ -84,7 +83,7 @@ func (h *AutoscalersController) syncWatermarkPoAutoscalers(key interface{}) erro
 		log.Errorf("Unable to retrieve Watermark Pod Autoscaler %v from store: %v", key, err)
 	default:
 		if wpa == nil {
-			log.Errorf("Could not parse empty hpa %s/%s from local store", ns, name)
+			log.Errorf("Could not parse empty wpa %s/%s from local store", ns, name)
 			return ErrIsEmpty
 		}
 		new := h.hpaProc.ProcessWPAs(wpa)
@@ -115,12 +114,12 @@ func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
 func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
 	newAutoscaler, ok := obj.(*apis_v1alpha1.WatermarkPodAutoscaler)
 	if !ok {
-		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", obj)
+		log.Errorf("Expected an WatermarkPodAutoscaler type, got: %v", obj)
 		return
 	}
 	oldAutoscaler, ok := old.(*apis_v1alpha1.WatermarkPodAutoscaler)
 	if !ok {
-		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", old)
+		log.Errorf("Expected an WatermarkPodAutoscaler type, got: %v", old)
 		h.enqueue(newAutoscaler) // We still want to enqueue the newAutoscaler to get the new change
 		return
 	}
@@ -133,7 +132,7 @@ func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
 	toDelete := hpa.InspectWPA(oldAutoscaler)
 	h.deleteFromLocalStore(toDelete)
 
-	log.Tracef("Processing update event for autoscaler %s/%s with configuration: %s", newAutoscaler.Namespace, newAutoscaler.Name, newAutoscaler.Annotations)
+	log.Tracef("Processing update event for wpa %s/%s with configuration: %s", newAutoscaler.Namespace, newAutoscaler.Name, newAutoscaler.Annotations)
 	h.enqueue(newAutoscaler)
 }
 
