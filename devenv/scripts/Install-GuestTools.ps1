@@ -1,5 +1,3 @@
-# Set the path of the VMWare Tools ISO - this is set in the Packer JSON file
-
 if ($ENV:PACKER_BUILDER_TYPE -eq "hyperv-iso") {
   Write-Output "Nothing to do for Hyper-V"
   exit 0

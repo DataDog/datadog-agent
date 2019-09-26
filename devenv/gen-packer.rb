@@ -6,12 +6,12 @@ class Builder
         if type == "client"
             @name = "windows_10_ent"
             @autounattend = "./answer_files/10_Ent/Autounattend.xml"
-            @isourl = "iso/18362.30.190401-1528.19h1_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso"
+            @isourl = "https://software-download.microsoft.com/download/pr/18362.30.190401-1528.19h1_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso"
             @checksum = "ab4862ba7d1644c27f27516d24cb21e6b39234eb3301e5f1fb365a78b22f79b3"
         else
             @name = "windows_2019"
             @autounattend = "./answer_files/2019_core/Autounattend.xml"
-            @isourl = "iso/17763.379.190312-0539.rs5_release_svc_refresh_SERVER_EVAL_x64FRE_en-us.iso"
+            @isourl = "https://software-download.microsoft.com/download/pr/17763.379.190312-0539.rs5_release_svc_refresh_SERVER_EVAL_x64FRE_en-us.iso"
             @checksum = "221F9ACBC727297A56674A0F1722B8AC7B6E840B4E1FFBDD538A9ED0DA823562"
         end
     end

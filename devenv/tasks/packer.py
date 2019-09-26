@@ -1,12 +1,12 @@
 """
-Agent namespaced tasks
+Packer namespaced tasks
 """
 from __future__ import print_function
 import os
 
 import invoke
 from invoke import task
-from invoke.exceptions import Exit, ParseError
+from invoke.exceptions import Exit
 
 DEFAULT_BUILDERS = [
     "parallels-iso",
@@ -15,7 +15,7 @@ DEFAULT_BUILDERS = [
 ]
 
 @task
-def build(ctx, os = "windows-10", build_exclude = None):
+def build(ctx, os = "windows-10", provider = "virtualbox-iso"):
     """
     Build the Vagrant box
     
@@ -23,8 +23,9 @@ def build(ctx, os = "windows-10", build_exclude = None):
         inv packer.build --os=windows-10
     """
 
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    builders = ",".join(set(DEFAULT_BUILDERS) - set(build_exclude))
+    if not provider in DEFAULT_BUILDERS:
+        print("Error: unknown provider")
+        return Exit(code=1)
 
     command = "ruby -r \"./gen-packer.rb\" -e \"build('{name}', '{type}')\" > packer.json"
 
@@ -42,4 +43,4 @@ def build(ctx, os = "windows-10", build_exclude = None):
         print("Error: unknown OS")
         raise Exit(code=1)
 
-    ctx.run("packer build --only=" + builders + " packer.json")
+    ctx.run("packer build --only=" + provider + " packer.json")

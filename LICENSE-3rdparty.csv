@@ -158,3 +158,5 @@ process,github.com/DataDog/gopsutil,BSD-3-Clause
 network,github.com/iovisor/gobpf,Apache-2.0
 network,github.com/florianl/go-conntrack,MIT
 network,github.com/mdlayher/netlink,MIT
+devenv,github.com/StefanScherer/packer-windows/blob/my/scripts/disable-winrm.ps1,MIT
+devenv,github.com/luciusbono/Packer-Windows10/blob/master/install-guest-tools.ps1,MIT

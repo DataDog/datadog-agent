@@ -21,7 +21,6 @@
       
       "floppy_files": [
         "<%= builder.autounattend %>",
-        "./scripts/Fix-network.ps1",
         "./scripts/Enable-WinRM.ps1"
       ],
       <% if builder.vmtype == "vmware-iso" %>
@@ -88,8 +87,9 @@
       "elevated_user": "dogdev",
       "elevated_password": "dogdev",
       "scripts": [
-        "./scripts/Install-VM-GuestTools.ps1",
-        "./scripts/Setup-DevEnv.ps1"
+        "./scripts/Install-GuestTools.ps1",
+        "./scripts/Install-DevEnv.ps1",
+        "./scripts/Disable-WinRM.ps1"
       ]
     }
   ]

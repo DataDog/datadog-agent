@@ -66,11 +66,6 @@
             </ImageInstall>
             <UserData>
                 <ProductKey>
-                    <!--
-                        Windows Server Insider product key
-                        See https://blogs.windows.com/windowsexperience/2017/07/13/announcing-windows-server-insider-preview-build-16237/
-                    -->
-                    <!--<Key></Key>-->
                     <WillShowUI>OnError</WillShowUI>
                 </ProductKey>
                 <AcceptEula>true</AcceptEula>
@@ -110,7 +105,7 @@
             xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" 
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
             <ComputerName>DOGDEV-AGENT</ComputerName>
-            <TimeZone>Pacific Standard Time</TimeZone>
+            <TimeZone>Eastern Standard Time</TimeZone>
             <RegisteredOwner/>
         </component>
     </settings>
@@ -133,7 +128,7 @@
                     <RequiresUserInput>true</RequiresUserInput>
                 </SynchronousCommand>
                 <SynchronousCommand wcm:action="add">
-                    <CommandLine>cmd.exe /c C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -File a:\Fix-Network.ps1</CommandLine>
+                    <CommandLine>cmd.exe /c C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -File a:\Set-NetworkCategory.ps1</CommandLine>
                     <Description>Fix network</Description>
                     <Order>2</Order>
                 </SynchronousCommand>
