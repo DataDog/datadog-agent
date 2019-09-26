@@ -45,7 +45,14 @@ func SetAgentMetadata(name string, value interface{}) {
 	agentCacheMutex.Lock()
 	defer agentCacheMutex.Unlock()
 
-	agentMetadataCache[name] = value
+	if agentMetadataCache[name] != value {
+		agentMetadataCache[name] = value
+
+		select {
+		case metadataUpdatedC <- nil:
+		default: // To make sure this call is not blocking
+		}
+	}
 }
 
 // SetCheckMetadata updates a metadata value for one check instance in the cache.
@@ -61,8 +68,15 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 		checkMetadataCache[checkID] = entry
 	}
 
-	entry.LastUpdated = nowNano()
-	entry.CheckInstanceMetadata[key] = value
+	if entry.CheckInstanceMetadata[key] != value {
+		entry.LastUpdated = nowNano()
+		entry.CheckInstanceMetadata[key] = value
+
+		select {
+		case metadataUpdatedC <- nil:
+		default: // To make sure this call is not blocking
+		}
+	}
 }
 
 func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMetadata {
