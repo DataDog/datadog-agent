@@ -94,11 +94,7 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 
 // GetClusterAgentConfigCheck proxies GetConfigCheck overidding the URL
 func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
-	ipcAddress, err := config.GetIPCAddress()
-	if err != nil {
-		return err
-	}
-	configCheckURL = fmt.Sprintf("https://%v:%v/config-check", ipcAddress, config.Datadog.GetInt("cluster_agent.cmd_port"))
+	configCheckURL = fmt.Sprintf("https://%v:%v/config-check", config.Datadog.GetString("bind_ipc"), config.Datadog.GetInt("cluster_agent.cmd_port"))
 	return GetConfigCheck(w, withDebug)
 }
 

@@ -15,18 +15,13 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // GetClusterChecks dumps the clustercheck dispatching state to the writer
 func GetClusterChecks(w io.Writer) error {
-	ipcAddress, err := config.GetIPCAddress()
-	if err != nil {
-		return err
-	}
-	urlstr := fmt.Sprintf("https://%v:%v/api/v1/clusterchecks", ipcAddress, config.Datadog.GetInt("cluster_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks", config.Datadog.GetInt("cluster_agent.cmd_port"))
 
 	if w != color.Output {
 		color.NoColor = true
@@ -40,7 +35,7 @@ func GetClusterChecks(w io.Writer) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	err = util.SetAuthToken()
+	err := util.SetAuthToken()
 	if err != nil {
 		return err
 	}
@@ -110,57 +105,4 @@ func GetClusterChecks(w io.Writer) error {
 	}
 
 	return nil
-}
-
-// GetEndpointsChecks dumps the endpointschecks dispatching state to the writer
-func GetEndpointsChecks(w io.Writer) error {
-	if !endpointschecksEnabled() {
-		return nil
-	}
-
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/endpointschecks/configs", config.Datadog.GetInt("cluster_agent.cmd_port"))
-
-	if w != color.Output {
-		color.NoColor = true
-	}
-
-	c := util.GetClient(false) // FIX: get certificates right then make this true
-
-	// Set session token
-	if err := util.SetAuthToken(); err != nil {
-		return err
-	}
-
-	// Query the cluster agent API
-	r, err := util.DoGet(c, urlstr)
-	if err != nil {
-		if r != nil && string(r) != "" {
-			fmt.Fprintln(w, fmt.Sprintf("The agent ran into an error while checking config: %s", string(r)))
-		} else {
-			fmt.Fprintln(w, fmt.Sprintf("Failed to query the agent (running?): %s", err))
-		}
-		return err
-	}
-
-	var cr types.ConfigResponse
-	if err = json.Unmarshal(r, &cr); err != nil {
-		return err
-	}
-
-	// Print summary of pod-backed endpointschecks
-	fmt.Fprintln(w, fmt.Sprintf("\n===== %d Pod-backed Endpoints-Checks scheduled =====", len(cr.Configs)))
-	for _, c := range cr.Configs {
-		PrintConfig(w, c)
-	}
-
-	return nil
-}
-
-func endpointschecksEnabled() bool {
-	for _, provider := range config.Datadog.GetStringSlice("extra_config_providers") {
-		if provider == providers.KubeEndpointsProviderName {
-			return true
-		}
-	}
-	return false
 }
