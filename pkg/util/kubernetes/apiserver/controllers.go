@@ -12,9 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 )
 
 type controllerFuncs struct {
@@ -38,11 +38,11 @@ var controllerCatalog = map[string]controllerFuncs{
 }
 
 type ControllerContext struct {
-	InformerFactory informers.SharedInformerFactory
-	WPAInformerFactory		externalversions.SharedInformerFactory
-	Client          kubernetes.Interface
-	LeaderElector   LeaderElectorInterface
-	StopCh          chan struct{}
+	InformerFactory    informers.SharedInformerFactory
+	WPAInformerFactory externalversions.SharedInformerFactory
+	Client             kubernetes.Interface
+	LeaderElector      LeaderElectorInterface
+	StopCh             chan struct{}
 }
 
 // StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is
@@ -91,13 +91,13 @@ func startAutoscalersController(ctx ControllerContext) error {
 	if err != nil {
 		return err
 	}
-	if config.Datadog.GetBool("watermark_pod_autoscaler_controller.enabled"){
+	if config.Datadog.GetBool("watermark_pod_autoscaler_controller.enabled") {
 		autoscalersController.wpaEnabled = true
-		autoscalersController, err  = ExtendToWPAController(autoscalersController, ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
+		autoscalersController, err = ExtendToWPAController(autoscalersController, ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
 		go autoscalersController.RunWPA(ctx.StopCh)
 	}
 
-	autoscalersController, err = ExtendToHPAController(autoscalersController, 	ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
+	autoscalersController, err = ExtendToHPAController(autoscalersController, ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
 	if err != nil {
 		return err
 	}

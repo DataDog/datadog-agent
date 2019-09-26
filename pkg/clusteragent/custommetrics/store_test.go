@@ -77,7 +77,7 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 					Ref:        ObjectReference{Type: "horizontal", Name: "bar", Namespace: "default"},
 				},
 			},
-		},{
+		}, {
 			"same metric with different hpas and labels",
 			map[string]ExternalMetricValue{
 				"external_metric-watermark-default-foo-requests_per_s": {
@@ -193,7 +193,7 @@ func TestExternalMetricValueKeyFunc(t *testing.T) {
 			emval: ExternalMetricValue{
 				MetricName: "foo",
 				Ref: ObjectReference{
-					Type: "horizontal",
+					Type:      "horizontal",
 					Name:      "bar",
 					Namespace: "default",
 				},
@@ -205,7 +205,7 @@ func TestExternalMetricValueKeyFunc(t *testing.T) {
 			emval: ExternalMetricValue{
 				MetricName: "FoO",
 				Ref: ObjectReference{
-					Type: "horizontal",
+					Type:      "horizontal",
 					Name:      "bar",
 					Namespace: "DefauLt",
 				},
@@ -217,7 +217,7 @@ func TestExternalMetricValueKeyFunc(t *testing.T) {
 			emval: ExternalMetricValue{
 				MetricName: "foo",
 				Ref: ObjectReference{
-					Type: "watermark",
+					Type:      "watermark",
 					Name:      "bar",
 					Namespace: "default",
 				},
@@ -229,7 +229,7 @@ func TestExternalMetricValueKeyFunc(t *testing.T) {
 			emval: ExternalMetricValue{
 				MetricName: "FoO",
 				Ref: ObjectReference{
-					Type: "watermark",
+					Type:      "watermark",
 					Name:      "bar",
 					Namespace: "DefauLt",
 				},

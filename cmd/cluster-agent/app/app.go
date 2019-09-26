@@ -177,11 +177,11 @@ func start(cmd *cobra.Command, args []string) error {
 		}
 		stopCh := make(chan struct{})
 		ctx := apiserver.ControllerContext{
-			InformerFactory: apiCl.InformerFactory,
+			InformerFactory:    apiCl.InformerFactory,
 			WPAInformerFactory: apiCl.WPAInformerFactory,
-			Client:          apiCl.Cl,
-			LeaderElector:   le,
-			StopCh:          stopCh,
+			Client:             apiCl.Cl,
+			LeaderElector:      le,
+			StopCh:             stopCh,
 		}
 		if err := apiserver.StartControllers(ctx); err != nil {
 			log.Errorf("Could not start controllers: %v", err)
