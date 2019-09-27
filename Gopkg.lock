@@ -897,19 +897,19 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:45c4cfd13457ebc547a8ca7be27aade5bddbab218dde9671a87d597c2e819efe"
+  digest = "1:d87655a081b5e572a6400447ba5d39b9c91a94d4259e54bd93fbf53e24170182"
   name = "github.com/lxn/walk"
   packages = ["."]
   pruneopts = ""
-  revision = "3b9dbc29e91646ce796bdc2e0fbcdfaa769cc927"
+  revision = "02935bac0ab8448d5f9bf72ebeeb7ca0d5553f9b"
 
 [[projects]]
   branch = "master"
-  digest = "1:293c4ded91f85c58d83a0b905200736d9cead731733b426634573b33c9d72103"
+  digest = "1:fe2ae76c3067e286942934ebae3b9e6af25f7af88702c969981f4ca20ea16fe6"
   name = "github.com/lxn/win"
   packages = ["."]
   pruneopts = ""
-  revision = "ae3bd9765f4622e3ed9650894d4cba23c9fc9b1a"
+  revision = "7e1250ba2e7749fb9eb865da9ee93fb5a2fe73f1"
 
 [[projects]]
   digest = "1:ae39921edb7f801f7ce1b6b5484f9715a1dd2b52cb645daef095cd10fd6ee774"
