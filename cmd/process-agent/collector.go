@@ -285,6 +285,9 @@ func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, bod
 	req.Header.Add("X-Dd-APIKey", endpoint.APIKey)
 	req.Header.Add("X-Dd-Hostname", l.cfg.HostName)
 	req.Header.Add("X-Dd-Processagentversion", Version)
+	if hasContainers(body) {
+		req.Header.Add("X-Has-Containers", "True")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), ReqCtxTimeout)
 	defer cancel()
@@ -333,6 +336,35 @@ func isHTTPTimeout(err error) bool {
 		Timeout() bool
 	}); ok && netErr.Timeout() {
 		return true
+	}
+	return false
+}
+
+func hasContainers(body []byte) bool {
+	m, err := model.DecodeMessage(body)
+	if err != nil {
+		log.Errorf("Unable to decode message body: %s", err)
+		return false
+	}
+	switch v := m.Body.(type) {
+	case *model.CollectorProc:
+		if v.GetContainers() != nil {
+			return true
+		}
+	case *model.CollectorRealTime:
+		if v.GetContainerStats() != nil {
+			return true
+		}
+	case *model.CollectorContainer:
+		if v.GetContainers() != nil {
+			return true
+		}
+	case *model.CollectorContainerRealTime:
+		if v.GetStats() != nil {
+			return true
+		}
+	case *model.CollectorConnections:
+		return false
 	}
 	return false
 }
