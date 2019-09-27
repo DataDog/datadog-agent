@@ -37,7 +37,11 @@ Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installinc VC T
 cinst -y vcpython27
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Wix'
-cinst -y wixtoolset
+cinst -y wixtoolset --version 3.11
+[Environment]::SetEnvironmentVariable(
+    "Path",
+    [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::Machine) + ";${env:ProgramFiles}\WiX Toolset v3.11\bin",
+    [System.EnvironmentVariableTarget]::Machine)
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing CMake'
 cinst -y cmake
