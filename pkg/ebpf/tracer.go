@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"expvar"
 	"fmt"
+	"github.com/DataDog/agent-payload/process"
 	"net"
 	"strings"
 	"sync"
@@ -270,7 +271,8 @@ func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 	isDNSConnection := conn.DPort == 53 || conn.SPort == 53
 	if !t.config.CollectLocalDNS && isDNSConnection && conn.Direction == LOCAL {
 		return true
-	} else if util.IsBlacklistedConnection(t.sourceExcludes, conn.Source, conn.SPort, conn.Type.String()) || util.IsBlacklistedConnection(t.destExcludes, conn.Dest, conn.DPort, conn.Type.String()) {
+	} else if util.IsBlacklistedConnection(t.sourceExcludes, conn.Source, conn.SPort, process.ConnectionType(conn.Type)) ||
+		util.IsBlacklistedConnection(t.destExcludes, conn.Dest, conn.DPort, process.ConnectionType(conn.Type)) {
 		return true
 	}
 	return false

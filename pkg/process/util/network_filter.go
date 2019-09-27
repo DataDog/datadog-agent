@@ -1,6 +1,7 @@
 package util
 
 import (
+	"github.com/DataDog/agent-payload/process"
 	"net"
 	"strconv"
 	"strings"
@@ -11,11 +12,11 @@ import (
 // ConnectionFilter holds a user-defined blacklisted IP/CIDR, and ports
 type ConnectionFilter struct {
 	IP       *net.IPNet
-	Ports    map[uint16]ConnType
-	AllPorts ConnType
+	Ports    map[uint16]ConnTypeFilter
+	AllPorts ConnTypeFilter
 }
 
-type ConnType struct {
+type ConnTypeFilter struct {
 	TCP bool
 	UDP bool
 }
@@ -23,7 +24,7 @@ type ConnType struct {
 // ParseConnectionFilters takes the user defined blacklist and returns a slice of ConnectionFilters
 func ParseConnectionFilters(filters map[string][]string) (blacklist []*ConnectionFilter) {
 	for ip, ports := range filters {
-		filter := &ConnectionFilter{Ports: map[uint16]ConnType{}}
+		filter := &ConnectionFilter{Ports: map[uint16]ConnTypeFilter{}}
 		var subnet *net.IPNet
 		var err error
 
@@ -49,67 +50,45 @@ func ParseConnectionFilters(filters map[string][]string) (blacklist []*Connectio
 
 		validFilter := true
 		for _, v := range ports {
-			// reset validFilter for each port
-			validFilter = true
-			v = strings.ToUpper(v)
-			// set tcp and udp to true to prevent exclusion by default
-			tcp, udp := true, true
-			switch {
-			case strings.HasPrefix(v, "TCP"):
-				udp = false
-				v = strings.TrimPrefix(v, "TCP")
-			case strings.HasPrefix(v, "UDP"):
-				tcp = false
-				v = strings.TrimPrefix(v, "UDP")
+
+			lowerPort, upperPort, connTypeFilter, valid := parsePortAndProtocolFilter(v)
+			validFilter = valid
+
+			if !validFilter {
+				break
 			}
 
-			if strings.ContainsRune(v, '*') {
-				filter.AllPorts.TCP, filter.AllPorts.UDP = tcp || filter.AllPorts.TCP, udp || filter.AllPorts.UDP
-				// This means that IP + port are both *, which effectively blacklists all conns, which is invalid.
-				if subnet == nil && filter.AllPorts.TCP && filter.AllPorts.UDP {
+			// port is wildcard
+			if lowerPort == 0 && upperPort == 0 && validFilter {
+				if subnet == nil && connTypeFilter.TCP && connTypeFilter.UDP {
 					log.Errorf("Given rule will not be respected. Invalid filter with IP/CIDR as * and port as *: %s", err)
 					validFilter = false
 					break
 				}
+				filter.AllPorts.TCP = connTypeFilter.TCP || filter.AllPorts.TCP
+				filter.AllPorts.UDP = connTypeFilter.UDP || filter.AllPorts.UDP
+
 				continue
 			}
 
-			// The defined port is a range
-			if strings.ContainsRune(v, '-') {
-				portRange := strings.Split(v, "-")
-				startPort, err := strconv.ParseUint(strings.TrimSpace(portRange[0]), 10, 16)
-				if err != nil {
-					log.Debugf("Could not parse list of ports: %s", err)
-					validFilter = false
-					break
-				}
-				endPort, err := strconv.ParseUint(strings.TrimSpace(portRange[1]), 10, 16)
-				if err != nil {
-					log.Debugf("Could not parse list of ports: %s", err)
-					validFilter = false
-					break
+			// port is integer
+			if upperPort == 0 && validFilter {
+				filter.Ports[uint16(lowerPort)] = ConnTypeFilter{
+					TCP: connTypeFilter.TCP || filter.Ports[uint16(lowerPort)].TCP,
+					UDP: connTypeFilter.UDP || filter.Ports[uint16(lowerPort)].UDP,
 				}
 
-				// invalid configuration
-				if startPort > endPort {
-					log.Debugf("Invalid port range %d-%d", startPort, endPort)
-					validFilter = false
-					break
-				}
-				for startPort <= endPort {
-					filter.Ports[uint16(startPort)] = ConnType{TCP: tcp || filter.Ports[uint16(startPort)].TCP, UDP: udp || filter.Ports[uint16(startPort)].UDP}
-					startPort++
-				}
 				continue
 			}
 
-			// The defined port is an integer, lets handle that
-			k, err := strconv.ParseUint(strings.TrimSpace(v), 10, 16)
-			if err != nil {
-				log.Debugf("Could not parse list of ports: %s", err)
-				validFilter = false
-			} else {
-				filter.Ports[uint16(k)] = ConnType{TCP: tcp, UDP: udp}
+			// port range
+			if validFilter {
+				for port := lowerPort; port <= upperPort; port++ {
+					filter.Ports[uint16(port)] = ConnTypeFilter{
+						TCP: connTypeFilter.TCP || filter.Ports[uint16(port)].TCP,
+						UDP: connTypeFilter.UDP || filter.Ports[uint16(port)].UDP,
+					}
+				}
 			}
 		}
 
@@ -117,12 +96,76 @@ func ParseConnectionFilters(filters map[string][]string) (blacklist []*Connectio
 			blacklist = append(blacklist, filter)
 		}
 	}
+
 	return blacklist
+}
+
+func parsePortAndProtocolFilter(v string) (uint64, uint64, ConnTypeFilter, bool) {
+	validFilter := true
+	lowerPort, upperPort := uint64(0), uint64(0)
+	v = strings.ToUpper(v)
+	connTypeFilter := ConnTypeFilter{TCP: true, UDP: true}
+
+	switch {
+	case strings.HasPrefix(v, "TCP"):
+		connTypeFilter.UDP = false
+		v = strings.TrimPrefix(v, "TCP")
+	case strings.HasPrefix(v, "UDP"):
+		connTypeFilter.TCP = false
+		v = strings.TrimPrefix(v, "UDP")
+	}
+
+	v = strings.TrimSpace(v)
+	if v == "*" {
+		return lowerPort, upperPort, connTypeFilter, validFilter
+	}
+
+	// The defined port is a range
+	if strings.ContainsRune(v, '-') {
+		portRange := strings.Split(v, "-")
+
+		// invalid configuration
+		if len(portRange) != 2 {
+			validFilter = false
+			return lowerPort, upperPort, connTypeFilter, validFilter
+		}
+		lowerPort, err := strconv.ParseUint(strings.TrimSpace(portRange[0]), 10, 16)
+		if err != nil {
+			log.Debugf("Parsed port was invalid: %s", err)
+			validFilter = false
+			return lowerPort, upperPort, connTypeFilter, validFilter
+		}
+		upperPort, err := strconv.ParseUint(strings.TrimSpace(portRange[1]), 10, 16)
+		if err != nil {
+			log.Debugf("Parsed port was invalid: %s", err)
+			validFilter = false
+			return lowerPort, upperPort, connTypeFilter, validFilter
+		}
+
+		// invalid configuration
+		if lowerPort > upperPort {
+			log.Debugf("Invalid port range %d-%d", lowerPort, upperPort)
+			validFilter = false
+			return lowerPort, upperPort, connTypeFilter, validFilter
+		}
+
+		// lp #, up #, ctf tcp udp, valid +
+		return lowerPort, upperPort, connTypeFilter, validFilter
+	}
+
+	// The defined port is an integer
+	lowerPort, err := strconv.ParseUint(v, 10, 16)
+	if err != nil {
+		log.Debugf("Parsed port was invalid: %s", err)
+		validFilter = false
+		return lowerPort, upperPort, connTypeFilter, validFilter
+	}
+	return lowerPort, upperPort, connTypeFilter, validFilter
 }
 
 // IsBlacklistedConnection returns true if a given connection should be excluded
 // by the tracer based on user defined filters
-func IsBlacklistedConnection(cf []*ConnectionFilter, addrIP Address, addrPort uint16, addrType string) bool {
+func IsBlacklistedConnection(cf []*ConnectionFilter, addrIP Address, addrPort uint16, addrType process.ConnectionType) bool {
 	ip := NetIPFromAddress(addrIP)
 	// No filters so short-circuit
 	if len(cf) == 0 {
@@ -134,16 +177,16 @@ func IsBlacklistedConnection(cf []*ConnectionFilter, addrIP Address, addrPort ui
 		if filter.IP == nil || filter.IP.Contains(ip) {
 			if filter.AllPorts.TCP && filter.AllPorts.UDP {
 				return true
-			} else if filter.AllPorts.TCP && addrType == "TCP" {
+			} else if filter.AllPorts.TCP && addrType == process.ConnectionType_tcp {
 				return true
-			} else if filter.AllPorts.UDP && addrType == "UDP" {
+			} else if filter.AllPorts.UDP && addrType == process.ConnectionType_udp {
 				return true
 			} else if _, ok := filter.Ports[addrPort]; ok {
 				if filter.Ports[addrPort].TCP && filter.Ports[addrPort].UDP {
 					return true
-				} else if filter.Ports[addrPort].TCP && addrType == "TCP" {
+				} else if filter.Ports[addrPort].TCP && addrType == process.ConnectionType_tcp {
 					return true
-				} else if filter.Ports[addrPort].UDP && addrType == "UDP" {
+				} else if filter.Ports[addrPort].UDP && addrType == process.ConnectionType_udp {
 					return true
 				}
 			}
