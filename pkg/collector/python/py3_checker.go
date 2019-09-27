@@ -23,6 +23,8 @@ var (
 )
 
 type warning struct {
+	Line    string
+	Column  string
 	Message string
 }
 
@@ -31,7 +33,7 @@ func validatePython3(moduleName string, modulePath string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), linterTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, pythonBinPath, "-m", "a7", modulePath)
+	cmd := exec.CommandContext(ctx, pythonBinPath, "-m", "pylint", "-f", "json", "--py3k", "-d", "W1618", modulePath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -50,7 +52,8 @@ func validatePython3(moduleName string, modulePath string) ([]string, error) {
 	res := []string{}
 	// no post processing needed for now, we just retrieve every messages
 	for _, warn := range warnings {
-		res = append(res, warn.Message)
+		message := fmt.Sprintf("Line %s, column %s: %s", warn.Line, warn.Column, warn.Message)
+		res = append(res, message)
 	}
 
 	return res, nil
