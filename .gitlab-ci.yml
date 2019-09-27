@@ -150,16 +150,11 @@ before_script:
 #
 # source_test
 #
+#
 
-# run tests for deb-x64
-run_tests_deb-x64-py2:
-  stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:2xlarge" ]
-  variables:
-    PYTHON_RUNTIMES: '2'
+.run_tests_preparation: &run_tests_preparation
   before_script:
-    - source /root/.bashrc && conda activate ddpy2
+    - source /root/.bashrc && conda activate $CONDA_ENV
     - pip install wheel
     - pip install -r requirements.txt
     - go get gopkg.in/yaml.v2
@@ -171,22 +166,26 @@ run_tests_deb-x64-py2:
   script:
     - inv -e test --race --profile --cpus 4
 
+# run tests for deb-x64
+run_tests_deb-x64-py2:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    PYTHON_RUNTIMES: '2'
+    CONDA_ENV: ddpy2
+  <<: *run_tests_preparation
+  script:
+    - inv -e test --race --profile --cpus 4
+
 run_tests_deb-x64-py3:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '3'
-  before_script:
-    - source /root/.bashrc && conda activate ddpy3
-    - pip install wheel
-    - pip install -r requirements.txt
-    - go get gopkg.in/yaml.v2
-    - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
-    - inv -e rtloader.install
-    - inv -e rtloader.format --raise-if-changed
-    - inv -e rtloader.test
-    - inv deps --verbose --dep-vendor-only
+    CONDA_ENV: ddpy3
+  <<: *run_tests_preparation
   script:
     - inv -e test --race --profile --cpus 4
 
@@ -197,15 +196,8 @@ run_tests_rpm-x64-py2:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '2'
-  before_script:
-    - source /root/.bashrc && conda activate ddpy2
-    - pip install -r requirements.txt
-    - go get gopkg.in/yaml.v2
-    - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
-    - inv -e rtloader.install
-    - inv -e rtloader.format --raise-if-changed
-    - inv -e rtloader.test
-    - inv deps --verbose --dep-vendor-only
+    CONDA_ENV: ddpy2
+  <<: *run_tests_preparation
   script:
     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
     # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
@@ -218,15 +210,8 @@ run_tests_rpm-x64-py3:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '3'
-  before_script:
-    - source /root/.bashrc && conda activate ddpy3
-    - pip install -r requirements.txt
-    - go get gopkg.in/yaml.v2
-    - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
-    - inv -e rtloader.install
-    - inv -e rtloader.format --raise-if-changed
-    - inv -e rtloader.test
-    - inv deps --verbose --dep-vendor-only
+    CONDA_ENV: ddpy3
+  <<: *run_tests_preparation
   script:
     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
     # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
@@ -404,6 +389,34 @@ run_dogstatsd_size_test:
 #
 # package_build
 #
+#
+.agent_build_common_deb: &agent_build_common_deb
+  before_script:
+    - source /root/.bashrc && conda activate $CONDA_ENV
+    - inv -e deps --verbose --dep-vendor-only
+  script:
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    # Retrieve the system-probe from S3
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
+    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
+    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
+    # Use --skip-deps since the deps are installed by `before_script`.
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
+    - find $OMNIBUS_BASE_DIR/pkg -name "datadog-agent*_amd64.deb" -exec dpkg -c {} \;
+    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent_*_amd64.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
+    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent-dbg_*_amd64.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
+    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-agent*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
+  # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
+  # cache:
+  #   # cache per branch
+  #   key: $CI_COMMIT_REF_NAME
+  #   paths:
+  #     - $OMNIBUS_BASE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
 
 # build Agent package for deb-x64
 agent_deb-x64-a6:
@@ -412,33 +425,11 @@ agent_deb-x64-a6:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    CONDA_ENV: ddpy3
     PYTHON_RUNTIMES: '2,3'
-  before_script:
-    - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only
-  script:
-    # remove artifacts from previous pipelines that may come from the cache
-    - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    # Retrieve the system-probe from S3
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
-    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
-    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
-    - find $OMNIBUS_BASE_DIR/pkg -name "datadog-agent*_amd64.deb" -exec dpkg -c {} \;
-    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent_*_amd64.deb $S3_ARTIFACTS_URI/datadog-agent_6_amd64.deb
-    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent-dbg_*_amd64.deb $S3_ARTIFACTS_URI/datadog-agent-dbg_6_amd64.deb
-    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-agent*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
-  # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
-  # cache:
-  #   # cache per branch
-  #   key: $CI_COMMIT_REF_NAME
-  #   paths:
-  #     - $OMNIBUS_BASE_DIR
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $OMNIBUS_PACKAGE_DIR
+    DESTINATION_DEB: 'datadog-agent_6_amd64.deb'
+    DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_amd64.deb'
+  <<: *agent_build_common_deb
 
 agent_deb-x64-a7:
   stage: package_build
@@ -446,33 +437,14 @@ agent_deb-x64-a7:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    CONDA_ENV: ddpy3
     PYTHON_RUNTIMES: '3'
+    DESTINATION_DEB: 'datadog-agent_7_amd64.deb'
+    DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_amd64.deb'
   before_script:
     - source /root/.bashrc && conda activate ddpy3
     - inv -e deps --verbose --dep-vendor-only
-  script:
-    # remove artifacts from previous pipelines that may come from the cache
-    - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    # Retrieve the system-probe from S3
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
-    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
-    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
-    - find $OMNIBUS_BASE_DIR/pkg -name "datadog-agent*_amd64.deb" -exec dpkg -c {} \;
-    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent_*_amd64.deb $S3_ARTIFACTS_URI/datadog-agent_7_amd64.deb
-    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent-dbg_*_amd64.deb $S3_ARTIFACTS_URI/datadog-agent-dbg_7_amd64.deb
-    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-agent*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
-  # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
-  # cache:
-  #   # cache per branch
-  #   key: $CI_COMMIT_REF_NAME
-  #   paths:
-  #     - $OMNIBUS_BASE_DIR
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $OMNIBUS_PACKAGE_DIR
+  <<: *agent_build_common_deb
 
 # build Agent package for deb-x64
 puppy_deb-x64:
@@ -505,16 +477,9 @@ puppy_deb-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-# build Agent package for rpm-x64
-agent_rpm-x64-a6:
-  stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:2xlarge" ]
-  variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
-    PYTHON_RUNTIMES: '2,3'
+.agent_build_common_rpm: &agent_build_common_rpm
   before_script:
-    - source /root/.bashrc && conda activate ddpy3
+    - source /root/.bashrc && conda activate $CONDA_ENV
     - inv -e deps --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
@@ -543,6 +508,17 @@ agent_rpm-x64-a6:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
+
+# build Agent package for rpm-x64
+agent_rpm-x64-a6:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    PYTHON_RUNTIMES: '2,3'
+    CONDA_ENV: ddpy3
+  <<: *agent_build_common_rpm
 
 # build Agent package for rpm-x64
 agent_rpm-x64-a7:
@@ -552,12 +528,13 @@ agent_rpm-x64-a7:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     PYTHON_RUNTIMES: '3'
-  before_script:
-    - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only
+    CONDA_ENV: ddpy3
+  <<: *agent_build_common_rpm
+
+.agent_build_common_suse_rpm: &agent_build_common_suse_rpm
   script:
     # remove artifacts from previous pipelines that may come from the cache
-    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - set +x
@@ -568,20 +545,23 @@ agent_rpm-x64-a7:
     # Retrieve the system-probe from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
     # use --skip-deps since the deps are installed by `before_script`
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
-    - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
-    - find $OMNIBUS_BASE_DIR/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
-    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache --skip-deps
+    - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
+    - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
+    - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR_SUSE/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR_SUSE
+    # FIXME: skip the installation step until we fix the preinst/postinst scripts in the rpm package
+    # to also work with SUSE11
+    # - rpm -i $OMNIBUS_PACKAGE_DIR_SUSE/*.rpm
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
   #   # cache per branch
   #   key: $CI_COMMIT_REF_NAME
   #   paths:
-  #     - $OMNIBUS_BASE_DIR
+  #     - $OMNIBUS_BASE_DIR_SUSE
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR
+      - $OMNIBUS_PACKAGE_DIR_SUSE
 
 # build Agent package for suse-x64
 agent_suse-x64-a6:
@@ -591,36 +571,7 @@ agent_suse-x64-a6:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     PYTHON_RUNTIMES: '2,3'
-  script:
-    # remove artifacts from previous pipelines that may come from the cache
-    - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
-    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
-    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - set +x
-    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key_e09422b3 --with-decryption --query "Parameter.Value" --out text)
-    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
-    - set -x
-    # Retrieve the system-probe from S3
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
-    # use --skip-deps since the deps are installed by `before_script`
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache --skip-deps
-    - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
-    - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
-    - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR_SUSE/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR_SUSE
-    # FIXME: skip the installation step until we fix the preinst/postinst scripts in the rpm package
-    # to also work with SUSE11
-    # - rpm -i $OMNIBUS_PACKAGE_DIR_SUSE/*.rpm
-  # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
-  # cache:
-  #   # cache per branch
-  #   key: $CI_COMMIT_REF_NAME
-  #   paths:
-  #     - $OMNIBUS_BASE_DIR_SUSE
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $OMNIBUS_PACKAGE_DIR_SUSE
+  <<: *agent_build_common_suse_rpm
 
 # build Agent package for suse-x64
 agent_suse-x64-a7:
@@ -630,39 +581,12 @@ agent_suse-x64-a7:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     PYTHON_RUNTIMES: '3'
-  script:
-    # remove artifacts from previous pipelines that may come from the cache
-    - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
-    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
-    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - set +x
-    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key_e09422b3 --with-decryption --query "Parameter.Value" --out text)
-    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
-    - set -x
-    # Retrieve the system-probe from S3
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
-    # use --skip-deps since the deps are installed by `before_script`
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache --skip-deps
-    - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
-    - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
-    - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR_SUSE/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR_SUSE
-    # FIXME: skip the installation step until we fix the preinst/postinst scripts in the rpm package
-    # to also work with SUSE11
-    # - rpm -i $OMNIBUS_PACKAGE_DIR_SUSE/*.rpm
-  # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
-  # cache:
-  #   # cache per branch
-  #   key: $CI_COMMIT_REF_NAME
-  #   paths:
-  #     - $OMNIBUS_BASE_DIR_SUSE
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $OMNIBUS_PACKAGE_DIR_SUSE
+  <<: *agent_build_common_suse_rpm
 
-# build Agent package for Windows
-build_windows_msi_x64-a6:
+
+.agent_build_common_windows: &agent_build_common_windows
+  stage: package_build
+  tags: ["runner:windows-agent6"]
   ## this is a weird workaround. Can't use the built-in CI_PROJECT_DIR because the path separators
   ## are wrong.  Record the PROJECT dir with the correct path separators to be used later
   before_script:
@@ -677,56 +601,32 @@ build_windows_msi_x64-a6:
     - xcopy /q/h/e/s * %GOPATH%\src\github.com\DataDog\datadog-agent
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
     - inv -e deps --verbose --dep-vendor-only --no-checks
-  stage: package_build
+  script:
+    # remove artifacts from previous pipelines that may come from the cache
+    - cd %GOPATH%\src\github.com\DataDog\datadog-agent
+    # use --skip-deps since the deps are installed by `before_script`
+    - inv agent.omnibus-build --release-version %RELEASE_VERSION% --omnibus-s3-cache --base-dir %OMNIBUS_BASE_DIR_WIN_OMNIBUS% --skip-deps
+    # copy the results from the build dir to here, because artifacts must be relative to the project directory
+    - copy %OMNIBUS_BASE_DIR_WIN%\pkg\* %WIN_CI_PROJECT_DIR%\.omnibus\pkg
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - .omnibus/pkg
+
+# build Agent package for Windows
+build_windows_msi_x64-a6:
   variables:
     WINDOWS_BUILDER: 'true'
     CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
     PYTHON_RUNTIMES: '2,3'
-  tags: ["runner:windows-agent6"]
-  script:
-    # remove artifacts from previous pipelines that may come from the cache
-    - cd %GOPATH%\src\github.com\DataDog\datadog-agent
-    # use --skip-deps since the deps are installed by `before_script`
-    - inv agent.omnibus-build --release-version %RELEASE_VERSION% --omnibus-s3-cache --base-dir %OMNIBUS_BASE_DIR_WIN_OMNIBUS% --skip-deps
-    # copy the results from the build dir to here, because artifacts must be relative to the project directory
-    - copy %OMNIBUS_BASE_DIR_WIN%\pkg\* %WIN_CI_PROJECT_DIR%\.omnibus\pkg
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - .omnibus/pkg
+  <<: *agent_build_common_windows
 
 build_windows_msi_x64-a7:
-  ## this is a weird workaround. Can't use the built-in CI_PROJECT_DIR because the path separators
-  ## are wrong.  Record the PROJECT dir with the correct path separators to be used later
-  before_script:
-    - set WIN_CI_PROJECT_DIR=%CD%
-    - if exist .omnibus rd /s/q .omnibus
-    - mkdir .omnibus\pkg
-    - if exist \omnibus-ruby rd /s/q \omnibus-ruby
-    - if exist %OMNIBUS_BASE_DIR_WIN% rd /s/q %OMNIBUS_BASE_DIR_WIN%
-    - if exist \opt\datadog-agent rd /s/q \opt\datadog-agent
-    - if exist %GOPATH%\src rd /s/q %GOPATH%\src
-    - mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
-    - xcopy /q/h/e/s * %GOPATH%\src\github.com\DataDog\datadog-agent
-    - cd %GOPATH%\src\github.com\DataDog\datadog-agent
-    - inv -e deps --verbose --dep-vendor-only --no-checks
-  stage: package_build
   variables:
     WINDOWS_BUILDER: 'true'
     CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
     PYTHON_RUNTIMES: '3'
-  tags: ["runner:windows-agent6"]
-  script:
-    # remove artifacts from previous pipelines that may come from the cache
-    - cd %GOPATH%\src\github.com\DataDog\datadog-agent
-    # use --skip-deps since the deps are installed by `before_script`
-    - inv agent.omnibus-build --release-version %RELEASE_VERSION% --omnibus-s3-cache --base-dir %OMNIBUS_BASE_DIR_WIN_OMNIBUS% --skip-deps
-    # copy the results from the build dir to here, because artifacts must be relative to the project directory
-    - copy %OMNIBUS_BASE_DIR_WIN%\pkg\* %WIN_CI_PROJECT_DIR%\.omnibus\pkg
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - .omnibus/pkg
+  <<: *agent_build_common_windows
 
 # build Agent package for android
 agent_android_apk:
@@ -998,6 +898,22 @@ deploy_windows_testing-a7:
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET_A7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
+
+.kitchen_common: &kitchen_common
+  script:
+    - cd $CI_PROJECT_DIR
+    - cd $DD_AGENT_TESTING_DIR
+    - rm -rf $CI_PROJECT_DIR/kitchen_logs
+    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
+    - mkdir $CI_PROJECT_DIR/kitchen_logs
+    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - bash -l tasks/run-test-kitchen.sh
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+
 # run dd-agent-testing on windows
 kitchen_windows-a6:
   stage: testkitchen_testing
@@ -1010,25 +926,14 @@ kitchen_windows-a6:
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+  before_script:
     - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
     - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
-    - bash -l tasks/run-test-kitchen.sh
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+  <<: *kitchen_common
 
 kitchen_windows-a7:
   stage: testkitchen_testing
@@ -1041,24 +946,13 @@ kitchen_windows-a7:
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+  before_script:
     - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
     - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
-    - bash -l tasks/run-test-kitchen.sh
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+  <<: *kitchen_common
 
 kitchen_windows-a7-2008:
   stage: testkitchen_testing
@@ -1071,6 +965,13 @@ kitchen_windows-a7-2008:
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
+  before_script:
+    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
+    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
+  <<: *kitchen_common
+
+
+.kitchen_windows_installer_common: &kitchen_windows_installer_common
   script:
     - cd $CI_PROJECT_DIR
     - cd $DD_AGENT_TESTING_DIR
@@ -1078,9 +979,7 @@ kitchen_windows-a7-2008:
     - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
-    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
-    - bash -l tasks/run-test-kitchen.sh
+    - bash -l tasks/run-test-kitchen.sh windows-install-test
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -1098,21 +997,10 @@ kitchen_windows_installer-a6:
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+  before_script:
     - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
     - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
-    - bash -l tasks/run-test-kitchen.sh windows-install-test
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+  <<: *kitchen_windows_installer_common
 
 kitchen_windows_installer-a7:
   stage: testkitchen_testing
@@ -1125,21 +1013,11 @@ kitchen_windows_installer-a7:
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+  before_script:
     - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
     - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
-    - bash -l tasks/run-test-kitchen.sh windows-install-test
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+  <<: *kitchen_windows_installer_common
+
 
 # run dd-agent-testing on centos
 kitchen_centos-a6:
@@ -1152,22 +1030,10 @@ kitchen_centos-a6:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="centos-69,OpenLogic:CentOS:6.9:6.9.20180530"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
-    - bash -l tasks/run-test-kitchen.sh
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
 
 kitchen_centos-a7:
   stage: testkitchen_testing
@@ -1179,22 +1045,10 @@ kitchen_centos-a7:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="centos-69,OpenLogic:CentOS:6.9:6.9.20180530"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
-    - bash -l tasks/run-test-kitchen.sh
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
 
 # run dd-agent-testing on ubuntu
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
@@ -1208,23 +1062,11 @@ kitchen_ubuntu-a6:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,Canonical:UbuntuServer:16.04.0-LTS:16.04.201906170"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-18-04,Canonical:UbuntuServer:18.04-LTS:18.04.201906040"
-    - bash -l tasks/run-test-kitchen.sh
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
 
 kitchen_ubuntu-a7:
   stage: testkitchen_testing
@@ -1236,23 +1078,11 @@ kitchen_ubuntu-a7:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,Canonical:UbuntuServer:16.04.0-LTS:16.04.201906170"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-18-04,Canonical:UbuntuServer:18.04-LTS:18.04.201906040"
-    - bash -l tasks/run-test-kitchen.sh
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
 
 # run dd-agent-testing on suse
 kitchen_suse-a6:
@@ -1265,22 +1095,10 @@ kitchen_suse-a6:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP4:2019.06.17"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,SUSE:SLES-Standard:15:2019.06.17"
-    - bash -l tasks/run-test-kitchen.sh
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
 
 kitchen_suse-a7:
   stage: testkitchen_testing
@@ -1292,22 +1110,10 @@ kitchen_suse-a7:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP4:2019.06.17"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,SUSE:SLES-Standard:15:2019.06.17"
-    - bash -l tasks/run-test-kitchen.sh
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
 
 # run dd-agent-testing on debian
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
@@ -1321,23 +1127,11 @@ kitchen_debian-a6:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.20190313.0"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,credativ:Debian:9:9.20190515.0"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-10,Debian:debian-10:10:0.20190709.401"
-    - bash -l tasks/run-test-kitchen.sh
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
 
 kitchen_debian-a7:
   stage: testkitchen_testing
@@ -1349,23 +1143,11 @@ kitchen_debian-a7:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.20190313.0"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,credativ:Debian:9:9.20190515.0"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-10,Debian:debian-10:10:0.20190709.401"
-    - bash -l tasks/run-test-kitchen.sh
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
 
 #
 # pkg_metrics: send metrics about packages
@@ -1471,6 +1253,16 @@ send_pkg_size-a7:
           ]}" \
       "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"
 
+
+.kitchen_cleanup_s3_common: &kitchen_cleanup_s3_common
+  script:
+    - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$DD_PIPELINE_ID --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$DD_PIPELINE_ID --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$DD_PIPELINE_ID --recursive
+    - aws s3 rm s3://$WINDOWS_TESTING_S3_BUCKET_A6 --recursive
+    - cd $OMNIBUS_PACKAGE_DIR
+    - for deb in $(ls *amd64.deb); do aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/$deb --recursive; done
+
 # kitchen tests cleanup
 testkitchen_cleanup_s3-a6:
   stage: testkitchen_cleanup
@@ -1484,13 +1276,7 @@ testkitchen_cleanup_s3-a6:
   # even if this fails, it shouldn't block the pipeline.
   allow_failure: true
   when: always
-  script:
-    - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$DD_PIPELINE_ID --recursive
-    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$DD_PIPELINE_ID --recursive
-    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$DD_PIPELINE_ID --recursive
-    - aws s3 rm s3://$WINDOWS_TESTING_S3_BUCKET_A6 --recursive
-    - cd $OMNIBUS_PACKAGE_DIR
-    - for deb in $(ls *amd64.deb); do aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/$deb --recursive; done
+  <<: *kitchen_cleanup_s3_common
 
 testkitchen_cleanup_s3-a7:
   stage: testkitchen_cleanup
@@ -1504,13 +1290,7 @@ testkitchen_cleanup_s3-a7:
   # even if this fails, it shouldn't block the pipeline.
   allow_failure: true
   when: always
-  script:
-    - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$DD_PIPELINE_ID --recursive
-    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$DD_PIPELINE_ID --recursive
-    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$DD_PIPELINE_ID --recursive
-    - aws s3 rm s3://$WINDOWS_TESTING_S3_BUCKET_A7 --recursive
-    - cd $OMNIBUS_PACKAGE_DIR
-    - for deb in $(ls *amd64.deb); do aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/$deb --recursive; done
+  <<: *kitchen_cleanup_s3_common
 
 # run dd-agent-testing
 testkitchen_cleanup_azure-a6:
