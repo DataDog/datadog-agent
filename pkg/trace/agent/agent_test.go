@@ -445,7 +445,7 @@ type eventProcessorTestCase struct {
 
 func testEventProcessorFromConf(t *testing.T, conf *config.AgentConfig, testCase eventProcessorTestCase) {
 	t.Run(testCase.name, func(t *testing.T) {
-		processor := eventProcessorFromConf(conf)
+		processor := newEventProcessor(conf)
 		processor.Start()
 
 		actualEPS := generateTraffic(processor, testCase.serviceName, testCase.opName, testCase.extractionRate,

@@ -89,6 +89,13 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				tags.AddLow("kube_replication_controller", owner.Name)
 			case "StatefulSet":
 				tags.AddLow("kube_stateful_set", owner.Name)
+				pvcs := pod.GetPersistentVolumeClaimNames()
+				for _, pvc := range pvcs {
+					if pvc != "" {
+						tags.AddLow("persistentvolumeclaim", pvc)
+					}
+				}
+
 			case "Job":
 				cronjob := parseCronJobForJob(owner.Name)
 				if cronjob != "" {

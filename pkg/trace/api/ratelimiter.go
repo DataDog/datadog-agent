@@ -107,6 +107,15 @@ func (ps *rateLimiter) realRateLocked() float64 {
 	return 1 - (ps.stats.RecentTracesDropped / ps.stats.RecentTracesSeen)
 }
 
+// Active reports whether the rateLimiter is active. An inactive rateLimiter is one
+// that has seen no traces (e.g. calls are always Permits(0))
+func (ps *rateLimiter) Active() bool {
+	ps.mu.RLock()
+	active := ps.stats.RecentTracesSeen > 0
+	ps.mu.RUnlock()
+	return active
+}
+
 // Stats returns a copy of the currrent rate limiter's stats.
 func (ps *rateLimiter) Stats() *info.RateLimiterStats {
 	ps.mu.RLock()

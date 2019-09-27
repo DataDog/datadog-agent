@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -48,16 +49,26 @@ func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, e
 	if err != nil {
 		return NoCollection, err
 	}
-	// if no DCA or can't communicate with the DCA run the local service mapper.
+	// if DCA is enabled and can't communicate with the DCA, let the tagger retry.
 	if config.Datadog.GetBool("cluster_agent.enabled") {
 		c.clusterAgentEnabled = false
 		c.dcaClient, errDCA = clusteragent.GetClusterAgentClient()
 		if errDCA != nil {
-			log.Errorf("Could not initialise the communication with the DCA, falling back to local service mapping: %s", errDCA.Error())
+			log.Errorf("Could not initialise the communication with the cluster agent: %s", errDCA.Error())
+			// continue to retry while we can
+			if retry.IsErrWillRetry(errDCA) {
+				return NoCollection, errDCA
+			}
+			// we return the permanent fail only if fallback is disabled
+			if retry.IsErrPermaFail(errDCA) && !config.Datadog.GetBool("cluster_agent.tagging_fallback") {
+				return NoCollection, errDCA
+			}
+			log.Errorf("Permanent failure in communication with the cluster agent, will fallback to local service mapper")
 		} else {
 			c.clusterAgentEnabled = true
 		}
 	}
+	// Fallback to local metamapper if DCA not enabled, or in permafail state with fallback enabled.
 	if !config.Datadog.GetBool("cluster_agent.enabled") || errDCA != nil {
 		c.apiClient, err = apiserver.GetAPIClient()
 		if err != nil {
