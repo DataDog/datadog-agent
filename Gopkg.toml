@@ -47,12 +47,28 @@
   name = "github.com/containerd/containerd"
   version = "~v1.2.2"
 
-[[constraint]]
+[[override]]
+  version = "kubernetes-1.15.0"
+  name = "k8s.io/cloud-provider"
+
+[[override]]
   name = "github.com/gogo/protobuf"
-  version = "~v1.0.0"
+  version = "v1.0.0"
+
+[[override]]
+  name = "github.com/golang/protobuf"
+  version = "v1.1.0"
+
+[[override]]
+  name = "github.com/gogo/googleapis"
+  version = "v1.0.0"
 
 [[override]]
   name = "github.com/kubernetes/apimachinery"
+  branch = "release-1.15"
+
+[[constraint]]
+  name = "github.com/kubernetes/cri-api"
   branch = "release-1.15"
 
 [[override]]
@@ -185,7 +201,7 @@
 
 [[override]]
   name = "github.com/docker/distribution"
-  revision = "83389a148052d74ac602f5f1d62f86ff2f3c4aa5"
+  revision = "0ac367fd6bee057d404c405a298b4b7aedf301ec"
 
 [[override]]
   name = "bitbucket.org/ww/goautoneg"
