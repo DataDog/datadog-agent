@@ -7,6 +7,8 @@
 package inventories
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -117,5 +119,46 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, "check2_instance1", check2Instance1["config.hash"])
 	assert.Equal(t, "provider2", check2Instance1["config.provider"])
 	assert.Equal(t, "hi", check2Instance1["check_provided_key1"]) // New key added
+
+	marshaled, err := p.MarshalJSON()
+	assert.Nil(t, err)
+	jsonString := `
+	{
+		"timestamp": %v,
+		"check_metadata":
+		{
+			"check1":
+			[
+				{
+					"check_provided_key1": 456,
+					"check_provided_key2": "Hi",
+					"config.hash": "check1_instance1",
+					"config.provider": "provider1",
+					"last_updated": %v
+				},
+				{
+					"config.hash": "check1_instance2",
+					"config.provider": "provider1",
+					"last_updated": %v
+				}
+			],
+			"check2":
+			[
+				{
+					"check_provided_key1": "hi",
+					"config.hash": "check2_instance1",
+					"config.provider": "provider2",
+					"last_updated": %v
+				}
+			]
+		},
+		"agent_metadata":
+		{
+			"test": true
+		}
+	}`
+	jsonString = fmt.Sprintf(jsonString, startNow, startNow, agentStartupTime, originalStartNow)
+	jsonString = strings.Join(strings.Fields(jsonString), "") // Removes whitespaces and new lines
+	assert.Equal(t, jsonString, string(marshaled))
 
 }
