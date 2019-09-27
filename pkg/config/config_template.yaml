@@ -1040,6 +1040,18 @@ api_key:
   # extra_tags:
   #   - <TAG_KEY>:<TAG_VALUE>
 
+  ## @param advanced_dispatching_enabled - boolean - optional - default: false
+  ## If advanced_dispatching_enabled is true the leader cluster-agent collects stats
+  ## from the cluster level check runners to optimize the check dispatching logic.
+  #
+  # advanced_dispatching_enabled: false
+
+  ## @param clc_runners_port - integer - optional - default: 5005
+  ## Set the "clc_runners_port" used by the cluster-agent client to reach cluster level
+  ## check runners and collect their stats.
+  #
+  # clc_runners_port: 5005
+
 {{ end -}}
 {{- if .DockerTagging }}
 

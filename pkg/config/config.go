@@ -428,6 +428,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.warmup_duration", 30)         // value in seconds
 	config.BindEnvAndSetDefault("cluster_checks.cluster_tag_name", "cluster_name")
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
+	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", false)
+	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
 	config.BindEnvAndSetDefault("clc_runner_host", "") // must be set using the Kubernetes downward API
