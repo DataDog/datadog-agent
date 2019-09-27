@@ -10,6 +10,7 @@ package clusterchecks
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -157,6 +158,11 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) error {
 // rebalance tries to optimize the checks repartition on cluster level check
 // runners with less possible check moves based on the runner stats.
 func (d *dispatcher) rebalance() {
+	start := time.Now()
+	defer func() {
+		rebalancingDuration.Set(time.Since(start).Seconds())
+	}()
+
 	log.Trace("Trying to rebalance cluster checks distribution if needed")
 	totalAvg, err := d.calculateAvg()
 	if err != nil {
@@ -179,12 +185,14 @@ func (d *dispatcher) rebalance() {
 			if diffMap[pickedNodeName]+checkWeight < diffMap[sourceNodeName] {
 				// move a check to a new node only if it keeps the busyness of the new node
 				// lower than the original node's busyness
+				rebalancingDecisions.Inc()
 				err = d.moveCheck(sourceNodeName, pickedNodeName, checkID)
 				if err != nil {
 					log.Debugf("Cannot move check %s: %v", checkID, err)
 					continue
 				}
 
+				successfulRebalancing.Inc()
 				log.Tracef("Check %s with weight %d moved, total avg: %d, source diff: %d, dest diff: %d", checkID, checkWeight, totalAvg, diffMap[sourceNodeName], diffMap[pickedNodeName])
 
 				// diffMap needs to be updated on every check moved
