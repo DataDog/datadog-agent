@@ -60,7 +60,11 @@ var secretInfoCommand = &cobra.Command{
 
 func showSecretInfo() error {
 	c := util.GetClient(false)
-	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/secrets", config.Datadog.GetInt("cmd_port"))
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+	apiConfigURL := fmt.Sprintf("https://%v:%v/agent/secrets", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	r, err := util.DoGet(c, apiConfigURL)
 	if err != nil {
