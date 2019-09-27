@@ -5,14 +5,14 @@ stages:
   - package_build
   - internal_deploy
   - check_deploy
-  - testkitchen_deploy
-  - testkitchen_testing
   - pkg_metrics
   - image_build
   - image_deploy
   - deploy
   - deploy_invalidate
   - e2e
+  - testkitchen_deploy
+  - testkitchen_testing
   - testkitchen_cleanup
 
 variables:
