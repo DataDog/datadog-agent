@@ -1851,7 +1851,7 @@ deploy_deb-7:
     - echo "$APT_SIGNING_KEY_ID"
     - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
 
-    # Release the artifacts to the "6" component
+    # Release the artifacts to the "7" component
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
 

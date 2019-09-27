@@ -162,8 +162,8 @@ def get_default_python():
     """
     Get the default python for the current build
     """
-    py_runtimes = os.environ.get("PYTHON_RUNTIMES", "2")
-    return py_runtimes if ',' not in py_runtimes else "2"
+    py_runtimes = os.environ.get("PYTHON_RUNTIMES", "3")
+    return py_runtimes if ',' not in py_runtimes else "3"
 
 
 def get_go_version():
