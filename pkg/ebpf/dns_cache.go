@@ -35,8 +35,8 @@ func newReverseDNSCache(size int, ttl, expirationPeriod time.Duration) *reverseD
 	go func() {
 		for {
 			select {
-			case <-ticker.C:
-				cache.expire()
+			case now := <-ticker.C:
+				cache.Expire(now)
 			case <-cache.exit:
 				return
 			}
@@ -56,7 +56,7 @@ func (c *reverseDNSCache) Add(translation *translation, now time.Time) bool {
 		return false
 	}
 
-	exp := now.Add(c.ttl).Unix()
+	exp := now.Add(c.ttl).UnixNano()
 	for addr := range translation.ips {
 		val, ok := c.data[addr]
 		if ok {
@@ -82,7 +82,7 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 	var (
 		ipToNames  = make(map[util.Address][]string)
 		visited    = make(map[util.Address]struct{})
-		expiration = now.Add(c.ttl).Unix()
+		expiration = now.Add(c.ttl).UnixNano()
 	)
 
 	collectNamesForIP := func(addr util.Address) {
@@ -132,20 +132,9 @@ func (c *reverseDNSCache) Close() {
 	c.exit <- struct{}{}
 }
 
-func (c *reverseDNSCache) getNamesForIP(ip util.Address, updatedTTL int64) []string {
-	val, ok := c.data[ip]
-	if !ok {
-		return nil
-	}
-
-	val.expiration = updatedTTL
-	return val.copy()
-}
-
-func (c *reverseDNSCache) expire() {
+func (c *reverseDNSCache) Expire(now time.Time) {
+	deadline := now.UnixNano()
 	expired := 0
-	start := time.Now()
-	deadline := start.Add(-c.ttl).Unix()
 
 	c.mux.Lock()
 	for addr, val := range c.data {
@@ -162,8 +151,18 @@ func (c *reverseDNSCache) expire() {
 	atomic.StoreInt64(&c.length, int64(total))
 	log.Debugf(
 		"dns entries expired. took=%s total=%d expired=%d\n",
-		time.Now().Sub(start), total, expired,
+		time.Now().Sub(now), total, expired,
 	)
+}
+
+func (c *reverseDNSCache) getNamesForIP(ip util.Address, updatedTTL int64) []string {
+	val, ok := c.data[ip]
+	if !ok {
+		return nil
+	}
+
+	val.expiration = updatedTTL
+	return val.copy()
 }
 
 type dnsCacheVal struct {
