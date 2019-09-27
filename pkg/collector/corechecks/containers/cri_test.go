@@ -10,7 +10,7 @@ package containers
 import (
 	"testing"
 
-	pb "github.com/kubernetes/cri-api/pkg/apis/runtime/v1alpha2"
+	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"

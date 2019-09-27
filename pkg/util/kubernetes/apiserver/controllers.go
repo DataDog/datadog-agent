@@ -94,6 +94,9 @@ func startAutoscalersController(ctx ControllerContext) error {
 	if config.Datadog.GetBool("watermark_pod_autoscaler_controller.enabled") {
 		autoscalersController.wpaEnabled = true
 		autoscalersController, err = ExtendToWPAController(autoscalersController, ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
+		if err != nil {
+			return err
+		}
 		go autoscalersController.RunWPA(ctx.StopCh)
 	}
 

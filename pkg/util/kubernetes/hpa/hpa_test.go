@@ -253,16 +253,22 @@ func TestInspect(t *testing.T) {
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"dcos_version": "1.9.4"},
-					Timestamp:  0,
-					Value:      0,
-					Valid:      false,
+					Ref: custommetrics.ObjectReference{
+						Type: "horizontal",
+					},
+					Timestamp: 0,
+					Value:     0,
+					Valid:     false,
 				},
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"dcos_version": "2.1.9"},
-					Timestamp:  0,
-					Value:      0,
-					Valid:      false,
+					Ref: custommetrics.ObjectReference{
+						Type: "horizontal",
+					},
+					Timestamp: 0,
+					Value:     0,
+					Valid:     false,
 				},
 			},
 		},
@@ -298,10 +304,13 @@ func TestInspect(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "foo",
-					Labels:     nil,
-					Timestamp:  0,
-					Value:      0,
-					Valid:      false,
+					Ref: custommetrics.ObjectReference{
+						Type: "horizontal",
+					},
+					Labels:    nil,
+					Timestamp: 0,
+					Value:     0,
+					Valid:     false,
 				},
 			},
 		},
@@ -341,9 +350,12 @@ func TestInspect(t *testing.T) {
 				{
 					MetricName: metricNameUpper,
 					Labels:     map[string]string{"dcos_version": "1.9.4"},
-					Timestamp:  0,
-					Value:      0,
-					Valid:      false,
+					Ref: custommetrics.ObjectReference{
+						Type: "horizontal",
+					},
+					Timestamp: 0,
+					Value:     0,
+					Valid:     false,
 				},
 			},
 		},
@@ -404,6 +416,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Labels:     map[string]string{"foo": "tagbar"},
 					Valid:      true,
 					Ref: custommetrics.ObjectReference{
+						Type:      "horizontal",
 						UID:       string(5),
 						Name:      "foo",
 						Namespace: "nsbar",
@@ -414,6 +427,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Labels:     map[string]string{"foo": "dre"},
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
+						Type:      "horizontal",
 						UID:       string(6),
 						Name:      "foo",
 						Namespace: "baz",
@@ -424,6 +438,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Labels:     map[string]string{"foo": "tu"},
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
+						Type:      "horizontal",
 						UID:       string(7),
 						Name:      "bar",
 						Namespace: "zanzi",
@@ -436,6 +451,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Labels:     map[string]string{"foo": "dre"},
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
+						Type:      "horizontal",
 						UID:       string(6),
 						Name:      "foo",
 						Namespace: "baz",
@@ -468,6 +484,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      true,
 					Ref: custommetrics.ObjectReference{
+						Type:      "horizontal",
 						UID:       string(5),
 						Namespace: "bar",
 						Name:      "foo",
@@ -478,6 +495,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
+						Type:      "horizontal",
 						UID:       string(7),
 						Namespace: "baz",
 						Name:      "foo",
@@ -490,6 +508,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
+						Type:      "horizontal",
 						UID:       string(7),
 						Name:      "foo",
 						Namespace: "baz",
@@ -522,6 +541,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      true,
 					Ref: custommetrics.ObjectReference{
+						Type:      "horizontal",
 						UID:       string(5),
 						Namespace: "bar",
 						Name:      "foo",
@@ -532,6 +552,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
+						Type:      "horizontal",
 						UID:       string(7),
 						Namespace: "baz",
 						Name:      "foo",
@@ -544,6 +565,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
 					Ref: custommetrics.ObjectReference{
+						Type:      "horizontal",
 						UID:       string(7),
 						Name:      "foo",
 						Namespace: "baz",

@@ -51,7 +51,6 @@ core,sigs.k8s.io/yaml,Apache-2.0
 core,k8s.io/component-base,Apache-2.0
 core,github.com/armon/go-metrics,Apache-2.0
 core,k8s.io/klog,Apache-2.0
-core,k8s.io/cloud-provider,Apache-2.0
 core,github.com/munnerz/goautoneg,Apache-2.0
 core,google.golang.org/appengine,Apache-2.0
 core,github.com/hashicorp/go-immutable-radix,Apache-2.0
@@ -151,8 +150,7 @@ core,k8s.io/client-go,Apache-2.0
 core,k8s.io/kube-openapi,Apache-2.0
 core,k8s.io/metrics,Apache-2.0
 core,k8s.io/utils,Apache-2.0
-core,k8s.io/apiextensions-apiserver,Apache-2.0
-core,github.com/docker/spdystream,Apache-2.0
+core,k8s.io/cri-api,Apache-2.0
 core,github.com/opencontainers/go-digest,Apache-2.0
 core,github.com/philhofer/fwd,MIT
 core,github.com/DataDog/datadog-go,MIT

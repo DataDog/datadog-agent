@@ -68,7 +68,7 @@
   branch = "release-1.15"
 
 [[constraint]]
-  name = "github.com/kubernetes/cri-api"
+  name = "k8s.io/cri-api"
   branch = "release-1.15"
 
 [[override]]
