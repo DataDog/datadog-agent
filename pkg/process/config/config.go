@@ -120,10 +120,10 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 }
 
 const (
-	defaultEndpoint          = "https://process.datadoghq.com"
-	maxMessageBatch          = 100
-	maxConnsMessageBatch     = 1000
-	maxMaxTrackedConnections = 65536
+	defaultEndpoint              = "https://process.datadoghq.com"
+	maxMessageBatch              = 100
+	maxConnsMessageBatch         = 1000
+	defaultMaxTrackedConnections = 65536
 )
 
 // NewDefaultTransport provides a http transport configuration with sane default timeouts
@@ -185,7 +185,7 @@ func NewDefaultAgentConfig() *AgentConfig {
 		DisableIPv6Tracing:           false,
 		SystemProbeSocketPath:        defaultSystemProbeSocketPath,
 		SystemProbeLogFile:           defaultSystemProbeFilePath,
-		MaxTrackedConnections:        maxMaxTrackedConnections,
+		MaxTrackedConnections:        defaultMaxTrackedConnections,
 		EnableConntrack:              true,
 		ClosedChannelSize:            500,
 		ConntrackShortTermBufferSize: defaultConntrackShortTermBufferSize,

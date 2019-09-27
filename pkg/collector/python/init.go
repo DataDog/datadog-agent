@@ -204,7 +204,7 @@ func sendTelemetry(pythonVersion string) {
 	tags := []string{
 		fmt.Sprintf("python_version:%s", pythonVersion),
 	}
-	if agentVersion, err := version.New(version.AgentVersion, version.Commit); err == nil {
+	if agentVersion, err := version.Agent(); err == nil {
 		tags = append(tags,
 			fmt.Sprintf("agent_version_major:%d", agentVersion.Major),
 			fmt.Sprintf("agent_version_minor:%d", agentVersion.Minor),
@@ -252,7 +252,11 @@ func detectPythonLocation(pythonVersion string) {
 	if runtime.GOOS == "windows" {
 		pythonBinPath = filepath.Join(PythonHome, "python.exe")
 	} else {
-		pythonBinPath = filepath.Join(PythonHome, "bin", "python")
+		// On Unix both python are installed on the same embedded
+		// directory. We don't want to use the default version (aka
+		// "python") but either "python2" or "python3" based on the
+		// configuration.
+		pythonBinPath = filepath.Join(PythonHome, "bin", "python"+pythonVersion)
 	}
 }
 

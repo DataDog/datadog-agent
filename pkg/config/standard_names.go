@@ -27,4 +27,5 @@ var StandardStatsdPrefixes = []string{
 	"solr",
 	"tomcat",
 	"kafka",
+	"runtime",
 }
