@@ -8,8 +8,8 @@
 package containers
 
 import (
-	pb "github.com/kubernetes/cri-api/pkg/apis/runtime/v1alpha2"
 	yaml "gopkg.in/yaml.v2"
+	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"

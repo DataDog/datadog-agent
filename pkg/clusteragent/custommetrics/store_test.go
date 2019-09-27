@@ -198,7 +198,7 @@ func TestExternalMetricValueKeyFunc(t *testing.T) {
 					Namespace: "default",
 				},
 			},
-			output: "external_metric-default-horizontal-bar-foo",
+			output: "external_metric-horizontal-default-bar-foo",
 		},
 		{
 			desc: "custom case",
@@ -210,7 +210,7 @@ func TestExternalMetricValueKeyFunc(t *testing.T) {
 					Namespace: "DefauLt",
 				},
 			},
-			output: "external_metric-DefauLt-horizontal-bar-FoO",
+			output: "external_metric-horizontal-DefauLt-bar-FoO",
 		},
 		{
 			desc: "default case",
@@ -222,7 +222,7 @@ func TestExternalMetricValueKeyFunc(t *testing.T) {
 					Namespace: "default",
 				},
 			},
-			output: "external_metric-default-watermark-bar-foo",
+			output: "external_metric-watermark-default-bar-foo",
 		},
 		{
 			desc: "custom case",
@@ -234,7 +234,7 @@ func TestExternalMetricValueKeyFunc(t *testing.T) {
 					Namespace: "DefauLt",
 				},
 			},
-			output: "external_metric-DefauLt-watermark-bar-FoO",
+			output: "external_metric-watermark-DefauLt-bar-FoO",
 		},
 	}
 

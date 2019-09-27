@@ -896,14 +896,6 @@
   revision = "3d9be26a50eb64531fc40eb31a5f3e6720956dc6"
 
 [[projects]]
-  branch = "release-1.15"
-  digest = "1:1229edbbe89fb2328c6a4e9c663e1082554095b982ca5ce096236bac11931b9a"
-  name = "github.com/kubernetes/cri-api"
-  packages = ["pkg/apis/runtime/v1alpha2"]
-  pruneopts = ""
-  revision = "3ae76f584e7986aafdb594f1ff1b479829fc558a"
-
-[[projects]]
   branch = "master"
   digest = "1:45c4cfd13457ebc547a8ca7be27aade5bddbab218dde9671a87d597c2e819efe"
   name = "github.com/lxn/walk"
@@ -1969,15 +1961,15 @@
   revision = "37a0934685643b57d735066d680af9515e386b47"
 
 [[projects]]
-  branch = "master"
-  digest = "1:5e78c147d07da8031b728e50ac37b2c2eb52d47b6216cbe58ff19f5037515153"
+  branch = "release-1.15"
+  digest = "1:1229edbbe89fb2328c6a4e9c663e1082554095b982ca5ce096236bac11931b9a"
   name = "k8s.io/cri-api"
   packages = [
     "pkg/apis/runtime/v1alpha2",
     "pkg/apis/testing",
   ]
   pruneopts = ""
-  revision = "24ae4d4e8b036b885ee1f4930ec2b173eabb28e7"
+  revision = "3ae76f584e7986aafdb594f1ff1b479829fc558a"
 
 [[projects]]
   digest = "1:3063061b6514ad2666c4fa292451685884cacf77c803e1b10b4a4fa23f7787fb"
@@ -2155,7 +2147,6 @@
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/apiserver",
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd",
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider",
-    "github.com/kubernetes/cri-api/pkg/apis/runtime/v1alpha2",
     "github.com/lxn/walk",
     "github.com/lxn/win",
     "github.com/mholt/archiver",
@@ -2228,6 +2219,7 @@
     "k8s.io/client-go/tools/leaderelection/resourcelock",
     "k8s.io/client-go/tools/record",
     "k8s.io/client-go/util/workqueue",
+    "k8s.io/cri-api/pkg/apis/runtime/v1alpha2",
     "k8s.io/kubernetes/pkg/kubelet/remote/fake",
     "k8s.io/metrics/pkg/apis/custom_metrics",
     "k8s.io/metrics/pkg/apis/external_metrics",
