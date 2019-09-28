@@ -73,7 +73,7 @@ platforms:
     ]
 
     windows_sizes = [
-      "Standard_D1_v2"
+      "Standard_D2_v2"
     ]
 
     location = "North Central US"
