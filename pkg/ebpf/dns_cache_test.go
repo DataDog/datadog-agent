@@ -1,12 +1,16 @@
 package ebpf
 
 import (
+	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 )
+
+var disableAutomaticExpiration = 1 * time.Hour
 
 func TestMultipleIPsForSameName(t *testing.T) {
 	datadog1 := util.AddressFromString("52.85.98.155")
@@ -16,7 +20,7 @@ func TestMultipleIPsForSameName(t *testing.T) {
 	datadogIPs.add(datadog1)
 	datadogIPs.add(datadog2)
 
-	cache := newReverseDNSCache(100, 1*time.Minute, 5*time.Minute)
+	cache := newReverseDNSCache(100, 1*time.Minute, disableAutomaticExpiration)
 	cache.Add(datadogIPs, time.Now())
 
 	localhost := util.AddressFromString("127.0.0.1")
@@ -34,7 +38,7 @@ func TestMultipleIPsForSameName(t *testing.T) {
 }
 
 func TestMultipleNamesForSameIP(t *testing.T) {
-	cache := newReverseDNSCache(100, 1*time.Minute, 5*time.Minute)
+	cache := newReverseDNSCache(100, 1*time.Minute, disableAutomaticExpiration)
 
 	raddr := util.AddressFromString("172.022.116.123")
 	tr1 := newTranslation([]byte("i-03e46c9ff42db4abc"))
@@ -55,13 +59,8 @@ func TestMultipleNamesForSameIP(t *testing.T) {
 }
 
 func TestDNSCacheExpiration(t *testing.T) {
-	var (
-		size             = 1000
-		ttl              = 100 * time.Millisecond
-		expirationPeriod = 1 * time.Hour // For testing purposes
-	)
-
-	cache := newReverseDNSCache(size, ttl, expirationPeriod)
+	ttl := 100 * time.Millisecond
+	cache := newReverseDNSCache(1000, ttl, disableAutomaticExpiration)
 	t1 := time.Now()
 
 	laddr1 := util.AddressFromString("127.0.0.1")
@@ -115,4 +114,68 @@ func TestDNSCacheExpiration(t *testing.T) {
 	t4 := t3.Add(ttl)
 	cache.Expire(t4)
 	assert.Equal(t, 0, cache.Len())
+}
+
+func BenchmarkDNSCacheGet(b *testing.B) {
+	const numIPs = 10000
+
+	// Instantiate cache and add numIPs to it
+	var (
+		cache   = newReverseDNSCache(numIPs, 100*time.Millisecond, disableAutomaticExpiration)
+		added   = make([]util.Address, 0, numIPs)
+		addrGen = randomAddressGen()
+		now     = time.Now()
+	)
+	for i := 0; i < numIPs; i++ {
+		address := addrGen()
+		added = append(added, address)
+		translation := newTranslation([]byte("foo.local"))
+		translation.add(address)
+		cache.Add(translation, now)
+	}
+
+	// Benchmark Get operation with different resolve ratios
+	for _, ratio := range []float64{0.0, 0.25, 0.50, 0.75, 1.0} {
+		b.Run(fmt.Sprintf("ResolveRatio-%f", ratio), func(b *testing.B) {
+			stats := payloadGen(100, ratio, added)
+			b.ResetTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = cache.Get(stats, now)
+			}
+		})
+	}
+}
+
+func randomAddressGen() func() util.Address {
+	b := make([]byte, 4)
+	return func() util.Address {
+		for {
+			if _, err := rand.Read(b); err != nil {
+				continue
+			}
+
+			return util.V4AddressFromBytes(b)
+		}
+	}
+}
+
+func payloadGen(size int, resolveRatio float64, added []util.Address) []ConnectionStats {
+	var (
+		addrGen = randomAddressGen()
+		stats   = make([]ConnectionStats, size)
+	)
+
+	for i := 0; i < size; i++ {
+		if rand.Float64() <= resolveRatio {
+			stats[i].Source = added[rand.Intn(len(added))]
+			stats[i].Dest = added[rand.Intn(len(added))]
+			continue
+		}
+
+		stats[i].Source = addrGen()
+		stats[i].Dest = addrGen()
+	}
+
+	return stats
 }
