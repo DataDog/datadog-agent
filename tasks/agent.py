@@ -203,9 +203,12 @@ def apply_branding(ctx):
 
     # stackstate_checks
     do_go_rename(ctx, '"\\"datadog_checks\\" -> \\"stackstate_checks\\""', "./cmd/agent/app")
-    do_sed_rename(ctx, 's/datadog_checks_base/stackstate_checks_base/g', "cmd/agent/app/integrations.go")
+    do_sed_rename(ctx, 's/datadog_checks_base/stackstate_checks_base/g', "./cmd/agent/app/integrations.go")
     do_go_rename(ctx, '"\\"datadog_checks\\" -> \\"stackstate_checks\\""', "./pkg/collector/py")
 
+    # cluster agent client
+    do_go_rename(ctx, '"\\"datadog-cluster-agent\\" -> \\"stackstate-cluster-agent\\""', "./pkg/config")
+    do_sed_rename(ctx, 's/Datadog Cluster Agent/StackState Cluster Agent/g', "./pkg/util/clusteragent/clusteragent.go")
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,

@@ -30,6 +30,8 @@ def apply_branding(ctx):
     """
     Apply stackstate branding
     """
+    sts_lower_replace = 's/datadog/stackstate/g'
+
     # Config
     do_go_rename(ctx, '"\\"dd_url\\" -> \\"sts_url\\""', "./pkg/config")
     do_go_rename(ctx, '"\\"https://app.datadoghq.com\\" -> \\"http://localhost:7077\\""', "./pkg/config")
@@ -64,6 +66,8 @@ def apply_branding(ctx):
                  '"\\"unable to load Datadog config file: %s\\" -> \\"unable to load StackState config file: %s\\""',
                  "./cmd/agent/common")
 
+    # Hardcoded checks and metrics
+    do_sed_rename(ctx, sts_lower_replace, "./pkg/aggregator/aggregator.go")
 
 @task
 def build(ctx, rebuild=False, build_include=None, build_exclude=None,

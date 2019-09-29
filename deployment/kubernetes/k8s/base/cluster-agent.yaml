@@ -1,14 +1,18 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: stackstate-cluster-agent
   namespace: default
 spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stackstate-cluster-agent
   template:
     metadata:
       labels:
         app: stackstate-cluster-agent
-      name: stackstate-agent
+      name: stackstate-cluster-agent
       annotations:
         ad.stackstatehq.com/stackstate-cluster-agent.check_names: '["prometheus"]'
         ad.stackstatehq.com/stackstate-cluster-agent.init_configs: '[{}]'
