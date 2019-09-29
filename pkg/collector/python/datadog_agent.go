@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -149,4 +150,15 @@ func SetExternalTags(hostname *C.char, sourceType *C.char, tags **C.char) {
 	}
 
 	externalhost.SetExternalTags(hname, stype, tagsStrings)
+}
+
+// SetCheckMetadata updates a metadata value for one check instance in the cache.
+// Indirectly used by the C function `set_check_metadata` that's mapped to `datadog_agent.set_check_metadata`.
+//export SetCheckMetadata
+func SetCheckMetadata(checkID, name, value *C.char) {
+	cid := C.GoString(checkID)
+	key := C.GoString(name)
+	val := C.GoString(value)
+
+	inventories.SetCheckMetadata(cid, key, val)
 }
