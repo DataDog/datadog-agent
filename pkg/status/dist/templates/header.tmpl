@@ -79,80 +79,78 @@ NOTE: Changes made to this template should be reflected on the following templat
 
 {{- if .leaderelection}}
 
-  Leader Election
-  ===============
-    Leader Election Status:  {{.leaderelection.status}}
-    {{- if eq .leaderelection.status "Failing"}}
-    Error: {{.leaderelection.error}}
-    {{else}}
-    Leader Name is: {{.leaderelection.leaderName}}
-    Last Acquisition of the lease: {{.leaderelection.acquiredTime}}
-    Renewed leadership: {{.leaderelection.renewedTime}}
-    Number of leader transitions: {{.leaderelection.transitions}}
-    {{- end}}
+Leader Election
+===============
+  Leader Election Status:  {{.leaderelection.status}}
+  {{- if eq .leaderelection.status "Failing"}}
+  Error: {{.leaderelection.error}}
+  {{else}}
+  Leader Name is: {{.leaderelection.leaderName}}
+  Last Acquisition of the lease: {{.leaderelection.acquiredTime}}
+  Renewed leadership: {{.leaderelection.renewedTime}}
+  Number of leader transitions: {{.leaderelection.transitions}}
+  {{- end}}
 {{- end}}
 
 {{- if .custommetrics }}
-
-  Custom Metrics Server
-  =====================
-  {{- if .custommetrics.Disabled }}
-    Status: {{ .custommetrics.Disabled }}
-    {{- else -}}
-    {{- if .custommetrics.Error }}
-    Error: {{ .custommetrics.Error }}
-    {{ else }}
-    ConfigMap name: {{ .custommetrics.Cmname }}
-    {{ if .custommetrics.StoreError }}
-    Error: {{ .custommetrics.StoreError }}
-    {{ else }}
-    External Metrics
-    ----------------
-      {{- if .custommetrics.External.ListError }}
-      Error: {{ .custommetrics.External.ListError }}
-      {{ else }}
-      Total: {{ .custommetrics.External.Total }}
-      Valid: {{ .custommetrics.External.Valid }}
-      {{- range $metric := .custommetrics.External.Metrics }}
-      {{- range $name, $value := $metric }}
-      {{- if or (eq $name "hpa") (eq $name "labels") }}
-      {{$name}}:
-      {{- range $k, $v := $value }}
-      - {{$k}}: {{$v}}
-      {{- end -}}
-      {{- else}}
-      {{$name}}: {{$value}}
-      {{- end }}
-      {{- end }}
-      {{- end }}
-      {{- end }}
-    {{- end }}
-    {{- end }}
-  {{- end }}
+ Custom Metrics Server
+ =====================
+   {{- if .custommetrics.Error }}
+   Error: {{ .custommetrics.Error }}
+   {{ else }}
+   {{- if .custommetrics.Disabled }}
+   Disabled: {{ .custommetrics.Disabled }}
+   {{ else }}
+   ConfigMap name: {{ .custommetrics.Cmname }}
+   {{ if .custommetrics.StoreError }}
+   Error: {{ .custommetrics.StoreError }}
+   {{ else }}
+   External Metrics
+   ----------------
+     {{- if .custommetrics.External.ListError }}
+     Error: {{ .custommetrics.External.ListError }}
+     {{ else }}
+     Total: {{ .custommetrics.External.Total }}
+     Valid: {{ .custommetrics.External.Valid }}
+     {{ range $metric := .custommetrics.External.Metrics }}
+   * {{$metric.reference.type}} pod autoscaler: {{$metric.reference.namespace}}/{{$metric.reference.name}}
+     Metric name: {{$metric.metricName}}
+     Labels:
+     {{- range $k, $v := $metric.labels }}
+     - {{$k}}: {{$v}}
+     {{- end }}
+     Value: {{ humanize $metric.value}}
+     Timestamp: {{ formatUnixTime $metric.ts}}
+     Valid: {{$metric.valid}}
+     {{- end }}
+     {{- end -}}
+   {{- end }}
+   {{- end }}
+   {{- end }}
 {{- end }}
 
 {{- if .clusterchecks }}
 
-  Cluster Checks Dispatching
-  ==========================
-  {{- if .clusterchecks.Leader }}
-    {{- if .clusterchecks.Active }}
-    Status: Leader, serving requests
-    Active nodes: {{ .clusterchecks.NodeCount }}
-    Check Configurations: {{ .clusterchecks.TotalConfigs }}
-      - Dispatched: {{ .clusterchecks.ActiveConfigs }}
-      - Unassigned: {{ .clusterchecks.DanglingConfigs }}
-    {{- else }}
-    Status: Leader, warming up
-    {{- end }}
-  {{- else if .clusterchecks.Follower }}
-    {{- if .clusterchecks.LeaderIP }}
-    Status: Follower, redirecting to leader at {{ .clusterchecks.LeaderIP }}
-    {{- else }}
-    Status: Follower, no leader found
-    {{- end }}
+Cluster Checks Dispatching
+==========================
+{{- if .clusterchecks.Leader }}
+  {{- if .clusterchecks.Active }}
+  Status: Leader, serving requests
+  Active nodes: {{ .clusterchecks.NodeCount }}
+  Check Configurations: {{ .clusterchecks.TotalConfigs }}
+    - Dispatched: {{ .clusterchecks.ActiveConfigs }}
+    - Unassigned: {{ .clusterchecks.DanglingConfigs }}
   {{- else }}
-    Status: unknown
+  Status: Leader, warming up
   {{- end }}
+{{- else if .clusterchecks.Follower }}
+{{- if .clusterchecks.LeaderIP }}
+  Status: Follower, redirecting to leader at {{ .clusterchecks.LeaderIP }}
+  {{- else }}
+  Status: Follower, no leader found
+  {{- end }}
+{{- else }}
+  Status: unknown
+{{- end }}
 {{- end }}
 {{/* this line intentionally left blank */}}

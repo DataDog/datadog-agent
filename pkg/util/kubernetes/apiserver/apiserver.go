@@ -27,8 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
-	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
+	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
+	wpa_informers "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 )
 
 var (
@@ -53,7 +53,7 @@ type APIClient struct {
 	// InformerFactory gives access to informers.
 	InformerFactory informers.SharedInformerFactory
 	// WPAInformerFactory
-	WPAInformerFactory externalversions.SharedInformerFactory
+	WPAInformerFactory wpa_informers.SharedInformerFactory
 
 	// used to setup the APIClient
 	initRetry      retry.Retrier
@@ -116,23 +116,23 @@ func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 	return kubernetes.NewForConfig(clientConfig)
 }
 
-func getWPAClient(timeout time.Duration) (versioned.Interface, error) {
+func getWPAClient(timeout time.Duration) (wpa_client.Interface, error) {
 	clientConfig, err := getClientConfig()
 	if err != nil {
 		return nil, err
 	}
 	clientConfig.Timeout = timeout
-	return versioned.NewForConfig(clientConfig)
+	return wpa_client.NewForConfig(clientConfig)
 }
 
-func getWPAInformerFactory() (externalversions.SharedInformerFactory, error) {
+func getWPAInformerFactory() (wpa_informers.SharedInformerFactory, error) {
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
 	client, err := getWPAClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
 		return nil, err
 	}
-	return externalversions.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
+	return wpa_informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
 }
 
 func getInformerFactory() (informers.SharedInformerFactory, error) {
@@ -160,6 +160,7 @@ func (c *APIClient) connect() error {
 	if config.Datadog.Get("watermark_pod_autoscaler_controller.enabled") == true {
 		c.WPAInformerFactory, err = getWPAInformerFactory()
 		if err != nil {
+			log.Errorf("Error getting WPA Informer Factory: %s", err.Error())
 			return err
 		}
 	}

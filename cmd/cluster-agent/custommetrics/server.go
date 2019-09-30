@@ -103,6 +103,7 @@ func (o *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 	}
 
 	scheme := runtime.NewScheme()
+	log.Infof("schema is %v", scheme.Name())
 	codecs := serializer.NewCodecFactory(scheme)
 
 	// we need to add the options to empty v1

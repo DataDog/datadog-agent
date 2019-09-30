@@ -178,7 +178,7 @@ func start(cmd *cobra.Command, args []string) error {
 		stopCh := make(chan struct{})
 		ctx := apiserver.ControllerContext{
 			InformerFactory:    apiCl.InformerFactory,
-			WPAInformerFactory: apiCl.WPAInformerFactory,
+			WPAInformerFactory: apiCl.WPAInformerFactory, // need extra informer as we use a custom lib.
 			Client:             apiCl.Cl,
 			LeaderElector:      le,
 			StopCh:             stopCh,

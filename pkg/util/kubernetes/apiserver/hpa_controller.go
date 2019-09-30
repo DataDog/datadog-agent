@@ -12,23 +12,25 @@ import (
 	"time"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+<<<<<<< HEAD
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+=======
+>>>>>>> fix status, tests
 	"k8s.io/apimachinery/pkg/util/wait"
 	autoscalersinformer "k8s.io/client-go/informers/autoscaling/v2beta1"
 	"k8s.io/client-go/kubernetes"
 	autoscalerslister "k8s.io/client-go/listers/autoscaling/v2beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	v1alpha12 "github.com/DataDog/watermarkpodautoscaler/pkg/client/listers/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
-	v1alpha12 "github.com/DataDog/watermarkpodautoscaler/pkg/client/listers/datadoghq/v1alpha1"
+
 )
 
 const (
@@ -136,7 +138,7 @@ func (h *AutoscalersController) RunHPA(stopCh <-chan struct{}) {
 }
 
 // ExtendToHPAController adds the handlers to the AutoscalersController to support HPAs
-func ExtendToHPAController(h *AutoscalersController, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) (*AutoscalersController, error) {
+func ExtendToHPAController(h *AutoscalersController, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) {
 	autoscalingInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    h.addAutoscaler,
@@ -146,43 +148,6 @@ func ExtendToHPAController(h *AutoscalersController, autoscalingInformer autosca
 	)
 	h.autoscalersLister = autoscalingInformer.Lister()
 	h.autoscalersListerSynced = autoscalingInformer.Informer().HasSynced
-	return h, nil
-}
-
-// gc checks if any hpas have been deleted (possibly while the Datadog Cluster Agent was
-// not running) to clean the store.
-func (h *AutoscalersController) gc() {
-	log.Infof("Starting garbage collection process on the Autoscalers")
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	list, err := h.autoscalersLister.HorizontalPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
-	if err != nil {
-		log.Errorf("Could not list hpas: %v", err)
-	}
-
-	listWPA := []*v1alpha1.WatermarkPodAutoscaler{}
-	if h.wpaEnabled {
-		listWPA, err = h.wpaLister.WatermarkPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
-		if err != nil {
-			log.Errorf("Error listing the WatermarkPodAutoscalers %v", err)
-			return
-		}
-	}
-	processedList := removeIgnoredHPAs(h.overFlowingHPAs, list)
-	emList, err := h.store.ListAllExternalMetricValues()
-	if err != nil {
-		log.Errorf("Could not list external metrics from store: %v", err)
-		return
-	}
-
-	deleted := hpa.DiffExternalMetrics(list, listWPA, emList)
-	if err = h.store.DeleteExternalMetricValues(deleted); err != nil {
-		log.Errorf("Could not delete the external metrics in the store: %v", err)
-		return
-	}
-	h.deleteFromLocalStore(deleted)
-	log.Debugf("Done GC run. Deleted %d metrics", len(deleted))
 }
 
 // removeIgnoredHPAs is used in the gc to avoid considering the ignored HPAs
