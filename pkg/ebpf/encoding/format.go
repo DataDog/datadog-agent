@@ -29,6 +29,20 @@ func FormatConnection(conn ebpf.ConnectionStats) *model.Connection {
 	}
 }
 
+// FormatDNS converts a map[util.Address][]string to a map using IPs string representation
+func FormatDNS(dns map[util.Address][]string) map[string]*model.DNSEntry {
+	if dns == nil {
+		return nil
+	}
+
+	ipToNames := make(map[string]*model.DNSEntry, len(dns))
+	for addr, names := range dns {
+		ipToNames[addr.String()] = &model.DNSEntry{Names: names}
+	}
+
+	return ipToNames
+}
+
 func formatAddr(addr util.Address, port uint16) *model.Addr {
 	if addr == nil {
 		return nil

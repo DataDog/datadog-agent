@@ -10,15 +10,15 @@
   source = "github.com/adjust/goautoneg"
 
 [[projects]]
-  digest = "1:2a1277418c550089fd8b8d82a7d636a01d94c6c12e86dafe6b8b5dc9b2814b1c"
+  branch = "pedro/add-dns-entry-to-connections"
+  digest = "1:81cff16c3e5ddc2773cad62d043ddb36be6f77e2affb22289758a721b27d98c7"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "997110e4ab87b03a1457ab0532c4b1745e543e54"
-  version = "4.12.0"
+  revision = "92605acea251b6016d16c60912e1d33cb09cf2d1"
 
 [[projects]]
   digest = "1:e64fddc819e2abc68792a743dd857c379449a56f2b9eaf030c03fb0ec19de884"

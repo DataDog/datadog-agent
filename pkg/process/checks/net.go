@@ -77,7 +77,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	return batchConnections(cfg, groupID, c.enrichConnections(conns), c.networkID), nil
 }
 
-func (c *ConnectionsCheck) getConnections() ([]*model.Connection, error) {
+func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	tu, err := net.GetRemoteSystemProbeUtil()
 	if err != nil {
 		if net.ShouldLogTracerUtilError() {

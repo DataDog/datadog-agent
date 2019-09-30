@@ -1,6 +1,6 @@
 [[constraint]]
   name = "github.com/DataDog/agent-payload"
-  version = "4.12.0"
+  branch = "pedro/add-dns-entry-to-connections"
 
 [[constraint]]
   name = "github.com/google/gopacket"

@@ -75,7 +75,7 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 }
 
 // GetConnections returns a set of active network connections, retrieved from the system probe service
-func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]*model.Connection, error) {
+func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connection, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID), nil)
 	if err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]*model.Connectio
 		return nil, err
 	}
 
-	return conns.Conns, nil
+	return conns, nil
 }
 
 // ShouldLogTracerUtilError will return whether or not errors sourced from the RemoteSysProbeUtil _should_ be logged, for less noisy logging.

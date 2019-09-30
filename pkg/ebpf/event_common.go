@@ -68,7 +68,7 @@ func (d ConnectionDirection) String() string {
 
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
-	Names map[util.Address][]string
+	DNS   map[util.Address][]string
 	Conns []ConnectionStats
 }
 
