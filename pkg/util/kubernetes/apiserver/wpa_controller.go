@@ -16,8 +16,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RunWPA starts the controller to process events about Watermark Pod Autoscalers
@@ -34,7 +34,7 @@ func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}) {
 }
 
 // ExtendToWPAController adds the handlers to the AutoscalersController to support WPAs
-func ExtendToWPAController(h *AutoscalersController, wpaInformer v1alpha1.WatermarkPodAutoscalerInformer){
+func ExtendToWPAController(h *AutoscalersController, wpaInformer v1alpha1.WatermarkPodAutoscalerInformer) {
 	wpaInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    h.addWPAutoscaler,

@@ -9,20 +9,20 @@ package apiserver
 
 import (
 	"fmt"
-	"time"
 	"reflect"
+	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 )
 
@@ -115,6 +115,16 @@ func (h *AutoscalersController) gc() {
 	}
 	h.deleteFromLocalStore(deleted)
 	log.Debugf("Done GC run. Deleted %d metrics", len(deleted))
+}
+
+// removeIgnoredHPAs is used in the gc to avoid considering the ignored HPAs
+func removeIgnoredAutoscaler(ignored map[types.UID]int, listCached []*autoscalingv2.HorizontalPodAutoscaler) (toProcess []*autoscalingv2.HorizontalPodAutoscaler) {
+	for _, hpa := range listCached {
+		if _, ok := ignored[hpa.UID]; !ok {
+			toProcess = append(toProcess, hpa)
+		}
+	}
+	return
 }
 
 func (h *AutoscalersController) deleteFromLocalStore(toDelete []custommetrics.ExternalMetricValue) {
