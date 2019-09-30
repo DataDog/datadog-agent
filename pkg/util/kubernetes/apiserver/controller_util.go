@@ -31,7 +31,9 @@ func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInter
 	var err error
 
 	h := &AutoscalersController{
-		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
+		clientSet: client,
+		le:        le, // only trigger GC and updateExternalMetrics by the Leader.
+		queue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
 	}
 
 	h.toStore.data = make(map[string]custommetrics.ExternalMetricValue)
@@ -55,8 +57,6 @@ func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInter
 		log.Errorf("Could not instantiate the Ref Processor: %v", err.Error())
 		return nil, err
 	}
-	h.clientSet = client
-	h.le = le // only trigger GC and updateExternalMetrics by the Leader.
 
 	datadogHPAConfigMap := custommetrics.GetConfigmapName()
 	h.store, err = custommetrics.NewConfigMapStore(client, common.GetResourcesNamespace(), datadogHPAConfigMap)
@@ -84,9 +84,9 @@ func (h *AutoscalersController) RunControllerLoop(stopCh <-chan struct{}) {
 // gc checks if any hpas or wpas have been deleted (possibly while the Datadog Cluster Agent was
 // not running) to clean the store.
 func (h *AutoscalersController) gc() {
-	log.Infof("Starting garbage collection process on the Autoscalers")
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	log.Infof("Starting garbage collection process on the Autoscalers")
 
 	list, err := h.autoscalersLister.HorizontalPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
 	if err != nil {
@@ -129,11 +129,11 @@ func removeIgnoredAutoscaler(ignored map[types.UID]int, listCached []*autoscalin
 
 func (h *AutoscalersController) deleteFromLocalStore(toDelete []custommetrics.ExternalMetricValue) {
 	h.toStore.m.Lock()
+	defer h.toStore.m.Unlock()
 	for _, d := range toDelete {
 		key := custommetrics.ExternalMetricValueKeyFunc(d)
 		delete(h.toStore.data, key)
 	}
-	h.toStore.m.Unlock()
 }
 
 func (h *AutoscalersController) handleErr(err error, key interface{}) {
