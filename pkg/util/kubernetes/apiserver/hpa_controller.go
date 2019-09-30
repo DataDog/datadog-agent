@@ -166,9 +166,9 @@ func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
 			delete(h.overFlowingHPAs, hpa.UID)
 		}
 		emList := autoscalers.InspectHPA(hpaCached)
-		new := h.hpaProc.ProcessEMList(emList)
+		newMetrics := h.hpaProc.ProcessEMList(emList)
 		h.toStore.m.Lock()
-		for metric, value := range new {
+		for metric, value := range newMetrics {
 			// We should only insert placeholders in the local cache.
 			h.toStore.data[metric] = value
 		}

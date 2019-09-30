@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+
 	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
 	wpa_informers "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 )
@@ -126,6 +127,7 @@ func getWPAClient(timeout time.Duration) (wpa_client.Interface, error) {
 }
 
 func getWPAInformerFactory() (wpa_informers.SharedInformerFactory, error) {
+	// default to 300s
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
 	client, err := getWPAClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {

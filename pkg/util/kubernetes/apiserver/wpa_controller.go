@@ -83,21 +83,21 @@ func (h *AutoscalersController) syncWatermarkPoAutoscalers(key interface{}) erro
 		return err
 	}
 
-	wpa, err := h.wpaLister.WatermarkPodAutoscalers(ns).Get(name)
+	wpaCached, err := h.wpaLister.WatermarkPodAutoscalers(ns).Get(name)
 	switch {
 	case errors.IsNotFound(err):
 		log.Infof("WatermarkPodAutoscaler %v has been deleted but was not caught in the EventHandler. GC will cleanup.", key)
 	case err != nil:
 		log.Errorf("Unable to retrieve Watermark Pod Autoscaler %v from store: %v", key, err)
 	default:
-		if wpa == nil {
+		if wpaCached == nil {
 			log.Errorf("Could not parse empty wpa %s/%s from local store", ns, name)
 			return ErrIsEmpty
 		}
-		emList := autoscalers.InspectWPA(wpa)
-		new := h.hpaProc.ProcessEMList(emList)
+		emList := autoscalers.InspectWPA(wpaCached)
+		newMetrics := h.hpaProc.ProcessEMList(emList)
 		h.toStore.m.Lock()
-		for metric, value := range new {
+		for metric, value := range newMetrics {
 			// We should only insert placeholders in the local cache.
 			h.toStore.data[metric] = value
 		}
