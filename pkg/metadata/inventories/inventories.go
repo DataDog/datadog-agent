@@ -9,7 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 type checkMetadataCacheEntry struct {
@@ -17,12 +18,20 @@ type checkMetadataCacheEntry struct {
 	CheckInstanceMetadata CheckInstanceMetadata
 }
 
+type getAllInstanceIDsInterface interface {
+	GetAllInstanceIDs(checkName string) []check.ID
+}
+
+type getLoadedConfigsInterface interface {
+	GetLoadedConfigs() map[string]integration.Config
+}
+
 var (
 	// For testing purposes
-	getLoadedConfigs  = common.AC.GetLoadedConfigs
-	getAllInstanceIDs = common.Coll.GetAllInstanceIDs
-	nowNano           = func() int64 { return time.Now().UnixNano() }
+	nowNano = func() int64 { return time.Now().UnixNano() }
+)
 
+var (
 	checkMetadataCache = make(map[string]*checkMetadataCacheEntry) // by check ID
 	checkCacheMutex    = &sync.Mutex{}
 	agentMetadataCache = make(AgentMetadata)
@@ -77,7 +86,7 @@ func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMeta
 }
 
 // GetPayload fills and returns the check metadata payload
-func GetPayload() *Payload {
+func GetPayload(ac getLoadedConfigsInterface, coll getAllInstanceIDsInterface) *Payload {
 	checkCacheMutex.Lock()
 	defer checkCacheMutex.Unlock()
 
@@ -85,10 +94,10 @@ func GetPayload() *Payload {
 
 	newCheckMetadataCache := make(map[string]*checkMetadataCacheEntry)
 
-	configs := getLoadedConfigs()
+	configs := ac.GetLoadedConfigs()
 	for _, config := range configs {
 		checkMetadata[config.Name] = make([]*CheckInstanceMetadata, 0)
-		instanceIDs := getAllInstanceIDs(config.Name)
+		instanceIDs := coll.GetAllInstanceIDs(config.Name)
 		for _, id := range instanceIDs {
 			checkInstanceMetadata := getCheckInstanceMetadata(string(id), config.Provider)
 			checkMetadata[config.Name] = append(checkMetadata[config.Name], checkInstanceMetadata)

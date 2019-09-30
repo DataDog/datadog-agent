@@ -12,13 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
 )
 
-func mockGetLoadedConfigs() map[string]integration.Config {
+type mockAutoConfig struct{}
+
+func (mockAutoConfig) GetLoadedConfigs() map[string]integration.Config {
 	ret := make(map[string]integration.Config)
 	ret["check1_digest"] = integration.Config{
 		Name:     "check1",
@@ -31,7 +32,9 @@ func mockGetLoadedConfigs() map[string]integration.Config {
 	return ret
 }
 
-func mockGetAllInstanceIDs(checkName string) []check.ID {
+type mockCollector struct{}
+
+func (mockCollector) GetAllInstanceIDs(checkName string) []check.ID {
 	if checkName == "check1" {
 		return []check.ID{"check1_instance1", "check1_instance2"}
 	} else if checkName == "check2" {
@@ -41,13 +44,10 @@ func mockGetAllInstanceIDs(checkName string) []check.ID {
 }
 
 func TestGetPayload(t *testing.T) {
-	getLoadedConfigs = mockGetLoadedConfigs
-	getAllInstanceIDs = mockGetAllInstanceIDs
+
 	startNow := time.Now().UnixNano()
 	nowNano = func() int64 { return startNow } // time of the first run
 	defer func() {
-		getLoadedConfigs = common.AC.GetLoadedConfigs
-		getAllInstanceIDs = common.Coll.GetAllInstanceIDs
 		nowNano = time.Now().UnixNano
 	}()
 
@@ -56,7 +56,7 @@ func TestGetPayload(t *testing.T) {
 	SetCheckMetadata("check1_instance1", "check_provided_key2", "Hi")
 	SetCheckMetadata("non_running_checkid", "check_provided_key1", "this should get deleted")
 
-	p := GetPayload()
+	p := GetPayload(mockAutoConfig{}, mockCollector{})
 
 	assert.Equal(t, startNow, p.Timestamp)
 
@@ -91,7 +91,7 @@ func TestGetPayload(t *testing.T) {
 	startNow += 1000
 	SetCheckMetadata("check1_instance1", "check_provided_key1", 456)
 
-	p = GetPayload()
+	p = GetPayload(mockAutoConfig{}, mockCollector{})
 
 	assert.Equal(t, startNow, p.Timestamp) //updated startNow is returned
 
