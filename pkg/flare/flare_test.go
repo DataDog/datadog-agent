@@ -59,7 +59,7 @@ func TestFlareHasRightForm(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	av, _ := version.New(version.AgentVersion, version.Commit)
+	av, _ := version.Agent()
 
 	assert.Equal(t, caseID, lastRequest.FormValue("case_id"))
 	assert.Equal(t, email, lastRequest.FormValue("email"))

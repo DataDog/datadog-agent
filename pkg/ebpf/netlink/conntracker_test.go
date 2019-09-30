@@ -91,13 +91,23 @@ func TestGetUpdatesGen(t *testing.T) {
 	}
 }
 
+func TestTooManyEntries(t *testing.T) {
+	rt := newConntracker()
+	rt.maxStateSize = 1
+
+	rt.register(makeTranslatedConn("10.0.0.0:12345", "50.30.40.10:80", "20.0.0.0:80"))
+	rt.register(makeTranslatedConn("10.0.0.1:12345", "50.30.40.10:80", "20.0.0.0:80"))
+	rt.register(makeTranslatedConn("10.0.0.2:12345", "50.30.40.10:80", "20.0.0.0:80"))
+}
+
 func newConntracker() *realConntracker {
 	return &realConntracker{
-		state:               make(map[connKey]*connValue),
-		shortLivedBuffer:    make(map[connKey]*IPTranslation),
-		maxShortLivedBuffer: 10000,
-		compactTicker:       time.NewTicker(time.Hour),
-		maxStateSize:        10000,
+		state:                make(map[connKey]*connValue),
+		shortLivedBuffer:     make(map[connKey]*IPTranslation),
+		maxShortLivedBuffer:  10000,
+		compactTicker:        time.NewTicker(time.Hour),
+		maxStateSize:         10000,
+		exceededSizeLogLimit: util.NewLogLimit(1, time.Minute),
 	}
 }
 

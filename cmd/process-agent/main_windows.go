@@ -118,10 +118,10 @@ func main() {
 	flag.StringVar(&opts.check, "check", "", "Run a specific check and print the results. Choose from: process, connections, realtime")
 
 	// windows-specific options for installing the service, uninstalling the service, etc.
-	flag.BoolVar(&winopts.installService, "install-service", false, "Install the trace agent to the Service Control Manager")
-	flag.BoolVar(&winopts.uninstallService, "uninstall-service", false, "Remove the trace agent from the Service Control Manager")
-	flag.BoolVar(&winopts.startService, "start-service", false, "Starts the trace agent service")
-	flag.BoolVar(&winopts.stopService, "stop-service", false, "Stops the trace agent service")
+	flag.BoolVar(&winopts.installService, "install-service", false, "Install the process agent to the Service Control Manager")
+	flag.BoolVar(&winopts.uninstallService, "uninstall-service", false, "Remove the process agent from the Service Control Manager")
+	flag.BoolVar(&winopts.startService, "start-service", false, "Starts the process agent service")
+	flag.BoolVar(&winopts.stopService, "stop-service", false, "Stops the process agent service")
 
 	flag.Parse()
 	isIntSess, err := svc.IsAnInteractiveSession()
