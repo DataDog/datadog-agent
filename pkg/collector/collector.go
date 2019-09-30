@@ -215,8 +215,8 @@ func (c *Collector) started() bool {
 	return atomic.LoadUint32(&(c.state)) == started
 }
 
-// returns the ID's of all instances of a check
-func (c *Collector) getAllInstanceIDs(checkName string) []check.ID {
+// GetAllInstanceIDs returns the ID's of all instances of a check
+func (c *Collector) GetAllInstanceIDs(checkName string) []check.ID {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
@@ -237,7 +237,7 @@ func (c *Collector) ReloadAllCheckInstances(name string, newInstances []check.Ch
 	}
 
 	// Stop all the old instances
-	killed := c.getAllInstanceIDs(name)
+	killed := c.GetAllInstanceIDs(name)
 	for _, id := range killed {
 		e := c.StopCheck(id)
 		if e != nil {
