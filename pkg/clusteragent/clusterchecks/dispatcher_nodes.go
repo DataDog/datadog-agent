@@ -9,6 +9,7 @@ package clusterchecks
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -128,6 +129,7 @@ func (d *dispatcher) expireNodes() {
 			// Remove metrics linked to this node
 			nodeAgents.Dec()
 			dispatchedConfigs.DeleteLabelValues(name)
+			statsCollectionFails.DeleteLabelValues(name)
 		}
 		node.RUnlock()
 	}
@@ -145,6 +147,11 @@ func (d *dispatcher) updateRunnersStats() {
 		return
 	}
 
+	start := time.Now()
+	defer func() {
+		updateStatsDuration.Set(time.Since(start).Seconds())
+	}()
+
 	d.store.Lock()
 	defer d.store.Unlock()
 	for name, node := range d.store.nodes {
@@ -155,6 +162,7 @@ func (d *dispatcher) updateRunnersStats() {
 		stats, err := d.clcRunnersClient.GetRunnerStats(ip)
 		if err != nil {
 			log.Debugf("Cannot get CLC Runner stats with IP %s on node %s: %v", node.clientIP, name, err)
+			statsCollectionFails.WithLabelValues(name).Inc()
 			continue
 		}
 		node.Lock()
