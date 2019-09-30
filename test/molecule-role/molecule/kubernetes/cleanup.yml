@@ -15,6 +15,11 @@
           environment:
             KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
+        - name: Wait for pods to be deleted
+          command: kubectl wait --timeout=30s --for=delete pods --all
+          environment:
+            KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
         - name: Fetch list of nodes
           command: kubectl get nodes -o json
           environment:
