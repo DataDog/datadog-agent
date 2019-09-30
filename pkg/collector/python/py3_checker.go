@@ -23,8 +23,8 @@ var (
 )
 
 type warning struct {
-	Line    string
-	Column  string
+	Line    int
+	Column  int
 	Message string
 }
 
@@ -52,7 +52,7 @@ func validatePython3(moduleName string, modulePath string) ([]string, error) {
 	res := []string{}
 	// no post processing needed for now, we just retrieve every messages
 	for _, warn := range warnings {
-		message := fmt.Sprintf("Line %s, column %s: %s", warn.Line, warn.Column, warn.Message)
+		message := fmt.Sprintf("Line %d, column %d: %s", warn.Line, warn.Column, warn.Message)
 		res = append(res, message)
 	}
 
