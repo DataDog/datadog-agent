@@ -78,7 +78,7 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 				},
 			},
 		}, {
-			"same metric with different hpas and labels",
+			"same metric with different wpas and labels",
 			map[string]ExternalMetricValue{
 				"external_metric-watermark-default-foo-requests_per_s": {
 					MetricName: "requests_per_s",
@@ -112,10 +112,10 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 					Labels:     map[string]string{"role": "frontend"},
 					Ref:        ObjectReference{Type: "watermark", Name: "foo", Namespace: "default"},
 				},
-				"external_metric-horizontal-default-bar-requests_per_s": {
+				"external_metric-horizontal-default-foo-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					Ref:        ObjectReference{Type: "horizontal", Name: "bar", Namespace: "default"},
+					Ref:        ObjectReference{Type: "horizontal", Name: "foo", Namespace: "default"},
 				},
 			},
 			[]ExternalMetricValue{
@@ -127,12 +127,12 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					Ref:        ObjectReference{Type: "horizontal", Name: "bar", Namespace: "default"},
+					Ref:        ObjectReference{Type: "horizontal", Name: "foo", Namespace: "default"},
 				},
 			},
 		},
 		{
-			"different metric with same owners and different labels",
+			"different metric with same owner and different labels",
 			map[string]ExternalMetricValue{
 				"external_metric-watermark-default-foo-requests_per_s_2": {
 					MetricName: "requests_per_s_2",

@@ -93,17 +93,15 @@ func startAutoscalersController(ctx ControllerContext) error {
 	}
 	if config.Datadog.GetBool("watermark_pod_autoscaler_controller.enabled") {
 		autoscalersController.wpaEnabled = true
-		autoscalersController, err = ExtendToWPAController(autoscalersController, ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
+		// mutate the Autoscaler controller to embed an informer against the WPAs
+		ExtendToWPAController(autoscalersController, ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
 		if err != nil {
 			return err
 		}
 		go autoscalersController.RunWPA(ctx.StopCh)
 	}
-
-	autoscalersController, err = ExtendToHPAController(autoscalersController, ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
-	if err != nil {
-		return err
-	}
+	// mutate the Autoscaler controller to embed an informer against the HPAs
+	ExtendToHPAController(autoscalersController, ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
 	go autoscalersController.RunHPA(ctx.StopCh)
 
 	autoscalersController.RunControllerLoop(ctx.StopCh)

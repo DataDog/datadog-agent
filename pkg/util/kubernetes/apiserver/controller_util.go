@@ -9,17 +9,20 @@ package apiserver
 
 import (
 	"fmt"
+	"time"
+	"reflect"
+
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
-	"reflect"
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 )
 
 // NewAutoscalersController returns a new AutoscalersController
@@ -75,6 +78,42 @@ func (h *AutoscalersController) enqueue(obj interface{}) {
 // RunControllerLoop is the public method to trigger the lifecycle loop of the External Metrics store
 func (h *AutoscalersController) RunControllerLoop(stopCh <-chan struct{}) {
 	h.processingLoop()
+}
+
+// gc checks if any hpas have been deleted (possibly while the Datadog Cluster Agent was
+// not running) to clean the store.
+func (h *AutoscalersController) gc() {
+	log.Infof("Starting garbage collection process on the Autoscalers")
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	list, err := h.autoscalersLister.HorizontalPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
+	if err != nil {
+		log.Errorf("Could not list hpas: %v", err)
+	}
+
+	listWPA := []*v1alpha1.WatermarkPodAutoscaler{}
+	if h.wpaEnabled {
+		listWPA, err = h.wpaLister.WatermarkPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
+		if err != nil {
+			log.Errorf("Error listing the WatermarkPodAutoscalers %v", err)
+			return
+		}
+	}
+	processedList := removeIgnoredHPAs(h.overFlowingHPAs, list)
+	emList, err := h.store.ListAllExternalMetricValues()
+	if err != nil {
+		log.Errorf("Could not list external metrics from store: %v", err)
+		return
+	}
+
+	deleted := hpa.DiffExternalMetrics(processedList, listWPA, emList)
+	if err = h.store.DeleteExternalMetricValues(deleted); err != nil {
+		log.Errorf("Could not delete the external metrics in the store: %v", err)
+		return
+	}
+	h.deleteFromLocalStore(deleted)
+	log.Debugf("Done GC run. Deleted %d metrics", len(deleted))
 }
 
 func (h *AutoscalersController) deleteFromLocalStore(toDelete []custommetrics.ExternalMetricValue) {

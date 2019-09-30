@@ -8,14 +8,15 @@
 package apiserver
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"time"
+
 	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions/datadoghq/v1alpha1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
-	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 )
 
@@ -33,7 +34,7 @@ func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}) {
 }
 
 // ExtendToWPAController adds the handlers to the AutoscalersController to support WPAs
-func ExtendToWPAController(h *AutoscalersController, wpaInformer v1alpha1.WatermarkPodAutoscalerInformer) (*AutoscalersController, error) {
+func ExtendToWPAController(h *AutoscalersController, wpaInformer v1alpha1.WatermarkPodAutoscalerInformer){
 	wpaInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    h.addWPAutoscaler,
@@ -43,8 +44,6 @@ func ExtendToWPAController(h *AutoscalersController, wpaInformer v1alpha1.Waterm
 	)
 	h.wpaLister = wpaInformer.Lister()
 	h.wpaListerSynced = wpaInformer.Informer().HasSynced
-
-	return h, nil
 }
 
 func (h *AutoscalersController) workerWPA() {
