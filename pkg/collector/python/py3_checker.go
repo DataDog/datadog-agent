@@ -33,7 +33,7 @@ func validatePython3(moduleName string, modulePath string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), linterTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, pythonBinPath, "-m", "pylint", "-f", "json", "--py3k", "-d", "W1618", modulePath)
+	cmd := exec.CommandContext(ctx, pythonBinPath, "-m", "pylint", "-f", "json", "--py3k", "-d", "W1618", "--persistent", "no", "--exit-zero", modulePath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
