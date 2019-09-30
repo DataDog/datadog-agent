@@ -289,6 +289,8 @@ func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, bod
 	req.Header.Add("X-Dd-Processagentversion", Version)
 	if hasContainers {
 		req.Header.Add("X-Dd-HasContainers", "true")
+	} else {
+		req.Header.Add("X-Dd-HasContainers", "false")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), ReqCtxTimeout)
