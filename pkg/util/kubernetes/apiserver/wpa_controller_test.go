@@ -454,7 +454,11 @@ func TestWPAGC(t *testing.T) {
 			i := &fakeLeaderElector{}
 			d := &fakeDatadogClient{}
 			wpaCl := fake.NewSimpleClientset()
-			hctrl, inf := newFakeWPAController(client, wpaCl, i, d)
+
+			hctrl, _ := newFakeAutoscalerController(client, i, d)
+			hctrl.wpaEnabled = true
+			inf := wpa_informers.NewSharedInformerFactory(wpaCl, 0)
+			ExtendToWPAController(hctrl, inf.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
 
 			hctrl.store = store
 

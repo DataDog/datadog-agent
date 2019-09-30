@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	v1alpha12 "github.com/DataDog/watermarkpodautoscaler/pkg/client/listers/datadoghq/v1alpha1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -20,13 +21,11 @@ import (
 	autoscalerslister "k8s.io/client-go/listers/autoscaling/v2beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	v1alpha12 "github.com/DataDog/watermarkpodautoscaler/pkg/client/listers/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 )
 
 const (
@@ -80,46 +79,6 @@ type AutoscalersController struct {
 	mu        sync.Mutex
 }
 
-// NewAutoscalersController returns a new AutoscalersController
-func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInterface, dogCl hpa.DatadogClient, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer, wpaInformer v1alpha1.WatermarkPodAutoscalerInformer) (*AutoscalersController, error) {
-	var err error
-
-	h := &AutoscalersController{
-		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
-	}
-
-	h.toStore.data = make(map[string]custommetrics.ExternalMetricValue)
-	h.overFlowingHPAs = make(map[types.UID]int)
-
-	gcPeriodSeconds := config.Datadog.GetInt("hpa_watcher_gc_period")
-	refreshPeriod := config.Datadog.GetInt("external_metrics_provider.refresh_period")
-
-	if gcPeriodSeconds <= 0 || refreshPeriod <= 0 {
-		return nil, fmt.Errorf("tickers must be strictly positive in the AutoscalersController"+
-			" [GC: %d s, Refresh: %d s]", gcPeriodSeconds, refreshPeriod)
-	}
-
-	h.poller = PollerConfig{
-		gcPeriodSeconds: gcPeriodSeconds,
-		refreshPeriod:   refreshPeriod,
-	}
-
-	// Setup the client to process the Ref and metrics
-	h.hpaProc, err = hpa.NewProcessor(dogCl)
-	if err != nil {
-		log.Errorf("Could not instantiate the Ref Processor: %v", err.Error())
-		return nil, err
-	}
-	h.clientSet = client
-	h.le = le // only trigger GC and updateExternalMetrics by the Leader.
-
-	datadogHPAConfigMap := custommetrics.GetConfigmapName()
-	h.store, err = custommetrics.NewConfigMapStore(client, common.GetResourcesNamespace(), datadogHPAConfigMap)
-	if err != nil {
-		log.Errorf("Could not instantiate the local store for the External Metrics %v", err)
-		return nil, err
-	}
-
 // RunHPA starts the controller to process events about Horizontal Pod Autoscalers
 func (h *AutoscalersController) RunHPA(stopCh <-chan struct{}) {
 	defer h.queue.ShutDown()
@@ -144,16 +103,6 @@ func ExtendToHPAController(h *AutoscalersController, autoscalingInformer autosca
 	)
 	h.autoscalersLister = autoscalingInformer.Lister()
 	h.autoscalersListerSynced = autoscalingInformer.Informer().HasSynced
-}
-
-// removeIgnoredHPAs is used in the gc to avoid considering the ignored HPAs
-func removeIgnoredHPAs(ignored map[types.UID]int, listCached []*autoscalingv2.HorizontalPodAutoscaler) (toProcess []*autoscalingv2.HorizontalPodAutoscaler) {
-	for _, hpa := range listCached {
-		if _, ok := ignored[hpa.UID]; !ok {
-			toProcess = append(toProcess, hpa)
-		}
-	}
-	return
 }
 
 func (h *AutoscalersController) worker() {
