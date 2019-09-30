@@ -40,11 +40,12 @@ func TestDNSSnooping(t *testing.T) {
 	destAddr := util.AddressFromString(destIP)
 	srcAddr := util.AddressFromString("127.0.0.1")
 
+	timeout := time.After(1 * time.Second)
 Loop:
 	// Wait until DNS entry becomes available (with a timeout)
 	for {
 		select {
-		case <-time.After(1 * time.Second):
+		case <-timeout:
 			break Loop
 		default:
 			if reverseDNS.cache.Len() >= 1 {
