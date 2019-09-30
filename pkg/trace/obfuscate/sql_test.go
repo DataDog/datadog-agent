@@ -441,6 +441,62 @@ func TestConsumerError(t *testing.T) {
 	assert.Equal("", output)
 }
 
+func TestSQLErrors(t *testing.T) {
+	assert := assert.New(t)
+
+	_, err := obfuscateSQLString("")
+	assert.Error(err)
+	assert.Equal("result is empty", err.Error())
+
+	_, err = obfuscateSQLString("SELECT a FROM b WHERE a.x !* 2")
+	assert.Error(err)
+	assert.Equal(`at position 28: expected "=" after "!", got "*" (42)`, err.Error())
+
+	_, err = obfuscateSQLString("SELECT ԫ")
+	assert.Error(err)
+	assert.Equal(`at position 9: unexpected byte 212`, err.Error())
+
+	_, err = obfuscateSQLString("SELECT name, `1a` FROM profile")
+	assert.Error(err)
+	assert.Equal(`at position 15: unexpected character "1" (49) in literal identifier`, err.Error())
+
+	_, err = obfuscateSQLString("SELECT name, `age}` FROM profile")
+	assert.Error(err)
+	assert.Equal(`at position 18: literal identifiers must end in "`+"`"+`", got "}" (125)`, err.Error())
+
+	_, err = obfuscateSQLString("SELECT %(asd)| FROM profile")
+	assert.Error(err)
+	assert.Equal(`at position 14: invalid character after variable identifier: "|" (124)`, err.Error())
+
+	_, err = obfuscateSQLString("USING $A FROM users")
+	assert.Error(err)
+	assert.Equal(`at position 8: prepared statements must start with digits, got "A" (65)`, err.Error())
+
+	_, err = obfuscateSQLString("USING $09 SELECT")
+	assert.Error(err)
+	assert.Equal(`at position 10: invalid number`, err.Error())
+
+	_, err = obfuscateSQLString("INSERT VALUES (1, 2) INTO {ABC")
+	assert.Error(err)
+	assert.Equal(`at position 31: unexpected EOF in escape sequence`, err.Error())
+
+	_, err = obfuscateSQLString("SELECT one, :2two FROM profile")
+	assert.Error(err)
+	assert.Equal(`at position 14: bind variables should start with letters, got "2" (50)`, err.Error())
+
+	_, err = obfuscateSQLString("SELECT age FROM profile WHERE name='John \\")
+	assert.Error(err)
+	assert.Equal(`at position 43: unexpected EOF after escape character in string`, err.Error())
+
+	_, err = obfuscateSQLString("SELECT age FROM profile WHERE name='John")
+	assert.Error(err)
+	assert.Equal(`at position 42: unexpected EOF in string`, err.Error())
+
+	_, err = obfuscateSQLString("/* abcd")
+	assert.Error(err)
+	assert.Equal(`at position 8: unexpected EOF in comment`, err.Error())
+}
+
 // Benchmark the Tokenizer using a SQL statement
 func BenchmarkTokenizer(b *testing.B) {
 	benchmarks := []struct {
