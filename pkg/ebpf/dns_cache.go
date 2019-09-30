@@ -80,20 +80,26 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 	}
 
 	var (
-		ipToNames  = make(map[util.Address][]string)
-		visited    = make(map[util.Address]struct{})
+		resolved   = make(map[util.Address][]string)
+		unresolved = make(map[util.Address]struct{})
 		expiration = now.Add(c.ttl).UnixNano()
 	)
 
 	collectNamesForIP := func(addr util.Address) {
-		if _, ok := visited[addr]; ok {
+		if _, ok := resolved[addr]; ok {
 			return
 		}
-		visited[addr] = struct{}{}
+
+		if _, ok := unresolved[addr]; ok {
+			return
+		}
 
 		if names := c.getNamesForIP(addr, expiration); names != nil {
-			ipToNames[addr] = names
+			resolved[addr] = names
+			return
 		}
+
+		unresolved[addr] = struct{}{}
 	}
 
 	c.mux.Lock()
@@ -104,10 +110,10 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 	c.mux.Unlock()
 
 	// Update stats for telemetry
-	atomic.AddInt64(&c.lookups, int64(len(visited)))
-	atomic.AddInt64(&c.resolved, int64(len(ipToNames)))
+	atomic.AddInt64(&c.lookups, int64(len(resolved)+len(unresolved)))
+	atomic.AddInt64(&c.resolved, int64(len(resolved)))
 
-	return ipToNames
+	return resolved
 }
 
 func (c *reverseDNSCache) Len() int {
