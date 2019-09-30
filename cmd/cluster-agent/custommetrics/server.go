@@ -103,7 +103,6 @@ func (o *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 	}
 
 	scheme := runtime.NewScheme()
-	log.Infof("schema is %v", scheme.Name())
 	codecs := serializer.NewCodecFactory(scheme)
 
 	// we need to add the options to empty v1
@@ -126,18 +125,15 @@ func (o *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 		log.Errorf("Error while converting SecureServing type %v", err)
 		return nil, err
 	}
-
 	// Get the certificates from the extension-apiserver-authentication ConfigMap
 	if err := o.Authentication.ApplyTo(&serverConfig.Authentication, serverConfig.SecureServing, nil); err != nil {
 		log.Errorf("Could not create Authentication configuration: %v", err)
 		return nil, err
 	}
-
 	if err := o.Authorization.ApplyTo(&serverConfig.Authorization); err != nil {
 		log.Infof("Could not create Authorization configuration: %v", err)
 		return nil, err
 	}
-
 	return &apiserver.Config{
 		GenericConfig: serverConfig,
 	}, nil
