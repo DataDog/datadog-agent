@@ -18,6 +18,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -102,6 +104,20 @@ func (o *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 
 	scheme := runtime.NewScheme()
 	codecs := serializer.NewCodecFactory(scheme)
+
+	// we need to add the options to empty v1
+	// TODO fix the server code to avoid this
+	metav1.AddToGroupVersion(scheme, schema.GroupVersion{Version: "v1"})
+
+	// TODO: keep the generic API server from wanting this
+	unversioned := schema.GroupVersion{Group: "", Version: "v1"}
+	scheme.AddUnversionedTypes(unversioned,
+		&metav1.Status{},
+		&metav1.APIVersions{},
+		&metav1.APIGroupList{},
+		&metav1.APIGroup{},
+		&metav1.APIResourceList{},
+	)
 	serverConfig := genericapiserver.NewConfig(codecs)
 
 	err := o.SecureServing.ApplyTo(serverConfig)
