@@ -5,7 +5,7 @@
 
 // +build kubeapiserver
 
-package hpa
+package autoscalers
 
 import (
 	"testing"
@@ -363,7 +363,7 @@ func TestInspect(t *testing.T) {
 
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
-			got := Inspect(testCase.hpa)
+			got := InspectHPA(testCase.hpa)
 			assert.ElementsMatch(t, testCase.expected, got)
 		})
 	}

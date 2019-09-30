@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 )
 
 // RunWPA starts the controller to process events about Watermark Pod Autoscalers
@@ -94,7 +94,7 @@ func (h *AutoscalersController) syncWatermarkPoAutoscalers(key interface{}) erro
 			log.Errorf("Could not parse empty wpa %s/%s from local store", ns, name)
 			return ErrIsEmpty
 		}
-		emList := hpa.InspectWPA(wpa)
+		emList := autoscalers.InspectWPA(wpa)
 		new := h.hpaProc.ProcessEMList(emList)
 		h.toStore.m.Lock()
 		for metric, value := range new {
@@ -132,12 +132,12 @@ func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
 		return
 	}
 
-	if !hpa.WPAutoscalerMetricsUpdate(newAutoscaler, oldAutoscaler) {
+	if !autoscalers.WPAutoscalerMetricsUpdate(newAutoscaler, oldAutoscaler) {
 		log.Tracef("Update received for the %s/%s, without a relevant change to the configuration", newAutoscaler.Namespace, newAutoscaler.Name)
 		return
 	}
 	// Need to delete the old object from the local cache. If the labels have changed, the syncAutoscaler would not override the old key.
-	toDelete := hpa.InspectWPA(oldAutoscaler)
+	toDelete := autoscalers.InspectWPA(oldAutoscaler)
 	h.deleteFromLocalStore(toDelete)
 
 	log.Tracef("Processing update event for wpa %s/%s with configuration: %s", newAutoscaler.Namespace, newAutoscaler.Name, newAutoscaler.Annotations)
@@ -154,7 +154,7 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 
 	deletedWPA, ok := obj.(*apis_v1alpha1.WatermarkPodAutoscaler)
 	if ok {
-		toDelete := hpa.InspectWPA(deletedWPA)
+		toDelete := autoscalers.InspectWPA(deletedWPA)
 		h.deleteFromLocalStore(toDelete)
 		log.Debugf("Deleting %s/%s from the local cache", deletedWPA.Namespace, deletedWPA.Name)
 		if !h.le.IsLeader() {
@@ -181,7 +181,7 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 	}
 
 	log.Debugf("Deleting Metrics from WPA %s/%s", deletedWPA.Namespace, deletedWPA.Name)
-	toDelete := hpa.InspectWPA(deletedWPA)
+	toDelete := autoscalers.InspectWPA(deletedWPA)
 	log.Debugf("Deleting %s/%s from the local cache", deletedWPA.Namespace, deletedWPA.Name)
 	h.deleteFromLocalStore(toDelete)
 	if err := h.store.DeleteExternalMetricValues(toDelete); err != nil {

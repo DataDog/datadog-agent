@@ -12,12 +12,8 @@ import (
 	"time"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
-<<<<<<< HEAD
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-=======
->>>>>>> fix status, tests
+
 	"k8s.io/apimachinery/pkg/util/wait"
 	autoscalersinformer "k8s.io/client-go/informers/autoscaling/v2beta1"
 	"k8s.io/client-go/kubernetes"
@@ -28,7 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 )
@@ -76,7 +72,7 @@ type AutoscalersController struct {
 	overFlowingHPAs map[types.UID]int
 
 	toStore   metricsBatch
-	hpaProc   hpa.ProcessorInterface
+	hpaProc   autoscalers.ProcessorInterface
 	store     custommetrics.Store
 	clientSet kubernetes.Interface
 	poller    PollerConfig
@@ -209,7 +205,6 @@ func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
 			log.Errorf("Could not parse empty hpa %s/%s from local store", ns, name)
 			return ErrIsEmpty
 		}
-
 		new := h.hpaProc.ProcessHPAs(hpa)
 		if len(new)+h.metricsProcessedCount > maxMetricsCount {
 			log.Warnf("Currently processing %d metrics, skipping %s/%s as we can't process more than %d metrics",
@@ -221,8 +216,7 @@ func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
 			log.Debugf("Previously ignored HPA %s/%s will now be processed", hpa.Namespace, hpa.Name)
 			delete(h.overFlowingHPAs, hpa.UID)
 		}
-
-		emList := hpa.Inspect(hpaCached)
+		emList := autoscalers.InspectHPA(hpaCached)
 		new := h.hpaProc.ProcessEMList(emList)
 		h.toStore.m.Lock()
 		for metric, value := range new {
@@ -264,13 +258,12 @@ func (h *AutoscalersController) updateAutoscaler(old, obj interface{}) {
 		return
 	}
 
-	if !hpa.AutoscalerMetricsUpdate(newAutoscaler, oldAutoscaler) {
+	if !autoscalers.AutoscalerMetricsUpdate(newAutoscaler, oldAutoscaler) {
 		log.Tracef("Update received for the %s/%s, without a relevant change to the configuration", newAutoscaler.Namespace, newAutoscaler.Name)
 		return
 	}
-	// Need to delete the old object from the local cache. If the labels (tags) have changed, the syncAutoscaler would not override the old key.
-	// If the oldAutoscaler is behind a HPA in the queue that maximises processedMetricsCount, it will be added to overFlowingHPAs and garbage collected.
-	toDelete := hpa.Inspect(oldAutoscaler)
+	// Need to delete the old object from the local cache. If the labels have changed, the syncAutoscaler would not override the old key.
+	toDelete := autoscalers.InspectHPA(oldAutoscaler)
 	h.deleteFromLocalStore(toDelete)
 	// We re-evaluate if the HPA can be processed in syncAutoscaler, subsequently to the enqueue.
 	h.mu.Lock()
@@ -293,7 +286,7 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 
 	deletedHPA, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler)
 	if ok {
-		toDelete := hpa.Inspect(deletedHPA)
+		toDelete := autoscalers.InspectHPA(deletedHPA)
 		h.deleteFromLocalStore(toDelete)
 		log.Debugf("Deleting %s/%s from the local cache", deletedHPA.Namespace, deletedHPA.Name)
 		if !h.le.IsLeader() {
@@ -327,7 +320,7 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 	}
 
 	log.Debugf("Deleting Metrics from Ref %s/%s", deletedHPA.Namespace, deletedHPA.Name)
-	toDelete := hpa.Inspect(deletedHPA)
+	toDelete := autoscalers.InspectHPA(deletedHPA)
 	log.Debugf("Deleting %s/%s from the local cache", deletedHPA.Namespace, deletedHPA.Name)
 	h.deleteFromLocalStore(toDelete)
 	if err := h.store.DeleteExternalMetricValues(toDelete); err != nil {
