@@ -163,8 +163,6 @@ before_script:
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
     - inv deps --verbose --dep-vendor-only
-  script:
-    - inv -e test --race --profile --cpus 4
 
 # run tests for deb-x64
 run_tests_deb-x64-py2:
@@ -899,6 +897,10 @@ deploy_windows_testing-a7:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET_A7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 
+#
+# Kitchen Test Common templates
+#
+
 .kitchen_common: &kitchen_common
   script:
     - cd $CI_PROJECT_DIR
@@ -913,6 +915,22 @@ deploy_windows_testing-a7:
     when: always
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
+
+.kitchen_windows_installer_common: &kitchen_windows_installer_common
+  script:
+    - cd $CI_PROJECT_DIR
+    - cd $DD_AGENT_TESTING_DIR
+    - rm -rf $CI_PROJECT_DIR/kitchen_logs
+    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
+    - mkdir $CI_PROJECT_DIR/kitchen_logs
+    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - bash -l tasks/run-test-kitchen.sh windows-install-test
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+
 
 # run dd-agent-testing on windows
 kitchen_windows-a6:
@@ -967,21 +985,6 @@ kitchen_windows-a7-2008:
   tags: [ "runner:main", "size:large" ]
   <<: *kitchen_common
 
-
-.kitchen_windows_installer_common: &kitchen_windows_installer_common
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - bash -l tasks/run-test-kitchen.sh windows-install-test
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
 
 kitchen_windows_installer-a6:
   stage: testkitchen_testing
