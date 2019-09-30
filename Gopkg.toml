@@ -77,11 +77,11 @@
 
 [[override]]
   name = "github.com/kubernetes/client-go"
-    branch = "release-12.0"
+  branch = "release-12.0"
 
 [[override]]
-    name = "k8s.io/client-go"
-    branch = "release-12.0"
+  name = "k8s.io/client-go"
+  branch = "release-12.0"
 
 [[override]]
   name = "github.com/kubernetes/api"
