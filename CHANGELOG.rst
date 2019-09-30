@@ -2,6 +2,28 @@
 Release Notes
 =============
 
+.. _Release Notes_6.14.1:
+
+6.14.1
+======
+
+.. _Release Notes_6.14.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-09-26
+
+
+.. _Release Notes_6.14.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Disable debug log lines for the 'hostname' command since it's directly called
+  by some Agent components. Fixes hostname resolution issues for APM and Live Process.
+
+
 .. _Release Notes_6.14.0:
 
 6.14.0

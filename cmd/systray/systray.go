@@ -39,7 +39,7 @@ func init() {
 }
 
 func createMenuItems(notifyIcon *walk.NotifyIcon) []menuItem {
-	av, _ := version.New(version.AgentVersion, version.Commit)
+	av, _ := version.Agent()
 	verstring := av.GetNumberAndPre()
 
 	isAdmin, err := isUserAnAdmin()

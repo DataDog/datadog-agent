@@ -26,7 +26,7 @@ var (
 
 func querySocketEndpoint(cfg *config.AgentConfig, check string, client string) error {
 	if cfg.SystemProbeSocketPath == "" {
-		return errors.New("No sysprobe_socket has been specified in system-probe.yaml")
+		return errors.New("no sysprobe_socket has been specified in system-probe.yaml")
 	}
 
 	httpClient := http.Client{

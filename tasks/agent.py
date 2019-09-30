@@ -109,6 +109,10 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
     if sys.platform == 'win32':
         windres_target = "pe-x86-64"
+
+        # Important for x-compiling
+        env["CGO_ENABLED"] = "1"
+
         if arch == "x86":
             env["GOARCH"] = "386"
             windres_target = "pe-i386"

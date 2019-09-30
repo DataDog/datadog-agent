@@ -35,9 +35,12 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 	if err != nil {
 		return err
 	}
-
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
 	if configCheckURL == "" {
-		configCheckURL = fmt.Sprintf("https://localhost:%v/agent/config-check", config.Datadog.GetInt("cmd_port"))
+		configCheckURL = fmt.Sprintf("https://%v:%v/agent/config-check", ipcAddress, config.Datadog.GetInt("cmd_port"))
 	}
 	r, err := util.DoGet(c, configCheckURL)
 	if err != nil {

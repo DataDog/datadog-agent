@@ -37,6 +37,9 @@ def build(ctx, install_prefix=None, python_runtimes=None, cmake_options='', arch
     here = os.path.abspath(os.path.dirname(__file__))
     dev_path = os.path.join(here, '..', 'dev')
 
+    if cmake_options.find("-G") == -1:
+        cmake_options += " -G \"Unix Makefiles\""
+
     cmake_args = cmake_options + " -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={}".format(install_prefix or dev_path)
 
     python_runtimes = python_runtimes or os.environ.get("PYTHON_RUNTIMES") or "3"

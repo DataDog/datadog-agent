@@ -48,7 +48,11 @@ var listCheckCommand = &cobra.Command{
 // query for the version
 func doListChecks() error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/check/", config.Datadog.GetInt("cmd_port"))
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+	urlstr := fmt.Sprintf("https://%v:%v/check/", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	body, e := util.DoGet(c, urlstr)
 	if e != nil {

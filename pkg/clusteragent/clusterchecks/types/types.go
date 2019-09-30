@@ -58,10 +58,11 @@ type Stats struct {
 // need and allows to inject a custom one for tests
 type LeaderIPCallback func() (string, error)
 
-// EndpointsInfo is used to store the collected info of endpoints.
-type EndpointsInfo struct {
-	Namespace     string
-	Name          string
-	ServiceEntity string
-	Configs       []integration.Config
+// CLCRunnersStats is used to unmarshall the CLC Runners stats payload
+type CLCRunnersStats map[string]CLCRunnerStats
+
+// CLCRunnerStats is used to unmarshall the stats of each CLC Runner
+type CLCRunnerStats struct {
+	AverageExecutionTime int `json:"AverageExecutionTime"`
+	MetricSamples        int `json:"MetricSamples"`
 }

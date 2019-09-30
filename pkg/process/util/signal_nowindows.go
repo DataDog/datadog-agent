@@ -24,7 +24,7 @@ func HandleSignals(exit chan bool) {
 			// Running docker.GetDockerStat() spins up / kills a new process
 			continue
 		default:
-			log.Warnf("Caught signal %s; continuing/ignoring.", sig)
+			log.Debugf("Caught signal %s; continuing/ignoring.", sig)
 		}
 	}
 }
