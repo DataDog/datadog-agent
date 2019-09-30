@@ -5,7 +5,7 @@
 
 // +build kubeapiserver
 
-package hpa
+package autoscalers
 
 import (
 	"reflect"
@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 )
 
-// Inspect returns the list of external metrics from the hpa to use for autoscaling.
-func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics.ExternalMetricValue) {
+// InspectHPA returns the list of external metrics from the hpa to use for autoscaling.
+func InspectHPA(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics.ExternalMetricValue) {
 	for _, metricSpec := range hpa.Spec.Metrics {
 		switch metricSpec.Type {
 		case autoscalingv2.ExternalMetricSourceType:
@@ -82,7 +82,7 @@ func DiffExternalMetrics(informerList []*autoscalingv2.HorizontalPodAutoscaler, 
 	autoscalerMetrics := map[string][]custommetrics.ExternalMetricValue{}
 
 	for _, hpa := range informerList {
-		autoscalerMetrics[string(hpa.UID)] = Inspect(hpa)
+		autoscalerMetrics[string(hpa.UID)] = InspectHPA(hpa)
 	}
 
 	for _, wpa := range wpaInformerList {

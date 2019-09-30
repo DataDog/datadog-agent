@@ -9,7 +9,7 @@ package apiserver
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
@@ -79,7 +79,7 @@ func startMetadataController(ctx ControllerContext) error {
 }
 
 func startAutoscalersController(ctx ControllerContext) error {
-	dogCl, err := hpa.NewDatadogClient()
+	dogCl, err := autoscalers.NewDatadogClient()
 	if err != nil {
 		return err
 	}

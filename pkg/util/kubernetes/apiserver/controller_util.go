@@ -16,17 +16,18 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 )
 
 // NewAutoscalersController returns a new AutoscalersController
-func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInterface, dogCl hpa.DatadogClient) (*AutoscalersController, error) {
+func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInterface, dogCl autoscalers.DatadogClient) (*AutoscalersController, error) {
 	var err error
 
 	h := &AutoscalersController{
@@ -49,7 +50,7 @@ func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInter
 	}
 
 	// Setup the client to process the Ref and metrics
-	h.hpaProc, err = hpa.NewProcessor(dogCl)
+	h.hpaProc, err = autoscalers.NewProcessor(dogCl)
 	if err != nil {
 		log.Errorf("Could not instantiate the Ref Processor: %v", err.Error())
 		return nil, err
@@ -80,7 +81,7 @@ func (h *AutoscalersController) RunControllerLoop(stopCh <-chan struct{}) {
 	h.processingLoop()
 }
 
-// gc checks if any hpas have been deleted (possibly while the Datadog Cluster Agent was
+// gc checks if any hpas or wpas have been deleted (possibly while the Datadog Cluster Agent was
 // not running) to clean the store.
 func (h *AutoscalersController) gc() {
 	log.Infof("Starting garbage collection process on the Autoscalers")

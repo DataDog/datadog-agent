@@ -5,7 +5,7 @@
 
 // +build kubeapiserver
 
-package hpa
+package autoscalers
 
 import (
 	"fmt"
@@ -105,7 +105,7 @@ func (p *Processor) ProcessEMList(emList []custommetrics.ExternalMetricValue) ma
 // ProcessHPAs processes the HorizontalPodAutoscalers into a list of ExternalMetricValues.
 func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) map[string]custommetrics.ExternalMetricValue {
 	externalMetrics := make(map[string]custommetrics.ExternalMetricValue)
-	emList := Inspect(hpa)
+	emList := InspectHPA(hpa)
 	for _, em := range emList {
 		em.Value = 0
 		em.Timestamp = time.Now().Unix()
