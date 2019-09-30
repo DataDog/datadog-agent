@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 )
 
 func TestDiffAutoscalter(t *testing.T) {
@@ -384,9 +385,27 @@ func makeSpec(metricName string, labels map[string]string) autoscalingv2.Horizon
 		},
 	}
 }
+
+func makeWPASpec(metricName string, labels map[string]string) v1alpha1.WatermarkPodAutoscalerSpec {
+	return v1alpha1.WatermarkPodAutoscalerSpec{
+		Metrics: []v1alpha1.MetricSpec{
+			{
+				Type: v1alpha1.ExternalMetricSourceType,
+				External: &v1alpha1.ExternalMetricSource{
+					MetricName: metricName,
+					MetricSelector: &metav1.LabelSelector{
+						MatchLabels: labels,
+					},
+				},
+			},
+		},
+	}
+}
+
 func TestDiffExternalMetrics(t *testing.T) {
 	testCases := map[string]struct {
 		lhs      []*autoscalingv2.HorizontalPodAutoscaler
+		wpahs    []*v1alpha1.WatermarkPodAutoscaler
 		rhs      []custommetrics.ExternalMetricValue
 		expected []custommetrics.ExternalMetricValue
 	}{
@@ -408,6 +427,24 @@ func TestDiffExternalMetrics(t *testing.T) {
 						Name:      "bar",
 					},
 					Spec: makeSpec("requests_per_s_three", map[string]string{"foo": "tu"}),
+				},
+			},
+			[]*v1alpha1.WatermarkPodAutoscaler{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						UID:       types.UID(9),
+						Namespace: "nsbar",
+						Name:      "foo",
+					},
+					Spec: makeWPASpec("requests_per_s_one", map[string]string{"foo": "tagbar"}),
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						UID:       types.UID(11),
+						Namespace: "zanzi",
+						Name:      "bar",
+					},
+					Spec: makeWPASpec("requests_per_s_three", map[string]string{"foo": "tu"}),
 				},
 			},
 			[]custommetrics.ExternalMetricValue{
@@ -444,6 +481,17 @@ func TestDiffExternalMetrics(t *testing.T) {
 						Namespace: "zanzi",
 					},
 				},
+				{
+					MetricName: "requests_per_s_three",
+					Labels:     map[string]string{"foo": "tu"},
+					Valid:      false,
+					Ref: custommetrics.ObjectReference{
+						Type:      "watermark",
+						UID:       string(9),
+						Name:      "bar",
+						Namespace: "zanzi",
+					},
+				},
 			},
 			[]custommetrics.ExternalMetricValue{
 				{
@@ -455,6 +503,17 @@ func TestDiffExternalMetrics(t *testing.T) {
 						UID:       string(6),
 						Name:      "foo",
 						Namespace: "baz",
+					},
+				},
+				{
+					MetricName: "requests_per_s_three",
+					Labels:     map[string]string{"foo": "tu"},
+					Valid:      false,
+					Ref: custommetrics.ObjectReference{
+						Type:      "watermark",
+						UID:       string(9),
+						Name:      "bar",
+						Namespace: "zanzi",
 					},
 				},
 			},
@@ -478,6 +537,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Spec: makeSpec("requests_per_s_new", map[string]string{"foo": "bar"}),
 				},
 			},
+			[]*v1alpha1.WatermarkPodAutoscaler{},
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s_one",
@@ -516,6 +576,43 @@ func TestDiffExternalMetrics(t *testing.T) {
 				},
 			},
 		},
+		"legacy entry": {
+			[]*autoscalingv2.HorizontalPodAutoscaler{},
+			[]*v1alpha1.WatermarkPodAutoscaler{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						UID:       types.UID(7),
+						Namespace: "zanzi",
+						Name:      "bar",
+					},
+					Spec: makeWPASpec("requests_per_s_three", map[string]string{"foo": "tu"}),
+				},
+			},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "requests_per_s_three",
+					Labels:     map[string]string{"foo": "tu"},
+					Valid:      true,
+					Ref: custommetrics.ObjectReference{
+						UID:       string(7),
+						Name:      "bar",
+						Namespace: "zanzi",
+					},
+				},
+			},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "requests_per_s_three",
+					Labels:     map[string]string{"foo": "tu"},
+					Valid:      true,
+					Ref: custommetrics.ObjectReference{
+						UID:       string(7),
+						Name:      "bar",
+						Namespace: "zanzi",
+					},
+				},
+			},
+		},
 		"metric labels changed": {
 			[]*autoscalingv2.HorizontalPodAutoscaler{
 				{
@@ -535,6 +632,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 					Spec: makeSpec("requests_per_s_two", map[string]string{"foo": "foobar"}),
 				},
 			},
+			[]*v1alpha1.WatermarkPodAutoscaler{},
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s_one",
@@ -577,7 +675,7 @@ func TestDiffExternalMetrics(t *testing.T) {
 
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
-			got := DiffExternalMetrics(testCase.lhs, nil, testCase.rhs)
+			got := DiffExternalMetrics(testCase.lhs, testCase.wpahs, testCase.rhs)
 			assert.ElementsMatch(t, testCase.expected, got)
 		})
 	}
