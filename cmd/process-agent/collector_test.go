@@ -74,11 +74,11 @@ func TestHasContainers(t *testing.T) {
 	collectorContainerRealTime := model.CollectorContainerRealTime{}
 	collectorConnections := model.CollectorConnections{}
 
-	assert.Equal(0, hasContainers(&collectorProc))
-	assert.Equal(0, hasContainers(&collectorContainer))
-	assert.Equal(0, hasContainers(&collectorRealTime))
-	assert.Equal(0, hasContainers(&collectorContainerRealTime))
-	assert.Equal(0, hasContainers(&collectorConnections))
+	assert.Equal(0, getContainerCount(&collectorProc))
+	assert.Equal(0, getContainerCount(&collectorContainer))
+	assert.Equal(0, getContainerCount(&collectorRealTime))
+	assert.Equal(0, getContainerCount(&collectorContainerRealTime))
+	assert.Equal(0, getContainerCount(&collectorConnections))
 
 	c := &model.Container{Type: "Docker"}
 	cs, cs2 := &model.ContainerStat{Id: "1234"}, &model.ContainerStat{Id: "5678"}
@@ -88,8 +88,8 @@ func TestHasContainers(t *testing.T) {
 	collectorRealTime.ContainerStats = append(collectorRealTime.ContainerStats, cs, cs2)
 	collectorContainerRealTime.Stats = append(collectorContainerRealTime.Stats, cs)
 
-	assert.Equal(1, hasContainers(&collectorProc))
-	assert.Equal(1, hasContainers(&collectorContainer))
-	assert.Equal(2, hasContainers(&collectorRealTime))
-	assert.Equal(1, hasContainers(&collectorContainerRealTime))
+	assert.Equal(1, getContainerCount(&collectorProc))
+	assert.Equal(1, getContainerCount(&collectorContainer))
+	assert.Equal(2, getContainerCount(&collectorRealTime))
+	assert.Equal(1, getContainerCount(&collectorContainerRealTime))
 }
