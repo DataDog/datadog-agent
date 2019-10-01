@@ -399,16 +399,18 @@ func extractContextString(format contextFormat, contextList []interface{}) strin
 }
 
 func addToBuilder(builder *strings.Builder, key string, value interface{}, format contextFormat, isLast bool) {
-	builder.WriteString(quoteJSON(format, key) + ":")
+	var buf []byte
+	appendFmt(builder, format, key, buf)
+	builder.WriteString(":")
 	switch val := value.(type) {
 	case string:
-		builder.WriteString(quoteJSON(format, val))
+		appendFmt(builder, format, val, buf)
 	case int:
 		builder.WriteString(strconv.Itoa(val))
 	case float64:
 		builder.WriteString(strconv.FormatFloat(val, 'f', 4, 32))
 	default:
-		builder.WriteString(quoteJSON(format, "non supported field"))
+		appendFmt(builder, format, "non supported field", buf)
 	}
 	if !isLast {
 		if format == jsonFormat {
@@ -419,11 +421,14 @@ func addToBuilder(builder *strings.Builder, key string, value interface{}, forma
 	}
 }
 
-func quoteJSON(format contextFormat, s string) string {
+func appendFmt(builder *strings.Builder, format contextFormat, s string, buf []byte) {
 	if format == jsonFormat {
-		return strconv.Quote(s)
+		buf = buf[:0]
+		buf = strconv.AppendQuote(buf, s)
+		builder.Write(buf)
+	} else {
+		builder.WriteString(s)
 	}
-	return s
 }
 
 func init() {
