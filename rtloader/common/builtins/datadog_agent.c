@@ -16,6 +16,7 @@ static cb_get_hostname_t cb_get_hostname = NULL;
 static cb_tracemalloc_enabled_t cb_tracemalloc_enabled = NULL;
 static cb_get_version_t cb_get_version = NULL;
 static cb_headers_t cb_headers = NULL;
+static cb_set_check_metadata_t cb_set_check_metadata = NULL;
 static cb_set_external_tags_t cb_set_external_tags = NULL;
 
 // forward declarations
@@ -26,6 +27,7 @@ static PyObject *tracemalloc_enabled(PyObject *self, PyObject *args);
 static PyObject *get_version(PyObject *self, PyObject *args);
 static PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *log_message(PyObject *self, PyObject *args);
+static PyObject *set_check_metadata(PyObject *self, PyObject *args);
 static PyObject *set_external_tags(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
@@ -36,6 +38,7 @@ static PyMethodDef methods[] = {
     { "get_version", get_version, METH_NOARGS, "Get Agent version." },
     { "headers", (PyCFunction)headers, METH_VARARGS | METH_KEYWORDS, "Get standard set of HTTP headers." },
     { "log", log_message, METH_VARARGS, "Log a message through the agent logger." },
+    { "set_check_metadata", set_check_metadata, METH_VARARGS, "Send metadata for Checks." },
     { "set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags." },
     { NULL, NULL } // guards
 };
@@ -80,6 +83,11 @@ void _set_get_hostname_cb(cb_get_hostname_t cb)
 void _set_get_clustername_cb(cb_get_clustername_t cb)
 {
     cb_get_clustername = cb;
+}
+
+void _set_set_check_metadata_cb(cb_set_check_metadata_t cb)
+{
+    cb_set_check_metadata = cb;
 }
 
 void _set_set_external_tags_cb(cb_set_external_tags_t cb)
@@ -346,6 +354,41 @@ static PyObject *log_message(PyObject *self, PyObject *args)
     }
 
     agent_log(log_level, message);
+    Py_RETURN_NONE;
+}
+
+/*! \fn PyObject *set_check_metadata(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog_agent.set_check_metadata` method, updating
+    the value in the cache.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a 3-ary tuple containing the unique ID of a check
+    instance, the name of the metadata entry, and the value of said entry.
+    \return A PyObject* pointer to `None`.
+
+    This function is callable as the `datadog_agent.set_check_metadata` Python method and
+    uses the `cb_set_check_metadata()` callback to retrieve the value from the agent
+    with CGO. If the callback has not been set `None` will be returned.
+*/
+static PyObject *set_check_metadata(PyObject *self, PyObject *args)
+{
+    // callback must be set
+    if (cb_set_check_metadata == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    char *check_id, *name, *value;
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    // datadog_agent.set_check_metadata(check_id, name, value)
+    if (!PyArg_ParseTuple(args, "sss", &check_id, &name, &value)) {
+      PyGILState_Release(gstate);
+      return NULL;
+    }
+
+    PyGILState_Release(gstate);
+    cb_set_check_metadata(check_id, name, value);
+
     Py_RETURN_NONE;
 }
 

@@ -81,6 +81,7 @@ void GetConfig(char*, char **);
 void GetHostname(char **);
 void GetVersion(char **);
 void Headers(char **);
+void SetCheckMetadata(char *, char *, char *);
 void SetExternalTags(char *, char *, char **);
 bool TracemallocEnabled();
 
@@ -90,6 +91,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_hostname_cb(rtloader, GetHostname);
 	set_get_version_cb(rtloader, GetVersion);
 	set_headers_cb(rtloader, Headers);
+	set_set_check_metadata_cb(rtloader, SetCheckMetadata);
 	set_set_external_tags_cb(rtloader, SetExternalTags);
 	set_tracemalloc_enabled_cb(rtloader, TracemallocEnabled);
 }

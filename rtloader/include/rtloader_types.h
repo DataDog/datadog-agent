@@ -117,6 +117,8 @@ typedef void (*cb_get_clustername_t)(char **);
 typedef bool (*cb_tracemalloc_enabled_t)(void);
 // (message, level)
 typedef void (*cb_log_t)(const char *, int);
+// (check_id, name, value)
+typedef void (*cb_set_check_metadata_t)(char *, char *, char *);
 // (hostname, source_type_name, list of tags)
 typedef void (*cb_set_external_tags_t)(char *, char *, char **);
 
