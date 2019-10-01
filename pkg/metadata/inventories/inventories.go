@@ -8,28 +8,12 @@ package inventories
 import (
 	"sync"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 type checkMetadataCacheEntry struct {
-	LastUpdated           int64
+	LastUpdated           time.Time
 	CheckInstanceMetadata CheckInstanceMetadata
 }
-
-type getAllInstanceIDsInterface interface {
-	GetAllInstanceIDs(checkName string) []check.ID
-}
-
-type getLoadedConfigsInterface interface {
-	GetLoadedConfigs() map[string]integration.Config
-}
-
-var (
-	// For testing purposes
-	nowNano = func() int64 { return time.Now().UnixNano() }
-)
 
 var (
 	checkMetadataCache = make(map[string]*checkMetadataCacheEntry) // by check ID
@@ -37,7 +21,7 @@ var (
 	agentMetadataCache = make(AgentMetadata)
 	agentCacheMutex    = &sync.Mutex{}
 
-	agentStartupTime = nowNano()
+	agentStartupTime = timeNow()
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
@@ -69,7 +53,7 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 	}
 
 	if entry.CheckInstanceMetadata[key] != value {
-		entry.LastUpdated = nowNano()
+		entry.LastUpdated = timeNow()
 		entry.CheckInstanceMetadata[key] = value
 
 		select {
@@ -77,6 +61,16 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 		default: // To make sure this call is not blocking
 		}
 	}
+}
+
+// Only used in tests
+func clearMetadata() {
+	checkCacheMutex.Lock()
+	defer checkCacheMutex.Unlock()
+	checkMetadataCache = make(map[string]*checkMetadataCacheEntry)
+	agentCacheMutex.Lock()
+	defer agentCacheMutex.Unlock()
+	agentMetadataCache = make(AgentMetadata)
 }
 
 func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMetadata {
@@ -92,7 +86,7 @@ func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMeta
 		checkInstanceMetadata = make(CheckInstanceMetadata)
 	}
 
-	checkInstanceMetadata["last_updated"] = lastUpdated
+	checkInstanceMetadata["last_updated"] = lastUpdated.UnixNano()
 	checkInstanceMetadata["config.hash"] = checkID
 	checkInstanceMetadata["config.provider"] = configProvider
 
@@ -100,7 +94,7 @@ func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMeta
 }
 
 // GetPayload fills and returns the check metadata payload
-func GetPayload(ac getLoadedConfigsInterface, coll getAllInstanceIDsInterface) *Payload {
+func GetPayload(ac autoConfigInterface, coll collectorInterface) *Payload {
 	checkCacheMutex.Lock()
 	defer checkCacheMutex.Unlock()
 
@@ -128,7 +122,7 @@ func GetPayload(ac getLoadedConfigsInterface, coll getAllInstanceIDsInterface) *
 	defer agentCacheMutex.Unlock()
 
 	return &Payload{
-		Timestamp:     nowNano(),
+		Timestamp:     timeNow().UnixNano(),
 		CheckMetadata: &checkMetadata,
 		AgentMetadata: &agentMetadataCache,
 	}
