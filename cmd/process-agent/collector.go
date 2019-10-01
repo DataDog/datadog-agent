@@ -275,7 +275,7 @@ func errResponse(format string, a ...interface{}) postResponse {
 	return postResponse{err: fmt.Errorf(format, a...)}
 }
 
-func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, body []byte, responses chan postResponse, hasContainers bool) {
+func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, body []byte, responses chan postResponse, hasContainers int) {
 	endpoint.Endpoint.Path = checkPath
 	url := endpoint.Endpoint.String()
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
@@ -287,7 +287,7 @@ func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, bod
 	req.Header.Add("X-Dd-APIKey", endpoint.APIKey)
 	req.Header.Add("X-Dd-Hostname", l.cfg.HostName)
 	req.Header.Add("X-Dd-Processagentversion", Version)
-	if hasContainers {
+	if hasContainers > 0 {
 		req.Header.Add("X-Dd-HasContainers", "true")
 	} else {
 		req.Header.Add("X-Dd-HasContainers", "false")
@@ -344,18 +344,19 @@ func isHTTPTimeout(err error) bool {
 	return false
 }
 
-func hasContainers(mb model.MessageBody) bool {
+// hasContainers returns the number of containers in the message body
+func hasContainers(mb model.MessageBody) int {
 	switch v := mb.(type) {
 	case *model.CollectorProc:
-		return len(v.GetContainers()) > 0
+		return len(v.GetContainers())
 	case *model.CollectorRealTime:
-		return len(v.GetContainerStats()) > 0
+		return len(v.GetContainerStats())
 	case *model.CollectorContainer:
-		return len(v.GetContainers()) > 0
+		return len(v.GetContainers())
 	case *model.CollectorContainerRealTime:
-		return len(v.GetStats()) > 0
+		return len(v.GetStats())
 	case *model.CollectorConnections:
-		return false
+		return 0
 	}
-	return false
+	return 0
 }
