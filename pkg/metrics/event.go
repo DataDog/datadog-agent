@@ -197,7 +197,7 @@ type eventsSourceType struct {
 }
 
 type eventsBySourceTypeMarshaler struct {
-	Events             // Require to not implement Marshaler methods
+	Events             // Required to avoid implementing Marshaler methods
 	eventsBySourceType []eventsSourceType
 }
 
