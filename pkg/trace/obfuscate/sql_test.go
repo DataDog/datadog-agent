@@ -353,21 +353,33 @@ ORDER BY [b].[Name]`,
 		},
 		{
 			`SELECT * FROM users WHERE firstname=""`,
-			`SELECT * FROM users WHERE firstname = ""`,
+			`SELECT * FROM users WHERE firstname = ?`,
 		},
 		{
 			`SELECT * FROM users WHERE lastname=" "`,
-			`SELECT * FROM users WHERE lastname = ""`,
+			`SELECT * FROM users WHERE lastname = ?`,
 		},
 		{
 			`SELECT * FROM users WHERE lastname="	 "`,
-			`SELECT * FROM users WHERE lastname = ""`,
+			`SELECT * FROM users WHERE lastname = ?`,
 		},
 		{
 			`SELECT [b].[BlogId], [b].[Name]
 FROM [Blogs] AS [b
 ORDER BY [b].[Name]`,
 			`Non-parsable SQL query`,
+		},
+		{
+			`SELECT customer_item_list_id, customer_id FROM customer_item_list WHERE type = wishlist AND customer_id = ? AND visitor_id IS ? UNION SELECT customer_item_list_id, customer_id FROM customer_item_list WHERE type = wishlist AND customer_id IS ? AND visitor_id = "AA0DKTGEM6LRN3WWPZ01Q61E3J7ROX7O" ORDER BY customer_id DESC`,
+			"SELECT customer_item_list_id, customer_id FROM customer_item_list WHERE type = wishlist AND customer_id = ? AND visitor_id IS ? UNION SELECT customer_item_list_id, customer_id FROM customer_item_list WHERE type = wishlist AND customer_id IS ? AND visitor_id = ? ORDER BY customer_id DESC",
+		},
+		{
+			`update Orders set created = "2019-05-24 00:26:17", gross = 30.28, payment_type = "eventbrite", mg_fee = "3.28", fee_collected = "3.28", event = 59366262, status = "10", survey_type = 'direct', tx_time_limit = 480, invite = "", ip_address = "69.215.148.82", currency = 'USD', gross_USD = "30.28", tax_USD = 0.00, journal_activity_id = 4044659812798558774, eb_tax = 0.00, eb_tax_USD = 0.00, cart_uuid = "160b450e7df511e9810e0a0c06de92f8", changed = '2019-05-24 00:26:17' where id = ?`,
+			`update Orders set created = ? gross = ? payment_type = ? mg_fee = ? fee_collected = ? event = ? status = ? survey_type = ? tx_time_limit = ? invite = ? ip_address = ? currency = ? gross_USD = ? tax_USD = ? journal_activity_id = ? eb_tax = ? eb_tax_USD = ? cart_uuid = ? changed = ? where id = ?`,
+		},
+		{
+			`update Attendees set email = '626837270@qq.com', first_name = "贺新春送猪福加企鹅1054948000领98綵斤", last_name = '王子198442com体验猪多优惠', journal_activity_id = 4246684839261125564, changed = "2019-05-24 00:26:22" where id = 123`,
+			`update Attendees set email = ? first_name = ? last_name = ? journal_activity_id = ? changed = ? where id = ?`,
 		},
 	}
 

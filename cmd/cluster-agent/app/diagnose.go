@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -27,23 +26,21 @@ var diagnoseCommand = &cobra.Command{
 	Use:   "diagnose",
 	Short: "Execute some connectivity diagnosis on your system",
 	Long:  ``,
-	Run:   doDiagnose,
+	RunE:  doDiagnose,
 }
 
-func doDiagnose(cmd *cobra.Command, args []string) {
+func doDiagnose(cmd *cobra.Command, args []string) error {
 	// Global config setup
-	if confPath != "" {
-		if err := common.SetupConfig(confPath); err != nil {
-			fmt.Println("Cannot setup config, exiting:", err)
-			panic(err)
-		}
+	err := common.SetupConfig(confPath)
+	if err != nil {
+		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
 	if flagNoColor {
 		color.NoColor = true
 	}
 
-	err := config.SetupLogger(
+	err = config.SetupLogger(
 		loggerName,
 		config.Datadog.GetString("log_level"),
 		common.DefaultLogFile,
@@ -53,12 +50,8 @@ func doDiagnose(cmd *cobra.Command, args []string) {
 		config.Datadog.GetBool("log_format_json"),
 	)
 	if err != nil {
-		log.Errorf("Error while setting up logging, exiting: %v", err)
-		panic(err)
+		return fmt.Errorf("Error while setting up logging, exiting: %v", err)
 	}
 
-	err = diagnose.RunAll(color.Output)
-	if err != nil {
-		panic(err)
-	}
+	return diagnose.RunAll(color.Output)
 }

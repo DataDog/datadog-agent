@@ -51,6 +51,8 @@ blacklist_folders = [
   'docker_daemon',
   'kubernetes',
   'ntp',                           # provided as a go check by the core agent
+  # Python 2-only
+  'tokumx',
 ]
 
 # package names of dependencies that won't be added to the Agent Python environment
@@ -70,7 +72,7 @@ if arm?
 end
 
 if windows? && windows_arch_i386?
-  blacklist_folders.push('oracle') 
+  blacklist_folders.push('oracle')
   blacklist_packages.push(/^cx-Oracle==/)
   blacklist_packages.push(/^jpype1==/)
   blacklist_packages.push(/^Jpype1==/)

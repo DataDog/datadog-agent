@@ -19,11 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -64,7 +64,7 @@ func init() {
 	pyLoaderStats.Set("Py3Warnings", expvar.Func(expvarPy3Warnings))
 
 	agentVersionTags = []string{}
-	if agentVersion, err := version.New(version.AgentVersion, version.Commit); err == nil {
+	if agentVersion, err := version.Agent(); err == nil {
 		agentVersionTags = []string{
 			fmt.Sprintf("agent_version_major:%d", agentVersion.Major),
 			fmt.Sprintf("agent_version_minor:%d", agentVersion.Minor),
@@ -171,17 +171,19 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 		// Let's use the module namespace to try to decide if this was a
 		// custom check, check for py3 compatibility
 		var checkFilePath *C.char
+		var goCheckFilePath string
 
 		fileAttr := TrackedCString("__file__")
 		defer C._free(unsafe.Pointer(fileAttr))
 		// get_attr_string allocation tracked by memory tracker
 		if res := C.get_attr_string(rtloader, checkModule, fileAttr, &checkFilePath); res != 0 {
-			reportPy3Warnings(name, C.GoString(checkFilePath))
+			goCheckFilePath = C.GoString(checkFilePath)
 			C.rtloader_free(rtloader, unsafe.Pointer(checkFilePath))
 		} else {
-			reportPy3Warnings(name, "")
 			log.Debugf("Could not query the __file__ attribute for check %s: %s", name, getRtLoaderError())
 		}
+
+		go reportPy3Warnings(name, goCheckFilePath)
 	}
 
 	// Get an AgentCheck for each configuration instance and add it to the registry
@@ -257,7 +259,7 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 			checkFilePath = checkFilePath[:len(checkFilePath)-1]
 		}
 
-		if strings.HasPrefix(host.GetPythonVersion(), "3") {
+		if strings.TrimSpace(config.Datadog.GetString("python_version")) == "3" {
 			// the linter used by validatePython3 doesn't work when run from python3
 			status = a7TagPython3
 			metricValue = 1.0

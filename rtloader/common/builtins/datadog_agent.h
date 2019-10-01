@@ -74,6 +74,14 @@
 
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
+/*! \fn void _set_set_check_metadata_cb(cb_set_check_metadata_t)
+    \brief Sets a callback to be used by rtloader to allow setting metadata for a given
+    check instance.
+    \param object A function pointer with cb_set_check_metadata_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
 /*! \fn void _set_set_external_tags_cb(cb_set_external_tags_t)
     \brief Sets a callback to be used by rtloader to allow setting external tags for a given
     hostname.
@@ -118,6 +126,7 @@ void _set_tracemalloc_enabled_cb(cb_tracemalloc_enabled_t);
 void _set_get_version_cb(cb_get_version_t);
 void _set_headers_cb(cb_headers_t);
 void _set_log_cb(cb_log_t);
+void _set_set_check_metadata_cb(cb_set_check_metadata_t);
 void _set_set_external_tags_cb(cb_set_external_tags_t);
 
 PyObject *_public_headers(PyObject *self, PyObject *args, PyObject *kwargs);

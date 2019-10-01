@@ -17,6 +17,9 @@
 #pragma clang diagnostic pop
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
+#include <uapi/linux/ip.h>
+#include <uapi/linux/ipv6.h>
+#include <uapi/linux/udp.h>
 
 /* Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
  */
@@ -519,6 +522,28 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     return handle_message(&t, size, 0);
 }
 
+SEC("kprobe/tcp_sendmsg/rhel")
+int kprobe__tcp_sendmsg__rhel(struct pt_regs* ctx) {
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    size_t size = (size_t)PT_REGS_PARM4(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 zero = 0;
+
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL) {
+        return 0;
+    }
+    log_debug("kprobe/tcp_sendmsg/rhel: pid_tgid: %d, size: %d\n", pid_tgid, size);
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    handle_tcp_stats(&t, status, sk);
+    return handle_message(&t, size, 0);
+}
+
 SEC("kretprobe/tcp_sendmsg")
 int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
     int ret = PT_REGS_RC(ctx);
@@ -633,6 +658,29 @@ int kprobe__udp_sendmsg(struct pt_regs* ctx) {
     }
 
     log_debug("kprobe/udp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    handle_message(&t, size, 0);
+
+    return 0;
+}
+
+SEC("kprobe/udp_sendmsg/rhel")
+int kprobe__udp_sendmsg__rhel(struct pt_regs* ctx) {
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    size_t size = (size_t)PT_REGS_PARM4(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 zero = 0;
+
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL) {
+        return 0;
+    }
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_UDP)) {
+        return 0;
+    }
+
+    log_debug("kprobe/udp_sendmsg/rhel: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0);
 
     return 0;
@@ -771,6 +819,38 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
 
     log_debug("kprobe/tcp_v4_destroy_sock: lport: %d\n", lport);
     return 0;
+}
+
+// This function is meant to be used as a BPF_PROG_TYPE_SOCKET_FILTER.
+// When attached to a RAW_SOCKET, this code filters out everything but DNS traffic.
+// All structs referenced here are kernel independent as they simply map protocol headers (Ethernet, IP and UDP).
+SEC("socket/dns_filter")
+int socket__dns_filter(struct __sk_buff *skb) {
+    __u16 l3_proto = load_half(skb, offsetof(struct ethhdr, h_proto));
+    __u8 l4_proto;
+    size_t ip_hdr_size;
+
+    switch(l3_proto) {
+    case ETH_P_IP:
+        ip_hdr_size = sizeof(struct iphdr);
+        l4_proto = load_byte(skb, ETH_HLEN + offsetof(struct iphdr, protocol));
+        break;
+    case ETH_P_IPV6:
+        ip_hdr_size = sizeof(struct ipv6hdr);
+        l4_proto = load_byte(skb, ETH_HLEN + offsetof(struct ipv6hdr, nexthdr));
+        break;
+    default:
+        return 0;
+    }
+
+    if (l4_proto != IPPROTO_UDP)
+        return 0;
+
+    __u16 src_port = load_half(skb, ETH_HLEN + ip_hdr_size + offsetof(struct udphdr, source));
+    if (src_port != 53)
+        return 0;
+
+    return -1;
 }
 
 // This number will be interpreted by gobpf-elf-loader to set the current running kernel version

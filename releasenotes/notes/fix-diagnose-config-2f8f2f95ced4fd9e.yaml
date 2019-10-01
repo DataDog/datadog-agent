@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix the behavior of the diagnose command that would not consider default configuration location
+    when run independently

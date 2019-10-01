@@ -51,6 +51,4 @@ func init() {
 	flag.StringVar(&MemProfile, "memprofile", "", "Write memory profile to `file`")
 
 	registerOSSpecificFlags()
-
-	flag.Parse()
 }
