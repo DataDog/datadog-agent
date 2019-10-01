@@ -689,6 +689,17 @@
   version = "v1.0.0"
 
 [[projects]]
+  digest = "1:e1e098ae35522f3dbf47319bceba5c98daa5aaae6c87aeb6bbe39d4e77fda83f"
+  name = "github.com/google/gopacket"
+  packages = [
+    ".",
+    "afpacket",
+    "layers",
+  ]
+  pruneopts = ""
+  revision = "c340012d34adb8462b1e23ad4d7a73944f4224b8"
+
+[[projects]]
   digest = "1:ad92aa49f34cbc3546063c7eb2cabb55ee2278b72842eda80e2a20a8a06a8d73"
   name = "github.com/google/uuid"
   packages = ["."]
