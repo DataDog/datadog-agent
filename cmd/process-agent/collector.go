@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -287,11 +288,7 @@ func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, bod
 	req.Header.Add("X-Dd-APIKey", endpoint.APIKey)
 	req.Header.Add("X-Dd-Hostname", l.cfg.HostName)
 	req.Header.Add("X-Dd-Processagentversion", Version)
-	if containerCount > 0 {
-		req.Header.Add("X-Dd-HasContainers", "true")
-	} else {
-		req.Header.Add("X-Dd-HasContainers", "false")
-	}
+	req.Header.Add("X-Dd-ContainerCount", strconv.Itoa(containerCount))
 
 	ctx, cancel := context.WithTimeout(context.Background(), ReqCtxTimeout)
 	defer cancel()
