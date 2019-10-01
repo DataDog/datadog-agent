@@ -159,7 +159,7 @@ func (c *APIClient) connect() error {
 	if err != nil {
 		return err
 	}
-	if config.Datadog.Get("watermark_pod_autoscaler_controller.enabled") == true {
+	if config.Datadog.Get("external_metrics_provider.wpa_controller") == true {
 		c.WPAInformerFactory, err = getWPAInformerFactory()
 		if err != nil {
 			log.Errorf("Error getting WPA Informer Factory: %s", err.Error())
