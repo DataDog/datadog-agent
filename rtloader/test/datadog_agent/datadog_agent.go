@@ -31,6 +31,7 @@ extern void headers(char **);
 extern void setCheckMetadata(char*, char*, char*);
 extern void setExternalHostTags(char*, char*, char**);
 
+
 static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_cgo_free_cb(rtloader, _free);
    set_get_clustername_cb(rtloader, getClustername);
