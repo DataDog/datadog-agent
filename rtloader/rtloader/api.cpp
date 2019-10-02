@@ -421,6 +421,11 @@ void set_log_cb(rtloader_t *rtloader, cb_log_t cb)
     AS_TYPE(RtLoader, rtloader)->setLogCb(cb);
 }
 
+void set_set_check_metadata_cb(rtloader_t *rtloader, cb_set_check_metadata_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSetCheckMetadataCb(cb);
+}
+
 void set_set_external_tags_cb(rtloader_t *rtloader, cb_set_external_tags_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setSetExternalTagsCb(cb);

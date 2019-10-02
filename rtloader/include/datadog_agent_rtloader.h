@@ -461,6 +461,17 @@ DATADOG_AGENT_RTLOADER_API void set_tracemalloc_enabled_cb(rtloader_t *, cb_trac
 */
 DATADOG_AGENT_RTLOADER_API void set_log_cb(rtloader_t *, cb_log_t);
 
+/*! \fn void set_set_check_metadata_cb(rtloader_t *, cb_set_check_metadata_t)
+    \brief Sets a callback to be used by rtloader to allow setting metadata for a given
+    check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_set_check_metadata_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_set_check_metadata_cb(rtloader_t *, cb_set_check_metadata_t);
+
 /*! \fn void set_set_external_tags_cb(rtloader_t *, cb_set_external_tags_t)
     \brief Sets a callback to be used by rtloader to allow setting external tags for a given
     hostname.

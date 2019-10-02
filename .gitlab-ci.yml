@@ -158,6 +158,7 @@ before_script:
     - pip install wheel
     - pip install -r requirements.txt
     - go get gopkg.in/yaml.v2
+    - go get github.com/stretchr/testify
     - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed
@@ -931,6 +932,43 @@ deploy_windows_testing-a7:
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
 
+kitchen_windows_upgrade5to6:
+  stage: testkitchen_testing
+  allow_failure: true
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - bash -l tasks/run-test-kitchen.sh windows-upgrade5-test
+
+kitchen_windows_upgrade5to7:
+  stage: testkitchen_testing
+  allow_failure: true
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - bash -l tasks/run-test-kitchen.sh windows-upgrade5-test
 
 # run dd-agent-testing on windows
 kitchen_windows-a6:

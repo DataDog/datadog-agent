@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
 func TestMain(m *testing.M) {
@@ -20,6 +22,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetVersion(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		version = datadog_agent.get_version()
@@ -36,9 +41,15 @@ func TestGetVersion(t *testing.T) {
 	if out != "1.2.3" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestGetConfig(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	d = datadog_agent.get_config("foo")
 	with open(r'%s', 'w') as f:
@@ -51,9 +62,15 @@ func TestGetConfig(t *testing.T) {
 	if out != "foo:Hello:123456" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestHeaders(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	d = datadog_agent.headers(http_host="myhost", ignore_me="snafu")
 	with open(r'%s', 'w') as f:
@@ -66,9 +83,15 @@ func TestHeaders(t *testing.T) {
 	if out != "Accept,Content-Type,Host,User-Agent" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestGetHostname(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		name = datadog_agent.get_hostname()
@@ -85,9 +108,15 @@ func TestGetHostname(t *testing.T) {
 	if out != "localfoobar" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestGetClustername(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		name = datadog_agent.get_clustername()
@@ -105,17 +134,29 @@ func TestGetClustername(t *testing.T) {
 	if out != "the-cluster" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestGetTracemallocEnabled(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `assert datadog_agent.tracemalloc_enabled()`
 	_, err := run(code)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestLog(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `
 	datadog_agent.log("foo message", 99)
 	`
@@ -126,9 +167,28 @@ func TestLog(t *testing.T) {
 	if out != "[99]foo message" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestSetCheckMetadata(t *testing.T) {
+	code := `
+	datadog_agent.set_check_metadata("redis:test:12345", "version.raw", "5.0.6")
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "redis:test:12345,version.raw,5.0.6" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
 }
 
 func TestSetExternalTags(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `
 	tags = [
 		('hostname', {'source_type': ['tag1', 'tag2']}),
@@ -143,9 +203,15 @@ func TestSetExternalTags(t *testing.T) {
 	if out != "hostname,source_type,tag1,tag2\nhostname2,source_type2,tag3,tag4" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestSetExternalTagsIgnoreNonString(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `
 	tags = [
 		('hostname', {'source_type': ['tag1', 123, 'tag2']}),
@@ -160,9 +226,15 @@ func TestSetExternalTagsIgnoreNonString(t *testing.T) {
 	if out != "hostname,source_type,tag1,tag2\nhostname2,source_type2,tag3,tag4" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestSetExternalTagsUnicode(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `
 	tags = [
 		('hostname', {'source_type': [u'tag1', 123, u'tag2']}),
@@ -177,9 +249,15 @@ func TestSetExternalTagsUnicode(t *testing.T) {
 	if out != "hostname,source_type,tag1,tag2\nhostname2,source_type2,tag3,tag4" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestSetExternalTagsNotList(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `
 	datadog_agent.set_external_tags({})
 	`
@@ -190,9 +268,15 @@ func TestSetExternalTagsNotList(t *testing.T) {
 	if out != "TypeError: tags must be a list" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestSetExternalTagsNotTuple(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `
 	datadog_agent.set_external_tags([{}, {}])
 	`
@@ -203,9 +287,15 @@ func TestSetExternalTagsNotTuple(t *testing.T) {
 	if out != "TypeError: external host tags list must contain only tuples" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestSetExternalTagsInvalidHostname(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `
 	tags = [
 		(123, {'source_type': ['tag1', 'tag2']}),
@@ -220,9 +310,15 @@ func TestSetExternalTagsInvalidHostname(t *testing.T) {
 	if out != "TypeError: hostname is not a valid string" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestSetExternalTagsNotDict(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `
 	tags = [
 		("hostname", ('source_type', ['tag1', 'tag2'])),
@@ -237,9 +333,15 @@ func TestSetExternalTagsNotDict(t *testing.T) {
 	if out != "TypeError: second elem of the host tags tuple must be a dict" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestSetExternalTagInvalidSourceType(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `
 	tags = [
 		('hostname', {'source_type': ['tag1', 'tag2']}),
@@ -254,9 +356,15 @@ func TestSetExternalTagInvalidSourceType(t *testing.T) {
 	if out != "TypeError: source_type is not a valid string" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestSetExternalTagInvalidTagsList(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `
 	tags = [
 		('hostname', {'source_type': {'tag1': 'tag2'}}),
@@ -271,4 +379,7 @@ func TestSetExternalTagInvalidTagsList(t *testing.T) {
 	if out != "TypeError: dict value must be a list of tags" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
