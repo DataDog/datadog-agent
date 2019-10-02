@@ -7,10 +7,13 @@ import (
 )
 
 func TestInit(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	if err := runInit(); err != nil {
 		t.Errorf("Expected nil, got: %v", err)
 	}
 
-	// Check for leaks
-	helpers.AssertMemoryUsage(t)
+	// Check for expected allocations
+	helpers.AssertMemoryExpectation(t, helpers.Allocations, 1)
 }

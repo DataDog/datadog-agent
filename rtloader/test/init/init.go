@@ -15,13 +15,13 @@ import (
 import "C"
 
 func runInit() error {
+	// Initialize memory tracking
+	helpers.InitMemoryTracker()
+
 	rtloader := (*C.rtloader_t)(common.GetRtLoader())
 	if rtloader == nil {
 		return fmt.Errorf("make failed")
 	}
-
-	// Initialize memory tracking
-	helpers.InitMemoryTracker()
 
 	// Updates sys.path so testing Check can be found
 	C.add_python_path(rtloader, C.CString("../python"))

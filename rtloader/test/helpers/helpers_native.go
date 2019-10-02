@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"expvar"
 	"testing"
 	"unsafe"
 
@@ -46,4 +47,11 @@ func ResetMemoryStats() {
 func AssertMemoryUsage(t *testing.T) {
 	assert.Equal(t, Allocations.Value(), Frees.Value(),
 		"Number of allocations doesn't match number of frees")
+}
+
+// AssertMemoryAllocations makes sure the allocations match the
+// provided value
+func AssertMemoryExpectation(t *testing.T, counter expvar.Int, expected int64) {
+	assert.Equal(t, expected, counter.Value(),
+		"Memory statistic doesn't match the expected value")
 }

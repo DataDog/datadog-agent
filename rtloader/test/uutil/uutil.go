@@ -35,13 +35,13 @@ var (
 )
 
 func setUp() error {
+	// Initialize memory tracking
+	helpers.InitMemoryTracker()
+
 	rtloader = (*C.rtloader_t)(common.GetRtLoader())
 	if rtloader == nil {
 		return fmt.Errorf("make failed")
 	}
-
-	// Initialize memory tracking
-	helpers.InitMemoryTracker()
 
 	var err error
 	tmpfile, err = ioutil.TempFile("", "testout")
