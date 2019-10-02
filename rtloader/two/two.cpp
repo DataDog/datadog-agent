@@ -176,9 +176,9 @@ void Two::freePyInfo(py_info_t *info)
 {
     info->version = NULL;
     if (info->path) {
-        free(info->path);
+        _free(info->path);
     }
-    free(info);
+    _free(info);
     return;
 }
 
