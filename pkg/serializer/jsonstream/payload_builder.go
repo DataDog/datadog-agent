@@ -37,26 +37,26 @@ func NewPayloadBuilder() *PayloadBuilder {
 	}
 }
 
-// OnErrTooBigPolicy defines the behavior when OnErrTooBig occurs.
-type OnErrTooBigPolicy int
+// OnErrItemTooBigPolicy defines the behavior when OnErrItemTooBig occurs.
+type OnErrItemTooBigPolicy int
 
 const (
-	// ContinueOnErrTooBig: when founding an errTooBig, skips the error and continue
-	ContinueOnErrTooBig OnErrTooBigPolicy = iota
+	// ContinueOnErrItemTooBig: when founding an ErrItemTooBig, skips the error and continue
+	ContinueOnErrItemTooBig OnErrItemTooBigPolicy = iota
 
-	// FailedErrTooBig: when founding an errTooBig, returns the error and stop
-	FailedErrTooBig
+	// FailedErrItemTooBig: when founding an ErrItemTooBig, returns the error and stop
+	FailedErrItemTooBig
 )
 
 // Build serializes a metadata payload and sends it to the forwarder
 func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
-	return b.BuildWithOnErrTooBigPolicy(m, ContinueOnErrTooBig)
+	return b.BuildWithOnErrItemTooBigPolicy(m, ContinueOnErrItemTooBig)
 }
 
-// BuildWithOnErrTooBigPolicy serializes a metadata payload and sends it to the forwarder
-func (b *PayloadBuilder) BuildWithOnErrTooBigPolicy(
+// BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
+func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.StreamJSONMarshaler,
-	policy OnErrTooBigPolicy) (forwarder.Payloads, error) {
+	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
 
 	var payloads forwarder.Payloads
 	var i int
@@ -119,9 +119,9 @@ func (b *PayloadBuilder) BuildWithOnErrTooBigPolicy(
 			i++
 			expvarsTotalItems.Add(1)
 			continue
-		case ErrTooBig:
-			if policy == FailedErrTooBig {
-				return nil, ErrTooBig
+		case ErrItemTooBig:
+			if policy == FailedErrItemTooBig {
+				return nil, ErrItemTooBig
 			}
 			fallthrough
 		default:

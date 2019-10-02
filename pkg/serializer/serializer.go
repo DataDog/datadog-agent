@@ -165,20 +165,20 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 	return payloads, extraHeaders, nil
 }
 
-func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarshaler, policy jsonstream.OnErrTooBigPolicy) (forwarder.Payloads, http.Header, error) {
-	payloads, err := s.seriesPayloadBuilder.BuildWithOnErrTooBigPolicy(payload, policy)
+func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarshaler, policy jsonstream.OnErrItemTooBigPolicy) (forwarder.Payloads, http.Header, error) {
+	payloads, err := s.seriesPayloadBuilder.BuildWithOnErrItemTooBigPolicy(payload, policy)
 	return payloads, jsonExtraHeadersWithCompression, err
 }
 
 func (s Serializer) serializeStreamJSONMarshalerFactoryPayload(
 	streamJSONMarshalerFactory marshaler.StreamJSONMarshalerFactory) (forwarder.Payloads, http.Header, error) {
 	marshaler := streamJSONMarshalerFactory.CreateSingleMarshaler()
-	eventPayloads, extraHeaders, err := s.serializeStreamablePayload(marshaler, jsonstream.FailedErrTooBig)
+	eventPayloads, extraHeaders, err := s.serializeStreamablePayload(marshaler, jsonstream.FailedErrItemTooBig)
 
-	if err == jsonstream.ErrTooBig {
+	if err == jsonstream.ErrItemTooBig {
 		for _, v := range streamJSONMarshalerFactory.CreateMarshalerCollection() {
 			var eventPayloadsForSourceType forwarder.Payloads
-			eventPayloadsForSourceType, extraHeaders, err = s.serializeStreamablePayload(v, jsonstream.ContinueOnErrTooBig)
+			eventPayloadsForSourceType, extraHeaders, err = s.serializeStreamablePayload(v, jsonstream.ContinueOnErrItemTooBig)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -229,7 +229,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 	var err error
 
 	if useV1API && s.enableServiceChecksJSONStream {
-		serviceCheckPayloads, extraHeaders, err = s.serializeStreamablePayload(sc, jsonstream.ContinueOnErrTooBig)
+		serviceCheckPayloads, extraHeaders, err = s.serializeStreamablePayload(sc, jsonstream.ContinueOnErrItemTooBig)
 	} else {
 		serviceCheckPayloads, extraHeaders, err = s.serializePayload(sc, true, useV1API)
 	}
@@ -257,7 +257,7 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 	var err error
 
 	if useV1API && s.enableJSONStream {
-		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series, jsonstream.ContinueOnErrTooBig)
+		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series, jsonstream.ContinueOnErrItemTooBig)
 	} else {
 		seriesPayloads, extraHeaders, err = s.serializePayload(series, true, useV1API)
 	}

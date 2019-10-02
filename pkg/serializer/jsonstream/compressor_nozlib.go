@@ -21,8 +21,8 @@ const (
 )
 
 var (
-	// ErrTooBig is returned when a item alone exceeds maximum payload size
-	ErrTooBig = errors.New("item alone exceeds maximum payload size")
+	// ErrItemTooBig is returned when a item alone exceeds maximum payload size
+	ErrItemTooBig = errors.New("item alone exceeds maximum payload size")
 )
 
 // Payloads serializes a metadata payload and sends it to the forwarder
