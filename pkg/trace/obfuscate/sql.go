@@ -22,7 +22,7 @@ const sqlQueryTag = "sql.query"
 // A filter can be stateful and keep an internal state to apply the filter later;
 // this can be useful to prevent backtracking in some cases.
 type tokenFilter interface {
-	Filter(token, lastToken rune, buffer []byte) (tokenType rune, tokenBytes []byte, err error)
+	Filter(token, lastToken tokenKind, buffer []byte) (tokenKind, []byte, error)
 	Reset()
 }
 
@@ -32,7 +32,7 @@ type discardFilter struct{}
 
 // Filter the given token so that a `nil` slice is returned if the token
 // is in the token filtered list.
-func (f *discardFilter) Filter(token, lastToken rune, buffer []byte) (tokenType rune, tokenBytes []byte, err error) {
+func (f *discardFilter) Filter(token, lastToken tokenKind, buffer []byte) (tokenKind, []byte, error) {
 	// filters based on previous token
 	switch lastToken {
 	case FilteredBracketedIdentifier:
@@ -76,7 +76,7 @@ func (f *discardFilter) Reset() {}
 type replaceFilter struct{}
 
 // Filter the given token so that it will be replaced if in the token replacement list
-func (f *replaceFilter) Filter(token, lastToken rune, buffer []byte) (tokenType rune, tokenBytes []byte, err error) {
+func (f *replaceFilter) Filter(token, lastToken tokenKind, buffer []byte) (tokenType tokenKind, tokenBytes []byte, err error) {
 	switch lastToken {
 	case Savepoint:
 		return FilteredGroupable, []byte("?"), nil
@@ -109,7 +109,7 @@ type groupingFilter struct {
 // has been recognized. A grouping is composed by items like:
 //   * '( ?, ?, ? )'
 //   * '( ?, ? ), ( ?, ? )'
-func (f *groupingFilter) Filter(token, lastToken rune, buffer []byte) (tokenType rune, tokenBytes []byte, err error) {
+func (f *groupingFilter) Filter(token, lastToken tokenKind, buffer []byte) (tokenType tokenKind, tokenBytes []byte, err error) {
 	// increasing the number of groups means that we're filtering an entire group
 	// because it can be represented with a single '( ? )'
 	if (lastToken == '(' && token == FilteredGroupable) || (token == '(' && f.groupMulti > 0) {
@@ -157,7 +157,7 @@ func obfuscateSQLString(in string) (string, error) {
 	var (
 		out       bytes.Buffer
 		err       error
-		lastToken rune
+		lastToken tokenKind
 	)
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded
