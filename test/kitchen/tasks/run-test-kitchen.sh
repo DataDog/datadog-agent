@@ -90,6 +90,10 @@ if [[ $#  != 0 && $1 == "windows-install-test" ]]; then
   cp kitchen-azure-winstall.yml kitchen.yml
 fi
 
+if [[ $#  != 0 && $1 == "windows-upgrade5-test" ]]; then
+  cp kitchen-azure-wupgrade5.yml kitchen.yml
+fi
+
 kitchen diagnose --no-instances --loader
 
 rm -rf cookbooks
