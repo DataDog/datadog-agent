@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -214,7 +214,7 @@ func (c *AgentConfig) HTTPClient() *http.Client {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 	if p := coreconfig.GetProxies(); p != nil {
-		transport.Proxy = util.GetProxyTransportFunc(p)
+		transport.Proxy = httputils.GetProxyTransportFunc(p)
 	}
 	return &http.Client{
 		Timeout:   10 * time.Second,
