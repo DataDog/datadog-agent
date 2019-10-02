@@ -187,10 +187,8 @@ func (events Events) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 	return splitPayloads, nil
 }
 
-//-----------------------------------------------------------------------------
 // Implements StreamJSONMarshaler.
 // Each item in StreamJSONMarshaler is composed of all events for a specific source type name.
-//-----------------------------------------------------------------------------
 type eventsSourceType struct {
 	sourceType string
 	events     []*Event
@@ -302,12 +300,10 @@ func (events Events) CreateSingleMarshaler() marshaler.StreamJSONMarshaler {
 	return &eventsBySourceTypeMarshaler{events, values}
 }
 
-//-----------------------------------------------------------------------------
 // Implements a *collection* of StreamJSONMarshaler.
 // Each collection is composed of all events for a specific source type name.
 // Items returned by CreateMarshalerBySourceType can be too big. In this case,
 // we use a collection of StreamJSONMarshaler each by source type.
-//-----------------------------------------------------------------------------
 type eventsMarshaler struct {
 	sourceTypeName string
 	Events

@@ -125,9 +125,7 @@ func TestSplitEvents(t *testing.T) {
 	require.Len(t, newEvents, 2)
 }
 
-//-----------------------------------------------------------------------------
 // Test StreamJSONMarshaler
-//-----------------------------------------------------------------------------
 func TestPayloadDescribeItem(t *testing.T) {
 	events := Events{createEvent("sourceTypeName")}
 	assert.Equal(t, `Source type: sourceTypeName, events count: 1`,
@@ -136,29 +134,24 @@ func TestPayloadDescribeItem(t *testing.T) {
 		events.CreateMarshalerCollection()[0].DescribeItem(0))
 }
 
-//-----------------------------------------------------------------------------
 func TestPayloadsNoEvent(t *testing.T) {
 	assertEqualEventsToMarshalJSON(t, Events{})
 }
 
-//-----------------------------------------------------------------------------
 func TestPayloadsSingleEvent(t *testing.T) {
 	events := createEvents("sourceTypeName")
 	assertEqualEventsToMarshalJSON(t, events)
 }
 
-//-----------------------------------------------------------------------------
 func TestPayloadsEmptyEvent(t *testing.T) {
 	assertEqualEventsToMarshalJSON(t, Events{&Event{}})
 }
 
-//-----------------------------------------------------------------------------
 func TestPayloadsEvents(t *testing.T) {
 	events := createEvents("1", "2", "3", "2", "1", "3")
 	assertEqualEventsToMarshalJSON(t, events)
 }
 
-//-----------------------------------------------------------------------------
 func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 	events := createEvents("3", "3", "2", "2", "1", "1")
 
@@ -173,7 +166,6 @@ func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 	assertEqualEventsPayloads(t, expectedPayloads, payloadsBySourceType)
 }
 
-//-----------------------------------------------------------------------------
 func TestEventsSeveralPayloadsCreateMarshalerCollection(t *testing.T) {
 	events := createEvents("3", "3", "2", "2", "1", "1")
 
@@ -195,9 +187,7 @@ func TestEventsSeveralPayloadsCreateMarshalerCollection(t *testing.T) {
 	assertEqualEventsPayloads(t, expectedPayloads, payloadForEachSourceType)
 }
 
-//-----------------------------------------------------------------------------
 // Helpers
-//-----------------------------------------------------------------------------
 type payloadsType = []byte
 
 func createEvent(sourceTypeName string) *Event {
@@ -214,7 +204,6 @@ func createEvent(sourceTypeName string) *Event {
 		EventType:      "10"}
 }
 
-//-----------------------------------------------------------------------------
 func createEvents(sourceTypeNames ...string) Events {
 	var events []*Event
 	for _, s := range sourceTypeNames {
@@ -223,7 +212,6 @@ func createEvents(sourceTypeNames ...string) Events {
 	return events
 }
 
-//-----------------------------------------------------------------------------
 // Check PayloadBuilder for CreateSingleMarshaler and CreateMarshalerCollection
 // return the same results as for MarshalJSON.
 func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
@@ -240,7 +228,6 @@ func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
 	assertEqualEventsPayloads(t, json, payloads)
 }
 
-//-----------------------------------------------------------------------------
 func assertEqualEventsPayloads(t *testing.T, expected payloadsType, actual []payloadsType) {
 	// The payload order returned by Events is not deterministic because we use a map inside
 	// getEventsBySourceType().
@@ -255,7 +242,6 @@ func assertEqualEventsPayloads(t *testing.T, expected payloadsType, actual []pay
 		"\n%+p\nVS\n%+v", expectedBySourceTypes, actualBySourceTypes)
 }
 
-//-----------------------------------------------------------------------------
 func buildEventsJSON(payloads []payloadsType) (*eventsJSON, error) {
 	var allEventsJSON *eventsJSON
 
@@ -288,7 +274,6 @@ func buildEventsJSON(payloads []payloadsType) (*eventsJSON, error) {
 	return allEventsJSON, nil
 }
 
-//-----------------------------------------------------------------------------
 type eventsJSON struct {
 	APIKey           string
 	Events           map[string][]Event
