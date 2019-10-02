@@ -8,7 +8,8 @@
 ---
 upgrade:
   - |
-    An hostname starting with ``EC2AMAZ-`` has its canonical hostname set to the instance id.
+    Hostnames starting with ``EC2AMAZ-`` will now have their canonical hostname set as instance id.
+    You might need to update these hostnames in your dashboards and alarms accordingly.
 fixes:
   - |
     Handle Amazon Windows EC2 instances detection which have default hostnames starting with ``EC2AMAZ-`` on Windows.
