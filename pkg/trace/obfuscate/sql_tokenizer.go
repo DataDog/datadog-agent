@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // tokenizer.go implemenents a lexer-like iterator that tokenizes SQL and CQL
@@ -23,8 +24,8 @@ import (
 // list of available tokens; this list has been reduced because we don't
 // need a full-fledged tokenizer to implement a Lexer
 const (
-	EOFChar  = 0x100
-	LexError = 57346 + iota
+	EOFChar  = unicode.ReplacementChar
+	LexError = rune(57346) + iota
 	ID
 	Limit
 	Null
@@ -63,10 +64,10 @@ const (
 // SQLTokenizer is the struct used to generate SQL
 // tokens for the parser.
 type SQLTokenizer struct {
-	rd       *strings.Reader
-	pos      int
-	lastChar uint16
-	err      error
+	rd       *strings.Reader // the "rune" reader
+	pos      int             // byte offset of lastChar
+	lastChar rune            // last read rune
+	err      error           // any error occurred while reading
 }
 
 // NewSQLTokenizer creates a new SQLTokenizer for the given SQL string.
@@ -82,7 +83,7 @@ func (tkn *SQLTokenizer) Reset(in string) {
 }
 
 // keywords used to recognize string tokens
-var keywords = map[string]int{
+var keywords = map[string]rune{
 	"NULL":      Null,
 	"TRUE":      BooleanLiteral,
 	"FALSE":     BooleanLiteral,
@@ -100,10 +101,7 @@ func (tkn *SQLTokenizer) setErr(format string, args ...interface{}) {
 
 // Scan scans the tokenizer for the next token and returns
 // the token type and the token buffer.
-// TODO[manu]: the current implementation returns a new Buffer
-// for each Scan(). An improvement to reduce the overhead of
-// the Scan() is to return slices instead of buffers.
-func (tkn *SQLTokenizer) Scan() (int, []byte) {
+func (tkn *SQLTokenizer) Scan() (rune, []byte) {
 	if tkn.lastChar == 0 {
 		tkn.next()
 	}
@@ -125,12 +123,12 @@ func (tkn *SQLTokenizer) Scan() (int, []byte) {
 			}
 			fallthrough
 		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', '~', '[', ']', '?':
-			return int(ch), []byte{byte(ch)}
+			return ch, runeBytes(ch)
 		case '.':
 			if isDigit(tkn.lastChar) {
 				return tkn.scanNumber(true)
 			}
-			return int(ch), []byte{byte(ch)}
+			return ch, runeBytes(ch)
 		case '/':
 			switch tkn.lastChar {
 			case '/':
@@ -140,14 +138,14 @@ func (tkn *SQLTokenizer) Scan() (int, []byte) {
 				tkn.next()
 				return tkn.scanCommentType2()
 			default:
-				return int(ch), []byte{byte(ch)}
+				return ch, runeBytes(ch)
 			}
 		case '-':
 			if tkn.lastChar == '-' {
 				tkn.next()
 				return tkn.scanCommentType1("--")
 			}
-			return int(ch), []byte{byte(ch)}
+			return ch, runeBytes(ch)
 		case '#':
 			tkn.next()
 			return tkn.scanCommentType1("#")
@@ -166,14 +164,14 @@ func (tkn *SQLTokenizer) Scan() (int, []byte) {
 					return LE, []byte("<=")
 				}
 			default:
-				return int(ch), []byte{byte(ch)}
+				return ch, runeBytes(ch)
 			}
 		case '>':
 			if tkn.lastChar == '=' {
 				tkn.next()
 				return GE, []byte(">=")
 			}
-			return int(ch), []byte{byte(ch)}
+			return ch, runeBytes(ch)
 		case '!':
 			if tkn.lastChar == '=' {
 				tkn.next()
@@ -196,33 +194,31 @@ func (tkn *SQLTokenizer) Scan() (int, []byte) {
 				return tkn.scanFormatParameter('%')
 			}
 			// modulo operator (e.g. 'id % 8')
-			return int(ch), []byte{byte(ch)}
+			return ch, runeBytes(ch)
 		case '$':
 			return tkn.scanPreparedStatement('$')
 		case '{':
 			return tkn.scanEscapeSequence('{')
 		default:
 			tkn.setErr(`unexpected byte %d`, ch)
-			return LexError, []byte{byte(ch)}
+			return LexError, runeBytes(ch)
 		}
 	}
 }
 
 func (tkn *SQLTokenizer) skipBlank() {
-	ch := tkn.lastChar
-	for ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t' {
+	for unicode.IsSpace(tkn.lastChar) {
 		tkn.next()
-		ch = tkn.lastChar
 	}
 }
 
-func (tkn *SQLTokenizer) scanIdentifier() (int, []byte) {
+func (tkn *SQLTokenizer) scanIdentifier() (rune, []byte) {
 	buffer := &bytes.Buffer{}
-	buffer.WriteByte(byte(tkn.lastChar))
+	buffer.WriteRune(tkn.lastChar)
 	tkn.next()
 
 	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '.' || tkn.lastChar == '*' {
-		buffer.WriteByte(byte(tkn.lastChar))
+		buffer.WriteRune(tkn.lastChar)
 		tkn.next()
 	}
 	upper := bytes.ToUpper(buffer.Bytes())
@@ -232,18 +228,18 @@ func (tkn *SQLTokenizer) scanIdentifier() (int, []byte) {
 	return ID, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanLiteralIdentifier(quote rune) (int, []byte) {
+func (tkn *SQLTokenizer) scanLiteralIdentifier(quote rune) (rune, []byte) {
 	buffer := &bytes.Buffer{}
-	buffer.WriteByte(byte(tkn.lastChar))
+	buffer.WriteRune(tkn.lastChar)
 	if !isLetter(tkn.lastChar) {
 		tkn.setErr(`unexpected character "%c" (%d) in literal identifier`, tkn.lastChar, tkn.lastChar)
 		return LexError, buffer.Bytes()
 	}
 	for tkn.next(); skipNonLiteralIdentifier(tkn.lastChar); tkn.next() {
-		buffer.WriteByte(byte(tkn.lastChar))
+		buffer.WriteRune(tkn.lastChar)
 	}
 	// literals identifier are enclosed between quotes
-	if tkn.lastChar != uint16(quote) {
+	if tkn.lastChar != quote {
 		tkn.setErr(`literal identifiers must end in "%c", got "%c" (%d)`, quote, tkn.lastChar, tkn.lastChar)
 		return LexError, buffer.Bytes()
 	}
@@ -251,18 +247,18 @@ func (tkn *SQLTokenizer) scanLiteralIdentifier(quote rune) (int, []byte) {
 	return ID, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (int, []byte) {
+func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (rune, []byte) {
 	buffer := &bytes.Buffer{}
 	buffer.WriteRune(prefix)
-	buffer.WriteByte(byte(tkn.lastChar))
+	buffer.WriteRune(tkn.lastChar)
 
 	for tkn.next(); tkn.lastChar != ')' && tkn.lastChar != EOFChar; tkn.next() {
-		buffer.WriteByte(byte(tkn.lastChar))
+		buffer.WriteRune(tkn.lastChar)
 	}
 
-	buffer.WriteByte(byte(tkn.lastChar))
+	buffer.WriteRune(tkn.lastChar)
 	tkn.next()
-	buffer.WriteByte(byte(tkn.lastChar))
+	buffer.WriteRune(tkn.lastChar)
 	if !isLetter(tkn.lastChar) {
 		tkn.setErr(`invalid character after variable identifier: "%c" (%d)`, tkn.lastChar, tkn.lastChar)
 		return LexError, buffer.Bytes()
@@ -271,16 +267,16 @@ func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (int, []byte) {
 	return Variable, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanFormatParameter(prefix rune) (int, []byte) {
+func (tkn *SQLTokenizer) scanFormatParameter(prefix rune) (rune, []byte) {
 	buffer := &bytes.Buffer{}
 	buffer.WriteRune(prefix)
-	buffer.WriteByte(byte(tkn.lastChar))
+	buffer.WriteRune(tkn.lastChar)
 
 	tkn.next()
 	return Variable, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (int, []byte) {
+func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (rune, []byte) {
 	buffer := &bytes.Buffer{}
 
 	// a prepared statement expect a digit identifier like $1
@@ -301,12 +297,12 @@ func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (int, []byte) {
 	return PreparedStatement, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanEscapeSequence(braces rune) (int, []byte) {
+func (tkn *SQLTokenizer) scanEscapeSequence(braces rune) (rune, []byte) {
 	buffer := &bytes.Buffer{}
-	buffer.WriteByte(byte(braces))
+	buffer.WriteRune(braces)
 
 	for tkn.lastChar != '}' && tkn.lastChar != EOFChar {
-		buffer.WriteByte(byte(tkn.lastChar))
+		buffer.WriteRune(tkn.lastChar)
 		tkn.next()
 	}
 
@@ -317,17 +313,17 @@ func (tkn *SQLTokenizer) scanEscapeSequence(braces rune) (int, []byte) {
 		return LexError, buffer.Bytes()
 	}
 
-	buffer.WriteByte(byte(tkn.lastChar))
+	buffer.WriteRune(tkn.lastChar)
 	tkn.next()
 	return EscapeSequence, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanBindVar() (int, []byte) {
+func (tkn *SQLTokenizer) scanBindVar() (rune, []byte) {
 	buffer := bytes.NewBufferString(":")
 	token := ValueArg
 	if tkn.lastChar == ':' {
 		token = ListArg
-		buffer.WriteByte(byte(tkn.lastChar))
+		buffer.WriteRune(tkn.lastChar)
 		tkn.next()
 	}
 	if !isLetter(tkn.lastChar) {
@@ -335,7 +331,7 @@ func (tkn *SQLTokenizer) scanBindVar() (int, []byte) {
 		return LexError, buffer.Bytes()
 	}
 	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '.' {
-		buffer.WriteByte(byte(tkn.lastChar))
+		buffer.WriteRune(tkn.lastChar)
 		tkn.next()
 	}
 	return token, buffer.Bytes()
@@ -347,7 +343,7 @@ func (tkn *SQLTokenizer) scanMantissa(base int, buffer *bytes.Buffer) {
 	}
 }
 
-func (tkn *SQLTokenizer) scanNumber(seenDecimalPoint bool) (int, []byte) {
+func (tkn *SQLTokenizer) scanNumber(seenDecimalPoint bool) (rune, []byte) {
 	buffer := &bytes.Buffer{}
 	if seenDecimalPoint {
 		buffer.WriteByte('.')
@@ -405,7 +401,7 @@ exit:
 	return Number, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanString(delim uint16, typ int) (int, []byte) {
+func (tkn *SQLTokenizer) scanString(delim rune, typ rune) (rune, []byte) {
 	buffer := &bytes.Buffer{}
 	for {
 		ch := tkn.lastChar
@@ -429,7 +425,7 @@ func (tkn *SQLTokenizer) scanString(delim uint16, typ int) (int, []byte) {
 			tkn.setErr("unexpected EOF in string")
 			return LexError, buffer.Bytes()
 		}
-		buffer.WriteByte(byte(ch))
+		buffer.WriteRune(ch)
 	}
 	buf := buffer.Bytes()
 	if typ == ID && len(buf) == 0 || bytes.IndexFunc(buf, func(r rune) bool { return !unicode.IsSpace(r) }) == -1 {
@@ -437,12 +433,12 @@ func (tkn *SQLTokenizer) scanString(delim uint16, typ int) (int, []byte) {
 		// We should keep the start and end delimiters in order to
 		// avoid creating invalid queries.
 		// See: https://github.com/DataDog/datadog-trace-agent/issues/316
-		return typ, []byte{byte(delim), byte(delim)}
+		return typ, append(runeBytes(delim), runeBytes(delim)...)
 	}
 	return typ, buf
 }
 
-func (tkn *SQLTokenizer) scanCommentType1(prefix string) (int, []byte) {
+func (tkn *SQLTokenizer) scanCommentType1(prefix string) (rune, []byte) {
 	buffer := &bytes.Buffer{}
 	buffer.WriteString(prefix)
 	for tkn.lastChar != EOFChar {
@@ -455,7 +451,7 @@ func (tkn *SQLTokenizer) scanCommentType1(prefix string) (int, []byte) {
 	return Comment, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanCommentType2() (int, []byte) {
+func (tkn *SQLTokenizer) scanCommentType2() (rune, []byte) {
 	buffer := &bytes.Buffer{}
 	buffer.WriteString("/*")
 	for {
@@ -481,33 +477,37 @@ func (tkn *SQLTokenizer) consumeNext(buffer *bytes.Buffer) {
 		// This should never happen.
 		panic("unexpected EOF")
 	}
-	buffer.WriteByte(byte(tkn.lastChar))
+	buffer.WriteRune(tkn.lastChar)
 	tkn.next()
 }
 
 func (tkn *SQLTokenizer) next() {
-	if ch, err := tkn.rd.ReadByte(); err != nil {
-		// Only EOF is possible.
+	ch, _, err := tkn.rd.ReadRune()
+	if tkn.lastChar != 0 || tkn.pos > 0 {
+		// we are past the first character
+		tkn.pos += utf8.RuneLen(ch)
+	}
+	if err != nil {
+		// only EOF is possible
 		tkn.lastChar = EOFChar
 	} else {
-		tkn.lastChar = uint16(ch)
+		tkn.lastChar = ch
 	}
-	tkn.pos++
 }
 
-func skipNonLiteralIdentifier(ch uint16) bool {
+func skipNonLiteralIdentifier(ch rune) bool {
 	return isLetter(ch) || isDigit(ch) || '.' == ch || '-' == ch
 }
 
-func isLeadingLetter(ch uint16) bool {
-	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || ch == '_' || ch == '@'
+func isLeadingLetter(ch rune) bool {
+	return unicode.IsLetter(ch) || ch == '_' || ch == '@'
 }
 
-func isLetter(ch uint16) bool {
+func isLetter(ch rune) bool {
 	return isLeadingLetter(ch) || ch == '#'
 }
 
-func digitVal(ch uint16) int {
+func digitVal(ch rune) int {
 	switch {
 	case '0' <= ch && ch <= '9':
 		return int(ch) - '0'
@@ -519,6 +519,11 @@ func digitVal(ch uint16) int {
 	return 16 // larger than any legal digit val
 }
 
-func isDigit(ch uint16) bool {
-	return '0' <= ch && ch <= '9'
+func isDigit(ch rune) bool { return unicode.IsDigit(ch) }
+
+// runeBytes converts the given rune to a slice of bytes.
+func runeBytes(r rune) []byte {
+	buf := make([]byte, utf8.RuneLen(unicode.MaxRune))
+	n := utf8.EncodeRune(buf, r)
+	return buf[:n]
 }
