@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/go-connections/nat"
@@ -262,7 +263,10 @@ func (l *DockerListener) removeService(cID string) {
 		delete(l.services, cID)
 		l.m.Unlock()
 
-		l.delService <- svc
+		// delay service removal for short lived service detection
+		time.AfterFunc(5*time.Second, func() {
+			l.delService <- svc
+		})
 	} else {
 		log.Debugf("Container %s not found, not removing", cID[:12])
 	}
