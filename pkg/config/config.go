@@ -8,6 +8,7 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -129,6 +130,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	config.BindEnvAndSetDefault("bind_host", "localhost")
+	config.BindEnvAndSetDefault("ipc_address", "localhost")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", "2")
@@ -336,6 +338,7 @@ func initConfig(config Config) {
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
+	config.BindEnvAndSetDefault("jmx_use_container_support", false)
 	config.BindEnvAndSetDefault("jmx_max_restarts", int64(3))
 	config.BindEnvAndSetDefault("jmx_restart_interval", int64(5))
 	config.BindEnvAndSetDefault("jmx_thread_pool_size", 3)
@@ -426,6 +429,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.warmup_duration", 30)         // value in seconds
 	config.BindEnvAndSetDefault("cluster_checks.cluster_tag_name", "cluster_name")
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
+	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", false)
+	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
 	config.BindEnvAndSetDefault("clc_runner_host", "") // must be set using the Kubernetes downward API
@@ -473,6 +478,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.disable_tcp")
 	config.SetKnown("system_probe_config.disable_udp")
 	config.SetKnown("system_probe_config.disable_ipv6")
+	config.SetKnown("system_probe_config.disable_dns_inspection")
 	config.SetKnown("system_probe_config.collect_local_dns")
 	config.SetKnown("system_probe_config.use_local_system_probe")
 	config.SetKnown("system_probe_config.enable_conntrack")
@@ -847,6 +853,31 @@ func IsContainerized() bool {
 // file used to populate the registry
 func FileUsedDir() string {
 	return filepath.Dir(Datadog.ConfigFileUsed())
+}
+
+// GetIPCAddress returns the IPC address or an error if the address is not local
+func GetIPCAddress() (string, error) {
+	address := Datadog.GetString("ipc_address")
+	if address == "localhost" {
+		return address, nil
+	}
+	ip := net.ParseIP(address)
+	if ip == nil {
+		return "", fmt.Errorf("ipc_address was set to an invalid IP address: %s", address)
+	}
+	for _, cidr := range []string{
+		"127.0.0.0/8", // IPv4 loopback
+		"::1/128",     // IPv6 loopback
+	} {
+		_, block, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return "", err
+		}
+		if block.Contains(ip) {
+			return address, nil
+		}
+	}
+	return "", fmt.Errorf("ipc_address was set to a non-loopback IP address: %s", address)
 }
 
 // GetEnv retrieves the value of the environment variable named by the key,

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
 func TestMain(m *testing.M) {
@@ -20,6 +22,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetConnectionInfo(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	d = kubeutil.get_connection_info()
 	with open(r'%s', 'w') as f:
@@ -34,9 +39,15 @@ func TestGetConnectionInfo(t *testing.T) {
 	if out != "BarKey,FooKey-BarValue,FooValue" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestGetConnectionInfoNoKubeutil(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	returnNull = true
 	defer func() { returnNull = false }()
 
@@ -52,4 +63,7 @@ func TestGetConnectionInfoNoKubeutil(t *testing.T) {
 	if out != "{}" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }

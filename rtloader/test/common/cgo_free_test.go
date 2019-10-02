@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
 func TestMain(m *testing.M) {
@@ -19,6 +21,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestCgoFree(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	callCgoFree(nil)
 	if cgoFreeCalled != false {
 		t.Errorf("freeing NULL should not haved called the cgoFree callback")
@@ -32,4 +37,7 @@ func TestCgoFree(t *testing.T) {
 	if unsafe.Pointer(&v) != latestFreePtr {
 		t.Errorf("Freed pointer was not the same as the one given to the callback")
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
