@@ -21,9 +21,9 @@ import (
 // This implementation was inspired by https://github.com/youtube/vitess sql parser
 // TODO: add the license to the NOTICE file
 
-// tokenKind specifies the type of the token being scanned. It may be one of the defined
+// TokenKind specifies the type of the token being scanned. It may be one of the defined
 // constants below or in some cases the actual rune itself.
-type tokenKind uint32
+type TokenKind uint32
 
 // EOFChar is used to signal that no more characters were found by the scanner. It is
 // an invalid rune value that can not be found in any valid string.
@@ -32,7 +32,7 @@ const EOFChar = unicode.MaxRune + 1
 // list of available tokens; this list has been reduced because we don't
 // need a full-fledged tokenizer to implement a Lexer
 const (
-	LexError = tokenKind(57346) + iota
+	LexError = TokenKind(57346) + iota
 	ID
 	Limit
 	Null
@@ -90,7 +90,7 @@ func (tkn *SQLTokenizer) Reset(in string) {
 }
 
 // keywords used to recognize string tokens
-var keywords = map[string]tokenKind{
+var keywords = map[string]TokenKind{
 	"NULL":      Null,
 	"TRUE":      BooleanLiteral,
 	"FALSE":     BooleanLiteral,
@@ -108,7 +108,7 @@ func (tkn *SQLTokenizer) setErr(format string, args ...interface{}) {
 
 // Scan scans the tokenizer for the next token and returns
 // the token type and the token buffer.
-func (tkn *SQLTokenizer) Scan() (tokenKind, []byte) {
+func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 	if tkn.lastChar == 0 {
 		tkn.next()
 	}
@@ -130,12 +130,12 @@ func (tkn *SQLTokenizer) Scan() (tokenKind, []byte) {
 			}
 			fallthrough
 		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', '~', '[', ']', '?':
-			return tokenKind(ch), runeBytes(ch)
+			return TokenKind(ch), runeBytes(ch)
 		case '.':
 			if isDigit(tkn.lastChar) {
 				return tkn.scanNumber(true)
 			}
-			return tokenKind(ch), runeBytes(ch)
+			return TokenKind(ch), runeBytes(ch)
 		case '/':
 			switch tkn.lastChar {
 			case '/':
@@ -145,14 +145,14 @@ func (tkn *SQLTokenizer) Scan() (tokenKind, []byte) {
 				tkn.next()
 				return tkn.scanCommentType2()
 			default:
-				return tokenKind(ch), runeBytes(ch)
+				return TokenKind(ch), runeBytes(ch)
 			}
 		case '-':
 			if tkn.lastChar == '-' {
 				tkn.next()
 				return tkn.scanCommentType1("--")
 			}
-			return tokenKind(ch), runeBytes(ch)
+			return TokenKind(ch), runeBytes(ch)
 		case '#':
 			tkn.next()
 			return tkn.scanCommentType1("#")
@@ -171,14 +171,14 @@ func (tkn *SQLTokenizer) Scan() (tokenKind, []byte) {
 					return LE, []byte("<=")
 				}
 			default:
-				return tokenKind(ch), runeBytes(ch)
+				return TokenKind(ch), runeBytes(ch)
 			}
 		case '>':
 			if tkn.lastChar == '=' {
 				tkn.next()
 				return GE, []byte(">=")
 			}
-			return tokenKind(ch), runeBytes(ch)
+			return TokenKind(ch), runeBytes(ch)
 		case '!':
 			if tkn.lastChar == '=' {
 				tkn.next()
@@ -201,7 +201,7 @@ func (tkn *SQLTokenizer) Scan() (tokenKind, []byte) {
 				return tkn.scanFormatParameter('%')
 			}
 			// modulo operator (e.g. 'id % 8')
-			return tokenKind(ch), runeBytes(ch)
+			return TokenKind(ch), runeBytes(ch)
 		case '$':
 			return tkn.scanPreparedStatement('$')
 		case '{':
@@ -219,7 +219,7 @@ func (tkn *SQLTokenizer) skipBlank() {
 	}
 }
 
-func (tkn *SQLTokenizer) scanIdentifier() (tokenKind, []byte) {
+func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
 	buffer.WriteRune(tkn.lastChar)
 	tkn.next()
@@ -235,7 +235,7 @@ func (tkn *SQLTokenizer) scanIdentifier() (tokenKind, []byte) {
 	return ID, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanLiteralIdentifier(quote rune) (tokenKind, []byte) {
+func (tkn *SQLTokenizer) scanLiteralIdentifier(quote rune) (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
 	buffer.WriteRune(tkn.lastChar)
 	if !isLetter(tkn.lastChar) {
@@ -254,7 +254,7 @@ func (tkn *SQLTokenizer) scanLiteralIdentifier(quote rune) (tokenKind, []byte) {
 	return ID, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (tokenKind, []byte) {
+func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
 	buffer.WriteRune(prefix)
 	buffer.WriteRune(tkn.lastChar)
@@ -274,7 +274,7 @@ func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (tokenKind, []byte)
 	return Variable, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanFormatParameter(prefix rune) (tokenKind, []byte) {
+func (tkn *SQLTokenizer) scanFormatParameter(prefix rune) (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
 	buffer.WriteRune(prefix)
 	buffer.WriteRune(tkn.lastChar)
@@ -283,7 +283,7 @@ func (tkn *SQLTokenizer) scanFormatParameter(prefix rune) (tokenKind, []byte) {
 	return Variable, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (tokenKind, []byte) {
+func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
 
 	// a prepared statement expect a digit identifier like $1
@@ -304,7 +304,7 @@ func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (tokenKind, []byte) 
 	return PreparedStatement, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanEscapeSequence(braces rune) (tokenKind, []byte) {
+func (tkn *SQLTokenizer) scanEscapeSequence(braces rune) (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
 	buffer.WriteRune(braces)
 
@@ -325,7 +325,7 @@ func (tkn *SQLTokenizer) scanEscapeSequence(braces rune) (tokenKind, []byte) {
 	return EscapeSequence, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanBindVar() (tokenKind, []byte) {
+func (tkn *SQLTokenizer) scanBindVar() (TokenKind, []byte) {
 	buffer := bytes.NewBufferString(":")
 	token := ValueArg
 	if tkn.lastChar == ':' {
@@ -350,7 +350,7 @@ func (tkn *SQLTokenizer) scanMantissa(base int, buffer *bytes.Buffer) {
 	}
 }
 
-func (tkn *SQLTokenizer) scanNumber(seenDecimalPoint bool) (tokenKind, []byte) {
+func (tkn *SQLTokenizer) scanNumber(seenDecimalPoint bool) (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
 	if seenDecimalPoint {
 		buffer.WriteByte('.')
@@ -408,7 +408,7 @@ exit:
 	return Number, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanString(delim rune, kind tokenKind) (tokenKind, []byte) {
+func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
 	for {
 		ch := tkn.lastChar
@@ -445,7 +445,7 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind tokenKind) (tokenKind, []by
 	return kind, buf
 }
 
-func (tkn *SQLTokenizer) scanCommentType1(prefix string) (tokenKind, []byte) {
+func (tkn *SQLTokenizer) scanCommentType1(prefix string) (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
 	buffer.WriteString(prefix)
 	for tkn.lastChar != EOFChar {
@@ -458,7 +458,7 @@ func (tkn *SQLTokenizer) scanCommentType1(prefix string) (tokenKind, []byte) {
 	return Comment, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanCommentType2() (tokenKind, []byte) {
+func (tkn *SQLTokenizer) scanCommentType2() (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
 	buffer.WriteString("/*")
 	for {
