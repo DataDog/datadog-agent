@@ -131,7 +131,7 @@ func TestPayloadDescribeItem(t *testing.T) {
 	assert.Equal(t, `Source type: sourceTypeName, events count: 1`,
 		events.CreateSingleMarshaler().DescribeItem(0))
 	assert.Equal(t, `Title: 1, Text: 2, Source Type: sourceTypeName`,
-		events.CreateMarshalerCollection()[0].DescribeItem(0))
+		events.CreateMarshalersBySourceType()[0].DescribeItem(0))
 }
 
 func TestPayloadsNoEvent(t *testing.T) {
@@ -166,7 +166,7 @@ func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 	assertEqualEventsPayloads(t, expectedPayloads, payloadsBySourceType)
 }
 
-func TestEventsSeveralPayloadsCreateMarshalerCollection(t *testing.T) {
+func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
 	events := createEvents("3", "3", "2", "2", "1", "1")
 
 	config.Datadog.Set("serializer_max_payload_size", 300)
@@ -175,7 +175,7 @@ func TestEventsSeveralPayloadsCreateMarshalerCollection(t *testing.T) {
 	expectedPayloads, err := events.MarshalJSON()
 	assert.NoError(t, err)
 
-	marshalers := events.CreateMarshalerCollection()
+	marshalers := events.CreateMarshalersBySourceType()
 	assert.Equal(t, 3, len(marshalers))
 	var payloadForEachSourceType []payloadsType
 	for _, marshaler := range marshalers {
@@ -212,7 +212,7 @@ func createEvents(sourceTypeNames ...string) Events {
 	return events
 }
 
-// Check PayloadBuilder for CreateSingleMarshaler and CreateMarshalerCollection
+// Check PayloadBuilder for CreateSingleMarshaler and CreateMarshalersBySourceType
 // return the same results as for MarshalJSON.
 func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
 	json, err := events.MarshalJSON()
@@ -222,7 +222,7 @@ func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
 	assertEqualEventsPayloads(t, json, payloadsBySourceType)
 
 	var payloads []payloadsType
-	for _, e := range events.CreateMarshalerCollection() {
+	for _, e := range events.CreateMarshalersBySourceType() {
 		payloads = append(payloads, buildPayload(t, e)...)
 	}
 	assertEqualEventsPayloads(t, json, payloads)

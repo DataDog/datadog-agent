@@ -83,7 +83,7 @@ type EventsStreamJSONMarshaler interface {
 	CreateSingleMarshaler() marshaler.StreamJSONMarshaler
 
 	// If the single marshaler cannot serialize, use smaller marshalers.
-	CreateMarshalerCollection() []marshaler.StreamJSONMarshaler
+	CreateMarshalersBySourceType() []marshaler.StreamJSONMarshaler
 }
 
 // MetricSerializer represents the interface of method needed by the aggregator to serialize its data
@@ -193,7 +193,7 @@ func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
 
 	if err == jsonstream.ErrItemTooBig {
 		expvarsSendEventsErrItemTooBigs.Add(1)
-		for _, v := range eventsStreamJSONMarshaler.CreateMarshalerCollection() {
+		for _, v := range eventsStreamJSONMarshaler.CreateMarshalersBySourceType() {
 			var eventPayloadsForSourceType forwarder.Payloads
 			eventPayloadsForSourceType, extraHeaders, err = s.serializeStreamablePayload(v, jsonstream.ContinueOnErrItemTooBig)
 			if err != nil {

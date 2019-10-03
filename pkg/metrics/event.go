@@ -345,9 +345,9 @@ func (e *eventsMarshaler) DescribeItem(i int) string {
 	return fmt.Sprintf("Title: %s, Text: %s, Source Type: %s", event.Title, event.Text, event.SourceTypeName)
 }
 
-// CreateMarshalerCollection creates a collection of marshaler.StreamJSONMarshaler.
+// CreateMarshalersBySourceType creates a collection of marshaler.StreamJSONMarshaler.
 // Each StreamJSONMarshaler is composed of all events for a specific source type name.
-func (events Events) CreateMarshalerCollection() []marshaler.StreamJSONMarshaler {
+func (events Events) CreateMarshalersBySourceType() []marshaler.StreamJSONMarshaler {
 	e := events.getEventsBySourceType()
 	var values []marshaler.StreamJSONMarshaler
 	for k, v := range e {

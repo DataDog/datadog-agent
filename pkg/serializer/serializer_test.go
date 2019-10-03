@@ -181,7 +181,7 @@ func (t *testEventsPayload) CreateSingleMarshaler() marshaler.StreamJSONMarshale
 	return args.Get(0).(marshaler.StreamJSONMarshaler)
 }
 
-func (t *testEventsPayload) CreateMarshalerCollection() []marshaler.StreamJSONMarshaler {
+func (t *testEventsPayload) CreateMarshalersBySourceType() []marshaler.StreamJSONMarshaler {
 	args := t.Called()
 	return args.Get(0).([]marshaler.StreamJSONMarshaler)
 }
@@ -205,7 +205,7 @@ func TestSendV1Events(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func TestSendV1EventsCreateMarshalerCollection(t *testing.T) {
+func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1Intake", mock.Anything, jsonExtraHeadersWithCompression).Return(nil)
 	s := NewSerializer(f)
@@ -220,7 +220,7 @@ func TestSendV1EventsCreateMarshalerCollection(t *testing.T) {
 
 	config.Datadog.Set("serializer_max_payload_size", 0)
 	defer config.Datadog.Set("serializer_max_payload_size", nil)
-	eventPayload.On("CreateMarshalerCollection").Return([]marshaler.StreamJSONMarshaler{payload})
+	eventPayload.On("CreateMarshalersBySourceType").Return([]marshaler.StreamJSONMarshaler{payload})
 	err = s.SendEvents(eventPayload)
 	assert.NoError(t, err)
 	eventPayload.AssertExpectations(t)
