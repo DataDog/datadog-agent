@@ -7,6 +7,7 @@ package serializer
 
 import (
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -36,11 +37,15 @@ var (
 	protobufExtraHeaders                http.Header
 	jsonExtraHeadersWithCompression     http.Header
 	protobufExtraHeadersWithCompression http.Header
+
+	expvars                         = expvar.NewMap("serializer")
+	expvarsSendEventsErrItemTooBigs = expvar.Int{}
 )
 
 var apiKeyRegExp = regexp.MustCompile("\"apiKey\":\"*\\w+(\\w{5})")
 
 func init() {
+	expvars.Set("SendEventsErrItemTooBigs", &expvarsSendEventsErrItemTooBigs)
 	initExtraHeaders()
 }
 
@@ -187,6 +192,7 @@ func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
 	eventPayloads, extraHeaders, err := s.serializeStreamablePayload(marshaler, jsonstream.FailedErrItemTooBig)
 
 	if err == jsonstream.ErrItemTooBig {
+		expvarsSendEventsErrItemTooBigs.Add(1)
 		for _, v := range eventsStreamJSONMarshaler.CreateMarshalerCollection() {
 			var eventPayloadsForSourceType forwarder.Payloads
 			eventPayloadsForSourceType, extraHeaders, err = s.serializeStreamablePayload(v, jsonstream.ContinueOnErrItemTooBig)
