@@ -70,9 +70,20 @@ func initExtraHeaders() {
 	}
 }
 
+// EventsStreamJSONMarshaler handles two serialization logics.
+type EventsStreamJSONMarshaler interface {
+	marshaler.Marshaler
+
+	// Create a single marshaler.
+	CreateSingleMarshaler() marshaler.StreamJSONMarshaler
+
+	// If the single marshaler cannot serialize, use smaller marshalers.
+	CreateMarshalerCollection() []marshaler.StreamJSONMarshaler
+}
+
 // MetricSerializer represents the interface of method needed by the aggregator to serialize its data
 type MetricSerializer interface {
-	SendEvents(e marshaler.StreamJSONMarshalerFactory) error
+	SendEvents(e EventsStreamJSONMarshaler) error
 	SendServiceChecks(sc marshaler.StreamJSONMarshaler) error
 	SendSeries(series marshaler.StreamJSONMarshaler) error
 	SendSketch(sketches marshaler.Marshaler) error
@@ -170,13 +181,13 @@ func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarsh
 	return payloads, jsonExtraHeadersWithCompression, err
 }
 
-func (s Serializer) serializeStreamJSONMarshalerFactoryPayload(
-	streamJSONMarshalerFactory marshaler.StreamJSONMarshalerFactory) (forwarder.Payloads, http.Header, error) {
-	marshaler := streamJSONMarshalerFactory.CreateSingleMarshaler()
+func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
+	eventsStreamJSONMarshaler EventsStreamJSONMarshaler) (forwarder.Payloads, http.Header, error) {
+	marshaler := eventsStreamJSONMarshaler.CreateSingleMarshaler()
 	eventPayloads, extraHeaders, err := s.serializeStreamablePayload(marshaler, jsonstream.FailedErrItemTooBig)
 
 	if err == jsonstream.ErrItemTooBig {
-		for _, v := range streamJSONMarshalerFactory.CreateMarshalerCollection() {
+		for _, v := range eventsStreamJSONMarshaler.CreateMarshalerCollection() {
 			var eventPayloadsForSourceType forwarder.Payloads
 			eventPayloadsForSourceType, extraHeaders, err = s.serializeStreamablePayload(v, jsonstream.ContinueOnErrItemTooBig)
 			if err != nil {
@@ -189,7 +200,7 @@ func (s Serializer) serializeStreamJSONMarshalerFactoryPayload(
 }
 
 // SendEvents serializes a list of event and sends the payload to the forwarder
-func (s *Serializer) SendEvents(e marshaler.StreamJSONMarshalerFactory) error {
+func (s *Serializer) SendEvents(e EventsStreamJSONMarshaler) error {
 	if !s.enableEvents {
 		log.Debug("events payloads are disabled: dropping it")
 		return nil
@@ -201,7 +212,7 @@ func (s *Serializer) SendEvents(e marshaler.StreamJSONMarshalerFactory) error {
 	var err error
 
 	if useV1API && s.enableEventsJSONStream {
-		eventPayloads, extraHeaders, err = s.serializeStreamJSONMarshalerFactoryPayload(e)
+		eventPayloads, extraHeaders, err = s.serializeEventsStreamJSONMarshalerPayload(e)
 	} else {
 		eventPayloads, extraHeaders, err = s.serializePayload(e, true, useV1API)
 	}
