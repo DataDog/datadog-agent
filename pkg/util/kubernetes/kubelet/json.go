@@ -90,9 +90,8 @@ func (pu *podUnmarshaller) filteringDecoder(ptr unsafe.Pointer, iter *jsoniter.I
 
 	iter.ReadObjectCB(func(iter *jsoniter.Iterator, field string) bool {
 		if field == "items" {
-			itemsVal := iter.WhatIsNext()
 			// consider null pod list as an error
-			if itemsVal == jsoniter.NilValue {
+			if iter.WhatIsNext() == jsoniter.NilValue {
 				return false
 			}
 			iter.ReadArrayCB(podCallback)
