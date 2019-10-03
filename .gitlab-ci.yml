@@ -440,9 +440,6 @@ agent_deb-x64-a7:
     PYTHON_RUNTIMES: '3'
     DESTINATION_DEB: 'datadog-agent_7_amd64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_amd64.deb'
-  before_script:
-    - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only
   <<: *agent_build_common_deb
 
 # build Agent package for deb-x64
