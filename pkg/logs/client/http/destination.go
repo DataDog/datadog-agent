@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // ContentType options,
@@ -46,7 +46,7 @@ func NewDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		client: &http.Client{
 			Timeout: time.Second * 10,
 			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: util.CreateHTTPTransport(),
+			Transport: httputils.CreateHTTPTransport(),
 		},
 		destinationsContext: destinationsContext,
 	}

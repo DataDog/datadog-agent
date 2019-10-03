@@ -247,7 +247,7 @@ func LPWSTRToString(cwstr C.LPWSTR) string {
 	return string(utf16.Decode(wstr))
 }
 
-func min(x, y C.ULONGLONG) C.ULONGLONG {
+func min(x, y C.size_t) C.size_t {
 	if x > y {
 		return y
 	}

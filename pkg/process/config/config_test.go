@@ -252,6 +252,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.True(agentConfig.DisableTCPTracing)
 	assert.True(agentConfig.DisableUDPTracing)
 	assert.True(agentConfig.DisableIPv6Tracing)
+	assert.True(agentConfig.DisableDNSInspection)
 	assert.Equal(map[string][]string(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"443"}, "127.0.0.1": {"5005"}}), agentConfig.ExcludedSourceConnections)
 	assert.Equal(map[string][]string(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"*"}, "2001:db8::2:1": {"5005"}}), agentConfig.ExcludedDestinationConnections)
 }

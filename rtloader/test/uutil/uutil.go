@@ -9,26 +9,35 @@ import (
 	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
-// #cgo CFLAGS: -I../../include
-// #cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
-// #cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
-// #include <datadog_agent_rtloader.h>
-//
-// extern void getSubprocessOutput(char **, char **, char **, int*, char **);
-//
-// static void init_utilTests(rtloader_t *rtloader) {
-//    set_get_subprocess_output_cb(rtloader, getSubprocessOutput);
-// }
+/*
+#cgo CFLAGS: -I../../include -I../../common -Wno-deprecated-declarations
+#cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
+
+#include "rtloader_mem.h"
+#include "datadog_agent_rtloader.h"
+
+extern void getSubprocessOutput(char **, char **, char **, int*, char **);
+
+static void init_utilTests(rtloader_t *rtloader) {
+   set_cgo_free_cb(rtloader, _free);
+   set_get_subprocess_output_cb(rtloader, getSubprocessOutput);
+}
+*/
 import "C"
 
 var (
-	rtloader     *C.rtloader_t
-	tmpfile *os.File
+	rtloader *C.rtloader_t
+	tmpfile  *os.File
 )
 
 func setUp() error {
+	// Initialize memory tracking
+	helpers.InitMemoryTracker()
+
 	rtloader = (*C.rtloader_t)(common.GetRtLoader())
 	if rtloader == nil {
 		return fmt.Errorf("make failed")
@@ -58,7 +67,7 @@ func tearDown() {
 
 func run(call string) (string, error) {
 	tmpfile.Truncate(0)
-	code := C.CString(fmt.Sprintf(`
+	code := (*C.char)(helpers.TrackedCString(fmt.Sprintf(`
 try:
 	import _util
 	import sys
@@ -66,7 +75,8 @@ try:
 except Exception as e:
 	with open(r'%s', 'w') as f:
 		f.write("{}: {}\n".format(type(e).__name__, e))
-`, call, tmpfile.Name()))
+`, call, tmpfile.Name())))
+	defer C._free(unsafe.Pointer(code))
 
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
@@ -103,10 +113,10 @@ func charArrayToSlice(array **C.char) (res []string) {
 //export getSubprocessOutput
 func getSubprocessOutput(cargs **C.char, cstdout **C.char, cstderr **C.char, cretCode *C.int, cexception **C.char) {
 	args = charArrayToSlice(cargs)
-	*cstdout = C.CString(stdout)
-	*cstderr = C.CString(stderr)
+	*cstdout = (*C.char)(helpers.TrackedCString(stdout))
+	*cstderr = (*C.char)(helpers.TrackedCString(stderr))
 	*cretCode = C.int(retCode)
 	if setException {
-		*cexception = C.CString(exception)
+		*cexception = (*C.char)(helpers.TrackedCString(exception))
 	}
 }

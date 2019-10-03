@@ -107,14 +107,14 @@ bool Three::init()
     }
 
     if (init_stringutils() != EXIT_SUCCESS) {
-        setError("error initializing string utils");
+        setError("error initializing string utils: " + _fetchPythonError());
         goto done;
     }
 
     // import the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
     if (_baseClass == NULL) {
-        setError("could not import base class");
+        setError("could not import base class: " + std::string(getError()));
     }
 
 done:
@@ -175,10 +175,10 @@ void Three::freePyInfo(py_info_t *info)
 {
     info->version = NULL;
     if (info->path) {
-        free(info->path);
+        _free(info->path);
         info->version = NULL;
     }
-    free(info);
+    _free(info);
     return;
 }
 bool Three::runSimpleString(const char *code) const
@@ -831,6 +831,11 @@ void Three::setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t cb)
 void Three::setLogCb(cb_log_t cb)
 {
     _set_log_cb(cb);
+}
+
+void Three::setSetCheckMetadataCb(cb_set_check_metadata_t cb)
+{
+    _set_set_check_metadata_cb(cb);
 }
 
 void Three::setSetExternalTagsCb(cb_set_external_tags_t cb)

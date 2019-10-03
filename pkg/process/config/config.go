@@ -78,6 +78,7 @@ type AgentConfig struct {
 	DisableTCPTracing              bool
 	DisableUDPTracing              bool
 	DisableIPv6Tracing             bool
+	DisableDNSInspection           bool
 	CollectLocalDNS                bool
 	SystemProbeSocketPath          string
 	SystemProbeLogFile             string
@@ -120,10 +121,10 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 }
 
 const (
-	defaultEndpoint          = "https://process.datadoghq.com"
-	maxMessageBatch          = 100
-	maxConnsMessageBatch     = 1000
-	maxMaxTrackedConnections = 65536
+	defaultEndpoint              = "https://process.datadoghq.com"
+	maxMessageBatch              = 100
+	maxConnsMessageBatch         = 1000
+	defaultMaxTrackedConnections = 65536
 )
 
 // NewDefaultTransport provides a http transport configuration with sane default timeouts
@@ -183,9 +184,10 @@ func NewDefaultAgentConfig() *AgentConfig {
 		DisableTCPTracing:            false,
 		DisableUDPTracing:            false,
 		DisableIPv6Tracing:           false,
+		DisableDNSInspection:         false,
 		SystemProbeSocketPath:        defaultSystemProbeSocketPath,
 		SystemProbeLogFile:           defaultSystemProbeFilePath,
-		MaxTrackedConnections:        maxMaxTrackedConnections,
+		MaxTrackedConnections:        defaultMaxTrackedConnections,
 		EnableConntrack:              true,
 		ClosedChannelSize:            500,
 		ConntrackShortTermBufferSize: defaultConntrackShortTermBufferSize,
@@ -348,6 +350,7 @@ func loadEnvVariables() {
 		"DD_DISABLE_TCP_TRACING":    "system_probe_config.disable_tcp",
 		"DD_DISABLE_UDP_TRACING":    "system_probe_config.disable_udp",
 		"DD_DISABLE_IPV6_TRACING":   "system_probe_config.disable_ipv6",
+		"DD_DISABLE_DNS_INSPECTION": "system_probe_config.disable_dns_inspection",
 		"DD_COLLECT_LOCAL_DNS":      "system_probe_config.collect_local_dns",
 		"DD_USE_LOCAL_SYSTEM_PROBE": "system_probe_config.use_local_system_probe",
 

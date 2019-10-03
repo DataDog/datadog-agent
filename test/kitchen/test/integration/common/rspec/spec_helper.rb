@@ -34,7 +34,7 @@ def agent_command
   end
 end
 
-def wait_until_stopped(timeout = 15)
+def wait_until_stopped(timeout = 60)
   # Check if the agent has stopped every second
   # Timeout after the given number of seconds
   for _ in 1..timeout do
@@ -43,7 +43,7 @@ def wait_until_stopped(timeout = 15)
   end
 end
 
-def wait_until_started(timeout = 15)
+def wait_until_started(timeout = 60)
   # Check if the agent has started every second
   # Timeout after the given number of seconds
   for _ in 1..timeout do
@@ -287,8 +287,8 @@ shared_examples_for "an installed Agent" do
     end
     JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('skip_windows_signing_test')
   }
-  
-  
+
+
   it 'is properly signed' do
     puts "swsc is #{skip_windows_signing_check}"
     #puts "is an upgrade is #{is_upgrade}"
@@ -297,7 +297,7 @@ shared_examples_for "an installed Agent" do
       # This allows either to be used without changing the test.
       msi_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-cli.msi"
       msi_path_upgrade = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-up.msi"
-      
+
       # The upgrade file should only be present when doing an upgrade test.  Therefore,
       # check the file we're upgrading to, not the file we're upgrading from
       if File.file?(msi_path_upgrade)
@@ -415,6 +415,7 @@ end
 
 shared_examples_for 'an Agent that stops' do
   it 'stops' do
+    skip if os == :windows
     output = stop
     if os != :windows
       expect(output).to be_truthy
@@ -423,6 +424,7 @@ shared_examples_for 'an Agent that stops' do
   end
 
   it 'has connection refuse in the info command' do
+    skip if os == :windows
     if os == :windows
       expect(info).to include 'No connection could be made'
     else
@@ -431,10 +433,12 @@ shared_examples_for 'an Agent that stops' do
   end
 
   it 'is not running any agent processes' do
+    skip if os == :windows
     expect(agent_processes_running?).to be_falsey
   end
 
   it 'starts after being stopped' do
+    skip if os == :windows
     output = start
     if os != :windows
       expect(output).to be_truthy
@@ -469,6 +473,7 @@ end
 
 shared_examples_for 'an Agent with python3 enabled' do
   it 'restarts after python_version is set to 3' do
+    skip if os == :windows
     conf_path = ""
     if os != :windows
       conf_path = "/etc/datadog-agent/datadog.yaml"
@@ -494,6 +499,7 @@ shared_examples_for 'an Agent with python3 enabled' do
   # end
 
   it 'restarts after python_version is set back to 2' do
+    skip if os == :windows
     conf_path = ""
     if os != :windows
       conf_path = "/etc/datadog-agent/datadog.yaml"
@@ -572,7 +578,7 @@ shared_examples_for 'an Agent with APM enabled' do
       expect(is_service_running?("datadog-trace-agent")).to be_truthy
     end
   end
-  
+
   shared_examples_for 'an Agent with logs enabled' do
     it 'has logs enabled' do
       confYaml = read_conf_file()
@@ -581,7 +587,7 @@ shared_examples_for 'an Agent with APM enabled' do
       expect(confYaml["logs_enabled"]).to be_truthy
     end
   end
-  
+
   shared_examples_for 'an Agent with process enabled' do
     it 'has process enabled' do
       confYaml = read_conf_file()
@@ -598,36 +604,36 @@ shared_examples_for 'an Agent with APM enabled' do
   def get_user_sid(uname)
     output = `powershell -command "(New-Object System.Security.Principal.NTAccount('#{uname}')).Translate([System.Security.Principal.SecurityIdentifier]).value"`.strip
     output
-  end 
-  
-  def get_sddl_for_object(name) 
+  end
+
+  def get_sddl_for_object(name)
     cmd = "powershell -command \"get-acl -Path \\\"#{name}\\\" | format-list -Property sddl\""
     outp = `#{cmd}`.gsub("\n", "").gsub(" ", "")
     sddl = outp.gsub("/\s+/", "").split(":").drop(1).join(":").strip
     sddl
   end
-  
+
   def equal_sddl?(left, right)
     # First, split the sddl into the ownership (user and group), and the dacl
     left_array = left.split("D:")
     right_array = right.split("D:")
-  
+
     # compare the ownership & group.  Must be the same
     if left_array[0] != right_array[0]
       return false
     end
     left_dacl = left_array[1].scan(/(\([^)]*\))/)
     right_dacl = right_array[1].scan(/(\([^)]*\))/)
-  
-    
+
+
     # if they're different lengths, they're different
     if left_dacl.length != right_dacl.length
       return false
     end
-  
+
     ## now need to break up the DACL list, because they may be listed in different
     ## orders... the order doesn't matter but the components should be the same.  So..
-  
+
     left_dacl.each do |left_entry|
       found = false
       right_dacl.each do |right_entry|
@@ -648,9 +654,9 @@ shared_examples_for 'an Agent with APM enabled' do
     fname = "secout.txt"
     system "secedit /export /cfg  #{fname} /areas USER_RIGHTS"
     data = Hash.new
-    
+
     utext = File.open(fname).read
-    text = utext.unpack("v*").pack("U*") 
+    text = utext.unpack("v*").pack("U*")
     text.each_line do |line|
       next unless line.include? "="
       kv = line.strip.split("=")
@@ -659,7 +665,7 @@ shared_examples_for 'an Agent with APM enabled' do
     #File::delete(fname)
     data
   end
-  
+
   def check_has_security_right(data, k, name)
     right = data[k]
     unless right
@@ -671,7 +677,7 @@ shared_examples_for 'an Agent with APM enabled' do
     end
     false
   end
-  
+
   def check_is_user_in_group(user, group)
     members = `net localgroup "#{group}"`
     members.split(/\n+/).each do |line|
@@ -679,15 +685,15 @@ shared_examples_for 'an Agent with APM enabled' do
     end
     false
   end
-  
+
   def get_username_from_tasklist(exename)
     # output of tasklist command is
     # Image Name  PID  Session Name  Session#  Mem Usage Status  User Name  CPU Time  Window Title
     output = `tasklist /v /fi "imagename eq #{exename}" /nh`.gsub("\n", "").gsub("NT AUTHORITY", "NT_AUTHORITY")
-  
-    # for the above, the system user comes out as "NT AUTHORITY\System", which confuses the split 
+
+    # for the above, the system user comes out as "NT AUTHORITY\System", which confuses the split
     # below.  So special case it, and get rid of the space
-  
+
     #username is fully qualified <domain>\username
     uname = output.split(' ')[7].partition('\\').last
     uname

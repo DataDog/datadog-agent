@@ -10,22 +10,46 @@ package obfuscate
 import (
 	"bytes"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
 // concurrent use.
 type Obfuscator struct {
-	opts  *config.ObfuscationConfig
+	opts  *Config
 	es    *jsonObfuscator // nil if disabled
 	mongo *jsonObfuscator // nil if disabled
 }
 
+// Config specifies the obfuscator configuration.
+type Config struct {
+	// ES holds the obfuscation configuration for ElasticSearch bodies.
+	ES JSONSettings
+
+	// Mongo holds the obfuscation configuration for MongoDB queries.
+	Mongo JSONSettings
+
+	// RemoveQueryStrings specifies whether query strings should be removed from HTTP URLs.
+	RemoveQueryString bool
+
+	// RemovePathDigits specifies whether digits in HTTP path segments to be removed.
+	RemovePathDigits bool
+
+	// RemoveStackTraces specifies whether stack traces should be removed. More specifically,
+	// the "error.stack" tag values will be cleared from spans.
+	RemoveStackTraces bool
+
+	// Redis enables obfuscatiion of the "redis.raw_command" tag for spans of type "redis".
+	Redis bool
+
+	// Redis enables obfuscatiion of the "memcached.command" tag for spans of type "memcached".
+	Memcached bool
+}
+
 // NewObfuscator creates a new Obfuscator.
-func NewObfuscator(cfg *config.ObfuscationConfig) *Obfuscator {
+func NewObfuscator(cfg *Config) *Obfuscator {
 	if cfg == nil {
-		cfg = new(config.ObfuscationConfig)
+		cfg = new(Config)
 	}
 	o := Obfuscator{opts: cfg}
 	if cfg.ES.Enabled {
@@ -45,11 +69,11 @@ func (o *Obfuscator) Obfuscate(span *pb.Span) {
 		o.obfuscateSQL(span)
 	case "redis":
 		o.quantizeRedis(span)
-		if o.opts.Redis.Enabled {
+		if o.opts.Redis {
 			o.obfuscateRedis(span)
 		}
 	case "memcached":
-		if o.opts.Memcached.Enabled {
+		if o.opts.Memcached {
 			o.obfuscateMemcached(span)
 		}
 	case "web", "http":

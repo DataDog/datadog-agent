@@ -10,26 +10,29 @@ import (
 	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
-// #cgo CFLAGS: -I../../include
-// #cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
-// #cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
-//
-// #include <stdlib.h>
-// #include <datadog_agent_rtloader.h>
-//
-// extern void submitMetric(char *, metric_type_t, char *, float, char **, char *);
-// extern void submitServiceCheck(char *, char *, int, char **, char *, char *);
-// extern void submitEvent(char*, event_t*);
-// extern void submitHistogramBucket(char *, char *, int, float, float, int, char *, char **);
-//
-// static void initAggregatorTests(rtloader_t *rtloader) {
-//    set_submit_metric_cb(rtloader, submitMetric);
-//    set_submit_service_check_cb(rtloader, submitServiceCheck);
-//    set_submit_event_cb(rtloader, submitEvent);
-//    set_submit_histogram_bucket_cb(rtloader, submitHistogramBucket);
-// }
+/*
+#cgo CFLAGS: -I../../include -I../../common -Wno-deprecated-declarations
+#cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
+
+#include "rtloader_mem.h"
+#include "datadog_agent_rtloader.h"
+
+extern void submitMetric(char *, metric_type_t, char *, float, char **, char *);
+extern void submitServiceCheck(char *, char *, int, char **, char *, char *);
+extern void submitEvent(char*, event_t*);
+extern void submitHistogramBucket(char *, char *, int, float, float, int, char *, char **);
+
+static void initAggregatorTests(rtloader_t *rtloader) {
+   set_submit_metric_cb(rtloader, submitMetric);
+   set_submit_service_check_cb(rtloader, submitServiceCheck);
+   set_submit_event_cb(rtloader, submitEvent);
+   set_submit_histogram_bucket_cb(rtloader, submitHistogramBucket);
+}
+*/
 import "C"
 
 var (
@@ -81,6 +84,9 @@ func resetOuputValues() {
 }
 
 func setUp() error {
+	// Initialize memory tracking
+	helpers.InitMemoryTracker()
+
 	rtloader = (*C.rtloader_t)(common.GetRtLoader())
 	if rtloader == nil {
 		return fmt.Errorf("make failed")
@@ -106,20 +112,20 @@ func run(call string) (string, error) {
 	}
 	defer os.Remove(tmpfile.Name())
 
-	code := C.CString(fmt.Sprintf(`
+	code := (*C.char)(helpers.TrackedCString(fmt.Sprintf(`
 try:
 	import aggregator
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
 		f.write("{}: {}\n".format(type(e).__name__, e))
-`, call, tmpfile.Name()))
+`, call, tmpfile.Name())))
+	defer C._free(unsafe.Pointer(code))
 
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
 	ret := C.run_simple_string(rtloader, code) == 1
-	C.free(unsafe.Pointer(code))
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()

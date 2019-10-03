@@ -109,6 +109,10 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
     if sys.platform == 'win32':
         windres_target = "pe-x86-64"
+
+        # Important for x-compiling
+        env["CGO_ENABLED"] = "1"
+
         if arch == "x86":
             env["GOARCH"] = "386"
             windres_target = "pe-i386"
@@ -116,7 +120,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         # This generates the manifest resource. The manifest resource is necessary for
         # being able to load the ancient C-runtime that comes along with Python 2.7
         # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
-        ver = get_version_numeric_only(ctx)
+        ver = get_version_numeric_only(ctx, env)
         build_maj, build_min, build_patch = ver.split(".")
 
         command = "windmc --target {target_arch} -r cmd/agent cmd/agent/agentmsg.mc ".format(target_arch=windres_target)
@@ -368,7 +372,7 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             if skip_sign:
                 env['SKIP_SIGN_MAC'] = 'true'
 
-            env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True)
+            env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, env=env)
 
             ctx.run(cmd.format(**args), env=env)
 
