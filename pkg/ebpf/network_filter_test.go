@@ -20,7 +20,7 @@ var testSourceFilters = map[string][]string{
 	"10.0.0.11":     {"3333", "*", "53361-53370"},
 	"10.0.0.26":     {"30", "53361-53360"}, // invalid port range
 	"10.0.0.1":      {"tcp *", "53361-53370"},
-	"10.0.0.2":      {"tcp 53361-53500", "udp 119"},
+	"10.0.0.2":      {"tcp 53361-53500", "udp 119", "udp 53361"},
 }
 
 var testDestinationFilters = map[string][]string{
@@ -34,6 +34,7 @@ var testDestinationFilters = map[string][]string{
 	"10.0.0.3/24":      {"30-ABC"},   // invalid port range
 	"10.0.0.4":         {"udp *", "*"},
 	"2001:db8::2:2/55": {"8080-8082-8085"}, // invalid config
+	"10.0.0.5":         {"0-1"},            // invalid port 0
 }
 
 func TestParseConnectionFilters(t *testing.T) {
@@ -57,6 +58,8 @@ func TestParseConnectionFilters(t *testing.T) {
 	assert.False(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Source: util.AddressFromString("10.0.0.26"), SPort: uint16(30), Type: TCP}))      // invalid port range
 	assert.True(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Source: util.AddressFromString("10.0.0.1"), SPort: uint16(100), Type: TCP}))       // tcp wildcard
 	assert.False(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Source: util.AddressFromString("10.0.0.2"), SPort: uint16(53363), Type: UDP}))
+	assert.True(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Source: util.AddressFromString("10.0.0.2"), SPort: uint16(53361), Type: TCP}))
+	assert.True(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Source: util.AddressFromString("10.0.0.2"), SPort: uint16(53361), Type: UDP}))
 
 	// destination
 	assert.True(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Dest: util.AddressFromString("10.0.0.5"), DPort: uint16(8080), Type: TCP}))
@@ -70,6 +73,7 @@ func TestParseConnectionFilters(t *testing.T) {
 	assert.False(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Dest: util.AddressFromString("10.0.0.3/24"), DPort: uint16(80), Type: TCP}))     // invalid config
 	assert.True(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Dest: util.AddressFromString("10.0.0.4"), DPort: uint16(1234), Type: TCP}))       // port wildcard
 	assert.False(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Dest: util.AddressFromString("2001:db8::2:2"), DPort: uint16(8082), Type: TCP})) // invalid config
+	assert.False(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Dest: util.AddressFromString("10.0.0.5"), DPort: uint16(0), Type: TCP}))         // invalid port
 }
 
 var sink bool

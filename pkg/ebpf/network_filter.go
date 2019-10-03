@@ -39,7 +39,7 @@ func ParseConnectionFilters(filters map[string][]string) (blacklist []*Connectio
 		} else if strings.Contains(ip, "::") {
 			_, subnet, err = net.ParseCIDR(ip + "/64") // if given ipv6, prefix length of 64
 		} else {
-			log.Debugf("Invalid IP/CIDR/* defined for connection filter: %s", err)
+			log.Errorf("Invalid IP/CIDR/* defined for connection filter: %s", err)
 			continue
 		}
 
@@ -58,15 +58,17 @@ func ParseConnectionFilters(filters map[string][]string) (blacklist []*Connectio
 				break
 			}
 
-			if lowerPort == 0 && upperPort == 0 { // port is wildcard
-				if subnet == nil && connTypeFilter.TCP && connTypeFilter.UDP {
+			// port is wildcard
+			if lowerPort == 0 && upperPort == 0 {
+				filter.AllPorts.TCP = connTypeFilter.TCP || filter.AllPorts.TCP
+				filter.AllPorts.UDP = connTypeFilter.UDP || filter.AllPorts.UDP
+				if subnet == nil && filter.AllPorts.TCP && filter.AllPorts.UDP {
 					log.Errorf("Given rule will not be respected. Invalid filter with IP/CIDR as * and port as *: %s", err)
 					validFilter = false
 					break
 				}
-				filter.AllPorts.TCP = connTypeFilter.TCP || filter.AllPorts.TCP
-				filter.AllPorts.UDP = connTypeFilter.UDP || filter.AllPorts.UDP
-			} else { // port is integer/range
+			} else {
+				// port is integer/range
 				for port := lowerPort; port <= upperPort; port++ {
 					filter.Ports[uint16(port)] = ConnTypeFilter{
 						TCP: connTypeFilter.TCP || filter.Ports[uint16(port)].TCP,
@@ -116,21 +118,29 @@ func parsePortAndProtocolFilter(v string) (uint64, uint64, ConnTypeFilter, bool)
 			return lowerPort, upperPort, connTypeFilter, validFilter
 		}
 		lowerPort, err := strconv.ParseUint(strings.TrimSpace(portRange[0]), 10, 16)
-		if err != nil || lowerPort == 0 {
-			log.Debugf("Parsed port %d was invalid: %s", lowerPort, err)
+		if err != nil {
+			log.Errorf("Invalid port %d: %s", lowerPort, err)
+			validFilter = false
+			return lowerPort, upperPort, connTypeFilter, validFilter
+		} else if lowerPort == 0 {
+			log.Errorf("Invalid port %d", lowerPort)
 			validFilter = false
 			return lowerPort, upperPort, connTypeFilter, validFilter
 		}
 		upperPort, err := strconv.ParseUint(strings.TrimSpace(portRange[1]), 10, 16)
-		if err != nil || upperPort == 0 {
-			log.Debugf("Parsed port %d was invalid: %s", upperPort, err)
+		if err != nil {
+			log.Errorf("Invalid port %d: %s", upperPort, err)
+			validFilter = false
+			return lowerPort, upperPort, connTypeFilter, validFilter
+		} else if upperPort == 0 {
+			log.Errorf("Invalid port %d", upperPort)
 			validFilter = false
 			return lowerPort, upperPort, connTypeFilter, validFilter
 		}
 
 		// invalid configuration
 		if lowerPort > upperPort {
-			log.Debugf("Invalid port range %d-%d", lowerPort, upperPort)
+			log.Errorf("Invalid port range %d-%d", lowerPort, upperPort)
 			validFilter = false
 			return lowerPort, upperPort, connTypeFilter, validFilter
 		}
@@ -141,8 +151,12 @@ func parsePortAndProtocolFilter(v string) (uint64, uint64, ConnTypeFilter, bool)
 	// The defined port is an integer
 	lowerPort, err := strconv.ParseUint(v, 10, 16)
 	upperPort = lowerPort
-	if err != nil || lowerPort == 0 {
-		log.Debugf("Parsed port %d was invalid: %s", lowerPort, err)
+	if err != nil {
+		log.Errorf("Invalid port %d: %s", lowerPort, err)
+		validFilter = false
+		return lowerPort, upperPort, connTypeFilter, validFilter
+	} else if lowerPort == 0 {
+		log.Errorf("Invalid port %d", lowerPort)
 		validFilter = false
 		return lowerPort, upperPort, connTypeFilter, validFilter
 	}
