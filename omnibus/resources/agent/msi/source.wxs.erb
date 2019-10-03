@@ -77,6 +77,7 @@
 
      <PropertyRef Id="WIX_ACCOUNT_ADMINISTRATORS" />
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
+     <PropertyRef Id="WIX_ACCOUNT_LOCALSERVICE" />
      <PropertyRef Id="WIX_ACCOUNT_USERS" />
     <Media Id="1" Cabinet="agent.cab" EmbedCab="yes" />
 
@@ -225,15 +226,38 @@
                 KeyPath="yes"
                 DiskId="1"
                 Source="$(var.BinFiles)/agent.exe"/>
-          
-          
+          <ServiceInstall Id="DatadogServiceInstaller"
+                DisplayName="!(loc.ServiceDisplayName)"
+                Description="!(loc.ServiceDescription)"
+                Name="DatadogAgent"
+                ErrorControl="ignore"
+                Start="auto"
+                Type="ownProcess"
+                Vital="yes"
+                Interactive="no"
+                Account="[WIX_ACCOUNT_LOCALSERVICE]">
+            <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
+            <util:ServiceConfig
+                FirstFailureActionType='restart'
+                SecondFailureActionType='restart'
+                ThirdFailureActionType='restart'
+                RestartServiceDelayInSeconds='30'
+                ResetPeriodInDays='1'/>
+            <ServiceDependency Id="winmgmt" />
+          </ServiceInstall>
+          <ServiceControl Id="DatadogStartService"
+                          Name="DatadogAgent"
+                          Start="install"
+                          Stop="both"
+                          Remove="uninstall"
+                          Wait="yes" />
+
           <!-- The "Name" field must match the argument to eventlog.Open() -->
           <util:EventSource Log="Application" Name="DatadogAgent"
                 EventMessageFile="[DIST]agent.exe"
                 SupportsErrors="yes"
                 SupportsInformationals="yes"
                 SupportsWarnings="yes"/>
-
 
 
         </Component>
@@ -287,6 +311,32 @@
                 KeyPath="yes"
                 DiskId="1"
                 Source="$(var.BinFiles)/trace-agent.exe"/>
+            <ServiceInstall Id="DatadogAPMServiceInstaller"
+                DisplayName="!(loc.ServiceApmDisplayName)"
+                Description="!(loc.ServiceApmDescription)"
+                Name="datadog-trace-agent"
+                ErrorControl="ignore"
+                Start="demand"
+                Type="ownProcess"
+                Vital="yes"
+                Interactive="no"
+                Account="[WIX_ACCOUNT_LOCALSERVICE]"
+                Arguments="--config=[APPLICATIONDATADIRECTORY]datadog.yaml" >
+              <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
+              <util:ServiceConfig
+                FirstFailureActionType='restart'
+                SecondFailureActionType='restart'
+                ThirdFailureActionType='restart'
+                RestartServiceDelayInSeconds='30'
+                ResetPeriodInDays='1'/>
+              <ServiceDependency Id="datadogagent" />
+            </ServiceInstall>
+            <ServiceControl Id="DatadogAPMStartService"
+                Name="datadog-trace-agent"
+                Start="install"
+                Stop="both"
+                Remove="uninstall"
+                Wait="yes" />
             <!-- The "Name" field must match the argument to eventlog.Open() -->
             <util:EventSource Log="Application" Name="datadog-trace-agent"
                     EventMessageFile="[AGENT]trace-agent.exe"
@@ -302,6 +352,32 @@
                 KeyPath="yes"
                 DiskId="1"
                 Source="$(var.BinFiles)/process-agent.exe"/>
+            <ServiceInstall Id="DatadogProcessServiceInstaller"
+                DisplayName="!(loc.ServiceProcessDisplayName)"
+                Description="!(loc.ServiceProcessDescription)"
+                Name="datadog-process-agent"
+                ErrorControl="ignore"
+                Start="demand"
+                Type="ownProcess"
+                Vital="yes"
+                Interactive="no"
+                Account="LocalSystem"
+                Arguments="--config=[APPLICATIONDATADIRECTORY]datadog.yaml" >
+              <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
+              <util:ServiceConfig
+                FirstFailureActionType='restart'
+                SecondFailureActionType='restart'
+                ThirdFailureActionType='restart'
+                RestartServiceDelayInSeconds='30'
+                ResetPeriodInDays='1'/>
+              <ServiceDependency Id="datadogagent" />
+            </ServiceInstall>
+            <ServiceControl Id="DatadogProcessStartService"
+                Name="datadog-process-agent"
+                Start="install"
+                Stop="both"
+                Remove="uninstall"
+                Wait="yes" />
             <!-- The "Name" field must match the argument to eventlog.Open() -->
             <util:EventSource Log="Application" Name="datadog-process-agent"
                     EventMessageFile="[AGENT]process-agent.exe"
@@ -411,10 +487,8 @@
     <InstallExecuteSequence>
       <Custom Action='WixCloseApplications' Before='RemoveFiles'> </Custom>
 
-      <!-- go ahead and always stop the services; if they're not installed (new install) it won't have any impact -->
+      <!-- go ahead and always stop the services; if they're not installed (new install) it won't have any impact' -->
 
-      <!-- always stop the services, regardless of what's going on -->
-      <Custom Action='StopDDServices' After='StopServices'> </Custom>
 
       <!-- only run the FinalizeInstall action on INSTALL (for now) Note this
            is from the perspective of the installer being run; on upgrade the 
@@ -424,13 +498,13 @@
       <Custom Action='SetFinalizeProperty' Before='FinalizeInstall'> <![CDATA[Installed="" ]]> </Custom>
       <Custom Action='FinalizeInstall' After='InstallServices'>      <![CDATA[Installed="" ]]> </Custom>
 
-      <!-- Same deal here -->
-      <Custom Action='StartDDServices' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL" ]]></Custom>
-      
+      <Custom Action='RemoveDDAgentUser' After='RemoveExistingProducts'> <![CDATA[PREVIOUSFOUND<>"" AND UPGRADINGPRODUCTCODE=""]]></Custom>
+
       <!-- only do the uninstall (which removes the user state and file perms) 
-           on a full uninstall -->
+           on a full uninstall 
       <Custom Action='SetUninstallProperty' Before='DoUninstall'> <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
       <Custom Action='DoUninstall' Before='RemoveRegistryValues'>      <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
+        -->
 
       <Custom Action='DoRollback' Before='FinalizeInstall'>       <![CDATA[REMOVE<>"ALL" OR UPGRADINGPRODUCTCODE<>""]]> </Custom>
     </InstallExecuteSequence>
@@ -561,26 +635,15 @@
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
     <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall' 
-        Value='PROJECTLOCATION=[PROJECTLOCATION];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];' />
-    <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
-    <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
-    <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='check' Impersonate='no'/>
+        Value='PROJECTLOCATION=[PROJECTLOCATION];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];' />
 
-    <CustomAction Id='SetUninstallProperty' Return='check' Property='DoUninstall' 
-        Value='PROJECTLOCATION=[PROJECTLOCATION];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];' />
-    
-    <CustomAction Id='DoUninstall' BinaryKey='wixcadll' DllEntry='DoUninstall' Execute='deferred' Return='check' Impersonate='no'/>
+    <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
+    <CustomAction Id='RemoveDDAgentUser' BinaryKey='wixcadll' DllEntry='RemoveDDAgentUser' Execute='deferred' Return='check' Impersonate='no'/>
+
 
     <CustomAction Id='DoRollback' BinaryKey='wixcadll' DllEntry='DoRollback' Execute='rollback' Impersonate='no' />
 
 
-    <!--
-    <CustomAction Id='adddduser' BinaryKey='wixcadll' DllEntry='CreateOrUpdateDDUser' Execute='immediate' Return='check'/>
-    <CustomAction Id='adjustrights' BinaryKey='wixcadll' DllEntry='AdjustDDRights' Execute='immediate' Return='check'/>
-    <CustomAction Id='deldduser' BinaryKey='wixcadll' DllEntry='RemoveDDUser' Execute='immediate' Return='check'/>
-    <CustomAction Id='verifyregperms' BinaryKey='wixcadll' DllEntry='VerifyDatadogRegistryPerms' Execute='immediate' Return='check'/>
-    <CustomAction Id='InstallationRollback' BinaryKey='wixcadll' DllEntry='RollbackInstallation' Execute='rollback' />
-    -->
     <!-- the following custom action is a testing custom action.  Set WIXFAILWHENDEFERRED=1 on the command line, and it will FirstFailureActionType   
          the install at the end, to allow for testing of rollback -->
     <CustomActionRef Id="WixFailWhenDeferred" />

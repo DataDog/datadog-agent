@@ -11,8 +11,12 @@ $acl.Access | where { ($_.IdentityReference -ne 'NT AUTHORITY\SYSTEM') -and ($_.
     $acl.RemoveAccessRule($_);
 }
 
-"Giving rights to ddagentuser"
-$ddAcl = New-Object  system.security.accesscontrol.filesystemaccessrule("ddagentuser","FullControl","Allow")
+"Giving rights to datadogagent"
+$ddAcl = New-Object  system.security.accesscontrol.filesystemaccessrule("NT Service\datadogagent","FullControl","Allow")
+$acl.SetAccessRule($ddAcl)
+
+"Giving rights to datadog-trace-agent"
+$ddAcl = New-Object  system.security.accesscontrol.filesystemaccessrule("NT Service\datadog-trace-agent","FullControl","Allow")
 $acl.SetAccessRule($ddAcl)
 
 $acl | Set-Acl

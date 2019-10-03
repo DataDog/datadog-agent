@@ -23,7 +23,7 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 
 @task
-def build(ctx, vstudio_root=None, arch="x64"):
+def build(ctx, vstudio_root=None, arch="x64", debug=False):
     """
     Build the custom action library for the agent
     """
@@ -40,6 +40,9 @@ def build(ctx, vstudio_root=None, arch="x64"):
             build_patch=build_patch
         )
     print("arch is {}".format(arch))
+    targetconfig = "Release"
+    if debug:
+        targetconfig = "Debug"
     cmd = ""
     if not os.getenv("VCINSTALLDIR"):
         print("VC Not installed in environment; checking other locations")
@@ -48,13 +51,10 @@ def build(ctx, vstudio_root=None, arch="x64"):
         if not vsroot:
             print("Must have visual studio installed")
             raise Exit(code=2)
-        batchfile = "vcvars64.bat"
-        if arch == "x86":
-            batchfile = "vcvars32.bat"
-        vs_env_bat = '{}\\VC\\Auxiliary\\Build\\{}'.format(vsroot, batchfile)
-        cmd = 'call \"{}\" && msbuild omnibus\\resources\\agent\\msi\\cal\\customaction.vcxproj /p:Configuration=Release /p:Platform={}'.format(vs_env_bat, arch)
+        vs_env_bat = '{}\\VC\\Auxiliary\\Build\\vcvars64.bat'.format(vsroot)
+        cmd = 'call \"{}\" && msbuild omnibus\\resources\\agent\\msi\\cal\\customaction.vcxproj /p:Configuration={} /p:Platform=x64'.format(vs_env_bat, targetconfig)
     else:
-        cmd = 'msbuild omnibus\\resources\\agent\\msi\\cal\\customaction.vcxproj /p:Configuration=Release /p:Platform={}'.format(arch)
+        cmd = 'msbuild omnibus\\resources\\agent\\msi\\cal\\customaction.vcxproj /p:Configuration={} /p:Platform=x64'.format(targetconfig)
 
     cmd += verprops
     print("Build Command: %s" % cmd)
@@ -62,7 +62,25 @@ def build(ctx, vstudio_root=None, arch="x64"):
     ctx.run(cmd)
 
     if arch is not None and arch == "x86":
-        shutil.copy2("omnibus/resources/agent/msi/cal/release/customaction.dll", BIN_PATH)
+        if debug:
+            shutil.copy2("omnibus/resources/agent/msi/cal/debug/customaction.dll", BIN_PATH)
+        else:
+            shutil.copy2("omnibus/resources/agent/msi/cal/release/customaction.dll", BIN_PATH)
     else:
-        shutil.copy2("omnibus/resources/agent/msi/cal/x64/release/customaction.dll", BIN_PATH)
+        if debug:
+            shutil.copy2("omnibus/resources/agent/msi/cal/x64/debug/customaction.dll", BIN_PATH)
+        else:
+            shutil.copy2("omnibus/resources/agent/msi/cal/x64/release/customaction.dll", BIN_PATH)
 
+@task
+def copy(ctx, debug=False, arch="x64"):
+    if arch is not None and arch == "x86":
+        if debug:
+            shutil.copy2("omnibus/resources/agent/msi/cal/debug/customaction.dll", BIN_PATH)
+        else:
+            shutil.copy2("omnibus/resources/agent/msi/cal/release/customaction.dll", BIN_PATH)
+    else:
+        if debug:
+            shutil.copy2("omnibus/resources/agent/msi/cal/x64/debug/customaction.dll", BIN_PATH)
+        else:
+            shutil.copy2("omnibus/resources/agent/msi/cal/x64/release/customaction.dll", BIN_PATH)
