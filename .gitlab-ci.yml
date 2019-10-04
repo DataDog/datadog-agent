@@ -929,6 +929,21 @@ deploy_windows_testing-a7:
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
 
+.kitchen_windows_upgrade_common: &kitchen_windows_upgrade_common
+  script:
+    - cd $CI_PROJECT_DIR
+    - cd $DD_AGENT_TESTING_DIR
+    - rm -rf $CI_PROJECT_DIR/kitchen_logs
+    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
+    - mkdir $CI_PROJECT_DIR/kitchen_logs
+    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - bash -l tasks/run-test-kitchen.sh windows-upgrade5-test
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+
 kitchen_windows_upgrade5to6:
   stage: testkitchen_testing
   allow_failure: true
@@ -945,8 +960,7 @@ kitchen_windows_upgrade5to6:
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
   tags: [ "runner:main", "size:large" ]
-  script:
-    - bash -l tasks/run-test-kitchen.sh windows-upgrade5-test
+  <<: *kitchen_windows_upgrade_common
 
 kitchen_windows_upgrade5to7:
   stage: testkitchen_testing
@@ -964,8 +978,7 @@ kitchen_windows_upgrade5to7:
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
   tags: [ "runner:main", "size:large" ]
-  script:
-    - bash -l tasks/run-test-kitchen.sh windows-upgrade5-test
+  <<: *kitchen_windows_upgrade_common
 
 # run dd-agent-testing on windows
 kitchen_windows-a6:
