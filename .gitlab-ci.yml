@@ -249,6 +249,7 @@ run_tests_rpm-x64-py3:
 
 # run tests for eBPF code
 run_tests_ebpf:
+  allow_failure: true
   stage: source_test
   # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
