@@ -34,11 +34,52 @@ var (
 		},
 		[]string{"node"},
 	)
+	rebalancingDecisions = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Subsystem: "cluster_checks",
+			Name:      "rebalancing_decisions",
+			Help:      "Total number of check rebalancing decisions",
+		},
+	)
+	successfulRebalancing = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Subsystem: "cluster_checks",
+			Name:      "successful_rebalancing_moves",
+			Help:      "Total number of successful check rebalancing decisions",
+		},
+	)
+	rebalancingDuration = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Subsystem: "cluster_checks",
+			Name:      "rebalancing_duration_seconds",
+			Help:      "Duration of the check rebalancing algorithm last execution",
+		},
+	)
+	statsCollectionFails = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: "cluster_checks",
+			Name:      "failed_stats_collection",
+			Help:      "Total number of unsuccessful stats collection attempts",
+		},
+		[]string{"node"},
+	)
+	updateStatsDuration = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Subsystem: "cluster_checks",
+			Name:      "updating_stats_duration_seconds",
+			Help:      "Duration of collecting stats from check runners and updating cache",
+		},
+	)
 
 	allMetrics = []prometheus.Collector{
 		nodeAgents,
 		danglingConfigs,
 		dispatchedConfigs,
+		rebalancingDecisions,
+		successfulRebalancing,
+		rebalancingDuration,
+		statsCollectionFails,
+		updateStatsDuration,
 	}
 )
 

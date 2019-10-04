@@ -19,11 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -64,7 +64,7 @@ func init() {
 	pyLoaderStats.Set("Py3Warnings", expvar.Func(expvarPy3Warnings))
 
 	agentVersionTags = []string{}
-	if agentVersion, err := version.New(version.AgentVersion, version.Commit); err == nil {
+	if agentVersion, err := version.Agent(); err == nil {
 		agentVersionTags = []string{
 			fmt.Sprintf("agent_version_major:%d", agentVersion.Major),
 			fmt.Sprintf("agent_version_minor:%d", agentVersion.Minor),
@@ -259,7 +259,7 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 			checkFilePath = checkFilePath[:len(checkFilePath)-1]
 		}
 
-		if strings.HasPrefix(host.GetPythonVersion(), "3") {
+		if strings.TrimSpace(config.Datadog.GetString("python_version")) == "3" {
 			// the linter used by validatePython3 doesn't work when run from python3
 			status = a7TagPython3
 			metricValue = 1.0

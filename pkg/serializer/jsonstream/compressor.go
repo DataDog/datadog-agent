@@ -23,14 +23,16 @@ const (
 )
 
 var (
-	expvars              = expvar.NewMap("jsonstream")
-	expvarsTotalCalls    = expvar.Int{}
-	expvarsTotalItems    = expvar.Int{}
-	expvarsTotalPayloads = expvar.Int{}
-	expvarsTotalCycles   = expvar.Int{}
-	expvarsItemDrops     = expvar.Int{}
-	expvarsBytesIn       = expvar.Int{}
-	expvarsBytesOut      = expvar.Int{}
+	expvars                = expvar.NewMap("jsonstream")
+	expvarsTotalCalls      = expvar.Int{}
+	expvarsTotalItems      = expvar.Int{}
+	expvarsTotalPayloads   = expvar.Int{}
+	expvarsTotalCycles     = expvar.Int{}
+	expvarsItemDrops       = expvar.Int{}
+	expvarsBytesIn         = expvar.Int{}
+	expvarsBytesOut        = expvar.Int{}
+	expvarsWriteItemErrors = expvar.Int{}
+	expvarsPayloadFulls    = expvar.Int{}
 )
 
 func init() {
@@ -41,6 +43,8 @@ func init() {
 	expvars.Set("ItemDrops", &expvarsItemDrops)
 	expvars.Set("BytesIn", &expvarsBytesIn)
 	expvars.Set("BytesOut", &expvarsBytesOut)
+	expvars.Set("WriteItemErrors", &expvarsWriteItemErrors)
+	expvars.Set("PayloadFulls", &expvarsPayloadFulls)
 }
 
 var (

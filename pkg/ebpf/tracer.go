@@ -21,7 +21,7 @@ import (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = [5]string{"conntrack", "state", "tracer", "ebpf", "kprobes"}
+	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns"}
 )
 
 func init() {
@@ -41,6 +41,8 @@ type Tracer struct {
 	localAddresses map[util.Address]struct{}
 
 	conntracker netlink.Conntracker
+
+	reverseDNS ReverseDNS
 
 	perfMap *bpflib.PerfMap
 
@@ -116,13 +118,46 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
 
+	// check if current platform is RHEL or CentOS because it affects what kprobe are we going to enable
+	isRHELOrCentos, err := isRHELOrCentOS()
+	if err != nil {
+		// if the platform couldn't be determined, treat it as non RHEL case
+		log.Warn("could not detect the platform, will use kprobes from kernel version > 4.1.x")
+	}
+
+	if isRHELOrCentos {
+		log.Info("detected platform as RHEL/CentOS, switch to use kprobes from kernel version 3.3.x")
+	}
+
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes := config.EnabledKProbes()
+	enabledProbes := config.EnabledKProbes(isRHELOrCentos)
+
 	for k := range m.IterKprobes() {
-		if _, ok := enabledProbes[KProbeName(k.Name)]; ok {
-			if err = m.EnableKprobe(k.Name, maxActive); err != nil {
+		probeName := KProbeName(k.Name)
+		if _, ok := enabledProbes[probeName]; ok {
+			// check if we should override kprobe name
+			if override, ok := kprobeOverrides[probeName]; ok {
+				if err = m.SetKprobeForSection(string(probeName), string(override)); err != nil {
+					return nil, fmt.Errorf("could not update kprobe \"%s\" to \"%s\" : %s", k.Name, string(override), err)
+				}
+			}
+			if err = m.EnableKprobe(string(probeName), maxActive); err != nil {
 				return nil, fmt.Errorf("could not enable kprobe(%s): %s", k.Name, err)
 			}
+		}
+	}
+
+	var reverseDNS ReverseDNS = nullReverseDNS{}
+	if config.DNSInspection {
+		filter := m.SocketFilter("socket/dns_filter")
+		if filter == nil {
+			return nil, fmt.Errorf("error retrieving socket filter")
+		}
+
+		if snooper, err := NewSocketFilterSnooper(filter); err == nil {
+			reverseDNS = snooper
+		} else {
+			fmt.Errorf("error enabling DNS traffic inspection: %s", err)
 		}
 	}
 
@@ -147,6 +182,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		config:         config,
 		state:          state,
 		portMapping:    portMapping,
+		reverseDNS:     reverseDNS,
 		localAddresses: readLocalAddresses(),
 		buffer:         make([]ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
@@ -277,6 +313,7 @@ func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 }
 
 func (t *Tracer) Stop() {
+	t.reverseDNS.Close()
 	_ = t.m.Close()
 	t.perfMap.PollStop()
 	t.conntracker.Close()
@@ -298,7 +335,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)/2)
 	}
 
-	return &Connections{Conns: t.state.Connections(clientID, latestTime, latestConns)}, nil
+	conns := t.state.Connections(clientID, latestTime, latestConns)
+	names := t.reverseDNS.Resolve(conns)
+	return &Connections{Conns: conns, Names: names}, nil
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
@@ -389,7 +428,6 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 	keys := make([]string, 0, len(entries))
 	// Used to create the keys
 	statsWithTs, tcpStats := &ConnStatsWithTimestamp{}, &TCPStats{}
-
 	// Remove the entries from the eBPF Map
 	for i := range entries {
 		err := t.m.DeleteElement(mp, unsafe.Pointer(entries[i]))
@@ -557,6 +595,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		},
 		"ebpf":    t.getEbpfTelemetry(),
 		"kprobes": GetProbeStats(),
+		"dns":     t.reverseDNS.GetStats(),
 	}, nil
 }
 
@@ -671,5 +710,6 @@ func SectionsFromConfig(c *Config) map[string]bpflib.SectionParams {
 		tcpCloseEventMap.sectionName(): {
 			MapMaxEntries: 1024,
 		},
+		"socket/dns_filter": {},
 	}
 }

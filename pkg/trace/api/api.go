@@ -271,16 +271,19 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 	}
 }
 
-func traceCount(req *http.Request) int64 {
+func traceCount(req *http.Request) (int64, error) {
+	if _, ok := req.Header[headerTraceCount]; !ok {
+		return 0, fmt.Errorf("HTTP header %q not found", headerTraceCount)
+	}
 	str := req.Header.Get(headerTraceCount)
 	if str == "" {
-		return 0
+		return 0, fmt.Errorf("HTTP header %q value not set", headerTraceCount)
 	}
 	n, err := strconv.Atoi(str)
 	if err != nil {
-		log.Errorf("Error parsing %q HTTP header: %s", headerTraceCount, err)
+		return 0, fmt.Errorf("HTTP header %q can not be parsed: %v", headerTraceCount, err)
 	}
-	return int64(n)
+	return int64(n), nil
 }
 
 const (
@@ -350,7 +353,10 @@ func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) {
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
 	ts := r.tagStats(req)
-	traceCount := traceCount(req)
+	traceCount, err := traceCount(req)
+	if err != nil {
+		log.Warnf("Error getting trace count: %q. Functionality may be limited.", err)
+	}
 
 	if !r.RateLimiter.Permits(traceCount) {
 		// this payload can not be accepted

@@ -124,12 +124,8 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 
 // Configure configure the data from the yaml
 func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(data, source)
-	if err != nil {
-		return err
-	}
 	cfg := new(ntpConfig)
-	err = cfg.parse(data, initConfig, getLocalDefinedNTPServers)
+	err := cfg.parse(data, initConfig, getLocalDefinedNTPServers)
 	if err != nil {
 		log.Errorf("Error parsing configuration file: %s", err)
 		return err
@@ -137,6 +133,11 @@ func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data,
 
 	c.BuildID(data, initConfig)
 	c.cfg = cfg
+
+	err = c.CommonConfigure(data, source)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

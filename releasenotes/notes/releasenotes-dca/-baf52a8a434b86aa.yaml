@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    The Cluster Agent can now collect stats from Cluster Level Check runners
+    to optimize its dispatching logic and rebalance the scheduled checks.

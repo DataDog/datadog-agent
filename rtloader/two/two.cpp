@@ -176,9 +176,9 @@ void Two::freePyInfo(py_info_t *info)
 {
     info->version = NULL;
     if (info->path) {
-        free(info->path);
+        _free(info->path);
     }
-    free(info);
+    _free(info);
     return;
 }
 
@@ -836,6 +836,11 @@ void Two::setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t cb)
 void Two::setLogCb(cb_log_t cb)
 {
     _set_log_cb(cb);
+}
+
+void Two::setSetCheckMetadataCb(cb_set_check_metadata_t cb)
+{
+    _set_set_check_metadata_cb(cb);
 }
 
 void Two::setSetExternalTagsCb(cb_set_external_tags_t cb)

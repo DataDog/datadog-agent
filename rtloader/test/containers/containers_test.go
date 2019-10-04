@@ -5,6 +5,8 @@ import (
 	"os"
 	"regexp"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
 func TestMain(m *testing.M) {
@@ -18,6 +20,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestIsExcluded(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		f.write("{},{}".format(
@@ -32,9 +37,15 @@ func TestIsExcluded(t *testing.T) {
 	if out != "True,False" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestIsExcludedErrorTypeName(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		f.write("{},{}".format(
@@ -49,9 +60,15 @@ func TestIsExcludedErrorTypeName(t *testing.T) {
 	if matched, err := regexp.Match("TypeError: argument 1 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestIsExcludedErrorTypeImage(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		f.write("{},{}".format(
@@ -65,4 +82,7 @@ func TestIsExcludedErrorTypeImage(t *testing.T) {
 	if matched, err := regexp.Match("TypeError: argument 2 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }

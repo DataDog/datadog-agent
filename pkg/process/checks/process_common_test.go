@@ -114,7 +114,7 @@ func TestProcessChunking(t *testing.T) {
 	containers := []*containers.Container{}
 	lastRun := time.Now().Add(-5 * time.Second)
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
-	cfg := config.NewDefaultAgentConfig()
+	cfg := config.NewDefaultAgentConfig(false)
 
 	for i, tc := range []struct {
 		cur, last      []*process.FilledProcess

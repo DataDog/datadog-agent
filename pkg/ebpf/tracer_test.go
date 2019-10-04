@@ -60,6 +60,11 @@ func TestTracerExpvar(t *testing.T) {
 		"ebpf": {
 			"TcpSentMiscounts",
 		},
+		"dns": {
+			"Lookups",
+			"Resolved",
+			"Ips",
+		},
 		"kprobes": {
 			"PtcpCleanupRbufHits",
 			"PtcpCleanupRbufMisses",

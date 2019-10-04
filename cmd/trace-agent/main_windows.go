@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -93,6 +94,8 @@ func runService(isDebug bool) {
 
 // main is the main application entry point
 func main() {
+	flag.Parse()
+
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
 		fmt.Printf("failed to determine if we are running in an interactive session: %v", err)
