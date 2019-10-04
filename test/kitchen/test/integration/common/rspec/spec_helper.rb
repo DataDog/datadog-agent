@@ -488,6 +488,7 @@ shared_examples_for 'an Agent with python3 enabled' do
   end
 
   it 'runs Python 3 after python_version is set to 3' do
+    skip if os == :windows
     result = false
     python_version = fetch_python_version
     if ! python_version.nil? && Gem::Version.new('3.0.0') <= Gem::Version.new(python_version)
@@ -514,6 +515,7 @@ shared_examples_for 'an Agent with python3 enabled' do
   end
 
   it 'runs Python 2 after python_version is set back to 2' do
+    skip if os == :windows
     result = false
     python_version = fetch_python_version
     if ! python_version.nil? && Gem::Version.new('3.0.0') > Gem::Version.new(python_version)
