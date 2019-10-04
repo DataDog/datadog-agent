@@ -7,11 +7,13 @@ package config
 
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
-	APIKey       string `mapstructure:"api_key"`
-	Host         string
-	Port         int
-	UseSSL       bool
-	ProxyAddress string
+	APIKey           string `mapstructure:"api_key"`
+	Host             string
+	Port             int
+	UseSSL           bool
+	UseCompression   bool
+	CompressionLevel int
+	ProxyAddress     string
 }
 
 // Endpoints holds the main endpoint and additional ones to dualship logs.

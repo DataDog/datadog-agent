@@ -136,7 +136,9 @@ func buildTCPEndpoints() (*Endpoints, error) {
 
 func buildHTTPEndpoints() (*Endpoints, error) {
 	main := Endpoint{
-		APIKey: getLogsAPIKey(coreConfig.Datadog),
+		APIKey:           getLogsAPIKey(coreConfig.Datadog),
+		UseCompression:   coreConfig.Datadog.GetBool("logs_config.use_compression"),
+		CompressionLevel: coreConfig.Datadog.GetInt("logs_config.compression_level"),
 	}
 
 	switch {

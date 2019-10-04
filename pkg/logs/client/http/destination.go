@@ -1,17 +1,18 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -31,6 +32,7 @@ var (
 type Destination struct {
 	url                 string
 	contentType         string
+	contentEncoding     ContentEncoding
 	client              *http.Client
 	destinationsContext *client.DestinationsContext
 	once                sync.Once
@@ -41,8 +43,9 @@ type Destination struct {
 // TODO: add support for SOCKS5
 func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext) *Destination {
 	return &Destination{
-		url:         buildURL(endpoint),
-		contentType: contentType,
+		url:             buildURL(endpoint),
+		contentType:     contentType,
+		contentEncoding: buildContentEncoding(endpoint),
 		client: &http.Client{
 			Timeout: time.Second * 10,
 			// reusing core agent HTTP transport to benefit from proxy settings.
@@ -56,13 +59,22 @@ func NewDestination(endpoint config.Endpoint, contentType string, destinationsCo
 // the error returned can be retryable and it is the responsibility of the callee to retry.
 func (d *Destination) Send(payload []byte) error {
 	ctx := d.destinationsContext.Context()
-	req, err := http.NewRequest("POST", d.url, strings.NewReader(string(payload)))
+
+	encodedPayload, err := d.contentEncoding.encode(payload)
+	if err != nil {
+		return err
+	}
+	metrics.BytesSent.Add(int64(len(payload)))
+	metrics.EncodedBytesSent.Add(int64(len(encodedPayload)))
+
+	req, err := http.NewRequest("POST", d.url, bytes.NewReader(encodedPayload))
 	if err != nil {
 		// the request could not be built,
 		// this can happen when the method or the url are valid.
 		return err
 	}
 	req.Header.Set("Content-Type", d.contentType)
+	req.Header.Set("Content-Encoding", d.contentEncoding.name())
 	req = req.WithContext(ctx)
 
 	resp, err := d.client.Do(req)
@@ -135,4 +147,11 @@ func buildURL(endpoint config.Endpoint) string {
 		address = endpoint.Host
 	}
 	return fmt.Sprintf("%v://%v/v1/input/%v", scheme, address, endpoint.APIKey)
+}
+
+func buildContentEncoding(endpoint config.Endpoint) ContentEncoding {
+	if endpoint.UseCompression {
+		return NewGzipContentEncoding(endpoint.CompressionLevel)
+	}
+	return IdentityContentType
 }

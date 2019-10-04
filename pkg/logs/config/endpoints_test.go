@@ -129,6 +129,41 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	suite.Equal("agent-http-intake.logs.datadoghq.com", endpoint.Host)
 }
 
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndCompression() {
+	var endpoints *Endpoints
+	var endpoint Endpoint
+	var err error
+
+	suite.config.Set("logs_config.use_http", true)
+	suite.config.Set("logs_config.use_compression", true)
+
+	endpoints, err = BuildEndpoints()
+	suite.Nil(err)
+	suite.True(endpoints.UseHTTP)
+
+	endpoint = endpoints.Main
+	suite.True(endpoint.UseCompression)
+	suite.Equal(endpoint.CompressionLevel, 6)
+}
+
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndCompressionAndOverride() {
+	var endpoints *Endpoints
+	var endpoint Endpoint
+	var err error
+
+	suite.config.Set("logs_config.use_http", true)
+	suite.config.Set("logs_config.use_compression", true)
+	suite.config.Set("logs_config.compression_level", 1)
+
+	endpoints, err = BuildEndpoints()
+	suite.Nil(err)
+	suite.True(endpoints.UseHTTP)
+
+	endpoint = endpoints.Main
+	suite.True(endpoint.UseCompression)
+	suite.Equal(endpoint.CompressionLevel, 1)
+}
+
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndOverride() {
 	var endpoints *Endpoints
 	var endpoint Endpoint
