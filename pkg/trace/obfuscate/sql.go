@@ -48,20 +48,19 @@ func (f *discardFilter) Filter(token, lastToken int, buffer []byte) (int, []byte
 		if token == '[' {
 			// the identifier followed by AS is an MSSQL bracketed identifier
 			// and will continue to be discarded until we find the corresponding
-			// closing bracket counter-part. See GitHub issue #475.
+			// closing bracket counter-part. See GitHub issue DataDog/datadog-trace-agent#475.
 			return FilteredBracketedIdentifier, nil
 		}
-		// prevent the next comma from being part of a groupingFilter
-		return FilteredComma, nil
+		return Filtered, nil
 	}
 
 	// filters based on the current token; if the next token should be ignored,
-	// return the same token value (not Filtered) and nil
+	// return the same token value (not FilteredGroupable) and nil
 	switch token {
 	case As:
 		return As, nil
 	case Comment, ';':
-		return Filtered, nil
+		return FilteredGroupable, nil
 	default:
 		return token, buffer
 	}
@@ -78,11 +77,17 @@ type replaceFilter struct{}
 func (f *replaceFilter) Filter(token, lastToken int, buffer []byte) (int, []byte) {
 	switch lastToken {
 	case Savepoint:
-		return Filtered, []byte("?")
+		return FilteredGroupable, []byte("?")
+	case '=':
+		switch token {
+		case DoubleQuotedString:
+			// double-quoted strings after assignments are eligible for obfuscation
+			return FilteredGroupable, []byte("?")
+		}
 	}
 	switch token {
 	case String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
-		return Filtered, []byte("?")
+		return FilteredGroupable, []byte("?")
 	default:
 		return token, buffer
 	}
@@ -105,28 +110,28 @@ type groupingFilter struct {
 func (f *groupingFilter) Filter(token, lastToken int, buffer []byte) (int, []byte) {
 	// increasing the number of groups means that we're filtering an entire group
 	// because it can be represented with a single '( ? )'
-	if (lastToken == '(' && token == Filtered) || (token == '(' && f.groupMulti > 0) {
+	if (lastToken == '(' && token == FilteredGroupable) || (token == '(' && f.groupMulti > 0) {
 		f.groupMulti++
 	}
 
 	switch {
-	case token == Filtered:
+	case token == FilteredGroupable:
 		// the previous filter has dropped this token so we should start
 		// counting the group filter so that we accept only one '?' for
 		// the same group
 		f.groupFilter++
 
 		if f.groupFilter > 1 {
-			return Filtered, nil
+			return FilteredGroupable, nil
 		}
 	case f.groupFilter > 0 && (token == ',' || token == '?'):
 		// if we are in a group drop all commas
-		return Filtered, nil
+		return FilteredGroupable, nil
 	case f.groupMulti > 1:
 		// drop all tokens since we're in a counting group
 		// and they're duplicated
-		return Filtered, nil
-	case token != ',' && token != '(' && token != ')' && token != Filtered:
+		return FilteredGroupable, nil
+	case token != ',' && token != '(' && token != ')' && token != FilteredGroupable:
 		// when we're out of a group reset the filter state
 		f.Reset()
 	}

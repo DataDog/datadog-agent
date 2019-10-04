@@ -29,7 +29,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
             env["GOARCH"] = "386"
             windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx)
+        ver = get_version_numeric_only(ctx, env)
         maj_ver, min_ver, patch_ver = ver.split(".")
         resdir = os.path.join(".", "cmd", "process-agent", "windows_resources")
 

@@ -32,6 +32,17 @@ func TestTopLevelTypical(t *testing.T) {
 	assert.False(HasTopLevel(tr[4]), "yet another sup span, not top-level")
 }
 
+func TestSetMeta(t *testing.T) {
+	for _, s := range []*pb.Span{
+		{},
+		{Meta: map[string]string{"A": "B", "C": "D"}},
+	} {
+		SetMeta(s, "X", "Y")
+		assert.NotNil(t, s.Meta)
+		assert.Equal(t, s.Meta["X"], "Y")
+	}
+}
+
 func TestTopLevelSingle(t *testing.T) {
 	assert := assert.New(t)
 

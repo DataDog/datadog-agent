@@ -148,7 +148,7 @@ func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
 }
 
 func TestGetHostname(t *testing.T) {
-	cfg := NewDefaultAgentConfig()
+	cfg := NewDefaultAgentConfig(false)
 	h, err := getHostname(cfg.DDAgentBin)
 	assert.Nil(t, err)
 	assert.NotEqual(t, "", h)
@@ -156,7 +156,7 @@ func TestGetHostname(t *testing.T) {
 
 func TestDefaultConfig(t *testing.T) {
 	assert := assert.New(t)
-	agentConfig := NewDefaultAgentConfig()
+	agentConfig := NewDefaultAgentConfig(false)
 
 	// assert that some sane defaults are set
 	assert.Equal("info", agentConfig.LogLevel)
@@ -164,7 +164,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(true, agentConfig.Scrubber.Enabled)
 
 	os.Setenv("DOCKER_DD_AGENT", "yes")
-	agentConfig = NewDefaultAgentConfig()
+	agentConfig = NewDefaultAgentConfig(false)
 	assert.Equal(os.Getenv("HOST_PROC"), "")
 	assert.Equal(os.Getenv("HOST_SYS"), "")
 	os.Setenv("DOCKER_DD_AGENT", "no")
@@ -252,6 +252,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.True(agentConfig.DisableTCPTracing)
 	assert.True(agentConfig.DisableUDPTracing)
 	assert.True(agentConfig.DisableIPv6Tracing)
+	assert.True(agentConfig.DisableDNSInspection)
 	assert.Equal(map[string][]string(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"443"}, "127.0.0.1": {"5005"}}), agentConfig.ExcludedSourceConnections)
 	assert.Equal(map[string][]string(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"*"}, "2001:db8::2:1": {"5005"}}), agentConfig.ExcludedDestinationConnections)
 }

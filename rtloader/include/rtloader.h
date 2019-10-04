@@ -339,6 +339,15 @@ public:
     */
     virtual void setLogCb(cb_log_t) = 0;
 
+    //! setCheckMetadataCb member.
+    /*!
+      \param A cb_set_check_metadata_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow adding metadata for
+      specific check instances to the go-land Inventories metadata provider cache.
+    */
+    virtual void setSetCheckMetadataCb(cb_set_check_metadata_t) = 0;
+
     //! setExternalTagsCb member.
     /*!
       \param A cb_set_external_tags_t function pointer to the CGO callback.

@@ -5,9 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -149,21 +147,6 @@ func gracefulExit() {
 	// http://supervisord.org/subprocess.html#process-states
 	time.Sleep(5 * time.Second)
 	os.Exit(0)
-}
-
-func handleSignals(exit chan bool) {
-	sigIn := make(chan os.Signal, 100)
-	signal.Notify(sigIn)
-	// unix only in all likelihood;  but we don't care.
-	for sig := range sigIn {
-		switch sig {
-		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT:
-			log.Criticalf("Caught signal '%s'; terminating.", sig)
-			close(exit)
-		default:
-			log.Warnf("Caught signal %s; continuing/ignoring.", sig)
-		}
-	}
 }
 
 // versionString returns the version information filled in at build time

@@ -76,11 +76,13 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 		if err != nil {
 			log.Warnf("error marshalling an item, skipping: %s", err)
 			i++
+			expvarsWriteItemErrors.Add(1)
 			continue
 		}
 
 		switch compressor.addItem(jsonStream.Buffer()) {
 		case errPayloadFull:
+			expvarsPayloadFulls.Add(1)
 			// payload is full, we need to create a new one
 			payload, err := compressor.close()
 			if err != nil {

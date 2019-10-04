@@ -63,7 +63,11 @@ func requestDogstatsdStats() error {
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/dogstatsd-stats", config.Datadog.GetInt("cmd_port"))
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
 	e = util.SetAuthToken()

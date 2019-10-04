@@ -2,6 +2,237 @@
 Release Notes
 =============
 
+.. _Release Notes_6.14.1:
+
+6.14.1
+======
+
+.. _Release Notes_6.14.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-09-26
+
+
+.. _Release Notes_6.14.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Disable debug log lines for the 'hostname' command since it's directly called
+  by some Agent components. Fixes hostname resolution issues for APM and Live Process.
+
+
+.. _Release Notes_6.14.0:
+
+6.14.0
+======
+
+.. _Release Notes_6.14.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-09-16
+
+- Please refer to the `6.14.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6140>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_6.14.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- The GPG key used to sign the Agent RPM packages has been rotated.
+  See the dedicated `Agent documentation page
+  <https://docs.datadoghq.com/agent/faq/rpm-gpg-key-rotation-agent-6/>`_
+  to know how to make sure that the new Agent RPM packages can be installed on
+  hosts.
+
+- Update to the configuration of the systemd check: ``unit_names`` is now
+  required and only matching units will be monitored, ``unit_regexes``
+  configuration has been removed.
+
+- Several metrics sent by the systemd check have been renamed. The integration is now stable.
+
+
+.. _Release Notes_6.14.0_New Features:
+
+New Features
+------------
+
+- APM: add support for container tagging. It can be used with any client tracer that supports it.
+
+- APM: Incoming TCP connections are now measured in the datadog.trace_agent.receiver.tcp_connections
+  metrics with a "status" tag having values: "accepted", "rejected", "timedout" and "errored".
+
+- Allows the user to blacklist source and destination connections by passing IPs or CIDRs as well as port numbers.
+
+- Docker label autodiscovery configurations are now polled more often by default.
+
+- The Agent can now expose runner stats via the CLC Runner API Server, a remotely-accessible authenticated API server.
+  The Cluster Agent can use these stats to optimize dispatching cluster level checks.
+  The CLC Runner API Server is disabled by default, it must be enabled in the Agent configuration, also the cluster agent must be enabled since it's the only client of the server.
+  By default, the server listens on 5005 and its host address must be set to the Agent Pod IP using the Kubernetes downward API.
+
+- [preview] Checks can now send histogram buckets to the agent to be sent as distribution metrics.
+
+- In macOS datadog-agent is now able to start/stop process-agent.
+
+- The Agent now includes a Python 3 runtime to run checks.
+  By default, the Python 2 runtime is used. See the dedicated `Agent documentation page
+  <https://docs.datadoghq.com/agent/guide/python-3/>`_ for details on how to
+  configure the Agent to use the Python 3 runtime and how to migrate checks from
+  Python 2 to Python 3.
+
+- High-level RTLoader memory usage statistics exposed as expvars
+  on the agent.
+
+- Adding tracemalloc_debug configuration setting (Python3 only).
+  Enables Tracemalloc memory profiling on Python3. Enabling this
+  option will override the number of check runners to 1 to guarantee
+  sequential execution of checks.
+
+- For NTP check, add the option ``use_local_defined_servers``.
+  When ``use_local_defined_servers`` is true, use the ntp servers defined in the current host otherwise use the hosts defined in the configuration.
+
+
+.. _Release Notes_6.14.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Show configuration source for each check's instance in the "status" and the
+  "configcheck" commands.
+
+- Add a new invoke task, ``rtloader.generate-doc`` which generates
+  Doxygen documentation for the rtloader directory and warns about
+  documentation errors or warnings.
+
+- Allow the check command to display and/or store memory profiling data.
+
+- For Windows, add a message when the user cannot perform the action in the systray.
+
+- APM: The `datadog.trace_agent.normalizer.traces_dropped` metric now has a new
+  reason `payload_too_large` which was confusingly merged with `decoding_error`.
+
+- APM: Bind ``apm_config.replace_tags`` parameter to ``DD_APM_REPLACE_TAGS`` environment variable.
+  It accepts a JSON formatted string of the form ``[{"name":"tag_name","pattern":"pattern","repl":"repl_str"}]``
+
+- The default collection interval for host metadata has been reduced from 4
+  hours to 30 min.
+
+- Collection interval for the default metadata providers ('host',
+  'agent_checks' and 'resources') can now be configured using the
+  'metadata_providers' configuration entry.
+
+- Agent commands now honor the DD_LOG_LEVEL env variable if set.
+
+- Distributions: Distribution payloads are now compressed before being sent to
+  Datadog if the agent is built with either zlib or zstd.
+
+- Configuration files for core checks in cmd/agent/dist/conf.d/
+  have been migated to the new configuration file norm.
+  https://docs.datadoghq.com/developers/integrations/new_check_howto/#configuration-file
+
+- When a valid command is passed to the agent but the command fails, don't display the help usage message.
+
+- Add ``private_socket`` configuration to the systemd check. Defaults to ``/run/systemd/private``
+  (or ``/host/run/systemd/private`` when using Docker Agent).
+
+- Warnings returned by the Python 3 linter for custom checks are
+  now logged in the Agent at the 'debug' level.
+
+- Make NTP check less verbose when a host can't be reached.
+  Warn only after 10 consecutive errors.
+
+- Added detection of a network ID which will be used to improve destination
+  resolution of network connections.
+
+- Windows events will now display a full text message instead of a JSON
+  object. When available, the agent will now enrich the events with status,
+  human readable task name and opcode. 
+
+- On Windows, adds system.mem.pagefile.* stats, previously available
+  only in Agent 5.
+
+
+.. _Release Notes_6.14.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- The ``--log-level`` argument in ``agent check`` and ``agent jmx`` commands
+  has been deprecated in favor of the DD_LOG_LEVEL env variable.
+
+
+.. _Release Notes_6.14.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: The ``datadog.trace_agent.receiver.payload_refused`` metric now has language tags
+  like its peer metrics.
+
+- The ``agent jmx`` command now correctly takes into account the options in the
+  `init_config` section of the JMXFetch integration configs
+
+- Escape message when using JSON log format. This, for example, fixes
+  multiline JSON payload when logging a Exception from Python.
+
+- Fix a bug, when a check have its init configuration before that all the tagger collector report tags.
+
+- Fix spikes for ``system.io.avg_q_sz`` metrics on Linux when the kernel counter
+  was wrapping back to 0.
+
+- Fix system.io.* metrics on Linux that were off by 1 when the kernel counters
+  were wrapping back to 0.
+
+- Fixed placeholder value for the marathon entry point to match the new configuration file layout. 
+
+- Fix a ``tagger`` goroutine race issue when adding a new entry in the ``tagger.Store`` and requesting an entry in another goroutine.
+
+- Fix files descriptor leak when tailing a logs file with file rotation and
+  the tailer is stuck for instance because of lost connectivity with the logs
+  intake endpoint.
+
+- The parameter ``jmx`` is not supported with the command ``check``, the ``jmx`` command should be used instead.
+
+- Fixed NTP timeout not being used from the configuration.
+
+- On Windows, correctly configure the config file if the path includes
+  a space.
+
+- When uninstalling the agent, remove ddagentuser home folder.
+
+- APM: Fix incorrect ``traces_dropped`` and ``spans_malformed`` metric counts.
+
+- On Windows, "ddagentuser" (the user context under which the Agent runs),
+  is now added to the "Event Log Readers" group, granting access to 
+  Security event logs.
+
+
+.. _Release Notes_6.14.0_Other Notes:
+
+Other Notes
+-----------
+
+- The Windows agent no longer depends on the Windows WMI service.  
+  If the WMI service stops for any reason, the Windows agent will no 
+  longer stop with it.  However, any integrations that do use WMI
+  (wmi_check and win32_event_log) will not be able to function until 
+  the WMI service restarts.
+
+- Ignore the containerd startup script and the kubeconfig as part of the host metadata on GKE.
+
+- JMXFetch upgraded to `0.31.0 <https://github.com/DataDog/jmxfetch/releases/0.31.0>`_
+
+- On Windows, during an uninstall, if the user context for the datadog agent
+  is a domain user, the user will no longer be deleted even when the user 
+  was created by the corresponding install.
+
+
 .. _Release Notes_6.13.0:
 
 6.13.0

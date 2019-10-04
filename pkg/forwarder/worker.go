@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // Worker comsumes Transaction (aka transactions) from the Forwarder and
@@ -39,7 +39,7 @@ type Worker struct {
 // NewWorker returns a new worker to consume Transaction from inputChan
 // and push back erroneous ones into requeueChan.
 func NewWorker(highPrioChan <-chan Transaction, lowPrioChan <-chan Transaction, requeueChan chan<- Transaction, blocked *blockedEndpoints) *Worker {
-	transport := util.CreateHTTPTransport()
+	transport := httputils.CreateHTTPTransport()
 
 	httpClient := &http.Client{
 		Timeout:   config.Datadog.GetDuration("forwarder_timeout") * time.Second,

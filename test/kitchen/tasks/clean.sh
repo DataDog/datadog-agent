@@ -35,7 +35,7 @@ set -x
 if [ ${CLEAN_ALL+x} ]; then
   groups=$(az group list -o tsv --query "[?starts_with(name, 'kitchen')].[name]")
 else
-  groups=$(az group list -o tsv --query "[?starts_with(name, 'kitchen')]|[?ends_with(name, 'pl$CI_PIPELINE_ID')].[name]")
+  groups=$(az group list -o tsv --query "[?starts_with(name, 'kitchen')]|[?ends_with(name, 'pl$DD_PIPELINE_ID')].[name]")
 fi
 
 # This will really only fail if a VM or Group

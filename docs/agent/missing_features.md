@@ -1,10 +1,6 @@
-# Missing features
+# Missing Features
 
-This is a list of features present in 5.x that are currently **not available** in
-the 6.x release line:
+This information is available in the Datadog documentation:<br>
+[docs.datadoghq.com/agent/faq/agent-v6-changes][1]
 
- * [Using the Agent as a Proxy](https://docs.datadoghq.com/agent/proxy/#using-the-agent-as-a-proxy)
- * [Custom emitters](https://github.com/DataDog/dd-agent/wiki/Using-custom-emitters)
- * [Dogstream](https://docs.datadoghq.com/agent/logs/)
- * [go-metro](https://github.com/DataDog/integrations-core/tree/master/go-metro)
- * Graphite support
+[1]: https://docs.datadoghq.com/agent/faq/agent-v6-changes/#features

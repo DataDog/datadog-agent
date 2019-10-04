@@ -81,6 +81,7 @@ void GetConfig(char*, char **);
 void GetHostname(char **);
 void GetVersion(char **);
 void Headers(char **);
+void SetCheckMetadata(char *, char *, char *);
 void SetExternalTags(char *, char *, char **);
 bool TracemallocEnabled();
 
@@ -90,6 +91,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_hostname_cb(rtloader, GetHostname);
 	set_get_version_cb(rtloader, GetVersion);
 	set_headers_cb(rtloader, Headers);
+	set_set_check_metadata_cb(rtloader, SetCheckMetadata);
 	set_set_external_tags_cb(rtloader, SetExternalTags);
 	set_tracemalloc_enabled_cb(rtloader, TracemallocEnabled);
 }
@@ -204,7 +206,7 @@ func sendTelemetry(pythonVersion string) {
 	tags := []string{
 		fmt.Sprintf("python_version:%s", pythonVersion),
 	}
-	if agentVersion, err := version.New(version.AgentVersion, version.Commit); err == nil {
+	if agentVersion, err := version.Agent(); err == nil {
 		tags = append(tags,
 			fmt.Sprintf("agent_version_major:%d", agentVersion.Major),
 			fmt.Sprintf("agent_version_minor:%d", agentVersion.Minor),
@@ -252,7 +254,11 @@ func detectPythonLocation(pythonVersion string) {
 	if runtime.GOOS == "windows" {
 		pythonBinPath = filepath.Join(PythonHome, "python.exe")
 	} else {
-		pythonBinPath = filepath.Join(PythonHome, "bin", "python")
+		// On Unix both python are installed on the same embedded
+		// directory. We don't want to use the default version (aka
+		// "python") but either "python2" or "python3" based on the
+		// configuration.
+		pythonBinPath = filepath.Join(PythonHome, "bin", "python"+pythonVersion)
 	}
 }
 
