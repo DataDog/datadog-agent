@@ -8,7 +8,9 @@ package metrics
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -17,6 +19,7 @@ import (
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 )
 
 func TestMarshal(t *testing.T) {
@@ -278,4 +281,74 @@ type eventsJSON struct {
 	APIKey           string
 	Events           map[string][]Event
 	InternalHostname string
+}
+
+func createBenchmarkEvents(numberOfItem int) Events {
+	var events Events
+
+	maxValue := int(math.Sqrt(float64(numberOfItem)))
+	for i := 0; i < numberOfItem; i++ {
+		events = append(events, createEvent(strconv.Itoa(i%maxValue)))
+	}
+	return events
+}
+
+func benchmarkCreateSingleMarshaler(b *testing.B, numberOfItem int) {
+	payloadBuilder := jsonstream.NewPayloadBuilder()
+	events := createBenchmarkEvents(numberOfItem)
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		payloadBuilder.Build(events.CreateSingleMarshaler())
+	}
+}
+
+func BenchmarkCreateSingleMarshaler1(b *testing.B)   { benchmarkCreateSingleMarshaler(b, 1) }
+func BenchmarkCreateSingleMarshaler10(b *testing.B)  { benchmarkCreateSingleMarshaler(b, 10) }
+func BenchmarkCreateSingleMarshaler100(b *testing.B) { benchmarkCreateSingleMarshaler(b, 100) }
+func BenchmarkCreateSingleMarshaler1000(b *testing.B) {
+	benchmarkCreateSingleMarshaler(b, 1000)
+}
+func BenchmarkCreateSingleMarshaler10000(b *testing.B) {
+	benchmarkCreateSingleMarshaler(b, 10000)
+}
+func BenchmarkCreateSingleMarshaler100000(b *testing.B) {
+	benchmarkCreateSingleMarshaler(b, 100000)
+}
+func BenchmarkCreateSingleMarshaler1000000(b *testing.B) {
+	benchmarkCreateSingleMarshaler(b, 1000000)
+}
+
+func benchmarkCreateMarshalersBySourceType(b *testing.B, numberOfItem int) {
+	payloadBuilder := jsonstream.NewPayloadBuilder()
+	events := createBenchmarkEvents(numberOfItem)
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		for _, m := range events.CreateMarshalersBySourceType() {
+			payloadBuilder.Build(m)
+		}
+	}
+}
+
+func BenchmarkCreateMarshalersBySourceType1(b *testing.B) { benchmarkCreateMarshalersBySourceType(b, 1) }
+func BenchmarkCreateMarshalersBySourceType10(b *testing.B) {
+	benchmarkCreateMarshalersBySourceType(b, 10)
+}
+func BenchmarkCreateMarshalersBySourceType100(b *testing.B) {
+	benchmarkCreateMarshalersBySourceType(b, 100)
+}
+func BenchmarkCreateMarshalersBySourceType1000(b *testing.B) {
+	benchmarkCreateMarshalersBySourceType(b, 1000)
+}
+func BenchmarkCreateMarshalersBySourceType10000(b *testing.B) {
+	benchmarkCreateMarshalersBySourceType(b, 10000)
+}
+func BenchmarkCreateMarshalersBySourceType100000(b *testing.B) {
+	benchmarkCreateMarshalersBySourceType(b, 100000)
+}
+func BenchmarkCreateMarshalersBySourceType1000000(b *testing.B) {
+	benchmarkCreateMarshalersBySourceType(b, 1000000)
 }
