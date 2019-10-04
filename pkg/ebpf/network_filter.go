@@ -57,6 +57,7 @@ func ParseConnectionFilters(filters map[string][]string) (blacklist []*Connectio
 			lowerPort, upperPort, connTypeFilter, err = parsePortAndProtocolFilter(v)
 
 			if err != nil {
+				log.Error(err)
 				break
 			}
 
@@ -81,8 +82,6 @@ func ParseConnectionFilters(filters map[string][]string) (blacklist []*Connectio
 
 		if err == nil {
 			blacklist = append(blacklist, filter)
-		} else {
-			log.Error(err)
 		}
 	}
 	return blacklist
@@ -162,7 +161,8 @@ func IsBlacklistedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, c
 		if findMatchingFilter(scf, util.NetIPFromAddress(conn.Source), conn.SPort, conn.Type) {
 			return true
 		}
-	} else if len(dcf) > 0 && conn.Dest != nil {
+	}
+	if len(dcf) > 0 && conn.Dest != nil {
 		if findMatchingFilter(dcf, util.NetIPFromAddress(conn.Dest), conn.DPort, conn.Type) {
 			return true
 		}
