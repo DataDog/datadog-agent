@@ -155,7 +155,7 @@ before_script:
 
 
 # run tests for windows-64
-run_tests_windows-x64:
+.run_tests_windows_base:
   # temporarily allow failure for tests
   allow_failure: false
   stage: source_test
