@@ -240,6 +240,12 @@ build do
         end
       end
 
+      # Copy SNMP profiles
+      profiles = "#{check_dir}/datadog_checks/#{check}/data/profiles"
+      if File.exist? profiles
+        copy profile, "#{check_conf_dir}/"
+      end
+
       File.file?("#{check_dir}/setup.py") || next
       if windows?
         command "#{python} -m pip install --no-deps #{windows_safe_path(project_dir)}\\#{check}"
