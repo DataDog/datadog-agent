@@ -13,6 +13,7 @@ data:
   STS_NETWORK_TRACING_ENABLED: "true"
   STS_SKIP_SSL_VALIDATION: "false"
   STS_PROCESS_BLACKLIST_PATTERNS: "^s6-,^/sbin/,^/usr/sbin,^/pause,^/usr/bin/dbus-daemon,^-bash,^su$,^/bin/bash,/lib/systemd/"
+  STS_CLUSTER_NAME: "<SPECIFY>"
   STS_HEALTH_PORT: "5555"
   STS_LOG_LEVEL: "DEBUG"
   LOG_LEVEL: "DEBUG"

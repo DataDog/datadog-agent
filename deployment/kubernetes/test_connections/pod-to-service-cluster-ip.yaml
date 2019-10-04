@@ -12,7 +12,7 @@ spec:
       ports:
         - containerPort: 123
   nodeSelector:
-    failure-domain.beta.kubernetes.io/zone: us-east-1a
+    failure-domain.beta.kubernetes.io/zone: eu-west-1a
 ---
 apiVersion: v1
 kind: Service
@@ -39,4 +39,4 @@ spec:
       name: client
       command: ["/bin/bash", "-c", "yes | nc -vv pod-service 321"]
   nodeSelector:
-    failure-domain.beta.kubernetes.io/zone: us-east-1b
+    failure-domain.beta.kubernetes.io/zone: eu-west-1b

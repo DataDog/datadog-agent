@@ -1,5 +1,5 @@
 ---
-- name: Destroys the molecule instance and downsize the cluster
+- name: Destroy
   hosts: localhost
   connection: local
   gather_facts: false
