@@ -19,7 +19,8 @@ if [[ ! -e /etc/stackstate-agent/stackstate.yaml ]]; then
 fi
 
 # Enable the docker corecheck
-if [[ ! -e /etc/stackstate-agent/conf.d/docker.d/conf.yaml.default ]]; then
-    mv /etc/stackstate-agent/conf.d/docker.d/conf.yaml.example \
-    /etc/stackstate-agent/conf.d/docker.d/conf.yaml.default
-fi
+# TP: Not using the docker corecheck metrics, provided by the process agent.
+#if [[ ! -e /etc/stackstate-agent/conf.d/docker.d/conf.yaml.default ]]; then
+#    mv /etc/stackstate-agent/conf.d/docker.d/conf.yaml.example \
+#    /etc/stackstate-agent/conf.d/docker.d/conf.yaml.default
+#fi

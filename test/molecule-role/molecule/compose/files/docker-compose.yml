@@ -101,6 +101,7 @@ services:
     environment:
       STS_API_KEY: "API_KEY"
       STS_STS_URL: "http:/localhost:7077/stsAgent"
+      STS_HOSTNAME: "trace-java-demo"
       STS_PROCESS_AGENT_URL: "http://localhost:7077/stsAgent"
       STS_PROCESS_AGENT_ENABLED: "true"
       STS_NETWORK_TRACING_ENABLED: "true"
