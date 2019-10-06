@@ -10,6 +10,9 @@ instances:
     # To deactivate the event collection, flip the collect_events option to false.
     # collect_events: false
     #
-    # You can specify a filter over the event types you want the check to ignore.
-    # See https://github.com/kubernetes/kubernetes/blob/638822fd0f30d9c78e78b91e918cb7364f86b8ab/pkg/kubelet/events/event.go#L20
-    # filtered_event_types: ["MissingClusterDNS"]
+    # Specify a list of exclusion filters over the event type, involvedObject.
+    #
+    # filtered_event_types: ["reason:FailedGetScale","kind:Pod","type:Normal"]
+    #
+    # Maximum number of events you wish to collect per check run.
+    # cardinality_limit: 300

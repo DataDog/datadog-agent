@@ -10,9 +10,7 @@ package cluster
 import (
 	"errors"
 	"fmt"
-	"time"
-
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -26,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"strings"
+	"time"
 )
 
 // Covers the Control Plane service check and the in memory pod metadata.
@@ -41,6 +41,13 @@ type KubeASConfig struct {
 	CollectOShiftQuotas      bool     `yaml:"collect_openshift_clusterquotas"`
 	FilteredEventType        []string `yaml:"filtered_event_types"`
 	EventCollectionTimeoutMs int      `yaml:"kubernetes_event_read_timeout_ms"`
+	CardinalityLimit         int      `yaml:"cardinality_limit"`
+	LeaderSkip               bool     `yaml:"skip_leader_election"`
+}
+
+type EventC struct {
+	ResVer   *string
+	LastTime *time.Time
 }
 
 // KubeASCheck grabs metrics and events from the API server.
@@ -48,8 +55,8 @@ type KubeASCheck struct {
 	core.CheckBase
 	instance              *KubeASConfig
 	KubeAPIServerHostname string
-	latestEventToken      string
-	configMapAvailable    bool
+	eventCollection       *EventC
+	ignoredEvents         string
 	ac                    *apiserver.APIClient
 	oshiftAPILevel        apiserver.OpenShiftAPILevel
 }
@@ -76,9 +83,32 @@ func (k *KubeASCheck) Configure(config, initConfig integration.Data, source stri
 		log.Error("could not parse the config for the API server")
 		return err
 	}
-
-	log.Debugf("Running config %s", config)
+	if k.instance.CardinalityLimit == 0 {
+		k.instance.CardinalityLimit = 200
+	}
+	k.ignoredEvents = convertFilter(k.instance.FilteredEventType)
 	return nil
+}
+
+func convertFilter(conf []string) string {
+	var formatedFilters []string
+	for _, filter := range conf {
+		f := strings.Split(filter, ":")
+		switch {
+		// Required to avoid introducing a breaking change.
+		case len(f) == 1:
+			formatedFilters = append(formatedFilters, fmt.Sprintf("reason!=%s", f[0]))
+		case f[0] == "reason" && len(f) == 2:
+			formatedFilters = append(formatedFilters, fmt.Sprintf("reason!=%s", f[1]))
+		case f[0] == "kind" && len(f) == 2:
+			formatedFilters = append(formatedFilters, fmt.Sprintf("involvedObject.kind!=%s", f[1]))
+		case f[0] == "type" && len(f) == 2:
+			formatedFilters = append(formatedFilters, fmt.Sprintf("type=%s", f[1]))
+		default:
+			log.Error("Could not parse the fitler, only support kind, type and reason")
+		}
+	}
+	return strings.Join(formatedFilters, ",")
 }
 
 // Run executes the check.
@@ -93,21 +123,22 @@ func (k *KubeASCheck) Run() error {
 		log.Debug("Cluster agent is enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		return nil
 	}
-
-	// Only run if Leader Election is enabled.
-	if !config.Datadog.GetBool("leader_election") {
-		k.Warn("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
-		return nil
-	}
-	errLeader := k.runLeaderElection()
-	if errLeader != nil {
-		if errLeader == apiserver.ErrNotLeader {
-			// Only the leader can instantiate the apiserver client.
+	// Check is configured as a cluster check. The Cluster Agent passed in a config to skip the leader election.
+	if !k.instance.LeaderSkip {
+		// Only run if Leader Election is enabled.
+		if !config.Datadog.GetBool("leader_election") {
+			k.Warn("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 			return nil
 		}
-		return err
+		errLeader := k.runLeaderElection()
+		if errLeader != nil {
+			if errLeader == apiserver.ErrNotLeader {
+				// Only the leader can instantiate the apiserver client.
+				return nil
+			}
+			return err
+		}
 	}
-
 	// API Server client initialisation on first run
 	if k.ac == nil {
 		// We start the API Server Client.
@@ -149,27 +180,16 @@ func (k *KubeASCheck) Run() error {
 		return nil
 	}
 
-	// Init of the resVersion token.
-	k.eventCollectionInit()
-
 	// Get the events from the API server
-	newEvents, modifiedEvents, err := k.eventCollectionCheck()
+	events, err := k.eventCollectionCheck()
 	if err != nil {
 		return err
 	}
 
 	// Process the events to have a Datadog format.
-	err = k.processEvents(sender, newEvents, false)
+	err = k.processEvents(sender, events)
 	if err != nil {
 		k.Warnf("Could not submit new event %s", err.Error())
-	}
-	// We send the events in 2 steps to make sure the new events are initializing the aggregation keys and as modified events have a different payload.
-	if len(modifiedEvents) == 0 {
-		return nil
-	}
-	err = k.processEvents(sender, modifiedEvents, true)
-	if err != nil {
-		k.Warnf("Could not submit modified event %s", err.Error())
 	}
 	return nil
 }
@@ -177,8 +197,9 @@ func (k *KubeASCheck) Run() error {
 // KubernetesASFactory is exported for integration testing.
 func KubernetesASFactory() check.Check {
 	return &KubeASCheck{
-		CheckBase: core.NewCheckBase(kubernetesAPIServerCheckName),
-		instance:  &KubeASConfig{},
+		CheckBase:       core.NewCheckBase(kubernetesAPIServerCheckName),
+		instance:        &KubeASConfig{},
+		eventCollection: &EventC{},
 	}
 }
 
@@ -203,69 +224,30 @@ func (k *KubeASCheck) runLeaderElection() error {
 	log.Tracef("Current leader: %q, running Kubernetes cluster related checks and collecting events", leaderEngine.GetLeader())
 	return nil
 }
-func (k *KubeASCheck) eventCollectionInit() {
-	if k.latestEventToken == "" {
-		// Initialization: Checking if we previously stored the latestEventToken in a configMap
-		tokenValue, found, err := k.ac.GetTokenFromConfigmap(eventTokenKey, 3600)
-		switch {
-		case err == apiserver.ErrOutdated:
-			k.configMapAvailable = found
-			k.latestEventToken = "0"
 
-		case err == apiserver.ErrNotFound:
-			k.latestEventToken = "0"
-
-		case err == nil:
-			k.configMapAvailable = found
-			k.latestEventToken = tokenValue
-
-		default:
-			log.Warnf("Cannot handle the tokenValue: %q, querying the kube-apiserver cache for events", tokenValue)
-			k.latestEventToken = "0"
-		}
+func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, error) {
+	var err error
+	resVer, lastTime, err := k.ac.GetTokenFromConfigmap(eventTokenKey)
+	if err != nil {
+		return nil, err
 	}
-}
+	k.eventCollection.ResVer = &resVer
+	k.eventCollection.LastTime = &lastTime
 
-func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
-	timeout := time.Duration(k.instance.EventCollectionTimeoutMs) * time.Millisecond
+	timeout := int64(k.instance.EventCollectionTimeoutMs / 1000)
+	limit := int64(k.instance.CardinalityLimit)
+	newEvents, err := k.ac.RunEventCollection(k.eventCollection.ResVer, k.eventCollection.LastTime, &timeout, limit, k.ignoredEvents)
 
-	newEvents, modifiedEvents, versionToken, err := k.ac.LatestEvents(k.latestEventToken, timeout)
 	if err != nil {
 		k.Warnf("Could not collect events from the api server: %s", err.Error())
-		return nil, nil, err
+		return nil, err
 	}
 
-	if versionToken == "0" {
-		// API server cache expired or no recent events to process. Resetting the Resversion token.
-		_, _, versionToken, err = k.ac.LatestEvents("0", timeout)
-		if err != nil {
-			k.Warnf("Could not collect cached events from the api server: %s", err.Error())
-			return nil, nil, err
-		}
-
-		if k.latestEventToken == versionToken {
-			log.Tracef("No new events collected")
-			// No new events but protobuf error was caught. Will retry at next run.
-			return nil, nil, nil
-		}
-		// There was a protobuf error and new events were submitted. Processing them and updating the resVersion.
-		k.latestEventToken = versionToken
+	configMapErr := k.ac.UpdateTokenInConfigmap(eventTokenKey, *k.eventCollection.ResVer, *k.eventCollection.LastTime)
+	if configMapErr != nil {
+		k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error())
 	}
-
-	// We check that the resversion gotten from the API Server is more recent than the one cached in the util.
-	if len(newEvents)+len(modifiedEvents) == 0 {
-		return nil, nil, nil
-	}
-
-	k.latestEventToken = versionToken
-	if k.configMapAvailable {
-		configMapErr := k.ac.UpdateTokenInConfigmap(eventTokenKey, versionToken)
-		if configMapErr != nil {
-			k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error())
-		}
-	}
-
-	return newEvents, modifiedEvents, nil
+	return newEvents, nil
 }
 
 func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsStatus *v1.ComponentStatusList) error {
@@ -305,19 +287,10 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 // - iterates over the Kubernetes Events
 // - extracts some attributes and builds a structure ready to be submitted as a Datadog event (bundle)
 // - formats the bundle and submit the Datadog event
-func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event, modified bool) error {
+func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event) error {
 	eventsByObject := make(map[types.UID]*kubernetesEventBundle)
-	filteredByType := make(map[string]int)
 
-	// Only process the events which actions aren't part of the FilteredEventType list in the yaml config.
-ITER_EVENTS:
 	for _, event := range events {
-		for _, action := range k.instance.FilteredEventType {
-			if event.Reason == action {
-				filteredByType[action] = filteredByType[action] + 1
-				continue ITER_EVENTS
-			}
-		}
 		bundle, found := eventsByObject[event.InvolvedObject.UID]
 		if found == false {
 			bundle = newKubernetesEventBundler(event.InvolvedObject.UID, event.Source.Component)
@@ -327,15 +300,10 @@ ITER_EVENTS:
 		if err != nil {
 			k.Warnf("Error while bundling events, %s.", err.Error())
 		}
-
-		if len(filteredByType) > 0 {
-			log.Debugf("Filtered out the following events: %s", formatStringIntMap(filteredByType))
-		}
 	}
-
 	clusterName := clustername.GetClusterName()
 	for _, bundle := range eventsByObject {
-		datadogEv, err := bundle.formatEvents(modified, clusterName)
+		datadogEv, err := bundle.formatEvents(clusterName)
 		if err != nil {
 			k.Warnf("Error while formatting bundled events, %s. Not submitting", err.Error())
 			continue

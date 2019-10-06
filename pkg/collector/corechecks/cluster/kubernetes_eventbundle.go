@@ -9,13 +9,13 @@ package cluster
 import (
 	"errors"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"math"
 )
 
 type kubernetesEventBundle struct {
@@ -38,7 +38,7 @@ func newKubernetesEventBundler(objUid types.UID, compName string) *kubernetesEve
 	}
 }
 
-func (k *kubernetesEventBundle) addEvent(event *v1.Event) error {
+func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	// As some fields are optional, we want to avoid evaluating empty values.
 	if event == nil || event.InvolvedObject.Kind == "" {
 		return errors.New("could not retrieve some parent attributes of the event")
@@ -46,55 +46,50 @@ func (k *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	if event.Reason == "" || event.Message == "" || event.InvolvedObject.Name == "" {
 		return errors.New("could not retrieve some attributes of the event")
 	}
-	if event.InvolvedObject.UID != k.objUid {
-		return fmt.Errorf("mismatching Object UIDs: %s != %s", event.InvolvedObject.UID, k.objUid)
+	if event.InvolvedObject.UID != b.objUid {
+		return fmt.Errorf("mismatching Object UIDs: %s != %s", event.InvolvedObject.UID, b.objUid)
 	}
 
-	k.events = append(k.events, event)
-	k.namespace = event.InvolvedObject.Namespace
-	k.timeStamp = math.Max(k.timeStamp, float64(event.FirstTimestamp.Unix()))
-	k.lastTimestamp = math.Max(k.timeStamp, float64(event.LastTimestamp.Unix()))
+	b.events = append(b.events, event)
+	b.namespace = event.InvolvedObject.Namespace
 
-	k.countByAction[fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)] += int(event.Count)
-	k.readableKey = fmt.Sprintf("%s %s", event.InvolvedObject.Name, event.InvolvedObject.Kind)
+	b.timeStamp = float64(event.FirstTimestamp.Unix())
+	b.lastTimestamp = math.Max(b.lastTimestamp, float64(event.LastTimestamp.Unix()))
+
+	b.countByAction[fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)] += int(event.Count)
+	b.readableKey = fmt.Sprintf("%s %s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Namespace, event.InvolvedObject.Name)
 
 	if event.InvolvedObject.Kind == "Node" || event.InvolvedObject.Kind == "Pod" {
-		k.nodename = event.Source.Host
+		b.nodename = event.Source.Host
 	}
 
 	return nil
 }
 
-func (k *kubernetesEventBundle) formatEvents(modified bool, clusterName string) (metrics.Event, error) {
-	if len(k.events) == 0 {
+func (b *kubernetesEventBundle) formatEvents(clusterName string) (metrics.Event, error) {
+	if len(b.events) == 0 {
 		return metrics.Event{}, errors.New("no event to export")
 	}
-
 	// Adding the clusterName to the nodename if present
-	hostname := k.nodename
-	if k.nodename != "" && clusterName != "" {
+	hostname := b.nodename
+	if b.nodename != "" && clusterName != "" {
 		hostname = hostname + "-" + clusterName
 	}
 	// If hostname was not defined, the aggregator will then set the local hostname
 	output := metrics.Event{
-		Title:          fmt.Sprintf("Events from the %s", k.readableKey),
+		Title:          fmt.Sprintf("Events from the %s", b.readableKey),
 		Priority:       metrics.EventPriorityNormal,
 		Host:           hostname,
 		SourceTypeName: "kubernetes",
 		EventType:      kubernetesAPIServerCheckName,
-		Ts:             int64(k.timeStamp),
-		Tags:           []string{fmt.Sprintf("source_component:%s", k.component)},
-		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", k.objUid),
+		Ts:             int64(b.lastTimestamp),
+		Tags:           []string{fmt.Sprintf("source_component:%s", b.component)},
+		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUid),
 	}
-	if k.namespace != "" {
-		output.Tags = append(output.Tags, fmt.Sprintf("namespace:%s", k.namespace))
+	if b.namespace != "" {
+		output.Tags = append(output.Tags, fmt.Sprintf("namespace:%s", b.namespace))
 	}
-	if modified {
-		output.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s_ \n", formatStringIntMap(k.countByAction), k.component, time.Unix(int64(k.lastTimestamp), 0)) + "\n %%%"
-		output.Ts = int64(k.lastTimestamp)
-		return output, nil
-	}
-	output.Text = "%%% \n" + fmt.Sprintf("%s \n _New events emitted by the %s seen at %s_ \n", formatStringIntMap(k.countByAction), k.component, time.Unix(int64(k.timeStamp), 0)) + "\n %%%"
+	output.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s since %s_ \n", formatStringIntMap(b.countByAction), b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n %%%"
 	return output, nil
 }
 
