@@ -54,7 +54,7 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	b.namespace = event.InvolvedObject.Namespace
 
 	// We do not process the events in chronological order necessarily.
-	// We only care about the first time they occured, the last time and the count.
+	// We only care about the first time they occurred, the last time and the count.
 	b.timeStamp = float64(event.FirstTimestamp.Unix())
 	b.lastTimestamp = math.Max(b.lastTimestamp, float64(event.LastTimestamp.Unix()))
 
