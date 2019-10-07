@@ -15,5 +15,5 @@ func TestInit(t *testing.T) {
 	}
 
 	// Check for expected allocations
-	helpers.AssertMemoryExpectation(t, helpers.Allocations, 1)
+	helpers.AssertMemoryExpectation(t, helpers.Allocations, initAllocations)
 }
