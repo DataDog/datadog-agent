@@ -7,7 +7,7 @@
 
 package apiserver
 
-//// Covered by test/integration/util/kube_apiserver/events_test.go
+//// Covered by test/integration/util/kube_apiserver/apiserver_test.go
 
 import (
 	"fmt"
