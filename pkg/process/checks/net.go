@@ -62,11 +62,6 @@ func (c *ConnectionsCheck) RealTime() bool { return false }
 // that will be bundled up into a `CollectorConnections`.
 // See agent.proto for the schema of the message and models.
 func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
-	// If local tracer failed to initialize, so we shouldn't be doing any checks
-	if c.useLocalTracer && c.localTracer == nil {
-		return nil, nil
-	}
-
 	start := time.Now()
 
 	conns, err := c.getConnections()
@@ -79,7 +74,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	}
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, batchSize, c.enrichConnections(conns), c.networkID), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns), c.networkID), nil
 }
 
 func (c *ConnectionsCheck) getConnections() ([]*model.Connection, error) {
