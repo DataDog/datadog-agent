@@ -901,7 +901,6 @@ deploy_windows_testing-a7:
 
 .kitchen_common: &kitchen_common
   script:
-    - cd $CI_PROJECT_DIR
     - cd $DD_AGENT_TESTING_DIR
     - rm -rf $CI_PROJECT_DIR/kitchen_logs
     - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
@@ -916,7 +915,6 @@ deploy_windows_testing-a7:
 
 .kitchen_windows_installer_common: &kitchen_windows_installer_common
   script:
-    - cd $CI_PROJECT_DIR
     - cd $DD_AGENT_TESTING_DIR
     - rm -rf $CI_PROJECT_DIR/kitchen_logs
     - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
@@ -931,7 +929,6 @@ deploy_windows_testing-a7:
 
 .kitchen_windows_upgrade_common: &kitchen_windows_upgrade_common
   script:
-    - cd $CI_PROJECT_DIR
     - cd $DD_AGENT_TESTING_DIR
     - rm -rf $CI_PROJECT_DIR/kitchen_logs
     - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
