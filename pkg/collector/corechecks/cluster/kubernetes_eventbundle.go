@@ -57,9 +57,13 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	b.lastTimestamp = math.Max(b.lastTimestamp, float64(event.LastTimestamp.Unix()))
 
 	b.countByAction[fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)] += int(event.Count)
-	b.readableKey = fmt.Sprintf("%s %s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Namespace, event.InvolvedObject.Name)
 
-	if event.InvolvedObject.Kind == "Node" || event.InvolvedObject.Kind == "Pod" {
+	switch event.InvolvedObject.Kind {
+	case "Node":
+		b.readableKey = fmt.Sprintf("%s %s", event.InvolvedObject.Kind, event.InvolvedObject.Name)
+		b.nodename = event.Source.Host
+	case "Pod":
+		b.readableKey = fmt.Sprintf("%s %s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Namespace, event.InvolvedObject.Name)
 		b.nodename = event.Source.Host
 	}
 

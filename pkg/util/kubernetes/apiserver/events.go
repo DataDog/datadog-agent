@@ -110,7 +110,12 @@ func (c *APIClient) RunEventCollection(srv *string, st *time.Time, eventReadTime
 				return added, err
 			}
 			added = append(added, ev)
+
 			i, err := strconv.Atoi(*nrv)
+			if err != nil {
+				log.Errorf("Could not cast %s into an integer: %s", *nrv, err.Error())
+				continue
+			}
 			if evResVer > i {
 				// Events from the watch are not ordered necessarily, let's keep track of the newest RV.
 				*nrv = ev.ResourceVersion
