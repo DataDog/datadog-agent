@@ -119,6 +119,9 @@ func TestRegisterNat(t *testing.T) {
 		ReplDstPort: 12345,
 	}, translation)
 
+	udpTranslation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, 1)
+	assert.Nil(t, udpTranslation)
+
 	// even after unregistering, we should be able to access the conn
 	rt.unregister(c)
 	translation2 := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, 0)
@@ -136,6 +139,25 @@ func TestRegisterNat(t *testing.T) {
 
 	assert.Equal(t, translation, translation2)
 
+}
+
+func TestRegisterNatUDP(t *testing.T) {
+	rt := newConntracker()
+	c := makeTranslatedConn("10.0.0.0:12345", "50.30.40.10:80", "20.0.0.0:80")
+	c[ct.AttrOrigL4Proto] = []byte{17}
+
+	rt.register(c)
+	translation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, 1)
+	assert.NotNil(t, translation)
+	assert.Equal(t, &IPTranslation{
+		ReplSrcIP:   util.AddressFromString("20.0.0.0"),
+		ReplDstIP:   util.AddressFromString("10.0.0.0"),
+		ReplSrcPort: 80,
+		ReplDstPort: 12345,
+	}, translation)
+
+	translation = rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, 0)
+	assert.Nil(t, translation)
 }
 
 func TestGetUpdatesGen(t *testing.T) {
