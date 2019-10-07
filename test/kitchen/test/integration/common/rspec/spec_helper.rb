@@ -499,6 +499,7 @@ shared_examples_for 'an Agent with python3 enabled' do
 
   it 'restarts after python_version is set back to 2' do
     skip if os == :windows
+    skip if info.include? "v7."
     conf_path = ""
     if os != :windows
       conf_path = "/etc/datadog-agent/datadog.yaml"
@@ -516,6 +517,7 @@ shared_examples_for 'an Agent with python3 enabled' do
 
   it 'runs Python 2 after python_version is set back to 2' do
     skip if os == :windows
+    skip if info.include? "v7."
     result = false
     python_version = fetch_python_version
     if ! python_version.nil? && Gem::Version.new('3.0.0') > Gem::Version.new(python_version)
