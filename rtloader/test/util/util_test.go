@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
 func TestMain(m *testing.M) {
@@ -17,6 +19,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestHeaders(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	d = util.headers(http_host="myhost", ignore_me="snafu")
 	with open(r'%s', 'w') as f:
@@ -29,4 +34,7 @@ func TestHeaders(t *testing.T) {
 	if out != "Accept,Content-Type,Host,User-Agent" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }

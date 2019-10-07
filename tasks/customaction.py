@@ -32,7 +32,7 @@ def build(ctx, vstudio_root=None, arch="x64"):
         print("Custom action library is only for Win32")
         raise Exit(code=1)
 
-    ver = get_version_numeric_only(ctx)
+    ver = get_version_numeric_only(ctx, env=os.environ)
     build_maj, build_min, build_patch = ver.split(".")
     verprops = " /p:MAJ_VER={build_maj} /p:MIN_VER={build_min} /p:PATCH_VER={build_patch} ".format(
             build_maj=build_maj,

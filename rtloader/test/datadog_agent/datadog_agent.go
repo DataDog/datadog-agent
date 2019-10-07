@@ -9,37 +9,42 @@ import (
 	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 	yaml "gopkg.in/yaml.v2"
 )
 
-// #cgo CFLAGS: -I../../include
-// #cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
-// #cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
-//
-// #include <stdlib.h>
-// #include <datadog_agent_rtloader.h>
-//
-// extern void doLog(char*, int);
-// extern void getClustername(char **);
-// extern void getConfig(char *, char **);
-// extern void getHostname(char **);
-// extern bool getTracemallocEnabled();
-// extern void getVersion(char **);
-// extern void headers(char **);
-// extern void setCheckMetadata(char*, char*, char*);
-// extern void setExternalHostTags(char*, char*, char**);
-//
-// static void initDatadogAgentTests(rtloader_t *rtloader) {
-//    set_get_clustername_cb(rtloader, getClustername);
-//    set_get_config_cb(rtloader, getConfig);
-//    set_get_hostname_cb(rtloader, getHostname);
-//    set_tracemalloc_enabled_cb(rtloader, getTracemallocEnabled);
-//    set_get_version_cb(rtloader, getVersion);
-//    set_headers_cb(rtloader, headers);
-//    set_log_cb(rtloader, doLog);
-//    set_set_check_metadata_cb(rtloader, setCheckMetadata);
-//    set_set_external_tags_cb(rtloader, setExternalHostTags);
-// }
+/*
+#cgo CFLAGS: -I../../include -I../../common -Wno-deprecated-declarations
+#cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
+
+#include "rtloader_mem.h"
+#include "datadog_agent_rtloader.h"
+
+extern void doLog(char*, int);
+extern void getClustername(char **);
+extern void getConfig(char *, char **);
+extern void getHostname(char **);
+extern bool getTracemallocEnabled();
+extern void getVersion(char **);
+extern void headers(char **);
+extern void setCheckMetadata(char*, char*, char*);
+extern void setExternalHostTags(char*, char*, char**);
+
+
+static void initDatadogAgentTests(rtloader_t *rtloader) {
+   set_cgo_free_cb(rtloader, _free);
+   set_get_clustername_cb(rtloader, getClustername);
+   set_get_config_cb(rtloader, getConfig);
+   set_get_hostname_cb(rtloader, getHostname);
+   set_tracemalloc_enabled_cb(rtloader, getTracemallocEnabled);
+   set_get_version_cb(rtloader, getVersion);
+   set_headers_cb(rtloader, headers);
+   set_log_cb(rtloader, doLog);
+   set_set_check_metadata_cb(rtloader, setCheckMetadata);
+   set_set_external_tags_cb(rtloader, setExternalHostTags);
+}
+*/
 import "C"
 
 var (
@@ -54,6 +59,9 @@ type message struct {
 }
 
 func setUp() error {
+	// Initialize memory tracking
+	helpers.InitMemoryTracker()
+
 	rtloader = (*C.rtloader_t)(common.GetRtLoader())
 	if rtloader == nil {
 		return fmt.Errorf("make failed")
@@ -83,7 +91,7 @@ func tearDown() {
 
 func run(call string) (string, error) {
 	tmpfile.Truncate(0)
-	code := C.CString(fmt.Sprintf(`
+	code := (*C.char)(helpers.TrackedCString(fmt.Sprintf(`
 import sys
 try:
 	import datadog_agent
@@ -91,13 +99,13 @@ try:
 except Exception as e:
 	with open(r'%s', 'w') as f:
 		f.write("{}: {}\n".format(type(e).__name__, e))
-`, call, tmpfile.Name()))
+`, call, tmpfile.Name())))
+	defer C._free(unsafe.Pointer(code))
 
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
 	ret := C.run_simple_string(rtloader, code) == 1
-	C.free(unsafe.Pointer(code))
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()
@@ -113,7 +121,7 @@ except Exception as e:
 
 //export getVersion
 func getVersion(in **C.char) {
-	*in = C.CString("1.2.3")
+	*in = (*C.char)(helpers.TrackedCString("1.2.3"))
 }
 
 //export getConfig
@@ -122,13 +130,13 @@ func getConfig(key *C.char, in **C.char) {
 	goKey := C.GoString(key)
 	switch goKey {
 	case "log_level":
-		*in = C.CString("\"warning\"")
+		*in = (*C.char)(helpers.TrackedCString("\"warning\""))
 	case "foo":
 		m := message{C.GoString(key), "Hello", 123456}
 		b, _ := yaml.Marshal(m)
-		*in = C.CString(string(b))
+		*in = (*C.char)(helpers.TrackedCString(string(b)))
 	default:
-		*in = C.CString("null")
+		*in = (*C.char)(helpers.TrackedCString("null"))
 	}
 }
 
@@ -141,17 +149,17 @@ func headers(in **C.char) {
 	}
 	retval, _ := yaml.Marshal(h)
 
-	*in = C.CString(string(retval))
+	*in = (*C.char)(helpers.TrackedCString(string(retval)))
 }
 
 //export getHostname
 func getHostname(in **C.char) {
-	*in = C.CString("localfoobar")
+	*in = (*C.char)(helpers.TrackedCString("localfoobar"))
 }
 
 //export getClustername
 func getClustername(in **C.char) {
-	*in = C.CString("the-cluster")
+	*in = (*C.char)(helpers.TrackedCString("the-cluster"))
 }
 
 //export getTracemallocEnabled

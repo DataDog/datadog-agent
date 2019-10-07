@@ -32,7 +32,7 @@ void _set_log_cb(cb_log_t);
     \param log_level_t The log level to use to log the message.
     \param const char* A pointer to the message.
 */
-void agent_log(log_level_t, const char *);
+void agent_log(log_level_t, char *);
 
 #ifdef __cplusplus
 }

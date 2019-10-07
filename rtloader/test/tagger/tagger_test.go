@@ -5,6 +5,8 @@ import (
 	"os"
 	"regexp"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
 func TestMain(m *testing.M) {
@@ -21,6 +23,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetTags(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -33,9 +38,15 @@ func TestGetTags(t *testing.T) {
 	if out != "[\"a\", \"b\", \"c\"]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestGetTagsHighCard(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -48,9 +59,15 @@ func TestGetTagsHighCard(t *testing.T) {
 	if out != "[\"A\", \"B\", \"C\"]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestGetTagsUnknown(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -63,9 +80,15 @@ func TestGetTagsUnknown(t *testing.T) {
 	if out != "[]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestGetTagsErrorType(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`tagger.get_tags(1234, True)`)
 	out, err := run(code)
 	if err != nil {
@@ -74,9 +97,15 @@ func TestGetTagsErrorType(t *testing.T) {
 	if matched, err := regexp.Match("TypeError: argument 1 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestTagsLow(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -89,9 +118,15 @@ func TestTagsLow(t *testing.T) {
 	if out != "[\"a\", \"b\", \"c\"]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestTagsHigh(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -104,9 +139,15 @@ func TestTagsHigh(t *testing.T) {
 	if out != "[\"A\", \"B\", \"C\"]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestTagsOrchestrator(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -119,9 +160,15 @@ func TestTagsOrchestrator(t *testing.T) {
 	if out != "[\"1\", \"2\", \"3\"]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestTagsInvalidCardinality(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -134,9 +181,15 @@ func TestTagsInvalidCardinality(t *testing.T) {
 	if out != "TypeError: Invalid cardinality" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestTagsUnknown(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`
 	import json
 	with open(r'%s', 'w') as f:
@@ -149,9 +202,15 @@ func TestTagsUnknown(t *testing.T) {
 	if out != "[]" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestTagsErrorType(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := fmt.Sprintf(`tagger.tag(1234, tagger.LOW)`)
 	out, err := run(code)
 	if err != nil {
@@ -160,4 +219,7 @@ func TestTagsErrorType(t *testing.T) {
 	if matched, err := regexp.Match("TypeError: argument 1 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }

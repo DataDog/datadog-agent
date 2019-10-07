@@ -29,7 +29,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 	// update lastRun to indicate that Process check is enabled and ran
 	Process.lastRun = time.Now()
 
-	cfg := config.NewDefaultAgentConfig()
+	cfg := config.NewDefaultAgentConfig(false)
 
 	for i, tc := range []struct {
 		cur, last      []*model.Connection

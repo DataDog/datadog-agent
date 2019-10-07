@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	ddutil "github.com/DataDog/datadog-agent/pkg/util"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -305,7 +305,7 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 	}
 
 	// Build transport (w/ proxy if needed)
-	a.Transport = ddutil.CreateHTTPTransport()
+	a.Transport = httputils.CreateHTTPTransport()
 
 	return nil
 }

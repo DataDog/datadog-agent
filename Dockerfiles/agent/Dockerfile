@@ -5,6 +5,9 @@
 FROM debian:buster-slim AS extract
 ARG WITH_JMX
 ARG PYTHON_VERSION
+ARG DD_AGENT_ARTIFACT=datadog-agent*_amd64.deb
+
+# copy everything - globbing with args wont work
 COPY datadog-agent*_amd64.deb /
 WORKDIR /output
 
@@ -23,7 +26,10 @@ RUN apt-get update \
 #   - docs and manpages                  # FIXME: move upstream
 #   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
-RUN find / -name 'datadog-agent*_amd64.deb' ! -name 'datadog-agent-dbg*_amd64.deb' -exec dpkg -X {} . \; | egrep '.*' \
+
+# DEBUGGING
+RUN find / -maxdepth 1 -type f -name 'datadog-agent*_amd64.deb' ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
+ && find / -maxdepth 1 -name 'datadog-agent*_amd64.deb' -exec dpkg -X {} . \; | egrep '.*' \
  && rm -rf usr etc/init lib \
     opt/datadog-agent/sources \
     opt/datadog-agent/embedded/share/doc \
@@ -34,8 +40,8 @@ RUN find / -name 'datadog-agent*_amd64.deb' ! -name 'datadog-agent-dbg*_amd64.de
     usr/lib/x86_64-linux-gnu/libsystemd.so.0.21.0 \
     # self-test certificates that are detected (false positive) as private keys
     opt/datadog-agent/embedded/lib/python2.7/site-packages/Cryptodome/SelfTest \
- && if [ "$PYTHON_VERSION" = "2" ]; then rm -rf opt/datadog-agent/embedded/lib/python3.*; fi \
- && if [ "$PYTHON_VERSION" = "3" ]; then rm -rf opt/datadog-agent/embedded/lib/python2.*; fi \
+ && if [ "$PYTHON_VERSION" = "2" ]; then rm -rf opt/datadog-agent/embedded/lib/python3.* || true; fi \
+ && if [ "$PYTHON_VERSION" = "3" ]; then rm -rf opt/datadog-agent/embedded/lib/python2.* || true; fi \
  && find opt/datadog-agent/ -iname "*.a" -delete \
  && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
  && ln -s /opt/datadog-agent/embedded/ssl etc/ssl \
