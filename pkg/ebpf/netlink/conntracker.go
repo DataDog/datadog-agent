@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	ct "github.com/florianl/go-conntrack"
 	"github.com/pkg/errors"
 )
@@ -29,7 +28,7 @@ const (
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
-	GetTranslationForConn(ip util.Address, port uint16) *IPTranslation
+	GetTranslationForConn(ip util.Address, port uint16, proto uint8) *IPTranslation
 	ClearShortLived()
 	GetStats() map[string]int64
 	Close()
@@ -38,6 +37,9 @@ type Conntracker interface {
 type connKey struct {
 	ip   util.Address
 	port uint16
+
+	// the protocol of the connection, using the same values as specified in the agent payload.
+	proto uint8
 }
 
 type connValue struct {
@@ -159,13 +161,13 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	return ctr, nil
 }
 
-func (ctr *realConntracker) GetTranslationForConn(ip util.Address, port uint16) *IPTranslation {
+func (ctr *realConntracker) GetTranslationForConn(ip util.Address, port uint16, proto uint8) *IPTranslation {
 	then := time.Now().UnixNano()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
-	k := connKey{ip, port}
+	k := connKey{ip, port, proto}
 	var result *IPTranslation
 	value, ok := ctr.state[k]
 	if !ok {
@@ -400,6 +402,14 @@ func formatKey(c ct.Conn) (k connKey) {
 	}
 	if port, err := c.Uint16(ct.AttrOrigPortSrc); err == nil {
 		k.port = NtohsU16(port)
+	}
+	if proto, err := c.Uint8(ct.AttrOrigL4Proto); err == nil {
+		switch proto {
+		case 6:
+			k.proto = 0 // ConnectionType_tcp
+		case 17:
+			k.proto = 1 // ConnectionType_udp
+		}
 	}
 	return
 }

@@ -11,7 +11,7 @@ func NewNoOpConntracker() Conntracker {
 	return &noOpConntracker{}
 }
 
-func (*noOpConntracker) GetTranslationForConn(ip util.Address, port uint16) *IPTranslation {
+func (*noOpConntracker) GetTranslationForConn(ip util.Address, port uint16, proto uint8) *IPTranslation {
 	return nil
 }
 
