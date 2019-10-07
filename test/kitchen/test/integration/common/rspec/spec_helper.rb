@@ -233,17 +233,15 @@ def read_conf_file
     confYaml
 end
 
-# TODO: fix this, this is flaky
 def fetch_python_version(timeout = 15)
-  # Try to fetch the metadata.systemStats.pythonV from the Agent status
+  # Fetch the python_version from the Agent status
   # Timeout after the given number of seconds
   for _ in 1..timeout do
     json_info_output = json_info
-    if json_info_output.key?('metadata') &&
-      json_info_output['metadata'].key?('systemStats') &&
-      json_info_output['metadata']['systemStats'].key?('pythonV') &&
-      Gem::Version.correct?(json_info_output['metadata']['systemStats']['pythonV']) # Check that we do have a version number
-        return json_info_output['metadata']['systemStats']['pythonV']
+    if json_info_output.key?('python_version') &&
+      ! json_info_output['python_version'].nil? && # nil is considered a correct version by Gem::Version
+      Gem::Version.correct?(json_info_output['python_version']) # Check that we do have a version number
+        return json_info_output['python_version']
     end
     sleep 1
   end
@@ -489,17 +487,19 @@ shared_examples_for 'an Agent with python3 enabled' do
     expect(output).to be_truthy
   end
 
-  # it 'runs Python 3 after python_version is set to 3' do
-  #   result = false
-  #   pythonV = fetch_python_version
-  #   if Gem::Version.new('3.0.0') <= Gem::Version.new(pythonV)
-  #     result = true
-  #   end
-  #   expect(result).to be_truthy
-  # end
+  it 'runs Python 3 after python_version is set to 3' do
+    skip if os == :windows
+    result = false
+    python_version = fetch_python_version
+    if ! python_version.nil? && Gem::Version.new('3.0.0') <= Gem::Version.new(python_version)
+      result = true
+    end
+    expect(result).to be_truthy
+  end
 
   it 'restarts after python_version is set back to 2' do
     skip if os == :windows
+    skip if info.include? "v7."
     conf_path = ""
     if os != :windows
       conf_path = "/etc/datadog-agent/datadog.yaml"
@@ -515,14 +515,16 @@ shared_examples_for 'an Agent with python3 enabled' do
     expect(output).to be_truthy
   end
 
-  # it 'runs Python 2 after python_version is set back to 2' do
-  #   result = false
-  #   pythonV = fetch_python_version
-  #   if Gem::Version.new('3.0.0') > Gem::Version.new(pythonV)
-  #     result = true
-  #   end
-  #   expect(result).to be_truthy
-  # end
+  it 'runs Python 2 after python_version is set back to 2' do
+    skip if os == :windows
+    skip if info.include? "v7."
+    result = false
+    python_version = fetch_python_version
+    if ! python_version.nil? && Gem::Version.new('3.0.0') > Gem::Version.new(python_version)
+      result = true
+    end
+    expect(result).to be_truthy
+  end
 end
 
 shared_examples_for 'an Agent that is removed' do
