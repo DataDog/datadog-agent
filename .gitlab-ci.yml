@@ -290,7 +290,7 @@ build_puppy_agent-deb_x64:
   tags: [ "runner:main", "size:large" ]
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv deps --verbose --dep-vendor-only
+    - inv deps --verbose --dep-vendor-only --no-checks
   script:
     - inv -e agent.build --puppy
     - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/puppy/agent
@@ -302,7 +302,7 @@ build_puppy_agent-deb_x64_arm:
   tags: [ "runner:main", "size:large" ]
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv deps --verbose --dep-vendor-only
+    - inv deps --verbose --dep-vendor-only --no-checks
   script:
     - GOOS=linux GOARCH=arm inv -e agent.build --puppy
 
@@ -451,7 +451,7 @@ puppy_deb-x64:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only --no-checks
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
