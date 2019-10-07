@@ -25,3 +25,8 @@ instances:
     ## If the API Server is slow to respond under load, the event collection might fail. Increase the read timeout (in seconds).
     #
     # kubernetes_event_read_timeout_ms: 500
+
+    ## @param skip_leader_election - boolean - default: false
+    ## Parameter specified by the Cluster Agent when the event collection is configured as a cluster check.
+    #
+    # skip_leader_election: false

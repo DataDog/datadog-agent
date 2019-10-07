@@ -16,3 +16,6 @@ instances:
     #
     # Maximum number of events you wish to collect per check run.
     # cardinality_limit: 300
+    #
+    # Parameter specified by the Cluster Agent when the event collection is configured as a cluster check.
+    # skip_leader_election: false
