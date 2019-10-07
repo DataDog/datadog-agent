@@ -15,6 +15,7 @@ var (
 	defaultConfdPath            = "c:\\programdata\\datadog\\conf.d"
 	defaultAdditionalChecksPath = "c:\\programdata\\datadog\\checks.d"
 	defaultRunPath              = "c:\\programdata\\datadog\\run"
+	defaultVarPath              = "c:\\programdata\\datadog\\var"
 	defaultSyslogURI            = ""
 	defaultGuiPort              = 5002
 )
@@ -28,6 +29,7 @@ func osinit() {
 		defaultConfdPath = filepath.Join(pd, "conf.d")
 		defaultAdditionalChecksPath = filepath.Join(pd, "checks.d")
 		defaultRunPath = filepath.Join(pd, "run")
+		defaultRunPath = filepath.Join(pd, "var")
 	} else {
 		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultConfdPath)
 	}

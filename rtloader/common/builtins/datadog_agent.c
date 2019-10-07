@@ -18,6 +18,8 @@ static cb_get_version_t cb_get_version = NULL;
 static cb_headers_t cb_headers = NULL;
 static cb_set_check_metadata_t cb_set_check_metadata = NULL;
 static cb_set_external_tags_t cb_set_external_tags = NULL;
+static cb_store_value_t cb_store_value = NULL;
+static cb_retrieve_value_t cb_retrieve_value = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -29,6 +31,8 @@ static PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *log_message(PyObject *self, PyObject *args);
 static PyObject *set_check_metadata(PyObject *self, PyObject *args);
 static PyObject *set_external_tags(PyObject *self, PyObject *args);
+static PyObject *store_value(PyObject *self, PyObject *args);
+static PyObject *retrieve_value(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -40,6 +44,8 @@ static PyMethodDef methods[] = {
     { "log", log_message, METH_VARARGS, "Log a message through the agent logger." },
     { "set_check_metadata", set_check_metadata, METH_VARARGS, "Send metadata for Checks." },
     { "set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags." },
+    { "store_value", store_value, METH_VARARGS, "Store a value for a given key." },
+    { "retrieve_value", retrieve_value, METH_VARARGS, "Retrieve the value associated with a key." },
     { NULL, NULL } // guards
 };
 
@@ -88,6 +94,16 @@ void _set_get_clustername_cb(cb_get_clustername_t cb)
 void _set_set_check_metadata_cb(cb_set_check_metadata_t cb)
 {
     cb_set_check_metadata = cb;
+}
+
+void _set_store_value_cb(cb_store_value_t cb)
+{
+    cb_store_value = cb;
+}
+
+void _set_retrieve_value_cb(cb_retrieve_value_t cb)
+{
+    cb_retrieve_value = cb;
 }
 
 void _set_set_external_tags_cb(cb_set_external_tags_t cb)
@@ -392,7 +408,80 @@ static PyObject *set_check_metadata(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-//
+/*! \fn PyObject *store_value(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog_agent.store_value` method, storing
+    the value for the key.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a 2-ary tuple containing the key and the value to store.
+    \return A PyObject* pointer to `None`.
+
+    This function is callable as the `datadog_agent.store_value` Python method and
+    uses the `cb_store_value()` callback to retrieve the value from the agent
+    with CGO. If the callback has not been set `None` will be returned.
+*/
+static PyObject *store_value(PyObject *self, PyObject *args)
+{
+    // callback must be set
+    if (cb_store_value == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    char *key, *value;
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    // datadog_agent.store_value(key, value)
+    if (!PyArg_ParseTuple(args, "ss", &key, &value)) {
+      PyGILState_Release(gstate);
+      return NULL;
+    }
+
+    PyGILState_Release(gstate);
+    cb_store_value(key, value);
+
+    Py_RETURN_NONE;
+}
+
+/*! \fn PyObject *retrieve_value(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog_agent.retrieve_value` method, retrieving
+    the value for the key previously stored.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a tuple containing the key to retrieve.
+    \return A PyObject* pointer to the value.
+
+    This function is callable as the `datadog_agent.retrieve_value` Python method and
+    uses the `cb_retrieve_value()` callback to retrieve the value from the agent
+    with CGO. If the callback has not been set `None` will be returned.
+*/
+static PyObject *retrieve_value(PyObject *self, PyObject *args)
+{
+    // callback must be set
+    if (cb_retrieve_value == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    char *key;
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    // datadog_agent.retrieve_value(key)
+    if (!PyArg_ParseTuple(args, "s", &key)) {
+      PyGILState_Release(gstate);
+      return NULL;
+    }
+
+    PyGILState_Release(gstate);
+    char *v = NULL;
+    cb_retrieve_value(key, &v);
+
+    if (v != NULL) {
+        PyObject *retval = PyStringFromCString(v);
+        cgo_free(v);
+        return retval;
+    }
+    Py_RETURN_NONE;
+}
+
 /*! \fn PyObject *set_external_tags(PyObject *self, PyObject *args)
     \brief This function implements the `datadog_agent.set_external_tags` method,
     allowing to set additional external tags for hostnames.

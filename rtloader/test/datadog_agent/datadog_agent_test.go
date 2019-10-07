@@ -383,3 +383,32 @@ func TestSetExternalTagInvalidTagsList(t *testing.T) {
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
 }
+
+func TestStoreValue(t *testing.T) {
+	code := `
+	datadog_agent.store_value("12345", "someothervalue")
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "12345someothervalue" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
+
+func TestRetrieveValue(t *testing.T) {
+	code := fmt.Sprintf(`
+	with open(r'%s', 'w') as f:
+		data = datadog_agent.retrieve_value("12345")
+		assert type(data) == type("")
+		f.write(data)
+	`, tmpfile.Name())
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "somevalue" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}

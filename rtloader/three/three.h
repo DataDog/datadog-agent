@@ -101,6 +101,8 @@ public:
     void setLogCb(cb_log_t);
     void setSetCheckMetadataCb(cb_set_check_metadata_t);
     void setSetExternalTagsCb(cb_set_external_tags_t);
+    void setStoreValueCb(cb_store_value_t);
+    void setRetrieveValueCb(cb_retrieve_value_t);
 
     // _util API
     virtual void setSubprocessOutputCb(cb_get_subprocess_output_t);

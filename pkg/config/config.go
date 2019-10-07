@@ -146,6 +146,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("tracemalloc_debug", false)
 	config.BindEnvAndSetDefault("tracemalloc_whitelist", "")
 	config.BindEnvAndSetDefault("tracemalloc_blacklist", "")
+	config.BindEnvAndSetDefault("var_path", defaultVarPath)
 
 	// Python 3 linter timeout, in seconds
 	// NOTE: linter is notoriously slow, in the absence of a better solution we

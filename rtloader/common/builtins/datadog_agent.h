@@ -103,6 +103,22 @@
     `datadog_agent` modules. The goal of this wrapper is simply to avoid duplicate code,
     allowing us to call the headers function directly.
 */
+/*! \fn void _set_store_value_cb(cb_store_value_t)
+    \brief Sets a callback to be used by rtloader to allow storing data for a given
+    check instance.
+    \param object A function pointer with cb_store_value_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+/*! \fn void _set_retrieve_value_cb(cb_retrieve_value_t)
+    \brief Sets a callback to be used by rtloader to allow retrieving data for a given
+    check instance.
+    \param object A function pointer with cb_retrieve_value_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
 
 #include <Python.h>
 #include <rtloader_types.h>
@@ -128,6 +144,8 @@ void _set_headers_cb(cb_headers_t);
 void _set_log_cb(cb_log_t);
 void _set_set_check_metadata_cb(cb_set_check_metadata_t);
 void _set_set_external_tags_cb(cb_set_external_tags_t);
+void _set_store_value_cb(cb_store_value_t);
+void _set_retrieve_value_cb(cb_retrieve_value_t);
 
 PyObject *_public_headers(PyObject *self, PyObject *args, PyObject *kwargs);
 

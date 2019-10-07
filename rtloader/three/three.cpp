@@ -868,6 +868,16 @@ void Three::setIsExcludedCb(cb_is_excluded_t cb)
     _set_is_excluded_cb(cb);
 }
 
+void Three::setStoreValueCb(cb_store_value_t cb)
+{
+    _set_store_value_cb(cb);
+}
+
+void Three::setRetrieveValueCb(cb_retrieve_value_t cb)
+{
+    _set_retrieve_value_cb(cb);
+}
+
 // Python Helpers
 
 // get_integration_list return a list of every datadog's wheels installed.

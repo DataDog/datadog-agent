@@ -68,6 +68,10 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
       chmod 0440 ${CONFIG_DIR}/system-probe.yaml || true
     fi
 
+    VAR_DIR=$INSTALL_DIR/var
+    mkdir -vp ${VAR_DIR}
+    chown -R dd-agent:dd-agent ${VAR_DIR}
+    chmod -v 750 ${VAR_DIR}
 
     # Enable and restart the agent service here on Debian platforms
     # On RHEL, this is done in the posttrans script
@@ -117,6 +121,7 @@ else
     APP_DIR="/Applications/Datadog Agent.app"
     CONF_DIR=$INSTALL_DIR/etc
     RUN_DIR=$INSTALL_DIR/run
+    VAR_DIR=$INSTALL_DIR/var
 
     # Let's log the standard outputs of this script
     LOG_FILE="$LOG_DIR/postinstall.log"
@@ -155,6 +160,11 @@ else
     mkdir -vp "$RUN_DIR"
     chown -vR $INSTALL_USER:admin "$RUN_DIR"
     chmod -v 755 "$RUN_DIR"
+
+    # Set the var directory for the agent
+    mkdir -vp "$VAR_DIR"
+    chown -vR $INSTALL_USER:admin "$VAR_DIR"
+    chmod -v 750 "$VAR_DIR"
 
     echo "# Copying conf"
     mkdir -vp $CONF_DIR/checks.d

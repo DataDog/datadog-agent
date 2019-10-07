@@ -30,6 +30,8 @@ extern void getVersion(char **);
 extern void headers(char **);
 extern void setCheckMetadata(char*, char*, char*);
 extern void setExternalHostTags(char*, char*, char**);
+extern void storeValue(char*, char*);
+extern void retrieveValue(char*, char**);
 
 
 static void initDatadogAgentTests(rtloader_t *rtloader) {
@@ -43,6 +45,8 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_log_cb(rtloader, doLog);
    set_set_check_metadata_cb(rtloader, setCheckMetadata);
    set_set_external_tags_cb(rtloader, setExternalHostTags);
+   set_store_value_cb(rtloader, storeValue);
+   set_retrieve_value_cb(rtloader, retrieveValue);
 }
 */
 import "C"
@@ -211,4 +215,21 @@ func setExternalHostTags(hostname *C.char, sourceType *C.char, tags **C.char) {
 	f.WriteString(",")
 	f.WriteString(strings.Join(tagsStrings, ","))
 	f.WriteString("\n")
+}
+
+//export storeValue
+func storeValue(key, value *C.char) {
+	key_name := C.GoString(key)
+	val := C.GoString(value)
+
+	f, _ := os.OpenFile(tmpfile.Name(), os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
+	defer f.Close()
+
+	f.WriteString(key_name)
+	f.WriteString(val)
+}
+
+//export retrieveValue
+func retrieveValue(key *C.char, in **C.char) {
+	*in = (*C.char)(helpers.TrackedCString("somevalue"))
 }

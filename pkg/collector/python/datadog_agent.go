@@ -162,3 +162,20 @@ func SetCheckMetadata(checkID, name, value *C.char) {
 
 	inventories.SetCheckMetadata(cid, key, val)
 }
+
+// StoreValue stores a value for one check instance
+// Indirectly used by the C function `store_value` that's mapped to `datadog_agent.store_value`.
+//export StoreValue
+func StoreValue(key, value *C.char) {
+	key_name := C.GoString(key)
+	val := C.GoString(value)
+	util.StoreValue(key_name, val)
+}
+
+// RetrieveValue retrieves a value for one check instance
+// Indirectly used by the C function `retrieve_value` that's mapped to `datadog_agent.retrieve_value`.
+//export RetrieveValue
+func RetrieveValue(key *C.char, value **C.char) {
+	key_name := C.GoString(key)
+	*value = TrackedCString(util.RetrieveValue(key_name))
+}

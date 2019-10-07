@@ -441,6 +441,16 @@ char *get_interpreter_memory_usage(rtloader_t *rtloader)
     return AS_TYPE(RtLoader, rtloader)->getInterpreterMemoryUsage();
 }
 
+void set_store_value_cb(rtloader_t *rtloader, cb_store_value_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setStoreValueCb(cb);
+}
+
+void set_retrieve_value_cb(rtloader_t *rtloader, cb_retrieve_value_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setRetrieveValueCb(cb);
+}
+
 /*
  * _util API
  */
