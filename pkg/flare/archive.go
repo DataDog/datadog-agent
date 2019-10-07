@@ -400,7 +400,7 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 		// and use best effort to include system-probe.yaml to the flare
 		systemProbePath := getSystemProbePath(filePath)
 		if systemErr := createConfigFiles(systemProbePath, tempDir, hostname, permsInfos); systemErr != nil {
-			log.Errorf("error happened while zipping system-probe.yaml: %s", systemErr)
+			log.Warnf("could not zip system-probe.yaml: %s", systemErr)
 		}
 	}
 
