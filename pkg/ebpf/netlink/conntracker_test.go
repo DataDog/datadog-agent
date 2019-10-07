@@ -4,12 +4,7 @@ package netlink
 
 import (
 	"encoding/binary"
-	"io"
-	"io/ioutil"
 	"net"
-	"os/exec"
-	"os/user"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -20,71 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestWithIPTables(t *testing.T) {
-	assertRoot(t)
-
-	// run the teardown, just in case the last run did not exit cleanly
-	runScript(t, "teardown_dnat.sh")
-
-	// setup a dummy interface at 1.1.1.1 and a rule to DNAT 2.2.2.2 ->1.1.1.1
-	runScript(t, "setup_dnat.sh")
-	defer runScript(t, "teardown_dnat.sh")
-
-	ct, err := NewConntracker("/proc", 10, 1000)
-	require.NoError(t, err)
-	defer ct.Close()
-
-	// setup a listener on 1.1.1.1 (the real address of the dummy addr)
-	tcpListener, err := net.Listen("tcp", "1.1.1.1:8080")
-	require.NoError(t, err)
-	go func() {
-		tcpListener.Accept()
-	}()
-	defer tcpListener.Close()
-
-	udpListener, err := net.ListenUDP("udp", &net.UDPAddr{
-		IP:   net.ParseIP("1.1.1.1"),
-		Port: 8080,
-	})
-	require.NoError(t, err)
-	defer udpListener.Close()
-
-	_, err = net.Dial("tcp", "2.2.2.2:8080")
-	require.NoError(t, err)
-
-	udpConn, err := net.Dial("udp", "2.2.2.2:8080")
-	require.NoError(t, err)
-	go func() {
-		udpConn.Write([]byte("hello"))
-	}()
-
-	timeout := time.After(time.Second * 5)
-	for {
-		select {
-		case <-timeout:
-			t.Errorf("missing entry")
-			t.Fail()
-			return
-		default:
-			var udpFound, tcpFound bool
-			for k, v := range ct.(*realConntracker).state {
-				if v.ReplSrcIP == util.AddressFromString("1.1.1.1") {
-					if k.proto == 0 { // ConnectionType_tcp
-						tcpFound = true
-					} else if k.proto == 1 { // ConnectionType_udp
-						udpFound = true
-					} else {
-						t.Errorf("unexpected proto: %v", k.proto)
-					}
-				}
-				if udpFound && tcpFound {
-					return
-				}
-			}
-		}
-	}
-}
 
 func TestIsNat(t *testing.T) {
 	c := map[ct.ConnAttrType][]byte{
@@ -236,37 +166,4 @@ func parts(p string) ([]byte, []byte) {
 	ip := net.ParseIP(segments[0]).To4()
 
 	return ip, b
-}
-
-func assertRoot(t *testing.T) {
-	user, err := user.Current()
-	if err != nil {
-		t.Skipf("cannot detect user, will skip test %v", err)
-	}
-
-	if user.Username != "root" {
-		t.Skipf("skipping test because username is not root, but %v", user.Username)
-	}
-}
-
-func runScript(t *testing.T, fname string) {
-	path := filepath.Join("testdata", fname)
-	cmd := exec.Command("/bin/bash", path)
-	stdErr, err := cmd.StderrPipe()
-	assert.NoError(t, err)
-
-	stdOut, err := cmd.StdoutPipe()
-	assert.NoError(t, err)
-
-	cmdOut := io.MultiReader(stdErr, stdOut)
-	err = cmd.Start()
-	assert.NoError(t, err)
-
-	message, err := ioutil.ReadAll(cmdOut)
-	assert.NoError(t, err)
-
-	if err := cmd.Wait(); err != nil {
-		t.Errorf("failed with stderr: %v", string(message))
-		t.Errorf("failed with error %v", err)
-	}
 }
