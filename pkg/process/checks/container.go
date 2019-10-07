@@ -7,17 +7,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	agentutil "github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	agentutil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	containercollectors "github.com/DataDog/datadog-agent/pkg/util/containers/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Container is a singleton ContainerCheck.
@@ -63,6 +63,10 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	start := time.Now()
 	ctrList, err := util.GetContainers()
 	if err != nil {
+		if err == containercollectors.ErrPermaFai || err == containercollectors.ErrNothingYet {
+			log.Debug("container collector was not detected, container check will not return any data")
+			return nil, nil
+		}
 		return nil, err
 	}
 
