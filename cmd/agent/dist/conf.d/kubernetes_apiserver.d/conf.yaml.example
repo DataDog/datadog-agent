@@ -21,10 +21,10 @@ instances:
     ## Maximum number of events you wish to collect per check run.
     # cardinality_limit: 300
 
-    ## @param kubernetes_event_read_timeout_ms - integer - optional - default: 500
-    ## If the API Server is slow to respond under load, the event collection might fail. Increase the read timeout (in seconds).
+    ## @param kubernetes_event_read_timeout_ms - integer - optional - default: 1000
+    ## If the API Server is slow to respond under load, the event collection might fail. Increase the read timeout (in milliseconds).
     #
-    # kubernetes_event_read_timeout_ms: 500
+    # kubernetes_event_read_timeout_ms: 1000
 
     ## @param skip_leader_election - boolean - default: false
     ## Parameter specified by the Cluster Agent when the event collection is configured as a cluster check.

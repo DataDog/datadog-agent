@@ -60,9 +60,9 @@ func TestSuiteKube(t *testing.T) {
 func (suite *testSuite) SetupTest() {
 	var err error
 	resVer := ""
-	eventReadTimeout := int64(5)
+	eventReadTimeout := int64(1)
 	lastList := time.Now()
-	tick := time.NewTicker(time.Millisecond * 500)
+	tick := time.NewTicker(time.Millisecond * 100)
 	timeout := time.NewTicker(setupTimeout)
 	for {
 		select {
@@ -90,7 +90,7 @@ func (suite *testSuite) SetupTest() {
 func (suite *testSuite) TestKubeEvents() {
 	mockConfig := config.Mock()
 	resVer := ""
-	eventReadTimeout := int64(5)
+	eventReadTimeout := int64(1)
 	lastList := time.Now()
 
 	// Init own client to write the events
