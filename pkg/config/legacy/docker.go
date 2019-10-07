@@ -92,7 +92,7 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 		return nil
 	}
 	if len(c.Instances) > 1 {
-		fmt.Printf("Warning: %s contains more than one instance: converting only the first one", src)
+		fmt.Printf("Warning: %s contains more than one instance: converting only the first one\n", src)
 	}
 
 	dc := containers.DockerConfig{}

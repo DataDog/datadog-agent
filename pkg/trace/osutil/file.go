@@ -34,7 +34,7 @@ func Exit(msg string) {
 func Exitf(format string, args ...interface{}) {
 	if flags.Info || flags.Version {
 		fmt.Printf(format, args...)
-		fmt.Print("")
+		fmt.Println("")
 	} else {
 		log.Criticalf(format, args...)
 		log.Flush()

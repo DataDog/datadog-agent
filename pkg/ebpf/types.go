@@ -16,6 +16,11 @@ const (
 
 	// TCPSendMsg traces the tcp_sendmsg() system call
 	TCPSendMsg KProbeName = "kprobe/tcp_sendmsg"
+
+	// TCPSendMsgRHEL traces the tcp_sendmsg() system call on CentOS and RHEL. This is created because
+	// we need to load a different kprobe implementation
+	TCPSendMsgRHEL KProbeName = "kprobe/tcp_sendmsg/rhel"
+
 	// TCPSendMsgReturn traces the return value for the tcp_sendmsg() system call
 	// XXX: This is only used for telemetry for now to count the number of errors returned
 	// by the tcp_sendmsg func (so we can have a # of tcp sent bytes we miscounted)
@@ -32,6 +37,8 @@ const (
 
 	// UDPSendMsg traces the udp_sendmsg() system call
 	UDPSendMsg KProbeName = "kprobe/udp_sendmsg"
+	// UDPSendMsgRHEL traces the udp_sendmsg() system call on RHEL and CentOS.
+	UDPSendMsgRHEL KProbeName = "kprobe/udp_sendmsg/rhel"
 	// UDPRecvMsg traces the udp_recvmsg() system call
 	UDPRecvMsg KProbeName = "kprobe/udp_recvmsg"
 	// UDPRecvMsgReturn traces the return value for the udp_recvmsg() system call
@@ -61,3 +68,12 @@ const (
 func (b bpfMapName) sectionName() string {
 	return fmt.Sprintf("maps/%s", b)
 }
+
+var (
+	// kprobeOverrides specifies a mapping between sections in our kprobe functions and
+	// the actual eBPF function that it should bind to
+	kprobeOverrides = map[KProbeName]KProbeName{
+		TCPSendMsgRHEL: TCPSendMsg,
+		UDPSendMsgRHEL: UDPSendMsg,
+	}
+)

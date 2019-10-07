@@ -681,6 +681,17 @@
   revision = "24818f796faf91cd76ec7bddd72458fbced7a6c1"
 
 [[projects]]
+  digest = "1:e1e098ae35522f3dbf47319bceba5c98daa5aaae6c87aeb6bbe39d4e77fda83f"
+  name = "github.com/google/gopacket"
+  packages = [
+    ".",
+    "afpacket",
+    "layers",
+  ]
+  pruneopts = ""
+  revision = "c340012d34adb8462b1e23ad4d7a73944f4224b8"
+
+[[projects]]
   digest = "1:16b2837c8b3cf045fa2cdc82af0cf78b19582701394484ae76b2c3bc3c99ad73"
   name = "github.com/googleapis/gnostic"
   packages = [
@@ -817,7 +828,7 @@
   version = "v1.0"
 
 [[projects]]
-  digest = "1:5ca19ae59ae03be8e9a97f39bb705938cf8174b4c8cb4b037accdbb99decfe8a"
+  digest = "1:3e7518df4c30983b334eeefd02d4c8a97788a1ea44c48e44eacd509b1623af7e"
   name = "github.com/iovisor/gobpf"
   packages = [
     "elf",
@@ -825,7 +836,7 @@
     "pkg/cpuonline",
   ]
   pruneopts = ""
-  revision = "dfb11c17a0746e78b1bd96b6eea766f2a4a2ce8a"
+  revision = "42285a7409f87cb399476b132e726aacfc63fbdc"
   source = "github.com/DataDog/gobpf"
 
 [[projects]]
@@ -2036,6 +2047,9 @@
     "github.com/gogo/protobuf/jsonpb",
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/types",
+    "github.com/google/gopacket",
+    "github.com/google/gopacket/afpacket",
+    "github.com/google/gopacket/layers",
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
     "github.com/hectane/go-acl",

@@ -161,12 +161,15 @@ spec:
 
     - name: cluster-agent-deployment
       value: |
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: datadog-cluster-agent
           namespace: default
         spec:
+          selector:
+            matchLabels:
+              app: datadog-cluster-agent
           template:
             metadata:
               labels:
@@ -263,7 +266,7 @@ spec:
 
     - name: nginx
       value: |
-        apiVersion: apps/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: nginx
@@ -406,7 +409,7 @@ spec:
 
     - name: agent-daemonset
       value: |
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: DaemonSet
         metadata:
           name: datadog-agent
@@ -415,6 +418,9 @@ spec:
           updateStrategy:
             rollingUpdate:
               maxUnavailable: 1
+          selector:
+            matchLabels:
+              app: datadog-agent
           template:
             metadata:
               labels:
@@ -508,7 +514,7 @@ spec:
 
     - name: fake-datadog-deployment
       value: |
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: fake-datadog
@@ -520,6 +526,9 @@ spec:
             rollingUpdate:
               maxSurge: 1
               maxUnavailable: 0
+          selector:
+            matchLabels:
+              app: fake-datadog
           template:
             metadata:
               labels:

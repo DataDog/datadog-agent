@@ -73,7 +73,7 @@ func initExtraHeaders() {
 // MetricSerializer represents the interface of method needed by the aggregator to serialize its data
 type MetricSerializer interface {
 	SendEvents(e marshaler.Marshaler) error
-	SendServiceChecks(sc marshaler.Marshaler) error
+	SendServiceChecks(sc marshaler.StreamJSONMarshaler) error
 	SendSeries(series marshaler.StreamJSONMarshaler) error
 	SendSketch(sketches marshaler.Marshaler) error
 	SendMetadata(m marshaler.Marshaler) error
@@ -92,25 +92,27 @@ type Serializer struct {
 	// might collect data considered too sensitive (database IP and
 	// such). By default every kind of payload is enabled since
 	// almost every user won't fall into this use case.
-	enableEvents         bool
-	enableSeries         bool
-	enableServiceChecks  bool
-	enableSketches       bool
-	enableJSONToV1Intake bool
-	enableJSONStream     bool
+	enableEvents                  bool
+	enableSeries                  bool
+	enableServiceChecks           bool
+	enableSketches                bool
+	enableJSONToV1Intake          bool
+	enableJSONStream              bool
+	enableServiceChecksJSONStream bool
 }
 
 // NewSerializer returns a new Serializer initialized
 func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
 	s := &Serializer{
-		Forwarder:            forwarder,
-		seriesPayloadBuilder: jsonstream.NewPayloadBuilder(),
-		enableEvents:         config.Datadog.GetBool("enable_payloads.events"),
-		enableSeries:         config.Datadog.GetBool("enable_payloads.series"),
-		enableServiceChecks:  config.Datadog.GetBool("enable_payloads.service_checks"),
-		enableSketches:       config.Datadog.GetBool("enable_payloads.sketches"),
-		enableJSONToV1Intake: config.Datadog.GetBool("enable_payloads.json_to_v1_intake"),
-		enableJSONStream:     jsonstream.Available && config.Datadog.GetBool("enable_stream_payload_serialization"),
+		Forwarder:                     forwarder,
+		seriesPayloadBuilder:          jsonstream.NewPayloadBuilder(),
+		enableEvents:                  config.Datadog.GetBool("enable_payloads.events"),
+		enableSeries:                  config.Datadog.GetBool("enable_payloads.series"),
+		enableServiceChecks:           config.Datadog.GetBool("enable_payloads.service_checks"),
+		enableSketches:                config.Datadog.GetBool("enable_payloads.sketches"),
+		enableJSONToV1Intake:          config.Datadog.GetBool("enable_payloads.json_to_v1_intake"),
+		enableJSONStream:              jsonstream.Available && config.Datadog.GetBool("enable_stream_payload_serialization"),
+		enableServiceChecksJSONStream: jsonstream.Available && config.Datadog.GetBool("enable_service_checks_stream_payload_serialization"),
 	}
 
 	if !s.enableEvents {
@@ -188,7 +190,7 @@ func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
+func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 	if !s.enableServiceChecks {
 		log.Debug("service_checks payloads are disabled: dropping it")
 		return nil
@@ -196,8 +198,15 @@ func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 
 	useV1API := !config.Datadog.GetBool("use_v2_api.service_checks")
 
-	compress := true
-	serviceCheckPayloads, extraHeaders, err := s.serializePayload(sc, compress, useV1API)
+	var serviceCheckPayloads forwarder.Payloads
+	var extraHeaders http.Header
+	var err error
+
+	if useV1API && s.enableServiceChecksJSONStream {
+		serviceCheckPayloads, extraHeaders, err = s.serializeStreamablePayload(sc)
+	} else {
+		serviceCheckPayloads, extraHeaders, err = s.serializePayload(sc, true, useV1API)
+	}
 	if err != nil {
 		return fmt.Errorf("dropping service check payload: %s", err)
 	}

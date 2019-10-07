@@ -73,10 +73,10 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ScoreSampler:       NewScoreSampler(conf),
 		ErrorsScoreSampler: NewErrorsSampler(conf),
 		PrioritySampler:    NewPrioritySampler(conf, dynConf),
-		EventProcessor:     eventProcessorFromConf(conf),
+		EventProcessor:     newEventProcessor(conf),
 		TraceWriter:        writer.NewTraceWriter(conf, out),
 		StatsWriter:        writer.NewStatsWriter(conf, statsChan),
-		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
+		obfuscator:         newObfuscator(conf.Obfuscation),
 		In:                 in,
 		Out:                out,
 		conf:               conf,
@@ -191,19 +191,15 @@ func (a *Agent) Process(t *api.Trace) {
 	{
 		// this section sets up any necessary tags on the root:
 		clientSampleRate := sampler.GetGlobalRate(root)
-		rateLimiterRate := a.Receiver.RateLimiter.RealRate()
-
 		sampler.SetClientRate(root, clientSampleRate)
-		sampler.SetPreSampleRate(root, rateLimiterRate)
-		sampler.AddGlobalRate(root, rateLimiterRate)
 
+		if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
+			rate := ratelimiter.RealRate()
+			sampler.SetPreSampleRate(root, rate)
+			sampler.AddGlobalRate(root, rate)
+		}
 		if t.ContainerTags != "" {
-			// At this point of Process(), the `Meta` map may not be initialized. This case happens
-			// when there is a Trace with a root span without tags.
-			if root.Meta == nil {
-				root.Meta = make(map[string]string)
-			}
-			root.Meta[tagContainersTags] = t.ContainerTags
+			traceutil.SetMeta(root, tagContainersTags, t.ContainerTags)
 		}
 	}
 
@@ -292,7 +288,7 @@ func traceContainsError(trace pb.Trace) bool {
 	return false
 }
 
-func eventProcessorFromConf(conf *config.AgentConfig) *event.Processor {
+func newEventProcessor(conf *config.AgentConfig) *event.Processor {
 	extractors := []event.Extractor{
 		event.NewMetricBasedExtractor(),
 	}
@@ -303,4 +299,25 @@ func eventProcessorFromConf(conf *config.AgentConfig) *event.Processor {
 	}
 
 	return event.NewProcessor(extractors, conf.MaxEPS)
+}
+
+func newObfuscator(cfg *config.ObfuscationConfig) *obfuscate.Obfuscator {
+	if cfg == nil {
+		return obfuscate.NewObfuscator(nil)
+	}
+	return obfuscate.NewObfuscator(&obfuscate.Config{
+		ES: obfuscate.JSONSettings{
+			Enabled:    cfg.ES.Enabled,
+			KeepValues: cfg.ES.KeepValues,
+		},
+		Mongo: obfuscate.JSONSettings{
+			Enabled:    cfg.Mongo.Enabled,
+			KeepValues: cfg.Mongo.KeepValues,
+		},
+		RemoveQueryString: cfg.HTTP.RemoveQueryString,
+		RemovePathDigits:  cfg.HTTP.RemovePathDigits,
+		RemoveStackTraces: cfg.RemoveStackTraces,
+		Redis:             cfg.Redis.Enabled,
+		Memcached:         cfg.Memcached.Enabled,
+	})
 }

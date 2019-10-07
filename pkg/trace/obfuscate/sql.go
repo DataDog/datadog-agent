@@ -8,7 +8,9 @@ package obfuscate
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -20,7 +22,7 @@ const sqlQueryTag = "sql.query"
 // A filter can be stateful and keep an internal state to apply the filter later;
 // this can be useful to prevent backtracking in some cases.
 type tokenFilter interface {
-	Filter(token, lastToken int, buffer []byte) (int, []byte)
+	Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error)
 	Reset()
 }
 
@@ -30,7 +32,7 @@ type discardFilter struct{}
 
 // Filter the given token so that a `nil` slice is returned if the token
 // is in the token filtered list.
-func (f *discardFilter) Filter(token, lastToken int, buffer []byte) (int, []byte) {
+func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
 	// filters based on previous token
 	switch lastToken {
 	case FilteredBracketedIdentifier:
@@ -39,31 +41,30 @@ func (f *discardFilter) Filter(token, lastToken int, buffer []byte) (int, []byte
 			if token != ID {
 				// the token between the brackets *must* be an identifier,
 				// otherwise the query is invalid.
-				return LexError, nil
+				return LexError, nil, fmt.Errorf("expected identifier in bracketed filter, got %d", token)
 			}
-			return FilteredBracketedIdentifier, nil
+			return FilteredBracketedIdentifier, nil, nil
 		}
 		fallthrough
 	case As:
 		if token == '[' {
 			// the identifier followed by AS is an MSSQL bracketed identifier
 			// and will continue to be discarded until we find the corresponding
-			// closing bracket counter-part. See GitHub issue #475.
-			return FilteredBracketedIdentifier, nil
+			// closing bracket counter-part. See GitHub issue DataDog/datadog-trace-agent#475.
+			return FilteredBracketedIdentifier, nil, nil
 		}
-		// prevent the next comma from being part of a groupingFilter
-		return FilteredComma, nil
+		return Filtered, nil, nil
 	}
 
 	// filters based on the current token; if the next token should be ignored,
-	// return the same token value (not Filtered) and nil
+	// return the same token value (not FilteredGroupable) and nil
 	switch token {
 	case As:
-		return As, nil
+		return As, nil, nil
 	case Comment, ';':
-		return Filtered, nil
+		return FilteredGroupable, nil, nil
 	default:
-		return token, buffer
+		return token, buffer, nil
 	}
 }
 
@@ -75,16 +76,22 @@ func (f *discardFilter) Reset() {}
 type replaceFilter struct{}
 
 // Filter the given token so that it will be replaced if in the token replacement list
-func (f *replaceFilter) Filter(token, lastToken int, buffer []byte) (int, []byte) {
+func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (tokenType TokenKind, tokenBytes []byte, err error) {
 	switch lastToken {
 	case Savepoint:
-		return Filtered, []byte("?")
+		return FilteredGroupable, []byte("?"), nil
+	case '=':
+		switch token {
+		case DoubleQuotedString:
+			// double-quoted strings after assignments are eligible for obfuscation
+			return FilteredGroupable, []byte("?"), nil
+		}
 	}
 	switch token {
 	case String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
-		return Filtered, []byte("?")
+		return FilteredGroupable, []byte("?"), nil
 	default:
-		return token, buffer
+		return token, buffer, nil
 	}
 }
 
@@ -102,36 +109,36 @@ type groupingFilter struct {
 // has been recognized. A grouping is composed by items like:
 //   * '( ?, ?, ? )'
 //   * '( ?, ? ), ( ?, ? )'
-func (f *groupingFilter) Filter(token, lastToken int, buffer []byte) (int, []byte) {
+func (f *groupingFilter) Filter(token, lastToken TokenKind, buffer []byte) (tokenType TokenKind, tokenBytes []byte, err error) {
 	// increasing the number of groups means that we're filtering an entire group
 	// because it can be represented with a single '( ? )'
-	if (lastToken == '(' && token == Filtered) || (token == '(' && f.groupMulti > 0) {
+	if (lastToken == '(' && token == FilteredGroupable) || (token == '(' && f.groupMulti > 0) {
 		f.groupMulti++
 	}
 
 	switch {
-	case token == Filtered:
+	case token == FilteredGroupable:
 		// the previous filter has dropped this token so we should start
 		// counting the group filter so that we accept only one '?' for
 		// the same group
 		f.groupFilter++
 
 		if f.groupFilter > 1 {
-			return Filtered, nil
+			return FilteredGroupable, nil, nil
 		}
 	case f.groupFilter > 0 && (token == ',' || token == '?'):
 		// if we are in a group drop all commas
-		return Filtered, nil
+		return FilteredGroupable, nil, nil
 	case f.groupMulti > 1:
 		// drop all tokens since we're in a counting group
 		// and they're duplicated
-		return Filtered, nil
-	case token != ',' && token != '(' && token != ')' && token != Filtered:
+		return FilteredGroupable, nil, nil
+	case token != ',' && token != '(' && token != ')' && token != FilteredGroupable:
 		// when we're out of a group reset the filter state
 		f.Reset()
 	}
 
-	return token, buffer
+	return token, buffer, nil
 }
 
 // Reset in a groupingFilter restores variables used to count
@@ -145,11 +152,12 @@ func (f *groupingFilter) Reset() {
 // function is generic and the behavior changes according to chosen tokenFilter implementations.
 // The process calls all filters inside the []tokenFilter.
 func obfuscateSQLString(in string) (string, error) {
-	tokenizer := NewStringTokenizer(in)
+	tokenizer := NewSQLTokenizer(in)
 	filters := []tokenFilter{&discardFilter{}, &replaceFilter{}, &groupingFilter{}}
 	var (
 		out       bytes.Buffer
-		lastToken int
+		err       error
+		lastToken TokenKind
 	)
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded
@@ -157,11 +165,11 @@ func obfuscateSQLString(in string) (string, error) {
 	token, buff := tokenizer.Scan()
 	for ; token != EOFChar; token, buff = tokenizer.Scan() {
 		if token == LexError {
-			return "", errors.New("the tokenizer was unable to process the string")
+			return "", tokenizer.Err()
 		}
 		for _, f := range filters {
-			if token, buff = f.Filter(token, lastToken, buff); token == LexError {
-				return "", errors.New("the tokenizer was unable to process the string")
+			if token, buff, err = f.Filter(token, lastToken, buff); err != nil {
+				return "", err
 			}
 		}
 		if buff != nil {
@@ -181,18 +189,26 @@ func obfuscateSQLString(in string) (string, error) {
 		}
 		lastToken = token
 	}
+	if out.Len() == 0 {
+		return "", errors.New("result is empty")
+	}
 	return out.String(), nil
 }
 
 // QuantizeSQL generates resource and sql.query meta for SQL spans
 func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
+	tags := []string{"type:sql"}
+	defer func() {
+		metrics.Count("datadog.trace_agent.obfuscations", 1, tags, 1)
+	}()
 	if span.Resource == "" {
+		tags = append(tags, "outcome:empty-resource")
 		return
 	}
 	result, err := obfuscateSQLString(span.Resource)
-	if err != nil || result == "" {
+	if err != nil {
 		// we have an error, discard the SQL to avoid polluting user resources.
-		log.Debugf("Error parsing SQL query: %q", span.Resource)
+		log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
 		if span.Meta == nil {
 			span.Meta = make(map[string]string, 1)
 		}
@@ -200,9 +216,11 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 			span.Meta[sqlQueryTag] = span.Resource
 		}
 		span.Resource = "Non-parsable SQL query"
+		tags = append(tags, "outcome:error")
 		return
 	}
 
+	tags = append(tags, "outcome:success")
 	span.Resource = result
 
 	if span.Meta != nil && span.Meta[sqlQueryTag] != "" {

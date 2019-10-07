@@ -7,9 +7,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 // default memory management functions
 static rtloader_malloc_t rt_malloc = malloc;
 static rtloader_free_t rt_free = free;
+#pragma clang diagnostic pop
+#pragma GCC diagnostic pop
 
 // these must be set by the Agent
 static cb_memory_tracker_t cb_memory_tracker = NULL;

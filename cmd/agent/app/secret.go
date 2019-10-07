@@ -35,7 +35,7 @@ var secretInfoCommand = &cobra.Command{
 
 		err := common.SetupConfigWithoutSecrets(confFilePath)
 		if err != nil {
-			fmt.Printf("unable to set up global agent configuration: %v", err)
+			fmt.Printf("unable to set up global agent configuration: %v\n", err)
 			return nil
 		}
 
@@ -46,12 +46,12 @@ var secretInfoCommand = &cobra.Command{
 		}
 
 		if err := util.SetAuthToken(); err != nil {
-			fmt.Printf("%s", err)
+			fmt.Println(err)
 			return nil
 		}
 
 		if err := showSecretInfo(); err != nil {
-			fmt.Printf("%s", err)
+			fmt.Println(err)
 			return nil
 		}
 		return nil
@@ -60,7 +60,11 @@ var secretInfoCommand = &cobra.Command{
 
 func showSecretInfo() error {
 	c := util.GetClient(false)
-	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/secrets", config.Datadog.GetInt("cmd_port"))
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+	apiConfigURL := fmt.Sprintf("https://%v:%v/agent/secrets", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	r, err := util.DoGet(c, apiConfigURL)
 	if err != nil {

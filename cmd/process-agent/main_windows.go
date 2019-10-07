@@ -118,15 +118,15 @@ func main() {
 	flag.StringVar(&opts.check, "check", "", "Run a specific check and print the results. Choose from: process, connections, realtime")
 
 	// windows-specific options for installing the service, uninstalling the service, etc.
-	flag.BoolVar(&winopts.installService, "install-service", false, "Install the trace agent to the Service Control Manager")
-	flag.BoolVar(&winopts.uninstallService, "uninstall-service", false, "Remove the trace agent from the Service Control Manager")
-	flag.BoolVar(&winopts.startService, "start-service", false, "Starts the trace agent service")
-	flag.BoolVar(&winopts.stopService, "stop-service", false, "Stops the trace agent service")
+	flag.BoolVar(&winopts.installService, "install-service", false, "Install the process agent to the Service Control Manager")
+	flag.BoolVar(&winopts.uninstallService, "uninstall-service", false, "Remove the process agent from the Service Control Manager")
+	flag.BoolVar(&winopts.startService, "start-service", false, "Starts the process agent service")
+	flag.BoolVar(&winopts.stopService, "stop-service", false, "Stops the process agent service")
 
 	flag.Parse()
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
-		fmt.Printf("failed to determine if we are running in an interactive session: %v", err)
+		fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
 	}
 	if !isIntSess {
 		runService(false)
@@ -136,10 +136,10 @@ func main() {
 	// make sure more than one wasn't specified
 	optcount := 0
 	if winopts.installService {
-		fmt.Printf("Installservice")
+		fmt.Println("Installservice")
 		optcount++
 	} else {
-		fmt.Printf("no Installservice")
+		fmt.Println("no Installservice")
 	}
 	if winopts.uninstallService {
 		optcount++
@@ -151,7 +151,7 @@ func main() {
 		optcount++
 	}
 	if optcount > 1 {
-		fmt.Printf("Incompatible options chosen")
+		fmt.Println("Incompatible options chosen")
 		return
 	}
 	if winopts.installService {

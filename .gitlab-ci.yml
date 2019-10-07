@@ -48,19 +48,20 @@ variables:
   DEB_RPM_BUCKET_BRANCH: nightly  # branch of the DEB_S3_BUCKET and RPM_S3_BUCKET repos to release to, 'nightly' or 'beta'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
-  WINDOWS_TESTING_S3_BUCKET: $WIN_S3_BUCKET/pipelines/$CI_PIPELINE_ID
+  WINDOWS_TESTING_S3_BUCKET_A6: $WIN_S3_BUCKET/pipelines/A6/$CI_PIPELINE_ID
+  WINDOWS_TESTING_S3_BUCKET_A7: $WIN_S3_BUCKET/pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
   ANDROID_BUILDS_S3_BUCKET: $ANDROID_S3_BUCKET/builds
   DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
   S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
-  S3_ARTEFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+  S3_ARTIFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   S3_DSD6_URI: s3://dsd6-staging/linux
   RELEASE_VERSION: nightly
-  DATADOG_AGENT_BUILDIMAGES: v1631023-f2ae59b
-  DATADOG_AGENT_BUILDERS: v1613952-f072482
+  DATADOG_AGENT_BUILDIMAGES: v1709713-2adac2a
+  DATADOG_AGENT_BUILDERS: v1755190-c671974
 
 
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
@@ -149,35 +150,72 @@ before_script:
 #
 # source_test
 #
+#
 
-# run tests for deb-x64
-run_tests_deb-x64:
-  stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:2xlarge" ]
+.run_tests_preparation: &run_tests_preparation
   before_script:
+    - source /root/.bashrc && conda activate $CONDA_ENV
     - pip install wheel
     - pip install -r requirements.txt
     - go get gopkg.in/yaml.v2
+    - go get github.com/stretchr/testify
     - inv -e rtloader.build --install-prefix=$SRC_PATH/dev
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
     - inv deps --verbose --dep-vendor-only
+
+# run tests for deb-x64
+run_tests_deb-x64-py2:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    PYTHON_RUNTIMES: '2'
+    CONDA_ENV: ddpy2
+  <<: *run_tests_preparation
+  script:
+    - inv -e test --race --profile --cpus 4
+
+run_tests_deb-x64-py3:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    PYTHON_RUNTIMES: '3'
+    CONDA_ENV: ddpy3
+  <<: *run_tests_preparation
   script:
     - inv -e test --race --profile --cpus 4
 
 # run tests for rpm-x64
-run_test_rpm-x64:
+run_tests_rpm-x64-py2:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    PYTHON_RUNTIMES: '2'
+    CONDA_ENV: ddpy2
+  <<: *run_tests_preparation
   script:
     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
     # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
     # This is OK because the test on systemd still runs on the debian image above
-    # We also exclude python since centos 6 doesn't ship python and we run 'python' tests on the debian image.
-    - inv -e test --race --profile --cpus 4 --build-exclude=systemd,python
+    - inv -e test --race --profile --cpus 4 --build-exclude=systemd
+
+run_tests_rpm-x64-py3:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    PYTHON_RUNTIMES: '3'
+    CONDA_ENV: ddpy3
+  <<: *run_tests_preparation
+  script:
+    # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
+    # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
+    # This is OK because the test on systemd still runs on the debian image above
+    - inv -e test --race --profile --cpus 4 --build-exclude=systemd
 
 # run tests for eBPF code
 run_tests_ebpf:
@@ -238,24 +276,33 @@ build_dogstatsd_static-deb_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv deps --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build --static
-    - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/static/dogstatsd
+    - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd
 
 # build puppy agent for deb-x64, to make sure the build is not broken because of build flags
 build_puppy_agent-deb_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv deps --verbose --dep-vendor-only --no-checks
   script:
     - inv -e agent.build --puppy
-    - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTEFACTS_URI/puppy/agent
+    - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/puppy/agent
 
 # build puppy agent for ARM, to make sure the build is not broken because of build targets
 build_puppy_agent-deb_x64_arm:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv deps --verbose --dep-vendor-only --no-checks
   script:
     - GOOS=linux GOARCH=arm inv -e agent.build --puppy
 
@@ -264,20 +311,26 @@ build_dogstatsd-deb_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv deps --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build
-    - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/dogstatsd/dogstatsd
+    - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd
 
 # build cluster-agent bin
 cluster_agent-build:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv deps --verbose --dep-vendor-only
   script:
     - inv -e cluster-agent.build
-    - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTEFACTS_URI/datadog-cluster-agent
-    - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTEFACTS_URI/datadog-cluster.yaml
-    - $S3_CP_CMD --recursive $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/dist/templates $S3_ARTEFACTS_URI/dist/templates
+    - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTIFACTS_URI/datadog-cluster-agent
+    - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTIFACTS_URI/datadog-cluster.yaml
+    - $S3_CP_CMD --recursive $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/dist/templates $S3_ARTIFACTS_URI/dist/templates
 
 # build system-probe bin
 system_probe-build:
@@ -290,7 +343,7 @@ system_probe-build:
   tags: [ "runner:main", "size:large" ]
   script:
     - inv -e system-probe.build
-    - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTEFACTS_URI/system-probe
+    - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe
 
 #
 # integration_test
@@ -325,35 +378,33 @@ run_dogstatsd_size_test:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
   before_script:
+    - source /root/.bashrc && conda activate ddpy3
     # Disable global before_script
     - mkdir -p $STATIC_BINARIES_DIR
-    - $S3_CP_CMD $S3_ARTEFACTS_URI/static/dogstatsd $STATIC_BINARIES_DIR/dogstatsd
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/static/dogstatsd $STATIC_BINARIES_DIR/dogstatsd
   script:
     - inv -e dogstatsd.size-test --skip-build
 
 #
 # package_build
 #
-
-# build Agent package for deb-x64
-agent_deb-x64:
-  stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:2xlarge" ]
-  variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+#
+.agent_build_common_deb: &agent_build_common_deb
+  before_script:
+    - source /root/.bashrc && conda activate $CONDA_ENV
+    - inv -e deps --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Retrieve the system-probe from S3
-    # - $S3_CP_CMD $S3_ARTEFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -name "datadog-agent*_amd64.deb" -exec dpkg -c {} \;
-    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent_*_amd64.deb $S3_ARTEFACTS_URI/datadog-agent_amd64.deb
-    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent-dbg_*_amd64.deb $S3_ARTEFACTS_URI/datadog-agent-dbg_amd64.deb
+    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent_*_amd64.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
+    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent-dbg_*_amd64.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-agent*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
@@ -367,12 +418,40 @@ agent_deb-x64:
       - $OMNIBUS_PACKAGE_DIR
 
 # build Agent package for deb-x64
+agent_deb-x64-a6:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    CONDA_ENV: ddpy3
+    PYTHON_RUNTIMES: '2,3'
+    DESTINATION_DEB: 'datadog-agent_6_amd64.deb'
+    DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_amd64.deb'
+  <<: *agent_build_common_deb
+
+agent_deb-x64-a7:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    CONDA_ENV: ddpy3
+    PYTHON_RUNTIMES: '3'
+    DESTINATION_DEB: 'datadog-agent_7_amd64.deb'
+    DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_amd64.deb'
+  <<: *agent_build_common_deb
+
+# build Agent package for deb-x64
 puppy_deb-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv -e deps --verbose --dep-vendor-only --no-checks
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -381,7 +460,7 @@ puppy_deb-x64:
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e agent.omnibus-build --puppy --log-level debug --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -name "datadog-puppy*_amd64.deb" -exec dpkg -c {} \;
-    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb $S3_ARTEFACTS_URI/datadog-puppy_amd64.deb
+    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb $S3_ARTIFACTS_URI/datadog-puppy_amd64.deb
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
@@ -394,13 +473,10 @@ puppy_deb-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-# build Agent package for rpm-x64
-agent_rpm-x64:
-  stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:2xlarge" ]
-  variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+.agent_build_common_rpm: &agent_build_common_rpm
+  before_script:
+    - source /root/.bashrc && conda activate $CONDA_ENV
+    - inv -e deps --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -412,7 +488,7 @@ agent_rpm-x64:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # Retrieve the system-probe from S3
-    # - $S3_CP_CMD $S3_ARTEFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
     # use --skip-deps since the deps are installed by `before_script`
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
@@ -429,13 +505,29 @@ agent_rpm-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-# build Agent package for suse-x64
-agent_suse-x64:
+# build Agent package for rpm-x64
+agent_rpm-x64-a6:
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    PYTHON_RUNTIMES: '2,3'
+    CONDA_ENV: ddpy3
+  <<: *agent_build_common_rpm
+
+# build Agent package for rpm-x64
+agent_rpm-x64-a7:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    PYTHON_RUNTIMES: '3'
+    CONDA_ENV: ddpy3
+  <<: *agent_build_common_rpm
+
+.agent_build_common_suse_rpm: &agent_build_common_suse_rpm
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
@@ -447,7 +539,7 @@ agent_suse-x64:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # Retrieve the system-probe from S3
-    # - $S3_CP_CMD $S3_ARTEFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
     # use --skip-deps since the deps are installed by `before_script`
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache --skip-deps
     - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
@@ -467,8 +559,30 @@ agent_suse-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR_SUSE
 
-# build Agent package for Windows
-build_windows_msi_x64:
+# build Agent package for suse-x64
+agent_suse-x64-a6:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    PYTHON_RUNTIMES: '2,3'
+  <<: *agent_build_common_suse_rpm
+
+# build Agent package for suse-x64
+agent_suse-x64-a7:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    PYTHON_RUNTIMES: '3'
+  <<: *agent_build_common_suse_rpm
+
+
+.agent_build_common_windows: &agent_build_common_windows
+  stage: package_build
+  tags: ["runner:windows-agent6"]
   ## this is a weird workaround. Can't use the built-in CI_PROJECT_DIR because the path separators
   ## are wrong.  Record the PROJECT dir with the correct path separators to be used later
   before_script:
@@ -483,11 +597,6 @@ build_windows_msi_x64:
     - xcopy /q/h/e/s * %GOPATH%\src\github.com\DataDog\datadog-agent
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
     - inv -e deps --verbose --dep-vendor-only --no-checks
-  stage: package_build
-  variables:
-    WINDOWS_BUILDER: 'true'
-    CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
-  tags: ["runner:windows-agent6"]
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
@@ -499,6 +608,21 @@ build_windows_msi_x64:
     expire_in: 2 weeks
     paths:
       - .omnibus/pkg
+
+# build Agent package for Windows
+build_windows_msi_x64-a6:
+  variables:
+    WINDOWS_BUILDER: 'true'
+    CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
+    PYTHON_RUNTIMES: '2,3'
+  <<: *agent_build_common_windows
+
+build_windows_msi_x64-a7:
+  variables:
+    WINDOWS_BUILDER: 'true'
+    CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
+    PYTHON_RUNTIMES: '3'
+  <<: *agent_build_common_windows
 
 # build Agent package for android
 agent_android_apk:
@@ -539,6 +663,9 @@ dogstatsd_deb-x64:
   tags: [ "runner:main", "size:large" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv -e deps --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -547,7 +674,7 @@ dogstatsd_deb-x64:
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -name "datadog-dogstatsd*_amd64.deb" -exec dpkg -c {} \;
-    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-dogstatsd*_amd64.deb $S3_ARTEFACTS_URI/datadog-dogstatsd_amd64.deb
+    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-dogstatsd*_amd64.deb $S3_ARTIFACTS_URI/datadog-dogstatsd_amd64.deb
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-dogstatsd*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
@@ -567,6 +694,9 @@ dogstatsd_rpm-x64:
   tags: [ "runner:main", "size:large" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv -e deps --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -628,7 +758,7 @@ dogstatsd_suse-x64:
       - $OMNIBUS_PACKAGE_DIR_SUSE
 
 # deploy debian packages to apt staging repo
-deploy_deb_testing:
+deploy_deb_testing-a6:
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -649,12 +779,36 @@ deploy_deb_testing:
     - echo "$APT_SIGNING_KEY_ID"
     - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
 
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID" -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID" -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID-a6" -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_6*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID-a6" -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_6*amd64.deb
+
+deploy_deb_testing-a7:
+  stage: testkitchen_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  <<: *run_when_testkitchen_triggered
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - source /usr/local/rvm/scripts/rvm
+    - rvm use 2.4
+
+    - set +x # make sure we don't output the creds to the build log
+
+    - APT_SIGNING_KEY_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_id --with-decryption --query "Parameter.Value" --out text)
+    - APT_SIGNING_PRIVATE_KEY_PART1=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part1 --with-decryption --query "Parameter.Value" --out text)
+    - APT_SIGNING_PRIVATE_KEY_PART2=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part2 --with-decryption --query "Parameter.Value" --out text)
+    - APT_SIGNING_KEY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
+
+    - echo "$APT_SIGNING_KEY_ID"
+    - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
+
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID-a7" -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID-a7" -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
 
 
 # deploy rpm packages to yum staging repo
-deploy_rpm_testing:
+deploy_rpm_testing-a6:
   <<: *run_when_testkitchen_triggered
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -665,13 +819,29 @@ deploy_rpm_testing:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
     - mkdir -p ./rpmrepo/x86_64/
-    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID ./rpmrepo/
-    - cp $OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/x86_64/
+    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a6 ./rpmrepo/
+    - cp $OMNIBUS_PACKAGE_DIR/datadog-*-6.*x86_64.rpm ./rpmrepo/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/x86_64
-    - aws s3 sync ./rpmrepo/ s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 sync ./rpmrepo/ s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+deploy_rpm_testing-a7:
+  <<: *run_when_testkitchen_triggered
+  stage: testkitchen_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - source /usr/local/rvm/scripts/rvm
+    - rvm use 2.4
+    - mkdir -p ./rpmrepo/x86_64/
+    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a7 ./rpmrepo/
+    - cp $OMNIBUS_PACKAGE_DIR/datadog-*-7.*x86_64.rpm ./rpmrepo/x86_64/
+    - createrepo --update -v --checksum sha ./rpmrepo/x86_64
+    - aws s3 sync ./rpmrepo/ s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy rpm packages to yum staging repo
-deploy_suse_rpm_testing:
+deploy_suse_rpm_testing-a6:
   <<: *run_when_testkitchen_triggered
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -682,13 +852,29 @@ deploy_suse_rpm_testing:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
     - mkdir -p ./rpmrepo/suse/x86_64/
-    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID ./rpmrepo/
-    - cp $OMNIBUS_PACKAGE_DIR_SUSE/*x86_64.rpm ./rpmrepo/suse/x86_64/
+    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a6 ./rpmrepo/
+    - cp $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-6.*x86_64.rpm ./rpmrepo/suse/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/suse/x86_64
-    - aws s3 sync ./rpmrepo/suse/ s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 sync ./rpmrepo/suse/ s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+deploy_suse_rpm_testing-a7:
+  <<: *run_when_testkitchen_triggered
+  stage: testkitchen_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR_SUSE
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - source /usr/local/rvm/scripts/rvm
+    - rvm use 2.4
+    - mkdir -p ./rpmrepo/suse/x86_64/
+    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a7 ./rpmrepo/
+    - cp $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*x86_64.rpm ./rpmrepo/suse/x86_64/
+    - createrepo --update -v --checksum sha ./rpmrepo/suse/x86_64
+    - aws s3 sync ./rpmrepo/suse/ s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy windows packages to our testing bucket
-deploy_windows_testing:
+deploy_windows_testing-a6:
   <<: *run_when_testkitchen_triggered
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -696,17 +882,24 @@ deploy_windows_testing:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET_A6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# run dd-agent-testing on windows
-kitchen_windows:
-  stage: testkitchen_testing
-  allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+deploy_windows_testing-a7:
   <<: *run_when_testkitchen_triggered
+  stage: testkitchen_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
+    - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET_A7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+
+#
+# Kitchen Test Common templates
+#
+
+.kitchen_common: &kitchen_common
   script:
     - cd $CI_PROJECT_DIR
     - cd $DD_AGENT_TESTING_DIR
@@ -714,11 +907,6 @@ kitchen_windows:
     - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks
@@ -726,14 +914,7 @@ kitchen_windows:
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
 
-kitchen_windows_installer:
-  stage: testkitchen_testing
-  allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-  tags: [ "runner:main", "size:large" ]
+.kitchen_windows_installer_common: &kitchen_windows_installer_common
   script:
     - cd $CI_PROJECT_DIR
     - cd $DD_AGENT_TESTING_DIR
@@ -741,7 +922,6 @@ kitchen_windows_installer:
     - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
     - bash -l tasks/run-test-kitchen.sh windows-install-test
   artifacts:
     expire_in: 2 weeks
@@ -749,115 +929,266 @@ kitchen_windows_installer:
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
 
-# run dd-agent-testing on centos
-kitchen_centos:
+kitchen_windows_upgrade5to6:
+  stage: testkitchen_testing
+  allow_failure: true
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - bash -l tasks/run-test-kitchen.sh windows-upgrade5-test
+
+kitchen_windows_upgrade5to7:
+  stage: testkitchen_testing
+  allow_failure: true
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - bash -l tasks/run-test-kitchen.sh windows-upgrade5-test
+
+# run dd-agent-testing on windows
+kitchen_windows-a6:
   stage: testkitchen_testing
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
+    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
+    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
   tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+  <<: *kitchen_common
+
+kitchen_windows-a7:
+  stage: testkitchen_testing
+  allow_failure: false
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
+    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
+
+kitchen_windows-a7-2008:
+  stage: testkitchen_testing
+  allow_failure: true
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
+    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
+
+
+kitchen_windows_installer-a6:
+  stage: testkitchen_testing
+  allow_failure: true
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
+    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_windows_installer_common
+
+kitchen_windows_installer-a7:
+  stage: testkitchen_testing
+  allow_failure: true
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
+    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_windows_installer_common
+
+
+# run dd-agent-testing on centos
+kitchen_centos-a6:
+  stage: testkitchen_testing
+  allow_failure: false
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="centos-69,OpenLogic:CentOS:6.9:6.9.20180530"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
-    - bash -l tasks/run-test-kitchen.sh
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-80,RedHat:RHEL:8:8.0.2019062020"
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
+
+kitchen_centos-a7:
+  stage: testkitchen_testing
+  allow_failure: false
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="centos-69,OpenLogic:CentOS:6.9:6.9.20180530"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-80,RedHat:RHEL:8:8.0.2019062020"
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
 
 # run dd-agent-testing on ubuntu
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
-kitchen_ubuntu:
+kitchen_ubuntu-a6:
   stage: testkitchen_testing
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,Canonical:UbuntuServer:16.04.0-LTS:16.04.201906170"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-18-04,Canonical:UbuntuServer:18.04-LTS:18.04.201906040"
-    - bash -l tasks/run-test-kitchen.sh
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
 
-# run dd-agent-testing on suse
-kitchen_suse:
+kitchen_ubuntu-a7:
   stage: testkitchen_testing
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,Canonical:UbuntuServer:16.04.0-LTS:16.04.201906170"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-18-04,Canonical:UbuntuServer:18.04-LTS:18.04.201906040"
   tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+  <<: *kitchen_common
+
+# run dd-agent-testing on suse
+kitchen_suse-a6:
+  stage: testkitchen_testing
+  allow_failure: false
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP4:2019.06.17"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,SUSE:SLES-Standard:15:2019.06.17"
-    - bash -l tasks/run-test-kitchen.sh
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
+
+kitchen_suse-a7:
+  stage: testkitchen_testing
+  allow_failure: false
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP4:2019.06.17"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,SUSE:SLES-Standard:15:2019.06.17"
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
 
 # run dd-agent-testing on debian
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
-kitchen_debian:
+kitchen_debian-a6:
   stage: testkitchen_testing
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - cd $CI_PROJECT_DIR
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
     - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.20190313.0"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,credativ:Debian:9:9.20190515.0"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-10,Debian:debian-10:10:0.20190709.401"
-    - bash -l tasks/run-test-kitchen.sh
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
+
+kitchen_debian-a7:
+  stage: testkitchen_testing
+  allow_failure: false
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  variables:
+    PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.20190313.0"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,credativ:Debian:9:9.20190515.0"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-10,Debian:debian-10:10:0.20190709.401"
+  tags: [ "runner:main", "size:large" ]
+  <<: *kitchen_common
 
 #
 # pkg_metrics: send metrics about packages
 #
 
-send_pkg_size:
+send_pkg_size-a6:
   stage: pkg_metrics
   <<: *run_when_triggered
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
@@ -868,27 +1199,28 @@ send_pkg_size:
     - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
   tags: [ "runner:main", "size:large" ]
   script:
+    - source /root/.bashrc && conda activate ddpy3
     - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/puppy
     - mkdir -p /tmp/rpm/agent /tmp/rpm/dogstatsd
     - mkdir -p /tmp/suse/agent /tmp/suse/dogstatsd
 
     # we silence dpkg and cpio output so we don't exceed gitlab log limit
 
+    # TODO: figure out what the versioning will be for puppy + dogstatsd with A7
     # debian
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_*_amd64.deb /tmp/deb/agent > /dev/null
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_*_amd64.deb /tmp/deb/dogstatsd > /dev/null
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-puppy_*_amd64.deb /tmp/deb/puppy > /dev/null
+    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_6*_amd64.deb /tmp/deb/agent > /dev/null
+    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_6*_amd64.deb /tmp/deb/dogstatsd > /dev/null
     - DEB_AGENT_SIZE=$(du -sB1 /tmp/deb/agent | sed 's/\([0-9]\+\).\+/\1/')
     - DEB_DOGSTATSD_SIZE=$(du -sB1 /tmp/deb/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
     - DEB_PUPPY_SIZE=$(du -sB1 /tmp/deb/puppy | sed 's/\([0-9]\+\).\+/\1/')
     # centos
-    - cd /tmp/rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-*.x86_64.rpm | cpio -idm > /dev/null
-    - cd /tmp/rpm/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-*.x86_64.rpm | cpio -idm > /dev/null
+    - cd /tmp/rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-6.*.x86_64.rpm | cpio -idm > /dev/null
+    - cd /tmp/rpm/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-6.*.x86_64.rpm | cpio -idm > /dev/null
     - RPM_AGENT_SIZE=$(du -sB1 /tmp/rpm/agent | sed 's/\([0-9]\+\).\+/\1/')
     - RPM_DOGSTATSD_SIZE=$(du -sB1 /tmp/rpm/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
     # suse
-    - cd /tmp/suse/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-*.x86_64.rpm | cpio -idm > /dev/null
-    - cd /tmp/suse/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-*.x86_64.rpm | cpio -idm > /dev/null
+    - cd /tmp/suse/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-6.*.x86_64.rpm | cpio -idm > /dev/null
+    - cd /tmp/suse/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-6.*.x86_64.rpm | cpio -idm > /dev/null
     - SUSE_AGENT_SIZE=$(du -sB1 /tmp/suse/agent | sed 's/\([0-9]\+\).\+/\1/')
     - SUSE_DOGSTATSD_SIZE=$(du -sB1 /tmp/suse/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
 
@@ -897,37 +1229,106 @@ send_pkg_size:
     - |
       curl  -X POST -H "Content-type: application/json" \
       -d "{\"series\":[
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_DOGSTATSD_SIZE]], \"tags\":[\"os:debian\", \"package:dogstatsd\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[${currenttime}, ${DEB_PUPPY_SIZE}]], \"tags\":[\"os:debian\", \"package:puppy\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_DOGSTATSD_SIZE]], \"tags\":[\"os:centos\", \"package:dogstatsd\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_DOGSTATSD_SIZE]], \"tags\":[\"os:suse\", \"package:dogstatsd\"]}
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:6\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_DOGSTATSD_SIZE]], \"tags\":[\"os:debian\", \"package:dogstatsd\", \"agent:6\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_PUPPY_SIZE]], \"tags\":[\"os:debian\", \"package:puppy\", \"agent:6\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:6\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_DOGSTATSD_SIZE]], \"tags\":[\"os:centos\", \"package:dogstatsd\", \"agent:6\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\", \"agent:6\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_DOGSTATSD_SIZE]], \"tags\":[\"os:suse\", \"package:dogstatsd\", \"agent:6\"]}
           ]}" \
       "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"
 
-# run dd-agent-testing
-testkitchen_cleanup_s3:
+send_pkg_size-a7:
+  stage: pkg_metrics
+  <<: *run_when_triggered
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  before_script:
+    # tmp while we uppdate the base image
+    - apt-get install -y wget rpm2cpio cpio
+    - ls -l $OMNIBUS_PACKAGE_DIR
+    - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - source /root/.bashrc && conda activate ddpy3
+    - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/puppy
+    - mkdir -p /tmp/rpm/agent /tmp/rpm/dogstatsd
+    - mkdir -p /tmp/suse/agent /tmp/suse/dogstatsd
+
+    # we silence dpkg and cpio output so we don't exceed gitlab log limit
+
+    # TODO: figure out what the versioning will be for puppy + dogstatsd with A7
+    # debian
+    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_amd64.deb /tmp/deb/agent > /dev/null
+    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-puppy_7*_amd64.deb /tmp/deb/puppy > /dev/null
+    - DEB_AGENT_SIZE=$(du -sB1 /tmp/deb/agent | sed 's/\([0-9]\+\).\+/\1/')
+    - DEB_DOGSTATSD_SIZE=$(du -sB1 /tmp/deb/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
+    - DEB_PUPPY_SIZE=$(du -sB1 /tmp/deb/puppy | sed 's/\([0-9]\+\).\+/\1/')
+    # centos
+    - cd /tmp/rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
+    - RPM_AGENT_SIZE=$(du -sB1 /tmp/rpm/agent | sed 's/\([0-9]\+\).\+/\1/')
+    - RPM_DOGSTATSD_SIZE=$(du -sB1 /tmp/rpm/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
+    # suse
+    - cd /tmp/suse/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
+    - SUSE_AGENT_SIZE=$(du -sB1 /tmp/suse/agent | sed 's/\([0-9]\+\).\+/\1/')
+    - SUSE_DOGSTATSD_SIZE=$(du -sB1 /tmp/suse/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
+
+    - currenttime=$(date +%s)
+    - DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key --with-decryption --query "Parameter.Value" --out text)
+    - |
+      curl  -X POST -H "Content-type: application/json" \
+      -d "{\"series\":[
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:7\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_DOGSTATSD_SIZE]], \"tags\":[\"os:debian\", \"package:dogstatsd\", \"agent:7\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_PUPPY_SIZE]], \"tags\":[\"os:debian\", \"package:puppy\", \"agent:7\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:7\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_DOGSTATSD_SIZE]], \"tags\":[\"os:centos\", \"package:dogstatsd\", \"agent:7\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\", \"agent:7\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_DOGSTATSD_SIZE]], \"tags\":[\"os:suse\", \"package:dogstatsd\", \"agent:7\"]}
+          ]}" \
+      "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"
+
+
+.kitchen_cleanup_s3_common: &kitchen_cleanup_s3_common
+  script:
+    - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$DD_PIPELINE_ID --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$DD_PIPELINE_ID --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$DD_PIPELINE_ID --recursive
+    - aws s3 rm s3://$WINDOWS_TESTING_S3_BUCKET_A6 --recursive
+    - cd $OMNIBUS_PACKAGE_DIR
+    - for deb in $(ls *amd64.deb); do aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/$deb --recursive; done
+
+# kitchen tests cleanup
+testkitchen_cleanup_s3-a6:
   stage: testkitchen_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
   tags: [ "runner:main", "size:large" ]
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
     - ls
   # even if this fails, it shouldn't block the pipeline.
   allow_failure: true
   when: always
-  script:
-    - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$CI_PIPELINE_ID --recursive
-    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID --recursive
-    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID --recursive
-    - aws s3 rm s3://$WINDOWS_TESTING_S3_BUCKET --recursive
-    - cd $OMNIBUS_PACKAGE_DIR
-    - for deb in $(ls *amd64.deb); do aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/$deb --recursive; done
+  <<: *kitchen_cleanup_s3_common
+
+testkitchen_cleanup_s3-a7:
+  stage: testkitchen_cleanup
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  tags: [ "runner:main", "size:large" ]
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+  before_script:
+    - ls
+  # even if this fails, it shouldn't block the pipeline.
+  allow_failure: true
+  when: always
+  <<: *kitchen_cleanup_s3_common
 
 # run dd-agent-testing
-testkitchen_cleanup_azure:
+testkitchen_cleanup_azure-a6:
   stage: testkitchen_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
@@ -935,6 +1336,24 @@ testkitchen_cleanup_azure:
   allow_failure: true
   when: always
   tags: [ "runner:main", "size:large" ]
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+  script:
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/clean.sh
+
+testkitchen_cleanup_azure-a7:
+  stage: testkitchen_cleanup
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  <<: *run_when_testkitchen_triggered
+  # even if this fails, it shouldn't block the pipeline.
+  allow_failure: true
+  when: always
+  tags: [ "runner:main", "size:large" ]
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   script:
@@ -952,7 +1371,7 @@ testkitchen_cleanup_azure:
   before_script: [ "# noop" ] # Override top level entry
   dependencies: [] # Don't download Gitlab artifacts
   script:
-    - aws s3 sync --only-show-errors "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID" $BUILD_CONTEXT
+    - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
     - TARGET_TAG=$IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
@@ -972,8 +1391,8 @@ build_agent6:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -py2
-    BUILD_ARG: --target release --build-arg PYTHON_VERSION=2
-    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=2
+    BUILD_ARG: --target release --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
 
 # build agent6 jmx image
 build_agent6_jmx:
@@ -981,9 +1400,10 @@ build_agent6_jmx:
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
+    BUILD_ARTIFACT_GLOB: datadog-agent_6*_amd64.deb
     TAG_SUFFIX: -py2-jmx
-    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2
-    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
 
 # TESTING ONLY: This image is for internal testing purposes, not customer facing.
 # build agent6 jmx unified image (including python3)
@@ -993,8 +1413,8 @@ build_agent6_py2py3_jmx:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -py2py3-jmx
-    BUILD_ARG: --target release --build-arg WITH_JMX=true
-    TESTING_ARG:  --target testing --build-arg WITH_JMX=true
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
 
 # build agent7 image
 build_agent7:
@@ -1003,8 +1423,8 @@ build_agent7:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -py3
-    BUILD_ARG: --target release --build-arg PYTHON_VERSION=3
-    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3
+    BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
 
 # build agent7 jmx image
 build_agent7_jmx:
@@ -1013,8 +1433,8 @@ build_agent7_jmx:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -py3-jmx
-    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3
-    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
 
 # build the cluster-agent image
 build_cluster_agent:
@@ -1188,7 +1608,7 @@ check_if_build_only:
 #
 
 # deploy debian packages to apt staging repo
-deploy_deb:
+deploy_deb-6:
   <<: *run_when_triggered
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -1216,8 +1636,39 @@ deploy_deb:
     - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
 
     # Release the artifacts to the "6" component
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*amd64.deb
+
+deploy_deb-7:
+  <<: *run_when_triggered
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    # We first check that the current version hasn't already been deployed
+    # (same as the check_already_deployed_version). We do this twice to mitigate
+    # races and issues with retries while failing early if there is an issue.
+    - pushd $OMNIBUS_PACKAGE_DIR
+    - /deploy_scripts/fail_deb_is_pkg_already_exists.sh
+    - popd
+    - source /usr/local/rvm/scripts/rvm
+    - rvm use 2.4
+
+    - set +x # make sure we don't output the creds to the build log
+
+    - APT_SIGNING_KEY_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_id --with-decryption --query "Parameter.Value" --out text)
+    - APT_SIGNING_PRIVATE_KEY_PART1=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part1 --with-decryption --query "Parameter.Value" --out text)
+    - APT_SIGNING_PRIVATE_KEY_PART2=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part2 --with-decryption --query "Parameter.Value" --out text)
+    - APT_SIGNING_KEY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
+
+    - echo "$APT_SIGNING_KEY_ID"
+    - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
+
+    # Release the artifacts to the "7" component
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
 
 # deploy windows packages to a public s3 bucket when pushed on master
 deploy_windows_master:
@@ -1229,7 +1680,26 @@ deploy_windows_master:
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/master/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-*-x86_64.msi "s3://$WINDOWS_BUILDS_S3_BUCKET/master/datadog-agent-6-latest.amd64.msi" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+deploy_windows_master-latest-6:
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  <<: *run_when_triggered_on_nightly
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-6*-x86_64.msi "s3://$WINDOWS_BUILDS_S3_BUCKET/master/datadog-agent-6-latest.amd64.msi" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+deploy_windows_master-latest-7:
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  <<: *run_when_triggered_on_nightly
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-7*-x86_64.msi "s3://$WINDOWS_BUILDS_S3_BUCKET/master/datadog-agent-7-latest.amd64.msi" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy windows packages to a public s3 bucket when tagged
 deploy_windows_tags:
@@ -1241,10 +1711,32 @@ deploy_windows_tags:
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+deploy_windows_tags-latest-6:
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  <<: *run_when_triggered_on_tag
+  tags: [ "runner:main", "size:large" ]
+  script:
     # By default we update the "latest" artifacts on our s3 bucket so the
     # staging box can pick it up. Allow the job to skip this step if needed
     # (when building a custom beta for example).
-    - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-6-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
+    - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-6*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-6-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
+
+deploy_windows_tags-latest-7:
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  <<: *run_when_triggered_on_tag
+  tags: [ "runner:main", "size:large" ]
+  script:
+    # By default we update the "latest" artifacts on our s3 bucket so the
+    # staging box can pick it up. Allow the job to skip this step if needed
+    # (when building a custom beta for example).
+    - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-7*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-7-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
 
 # deploy android packages to a public s3 bucket when tagged
 deploy_android_tags:
@@ -1258,7 +1750,7 @@ deploy_android_tags:
     - $S3_CP_CMD --recursive --exclude "*" --include "*.apk" $OMNIBUS_PACKAGE_DIR s3://$ANDROID_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy rpm packages to yum staging repo
-deploy_rpm:
+deploy_rpm-6:
   <<: *run_when_triggered
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -1272,14 +1764,34 @@ deploy_rpm:
     - aws s3 sync s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/6/ ./rpmrepo/6/
 
     # add RPMs to new "6" branch
-    - cp $OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/6/x86_64/
+    - cp $OMNIBUS_PACKAGE_DIR/*-6.*x86_64.rpm ./rpmrepo/6/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/6/x86_64
 
     # sync to S3
     - aws s3 sync ./rpmrepo/6/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/6/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
+deploy_rpm-7:
+  <<: *run_when_triggered
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - source /usr/local/rvm/scripts/rvm
+    - rvm use 2.4
+    - mkdir -p ./rpmrepo/7/x86_64/
+    - aws s3 sync s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/7/ ./rpmrepo/7/
+
+    # add RPMs to new "7" branch
+    - cp $OMNIBUS_PACKAGE_DIR/*-7.*x86_64.rpm ./rpmrepo/7/x86_64/
+    - createrepo --update -v --checksum sha ./rpmrepo/7/x86_64
+
+    # sync to S3
+    - aws s3 sync ./rpmrepo/7/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/7/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
 # deploy suse rpm packages to yum staging repo
-deploy_suse_rpm:
+deploy_suse_rpm-6:
   <<: *run_when_triggered
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -1293,11 +1805,31 @@ deploy_suse_rpm:
     - aws s3 sync s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/6/ ./rpmrepo/6/
 
     # add RPMs to new "6" branch
-    - cp $OMNIBUS_PACKAGE_DIR_SUSE/*x86_64.rpm ./rpmrepo/6/x86_64/
+    - cp $OMNIBUS_PACKAGE_DIR_SUSE/*-6.*x86_64.rpm ./rpmrepo/6/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/6/x86_64
 
     # sync to S3
     - aws s3 sync ./rpmrepo/6/ s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/6/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+deploy_suse_rpm-7:
+  <<: *run_when_triggered
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR_SUSE
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - source /usr/local/rvm/scripts/rvm
+    - rvm use 2.4
+    - mkdir -p ./rpmrepo/7/x86_64/
+    - aws s3 sync s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/7/ ./rpmrepo/7/
+
+    # add RPMs to new "7" branch
+    - cp $OMNIBUS_PACKAGE_DIR_SUSE/*-7.*x86_64.rpm ./rpmrepo/7/x86_64/
+    - createrepo --update -v --checksum sha ./rpmrepo/7/x86_64
+
+    # sync to S3
+    - aws s3 sync ./rpmrepo/7/ s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/7/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy dsd binary to staging bucket
 deploy_dsd:
@@ -1308,7 +1840,7 @@ deploy_dsd:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
-    - $S3_CP_CMD $S3_ARTEFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
     - export PACKAGE_VERSION=$(inv agent.version --url-safe)
     - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
@@ -1321,7 +1853,7 @@ deploy_puppy:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
-    - $S3_CP_CMD $S3_ARTEFACTS_URI/puppy/agent ./agent
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/puppy/agent ./agent
     - export PACKAGE_VERSION=$(inv agent.version --url-safe)
     - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/puppy/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 

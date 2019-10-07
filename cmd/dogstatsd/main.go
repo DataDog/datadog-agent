@@ -57,7 +57,7 @@ extensions for special Datadog features.`,
 		Short: "Print the version number",
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
-			av, _ := version.New(version.AgentVersion, version.Commit)
+			av, _ := version.Agent()
 			fmt.Println(fmt.Sprintf("DogStatsD from Agent %s - Codename: %s - Commit: %s - Serialization version: %s", av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion))
 		},
 	}
@@ -165,7 +165,7 @@ func start(cmd *cobra.Command, args []string) error {
 	log.Debugf("Using hostname: %s", hname)
 
 	// setup the metadata collector
-	metaScheduler := metadata.NewScheduler(s, hname)
+	metaScheduler := metadata.NewScheduler(s)
 	if err := metadata.SetupMetadataCollection(metaScheduler, []string{"host"}); err != nil {
 		metaScheduler.Stop()
 		return err

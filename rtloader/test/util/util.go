@@ -5,26 +5,33 @@ import (
 	"io/ioutil"
 	"os"
 	"runtime"
+	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 	yaml "gopkg.in/yaml.v2"
 )
 
-// #cgo CFLAGS: -I../../include
-// #cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
-// #cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
-// #include <datadog_agent_rtloader.h>
-//
-// extern void headers(char **);
-//
-// static void initDatadogAgentTests(rtloader_t *rtloader) {
-//    set_headers_cb(rtloader, headers);
-// }
+/*
+#cgo CFLAGS: -I../../include -I../../common -Wno-deprecated-declarations
+#cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
+
+#include "rtloader_mem.h"
+#include "datadog_agent_rtloader.h"
+
+extern void headers(char **);
+
+static void initDatadogAgentTests(rtloader_t *rtloader) {
+   set_cgo_free_cb(rtloader, _free);
+   set_headers_cb(rtloader, headers);
+}
+*/
 import "C"
 
 var (
-	rtloader     *C.rtloader_t
-	tmpfile *os.File
+	rtloader *C.rtloader_t
+	tmpfile  *os.File
 )
 
 type message struct {
@@ -34,6 +41,9 @@ type message struct {
 }
 
 func setUp() error {
+	// Initialize memory tracking
+	helpers.InitMemoryTracker()
+
 	rtloader = (*C.rtloader_t)(common.GetRtLoader())
 	if rtloader == nil {
 		return fmt.Errorf("make failed")
@@ -63,7 +73,7 @@ func tearDown() {
 
 func run(call string) (string, error) {
 	tmpfile.Truncate(0)
-	code := C.CString(fmt.Sprintf(`
+	code := (*C.char)(helpers.TrackedCString(fmt.Sprintf(`
 try:
 	import util
 	import sys
@@ -71,7 +81,8 @@ try:
 except Exception as e:
 	with open(r'%s', 'w') as f:
 		f.write("{}\n".format(e))
-`, call, tmpfile.Name()))
+`, call, tmpfile.Name())))
+	defer C._free(unsafe.Pointer(code))
 
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
@@ -99,5 +110,5 @@ func headers(in **C.char) {
 	}
 	retval, _ := yaml.Marshal(h)
 
-	*in = C.CString(string(retval))
+	*in = (*C.char)(helpers.TrackedCString(string(retval)))
 }
