@@ -61,7 +61,7 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging/linux
   RELEASE_VERSION: nightly
   DATADOG_AGENT_BUILDIMAGES: v1709713-2adac2a
-  DATADOG_AGENT_BUILDERS: v1613952-f072482
+  DATADOG_AGENT_BUILDERS: v1755190-c671974
 
 
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
@@ -1065,6 +1065,7 @@ kitchen_centos-a6:
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="centos-69,OpenLogic:CentOS:6.9:6.9.20180530"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-80,RedHat:RHEL:8:8.0.2019062020"
   tags: [ "runner:main", "size:large" ]
   <<: *kitchen_common
 
@@ -1080,6 +1081,7 @@ kitchen_centos-a7:
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="centos-69,OpenLogic:CentOS:6.9:6.9.20180530"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-80,RedHat:RHEL:8:8.0.2019062020"
   tags: [ "runner:main", "size:large" ]
   <<: *kitchen_common
 
