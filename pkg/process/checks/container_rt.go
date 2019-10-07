@@ -43,7 +43,7 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	ctrList, err := util.GetContainers()
 
 	if err == containercollectors.ErrPermaFail || err == containercollectors.ErrNothingYet {
-		log.Debug("container collector was not detected, container check will not return any data")
+		log.Trace("container collector was not detected, container check will not return any data")
 		return nil, nil
 	}
 
