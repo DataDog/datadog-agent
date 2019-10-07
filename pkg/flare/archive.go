@@ -393,34 +393,46 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 	if config.Datadog.ConfigFileUsed() != "" {
 		// zip up the config file that was actually used, if one exists
 		filePath := config.Datadog.ConfigFileUsed()
-
-		// Check if the file exists
-		_, err := os.Stat(filePath)
-		if err == nil {
-			f = filepath.Join(tempDir, hostname, "etc", "datadog.yaml")
-			err := ensureParentDirsExist(f)
-			if err != nil {
-				return err
-			}
-
-			w, err := newRedactingWriter(f, os.ModePerm, true)
-			if err != nil {
-				return err
-			}
-			defer w.Close()
-
-			_, err = w.WriteFromFile(filePath)
-			if err != nil {
-				return err
-			}
-
-			if permsInfos != nil {
-				permsInfos.add(filePath)
-			}
+		if err = createConfigFiles(filePath, tempDir, hostname, permsInfos); err != nil {
+			return err
+		}
+		// figure out system-probe file path based on main config path,
+		// and use best effort to include system-probe.yaml to the flare
+		systemProbePath := getSystemProbePath(filePath)
+		if systemErr := createConfigFiles(systemProbePath, tempDir, hostname, permsInfos); systemErr != nil {
+			log.Errorf("error happened while zipping system-probe.yaml: %s", systemErr)
 		}
 	}
 
 	return err
+}
+
+func createConfigFiles(filePath, tempDir, hostname string, permsInfos permissionsInfos) error {
+	// Check if the file exists
+	_, err := os.Stat(filePath)
+	if err == nil {
+		f := filepath.Join(tempDir, hostname, "etc", filepath.Base(filePath))
+		err := ensureParentDirsExist(f)
+		if err != nil {
+			return err
+		}
+
+		w, err := newRedactingWriter(f, os.ModePerm, true)
+		if err != nil {
+			return err
+		}
+		defer w.Close()
+
+		_, err = w.WriteFromFile(filePath)
+		if err != nil {
+			return err
+		}
+
+		if permsInfos != nil {
+			permsInfos.add(filePath)
+		}
+	}
+	return nil
 }
 
 func zipSecrets(tempDir, hostname string) error {
@@ -656,4 +668,10 @@ func cleanDirectoryName(name string) string {
 		return filteredName[:directoryNameMaxSize]
 	}
 	return filteredName
+}
+
+// getSystemProbePath would take the path to datadog-agent.yaml and replace the file name with system-probe.yaml
+func getSystemProbePath(filePath string) string {
+	path := filepath.Dir(filePath)
+	return filepath.Join(path, "system-probe.yaml")
 }
