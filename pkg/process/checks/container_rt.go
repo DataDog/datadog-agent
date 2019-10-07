@@ -42,7 +42,7 @@ func (r *RTContainerCheck) RealTime() bool { return true }
 func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
 	ctrList, err := util.GetContainers()
 
-	if err == containercollectors.ErrPermaFai || err == containercollectors.ErrNothingYet {
+	if err == containercollectors.ErrPermaFail || err == containercollectors.ErrNothingYet {
 		log.Debug("container collector was not detected, container check will not return any data")
 		return nil, nil
 	}

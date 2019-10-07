@@ -63,7 +63,7 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	start := time.Now()
 	ctrList, err := util.GetContainers()
 	if err != nil {
-		if err == containercollectors.ErrPermaFai || err == containercollectors.ErrNothingYet {
+		if err == containercollectors.ErrPermaFail || err == containercollectors.ErrNothingYet {
 			log.Debug("container collector was not detected, container check will not return any data")
 			return nil, nil
 		}
