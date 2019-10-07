@@ -22,4 +22,11 @@ build do
   end
 
   command "#{python_bin} setup.py install --prefix=#{python_prefix}"
+
+  if ohai["platform"] != "windows"
+    block do
+      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python3.*/site-packages/pip-19.0.3-py3.*.egg/pip/_vendor/distlib/*.exe"))
+      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python3.*/site-packages/pip/_vendor/distlib/*.exe"))
+    end
+  end
 end
