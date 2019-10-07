@@ -407,34 +407,6 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 	return err
 }
 
-func createConfigFiles(filePath, tempDir, hostname string, permsInfos permissionsInfos) error {
-	// Check if the file exists
-	_, err := os.Stat(filePath)
-	if err == nil {
-		f := filepath.Join(tempDir, hostname, "etc", filepath.Base(filePath))
-		err := ensureParentDirsExist(f)
-		if err != nil {
-			return err
-		}
-
-		w, err := newRedactingWriter(f, os.ModePerm, true)
-		if err != nil {
-			return err
-		}
-		defer w.Close()
-
-		_, err = w.WriteFromFile(filePath)
-		if err != nil {
-			return err
-		}
-
-		if permsInfos != nil {
-			permsInfos.add(filePath)
-		}
-	}
-	return nil
-}
-
 func zipSecrets(tempDir, hostname string) error {
 	var b bytes.Buffer
 
@@ -670,8 +642,38 @@ func cleanDirectoryName(name string) string {
 	return filteredName
 }
 
-// getSystemProbePath would take the path to datadog-agent.yaml and replace the file name with system-probe.yaml
-func getSystemProbePath(filePath string) string {
-	path := filepath.Dir(filePath)
+// createConfigFiles takes the content of config files that need to be included in the flare and
+// put them in the directory waiting to be archived
+func createConfigFiles(filePath, tempDir, hostname string, permsInfos permissionsInfos) error {
+	// Check if the file exists
+	_, err := os.Stat(filePath)
+	if err == nil {
+		f := filepath.Join(tempDir, hostname, "etc", filepath.Base(filePath))
+		err := ensureParentDirsExist(f)
+		if err != nil {
+			return err
+		}
+
+		w, err := newRedactingWriter(f, os.ModePerm, true)
+		if err != nil {
+			return err
+		}
+		defer w.Close()
+
+		_, err = w.WriteFromFile(filePath)
+		if err != nil {
+			return err
+		}
+
+		if permsInfos != nil {
+			permsInfos.add(filePath)
+		}
+	}
+	return nil
+}
+
+// getSystemProbePath would take the path to datadog.yaml and replace the file name with system-probe.yaml
+func getSystemProbePath(ddCfgFilePath string) string {
+	path := filepath.Dir(ddCfgFilePath)
 	return filepath.Join(path, "system-probe.yaml")
 }
