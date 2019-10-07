@@ -87,6 +87,7 @@ func (tkn *SQLTokenizer) Reset(in string) {
 	tkn.rd.Reset(in)
 	tkn.pos = 0
 	tkn.lastChar = 0
+	tkn.err = nil
 }
 
 // keywords used to recognize string tokens
