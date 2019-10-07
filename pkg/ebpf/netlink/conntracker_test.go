@@ -47,6 +47,7 @@ func TestWithIPTables(t *testing.T) {
 		IP:   net.ParseIP("1.1.1.1"),
 		Port: 8080,
 	})
+	require.NoError(t, err)
 	defer udpListener.Close()
 
 	_, err = net.Dial("tcp", "2.2.2.2:8080")
