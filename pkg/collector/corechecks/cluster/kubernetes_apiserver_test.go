@@ -8,8 +8,8 @@ package cluster
 
 import (
 	"testing"
-
 	"time"
+	"fmt"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -272,4 +272,33 @@ func TestProcessEvent(t *testing.T) {
 	kubeASCheck.processEvents(mocked, empty)
 	mocked.AssertNotCalled(t, "Event")
 	mocked.AssertExpectations(t)
+}
+
+func TestConvertFilter(t *testing.T) {
+	for n, tc := range []struct {
+		caseName string
+		filters  []string
+		output   string
+	}{
+		{
+			caseName: "legacy support",
+			filters:  []string{"OOM"},
+			output:   "reason!=OOM",
+		},
+		{
+			caseName: "exclude node and type",
+			filters:  []string{"kind:Node", "type:Normal"},
+			output:   "involvedObject.kind!=Node,type!=Normal",
+		},
+		{
+			caseName: "legacy support and exclude HorizontalPodAutoscaler",
+			filters:  []string{"kind:HorizontalPodAutoscaler", "type:Normal", "OOM"},
+			output:   "involvedObject.kind!=HorizontalPodAutoscaler,type!=Normal,reason!=OOM",
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d: %s", n, tc.caseName), func(t *testing.T) {
+			output := convertFilter(tc.filters)
+			assert.Equal(t, tc.output, output)
+		})
+	}
 }

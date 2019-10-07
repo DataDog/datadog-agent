@@ -9,19 +9,17 @@ package apiserver
 
 import (
 	"fmt"
+	"testing"
+	
 	"github.com/magiconair/properties/assert"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 )
 
 func TestDiffEvents(t *testing.T) {
 	// This method is called when the RV used to watch is too old (server response)
 	// We List all events and only send the ones with a RV superior to the one we have (e.g. newer events).
 
-	// Case 1: List of 3 events from the APISever 2 of which have a RV superior to the one we have.
-	// Case 2: List of 3 events from the APISever all of which have a RV superior to the one we have.
-	// Case 3: List of 3 events from the APISever none of which have a RV superior to the one we have. (should not happen)
 	for n, tc := range []struct {
 		caseName   string
 		listEvents []v1.Event

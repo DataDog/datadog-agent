@@ -10,6 +10,9 @@ package cluster
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
 	"gopkg.in/yaml.v2"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -24,8 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"strings"
-	"time"
 )
 
 // Covers the Control Plane service check and the in memory pod metadata.
@@ -45,6 +46,7 @@ type KubeASConfig struct {
 	LeaderSkip               bool     `yaml:"skip_leader_election"`
 }
 
+// EventC is the structure that holds the information pertaining to which event we collected last and when we last resynced.
 type EventC struct {
 	ResVer   *string
 	LastTime *time.Time
@@ -103,7 +105,7 @@ func convertFilter(conf []string) string {
 		case f[0] == "kind" && len(f) == 2:
 			formatedFilters = append(formatedFilters, fmt.Sprintf("involvedObject.kind!=%s", f[1]))
 		case f[0] == "type" && len(f) == 2:
-			formatedFilters = append(formatedFilters, fmt.Sprintf("type=%s", f[1]))
+			formatedFilters = append(formatedFilters, fmt.Sprintf("type!=%s", f[1]))
 		default:
 			log.Error("Could not parse the fitler, only support kind, type and reason")
 		}
