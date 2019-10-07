@@ -148,6 +148,11 @@ func TestZipConfigCheck(t *testing.T) {
 func TestIncludeSystemProbeConfig(t *testing.T) {
 	assert := assert.New(t)
 	common.SetupConfig("./test/datadog-agent.yaml")
+	// create system-probe.yaml file because it's in .gitignore
+	_, err := os.Create("./test/system-probe.yaml")
+	assert.NoError(err, "couldn't create system-probe.yaml")
+	defer os.Remove("./test/system-probe.yaml")
+
 	zipFilePath := getArchivePath()
 	filePath, err := createArchive(zipFilePath, true, SearchPaths{"": "./test/confd"}, "")
 	assert.NoError(err)
