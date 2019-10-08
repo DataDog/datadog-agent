@@ -229,7 +229,9 @@ func (ctr *realConntracker) loadInitialState(sessions []ct.Conn) {
 	gen := getNthGeneration(generationLength, time.Now().UnixNano(), 3)
 	for _, c := range sessions {
 		if isNAT(c) {
-			ctr.state[formatKey(c)] = formatIPTranslation(c, gen)
+			if k, ok := formatKey(c); ok {
+				ctr.state[k] = formatIPTranslation(c, gen)
+			}
 		}
 	}
 }
@@ -239,6 +241,11 @@ func (ctr *realConntracker) loadInitialState(sessions []ct.Conn) {
 func (ctr *realConntracker) register(c ct.Conn) int {
 	// don't both storing if the connection is not NAT
 	if !isNAT(c) {
+		return 0
+	}
+
+	key, ok := formatKey(c)
+	if !ok {
 		return 0
 	}
 
@@ -252,7 +259,7 @@ func (ctr *realConntracker) register(c ct.Conn) int {
 	}
 
 	generation := getNthGeneration(generationLength, now, 3)
-	ctr.state[formatKey(c)] = formatIPTranslation(c, generation)
+	ctr.state[key] = formatIPTranslation(c, generation)
 
 	then := time.Now().UnixNano()
 	atomic.AddInt64(&ctr.stats.registers, 1)
@@ -274,18 +281,22 @@ func (ctr *realConntracker) unregister(c ct.Conn) int {
 		return 0
 	}
 
+	key, ok := formatKey(c)
+	if !ok {
+		return 0
+	}
+
 	now := time.Now().UnixNano()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
 	// move the mapping from the permanent to "short lived" connection
-	k := formatKey(c)
-	translation, ok := ctr.state[k]
+	translation, ok := ctr.state[key]
 
-	delete(ctr.state, k)
+	delete(ctr.state, key)
 	if len(ctr.shortLivedBuffer) < ctr.maxShortLivedBuffer && ok {
-		ctr.shortLivedBuffer[k] = translation.IPTranslation
+		ctr.shortLivedBuffer[key] = translation.IPTranslation
 	} else {
 		log.Warn("exceeded maximum tracked short lived connections")
 	}
@@ -396,19 +407,29 @@ func formatIPTranslation(c ct.Conn, generation uint8) *connValue {
 	}
 }
 
-func formatKey(c ct.Conn) (k connKey) {
+func formatKey(c ct.Conn) (k connKey, ok bool) {
+	ok = true
+
 	if ip, err := c.OrigSrcIP(); err == nil {
 		k.ip = util.AddressFromNetIP(ip)
+	} else {
+		ok = false
 	}
+
 	if port, err := c.Uint16(ct.AttrOrigPortSrc); err == nil {
 		k.port = NtohsU16(port)
+	} else {
+		ok = false
 	}
+
 	if proto, err := c.Uint8(ct.AttrOrigL4Proto); err == nil {
 		switch proto {
 		case 6:
 			k.proto = 0 // ConnectionType_tcp
 		case 17:
 			k.proto = 1 // ConnectionType_udp
+		default:
+			ok = false
 		}
 	}
 	return
