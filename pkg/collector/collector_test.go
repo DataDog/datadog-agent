@@ -176,7 +176,7 @@ func (suite *CollectorTestSuite) TestGetAllInstanceIDs() {
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 3, len(suite.c.checks))
 
-	ids := suite.c.getAllInstanceIDs("TestCheck1")
+	ids := suite.c.GetAllInstanceIDs("TestCheck1")
 	assert.Equal(suite.T(), 2, len(ids))
 	sort.Sort(ChecksList(ids))
 	expected := []check.ID{"bar", "foo"}

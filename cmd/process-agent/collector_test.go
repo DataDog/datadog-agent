@@ -12,7 +12,7 @@ import (
 
 func TestUpdateRTStatus(t *testing.T) {
 	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig()
+	cfg := config.NewDefaultAgentConfig(false)
 	c, err := NewCollector(cfg)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
@@ -48,7 +48,7 @@ func TestUpdateRTStatus(t *testing.T) {
 
 func TestUpdateRTInterval(t *testing.T) {
 	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig()
+	cfg := config.NewDefaultAgentConfig(false)
 	c, err := NewCollector(cfg)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.

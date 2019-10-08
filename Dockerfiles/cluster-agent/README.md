@@ -140,6 +140,9 @@ The following environment variables are supported:
 - `DD_EXTERNAL_METRICS_AGGREGATOR`: aggregator for the Datadog metrics. Applies to all Autoscalers processed. Chose among [sum/avg/max/min]
 - `DD_EXTERNAL_METRICS_PROVIDER_BUCKET_SIZE`: size of the window in seconds used to query metric from Datadog. Default to 300 seconds.
 - `DD_EXTERNAL_METRICS_PROVIDER_LOCAL_COPY_REFRESH_RATE`: rate to resync local cache of processed metrics with the global store. Useful when there are several replicas of the Cluster Agent.
+- `DD_PROXY_HTTP`: an http URL to use as a proxy for `http` requests.
+- `DD_PROXY_HTTPS`: an http URL to use as a proxy for `https` requests.
+- `DD_PROXY_NO_PROXY`: a space-separated list of URLs for which no proxy should be used.
 
 ## How to build it
 

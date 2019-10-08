@@ -87,8 +87,11 @@ func requestStatus() error {
 	if !prettyPrintJSON && !jsonStatus {
 		fmt.Printf("Getting the status from the agent.\n\n")
 	}
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/status", config.Datadog.GetInt("cmd_port"))
-
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+	urlstr := fmt.Sprintf("https://%v:%v/agent/status", ipcAddress, config.Datadog.GetInt("cmd_port"))
 	r, err := makeRequest(urlstr)
 	if err != nil {
 		return err

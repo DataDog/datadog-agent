@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -121,14 +121,14 @@ func (t *HTTPTransaction) GetCreatedAt() time.Time {
 // GetTarget return the url used by the transaction
 func (t *HTTPTransaction) GetTarget() string {
 	url := t.Domain + t.Endpoint
-	return util.SanitizeURL(url) // sanitized url that can be logged
+	return httputils.SanitizeURL(url) // sanitized url that can be logged
 }
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
 func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) error {
 	reader := bytes.NewReader(*t.Payload)
 	url := t.Domain + t.Endpoint
-	logURL := util.SanitizeURL(url) // sanitized url that can be logged
+	logURL := httputils.SanitizeURL(url) // sanitized url that can be logged
 
 	req, err := http.NewRequest("POST", url, reader)
 	if err != nil {
@@ -148,7 +148,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 		}
 		t.ErrorCount++
 		transactionsErrors.Add(1)
-		return fmt.Errorf("error while sending transaction, rescheduling it: %s", util.SanitizeURL(err.Error()))
+		return fmt.Errorf("error while sending transaction, rescheduling it: %s", httputils.SanitizeURL(err.Error()))
 	}
 	defer resp.Body.Close()
 

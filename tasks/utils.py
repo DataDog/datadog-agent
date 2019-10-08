@@ -37,9 +37,10 @@ def get_gopath(ctx):
 
 def get_multi_python_location(embedded_path=None, rtloader_root=None):
     if rtloader_root is None:
-        rtloader_lib = "{}/lib".format(embedded_path)
+        rtloader_lib = ["{}/lib".format(embedded_path),
+                        "{}/lib64".format(embedded_path)]
     else: # if rtloader_root is specified we're working in dev mode from the rtloader folder
-        rtloader_lib = "{}/rtloader".format(rtloader_root)
+        rtloader_lib = ["{}/rtloader".format(rtloader_root)]
 
     rtloader_headers = "{}/include".format(rtloader_root or embedded_path)
     rtloader_common_headers = "{}/common".format(rtloader_root or embedded_path)
@@ -58,6 +59,9 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     ldflags = get_version_ldflags(ctx, prefix)
     env = {}
 
+    # lets pass the build runtimes around with the env
+    env['PYTHON_RUNTIMES'] = os.environ.get('PYTHON_RUNTIMES', '')
+
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
 
@@ -74,10 +78,12 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     if python_home_3:
         ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, python_home_3)
 
+    ldflags += "-X {}/pkg/config.DefaultPython={} ".format(REPO_PATH, get_default_python())
+
     # adding rtloader libs and headers to the env
-    env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + ":{}".format(rtloader_lib) # OSX
-    env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + ":{}".format(rtloader_lib) # linux
-    env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + " -L{}".format(rtloader_lib)
+    env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + ":{}".format(':'.join(rtloader_lib)) # OSX
+    env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + ":{}".format(':'.join(rtloader_lib)) # linux
+    env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + " -L{}".format(' -L '.join(rtloader_lib))
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + " -w -I{} -I{}".format(rtloader_headers,
                                                                                   rtloader_common_headers)
 
@@ -85,7 +91,7 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     if static:
         ldflags += "-s -w -linkmode=external '-extldflags=-static' "
     else:
-        ldflags += "-r {}/lib ".format(embedded_path)
+        ldflags += "-r {}/lib:{}/lib64 ".format(embedded_path, embedded_path)
 
     if os.environ.get("DELVE"):
         gcflags = "-N -l"
@@ -159,6 +165,14 @@ def get_git_commit():
     """
     return check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('utf-8').strip()
 
+def get_default_python():
+    """
+    Get the default python for the current build
+    """
+    py_runtimes = os.environ.get("PYTHON_RUNTIMES", "3")
+    return py_runtimes if ',' not in py_runtimes else "3"
+
+
 def get_go_version():
     """
     Get the version of Go used
@@ -179,14 +193,17 @@ def get_git_branch_name():
     return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).decode('utf-8').strip()
 
 
-def query_version(ctx, git_sha_length=7, prefix=None):
+def query_version(ctx, git_sha_length=7, prefix=None, hint=None):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
     cmd = "git describe --tags --candidates=50"
     if prefix and type(prefix) == str:
         cmd += " --match \"{}-*\"".format(prefix)
     else:
-        cmd += " --match \"[0-9]*\""
+        if hint:
+            cmd += " --match \"{}\.*\"".format(hint)
+        else:
+            cmd += " --match \"[0-9]*\""
     if git_sha_length and type(git_sha_length) == int:
         cmd += " --abbrev={}".format(git_sha_length)
     described_version = ctx.run(cmd, hide=True).stdout.strip()
@@ -223,10 +240,12 @@ def query_version(ctx, git_sha_length=7, prefix=None):
     return version, pre, commit_number, git_sha
 
 
-def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None):
+def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, env=os.environ):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
+    version_hint = '7' if env.get('PYTHON_RUNTIMES', '') == '3' else '6'
+
     version = ""
-    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length, prefix)
+    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length, prefix, hint=version_hint)
     if pre:
         version = "{0}-{1}".format(version, pre)
     if commits_since_version and include_git:
@@ -238,14 +257,23 @@ def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix
     # version could be unicode as it comes from `query_version`
     return str(version)
 
-def get_version_numeric_only(ctx):
-    version, _, _, _ = query_version(ctx)
+def get_version_numeric_only(ctx, env=os.environ):
+    # we only need the git info for the non omnibus builds, omnibus includes all this information by default
+    version_hint = '7' if env.get('PYTHON_RUNTIMES', '') == '3' else '6'
+
+    version, _, _, _ = query_version(ctx, hint=version_hint)
     return version
 
 def load_release_versions(ctx, target_version):
+    # allow overriding python runtimes with env var
+    py_runtimes = os.environ.get("PYTHON_RUNTIMES")
+
     with open("release.json", "r") as f:
         versions = json.load(f)
         if target_version in versions:
+            if py_runtimes:
+                versions[target_version]["PYTHON_RUNTIMES"] = py_runtimes
+
             # windows runners don't accepts anything else than strings in the
             # environment when running a subprocess.
             return {str(k):str(v) for k, v in versions[target_version].items()}

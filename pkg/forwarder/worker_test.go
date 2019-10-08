@@ -65,7 +65,7 @@ func TestWorkerStart(t *testing.T) {
 	mock2.AssertExpectations(t)
 	mock2.AssertNumberOfCalls(t, "Process", 1)
 
-	w.Stop()
+	w.Stop(false)
 }
 
 func TestWorkerRetry(t *testing.T) {
@@ -81,7 +81,7 @@ func TestWorkerRetry(t *testing.T) {
 	w.Start()
 	highPrio <- mock
 	retryTransaction := <-requeue
-	w.Stop()
+	w.Stop(false)
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Process", 1)
 	mock.AssertNumberOfCalls(t, "GetTarget", 1)
@@ -102,10 +102,43 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	w.Start()
 	highPrio <- mock
 	retryTransaction := <-requeue
-	w.Stop()
+	w.Stop(false)
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Process", 0)
 	mock.AssertNumberOfCalls(t, "GetTarget", 1)
 	assert.Equal(t, mock, retryTransaction)
 	assert.True(t, w.blockedList.isBlock("error_url"))
+}
+
+func TestWorkerPurgeOnStop(t *testing.T) {
+	highPrio := make(chan Transaction, 1)
+	lowPrio := make(chan Transaction, 1)
+	requeue := make(chan Transaction, 1)
+	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
+	// making stopChan non blocking on insert and closing stopped channel
+	// to avoid blocking in the Stop method since we don't actually start
+	// the workder
+	w.stopChan = make(chan struct{}, 2)
+	close(w.stopped)
+
+	mockTransaction := newTestTransaction()
+	mockTransaction.On("Process", w.Client).Return(nil).Times(1)
+	mockTransaction.On("GetTarget").Return("").Times(1)
+	highPrio <- mockTransaction
+
+	mockRetryTransaction := newTestTransaction()
+	mockRetryTransaction.On("Process", w.Client).Return(nil).Times(1)
+	mockRetryTransaction.On("GetTarget").Return("").Times(1)
+	lowPrio <- mockRetryTransaction
+
+	// First test without purging
+	w.Stop(false)
+	mockTransaction.AssertNumberOfCalls(t, "Process", 0)
+	mockRetryTransaction.AssertNumberOfCalls(t, "Process", 0)
+
+	// Then with purging new transactions only
+	w.Stop(true)
+	mockTransaction.AssertExpectations(t)
+	mockTransaction.AssertNumberOfCalls(t, "Process", 1)
+	mockRetryTransaction.AssertNumberOfCalls(t, "Process", 0)
 }
