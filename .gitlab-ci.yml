@@ -645,19 +645,19 @@ agent_suse-x64-a7:
 
 
 # build Agent package for Windows
-build_windows_msi_x64-a6:
-  variables:
-    WINDOWS_BUILDER: 'true'
-    CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
-    PYTHON_RUNTIMES: '2,3'
-  <<: *agent_build_common_windows
+# build_windows_msi_x64-a6:
+#  variables:
+#    WINDOWS_BUILDER: 'true'
+#    CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
+#    PYTHON_RUNTIMES: '2,3'
+#  <<: *agent_build_common_windows
 
-build_windows_msi_x64-a7:
-  variables:
-    WINDOWS_BUILDER: 'true'
-    CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
-    PYTHON_RUNTIMES: '3'
-  <<: *agent_build_common_windows
+# build_windows_msi_x64-a7:
+#  variables:
+#     WINDOWS_BUILDER: 'true'
+#    CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
+#    PYTHON_RUNTIMES: '3'
+#  <<: *agent_build_common_windows
 
 ##
 ## windows dockerized builds
