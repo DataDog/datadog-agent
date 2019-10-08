@@ -19,12 +19,20 @@
 /cmd/process-agent/                     @DataDog/burrito
 /cmd/system-probe/                      @DataDog/burrito
 
+/Dockerfiles/                           @DataDog/container-integrations
+
 /docs/                                  @DataDog/baklava @DataDog/agent-platform
 /docs/agent/                            @DataDog/baklava @DataDog/agent-core
 /docs/dogstatsd/                        @DataDog/baklava @DataDog/agent-core
 /docs/trace-agent/                      @DataDog/baklava @DataDog/apm-agent
 /docs/cluster-agent/                    @DataDog/baklava @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/baklava @DataDog/agent-core
+
+/Makefile.trace                         @DataDog/apm-agent
+
+/omnibus/                               @DataDog/agent-platform
+/omnibus/config/software/datadog-agent*.rb                @Datadog/agent-core @DataDog/agent-platform
+/omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 
 /pkg/                                   @DataDog/agent-core
 /pkg/aggregator/                        @DataDog/agent-core
@@ -65,18 +73,10 @@
 
 /rtloader/                              @DataDog/agent-core
 
-/Dockerfiles/                           @DataDog/container-integrations
-
-/omnibus/                               @DataDog/agent-platform
-/omnibus/config/software/datadog-agent*.rb                @Datadog/agent-core @DataDog/agent-platform
-/omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
-
 /tasks/                                 @DataDog/agent-platform
 /tasks/agent.py                         @DataDog/agent-core
 /tasks/process-agent.py                 @DataDog/burrito
 /tasks/system-probe.py                  @DataDog/burrito
 /tasks/trace.py                         @DataDog/apm-agent
-
-/Makefile.trace                         @DataDog/apm-agent
 
 /tools/ebpf/                            @DataDog/burrito
