@@ -141,9 +141,16 @@ def get_version_ldflags(ctx, prefix=None):
     payload_v = get_payload_version()
     commit = get_git_commit()
 
+    agent_version = get_version(ctx, include_git=True, prefix=prefix)
+
     ldflags = "-X {}/pkg/version.Commit={} ".format(REPO_PATH, commit)
-    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True, prefix=prefix))
+    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, agent_version)
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
+
+    # If we're building Agent 7, we want to force the use of Python 3
+    if agent_version.startswith("7"):
+        ldflags += "-X {}/pkg/config.ForceDefaultPython=3 ".format(REPO_PATH)
+
     return ldflags
 
 def get_git_commit():

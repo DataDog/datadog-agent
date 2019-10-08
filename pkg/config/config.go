@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +40,11 @@ const (
 
 	megaByte = 1024 * 1024
 )
+
+// ForceDefaultPython is set at compile time to something else than -1
+// if the build wants to ignore the Python version set in the configuration.
+// Used for the Agent 7 to use Python 3.
+var ForceDefaultPython string
 
 var overrideVars = make(map[string]interface{})
 
@@ -665,13 +671,20 @@ func load(config Config, origin string, loadSecret bool) error {
 		}
 	}
 
-	// If we run Agent > 6, we want to use Python 3.
-	if av, err := version.Agent(); err != nil {
-		log.Warnf("Can't read Agent version: %s", err)
-	} else if av.Major > 6 {
+	// If this variable is set (at compile-time), we'll use this value
+	// as the Python version, ignoring the python_version configuration value.
+	if ForceDefaultPython != "" {
+		defaultPython, err := strconv.Atoi(ForceDefaultPython)
+		if err != nil {
+			log.Warn("Bad value for ForceDefaultPython, will use configuration value. Err:", err)
+		}
 		override := make(map[string]interface{})
-		override["python_version"] = "3"
+		override["python_version"] = defaultPython
 		AddOverrides(override)
+
+		if config.GetInt("python_version") != defaultPython {
+			log.Warnf("Python version has been forced to %d", defaultPython)
+		}
 	}
 
 	loadProxyFromEnv(config)
