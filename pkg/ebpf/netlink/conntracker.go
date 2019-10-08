@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
@@ -28,7 +29,7 @@ const (
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
-	GetTranslationForConn(ip util.Address, port uint16, proto uint8) *IPTranslation
+	GetTranslationForConn(ip util.Address, port uint16, transport process.ConnectionType) *IPTranslation
 	ClearShortLived()
 	GetStats() map[string]int64
 	Close()
@@ -38,8 +39,8 @@ type connKey struct {
 	ip   util.Address
 	port uint16
 
-	// the protocol of the connection, using the same values as specified in the agent payload.
-	proto uint8
+	// the transport protocol of the connection, using the same values as specified in the agent payload.
+	transport process.ConnectionType
 }
 
 type connValue struct {
@@ -161,13 +162,13 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	return ctr, nil
 }
 
-func (ctr *realConntracker) GetTranslationForConn(ip util.Address, port uint16, proto uint8) *IPTranslation {
+func (ctr *realConntracker) GetTranslationForConn(ip util.Address, port uint16, transport process.ConnectionType) *IPTranslation {
 	then := time.Now().UnixNano()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
-	k := connKey{ip, port, proto}
+	k := connKey{ip, port, transport}
 	var result *IPTranslation
 	value, ok := ctr.state[k]
 	if !ok {
@@ -422,12 +423,12 @@ func formatKey(c ct.Conn) (k connKey, ok bool) {
 		ok = false
 	}
 
-	if proto, err := c.Uint8(ct.AttrOrigL4Proto); err == nil {
-		switch proto {
+	if transportProto, err := c.Uint8(ct.AttrOrigL4Proto); err == nil {
+		switch transportProto {
 		case 6:
-			k.proto = 0 // ConnectionType_tcp
+			k.transport = process.ConnectionType_tcp
 		case 17:
-			k.proto = 1 // ConnectionType_udp
+			k.transport = process.ConnectionType_udp
 		default:
 			ok = false
 		}
