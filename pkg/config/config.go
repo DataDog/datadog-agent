@@ -696,7 +696,8 @@ func load(config Config, origin string, loadSecret bool) error {
 		override["python_version"] = defaultPython
 		AddOverrides(override)
 
-		if config.GetInt("python_version") != defaultPython {
+		pv := config.GetInt("python_version")
+		if pv > 0 && pv != defaultPython {
 			log.Warnf("Python version has been forced to %d", defaultPython)
 		}
 	}
