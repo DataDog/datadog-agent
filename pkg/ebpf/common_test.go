@@ -22,10 +22,22 @@ func TestLinuxKernelVersionCode(t *testing.T) {
 }
 
 func TestUbuntuKernelsNotSupported(t *testing.T) {
-	for i := uint32(114); i < 128; i++ {
+	for i := uint32(114); i < uint32(128); i++ {
 		ok, msg := verifyOSVersion(linuxKernelVersionCode(4, 4, i), "linux-4.4-with-ubuntu", nil)
 		assert.False(t, ok)
 		assert.NotEmpty(t, msg)
+	}
+
+	for i := uint32(100); i < uint32(114); i++ {
+		ok, msg := verifyOSVersion(linuxKernelVersionCode(4, 4, i), "linux-4.4-with-ubuntu", nil)
+		assert.True(t, ok)
+		assert.Empty(t, msg)
+	}
+
+	for i := uint32(128); i < uint32(255); i++ {
+		ok, msg := verifyOSVersion(linuxKernelVersionCode(4, 4, i), "linux-4.4-with-ubuntu", nil)
+		assert.True(t, ok)
+		assert.Empty(t, msg)
 	}
 }
 
