@@ -271,5 +271,4 @@ build do
   # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
   # older than the one shipped in the agent
   copy "#{project_dir}/requirements-agent-release.txt", "#{install_dir}/"
-
 end
