@@ -20,6 +20,11 @@
 /cmd/system-probe/                      @DataDog/burrito
 
 /docs/                                  @DataDog/baklava @DataDog/agent-platform
+/docs/agent/                            @DataDog/baklava @DataDog/agent-core 
+/docs/dogstatsd/                        @DataDog/baklava @DataDog/agent-core 
+/docs/trace-agent/                      @DataDog/baklava @DataDog/apm-agent 
+/docs/cluster-agent/                    @DataDog/baklava @DataDog/container-integrations
+/docs/dev/checks/                       @DataDog/baklava @DataDog/agent-core
 
 /pkg/                                   @DataDog/agent-core
 /pkg/aggregator/                        @DataDog/agent-core
@@ -59,7 +64,6 @@
 /pkg/quantile                           @DataDog/metrics-aggregation
 
 /Dockerfiles/                           @DataDog/container-integrations
-/docs/trace-agent                       @DataDog/apm-agent
 
 /omnibus/                               @DataDog/agent-platform
 /omnibus/config/software/datadog-agent*.rb                @Datadog/agent-core @DataDog/agent-platform
