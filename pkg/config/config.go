@@ -39,6 +39,9 @@ const (
 	DefaultForwarderRecoveryInterval = 2
 
 	megaByte = 1024 * 1024
+
+	// DefaultBatchPeriodInS is the default HTTP batch period in second for logs
+	DefaultBatchPeriodInS = 5
 )
 
 var overrideVars = map[string]interface{}{}
@@ -398,6 +401,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.use_http", false)
 	config.BindEnvAndSetDefault("logs_config.use_compression", false)
 	config.BindEnvAndSetDefault("logs_config.compression_level", 6) // Default level for the gzip/deflate algorithm
+	config.BindEnvAndSetDefault("logs_config.batch_period_in_s", DefaultBatchPeriodInS)
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
