@@ -44,7 +44,7 @@ const (
 
 // ForceDefaultPython is set at compile time to something else than -1
 // if the build wants to ignore the Python version set in the configuration.
-// Used for the Agent 7 to use Python 3.
+// We use this to force Python 3 in the Agent 7 as it's the only one available.
 var ForceDefaultPython string
 
 var overrideVars = make(map[string]interface{})
@@ -686,7 +686,7 @@ func load(config Config, origin string, loadSecret bool) error {
 	}
 
 	// If this variable is set (at compile-time), we'll use this value
-	// as the Python version, ignoring the python_version configuration value.
+	// for the Python version, ignoring the python_version configuration value.
 	if ForceDefaultPython != "" {
 		defaultPython, err := strconv.Atoi(ForceDefaultPython)
 		if err != nil {
