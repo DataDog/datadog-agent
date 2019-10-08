@@ -27,22 +27,6 @@ def _relation_data(json_data, type_name, external_id_assert_fn):
     return None
 
 
-def test_receiver_healthy(host):
-    def assert_healthy():
-        c = "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:7077/health"
-        assert host.check_output(c) == "200"
-
-    util.wait_until(assert_healthy, 100, 5)
-
-
-def test_agent_ok(host):
-    def assert_healthy():
-        c = "docker inspect ubuntu_stackstate-agent_1 |  jq -r '.[0].State.Health.Status'"
-        assert host.check_output(c) == "healthy"
-
-    util.wait_until(assert_healthy, 100, 5)
-
-
 def test_java_traces(host):
     def assert_ok():
         c = "curl -H Host:stackstate-books-app.docker.localhost -s -o /dev/null -w \"%{http_code}\" http://localhost/stackstate-books-app/listbooks"

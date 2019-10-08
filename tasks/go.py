@@ -204,8 +204,9 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
     order = deps.get("order", deps.keys())
     for dependency in order:
         tool = deps.get(dependency)
-        print("processing get tool {}".format(dependency))
-        process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'install', verbose=verbose)
+        if tool.get('install', True):
+            print("processing get tool {}".format(dependency))
+            process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'install', verbose=verbose)
 
     if android:
         ndkhome = os.environ.get('ANDROID_NDK_HOME')
@@ -222,7 +223,7 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
     start = datetime.datetime.now()
     ctx.run("dep ensure{}".format(verbosity))
     dep_done = datetime.datetime.now()
-    
+
     # If github.com/DataDog/datadog-agent gets vendored too - nuke it
     #
     # This may happen as a result of having to introduce DEPPROJECTROOT
