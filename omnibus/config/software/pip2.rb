@@ -27,7 +27,7 @@ build do
 
   if ohai["platform"] != "windows"
     block do
-      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python2.7/site-packages/pip-19.0.3-py2.7.egg/pip/_vendor/distlib/*.exe"))
+      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python2.7/site-packages/pip-*-py2.7.egg/pip/_vendor/distlib/*.exe"))
     end
   end
 end
