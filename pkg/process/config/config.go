@@ -74,7 +74,6 @@ type AgentConfig struct {
 
 	// System probe collection configuration
 	EnableSystemProbe              bool
-	EnableLocalSystemProbe         bool // To have the system probe embedded in the process-agent
 	DisableTCPTracing              bool
 	DisableUDPTracing              bool
 	DisableIPv6Tracing             bool
@@ -175,7 +174,6 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 
 		// System probe collection configuration
 		EnableSystemProbe:            false,
-		EnableLocalSystemProbe:       false,
 		DisableTCPTracing:            false,
 		DisableUDPTracing:            false,
 		DisableIPv6Tracing:           false,
@@ -353,7 +351,6 @@ func loadEnvVariables() {
 		"DD_DISABLE_IPV6_TRACING":   "system_probe_config.disable_ipv6",
 		"DD_DISABLE_DNS_INSPECTION": "system_probe_config.disable_dns_inspection",
 		"DD_COLLECT_LOCAL_DNS":      "system_probe_config.collect_local_dns",
-		"DD_USE_LOCAL_SYSTEM_PROBE": "system_probe_config.use_local_system_probe",
 
 		"DD_HOSTNAME":       "hostname",
 		"DD_DOGSTATSD_PORT": "dogstatsd_port",
