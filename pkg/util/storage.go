@@ -14,7 +14,7 @@ import (
 )
 
 func getFileForKey(key string) string {
-	cleanedKey := strings.ReplaceAll(key, ":", "_")
+	cleanedKey := strings.Replace(key, ":", "_", -1)
 	return filepath.Join(config.Datadog.GetString("var_path"), cleanedKey)
 }
 
