@@ -125,9 +125,9 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 
 		// Only the first chunk should have a DNS mapping!
 		if i == 0 {
-			assert.True(t, len(connections.Dns) == 1)
+			assert.Len(t, connections.Dns, 1)
 		} else {
-			assert.True(t, len(connections.Dns) == 0)
+			assert.Len(t, connections.Dns, 0)
 		}
 
 		total += len(connections.Connections)
