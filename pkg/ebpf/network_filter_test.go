@@ -27,6 +27,7 @@ var testDestinationFilters = map[string][]string{
 	"10.0.0.0/24":      {"8080", "8081", "10255"},
 	"":                 {"1234"}, // invalid config
 	"2001:db8::2:1":    {"5001"},
+	"1.1.1.1":          {"udp *", "tcp 11211"},
 	"2001:db8::2:1/55": {"80"},
 	"*":                {"*"}, // invalid config
 
@@ -67,6 +68,7 @@ func TestParseConnectionFilters(t *testing.T) {
 	assert.False(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Dest: util.AddressFromString(""), DPort: uint16(1234), Type: TCP}))
 	assert.True(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Dest: util.AddressFromString("2001:db8::2:1"), DPort: uint16(5001), Type: TCP})) // ipv6
 	assert.True(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Dest: util.AddressFromString("2001:db8::5:1"), DPort: uint16(80), Type: TCP}))   // ipv6 CIDR
+	assert.True(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Dest: util.AddressFromString("1.1.1.1"), DPort: uint16(11211), Type: TCP}))
 	assert.False(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Dest: util.AddressFromString("*"), DPort: uint16(30), Type: TCP}))
 
 	assert.False(t, IsBlacklistedConnection(sourceList, destList, &ConnectionStats{Dest: util.AddressFromString("2001:db8::2:2"), DPort: uint16(3333), Type: UDP})) // invalid config
