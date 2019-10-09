@@ -25,8 +25,12 @@ func TestWritePersistentCache(t *testing.T) {
 	mockConfig.Set("var_path", testDir)
 	err = Write("mykey", "myvalue")
 	assert.Nil(t, err)
-	assert.Equal(t, "myvalue", Read("mykey"))
-	assert.Equal(t, "", Read("myotherkey"))
+	value, err := Read("mykey")
+	assert.Equal(t, "myvalue", value)
+	assert.Nil(t, err)
+	value, err = Read("myotherkey")
+	assert.Equal(t, "", value)
+	assert.Nil(t, err)
 }
 
 func TestWritePersistentCacheInvalidChar(t *testing.T) {
@@ -37,7 +41,9 @@ func TestWritePersistentCacheInvalidChar(t *testing.T) {
 	mockConfig.Set("var_path", testDir)
 	err = Write("my:key", "myvalue")
 	assert.Nil(t, err)
-	assert.Equal(t, "myvalue", Read("my:key"))
+	value, err := Read("my:key")
+	assert.Equal(t, "myvalue", value)
+	assert.Nil(t, err)
 
 	expectPath := filepath.Join(testDir, "my")
 	_, err = os.Stat(expectPath)
