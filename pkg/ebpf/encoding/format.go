@@ -23,7 +23,7 @@ func FormatConnection(conn ebpf.ConnectionStats) *model.Connection {
 		LastRetransmits:    conn.LastRetransmits,
 		Rtt:                conn.RTT,
 		RttVar:             conn.RTTVar,
-		Direction:          model.ConnectionDirection(conn.Direction),
+		Direction:          formatDirection(conn.Direction),
 		NetNS:              conn.NetNS,
 		IpTranslation:      formatIPTranslation(conn.IPTranslation),
 	}
