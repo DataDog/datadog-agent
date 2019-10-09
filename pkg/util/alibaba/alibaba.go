@@ -12,12 +12,16 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 )
 
 // declare these as vars not const to ease testing
 var (
 	metadataURL = "http://100.100.100.200"
 	timeout     = 300 * time.Millisecond
+
+	// CloudProviderName contains the inventory name of for EC2
+	CloudProviderName = "Alibaba"
 )
 
 // GetHostAlias returns the VM ID from the Alibaba Metadata api
@@ -27,6 +31,9 @@ func GetHostAlias() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("Alibaba HostAliases: unable to query metadata endpoint: %s", err)
 	}
+
+	// registering that we're running on alibaba
+	inventories.SetAgentMetadata(inventories.CloudProviderMetatadaName, CloudProviderName)
 	return res, err
 }
 
