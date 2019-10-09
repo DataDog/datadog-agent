@@ -17,7 +17,8 @@
     "process",
   ]
   pruneopts = ""
-  revision = "af986eb03f4b79d826d1f210c8863d80e517649a"
+  revision = "58cdf294cbf0f38873204da85cc91ec07f14b678"
+  version = "4.13.0"
 
 [[projects]]
   digest = "1:e64fddc819e2abc68792a743dd857c379449a56f2b9eaf030c03fb0ec19de884"
