@@ -118,7 +118,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 
 	chunks := batchConnections(cfg, 0, p, dns, "nid")
 
-	assert.Len(t, chunks, 3)
+	assert.Len(t, chunks, 4)
 	total := 0
 	for i, c := range chunks {
 		connections := c.(*model.CollectorConnections)
@@ -131,7 +131,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 		}
 
 		total += len(connections.Connections)
-		assert.Equal(t, int32(3), connections.GroupSize)
+		assert.Equal(t, int32(4), connections.GroupSize)
 
 		// make sure we could get container and pid mapping for connections
 		assert.Equal(t, len(connections.Connections), len(connections.ContainerForPid))
