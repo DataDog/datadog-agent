@@ -26,7 +26,12 @@ instances:
     #
     # kubernetes_event_read_timeout_ms: 1000
 
-    ## @param skip_leader_election - boolean - default: false
+    ## @param skip_leader_election - boolean - optional - default: false
     ## Parameter specified by the Cluster Agent when the event collection is configured as a cluster check.
     #
     # skip_leader_election: false
+
+    ## @param resync_period_kubernetes_events - integer - optional - default: 300
+    ## Specify the frequency at which the Agent should list all events to re-sync following the informer pattern
+    #
+    # resync_period_kubernetes_events: 300

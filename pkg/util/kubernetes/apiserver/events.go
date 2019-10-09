@@ -22,10 +22,11 @@ import (
 )
 
 // RunEventCollection will return the most recent events emitted by the apiserver.
-func (c *APIClient) RunEventCollection(srv string, st time.Time, eventReadTimeout int64, eventCardinalityLimit int64, filter string) ([]*v1.Event, string, time.Time, error) {
+func (c *APIClient) RunEventCollection(srv string, st time.Time, eventReadTimeout int64, eventCardinalityLimit int64, resync int64, filter string) ([]*v1.Event, string, time.Time, error) {
 	var added []*v1.Event
-	// list if latestResVer is "" or if lastListTS is > maxResync
-	if srv == "" || time.Now().Sub(st) > 300*time.Second {
+	syncTimeout := time.Duration(resync) * time.Second
+	// list if latestResVer is "" or if lastListTS is > syncTimeout
+	if srv == "" || time.Now().Sub(st) > syncTimeout {
 		evList, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).List(metav1.ListOptions{
 			TimeoutSeconds:       &eventReadTimeout,
 			Limit:                eventCardinalityLimit,

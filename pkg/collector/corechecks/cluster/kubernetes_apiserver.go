@@ -44,6 +44,7 @@ type KubeASConfig struct {
 	EventCollectionTimeoutMs int      `yaml:"kubernetes_event_read_timeout_ms"`
 	CardinalityLimit         int      `yaml:"cardinality_limit"`
 	LeaderSkip               bool     `yaml:"skip_leader_election"`
+	ResyncPeriodEvents       int      `yaml:"resync_period_kubernetes_events"`
 }
 
 // EventC is the structure that holds the information pertaining to which event we collected last and when we last resynced.
@@ -235,7 +236,8 @@ func (k *KubeASCheck) eventCollectionCheck() (newEvents []*v1.Event, err error) 
 
 	timeout := int64(k.instance.EventCollectionTimeoutMs / 1000)
 	limit := int64(k.instance.CardinalityLimit)
-	newEvents, k.eventCollection.LastResVer, k.eventCollection.LastTime, err = k.ac.RunEventCollection(resVer, lastTime, timeout, limit, k.ignoredEvents)
+	resync := int64(k.instance.ResyncPeriodEvents)
+	newEvents, k.eventCollection.LastResVer, k.eventCollection.LastTime, err = k.ac.RunEventCollection(resVer, lastTime, timeout, limit, resync, k.ignoredEvents)
 
 	if err != nil {
 		k.Warnf("Could not collect events from the api server: %s", err.Error())

@@ -19,3 +19,7 @@ instances:
     #
     # Parameter specified by the Cluster Agent when the event collection is configured as a cluster check.
     # skip_leader_election: false
+    #
+    # Specify the frequency at which the Agent should list all events to re-sync following the informer pattern
+    #
+    # resync_period_kubernetes_events: 300
