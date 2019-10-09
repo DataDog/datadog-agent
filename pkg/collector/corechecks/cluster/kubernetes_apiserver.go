@@ -40,7 +40,7 @@ const (
 type KubeASConfig struct {
 	CollectEvent             bool     `yaml:"collect_events"`
 	CollectOShiftQuotas      bool     `yaml:"collect_openshift_clusterquotas"`
-	FilteredEventType        []string `yaml:"filtered_event_types"`
+	FilteredEventTypes       []string `yaml:"filtered_event_types"`
 	EventCollectionTimeoutMs int      `yaml:"kubernetes_event_read_timeout_ms"`
 	CardinalityLimit         int      `yaml:"cardinality_limit"`
 	LeaderSkip               bool     `yaml:"skip_leader_election"`
@@ -48,8 +48,8 @@ type KubeASConfig struct {
 
 // EventC is the structure that holds the information pertaining to which event we collected last and when we last resynced.
 type EventC struct {
-	ResVer   *string
-	LastTime *time.Time
+	LastResVer *string
+	LastTime   *time.Time
 }
 
 // KubeASCheck grabs metrics and events from the API server.
@@ -88,7 +88,7 @@ func (k *KubeASCheck) Configure(config, initConfig integration.Data, source stri
 	if k.instance.CardinalityLimit == 0 {
 		k.instance.CardinalityLimit = 200
 	}
-	k.ignoredEvents = convertFilter(k.instance.FilteredEventType)
+	k.ignoredEvents = convertFilter(k.instance.FilteredEventTypes)
 	return nil
 }
 
@@ -107,7 +107,7 @@ func convertFilter(conf []string) string {
 		case f[0] == "type" && len(f) == 2:
 			formatedFilters = append(formatedFilters, fmt.Sprintf("type!=%s", f[1]))
 		default:
-			log.Error("Could not parse the fitler, only support kind, type and reason")
+			log.Errorf("Could not parse the filter %s. Only supports key:value for kind, type and reason", f)
 		}
 	}
 	return strings.Join(formatedFilters, ",")
@@ -233,19 +233,19 @@ func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, error) {
 	if err != nil {
 		return nil, err
 	}
-	k.eventCollection.ResVer = &resVer
+	k.eventCollection.LastResVer = &resVer
 	k.eventCollection.LastTime = &lastTime
 
 	timeout := int64(k.instance.EventCollectionTimeoutMs / 1000)
 	limit := int64(k.instance.CardinalityLimit)
-	newEvents, err := k.ac.RunEventCollection(k.eventCollection.ResVer, k.eventCollection.LastTime, &timeout, limit, k.ignoredEvents)
+	newEvents, err := k.ac.RunEventCollection(k.eventCollection.LastResVer, k.eventCollection.LastTime, timeout, limit, k.ignoredEvents)
 
 	if err != nil {
 		k.Warnf("Could not collect events from the api server: %s", err.Error())
 		return nil, err
 	}
 
-	configMapErr := k.ac.UpdateTokenInConfigmap(eventTokenKey, *k.eventCollection.ResVer, *k.eventCollection.LastTime)
+	configMapErr := k.ac.UpdateTokenInConfigmap(eventTokenKey, *k.eventCollection.LastResVer, *k.eventCollection.LastTime)
 	if configMapErr != nil {
 		k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error())
 	}

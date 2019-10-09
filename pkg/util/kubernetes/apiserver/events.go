@@ -22,12 +22,12 @@ import (
 )
 
 // RunEventCollection will return the most recent events emitted by the apiserver.
-func (c *APIClient) RunEventCollection(srv *string, st *time.Time, eventReadTimeout *int64, eventCardinalityLimit int64, filter string) ([]*v1.Event, error) {
+func (c *APIClient) RunEventCollection(srv *string, st *time.Time, eventReadTimeout int64, eventCardinalityLimit int64, filter string) ([]*v1.Event, error) {
 	var added []*v1.Event
 	// list if latestResVer is "" or if lastListTS is > maxResync
-	if *srv == "" || time.Now().Second()-st.Second() > 300 {
+	if *srv == "" || time.Now().Sub(*st) > 300*time.Second {
 		evList, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).List(metav1.ListOptions{
-			TimeoutSeconds:       eventReadTimeout,
+			TimeoutSeconds:       &eventReadTimeout,
 			Limit:                eventCardinalityLimit,
 			IncludeUninitialized: false,
 			FieldSelector:        filter,
@@ -59,7 +59,7 @@ func (c *APIClient) RunEventCollection(srv *string, st *time.Time, eventReadTime
 	defer evWatcher.Stop()
 	log.Debugf("Starting to watch from %s", *srv)
 	// watch during 2 * timeout maximum and store where we are at.
-	timeoutParse := time.NewTimer(time.Duration(*eventReadTimeout*2) * time.Second)
+	timeoutParse := time.NewTimer(time.Duration(eventReadTimeout*2) * time.Second)
 	for {
 		select {
 		case rcv, ok := <-evWatcher.ResultChan():
@@ -76,7 +76,7 @@ func (c *APIClient) RunEventCollection(srv *string, st *time.Time, eventReadTime
 				case "Expired":
 					log.Debugf("Resource Version is too old, listing all events and collecting only the new ones")
 					evList, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).List(metav1.ListOptions{
-						TimeoutSeconds:       eventReadTimeout,
+						TimeoutSeconds:       &eventReadTimeout,
 						Limit:                eventCardinalityLimit,
 						IncludeUninitialized: false,
 						FieldSelector:        filter,
@@ -124,7 +124,7 @@ func (c *APIClient) RunEventCollection(srv *string, st *time.Time, eventReadTime
 			}
 
 		case <-timeoutParse.C:
-			log.Debugf("Collected %d events, will resume watching from RV %s", len(added), *srv)
+			log.Debugf("Collected %d events, will resume watching from resource version %s", len(added), *srv)
 			// No more events to read or the watch lasted more than `eventReadTimeout`.
 			// so return what was processed.
 			return added, nil
@@ -135,7 +135,11 @@ func (c *APIClient) RunEventCollection(srv *string, st *time.Time, eventReadTime
 func diffEvents(latestStoredRV int, fullList []v1.Event) []*v1.Event {
 	var diffEvents []*v1.Event
 	for _, ev := range fullList {
-		erv, _ := strconv.Atoi(ev.ResourceVersion)
+		erv, err := strconv.Atoi(ev.ResourceVersion)
+		if err != nil {
+			log.Errorf("Could not parse resource version of an event, will skip: %s", err)
+			continue
+		}
 		if erv > latestStoredRV {
 			diffEvents = append(diffEvents, &ev)
 		}

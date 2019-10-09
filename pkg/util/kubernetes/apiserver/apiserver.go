@@ -232,12 +232,13 @@ func (c *APIClient) getOrCreateConfigMap(name, namespace string) (cmEvent *v1.Co
 // GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
 func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, error) {
 	namespace := common.GetResourcesNamespace()
+	nowTs := time.Now()
+
 	cmEvent, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
 	if err != nil {
 		// we will process things locally as we can't interact with the CM. Could be a RBAC issue.
 		return "", time.Now(), ErrNotFound
 	}
-	nowTs := time.Now()
 	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
 	tokenValue, found := cmEvent.Data[eventTokenKey]
 	if !found {
