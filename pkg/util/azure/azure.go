@@ -14,12 +14,16 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 )
 
 // declare these as vars not const to ease testing
 var (
 	metadataURL = "http://169.254.169.254"
 	timeout     = 300 * time.Millisecond
+
+	// CloudProviderName contains the inventory name of for EC2
+	CloudProviderName = "Azure"
 )
 
 // GetHostAlias returns the VM ID from the Azure Metadata api
@@ -30,6 +34,8 @@ func GetHostAlias() (string, error) {
 		return "", fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
 	}
 
+	// registering that we're running on Azure
+	inventories.SetAgentMetadata(inventories.CloudProviderMetatadaName, CloudProviderName)
 	return res, nil
 }
 

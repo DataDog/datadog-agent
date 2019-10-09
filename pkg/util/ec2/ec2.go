@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,6 +25,9 @@ var (
 	instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
 	timeout             = 100 * time.Millisecond
 	defaultPrefixes     = []string{"ip-", "domu"}
+
+	// CloudProviderName contains the inventory name of for EC2
+	CloudProviderName = "AWS"
 )
 
 // GetInstanceID fetches the instance id for current host from the EC2 metadata API
@@ -33,7 +37,13 @@ func GetInstanceID() (string, error) {
 
 // GetHostname fetches the hostname for current host from the EC2 metadata API
 func GetHostname() (string, error) {
-	return getMetadataItemWithMaxLength("/hostname", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+	hostname, err := getMetadataItemWithMaxLength("/hostname", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+
+	// registering that we're running on AWS
+	if err == nil {
+		inventories.SetAgentMetadata(inventories.CloudProviderMetatadaName, CloudProviderName)
+	}
+	return hostname, err
 }
 
 // GetNetworkID retrieves the network ID using the EC2 metadata endpoint. For

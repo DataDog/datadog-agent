@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
@@ -20,6 +21,9 @@ import (
 var (
 	metadataURL = "http://169.254.169.254/computeMetadata/v1"
 	timeout     = 300 * time.Millisecond
+
+	// CloudProviderName contains the inventory name of for EC2
+	CloudProviderName = "GCP"
 )
 
 type gceMetadata struct {
@@ -48,6 +52,9 @@ func GetHostname() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve hostname from GCE: %s", err)
 	}
+
+	// registering that we're running on GCP
+	inventories.SetAgentMetadata(inventories.CloudProviderMetatadaName, CloudProviderName)
 	return hostname, nil
 }
 
