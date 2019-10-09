@@ -6,14 +6,16 @@
 package util
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func getFileForKey(key string) string {
+	// Make it Windows compliant
 	cleanedKey := strings.Replace(key, ":", "_", -1)
 	return filepath.Join(config.Datadog.GetString("var_path"), cleanedKey)
 }
