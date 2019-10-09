@@ -243,7 +243,7 @@ build do
       # Copy SNMP profiles
       profiles = "#{check_dir}/datadog_checks/#{check}/data/profiles"
       if File.exist? profiles
-        copy profile, "#{check_conf_dir}/"
+        copy profiles, "#{check_conf_dir}/"
       end
 
       File.file?("#{check_dir}/setup.py") || next
