@@ -166,7 +166,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
         }
     }
     
-    // since we just created the user, fix up all the rights we want
+    // add all the rights we want to the user (either existing or newly created)
 
     // set the account privileges regardless; if they're already set the OS will silently
     // ignore the request.    
