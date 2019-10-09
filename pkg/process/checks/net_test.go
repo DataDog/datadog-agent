@@ -113,7 +113,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	}
 	Process.lastRun = time.Now() // Update lastRun to indicate that Process check is enabled and ran
 
-	cfg := config.NewDefaultAgentConfig()
+	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
 	chunks := batchConnections(cfg, 0, p, dns, "nid")
