@@ -141,5 +141,5 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 			assert.Equal(t, fmt.Sprintf("%d", conn.Pid), connections.ContainerForPid[conn.Pid])
 		}
 	}
-	assert.Equal(t, 3, total)
+	assert.Equal(t, 4, total)
 }
