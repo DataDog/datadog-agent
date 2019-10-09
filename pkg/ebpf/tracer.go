@@ -73,8 +73,8 @@ type Tracer struct {
 	buf *bytes.Buffer
 
 	// Connections for the tracer to blacklist
-	sourceExcludes []*util.ConnectionFilter
-	destExcludes   []*util.ConnectionFilter
+	sourceExcludes []*ConnectionFilter
+	destExcludes   []*ConnectionFilter
 }
 
 const (
@@ -188,8 +188,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 		buffer:         make([]ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
 		conntracker:    conntracker,
-		sourceExcludes: util.ParseConnectionFilters(config.ExcludedSourceConnections),
-		destExcludes:   util.ParseConnectionFilters(config.ExcludedDestinationConnections),
+		sourceExcludes: ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:   ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
 
 	tr.perfMap, err = tr.initPerfPolling()
@@ -307,7 +307,7 @@ func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 	isDNSConnection := conn.DPort == 53 || conn.SPort == 53
 	if !t.config.CollectLocalDNS && isDNSConnection && conn.Direction == LOCAL {
 		return true
-	} else if util.IsBlacklistedConnection(t.sourceExcludes, conn.Source, conn.SPort) || util.IsBlacklistedConnection(t.destExcludes, conn.Dest, conn.DPort) {
+	} else if IsBlacklistedConnection(t.sourceExcludes, t.destExcludes, conn) {
 		return true
 	}
 	return false
