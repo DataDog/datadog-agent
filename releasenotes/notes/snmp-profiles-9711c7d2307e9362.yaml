@@ -1,4 +1,4 @@
 ---
-features:
+other:
   - |
     Copy SNMP profiles shipped by the integration during installation.
