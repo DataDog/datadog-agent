@@ -32,6 +32,8 @@ type ContainerCheck struct {
 	lastRun         time.Time
 	lastCtrIDForPID map[int32]string
 	networkID       string
+
+	containerFailedLogLimit *util.LogLimit
 }
 
 // Init initializes a ContainerCheck instance.
@@ -43,6 +45,8 @@ func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 		log.Infof("no network ID detected: %s", err)
 	}
 	c.networkID = networkID
+
+	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 }
 
 // Name returns the name of the ProcessCheck.
@@ -63,8 +67,8 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	start := time.Now()
 	ctrList, err := util.GetContainers()
 	if err != nil {
-		if err == containercollectors.ErrPermaFail || err == containercollectors.ErrNothingYet {
-			log.Debug("container collector was not detected, container check will not return any data")
+		if err == containercollectors.ErrPermaFail || err == containercollectors.ErrNothingYet && c.containerFailedLogLimit.ShouldLog() {
+			log.Debug("container collector was not detected, container check will not return any data. This message will logged for the first ten occurences, and then every ten minutes")
 			return nil, nil
 		}
 		return nil, err
