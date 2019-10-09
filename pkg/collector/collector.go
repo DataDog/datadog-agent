@@ -34,6 +34,10 @@ type Collector struct {
 	m sync.RWMutex
 }
 
+var (
+	currentCollector *Collector
+)
+
 // NewCollector create a Collector instance and sets up the Python Environment
 func NewCollector(paths ...string) *Collector {
 	run := runner.NewRunner()
@@ -65,7 +69,13 @@ func NewCollector(paths ...string) *Collector {
 	}
 
 	log.Debug("Collector up and running!")
+	currentCollector = c
 	return c
+}
+
+// GetCurrentCollector returns the latest Collector created (we should only ever create one).
+func GetCurrentCollector() *Collector {
+	return currentCollector
 }
 
 // Stop halts any component involved in running a Check and shuts down

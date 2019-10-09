@@ -19,6 +19,10 @@ const (
 	agentChecksMetadataCollectorInterval = 600
 	// run the resources metadata collector every 300 seconds (5 minutes) by default, configurable
 	resourcesMetadataCollectorInterval = 300
+	// run the inventories metadata provider every 5 minutes
+	inventoriesMetadataCollectorInterval = 300
+	// run the inventories metadata collector interval minimum when configured through the configuration
+	inventoriesMetadataCollectorMinInterval = 300
 )
 
 type collector struct {
@@ -41,6 +45,11 @@ var (
 		"agent_checks": {os: "*", interval: agentChecksMetadataCollectorInterval * time.Second},
 		// We ignore resources error has it's not mandatory
 		"resources": {os: "linux", interval: resourcesMetadataCollectorInterval * time.Second, ignoreError: true},
+		"inventories": {
+			os:       "*",
+			interval: inventoriesMetadataCollectorInterval * time.Second,
+			min:      inventoriesMetadataCollectorMinInterval * time.Second,
+		},
 	}
 
 	// AllDefaultCollectors the names of all the available default collectors

@@ -8,7 +8,7 @@ package metadata
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/v5"
+	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
@@ -29,5 +29,5 @@ func (hp *HostCollector) Send(s *serializer.Serializer) error {
 }
 
 func init() {
-	catalog["host"] = new(HostCollector)
+	RegisterCollector("host", new(HostCollector))
 }

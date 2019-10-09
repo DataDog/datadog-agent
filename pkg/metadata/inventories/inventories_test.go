@@ -56,7 +56,7 @@ func TestGetPayload(t *testing.T) {
 	SetCheckMetadata("check1_instance1", "check_provided_key2", "Hi")
 	SetCheckMetadata("non_running_checkid", "check_provided_key1", "this should get deleted")
 
-	p := GetPayload(mockAutoConfig{}, mockCollector{})
+	p := GetPayload("testHostname", mockAutoConfig{}, mockCollector{})
 
 	assert.Equal(t, startNow, p.Timestamp)
 
@@ -91,7 +91,7 @@ func TestGetPayload(t *testing.T) {
 	startNow += 1000
 	SetCheckMetadata("check1_instance1", "check_provided_key1", 456)
 
-	p = GetPayload(mockAutoConfig{}, mockCollector{})
+	p = GetPayload("testHostname", mockAutoConfig{}, mockCollector{})
 
 	assert.Equal(t, startNow, p.Timestamp) //updated startNow is returned
 
@@ -124,6 +124,7 @@ func TestGetPayload(t *testing.T) {
 	assert.Nil(t, err)
 	jsonString := `
 	{
+		"hostname": "testHostname",
 		"timestamp": %v,
 		"check_metadata":
 		{

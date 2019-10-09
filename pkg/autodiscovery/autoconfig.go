@@ -29,6 +29,8 @@ var (
 	listenerCandidateIntl = 30 * time.Second
 	acErrors              *expvar.Map
 	errorStats            = newAcErrorStats()
+
+	currentAC *AutoConfig
 )
 
 func init() {
@@ -82,7 +84,13 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 	}
 	// We need to listen to the service channels before anything is sent to them
 	go ac.serviceListening()
+	currentAC = ac
 	return ac
+}
+
+// GetCurrentAutoConfig returns the latest AutoConfig created (we should only ever create one).
+func GetCurrentAutoConfig() *AutoConfig {
+	return currentAC
 }
 
 // serviceListening is the main management goroutine for services.

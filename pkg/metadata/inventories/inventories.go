@@ -18,10 +18,14 @@ type checkMetadataCacheEntry struct {
 	CheckInstanceMetadata CheckInstanceMetadata
 }
 
+// getAllInstanceIDsInterface is a simplify interface for the collector that
+// ease testing
 type getAllInstanceIDsInterface interface {
 	GetAllInstanceIDs(checkName string) []check.ID
 }
 
+// getLoadedConfigsInterface is a simplify interface for autodiscovery that
+// ease testing
 type getLoadedConfigsInterface interface {
 	GetLoadedConfigs() map[string]integration.Config
 }
@@ -38,6 +42,10 @@ var (
 	agentCacheMutex    = &sync.Mutex{}
 
 	agentStartupTime = nowNano()
+
+	// CloudProviderMetatadaName is the field name to use to set the cloud
+	// provider name in the agent metadata.
+	CloudProviderMetatadaName = "cloud_provider"
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
@@ -86,7 +94,7 @@ func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMeta
 }
 
 // GetPayload fills and returns the check metadata payload
-func GetPayload(ac getLoadedConfigsInterface, coll getAllInstanceIDsInterface) *Payload {
+func GetPayload(hostname string, ac getLoadedConfigsInterface, coll getAllInstanceIDsInterface) *Payload {
 	checkCacheMutex.Lock()
 	defer checkCacheMutex.Unlock()
 
@@ -94,15 +102,17 @@ func GetPayload(ac getLoadedConfigsInterface, coll getAllInstanceIDsInterface) *
 
 	newCheckMetadataCache := make(map[string]*checkMetadataCacheEntry)
 
-	configs := ac.GetLoadedConfigs()
-	for _, config := range configs {
-		checkMetadata[config.Name] = make([]*CheckInstanceMetadata, 0)
-		instanceIDs := coll.GetAllInstanceIDs(config.Name)
-		for _, id := range instanceIDs {
-			checkInstanceMetadata := getCheckInstanceMetadata(string(id), config.Provider)
-			checkMetadata[config.Name] = append(checkMetadata[config.Name], checkInstanceMetadata)
-			if entry, found := checkMetadataCache[string(id)]; found {
-				newCheckMetadataCache[string(id)] = entry
+	if ac != nil && coll != nil {
+		configs := ac.GetLoadedConfigs()
+		for _, config := range configs {
+			checkMetadata[config.Name] = make([]*CheckInstanceMetadata, 0)
+			instanceIDs := coll.GetAllInstanceIDs(config.Name)
+			for _, id := range instanceIDs {
+				checkInstanceMetadata := getCheckInstanceMetadata(string(id), config.Provider)
+				checkMetadata[config.Name] = append(checkMetadata[config.Name], checkInstanceMetadata)
+				if entry, found := checkMetadataCache[string(id)]; found {
+					newCheckMetadataCache[string(id)] = entry
+				}
 			}
 		}
 	}
@@ -114,6 +124,7 @@ func GetPayload(ac getLoadedConfigsInterface, coll getAllInstanceIDsInterface) *
 	defer agentCacheMutex.Unlock()
 
 	return &Payload{
+		Hostname:      hostname,
 		Timestamp:     nowNano(),
 		CheckMetadata: &checkMetadata,
 		AgentMetadata: &agentMetadataCache,
