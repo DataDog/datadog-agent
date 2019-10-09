@@ -398,8 +398,8 @@ static PyObject *set_check_metadata(PyObject *self, PyObject *args)
 
     // datadog_agent.set_check_metadata(check_id, name, value)
     if (!PyArg_ParseTuple(args, "sss", &check_id, &name, &value)) {
-      PyGILState_Release(gstate);
-      return NULL;
+        PyGILState_Release(gstate);
+        return NULL;
     }
 
     PyGILState_Release(gstate);
@@ -428,16 +428,14 @@ static PyObject *store_value(PyObject *self, PyObject *args)
 
     char *key, *value;
 
-    PyGILState_STATE gstate = PyGILState_Ensure();
-
     // datadog_agent.store_value(key, value)
     if (!PyArg_ParseTuple(args, "ss", &key, &value)) {
-      PyGILState_Release(gstate);
-      return NULL;
+        return NULL;
     }
 
-    PyGILState_Release(gstate);
+    Py_BEGIN_ALLOW_THREADS
     cb_store_value(key, value);
+    Py_END_ALLOW_THREADS
 
     Py_RETURN_NONE;
 }
@@ -462,17 +460,15 @@ static PyObject *retrieve_value(PyObject *self, PyObject *args)
 
     char *key;
 
-    PyGILState_STATE gstate = PyGILState_Ensure();
-
     // datadog_agent.retrieve_value(key)
     if (!PyArg_ParseTuple(args, "s", &key)) {
-      PyGILState_Release(gstate);
-      return NULL;
+        return NULL;
     }
 
-    PyGILState_Release(gstate);
     char *v = NULL;
+    Py_BEGIN_ALLOW_THREADS
     cb_retrieve_value(key, &v);
+    Py_END_ALLOW_THREADS
 
     if (v != NULL) {
         PyObject *retval = PyStringFromCString(v);
