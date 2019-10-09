@@ -409,23 +409,23 @@ public:
     */
     virtual void setIsExcludedCb(cb_is_excluded_t) = 0;
 
-    //! setStoreValueCb member.
+    //! setWritePersistentCacheCb member.
     /*!
-      \param A cb_store_value_t function pointer to the CGO callback.
+      \param A cb_write_persistent_cache_t function pointer to the CGO callback.
 
       This allows us to set the relevant CGO callback that will allow storing value for
       specific check instances.
     */
-    virtual void setStoreValueCb(cb_store_value_t) = 0;
+    virtual void setWritePersistentCacheCb(cb_write_persistent_cache_t) = 0;
 
-    //! setRetrieveValueCb member.
+    //! setReadPersistentCacheCb member.
     /*!
-      \param A cb_retrieve_value_t function pointer to the CGO callback.
+      \param A cb_read_persistent_cache_t function pointer to the CGO callback.
 
       This allows us to set the relevant CGO callback that will allow retrieving value for
       specific check instances.
     */
-    virtual void setRetrieveValueCb(cb_retrieve_value_t) = 0;
+    virtual void setReadPersistentCacheCb(cb_read_persistent_cache_t) = 0;
 
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */

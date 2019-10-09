@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -163,19 +164,19 @@ func SetCheckMetadata(checkID, name, value *C.char) {
 	inventories.SetCheckMetadata(cid, key, val)
 }
 
-// StoreValue stores a value for one check instance
-// Indirectly used by the C function `store_value` that's mapped to `datadog_agent.store_value`.
-//export StoreValue
-func StoreValue(key, value *C.char) {
+// WritePersistentCache stores a value for one check instance
+// Indirectly used by the C function `write_persistent_cache` that's mapped to `datadog_agent.write_persistent_cache`.
+//export WritePersistentCache
+func WritePersistentCache(key, value *C.char) {
 	key_name := C.GoString(key)
 	val := C.GoString(value)
-	util.StoreValue(key_name, val)
+	persistentcache.Write(key_name, val)
 }
 
-// RetrieveValue retrieves a value for one check instance
-// Indirectly used by the C function `retrieve_value` that's mapped to `datadog_agent.retrieve_value`.
-//export RetrieveValue
-func RetrieveValue(key *C.char, value **C.char) {
+// ReadPersistentCache retrieves a value for one check instance
+// Indirectly used by the C function `read_persistent_cache` that's mapped to `datadog_agent.read_persistent_cache`.
+//export ReadPersistentCache
+func ReadPersistentCache(key *C.char, value **C.char) {
 	key_name := C.GoString(key)
-	*value = TrackedCString(util.RetrieveValue(key_name))
+	*value = TrackedCString(persistentcache.Read(key_name))
 }

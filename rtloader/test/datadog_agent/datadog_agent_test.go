@@ -384,9 +384,9 @@ func TestSetExternalTagInvalidTagsList(t *testing.T) {
 	helpers.AssertMemoryUsage(t)
 }
 
-func TestStoreValue(t *testing.T) {
+func TestWritePersistentCache(t *testing.T) {
 	code := `
-	datadog_agent.store_value("12345", "someothervalue")
+	datadog_agent.write_persistent_cache("12345", "someothervalue")
 	`
 	out, err := run(code)
 	if err != nil {
@@ -397,10 +397,10 @@ func TestStoreValue(t *testing.T) {
 	}
 }
 
-func TestRetrieveValue(t *testing.T) {
+func TestReadPersistentCache(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
-		data = datadog_agent.retrieve_value("12345")
+		data = datadog_agent.read_persistent_cache("12345")
 		assert type(data) == type("")
 		f.write(data)
 	`, tmpfile.Name())

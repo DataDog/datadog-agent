@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 
-package util
+package persistentcache
 
 import (
 	"fmt"
@@ -17,27 +17,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStoreValue(t *testing.T) {
+func TestWritePersistentCache(t *testing.T) {
 	testDir, err := ioutil.TempDir("", "fake-datadog-var-")
 	require.Nil(t, err, fmt.Sprintf("%v", err))
 	defer os.RemoveAll(testDir)
 	mockConfig := config.Mock()
 	mockConfig.Set("var_path", testDir)
-	err = StoreValue("mykey", "myvalue")
+	err = Write("mykey", "myvalue")
 	assert.Nil(t, err)
-	assert.Equal(t, "myvalue", RetrieveValue("mykey"))
-	assert.Equal(t, "", RetrieveValue("myotherkey"))
+	assert.Equal(t, "myvalue", Read("mykey"))
+	assert.Equal(t, "", Read("myotherkey"))
 }
 
-func TestStoreValueInvalidChar(t *testing.T) {
+func TestWritePersistentCacheInvalidChar(t *testing.T) {
 	testDir, err := ioutil.TempDir("", "fake-datadog-var-")
 	require.Nil(t, err, fmt.Sprintf("%v", err))
 	defer os.RemoveAll(testDir)
 	mockConfig := config.Mock()
 	mockConfig.Set("var_path", testDir)
-	err = StoreValue("my:key", "myvalue")
+	err = Write("my:key", "myvalue")
 	assert.Nil(t, err)
-	assert.Equal(t, "myvalue", RetrieveValue("my:key"))
+	assert.Equal(t, "myvalue", Read("my:key"))
 
 	expectPath := filepath.Join(testDir, "my_key")
 	_, err = os.Stat(expectPath)

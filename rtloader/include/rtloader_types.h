@@ -122,9 +122,9 @@ typedef void (*cb_set_check_metadata_t)(char *, char *, char *);
 // (hostname, source_type_name, list of tags)
 typedef void (*cb_set_external_tags_t)(char *, char *, char **);
 // (key, value)
-typedef void (*cb_store_value_t)(char *, char *);
+typedef void (*cb_write_persistent_cache_t)(char *, char *);
 // (value)
-typedef void (*cb_retrieve_value_t)(char *, char **);
+typedef void (*cb_read_persistent_cache_t)(char *, char **);
 
 // _util
 // (argv, argc, raise, stdout, stderr, ret_code, exception)

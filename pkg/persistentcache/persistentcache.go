@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 
-package util
+package persistentcache
 
 import (
 	"io/ioutil"
@@ -20,14 +20,14 @@ func getFileForKey(key string) string {
 	return filepath.Join(config.Datadog.GetString("var_path"), cleanedKey)
 }
 
-// StoreValue stores data on disk in the var directory.
-func StoreValue(key, value string) error {
+// Write stores data on disk in the var directory.
+func Write(key, value string) error {
 	path := getFileForKey(key)
 	return ioutil.WriteFile(path, []byte(value), 0600)
 }
 
-// RetrieveValue returns a value previously stored, or the empty string.
-func RetrieveValue(key string) string {
+// Read returns a value previously stored, or the empty string.
+func Read(key string) string {
 	path := getFileForKey(key)
 	content, err := ioutil.ReadFile(path)
 	if err != nil {

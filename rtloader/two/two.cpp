@@ -873,14 +873,14 @@ void Two::setIsExcludedCb(cb_is_excluded_t cb)
     _set_is_excluded_cb(cb);
 }
 
-void Two::setStoreValueCb(cb_store_value_t cb)
+void Two::setWritePersistentCacheCb(cb_write_persistent_cache_t cb)
 {
-    _set_store_value_cb(cb);
+    _set_write_persistent_cache_cb(cb);
 }
 
-void Two::setRetrieveValueCb(cb_retrieve_value_t cb)
+void Two::setReadPersistentCacheCb(cb_read_persistent_cache_t cb)
 {
-    _set_retrieve_value_cb(cb);
+    _set_read_persistent_cache_cb(cb);
 }
 
 // Python Helpers
