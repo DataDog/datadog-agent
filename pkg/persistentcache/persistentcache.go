@@ -7,6 +7,7 @@ package persistentcache
 
 import (
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -15,9 +16,16 @@ import (
 )
 
 func getFileForKey(key string) string {
-	// Make it Windows compliant
-	cleanedKey := strings.Replace(key, ":", "_", -1)
-	return filepath.Join(config.Datadog.GetString("var_path"), cleanedKey)
+	paths := strings.SplitN(key, ":", 2)
+	if len(paths) == 1 {
+		// If there is no colon, just return the key
+		return filepath.Join(config.Datadog.GetString("var_path"), paths[0])
+	}
+	// Otherwise, create the directory with a prefix
+	os.MkdirAll(filepath.Join(config.Datadog.GetString("var_path"), paths[0]), 0700)
+	// Make the file Windows compliant
+	cleanedPath := strings.Replace(paths[1], ":", "_", -1)
+	return filepath.Join(config.Datadog.GetString("var_path"), paths[0], cleanedPath)
 }
 
 // Write stores data on disk in the var directory.

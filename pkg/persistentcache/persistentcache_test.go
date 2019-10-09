@@ -39,7 +39,11 @@ func TestWritePersistentCacheInvalidChar(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "myvalue", Read("my:key"))
 
-	expectPath := filepath.Join(testDir, "my_key")
+	expectPath := filepath.Join(testDir, "my")
 	_, err = os.Stat(expectPath)
+	require.Nil(t, err)
+
+	expectPathFile := filepath.Join(testDir, "my", "key")
+	_, err = os.Stat(expectPathFile)
 	require.Nil(t, err)
 }
