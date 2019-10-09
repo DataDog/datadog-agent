@@ -77,7 +77,7 @@ func (suite *testSuite) SetupTest() {
 			}
 			// Confirm that we can query the kube-apiserver's resources
 			log.Debugf("trying to get LatestEvents")
-			_, err := suite.apiClient.RunEventCollection(&resVer, &lastList, eventReadTimeout, 100, "")
+			_, _, _, err := suite.apiClient.RunEventCollection(resVer, lastList, eventReadTimeout, 100, "")
 			if err == nil {
 				log.Debugf("successfully get LatestEvents: %s", resVer)
 				return
@@ -103,7 +103,7 @@ func (suite *testSuite) TestKubeEvents() {
 	require.NotNil(suite.T(), core)
 
 	// Ignore potential startup events
-	_, err = suite.apiClient.RunEventCollection(&resVer, &lastList, eventReadTimeout, 100, "")
+	_, resVer, lastList, err = suite.apiClient.RunEventCollection(resVer, lastList, eventReadTimeout, 100, "")
 	require.NoError(suite.T(), err)
 
 	// Create started event
@@ -113,7 +113,7 @@ func (suite *testSuite) TestKubeEvents() {
 	require.NoError(suite.T(), err)
 
 	// Test we get the new started event
-	added, err := suite.apiClient.RunEventCollection(&resVer, &lastList, eventReadTimeout, 100, "")
+	added, resVer, lastList, err := suite.apiClient.RunEventCollection(resVer, lastList, eventReadTimeout, 100, "")
 	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), added, 1)
 	assert.Equal(suite.T(), "started", added[0].Reason)
@@ -124,7 +124,7 @@ func (suite *testSuite) TestKubeEvents() {
 	require.NoError(suite.T(), err)
 
 	// Test we get the new tick event
-	added, err = suite.apiClient.RunEventCollection(&resVer, &lastList, eventReadTimeout, 100, "")
+	added, resVer, lastList, err = suite.apiClient.RunEventCollection(resVer, lastList, eventReadTimeout, 100, "")
 	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), added, 1)
 	assert.Equal(suite.T(), "tick", added[0].Reason)
@@ -143,7 +143,7 @@ func (suite *testSuite) TestKubeEvents() {
 	require.NoError(suite.T(), err)
 
 	// Test we get the two modified test events
-	added, err = suite.apiClient.RunEventCollection(&resVer, &lastList, eventReadTimeout, 100, "")
+	added, resVer, lastList, err = suite.apiClient.RunEventCollection(resVer, lastList, eventReadTimeout, 100, "")
 	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), added, 2)
 	assert.Equal(suite.T(), "tick", added[0].Reason)
@@ -152,7 +152,7 @@ func (suite *testSuite) TestKubeEvents() {
 	assert.EqualValues(suite.T(), 3, added[1].Count)
 
 	// We should get nothing new now
-	added, err = suite.apiClient.RunEventCollection(&resVer, &lastList, eventReadTimeout, 100, "")
+	added, resVer, lastList, err = suite.apiClient.RunEventCollection(resVer, lastList, eventReadTimeout, 100, "")
 	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), added, 0)
 }

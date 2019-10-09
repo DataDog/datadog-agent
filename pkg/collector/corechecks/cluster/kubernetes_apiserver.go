@@ -48,8 +48,8 @@ type KubeASConfig struct {
 
 // EventC is the structure that holds the information pertaining to which event we collected last and when we last resynced.
 type EventC struct {
-	LastResVer *string
-	LastTime   *time.Time
+	LastResVer string
+	LastTime   time.Time
 }
 
 // KubeASCheck grabs metrics and events from the API server.
@@ -57,7 +57,7 @@ type KubeASCheck struct {
 	core.CheckBase
 	instance              *KubeASConfig
 	KubeAPIServerHostname string
-	eventCollection       *EventC
+	eventCollection       EventC
 	ignoredEvents         string
 	ac                    *apiserver.APIClient
 	oshiftAPILevel        apiserver.OpenShiftAPILevel
@@ -199,9 +199,9 @@ func (k *KubeASCheck) Run() error {
 // KubernetesASFactory is exported for integration testing.
 func KubernetesASFactory() check.Check {
 	return &KubeASCheck{
-		CheckBase:       core.NewCheckBase(kubernetesAPIServerCheckName),
-		instance:        &KubeASConfig{},
-		eventCollection: &EventC{},
+		CheckBase: core.NewCheckBase(kubernetesAPIServerCheckName),
+		instance:  &KubeASConfig{},
+		//		eventCollection: EventC{},
 	}
 }
 
@@ -227,25 +227,22 @@ func (k *KubeASCheck) runLeaderElection() error {
 	return nil
 }
 
-func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, error) {
-	var err error
+func (k *KubeASCheck) eventCollectionCheck() (newEvents []*v1.Event, err error) {
 	resVer, lastTime, err := k.ac.GetTokenFromConfigmap(eventTokenKey)
 	if err != nil {
 		return nil, err
 	}
-	k.eventCollection.LastResVer = &resVer
-	k.eventCollection.LastTime = &lastTime
 
 	timeout := int64(k.instance.EventCollectionTimeoutMs / 1000)
 	limit := int64(k.instance.CardinalityLimit)
-	newEvents, err := k.ac.RunEventCollection(k.eventCollection.LastResVer, k.eventCollection.LastTime, timeout, limit, k.ignoredEvents)
+	newEvents, k.eventCollection.LastResVer, k.eventCollection.LastTime, err = k.ac.RunEventCollection(resVer, lastTime, timeout, limit, k.ignoredEvents)
 
 	if err != nil {
 		k.Warnf("Could not collect events from the api server: %s", err.Error())
 		return nil, err
 	}
 
-	configMapErr := k.ac.UpdateTokenInConfigmap(eventTokenKey, *k.eventCollection.LastResVer, *k.eventCollection.LastTime)
+	configMapErr := k.ac.UpdateTokenInConfigmap(eventTokenKey, k.eventCollection.LastResVer, k.eventCollection.LastTime)
 	if configMapErr != nil {
 		k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error())
 	}
