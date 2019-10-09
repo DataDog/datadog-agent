@@ -74,7 +74,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	}
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), c.networkID), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), dns, c.networkID), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -102,23 +102,39 @@ func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model
 	return conns
 }
 
-// Connections are split up into a chunks of at most 100 connections per message to
-// limit the message size on intake.
-func batchConnections(cfg *config.AgentConfig, groupID int32, cxs []*model.Connection, networkID string) []model.MessageBody {
+// Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
+func batchConnections(
+	cfg *config.AgentConfig,
+	groupID int32,
+	cxs []*model.Connection,
+	dns map[string]*model.DNSEntry,
+	networkID string,
+) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
 
 	for len(cxs) > 0 {
 		batchSize := min(cfg.MaxConnsPerMessage, len(cxs))
-		// get the container and process relationship from either process check or container check
-		ctrIDForPID := getCtrIDsByPIDs(connectionPIDs(cxs[:batchSize]))
+		batchConns := cxs[:batchSize] // Connections for this particular batch
+
+		batchDNS := make(map[string]*model.DNSEntry)
+		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+			if entries, ok := dns[c.Raddr.Ip]; ok {
+				batchDNS[c.Raddr.Ip] = entries
+			}
+		}
+
+		// Get the container and process relationship from either the process or container checks
+		ctrIDForPID := getCtrIDsByPIDs(connectionPIDs(batchConns))
+
 		batches = append(batches, &model.CollectorConnections{
 			HostName:        cfg.HostName,
 			NetworkId:       networkID,
-			Connections:     cxs[:batchSize],
+			Connections:     batchConns,
 			GroupId:         groupID,
 			GroupSize:       groupSize,
 			ContainerForPid: ctrIDForPID,
+			Dns:             batchDNS,
 		})
 		cxs = cxs[batchSize:]
 	}
