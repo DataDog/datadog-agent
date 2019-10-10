@@ -178,7 +178,7 @@ func WritePersistentCache(key, value *C.char) {
 //export ReadPersistentCache
 func ReadPersistentCache(key *C.char, value **C.char) {
 	key_name := C.GoString(key)
-	data, err = persistentcache.Read(key_name)
+	data, err := persistentcache.Read(key_name)
 	if err != nil {
 		log.Errorf("Failed to read cache %s: %s", key_name, err)
 		*value = nil
