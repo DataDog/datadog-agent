@@ -396,6 +396,45 @@ done:
     return true;
 }
 
+bool Two::isCheckInitDeprecated(RtLoaderPyObject *py_class)
+{
+    PyObject *klass = reinterpret_cast<PyObject *>(py_class);
+    PyObject *init, *func, *func_code, *co_varnames, *elt;
+    bool result = false;
+
+    // AgentCheck.__init__.im_func.func_code.co_varnames
+    init = PyObject_GetAttrString(klass, "__init__");
+    if (init == NULL) {
+        goto done;
+    }
+    func = PyObject_GetAttrString(init, "im_func");
+    if (func == NULL) {
+        goto done;
+    }
+    func_code = PyObject_GetAttrString(func, "func_code");
+    if (func_code == NULL) {
+        goto done;
+    }
+    co_varnames = PyObject_GetAttrString(func_code, "co_varnames");
+    if (co_varnames == NULL) {
+        goto done;
+    }
+    elt = PyString_FromString("agentConfig");
+    if (elt == NULL) {
+        goto done;
+    }
+    if (PySequence_Contains(co_varnames, elt) == 1) {
+        result = true;
+    }
+done:
+    Py_XDECREF(init);
+    Py_XDECREF(func);
+    Py_XDECREF(func_code);
+    Py_XDECREF(co_varnames);
+    Py_XDECREF(elt);
+    return result;
+}
+
 char *Two::runCheck(RtLoaderPyObject *check)
 {
     if (check == NULL) {

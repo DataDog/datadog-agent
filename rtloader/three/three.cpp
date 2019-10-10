@@ -395,6 +395,41 @@ done:
     return true;
 }
 
+bool Three::isCheckInitDeprecated(RtLoaderPyObject *py_class)
+{
+    PyObject *klass = reinterpret_cast<PyObject *>(py_class);
+    PyObject *init, *func_code, *co_varnames, *elt;
+    bool result = false;
+
+    // AgentCheck.__init__.__code__.co_varnames
+    //
+    init = PyObject_GetAttrString(klass, "__init__");
+    if (init == NULL) {
+        goto done;
+    }
+    func_code = PyObject_GetAttrString(init, "__code__");
+    if (func_code == NULL) {
+        goto done;
+    }
+    co_varnames = PyObject_GetAttrString(func_code, "co_varnames");
+    if (co_varnames == NULL) {
+        goto done;
+    }
+    elt = PyUnicode_FromString("agentConfig");
+    if (elt == NULL) {
+        goto done;
+    }
+    if (PySequence_Contains(co_varnames, elt) == 1) {
+        result = true;
+    }
+done:
+    Py_XDECREF(init);
+    Py_XDECREF(func_code);
+    Py_XDECREF(co_varnames);
+    Py_XDECREF(elt);
+    return result;
+}
+
 char *Three::runCheck(RtLoaderPyObject *check)
 {
     if (check == NULL) {

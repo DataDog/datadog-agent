@@ -108,6 +108,13 @@ public:
                           RtLoaderPyObject *&check)
         = 0;
 
+    //! Pure virtual isCheckInitDeprecated member.
+    /*!
+      \param py_class The python check class we wish to instantiate.
+      \return A boolean indicating the success or not of the operation.
+    */
+    virtual bool isCheckInitDeprecated(RtLoaderPyObject *py_class) = 0;
+
     //! Pure virtual runCheck member.
     /*!
       \param check The python object pointer to the check we wish to run.

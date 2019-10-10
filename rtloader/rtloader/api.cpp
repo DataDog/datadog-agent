@@ -282,6 +282,11 @@ int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *i
         : 0;
 }
 
+int is_check_init_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class)
+{
+    return AS_TYPE(RtLoader, rtloader)->isCheckInitDeprecated(AS_TYPE(RtLoaderPyObject, py_class)) ? 1 : 0;
+}
+
 int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config,
                          const char *instance, const char *agent_config, const char *check_id, const char *check_name,
                          rtloader_pyobject_t **check)

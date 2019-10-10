@@ -64,6 +64,7 @@ public:
     bool getCheck(RtLoaderPyObject *py_class, const char *init_config_str, const char *instance_str,
                   const char *check_id_str, const char *check_name, const char *agent_config_str,
                   RtLoaderPyObject *&check);
+    bool isCheckInitDeprecated(RtLoaderPyObject *py_class);
 
     char *runCheck(RtLoaderPyObject *check);
     char **getCheckWarnings(RtLoaderPyObject *check);

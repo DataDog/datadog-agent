@@ -176,6 +176,17 @@ DATADOG_AGENT_RTLOADER_API int get_check_deprecated(rtloader_t *rtloader, rtload
                                                     const char *check_name, const char *agent_config,
                                                     rtloader_pyobject_t **check);
 
+/*! \fn int is_check_init_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class)
+    \brief Verify the signature of a check init method.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param py_class A rtloader_pyobject_t * pointer to the python check class we wish to instantiate.
+    \return 1 if it uses the old signature, 0 otherwise.
+    \sa rtloader_pyobject_t, rtloader_t, get_check
+
+    This function is deprecated in favor of `get_check()`.
+*/
+DATADOG_AGENT_RTLOADER_API int is_check_init_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class);
+
 /*! \fn char *run_check(rtloader_t *, rtloader_pyobject_t *check)
     \brief Runs a check instance.
     \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
