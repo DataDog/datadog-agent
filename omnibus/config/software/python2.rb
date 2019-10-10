@@ -63,6 +63,8 @@ if ohai["platform"] != "windows"
     command "make install", :env => env
     delete "#{install_dir}/embedded/lib/python2.7/test"
 
+    move "#{install_dir}/embedded/bin/2to3", "#{install_dir}/embedded/bin/2to3-2.7"
+
     block do
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python2.7/lib-dynload/readline.*"))
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python2.7/lib-dynload/gdbm.so"))
