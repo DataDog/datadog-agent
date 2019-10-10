@@ -33,7 +33,6 @@ var (
 	globalAPIClient  *APIClient
 	ErrNotFound      = errors.New("entity not found")
 	ErrIsEmpty       = errors.New("entity is empty")
-	ErrOutdated      = errors.New("entity is outdated")
 	ErrNotLeader     = errors.New("not Leader")
 	isConnectVerbose = false
 )
@@ -236,20 +235,17 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 
 	cmEvent, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
 	if err != nil {
-		// we will process things locally as we can't interact with the CM. Could be a RBAC issue.
-		return "", time.Now(), ErrNotFound
+		// we do not process event if we can't interact with the CM.
+		return "", time.Now(), err
 	}
 	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
 	tokenValue, found := cmEvent.Data[eventTokenKey]
 	if !found {
 		log.Debugf("%s was not found in the ConfigMap %s, updating it to resync.", eventTokenKey, configMapDCAToken)
+		// we should try to set it to "" .
 		err = c.UpdateTokenInConfigmap(configMapDCAToken, "", time.Now())
-		// we should try to set it.
-		if err != nil {
-			// we will process things locally as we can't interact with the CM
-			return "", time.Now(), ErrNotFound
-		}
-		return "", nowTs, nil
+		return "", time.Now(), err
+
 	}
 	log.Tracef("%s is %q", token, tokenValue)
 
@@ -257,13 +253,14 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 	tokenTimeStr, set := cmEvent.Data[eventTokenTS]
 	if !set {
 		log.Debugf("Could not find timestamp associated with %s in the ConfigMap %s. Refreshing.", eventTokenTS, configMapDCAToken)
-		// We return ErrOutdated to reset the tokenValue and its timestamp as token's timestamp was not found.
-		return tokenValue, nowTs, ErrOutdated
+		// The timestamp of the last List is not present, it will be set during the next Collection.
+		return tokenValue, nowTs, nil
 	}
 
 	tokenTime, err := time.Parse(time.RFC822, tokenTimeStr)
 	if err != nil {
-		return "", nowTs, log.Errorf("could not convert the timestamp associated with %s from the ConfigMap %s", token, configMapDCAToken)
+		log.Errorf("Could not convert the timestamp associated with %s from the ConfigMap %s, resync might not work correctly.", token, configMapDCAToken)
+		return tokenValue, nowTs, nil
 	}
 	return tokenValue, tokenTime, err
 }
@@ -273,7 +270,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string, timestamp time.Time) error {
 	namespace := common.GetResourcesNamespace()
 	tokenConfigMap, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
-	if err != nil && err != ErrOutdated {
+	if err != nil {
 		return err
 	}
 	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)

@@ -119,7 +119,8 @@ func (k *KubeASCheck) Run() error {
 		log.Debug("Cluster agent is enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		return nil
 	}
-	// Check is configured as a cluster check. The Cluster Agent passed in a config to skip the leader election.
+	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
+	// The Cluster Agent will passed in the `skip_leader_election` bool.
 	if !k.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
 		if !config.Datadog.GetBool("leader_election") {
@@ -195,7 +196,6 @@ func KubernetesASFactory() check.Check {
 	return &KubeASCheck{
 		CheckBase: core.NewCheckBase(kubernetesAPIServerCheckName),
 		instance:  &KubeASConfig{},
-		//		eventCollection: EventC{},
 	}
 }
 
@@ -225,6 +225,12 @@ func (k *KubeASCheck) eventCollectionCheck() (newEvents []*v1.Event, err error) 
 	resVer, lastTime, err := k.ac.GetTokenFromConfigmap(eventTokenKey)
 	if err != nil {
 		return nil, err
+	}
+
+	// This is to avoid getting in a situation where we list all the events for multiple runs in a row.
+	if resVer == "" && k.eventCollection.LastResVer != "" {
+		log.Errorf("Resource Version stored in the ConfigMap is incorrect. Will resume collecting from %s", k.eventCollection.LastResVer)
+		resVer = k.eventCollection.LastResVer
 	}
 
 	timeout := int64(k.instance.EventCollectionTimeoutMs / 1000)
