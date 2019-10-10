@@ -749,19 +749,22 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 	errorMsg := ""
 	for _, file := range files {
 		filename := file.Name()
+
 		// Copy SNMP profiles
 		if filename == "profiles" {
 			profileDest := filepath.Join(dstFolder, "profiles")
-			if err = os.MkdirAll(profileDest, os.ModeDir|0755); err != nil {
-				return err
+			if err = os.MkdirAll(profileDest, 0755); err != nil {
+				errorMsg = fmt.Sprintf("%s\nError creating directory for SNMP profiles %s: %v", errorMsg, profileDest, err)
+				continue
 			}
 			profileSrc := filepath.Join(srcFolder, "profiles")
 			if err = moveConfigurationFiles(profileSrc, profileDest); err != nil {
-				return err
+				errorMsg = fmt.Sprintf("%s\nError moving SNMP profiles from %s to %s: %v", errorMsg, profileSrc, profileDest, err)
+				continue
 			}
 			continue
-
 		}
+
 		// Replace existing file
 		if !yamlFileNameRe.MatchString(filename) {
 			continue
