@@ -154,7 +154,7 @@ func TestAddCollectorWithInit(t *testing.T) {
 	}
 }
 
-func TestSendNow(t *testing.T) {
+func TestTriggerAndResetCollectorTimer(t *testing.T) {
 	enableFirstRunCollection = false
 	defer func() { enableFirstRunCollection = true }()
 
@@ -179,7 +179,7 @@ func TestSendNow(t *testing.T) {
 	default:
 	}
 
-	c.SendNow("testCollector", 0)
+	c.TriggerAndResetCollectorTimer("testCollector", 0)
 
 	select {
 	case <-mockCollector.SendCalledC:

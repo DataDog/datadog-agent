@@ -118,12 +118,13 @@ func (c *Scheduler) IsScheduled(name string) bool {
 	return found
 }
 
-// SendNow runs a collector manually, on demand. The delay parameter can be set
-// to 0 to run it immediately, or to a duration after which the collector will
-// run. The runs at regular intervals of the collector will be resumed *after*
-// this manual run. Calling SendNow on a stopped Scheduler does nothing, since
-// the goroutine that waits on the Timer will not be running.
-func (c *Scheduler) SendNow(name string, delay time.Duration) {
+// TriggerAndResetCollectorTimer runs a collector manually, on demand. The delay
+// parameter can be set to 0 to run it immediately, or to a duration after which
+// the collector will run. The runs at regular intervals of the collector will
+// be resumed *after* this manual run. Calling TriggerAndResetCollectorTimer on
+// a stopped Scheduler does nothing, since the goroutine that waits on the Timer
+// will not be running.
+func (c *Scheduler) TriggerAndResetCollectorTimer(name string, delay time.Duration) {
 	sc, found := c.collectors[name]
 
 	if !found {

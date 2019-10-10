@@ -17,6 +17,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func clearMetadata() {
+	checkCacheMutex.Lock()
+	defer checkCacheMutex.Unlock()
+	checkMetadataCache = make(map[string]*checkMetadataCacheEntry)
+	agentCacheMutex.Lock()
+	defer agentCacheMutex.Unlock()
+	agentMetadataCache = make(AgentMetadata)
+}
+
 type mockAutoConfig struct{}
 
 func (*mockAutoConfig) GetLoadedConfigs() map[string]integration.Config {
@@ -52,7 +61,7 @@ func (m *mockScheduler) AddCollector(name string, interval time.Duration) error 
 	return nil
 }
 
-func (m *mockScheduler) SendNow(name string, delay time.Duration) {
+func (m *mockScheduler) TriggerAndResetCollectorTimer(name string, delay time.Duration) {
 	m.lastSendNowDelay = delay
 	m.sendNowCalled <- nil
 }
@@ -201,7 +210,7 @@ func TestSetup(t *testing.T) {
 		lastSendNowDelay: -1,
 	}
 
-	err := StartSendNowRoutine(&ms, 10*time.Minute)
+	err := StartMetadataUpdatedGoroutine(&ms, 10*time.Minute)
 	assert.Nil(t, err)
 
 	// Collector should be added but not called after setup
