@@ -77,6 +77,7 @@ def apply_branding(ctx):
     """
     sts_camel_replace = 's/Data[dD]og/StackState/g'
     sts_lower_replace = 's/datadog/stackstate/g'
+    datadog_metrics_replace = 's/"datadog./"stackstate./g'
 
     # Config
     do_go_rename(ctx, '"\\"dd_url\\" -> \\"sts_url\\""', "./pkg/config")
@@ -90,6 +91,18 @@ def apply_branding(ctx):
     do_go_rename(ctx, '"\\"/etc/datadog-agent/conf.d\\" -> \\"/etc/stackstate-agent/conf.d\\""', "./pkg/config")
     do_go_rename(ctx, '"\\"/etc/datadog-agent/checks.d\\" -> \\"/etc/stackstate-agent/checks.d\\""', "./pkg/config")
     do_go_rename(ctx, '"\\"/opt/datadog-agent/run\\" -> \\"/opt/stackstate-agent/run\\""', "./pkg/config")
+
+    # Commands
+    do_sed_rename(ctx, sts_lower_replace, "./cmd/agent/app/integrations.go")
+    do_sed_rename(ctx, sts_lower_replace, "./cmd/agent/app/dependent_services_windows.go")
+    do_sed_rename(ctx, sts_lower_replace, "./cmd/agent/app/launchgui.go")
+    do_sed_rename(ctx, 's/Datadog Agent/StackState Agent/g', "./cmd/agent/app/launchgui.go")
+    do_sed_rename(ctx, 's/Datadog Agent/StackState Agent/g', "./cmd/agent/app/start.go")
+    do_sed_rename(ctx, sts_lower_replace, "./cmd/agent/app/app.go")
+    do_sed_rename(ctx, sts_lower_replace, "./cmd/agent/app/integrations.go")
+    do_sed_rename(ctx, 's/Datadog integration/StackState integration/g', "./cmd/agent/app/integrations.go")
+    do_go_rename(ctx, '"\\"Collect a flare and send it to Datadog\\" -> \\"Collect a flare and send it to StackState\\""', "./cmd/agent/app")
+    do_sed_rename(ctx, sts_lower_replace, "./cmd/agent/app/regimport_windows.go")
 
     # Trace agent
     do_go_rename(ctx, '"\\"DD_PROXY_HTTPS\\" -> \\"STS_PROXY_HTTPS\\""', "./pkg/trace")
@@ -137,6 +150,21 @@ def apply_branding(ctx):
     do_sed_rename(ctx, DD_API_KEY_replace, "./pkg/trace/config/config.go")
     DD_HOSTNAME_replace = 's/DD_HOSTNAME/STS_HOSTNAME/g'
     do_sed_rename(ctx, DD_HOSTNAME_replace, "./pkg/trace/config/config.go")
+
+    # Trace Agent Metrics
+    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/api/api.go")
+    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/api/responses.go")
+    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/agent/run.go")
+    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/agent/agent.go")
+    do_go_rename(ctx, '"\\"datadog.conf\\" -> \\"stackstate.conf\\""', "./pkg/trace/agent")
+    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/event/sampler_max_eps.go")
+    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/writer/service_nix_test.go")
+    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/writer/trace.go")
+    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/writer/service.go")
+    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/writer/stats.go")
+    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/writer/stats_test.go")
+    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/writer/trace_nix_test.go")
+    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/info/stats.go")
 
     # Defaults
     do_go_rename(ctx, '"\\"/etc/datadog-agent\\" -> \\"/etc/stackstate-agent\\""', "./cmd/agent/common")
@@ -202,6 +230,9 @@ def apply_branding(ctx):
     do_go_rename(ctx, '"\\"datadog_checks\\" -> \\"stackstate_checks\\""', "./cmd/agent/app")
     do_sed_rename(ctx, 's/datadog_checks_base/stackstate_checks_base/g', "./cmd/agent/app/integrations.go")
     do_go_rename(ctx, '"\\"datadog_checks\\" -> \\"stackstate_checks\\""', "./pkg/collector/py")
+    do_go_rename(ctx, '"\\"An error occurred while grabbing the python datadog integration list\\" -> \\"An error occurred while grabbing the python StackState integration list\\""', "./pkg/collector/py")
+    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/collector/py/loader.go")
+    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/collector/runner/runner.go")
 
     # cluster agent client
     do_go_rename(ctx, '"\\"datadog-cluster-agent\\" -> \\"stackstate-cluster-agent\\""', "./pkg/config")

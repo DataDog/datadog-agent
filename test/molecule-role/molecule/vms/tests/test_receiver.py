@@ -45,6 +45,29 @@ def test_generic_events(host):
     util.wait_until(wait_for_metrics, 30, 3)
 
 
+def test_state_events(host):
+    url = "http://localhost:7070/api/topic/sts_state_events?offset=0&limit=80"
+
+    def wait_for_metrics():
+        data = host.check_output("curl \"%s\"" % url)
+        json_data = json.loads(data)
+        with open("./topic-state-events.json", 'w') as f:
+            json.dump(json_data, f, indent=4)
+
+        state_events = defaultdict(set)
+        for message in json_data["messages"]:
+            state_events[message["message"]["StateEvent"]["host"]].add(message["message"]["StateEvent"]["name"])
+
+        print(state_events)
+        assert state_events["agent-ubuntu"] == {"stackstate.agent.up", "stackstate.agent.check_status", "ntp.in_sync"}
+        assert state_events["agent-fedora"] == {"stackstate.agent.up", "stackstate.agent.check_status", "ntp.in_sync"}
+        assert state_events["agent-centos"] == {"stackstate.agent.up", "stackstate.agent.check_status", "ntp.in_sync"}
+        assert state_events["agent-connection-namespaces"] == {"stackstate.agent.up", "stackstate.agent.check_status", "ntp.in_sync"}
+        assert state_events["agent-win"] == {"stackstate.agent.up", "stackstate.agent.check_status", "ntp.in_sync"}
+
+    util.wait_until(wait_for_metrics, 30, 3)
+
+
 def _get_instance_config(instance_name):
     instance_config_dict = safe_load_file(os.environ['MOLECULE_INSTANCE_CONFIG'])
     return next(item for item in instance_config_dict if item['instance'] == instance_name)
@@ -264,6 +287,10 @@ def test_host_metrics(host):
         assert_metric("stackstate.process.agent", lambda v: v == 1.0, lambda v: v == 1.0, lambda v: v == 1.0)
         assert_metric("stackstate.process.processes.host_count", lambda v: v > 1.0, lambda v: v > 1.0, lambda v: v > 1.0)
         assert_metric("stackstate.process.containers.host_count", lambda v: v == 0.0, lambda v: v == 0.0, lambda v: v == 0.0)
+
+        # Assert that we don't see any Datadog metrics
+        datadog_metrics = [(key, value) for key, value in metrics.iteritems() if key.startswith("datadog")]
+        assert len(datadog_metrics) == 0, 'Datadog metrics found in sts_metrics: [%s]' % ', '.join(map(str, datadog_metrics))
 
     util.wait_until(wait_for_metrics, 30, 3)
 
