@@ -2160,7 +2160,7 @@ latest_release_7:
 
 dca_tag_release:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
+  <<: *run_when_triggered_on_tag_7
   stage: deploy
   when: manual
   variables:
@@ -2170,7 +2170,7 @@ dca_tag_release:
 
 dca_latest_release:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
+  <<: *run_when_triggered_on_tag_7
   stage: deploy
   when: manual
   variables:
