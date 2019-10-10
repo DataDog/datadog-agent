@@ -81,7 +81,7 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
 
     # If we're not building with both Python, we want to force the use of Python 3
     if not with_both_python:
-      ldflags += "-X {}/pkg/config.ForceDefaultPython=3 ".format(REPO_PATH)
+      ldflags += "-X {}/pkg/config.ForceDefaultPython=true ".format(REPO_PATH)
 
     ldflags += "-X {}/pkg/config.DefaultPython={} ".format(REPO_PATH, get_default_python())
 

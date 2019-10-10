@@ -42,11 +42,6 @@ const (
 	megaByte = 1024 * 1024
 )
 
-// ForceDefaultPython is set at compile time to something else than -1
-// if the build wants to ignore the Python version set in the configuration.
-// We use this to force Python 3 in the Agent 7 as it's the only one available.
-var ForceDefaultPython string
-
 var overrideVars = make(map[string]interface{})
 
 // Datadog is the global configuration object
@@ -58,6 +53,11 @@ var (
 // Variables to initialize at build time
 var (
 	DefaultPython string
+
+	// ForceDefaultPython has a value set at compile time if we should ignore
+	// the Python version set in the configuration and use `DefaultPython` instead.
+	// We use this to force Python 3 in the Agent 7 as it's the only one available.
+	ForceDefaultPython string
 )
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
@@ -685,12 +685,12 @@ func load(config Config, origin string, loadSecret bool) error {
 		}
 	}
 
-	// If this variable is set (at compile-time), we'll use this value
-	// for the Python version, ignoring the python_version configuration value.
+	// If this variable is set, we'll use DefaultPython for the Python version,
+	// ignoring the python_version configuration value.
 	if ForceDefaultPython != "" {
-		defaultPython, err := strconv.Atoi(ForceDefaultPython)
+		defaultPython, err := strconv.Atoi(DefaultPython)
 		if err != nil {
-			log.Warn("Bad value for ForceDefaultPython, will use configuration value. Err:", err)
+			log.Warn("Bad value for DefaultPython, will use configuration value. Err:", err)
 		}
 		override := make(map[string]interface{})
 		override["python_version"] = defaultPython
