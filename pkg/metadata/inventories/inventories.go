@@ -94,7 +94,7 @@ func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMeta
 }
 
 // GetPayload fills and returns the check metadata payload
-func GetPayload(ac autoConfigInterface, coll collectorInterface) *Payload {
+func GetPayload(hostname string, ac autoConfigInterface, coll collectorInterface) *Payload {
 	checkCacheMutex.Lock()
 	defer checkCacheMutex.Unlock()
 
@@ -122,6 +122,7 @@ func GetPayload(ac autoConfigInterface, coll collectorInterface) *Payload {
 	defer agentCacheMutex.Unlock()
 
 	return &Payload{
+		Hostname:      hostname,
 		Timestamp:     timeNow().UnixNano(),
 		CheckMetadata: &checkMetadata,
 		AgentMetadata: &agentMetadataCache,

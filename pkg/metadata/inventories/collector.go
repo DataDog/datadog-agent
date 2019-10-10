@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
@@ -47,7 +49,14 @@ type inventoriesCollector struct {
 // Send collects the data needed and submits the payload
 func (c inventoriesCollector) Send(s *serializer.Serializer) error {
 	c.lastSend = timeNow()
-	payload := GetPayload(c.ac, c.coll)
+
+	hostname, err := util.GetHostname()
+	if err != nil {
+		return fmt.Errorf("unable to submit inventories metadata payload, no hostname: %s", err)
+	}
+
+	payload := GetPayload(hostname, c.ac, c.coll)
+
 	if err := s.SendMetadata(payload); err != nil {
 		return fmt.Errorf("unable to submit inventories payload, %s", err)
 	}
