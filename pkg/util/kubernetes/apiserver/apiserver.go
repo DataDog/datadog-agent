@@ -212,7 +212,7 @@ func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 func (c *APIClient) getOrCreateConfigMap(name, namespace string) (cmEvent *v1.ConfigMap, err error) {
 	cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
 	if err != nil {
-		log.Debugf("Could not find the ConfigMap %s: %s, trying to create it.", configMapDCAToken, err.Error())
+		log.Errorf("Could not get the ConfigMap %s: %s, trying to create it.", configMapDCAToken, err.Error())
 		cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Create(&v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      configMapDCAToken,
