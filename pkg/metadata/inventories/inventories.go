@@ -8,7 +8,23 @@ package inventories
 import (
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
+
+type schedulerInterface interface {
+	AddCollector(name string, interval time.Duration) error
+	SendNow(name string, delay time.Duration)
+}
+
+type autoConfigInterface interface {
+	GetLoadedConfigs() map[string]integration.Config
+}
+
+type collectorInterface interface {
+	GetAllInstanceIDs(checkName string) []check.ID
+}
 
 type checkMetadataCacheEntry struct {
 	LastUpdated           time.Time
@@ -22,6 +38,14 @@ var (
 	agentCacheMutex    = &sync.Mutex{}
 
 	agentStartupTime = timeNow()
+	lastPayloadSent  = timeNow()
+	metadataUpdatedC = make(chan interface{})
+)
+
+var (
+	// For testing purposes
+	timeNow   = time.Now
+	timeSince = time.Since
 )
 
 const (
@@ -101,6 +125,8 @@ func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMeta
 
 // GetPayload fills and returns the check metadata payload
 func GetPayload(hostname string, ac autoConfigInterface, coll collectorInterface) *Payload {
+	lastPayloadSent = timeNow()
+
 	checkCacheMutex.Lock()
 	defer checkCacheMutex.Unlock()
 
@@ -133,4 +159,20 @@ func GetPayload(hostname string, ac autoConfigInterface, coll collectorInterface
 		CheckMetadata: &checkMetadata,
 		AgentMetadata: &agentMetadataCache,
 	}
+}
+
+// StartSendNowRoutine starts a routine that listens to the metadataUpdatedC signal
+// to run the collector out of its regular interval.
+func StartSendNowRoutine(sc schedulerInterface, minSendInterval time.Duration) error {
+	go func() {
+		for {
+			<-metadataUpdatedC
+			delay := minSendInterval - timeSince(lastPayloadSent)
+			if delay < 0 {
+				delay = 0
+			}
+			sc.SendNow("inventories", delay)
+		}
+	}()
+	return nil
 }
