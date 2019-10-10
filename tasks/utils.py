@@ -79,7 +79,7 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     if python_home_3:
         ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, python_home_3)
 
-    # If we're not building with both Python, we want to force the use of Python 3
+    # If we're not building with both Python, we want to force the use of DefaultPython
     if not with_both_python:
         ldflags += "-X {}/pkg/config.ForceDefaultPython=true ".format(REPO_PATH)
 
