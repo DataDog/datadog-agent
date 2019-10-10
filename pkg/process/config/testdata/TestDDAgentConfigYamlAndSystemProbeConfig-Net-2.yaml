@@ -4,6 +4,7 @@ system_probe_config:
     disable_tcp: true
     disable_udp: true
     disable_ipv6: true
+    disable_dns_inspection: true
     excluded_linux_versions:
       - 5.5.0
       - 4.2.1

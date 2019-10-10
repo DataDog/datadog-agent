@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -72,7 +73,7 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 			return
 		}
 
-		agentFullVersion, _ := version.New(version.AgentVersion, version.Commit)
+		agentFullVersion, _ := version.Agent()
 		writer.WriteField("agent_version", agentFullVersion.String())
 		writer.WriteField("hostname", hostname)
 
@@ -144,7 +145,7 @@ func analyzeResponse(r *http.Response, err error) (string, error) {
 }
 
 func mkHTTPClient() *http.Client {
-	transport := util.CreateHTTPTransport()
+	transport := httputils.CreateHTTPTransport()
 
 	client := &http.Client{
 		Transport: transport,

@@ -41,6 +41,9 @@ func TestSerialization(t *testing.T) {
 				Direction: ebpf.LOCAL,
 			},
 		},
+		DNS: map[util.Address][]string{
+			util.AddressFromString("172.217.12.145"): {"golang.org"},
+		},
 	}
 
 	out := &model.Connections{
@@ -67,6 +70,9 @@ func TestSerialization(t *testing.T) {
 				Family:    model.ConnectionFamily_v6,
 				Direction: model.ConnectionDirection_local,
 			},
+		},
+		Dns: map[string]*model.DNSEntry{
+			"172.217.12.145": {Names: []string{"golang.org"}},
 		},
 	}
 

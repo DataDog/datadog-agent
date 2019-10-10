@@ -1,6 +1,10 @@
 [[constraint]]
   name = "github.com/DataDog/agent-payload"
-  version = "4.12.0"
+  version = "4.13.0"
+
+[[constraint]]
+  name = "github.com/google/gopacket"
+  revision = "c340012d34adb8462b1e23ad4d7a73944f4224b8"
 
 [[constraint]]
   name = "github.com/DataDog/gohai"
@@ -188,7 +192,7 @@
 [[constraint]]
   name = "github.com/iovisor/gobpf"
   source = "github.com/DataDog/gobpf"
-  revision = "dfb11c17a0746e78b1bd96b6eea766f2a4a2ce8a"
+  revision = "42285a7409f87cb399476b132e726aacfc63fbdc"
 
 [[constraint]]
   name = "github.com/florianl/go-conntrack"

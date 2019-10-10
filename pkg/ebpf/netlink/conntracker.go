@@ -11,9 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	ct "github.com/florianl/go-conntrack"
 	"github.com/pkg/errors"
 )
@@ -29,7 +29,7 @@ const (
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
-	GetTranslationForConn(ip util.Address, port uint16) *IPTranslation
+	GetTranslationForConn(ip util.Address, port uint16, transport process.ConnectionType) *IPTranslation
 	ClearShortLived()
 	GetStats() map[string]int64
 	Close()
@@ -38,6 +38,9 @@ type Conntracker interface {
 type connKey struct {
 	ip   util.Address
 	port uint16
+
+	// the transport protocol of the connection, using the same values as specified in the agent payload.
+	transport process.ConnectionType
 }
 
 type connValue struct {
@@ -76,6 +79,7 @@ type realConntracker struct {
 		unregistersTotalTime int64
 		expiresTotal         int64
 	}
+	exceededSizeLogLimit *util.LogLimit
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
@@ -119,13 +123,14 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	}
 
 	ctr := &realConntracker{
-		nfct:                nfct,
-		nfctDel:             nfctDel,
-		compactTicker:       time.NewTicker(compactInterval),
-		state:               make(map[connKey]*connValue),
-		shortLivedBuffer:    make(map[connKey]*IPTranslation),
-		maxShortLivedBuffer: deleteBufferSize,
-		maxStateSize:        maxStateSize,
+		nfct:                 nfct,
+		nfctDel:              nfctDel,
+		compactTicker:        time.NewTicker(compactInterval),
+		state:                make(map[connKey]*connValue),
+		shortLivedBuffer:     make(map[connKey]*IPTranslation),
+		maxShortLivedBuffer:  deleteBufferSize,
+		maxStateSize:         maxStateSize,
+		exceededSizeLogLimit: util.NewLogLimit(10, time.Minute*10),
 	}
 
 	// seed the state
@@ -157,13 +162,13 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	return ctr, nil
 }
 
-func (ctr *realConntracker) GetTranslationForConn(ip util.Address, port uint16) *IPTranslation {
+func (ctr *realConntracker) GetTranslationForConn(ip util.Address, port uint16, transport process.ConnectionType) *IPTranslation {
 	then := time.Now().UnixNano()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
-	k := connKey{ip, port}
+	k := connKey{ip, port, transport}
 	var result *IPTranslation
 	value, ok := ctr.state[k]
 	if !ok {
@@ -218,13 +223,16 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 
 func (ctr *realConntracker) Close() {
 	ctr.compactTicker.Stop()
+	ctr.exceededSizeLogLimit.Close()
 }
 
 func (ctr *realConntracker) loadInitialState(sessions []ct.Conn) {
 	gen := getNthGeneration(generationLength, time.Now().UnixNano(), 3)
 	for _, c := range sessions {
 		if isNAT(c) {
-			ctr.state[formatKey(c)] = formatIPTranslation(c, gen)
+			if k, ok := formatKey(c); ok {
+				ctr.state[k] = formatIPTranslation(c, gen)
+			}
 		}
 	}
 }
@@ -237,23 +245,34 @@ func (ctr *realConntracker) register(c ct.Conn) int {
 		return 0
 	}
 
+	key, ok := formatKey(c)
+	if !ok {
+		return 0
+	}
+
 	now := time.Now().UnixNano()
 	ctr.Lock()
 	defer ctr.Unlock()
 
 	if len(ctr.state) >= ctr.maxStateSize {
-		log.Warnf("exceeded maximum conntrack state size: %d entries", ctr.maxStateSize)
+		ctr.logExceededSize()
 		return 0
 	}
 
 	generation := getNthGeneration(generationLength, now, 3)
-	ctr.state[formatKey(c)] = formatIPTranslation(c, generation)
+	ctr.state[key] = formatIPTranslation(c, generation)
 
 	then := time.Now().UnixNano()
 	atomic.AddInt64(&ctr.stats.registers, 1)
 	atomic.AddInt64(&ctr.stats.registersTotalTime, then-now)
 
 	return 0
+}
+
+func (ctr *realConntracker) logExceededSize() {
+	if ctr.exceededSizeLogLimit.ShouldLog() {
+		log.Warnf("exceeded maximum conntrack state size: %d entries. You may need to increase system_probe_config.max_tracked_connections (will log first ten times, and then once every 10 minutes)", ctr.maxStateSize)
+	}
 }
 
 // unregister is registered to be called whenever a conntrack entry is destroyed.
@@ -263,18 +282,22 @@ func (ctr *realConntracker) unregister(c ct.Conn) int {
 		return 0
 	}
 
+	key, ok := formatKey(c)
+	if !ok {
+		return 0
+	}
+
 	now := time.Now().UnixNano()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
 	// move the mapping from the permanent to "short lived" connection
-	k := formatKey(c)
-	translation, ok := ctr.state[k]
+	translation, ok := ctr.state[key]
 
-	delete(ctr.state, k)
+	delete(ctr.state, key)
 	if len(ctr.shortLivedBuffer) < ctr.maxShortLivedBuffer && ok {
-		ctr.shortLivedBuffer[k] = translation.IPTranslation
+		ctr.shortLivedBuffer[key] = translation.IPTranslation
 	} else {
 		log.Warn("exceeded maximum tracked short lived connections")
 	}
@@ -385,12 +408,30 @@ func formatIPTranslation(c ct.Conn, generation uint8) *connValue {
 	}
 }
 
-func formatKey(c ct.Conn) (k connKey) {
+func formatKey(c ct.Conn) (k connKey, ok bool) {
+	ok = true
+
 	if ip, err := c.OrigSrcIP(); err == nil {
 		k.ip = util.AddressFromNetIP(ip)
+	} else {
+		ok = false
 	}
+
 	if port, err := c.Uint16(ct.AttrOrigPortSrc); err == nil {
 		k.port = NtohsU16(port)
+	} else {
+		ok = false
+	}
+
+	if transportProto, err := c.Uint8(ct.AttrOrigL4Proto); err == nil {
+		switch transportProto {
+		case 6:
+			k.transport = process.ConnectionType_tcp
+		case 17:
+			k.transport = process.ConnectionType_udp
+		default:
+			ok = false
+		}
 	}
 	return
 }

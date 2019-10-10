@@ -131,6 +131,18 @@ api_key:
 #
 # histogram_copy_to_distribution_prefix: "<PREFIX>"
 
+## @param aggregator_stop_timeout - integer - optional - default: 2
+## When stopping the agent, the Aggregator will try to flush out data ready for
+## aggregation (metrics, events, ...). Data are flushed to the Forwarder in order
+## to be sent to DataDog, therefore the Agent might take at most
+## 'aggregator_stop_timeout'+'forwarder_stop_timeout' seconds to exit.
+##
+## You can set the maximum amount of time, in seconds, allocated to the
+## Aggregator to do so. You can disable this feature by setting
+## 'aggregator_stop_timeout' to 0.
+#
+# aggregator_stop_timeout: 2
+
 ## @param forwarder_timeout - integer - optional - default: 20
 ## Forwarder timeout in seconds
 #
@@ -147,6 +159,18 @@ api_key:
 ## The number of workers used by the forwarder.
 #
 # forwarder_num_workers: 1
+
+## @param forwarder_stop_timeout - integer - optional - default: 2
+## When stopping the agent, the Forwarder will try to flush all new
+## transactions (not the ones in retry state).  New transactions will be created
+## as the Aggregator flush it's internal data too, therefore the Agent might take
+## at most 'aggregator_stop_timeout'+'forwarder_stop_timeout' seconds to exit.
+##
+## You can set the maximum amount of time, in seconds, allocated to the
+## Forwarder to send those transactions.  You can disable this feature by setting
+## 'forwarder_stop_timeout' to 0.
+#
+# forwarder_stop_timeout: 2
 
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
@@ -272,6 +296,18 @@ api_key:
 ## overridden to 1.
 #
 # tracemalloc_debug: false
+
+## @param tracemalloc_whitelist - string - optional
+## Comma-separated list of Python checks to enable tracemalloc for when `tracemalloc_debug` is true.
+## By default, all Python checks are enabled.
+#
+# tracemalloc_whitelist: <TRACEMALLOC_WHITELIST>
+
+## @param tracemalloc_blacklist - string - optional
+## Comma-separated list of Python checks to disable tracemalloc for when `tracemalloc_debug` is true.
+## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_whitelist`.
+#
+# tracemalloc_blacklist: <TRACEMALLOC_BLACKLIST>
 
 ## @param secret_backend_command - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
@@ -717,9 +753,19 @@ api_key:
 ## When running in a memory cgroup, openjdk 8u131 and higher can automatically adjust
 ## its heap memory usage in accordance to the cgroup/container's memory limit.
 ## The Agent set a Xmx of 200MB if none is configured.
-## Note: older openjdk versions and other jvms might fail to start if this option is set
+## Note: OpenJDK version < 8u131 or >= 10 as well as other JVMs might fail
+## to start if this option is set.
 #
 # jmx_use_cgroup_memory_limit: false
+
+## @param jmx_use_container_support - boolean - optional - default: false
+## When running in a container, openjdk 10 and higher can automatically detect
+## container specific configuration instead of querying the operating system
+## to adjust resources allotted to the JVM.
+## Note: openjdk versions prior to 10 and other JVMs might fail to start if
+## this option is set.
+#
+# jmx_use_container_support: false
 
 ## @param jmx_max_restarts - integer - optional - default: 3
 ## Number of JMX restarts allowed in the restart-interval before giving up.
@@ -1017,6 +1063,18 @@ api_key:
   #
   # extra_tags:
   #   - <TAG_KEY>:<TAG_VALUE>
+
+  ## @param advanced_dispatching_enabled - boolean - optional - default: false
+  ## If advanced_dispatching_enabled is true the leader cluster-agent collects stats
+  ## from the cluster level check runners to optimize the check dispatching logic.
+  #
+  # advanced_dispatching_enabled: false
+
+  ## @param clc_runners_port - integer - optional - default: 5005
+  ## Set the "clc_runners_port" used by the cluster-agent client to reach cluster level
+  ## check runners and collect their stats.
+  #
+  # clc_runners_port: 5005
 
 {{ end -}}
 {{- if .DockerTagging }}

@@ -59,15 +59,35 @@ func TestStart(t *testing.T) {
 	assert.NotNil(t, forwarder.Start())
 }
 
-func TestStop(t *testing.T) {
+func TestStopWithoutPurgingTransaction(t *testing.T) {
+	forwarderTimeout := config.Datadog.GetDuration("forwarder_stop_timeout")
+	defer func() { config.Datadog.Set("forwarder_stop_timeout", forwarderTimeout) }()
+	config.Datadog.Set("forwarder_stop_timeout", 0)
+
+	testStop(t)
+}
+
+func TestStopWithPurgingTransaction(t *testing.T) {
+	forwarderTimeout := config.Datadog.GetDuration("forwarder_stop_timeout")
+	defer func() { config.Datadog.Set("forwarder_stop_timeout", forwarderTimeout) }()
+	config.Datadog.Set("forwarder_stop_timeout", 1)
+
+	testStop(t)
+}
+
+func testStop(t *testing.T) {
 	forwarder := NewDefaultForwarder(keysPerDomains)
 	assert.Equal(t, Stopped, forwarder.State())
 	forwarder.Stop() // this should be a noop
 	forwarder.Start()
+	domainForwarders := forwarder.domainForwarders
 	forwarder.Stop()
 	assert.Equal(t, Stopped, forwarder.State())
 	assert.Nil(t, forwarder.healthChecker)
 	assert.Len(t, forwarder.domainForwarders, 0)
+	for _, df := range domainForwarders {
+		assert.Equal(t, Stopped, df.internalState)
+	}
 }
 
 func TestSubmitIfStopped(t *testing.T) {

@@ -209,14 +209,14 @@ func parseContainerNetworkAddresses(ports []types.Port, netSettings *types.Summa
 				Port:     int(port.PublicPort), // Exposed port
 				Protocol: port.Type,
 			})
-		} else {
-			// Port is not exposed, cache it and retieve IPs from network settings
-			tempAddrList = append(tempAddrList, containers.NetworkAddress{
-				Port:     int(port.PrivatePort),
-				Protocol: port.Type,
-			})
 		}
+		// Cache container ports
+		tempAddrList = append(tempAddrList, containers.NetworkAddress{
+			Port:     int(port.PrivatePort),
+			Protocol: port.Type,
+		})
 	}
+	// Retieve IPs from network settings for the cached ports
 	for _, network := range netSettings.Networks {
 		if network.IPAddress == "" {
 			log.Debugf("No IP found for container %s in network %s", container, network.NetworkID)

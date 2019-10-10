@@ -3,6 +3,8 @@ package testcommon
 import (
 	"fmt"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
 /*
@@ -21,7 +23,7 @@ static void initCgoFreeTests(rtloader_t *rtloader) {
 import "C"
 
 var (
-	rtloader           *C.rtloader_t
+	rtloader      *C.rtloader_t
 	cgoFreeCalled bool
 	latestFreePtr unsafe.Pointer
 )
@@ -31,6 +33,9 @@ func setUp() error {
 	if rtloader == nil {
 		return fmt.Errorf("make failed")
 	}
+
+	// Initialize memory tracking
+	helpers.InitMemoryTracker()
 
 	C.initCgoFreeTests(rtloader)
 

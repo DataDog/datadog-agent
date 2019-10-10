@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
 // #cgo CFLAGS: -I../../include
@@ -14,6 +15,9 @@ import (
 import "C"
 
 func runInit() error {
+	// Initialize memory tracking
+	helpers.InitMemoryTracker()
+
 	rtloader := (*C.rtloader_t)(common.GetRtLoader())
 	if rtloader == nil {
 		return fmt.Errorf("make failed")

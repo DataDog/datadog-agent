@@ -26,12 +26,15 @@ spec:
 
     - name: redis-deployment
       value: |
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: redis
           namespace: default
         spec:
+          selector:
+            matchLabels:
+              app: redis
           replicas: 1
           template:
             metadata:
@@ -70,13 +73,16 @@ spec:
 
     - name: redis-deployment-unready
       value: |
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: redis-unready
           namespace: default
         spec:
           replicas: 1
+          selector:
+            matchLabels:
+              app: redis
           template:
             metadata:
               labels:
@@ -105,13 +111,16 @@ spec:
 
     - name: cpu-stress
       value: |
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: cpu-stress
           namespace: default
         spec:
           replicas: 1
+          selector:
+            matchLabels:
+              app: cpu-stress
           template:
             metadata:
               labels:
@@ -133,13 +142,16 @@ spec:
 
     - name: dsd-hostname
       value: |
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: dsd-hostname
           namespace: default
         spec:
           replicas: 1
+          selector:
+            matchLabels:
+              app: dsd-hostname
           template:
             metadata:
               labels:
@@ -290,7 +302,7 @@ spec:
 
     - name: agent-daemonset
       value: |
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: DaemonSet
         metadata:
           name: datadog-agent
@@ -299,6 +311,9 @@ spec:
           updateStrategy:
             rollingUpdate:
               maxUnavailable: 1
+          selector:
+            matchLabels:
+              app: datadog-agent
           template:
             metadata:
               labels:
@@ -406,13 +421,16 @@ spec:
 
     - name: fake-datadog-deployment
       value: |
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: fake-datadog
           namespace: default
         spec:
           replicas: 1
+          selector:
+            matchLabels:
+              app: fake-datadog
           strategy:
             type: RollingUpdate
             rollingUpdate:
@@ -492,7 +510,7 @@ spec:
 
     - name: kube-state-metrics-deployment
       value: |
-        apiVersion: apps/v1beta2
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: kube-state-metrics
