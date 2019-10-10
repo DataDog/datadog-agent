@@ -44,13 +44,11 @@ func (*mockCollector) GetAllInstanceIDs(checkName string) []check.ID {
 }
 
 type mockScheduler struct {
-	addCollectorCalled chan interface{}
-	sendNowCalled      chan interface{}
-	lastSendNowDelay   time.Duration
+	sendNowCalled    chan interface{}
+	lastSendNowDelay time.Duration
 }
 
 func (m *mockScheduler) AddCollector(name string, interval time.Duration) error {
-	m.addCollectorCalled <- nil
 	return nil
 }
 
@@ -66,52 +64,6 @@ func waitForCalledSignal(calledSignal chan interface{}) bool {
 	case <-time.After(1 * time.Second):
 		return false
 	}
-}
-
-func TestSetup(t *testing.T) {
-	defer func() { clearMetadata() }()
-
-	startNow := time.Now()
-	timeNow = func() time.Time { return startNow }
-	defer func() { timeNow = time.Now }()
-
-	timeSince = func(t time.Time) time.Duration { return maxSendInterval }
-	defer func() { timeSince = time.Since }()
-
-	ms := mockScheduler{
-		addCollectorCalled: make(chan interface{}, 5),
-		sendNowCalled:      make(chan interface{}, 5),
-		lastSendNowDelay:   -1,
-	}
-
-	err := Setup(&ms, &mockAutoConfig{}, &mockCollector{})
-	assert.Nil(t, err)
-
-	// Collector should be added but not called after setup
-	assert.True(t, waitForCalledSignal(ms.addCollectorCalled))
-	assert.False(t, waitForCalledSignal(ms.sendNowCalled))
-
-	// New metadata should trigger the collector
-	SetAgentMetadata("key", "value")
-	assert.True(t, waitForCalledSignal(ms.sendNowCalled))
-	assert.Equal(t, time.Duration(0), ms.lastSendNowDelay)
-
-	// The same metadata shouldn't
-	SetAgentMetadata("key", "value")
-	assert.False(t, waitForCalledSignal(ms.sendNowCalled))
-
-	// Different metadata for the same key should
-	SetAgentMetadata("key", "new_value")
-	assert.True(t, waitForCalledSignal(ms.sendNowCalled))
-	assert.Equal(t, time.Duration(0), ms.lastSendNowDelay)
-
-	// Simulate next call happens too quickly after the previous one
-	timeSince = func(t time.Time) time.Duration { return 0 * time.Second }
-
-	// Different metadata after a short time should trigger the collector but with a delay
-	SetAgentMetadata("key", "yet_another_value")
-	assert.True(t, waitForCalledSignal(ms.sendNowCalled))
-	assert.True(t, ms.lastSendNowDelay > time.Duration(0))
 }
 
 func TestGetPayload(t *testing.T) {
@@ -232,4 +184,48 @@ func TestGetPayload(t *testing.T) {
 	jsonString = strings.Join(strings.Fields(jsonString), "") // Removes whitespaces and new lines
 	assert.Equal(t, jsonString, string(marshaled))
 
+}
+
+func TestSetup(t *testing.T) {
+	defer func() { clearMetadata() }()
+
+	startNow := time.Now()
+	timeNow = func() time.Time { return startNow }
+	defer func() { timeNow = time.Now }()
+
+	timeSince = func(t time.Time) time.Duration { return 24 * time.Hour }
+	defer func() { timeSince = time.Since }()
+
+	ms := mockScheduler{
+		sendNowCalled:    make(chan interface{}, 5),
+		lastSendNowDelay: -1,
+	}
+
+	err := StartSendNowRoutine(&ms, 10*time.Minute)
+	assert.Nil(t, err)
+
+	// Collector should be added but not called after setup
+	assert.False(t, waitForCalledSignal(ms.sendNowCalled))
+
+	// New metadata should trigger the collector
+	SetAgentMetadata("key", "value")
+	assert.True(t, waitForCalledSignal(ms.sendNowCalled))
+	assert.Equal(t, time.Duration(0), ms.lastSendNowDelay)
+
+	// The same metadata shouldn't
+	SetAgentMetadata("key", "value")
+	assert.False(t, waitForCalledSignal(ms.sendNowCalled))
+
+	// Different metadata for the same key should
+	SetAgentMetadata("key", "new_value")
+	assert.True(t, waitForCalledSignal(ms.sendNowCalled))
+	assert.Equal(t, time.Duration(0), ms.lastSendNowDelay)
+
+	// Simulate next call happens too quickly after the previous one
+	timeSince = func(t time.Time) time.Duration { return 0 * time.Second }
+
+	// Different metadata after a short time should trigger the collector but with a delay
+	SetAgentMetadata("key", "yet_another_value")
+	assert.True(t, waitForCalledSignal(ms.sendNowCalled))
+	assert.True(t, ms.lastSendNowDelay > time.Duration(0))
 }

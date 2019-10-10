@@ -105,6 +105,10 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 	}()
 	c.collectors[name] = sc
 
+	if withInit, ok := p.(CollectorWithInit); ok {
+		withInit.Init()
+	}
+
 	return nil
 }
 
