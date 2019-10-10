@@ -22,14 +22,14 @@ func TestDiffEvents(t *testing.T) {
 
 	for n, tc := range []struct {
 		caseName   string
-		listEvents []v1.Event
+		listEvents []*v1.Event
 		resver     int
 		expected   []*v1.Event
 	}{
 
 		{
 			caseName: "2 new events",
-			listEvents: []v1.Event{{
+			listEvents: []*v1.Event{{
 				Reason: "OOM",
 				ObjectMeta: metav1.ObjectMeta{
 					ResourceVersion: "43",
@@ -65,7 +65,7 @@ func TestDiffEvents(t *testing.T) {
 		},
 		{
 			caseName: "all new events",
-			listEvents: []v1.Event{{
+			listEvents: []*v1.Event{{
 				Reason: "OOM",
 				ObjectMeta: metav1.ObjectMeta{
 					ResourceVersion: "43",
@@ -107,12 +107,13 @@ func TestDiffEvents(t *testing.T) {
 		},
 		{
 			caseName: "no new events",
-			listEvents: []v1.Event{{
-				Reason: "OOM",
-				ObjectMeta: metav1.ObjectMeta{
-					ResourceVersion: "43",
+			listEvents: []*v1.Event{
+				{
+					Reason: "OOM",
+					ObjectMeta: metav1.ObjectMeta{
+						ResourceVersion: "43",
+					},
 				},
-			},
 				{
 					Reason: "Create",
 					ObjectMeta: metav1.ObjectMeta{

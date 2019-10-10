@@ -22,81 +22,57 @@ import (
 )
 
 // RunEventCollection will return the most recent events emitted by the apiserver.
-func (c *APIClient) RunEventCollection(srv string, st time.Time, eventReadTimeout int64, eventCardinalityLimit int64, resync int64, filter string) ([]*v1.Event, string, time.Time, error) {
+func (c *APIClient) RunEventCollection(resVer string, lastListTime time.Time, eventReadTimeout int64, eventCardinalityLimit int64, resync int64, filter string) ([]*v1.Event, string, time.Time, error) {
 	var added []*v1.Event
 	syncTimeout := time.Duration(resync) * time.Second
 	// list if latestResVer is "" or if lastListTS is > syncTimeout
-	if srv == "" || time.Now().Sub(st) > syncTimeout {
-		evList, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).List(metav1.ListOptions{
-			TimeoutSeconds:       &eventReadTimeout,
-			Limit:                eventCardinalityLimit,
-			IncludeUninitialized: false,
-			FieldSelector:        filter,
-		})
-		if err != nil {
-			log.Errorf("Error Listing events: %s", err.Error())
-			return nil, srv, st, err
-		}
-		for _, e := range evList.Items {
-			// List call returns a different type than the Watch call.
-			added = append(added, &e)
-		}
-		st = time.Now()
-		srv = evList.ResourceVersion
-		return added, srv, st, nil
+	if resVer == "" || time.Now().Sub(lastListTime) > syncTimeout {
+		return c.listForEventResync(eventReadTimeout, eventCardinalityLimit, filter)
 	}
 	// Start watcher with the most up to date RV
 	evWatcher, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).Watch(metav1.ListOptions{
 		Watch:                true,
-		ResourceVersion:      srv,
+		ResourceVersion:      resVer,
 		Limit:                eventCardinalityLimit,
 		IncludeUninitialized: false,
 		FieldSelector:        filter,
 	})
 	if err != nil {
-		return added, srv, st, err
+		return added, resVer, lastListTime, err
 	}
 
 	defer evWatcher.Stop()
-	log.Debugf("Starting to watch from %s", srv)
+	log.Debugf("Starting to watch from %s", resVer)
 	// watch during 2 * timeout maximum and store where we are at.
 	timeoutParse := time.NewTimer(time.Duration(eventReadTimeout*2) * time.Second)
 	for {
 		select {
 		case rcv, ok := <-evWatcher.ResultChan():
 			if !ok {
-				return added, srv, st, fmt.Errorf("Unexpected watch close")
+				return added, resVer, lastListTime, fmt.Errorf("Unexpected watch close")
 			}
 			if rcv.Type == watch.Error {
 				status, ok := rcv.Object.(*metav1.Status)
 				if !ok {
-					return added, srv, st, fmt.Errorf("Could not unmarshall the status of the event")
+					return added, resVer, lastListTime, fmt.Errorf("Could not unmarshall the status of the event")
 				}
 				switch status.Reason {
 				// Using a switch as there are a lot of different types and we might want to explore adapting the behaviour for certain ones in the future.
 				case "Expired":
 					log.Debugf("Resource Version is too old, listing all events and collecting only the new ones")
-					evList, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).List(metav1.ListOptions{
-						TimeoutSeconds:       &eventReadTimeout,
-						Limit:                eventCardinalityLimit,
-						IncludeUninitialized: false,
-						FieldSelector:        filter,
-					})
+					evList, resVer, lastListTime, err := c.listForEventResync(eventReadTimeout, eventCardinalityLimit, filter)
 					if err != nil {
-						return added, srv, st, err
+						return added, resVer, lastListTime, err
 					}
-					st = time.Now()
-					i, err := strconv.Atoi(srv)
+					i, err := strconv.Atoi(resVer)
 					if err != nil {
 						log.Errorf("Error converting the stored Resource Version: %s", err.Error())
 						continue
 					}
-					ev := diffEvents(i, evList.Items)
-					srv = evList.ResourceVersion
-					return ev, srv, st, nil
+					return diffEvents(i, evList), resVer, lastListTime, nil
 				default:
 					// see the different types: k8s.io/apimachinery/pkg/apis/meta/v1/types.go
-					return added, srv, st, fmt.Errorf("received an unexpected status while collecting the events: %s", status.Reason)
+					return added, resVer, lastListTime, fmt.Errorf("received an unexpected status while collecting the events: %s", status.Reason)
 				}
 			}
 
@@ -110,30 +86,30 @@ func (c *APIClient) RunEventCollection(srv string, st time.Time, eventReadTimeou
 			if err != nil {
 				// Could not convert the Resversion. Returning.
 				// should not be happening, it means the object is not correctly formatted in etcd.
-				return added, srv, st, err
+				return added, resVer, lastListTime, err
 			}
 			added = append(added, ev)
 
-			i, err := strconv.Atoi(srv)
+			i, err := strconv.Atoi(resVer)
 			if err != nil {
-				log.Errorf("Could not cast %s into an integer: %s", srv, err.Error())
+				log.Errorf("Could not cast %s into an integer: %s", resVer, err.Error())
 				continue
 			}
 			if evResVer > i {
 				// Events from the watch are not ordered necessarily, let's keep track of the newest RV.
-				srv = ev.ResourceVersion
+				resVer = ev.ResourceVersion
 			}
 
 		case <-timeoutParse.C:
-			log.Debugf("Collected %d events, will resume watching from resource version %s", len(added), srv)
+			log.Debugf("Collected %d events, will resume watching from resource version %s", len(added), resVer)
 			// No more events to read or the watch lasted more than `eventReadTimeout`.
 			// so return what was processed.
-			return added, srv, st, nil
+			return added, resVer, lastListTime, nil
 		}
 	}
 }
 
-func diffEvents(latestStoredRV int, fullList []v1.Event) []*v1.Event {
+func diffEvents(latestStoredRV int, fullList []*v1.Event) []*v1.Event {
 	var diffEvents []*v1.Event
 	for _, ev := range fullList {
 		erv, err := strconv.Atoi(ev.ResourceVersion)
@@ -142,9 +118,27 @@ func diffEvents(latestStoredRV int, fullList []v1.Event) []*v1.Event {
 			continue
 		}
 		if erv > latestStoredRV {
-			diffEvents = append(diffEvents, &ev)
+			diffEvents = append(diffEvents, ev)
 		}
 	}
 	log.Debugf("Returning %d events that we have not collected", len(diffEvents))
 	return diffEvents
+}
+
+func (c *APIClient) listForEventResync(eventReadTimeout int64, eventCardinalityLimit int64, filter string) (added []*v1.Event, resVer string, lastListTime time.Time, err error) {
+	evList, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).List(metav1.ListOptions{
+		TimeoutSeconds:       &eventReadTimeout,
+		Limit:                eventCardinalityLimit,
+		IncludeUninitialized: false,
+		FieldSelector:        filter,
+	})
+	if err != nil {
+		log.Errorf("Error Listing events: %s", err.Error())
+		return nil, resVer, lastListTime, err
+	}
+	for _, e := range evList.Items {
+		// List call returns a different type than the Watch call.
+		added = append(added, &e)
+	}
+	return added, evList.ResourceVersion, time.Now(), nil
 }
