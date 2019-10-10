@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -688,18 +687,15 @@ func load(config Config, origin string, loadSecret bool) error {
 	// If this variable is set to true, we'll use DefaultPython for the Python version,
 	// ignoring the python_version configuration value.
 	if ForceDefaultPython == "true" {
-		defaultPython, err := strconv.Atoi(DefaultPython)
-		if err != nil {
-			log.Warn("Bad value for DefaultPython, will use configuration value. Err:", err)
-		}
 		override := make(map[string]interface{})
-		override["python_version"] = defaultPython
-		AddOverrides(override)
+		override["python_version"] = DefaultPython
 
-		pv := config.GetInt("python_version")
-		if pv > 0 && pv != defaultPython {
-			log.Warnf("Python version has been forced to %d", defaultPython)
+		pv := config.GetString("python_version")
+		if pv != DefaultPython {
+			log.Warnf("Python version has been forced to %s", DefaultPython)
 		}
+
+		AddOverrides(override)
 	}
 
 	loadProxyFromEnv(config)
