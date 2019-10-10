@@ -1,0 +1,62 @@
+package dogstatsd_tmp
+
+import (
+	"bytes"
+)
+
+type messageType int
+
+const (
+	metricSampleType messageType = iota
+	serviceCheckType
+	eventType
+)
+
+type metricType int
+
+const (
+	gaugeType metricType = iota
+	countType
+	distributionType
+	histogramType
+	setType
+	timingType
+)
+
+var (
+	eventPrefix        = []byte("_e{")
+	serviceCheckPrefix = []byte("_sc")
+
+	fieldSeparator = []byte("|")
+	colonSeparator = []byte(":")
+	tagsSeparator  = []byte(",")
+)
+
+func findMessageType(message []byte) messageType {
+	if bytes.HasPrefix(message, eventPrefix) {
+		return eventType
+	} else if bytes.HasPrefix(message, serviceCheckPrefix) {
+		return serviceCheckType
+	}
+	// Note that random gibberish is interpreted as a metric since they don't
+	// contain any easily identifiable feature
+	return metricSampleType
+}
+
+// nextField returns the data found before the first fieldSeparator and
+// the remainder, as a no-heap alternative to bytes.Split.
+// If the separator is not found, the remainder is nil.
+func nextField(message []byte) ([]byte, []byte) {
+	sepIndex := bytes.Index(message, fieldSeparator)
+	if sepIndex == -1 {
+		return message, nil
+	}
+	return message[:sepIndex], message[sepIndex+1:]
+}
+
+func parseTags(rawTags []byte) [][]byte {
+	if len(rawTags) == 0 {
+		return nil
+	}
+	return bytes.Split(rawTags, tagsSeparator)
+}
