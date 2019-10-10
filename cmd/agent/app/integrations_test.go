@@ -45,6 +45,19 @@ func TestMoveConfigurationsFiles(t *testing.T) {
 	}
 }
 
+func TestMoveConfigurationsFilesProfiles(t *testing.T) {
+	srcFolder, _ := ioutil.TempDir("", "srcFolder")
+	dstFolder, _ := ioutil.TempDir("", "dstFolder")
+	defer os.RemoveAll(srcFolder)
+	defer os.RemoveAll(dstFolder)
+	os.MkdirAll(filepath.Join(srcFolder, "profiles"), 0755)
+	os.Create(filepath.Join(srcFolder, "profiles", "device.yaml"))
+
+	moveConfigurationFiles(srcFolder, dstFolder)
+	_, err := os.Stat(filepath.Join(dstFolder, "profiles", "device.yaml"))
+	assert.Nil(t, err)
+}
+
 func TestGetVersionFromReqLine(t *testing.T) {
 	reqLines := "package1==3.2.1\npackage2==2.3.1"
 
