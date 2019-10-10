@@ -1924,11 +1924,12 @@ tag_release_6:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:${CI_COMMIT_TAG}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:${CI_COMMIT_TAG}-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:${CI_COMMIT_TAG}-py3
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:${CI_COMMIT_TAG}-py3-jmx
-    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:${CI_COMMIT_TAG}
+    - VERSION=`PYTHON_RUNTIMES=2,3 inv -e agent.version`
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:${VERSION}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:${VERSION}-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:${VERSION}-py3
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:${VERSION}-py3-jmx
+    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:${VERSION}
 
 tag_release_7:
   <<: *docker_tag_job_definition
@@ -1938,8 +1939,9 @@ tag_release_7:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:${CI_COMMIT_TAG}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:${CI_COMMIT_TAG}-jmx
+    - VERSION=`PYTHON_RUNTIMES=3 inv -e agent.version`
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:${VERSION}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:${VERSION}-jmx
 
 latest_release_6:
   <<: *docker_tag_job_definition
