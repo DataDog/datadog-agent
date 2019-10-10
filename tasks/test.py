@@ -223,7 +223,8 @@ def lint_releasenote(ctx):
             if 'next' in res.links:
                 url = res.links['next']['url']
             else:
-                print("Error: No releasenote was found for this PR. Please add one using 'reno'.")
+                print("Error: No releasenote was found for this PR. Please add one using 'reno'"\
+                      ", or apply the label 'changelog/no-changelog' to the PR.")
                 raise Exit(code=1)
 
     # The PR has not been created yet, let's compare with master (the usual base branch of the future PR)
@@ -249,7 +250,8 @@ def lint_releasenote(ctx):
                     if 'next' in res.links:
                         url = res.links['next']['url']
                     else:
-                        print("Error: No releasenote was found for this PR. Please add one using 'reno'.")
+                        print("Error: No releasenote was found for this PR. Please add one using 'reno'"\
+                              ", or apply the label 'changelog/no-changelog' to the PR.")
                         raise Exit(code=1)
 
     ctx.run("reno lint")
