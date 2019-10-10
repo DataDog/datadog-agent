@@ -24,6 +24,19 @@ func (c MockCollector) Send(s *serializer.Serializer) error {
 	return nil
 }
 
+type MockCollectorWithInit struct {
+	InitCalledC chan bool
+}
+
+func (c MockCollectorWithInit) Send(s *serializer.Serializer) error {
+	return nil
+}
+
+func (c MockCollectorWithInit) Init() error {
+	c.InitCalledC <- true
+	return nil
+}
+
 func mockNewTimer(d time.Duration) *time.Timer {
 	c := make(chan time.Time, 1)
 	timer := time.NewTimer(10 * time.Hour)
@@ -102,6 +115,41 @@ func TestAddCollector(t *testing.T) {
 	select {
 	case <-mockCollector.SendCalledC:
 		assert.Fail(t, "Send was called twice")
+	default:
+	}
+}
+
+func TestAddCollectorWithInit(t *testing.T) {
+	enableFirstRunCollection = false
+	defer func() { enableFirstRunCollection = true }()
+
+	mockCollectorWithInit := &MockCollectorWithInit{
+		InitCalledC: make(chan bool, 1),
+	}
+
+	fwd := forwarder.NewDefaultForwarder(nil)
+	fwd.Start()
+	s := serializer.NewSerializer(fwd)
+	c := NewScheduler(s)
+	RegisterCollector("testCollectorWithInit", mockCollectorWithInit)
+
+	select {
+	case <-mockCollectorWithInit.InitCalledC:
+		assert.Fail(t, "Init was called too early")
+	default:
+	}
+
+	c.AddCollector("testCollectorWithInit", 10*time.Hour)
+
+	select {
+	case <-mockCollectorWithInit.InitCalledC:
+	case <-time.After(5 * time.Second):
+		assert.Fail(t, "Timeout waiting for Init to be called")
+	}
+
+	select {
+	case <-mockCollectorWithInit.InitCalledC:
+		assert.Fail(t, "Init was called twice")
 	default:
 	}
 }
