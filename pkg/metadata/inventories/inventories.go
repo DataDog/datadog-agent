@@ -24,6 +24,12 @@ var (
 	agentStartupTime = timeNow()
 )
 
+const (
+	// CloudProviderMetatadaName is the field name to use to set the cloud
+	// provider name in the agent metadata.
+	CloudProviderMetatadaName = "cloud_provider"
+)
+
 // SetAgentMetadata updates the agent metadata value in the cache
 func SetAgentMetadata(name string, value interface{}) {
 	agentCacheMutex.Lock()
