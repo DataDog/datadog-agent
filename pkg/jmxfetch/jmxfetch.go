@@ -79,9 +79,12 @@ type JMXFetch struct {
 type JMXReporter string
 
 var (
-	ReporterDefault JMXReporter = "statsd"
+	// ReporterStatsd reports the output to statsd.
+	ReporterStatsd JMXReporter = "statsd" // default one
+	// ReporterConsole reports the output into the console as plain text
 	ReporterConsole JMXReporter = "console"
-	ReporterJson    JMXReporter = "json"
+	// ReporterJson reports the output into the console as json
+	ReporterJson JMXReporter = "json"
 )
 
 // checkInstanceCfg lists the config options on the instance against which we make some sanity checks
