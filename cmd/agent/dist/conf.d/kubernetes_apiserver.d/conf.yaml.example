@@ -13,9 +13,9 @@ instances:
     #   - <KEY_2>:<VALUE_2>
 
     ## @param filtered_event_types - array of strings - optional
-    ## Specify a list of exclusion filters over the event type, involvedObject.
+    ## Specify a list of exclusion filters over the event type, involvedObject.kind, reason, following the Kubernetes field-selector format.
     #
-    # filtered_event_types: ["MissingClusterDNS","reason:FailedGetScale","kind:Pod","type:Normal"]
+    # filtered_event_types: ["reason!=FailedGetScale","involvedObject.kind==Pod","type==Normal"]
 
     ## @param max_events_per_run - integer - optional - default: 300
     ## Maximum number of events you wish to collect per check run.

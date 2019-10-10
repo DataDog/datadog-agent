@@ -34,6 +34,7 @@ const (
 	KubeControlPaneCheck         = "kube_apiserver_controlplane.up"
 	kubernetesAPIServerCheckName = "kubernetes_apiserver"
 	eventTokenKey                = "event"
+	maxEventCardinality          = 300
 )
 
 // KubeASConfig is the config of the API server.
@@ -47,7 +48,7 @@ type KubeASConfig struct {
 	ResyncPeriodEvents       int      `yaml:"kubernetes_event_resync_period_s"`
 }
 
-// EventC is the structure that holds the information pertaining to which event we collected last and when we last resynced.
+// EventC holds the information pertaining to which event we collected last and when we last re-synced.
 type EventC struct {
 	LastResVer string
 	LastTime   time.Time
@@ -87,7 +88,7 @@ func (k *KubeASCheck) Configure(config, initConfig integration.Data, source stri
 		return err
 	}
 	if k.instance.MaxEventCollection == 0 {
-		k.instance.MaxEventCollection = 200
+		k.instance.MaxEventCollection = maxEventCardinality
 	}
 	k.ignoredEvents = convertFilter(k.instance.FilteredEventTypes)
 	return nil
@@ -96,20 +97,12 @@ func (k *KubeASCheck) Configure(config, initConfig integration.Data, source stri
 func convertFilter(conf []string) string {
 	var formatedFilters []string
 	for _, filter := range conf {
-		f := strings.Split(filter, ":")
-		switch {
-		// Required to avoid introducing a breaking change.
-		case len(f) == 1:
+		f := strings.Split(filter, "=")
+		if len(f) == 1 {
 			formatedFilters = append(formatedFilters, fmt.Sprintf("reason!=%s", f[0]))
-		case f[0] == "reason" && len(f) == 2:
-			formatedFilters = append(formatedFilters, fmt.Sprintf("reason!=%s", f[1]))
-		case f[0] == "kind" && len(f) == 2:
-			formatedFilters = append(formatedFilters, fmt.Sprintf("involvedObject.kind!=%s", f[1]))
-		case f[0] == "type" && len(f) == 2:
-			formatedFilters = append(formatedFilters, fmt.Sprintf("type!=%s", f[1]))
-		default:
-			log.Errorf("Could not parse the filter %s. Only supports key:value for kind, type and reason", f)
+			continue
 		}
+		formatedFilters = append(formatedFilters, filter)
 	}
 	return strings.Join(formatedFilters, ",")
 }

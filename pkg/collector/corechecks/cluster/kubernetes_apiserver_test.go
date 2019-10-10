@@ -287,12 +287,12 @@ func TestConvertFilter(t *testing.T) {
 		},
 		{
 			caseName: "exclude node and type",
-			filters:  []string{"kind:Node", "type:Normal"},
-			output:   "involvedObject.kind!=Node,type!=Normal",
+			filters:  []string{"involvedObject.kind!=Node", "type==Normal"},
+			output:   "involvedObject.kind!=Node,type==Normal",
 		},
 		{
 			caseName: "legacy support and exclude HorizontalPodAutoscaler",
-			filters:  []string{"kind:HorizontalPodAutoscaler", "type:Normal", "OOM"},
+			filters:  []string{"involvedObject.kind!=HorizontalPodAutoscaler", "type!=Normal", "OOM"},
 			output:   "involvedObject.kind!=HorizontalPodAutoscaler,type!=Normal,reason!=OOM",
 		},
 	} {
