@@ -2,6 +2,6 @@
 features:
   - |
     Add a new python API to store and retrieve data.
-    `datadog_agent.store_value(key, value)` persists the data in `value` (as a
-    string), whereas `datadog_agent.retrieve_value(key)` returns it for usage
-    afterwards.
+    `datadog_agent.write_persistent_cache(key, value)` persists the data in
+    `value` (as a string), whereas `datadog_agent.read_persistent_cache(key)`
+    returns it for usage afterwards.
