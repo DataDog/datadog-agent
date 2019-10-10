@@ -126,6 +126,19 @@ before_script:
     variables:
       - $RELEASE_VERSION == "nightly"
 
+# skip job only when triggered by an external tool (ex: Jenkins) and when
+# BUILD_AGENT_X is set to "no".
+
+.skip_when_unwanted_on_6: &skip_when_unwanted_on_6
+  except:
+    variables:
+      - $BUILD_AGENT_6 == "false"
+
+.skip_when_unwanted_on_7: &skip_when_unwanted_on_7
+  except:
+    variables:
+      - $BUILD_AGENT_7 == "false"
+
 #
 # Job conditions
 #
@@ -455,6 +468,7 @@ agent_deb-x64-a6:
     PYTHON_RUNTIMES: '2,3'
     DESTINATION_DEB: 'datadog-agent_6_amd64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_amd64.deb'
+  <<: *skip_when_unwanted_on_6
   <<: *agent_build_common_deb
 
 agent_deb-x64-a7:
@@ -467,6 +481,7 @@ agent_deb-x64-a7:
     PYTHON_RUNTIMES: '3'
     DESTINATION_DEB: 'datadog-agent_7_amd64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_amd64.deb'
+  <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_deb
 
 # build Agent package for deb-x64
@@ -541,6 +556,7 @@ agent_rpm-x64-a6:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     PYTHON_RUNTIMES: '2,3'
     CONDA_ENV: ddpy3
+  <<: *skip_when_unwanted_on_6
   <<: *agent_build_common_rpm
 
 # build Agent package for rpm-x64
@@ -552,6 +568,7 @@ agent_rpm-x64-a7:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
+  <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_rpm
 
 .agent_build_common_suse_rpm: &agent_build_common_suse_rpm
@@ -594,6 +611,7 @@ agent_suse-x64-a6:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     PYTHON_RUNTIMES: '2,3'
+  <<: *skip_when_unwanted_on_6
   <<: *agent_build_common_suse_rpm
 
 # build Agent package for suse-x64
@@ -604,6 +622,7 @@ agent_suse-x64-a7:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     PYTHON_RUNTIMES: '3'
+  <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_suse_rpm
 
 
@@ -629,24 +648,28 @@ dockerbuild_windows_msi_x64-a7:
   variables:
     ARCH: "x64"
     PYTHON_RUNTIMES: '3'
+  <<: *skip_when_unwanted_on_7
 
 dockerbuild_windows_msi_x86-a7:
   extends: .dockerbuild_windows_msi_base
   variables:
     ARCH: "x86"
     PYTHON_RUNTIMES: '3'
+  <<: *skip_when_unwanted_on_7
 
 dockerbuild_windows_msi_x64-a6:
   extends: .dockerbuild_windows_msi_base
   variables:
     ARCH: "x64"
     PYTHON_RUNTIMES: '2,3'
+  <<: *skip_when_unwanted_on_6
 
 dockerbuild_windows_msi_x86-a6:
   extends: .dockerbuild_windows_msi_base
   variables:
     ARCH: "x86"
     PYTHON_RUNTIMES: '2,3'
+  <<: *skip_when_unwanted_on_6
 
 
 # build Agent package for android
@@ -789,6 +812,7 @@ deploy_deb_testing-a6:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_6
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -813,6 +837,7 @@ deploy_deb_testing-a7:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_7
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -835,6 +860,7 @@ deploy_deb_testing-a7:
 # deploy rpm packages to yum staging repo
 deploy_rpm_testing-a6:
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_6
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -851,6 +877,7 @@ deploy_rpm_testing-a6:
 
 deploy_rpm_testing-a7:
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -868,6 +895,7 @@ deploy_rpm_testing-a7:
 # deploy rpm packages to yum staging repo
 deploy_suse_rpm_testing-a6:
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_6
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -884,6 +912,7 @@ deploy_suse_rpm_testing-a6:
 
 deploy_suse_rpm_testing-a7:
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -901,6 +930,7 @@ deploy_suse_rpm_testing-a7:
 # deploy windows packages to our testing bucket
 deploy_windows_testing-a6:
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_6
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -911,6 +941,7 @@ deploy_windows_testing-a6:
 
 deploy_windows_testing-a7:
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -971,6 +1002,7 @@ kitchen_windows_upgrade5to6:
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_6
   variables:
     PYTHON_RUNTIMES: '2,3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -990,6 +1022,7 @@ kitchen_windows_upgrade5to7:
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_7
   variables:
     PYTHON_RUNTIMES: '3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -1010,6 +1043,7 @@ kitchen_windows-a6:
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_6
   variables:
     PYTHON_RUNTIMES: '2,3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -1029,6 +1063,7 @@ kitchen_windows-a7:
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_7
   variables:
     PYTHON_RUNTIMES: '3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -1047,6 +1082,7 @@ kitchen_windows-a7-2008:
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_7
   variables:
     PYTHON_RUNTIMES: '3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -1063,6 +1099,7 @@ kitchen_windows_installer-a6:
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_6
   variables:
     PYTHON_RUNTIMES: '2,3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -1078,6 +1115,7 @@ kitchen_windows_installer-a7:
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_7
   variables:
     PYTHON_RUNTIMES: '3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -1095,6 +1133,7 @@ kitchen_centos-a6:
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_6
   variables:
     PYTHON_RUNTIMES: '2,3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -1111,6 +1150,7 @@ kitchen_centos-a7:
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_7
   variables:
     PYTHON_RUNTIMES: '3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -1129,6 +1169,7 @@ kitchen_ubuntu-a6:
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_6
   variables:
     PYTHON_RUNTIMES: '2,3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -1145,6 +1186,7 @@ kitchen_ubuntu-a7:
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_7
   variables:
     PYTHON_RUNTIMES: '3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -1162,6 +1204,7 @@ kitchen_suse-a6:
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_6
   variables:
     PYTHON_RUNTIMES: '2,3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -1177,6 +1220,7 @@ kitchen_suse-a7:
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_7
   variables:
     PYTHON_RUNTIMES: '3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -1194,6 +1238,7 @@ kitchen_debian-a6:
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_6
   variables:
     PYTHON_RUNTIMES: '2,3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -1210,6 +1255,7 @@ kitchen_debian-a7:
   allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
+  <<: *skip_when_unwanted_on_7
   variables:
     PYTHON_RUNTIMES: '3'
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -1228,6 +1274,7 @@ kitchen_debian-a7:
 send_pkg_size-a6:
   stage: pkg_metrics
   <<: *run_when_triggered
+  <<: *skip_when_unwanted_on_6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   before_script:
     # tmp while we uppdate the base image
@@ -1279,6 +1326,7 @@ send_pkg_size-a6:
 send_pkg_size-a7:
   stage: pkg_metrics
   <<: *run_when_triggered
+  <<: *skip_when_unwanted_on_7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   before_script:
     # tmp while we uppdate the base image
@@ -1424,6 +1472,7 @@ testkitchen_cleanup_azure-a7:
 # build agent6 image
 build_agent6:
   <<: *docker_build_job_definition
+  <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -1434,6 +1483,7 @@ build_agent6:
 # build agent6 jmx image
 build_agent6_jmx:
   <<: *docker_build_job_definition
+  <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -1446,6 +1496,7 @@ build_agent6_jmx:
 # build agent6 jmx unified image (including python3)
 build_agent6_py2py3_jmx:
   <<: *docker_build_job_definition
+  <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -1456,6 +1507,7 @@ build_agent6_py2py3_jmx:
 # build agent7 image
 build_agent7:
   <<: *docker_build_job_definition
+  <<: *skip_when_unwanted_on_7
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -1466,6 +1518,7 @@ build_agent7:
 # build agent7 jmx image
 build_agent7_jmx:
   <<: *docker_build_job_definition
+  <<: *skip_when_unwanted_on_7
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -1619,15 +1672,27 @@ dev_nightly_docker_hub:
 # Check that the current version hasn't already been deployed (we don't want to
 # overwrite a public package). To update an erroneous package, first remove it
 # from our S3 bucket.
-check_already_deployed_version:
+check_already_deployed_version_6:
   <<: *run_when_triggered
+  <<: *skip_when_unwanted_on_6
   stage: check_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
-    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh
+    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_6*_amd64.deb
+
+check_already_deployed_version_7:
+  <<: *run_when_triggered
+  <<: *skip_when_unwanted_on_7
+  stage: check_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_7*_amd64.deb
 
 # If we trigger a build only pipeline we stop here.
 check_if_build_only:
@@ -1647,6 +1712,7 @@ check_if_build_only:
 # deploy debian packages to apt staging repo
 deploy_deb-6:
   <<: *run_when_triggered
+  <<: *skip_when_unwanted_on_6
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -1678,6 +1744,7 @@ deploy_deb-6:
 
 deploy_deb-7:
   <<: *run_when_triggered
+  <<: *skip_when_unwanted_on_7
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -1755,6 +1822,7 @@ deploy_windows_tags-latest-6:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   <<: *run_when_triggered_on_tag
+  <<: *skip_when_unwanted_on_6
   tags: [ "runner:main", "size:large" ]
   script:
     # By default we update the "latest" artifacts on our s3 bucket so the
@@ -1768,6 +1836,7 @@ deploy_windows_tags-latest-7:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   <<: *run_when_triggered_on_tag
+  <<: *skip_when_unwanted_on_7
   tags: [ "runner:main", "size:large" ]
   script:
     # By default we update the "latest" artifacts on our s3 bucket so the
@@ -1789,6 +1858,7 @@ deploy_android_tags:
 # deploy rpm packages to yum staging repo
 deploy_rpm-6:
   <<: *run_when_triggered
+  <<: *skip_when_unwanted_on_6
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -1809,6 +1879,7 @@ deploy_rpm-6:
 
 deploy_rpm-7:
   <<: *run_when_triggered
+  <<: *skip_when_unwanted_on_7
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -1830,6 +1901,7 @@ deploy_rpm-7:
 # deploy suse rpm packages to yum staging repo
 deploy_suse_rpm-6:
   <<: *run_when_triggered
+  <<: *skip_when_unwanted_on_6
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -1850,6 +1922,7 @@ deploy_suse_rpm-6:
 
 deploy_suse_rpm-7:
   <<: *run_when_triggered
+  <<: *skip_when_unwanted_on_7
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -1919,12 +1992,14 @@ deploy_process_and_sysprobe:
 tag_release_6:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_tag
+  <<: *skip_when_unwanted_on_6
   stage: deploy
   when: manual
   variables:
+    PYTHON_RUNTIMES: '2,3'
     <<: *docker_hub_variables
   script:
-    - VERSION=`PYTHON_RUNTIMES=2,3 inv -e agent.version`
+    - VERSION=$(inv -e agent.version)
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:${VERSION}
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:${VERSION}-jmx
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:${VERSION}-py3
@@ -1934,18 +2009,21 @@ tag_release_6:
 tag_release_7:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_tag
+  <<: *skip_when_unwanted_on_7
   stage: deploy
   when: manual
   variables:
+    PYTHON_RUNTIMES: '3'
     <<: *docker_hub_variables
   script:
-    - VERSION=`PYTHON_RUNTIMES=3 inv -e agent.version`
+    - VERSION=$(inv -e agent.version)
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:${VERSION}
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:${VERSION}-jmx
 
 latest_release_6:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_tag
+  <<: *skip_when_unwanted_on_6
   stage: deploy
   when: manual
   variables:
@@ -1965,6 +2043,7 @@ latest_release_6:
 latest_release_7:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_tag
+  <<: *skip_when_unwanted_on_7
   stage: deploy
   when: manual
   variables:
