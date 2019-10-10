@@ -1,6 +1,14 @@
 # StackState Agent v2 releases
 
-## 2.0.5 ( ??? )
+## 2.0.6 ( ??? )
+
+**Features**
+
+**Bugs**
+
+**Improvements**
+
+## 2.0.5 (2019-10-10)
 
 **Features**
 
@@ -11,6 +19,11 @@
 - Make cluster agent gather OpenShift topology _[(STAC-5847)](https://stackstate.atlassian.net/browse/STAC-5847)_
 - Enable new cluster agent to gather Kubernetes topology _[(STAC-5008)](https://stackstate.atlassian.net/browse/STAC-5008)_
 
+**Improvements**
+
+- Performance improvements for the stackstate agent _[(STAC-5968)](https://stackstate.atlassian.net/browse/STAC-5968)_
+- Fixed agent and trace agent branding _[(STAC-5945)](https://stackstate.atlassian.net/browse/STAC-5945)_
+
 ## 2.0.4 (2019-08-26)
 
 **Features**
@@ -20,7 +33,7 @@
 - Add python bindings and handling of topology _[(STAC-4869)](https://stackstate.atlassian.net/browse/STAC-4869)_
 - Enable new trace agent and propagate starttime, pid and hostname tags _[(STAC-4878)](https://stackstate.atlassian.net/browse/STAC-4878)_
 
-**Bug**
+**Bugs**
 
 - Fix windows agent branding _[(STAC-3988)](https://stackstate.atlassian.net/browse/STAC-3988)_
 
