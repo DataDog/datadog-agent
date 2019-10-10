@@ -161,7 +161,7 @@ before_script:
     - echo "Running windows source tests"
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
-    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES \unittests.bat --release-version %RELEASE_VERSION% 
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES \unittests.bat --release-version %RELEASE_VERSION%
 
 run_tests_windows-x64:
   # temporarily allow failure for tests
@@ -169,7 +169,7 @@ run_tests_windows-x64:
   allow_failure: true
   variables:
     ARCH: "x64"
-  
+
 run_tests_windows-x86:
   # temporarily allow failure for tests
   extends: .run_tests_windows_base
@@ -1653,10 +1653,12 @@ deploy_deb-6:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
-    # We first check that the current version hasn't already been deployed
+    # We first check that the current v6 version hasn't already been deployed
     # (same as the check_already_deployed_version). We do this twice to mitigate
     # races and issues with retries while failing early if there is an issue.
     - pushd $OMNIBUS_PACKAGE_DIR
+    # remove v7 deb artifacts
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
     - /deploy_scripts/fail_deb_is_pkg_already_exists.sh
     - popd
     - source /usr/local/rvm/scripts/rvm
@@ -1684,10 +1686,12 @@ deploy_deb-7:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
-    # We first check that the current version hasn't already been deployed
+    # We first check that the current v7 version hasn't already been deployed
     # (same as the check_already_deployed_version). We do this twice to mitigate
     # races and issues with retries while failing early if there is an issue.
     - pushd $OMNIBUS_PACKAGE_DIR
+    # remove v6 deb artifacts
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*_6.*amd64.deb
     - /deploy_scripts/fail_deb_is_pkg_already_exists.sh
     - popd
     - source /usr/local/rvm/scripts/rvm
