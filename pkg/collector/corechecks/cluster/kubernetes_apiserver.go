@@ -42,9 +42,9 @@ type KubeASConfig struct {
 	CollectOShiftQuotas      bool     `yaml:"collect_openshift_clusterquotas"`
 	FilteredEventTypes       []string `yaml:"filtered_event_types"`
 	EventCollectionTimeoutMs int      `yaml:"kubernetes_event_read_timeout_ms"`
-	CardinalityLimit         int      `yaml:"cardinality_limit"`
+	MaxEventCollection       int      `yaml:"max_events_per_run"`
 	LeaderSkip               bool     `yaml:"skip_leader_election"`
-	ResyncPeriodEvents       int      `yaml:"resync_period_kubernetes_events"`
+	ResyncPeriodEvents       int      `yaml:"kubernetes_event_resync_period_s"`
 }
 
 // EventC is the structure that holds the information pertaining to which event we collected last and when we last resynced.
@@ -86,8 +86,8 @@ func (k *KubeASCheck) Configure(config, initConfig integration.Data, source stri
 		log.Error("could not parse the config for the API server")
 		return err
 	}
-	if k.instance.CardinalityLimit == 0 {
-		k.instance.CardinalityLimit = 200
+	if k.instance.MaxEventCollection == 0 {
+		k.instance.MaxEventCollection = 200
 	}
 	k.ignoredEvents = convertFilter(k.instance.FilteredEventTypes)
 	return nil
@@ -235,7 +235,7 @@ func (k *KubeASCheck) eventCollectionCheck() (newEvents []*v1.Event, err error) 
 	}
 
 	timeout := int64(k.instance.EventCollectionTimeoutMs / 1000)
-	limit := int64(k.instance.CardinalityLimit)
+	limit := int64(k.instance.MaxEventCollection)
 	resync := int64(k.instance.ResyncPeriodEvents)
 	newEvents, k.eventCollection.LastResVer, k.eventCollection.LastTime, err = k.ac.RunEventCollection(resVer, lastTime, timeout, limit, resync, k.ignoredEvents)
 

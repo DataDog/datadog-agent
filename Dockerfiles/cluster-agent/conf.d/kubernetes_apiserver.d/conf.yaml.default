@@ -15,11 +15,11 @@ instances:
     # filtered_event_types: ["reason:FailedGetScale","kind:Pod","type:Normal"]
     #
     # Maximum number of events you wish to collect per check run.
-    # cardinality_limit: 300
+    # max_events_per_run: 300
     #
     # Parameter specified by the Cluster Agent when the event collection is configured as a cluster check.
     # skip_leader_election: false
     #
-    # Specify the frequency at which the Agent should list all events to re-sync following the informer pattern
+    # Specify the frequency in seconds at which the Agent should list all events to re-sync following the informer pattern
     #
-    # resync_period_kubernetes_events: 300
+    # kubernetes_event_resync_period_s: 300

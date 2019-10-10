@@ -17,9 +17,9 @@ instances:
     #
     # filtered_event_types: ["MissingClusterDNS","reason:FailedGetScale","kind:Pod","type:Normal"]
 
-    ## @param cardinality_limit - integer - optional - default: 300
+    ## @param max_events_per_run - integer - optional - default: 300
     ## Maximum number of events you wish to collect per check run.
-    # cardinality_limit: 300
+    # max_events_per_run: 300
 
     ## @param kubernetes_event_read_timeout_ms - integer - optional - default: 1000
     ## If the API Server is slow to respond under load, the event collection might fail. Increase the read timeout (in milliseconds).
@@ -31,7 +31,7 @@ instances:
     #
     # skip_leader_election: false
 
-    ## @param resync_period_kubernetes_events - integer - optional - default: 300
-    ## Specify the frequency at which the Agent should list all events to re-sync following the informer pattern
+    ## @param kubernetes_event_resync_period_s - integer - optional - default: 300
+    ## Specify the frequency in seconds at which the Agent should list all events to re-sync following the informer pattern
     #
-    # resync_period_kubernetes_events: 300
+    # kubernetes_event_resync_period_s: 300
