@@ -54,7 +54,7 @@ var (
 var (
 	DefaultPython string
 
-	// ForceDefaultPython has a value set at compile time if we should ignore
+	// ForceDefaultPython has its value set to true at compile time if we should ignore
 	// the Python version set in the configuration and use `DefaultPython` instead.
 	// We use this to force Python 3 in the Agent 7 as it's the only one available.
 	ForceDefaultPython string
@@ -685,9 +685,9 @@ func load(config Config, origin string, loadSecret bool) error {
 		}
 	}
 
-	// If this variable is set, we'll use DefaultPython for the Python version,
+	// If this variable is set to true, we'll use DefaultPython for the Python version,
 	// ignoring the python_version configuration value.
-	if ForceDefaultPython != "" {
+	if ForceDefaultPython == "true" {
 		defaultPython, err := strconv.Atoi(DefaultPython)
 		if err != nil {
 			log.Warn("Bad value for DefaultPython, will use configuration value. Err:", err)
