@@ -60,13 +60,13 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 
 	b.countByAction[fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)] += int(event.Count)
 
-	switch event.InvolvedObject.Kind {
-	case "Node":
+	if event.InvolvedObject.Kind == "Pod" || event.InvolvedObject.Kind == "Node" {
+		b.nodename = event.Source.Host
+	}
+	if event.InvolvedObject.Namespace == "" {
 		b.readableKey = fmt.Sprintf("%s %s", event.InvolvedObject.Kind, event.InvolvedObject.Name)
-		b.nodename = event.Source.Host
-	case "Pod":
+	} else {
 		b.readableKey = fmt.Sprintf("%s %s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Namespace, event.InvolvedObject.Name)
-		b.nodename = event.Source.Host
 	}
 
 	return nil
