@@ -21,7 +21,7 @@ const (
 
 type schedulerInterface interface {
 	AddCollector(name string, interval time.Duration) error
-	SendNow(name string, delay time.Duration)
+	TriggerAndResetCollectorTimer(name string, delay time.Duration)
 }
 
 type autoConfigInterface interface {
@@ -55,7 +55,7 @@ func (c inventoriesCollector) Send(s *serializer.Serializer) error {
 
 // Send collects the data needed and submits the payload
 func (c inventoriesCollector) Init() error {
-	return inventories.StartSendNowRoutine(c.sc, minSendInterval)
+	return inventories.StartMetadataUpdatedGoroutine(c.sc, minSendInterval)
 }
 
 // SetupInventories registers the inventories collector into the Scheduler and, if configured, schedules it

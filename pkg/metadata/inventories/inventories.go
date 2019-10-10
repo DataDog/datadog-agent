@@ -15,7 +15,7 @@ import (
 
 type schedulerInterface interface {
 	AddCollector(name string, interval time.Duration) error
-	SendNow(name string, delay time.Duration)
+	TriggerAndResetCollectorTimer(name string, delay time.Duration)
 }
 
 type autoConfigInterface interface {
@@ -38,7 +38,7 @@ var (
 	agentCacheMutex    = &sync.Mutex{}
 
 	agentStartupTime = timeNow()
-	lastPayloadSent  = timeNow()
+	lastGetPayload   = timeNow()
 	metadataUpdatedC = make(chan interface{})
 )
 
@@ -93,16 +93,6 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 	}
 }
 
-// Only used in tests
-func clearMetadata() {
-	checkCacheMutex.Lock()
-	defer checkCacheMutex.Unlock()
-	checkMetadataCache = make(map[string]*checkMetadataCacheEntry)
-	agentCacheMutex.Lock()
-	defer agentCacheMutex.Unlock()
-	agentMetadataCache = make(AgentMetadata)
-}
-
 func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMetadata {
 
 	var checkInstanceMetadata CheckInstanceMetadata
@@ -125,7 +115,7 @@ func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMeta
 
 // GetPayload fills and returns the check metadata payload
 func GetPayload(hostname string, ac autoConfigInterface, coll collectorInterface) *Payload {
-	lastPayloadSent = timeNow()
+	lastGetPayload = timeNow()
 
 	checkCacheMutex.Lock()
 	defer checkCacheMutex.Unlock()
@@ -134,15 +124,17 @@ func GetPayload(hostname string, ac autoConfigInterface, coll collectorInterface
 
 	newCheckMetadataCache := make(map[string]*checkMetadataCacheEntry)
 
-	configs := ac.GetLoadedConfigs()
-	for _, config := range configs {
-		checkMetadata[config.Name] = make([]*CheckInstanceMetadata, 0)
-		instanceIDs := coll.GetAllInstanceIDs(config.Name)
-		for _, id := range instanceIDs {
-			checkInstanceMetadata := getCheckInstanceMetadata(string(id), config.Provider)
-			checkMetadata[config.Name] = append(checkMetadata[config.Name], checkInstanceMetadata)
-			if entry, found := checkMetadataCache[string(id)]; found {
-				newCheckMetadataCache[string(id)] = entry
+	if ac != nil {
+		configs := ac.GetLoadedConfigs()
+		for _, config := range configs {
+			checkMetadata[config.Name] = make([]*CheckInstanceMetadata, 0)
+			instanceIDs := coll.GetAllInstanceIDs(config.Name)
+			for _, id := range instanceIDs {
+				checkInstanceMetadata := getCheckInstanceMetadata(string(id), config.Provider)
+				checkMetadata[config.Name] = append(checkMetadata[config.Name], checkInstanceMetadata)
+				if entry, found := checkMetadataCache[string(id)]; found {
+					newCheckMetadataCache[string(id)] = entry
+				}
 			}
 		}
 	}
@@ -161,17 +153,17 @@ func GetPayload(hostname string, ac autoConfigInterface, coll collectorInterface
 	}
 }
 
-// StartSendNowRoutine starts a routine that listens to the metadataUpdatedC signal
-// to run the collector out of its regular interval.
-func StartSendNowRoutine(sc schedulerInterface, minSendInterval time.Duration) error {
+// StartMetadataUpdatedGoroutine starts a routine that listens to the metadataUpdatedC
+// signal to run the collector out of its regular interval.
+func StartMetadataUpdatedGoroutine(sc schedulerInterface, minSendInterval time.Duration) error {
 	go func() {
 		for {
 			<-metadataUpdatedC
-			delay := minSendInterval - timeSince(lastPayloadSent)
+			delay := minSendInterval - timeSince(lastGetPayload)
 			if delay < 0 {
 				delay = 0
 			}
-			sc.SendNow("inventories", delay)
+			sc.TriggerAndResetCollectorTimer("inventories", delay)
 		}
 	}()
 	return nil
