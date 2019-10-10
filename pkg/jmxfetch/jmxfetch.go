@@ -68,6 +68,7 @@ type JMXFetch struct {
 	Checks             []string
 	IPCPort            int
 	IPCHost            string
+	Output             func(...interface{})
 	defaultJmxCommand  string
 	cmd                *exec.Cmd
 	managed            bool
@@ -118,6 +119,9 @@ func (j *JMXFetch) setDefaults() {
 	}
 	if j.Checks == nil {
 		j.Checks = []string{}
+	}
+	if j.Output == nil {
+		j.Output = log.Info
 	}
 }
 
@@ -229,19 +233,11 @@ func (j *JMXFetch) Start(manage bool) error {
 		return err
 	}
 
-	// don't pollute the JSON with the log pattern.
-	out := log.Info
-	if j.Reporter == ReporterJson {
-		out = func(a ...interface{}) {
-			fmt.Println(a...)
-		}
-	}
-
 	go func() {
 	scan:
 		in := bufio.NewScanner(stdout)
 		for in.Scan() {
-			out(in.Text())
+			j.Output(in.Text())
 		}
 		if in.Err() == bufio.ErrTooLong {
 			goto scan

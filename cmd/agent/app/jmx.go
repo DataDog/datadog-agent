@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/cobra"
 )
 
@@ -106,34 +107,34 @@ func init() {
 }
 
 func doJmxCollect(cmd *cobra.Command, args []string) error {
-	return RunJmxCommand("collect", jmxfetch.ReporterConsole)
+	return RunJmxCommand("collect", jmxfetch.ReporterConsole, nil)
 }
 
 func doJmxListEverything(cmd *cobra.Command, args []string) error {
-	return RunJmxCommand("list_everything", jmxfetch.ReporterConsole)
+	return RunJmxCommand("list_everything", jmxfetch.ReporterConsole, nil)
 }
 
 func doJmxListMatching(cmd *cobra.Command, args []string) error {
-	return RunJmxCommand("list_matching_attributes", jmxfetch.ReporterConsole)
+	return RunJmxCommand("list_matching_attributes", jmxfetch.ReporterConsole, nil)
 }
 
 func doJmxListWithMetrics(cmd *cobra.Command, args []string) error {
-	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterConsole)
+	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterConsole, nil)
 }
 
 func doJmxListLimited(cmd *cobra.Command, args []string) error {
-	return RunJmxCommand("list_limited_attributes", jmxfetch.ReporterConsole)
+	return RunJmxCommand("list_limited_attributes", jmxfetch.ReporterConsole, nil)
 }
 
 func doJmxListCollected(cmd *cobra.Command, args []string) error {
-	return RunJmxCommand("list_collected_attributes", jmxfetch.ReporterConsole)
+	return RunJmxCommand("list_collected_attributes", jmxfetch.ReporterConsole, nil)
 }
 
 func doJmxListNotCollected(cmd *cobra.Command, args []string) error {
-	return RunJmxCommand("list_not_matching_attributes", jmxfetch.ReporterConsole)
+	return RunJmxCommand("list_not_matching_attributes", jmxfetch.ReporterConsole, nil)
 }
 
-func RunJmxCommand(command string, reporter jmxfetch.JMXReporter) error {
+func RunJmxCommand(command string, reporter jmxfetch.JMXReporter, output func(...interface{})) error {
 
 	if jmxLogLevel != "" {
 		// Honour the deprecated --log-level argument
@@ -171,6 +172,10 @@ func RunJmxCommand(command string, reporter jmxfetch.JMXReporter) error {
 	runner.Reporter = reporter
 	runner.Command = command
 	runner.IPCPort = api.ServerAddress().Port
+	runner.Output = log.Info
+	if output != nil {
+		runner.Output = output
+	}
 
 	loadConfigs(runner)
 
@@ -195,7 +200,11 @@ func RunJmxCommand(command string, reporter jmxfetch.JMXReporter) error {
 // the data as a JSON on the console. It is used by the `check jmx` cli command
 // of the Agent.
 func RunJmxListWithMetrics() error {
-	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterJson)
+	// don't pollute the JSON with the log pattern.
+	out := func(a ...interface{}) {
+		fmt.Println(a...)
+	}
+	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterJson, out)
 }
 
 func loadConfigs(runner *jmxfetch.JMXFetch) {
