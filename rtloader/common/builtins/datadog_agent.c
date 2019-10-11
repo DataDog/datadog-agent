@@ -470,14 +470,14 @@ static PyObject *read_persistent_cache(PyObject *self, PyObject *args)
     v = cb_read_persistent_cache(key);
     Py_END_ALLOW_THREADS
 
-    if (v != NULL) {
-        PyObject *retval = PyStringFromCString(v);
-        cgo_free(v);
-        return retval;
-    } else {
+    if (v == NULL) {
         PyErr_SetString(PyExc_RuntimeError, "failed to read data");
+        return NULL;
     }
-    Py_RETURN_NONE;
+
+    PyObject *retval = PyStringFromCString(v);
+    cgo_free(v);
+    return retval;
 }
 
 /*! \fn PyObject *set_external_tags(PyObject *self, PyObject *args)
