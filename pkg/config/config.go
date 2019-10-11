@@ -331,6 +331,9 @@ func initConfig(config Config) {
 	// Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.
 	config.BindEnvAndSetDefault("metadata_endpoints_max_hostname_size", 255)
 
+	// EC2
+	config.BindEnvAndSetDefault("ec2_use_windows_prefix_detection", false)
+
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
 	config.BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")

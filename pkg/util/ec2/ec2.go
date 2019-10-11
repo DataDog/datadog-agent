@@ -23,7 +23,8 @@ var (
 	metadataURL         = "http://169.254.169.254/latest/meta-data"
 	instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
 	timeout             = 100 * time.Millisecond
-	defaultPrefixes     = []string{"ip-", "domu"}
+	oldDefaultPrefixes  = []string{"ip-", "domu"}
+	defaultPrefixes     = []string{"ip-", "domu", "ec2amaz-"}
 )
 
 // GetInstanceID fetches the instance id for current host from the EC2 metadata API
@@ -149,7 +150,16 @@ func getResponse(url string) (*http.Response, error) {
 func IsDefaultHostname(hostname string) bool {
 	hostname = strings.ToLower(hostname)
 	isDefault := false
-	for _, val := range defaultPrefixes {
+
+	var prefixes []string
+
+	if config.Datadog.GetBool("ec2_use_windows_prefix_detection") {
+		prefixes = defaultPrefixes
+	} else {
+		prefixes = oldDefaultPrefixes
+	}
+
+	for _, val := range prefixes {
 		isDefault = isDefault || strings.HasPrefix(hostname, val)
 	}
 	return isDefault
