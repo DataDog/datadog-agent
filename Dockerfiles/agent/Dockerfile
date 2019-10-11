@@ -40,8 +40,25 @@ RUN find / -maxdepth 1 -type f -name 'datadog-agent*_amd64.deb' ! -name "$DD_AGE
     usr/lib/x86_64-linux-gnu/libsystemd.so.0.21.0 \
     # self-test certificates that are detected (false positive) as private keys
     opt/datadog-agent/embedded/lib/python2.7/site-packages/Cryptodome/SelfTest \
- && if [ "$PYTHON_VERSION" = "2" ]; then rm -rf opt/datadog-agent/embedded/lib/python3.* || true; fi \
- && if [ "$PYTHON_VERSION" = "3" ]; then rm -rf opt/datadog-agent/embedded/lib/python2.* || true; fi \
+ && if [ "$PYTHON_VERSION" = "2" ]; then \
+        rm -rf \
+            opt/datadog-agent/embedded/bin/2to3-3* \
+            opt/datadog-agent/embedded/bin/easy_install-3* \
+            opt/datadog-agent/embedded/bin/idle* \
+            opt/datadog-agent/embedded/bin/pip3* \
+            opt/datadog-agent/embedded/bin/pydoc* \
+            opt/datadog-agent/embedded/bin/python3* \
+            opt/datadog-agent/embedded/bin/pyvenv* \
+            opt/datadog-agent/embedded/include/python3* \
+            opt/datadog-agent/embedded/lib/*python3* || true ;\
+    fi \
+ && if [ "$PYTHON_VERSION" = "3" ]; then \
+        rm -rf \
+            opt/datadog-agent/embedded/bin/pip2* \
+            opt/datadog-agent/embedded/bin/python2* \
+            opt/datadog-agent/embedded/include/python2* \
+            opt/datadog-agent/embedded/lib/*python2* || true ;\
+    fi \
  && find opt/datadog-agent/ -iname "*.a" -delete \
  && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
  && ln -s /opt/datadog-agent/embedded/ssl etc/ssl \
