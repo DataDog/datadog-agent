@@ -87,12 +87,17 @@ char *run_check(rtloader_t *s, rtloader_pyobject_t *check) {
 
 int get_check_return = 0;
 int get_check_calls = 0;
+int is_check_init_deprecated_return = 1;
 rtloader_pyobject_t *get_check_py_class = NULL;
 const char *get_check_init_config = NULL;
 const char *get_check_instance = NULL;
 const char *get_check_check_id = NULL;
 const char *get_check_check_name = NULL;
 rtloader_pyobject_t *get_check_check = NULL;
+
+int is_check_init_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class) {
+	return is_check_init_deprecated_return;
+}
 
 int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char *instance,
 const char *check_id, const char *check_name, rtloader_pyobject_t **check) {
@@ -149,7 +154,7 @@ void reset_check_mock() {
 	get_error_return = "";
 	rtloader_free_calls = 0;
 	run_check_calls = 0;
-	get_check_return = 0;
+	is_check_init_deprecated_return = 1;
 
 	get_check_return = 0;
 	get_check_calls = 0;
@@ -294,6 +299,7 @@ func testConfigure(t *testing.T) {
 	C.reset_check_mock()
 
 	C.get_check_return = 1
+	C.is_check_init_deprecated_return = 0
 	C.get_check_check = &C.rtloader_pyobject_t{}
 	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("aaa"), "test")
 	assert.Nil(t, err)
@@ -321,17 +327,13 @@ func testConfigureDeprecated(t *testing.T) {
 	C.reset_check_mock()
 
 	C.get_check_return = 0
+	C.is_check_init_deprecated_return = 1
 	C.get_check_deprecated_check = &C.rtloader_pyobject_t{}
 	C.get_check_deprecated_return = 1
 	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("aaa"), "test")
 	assert.Nil(t, err)
 
-	assert.Equal(t, c.class, C.get_check_py_class)
-	assert.Equal(t, "aaa", C.GoString(C.get_check_init_config))
-	assert.Equal(t, "{\"val\": 21}", C.GoString(C.get_check_instance))
-	assert.Equal(t, string(c.id), C.GoString(C.get_check_check_id))
-	assert.Equal(t, "fake_check", C.GoString(C.get_check_check_name))
-	assert.Nil(t, C.get_check_check)
+	assert.Nil(t, C.get_check_py_class)
 
 	assert.Equal(t, c.class, C.get_check_deprecated_py_class)
 	assert.Equal(t, "aaa", C.GoString(C.get_check_deprecated_init_config))

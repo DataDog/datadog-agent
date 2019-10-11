@@ -211,6 +211,10 @@ func runFakeCheck() (string, error) {
 	classStr = (*C.char)(helpers.TrackedCString("fake_check"))
 	defer C._free(unsafe.Pointer(classStr))
 
+	ret := C.is_check_init_deprecated(rtloader, class)
+	if ret != 0 {
+		return "", fmt.Errorf(C.GoString(C.get_error(rtloader)))
+	}
 	C.get_check(rtloader, class, emptyStr, configStr, checkIdStr, classStr, &check)
 
 	checkResultStr := C.run_check(rtloader, check)
