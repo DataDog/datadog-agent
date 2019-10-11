@@ -23,6 +23,8 @@ var (
 )
 
 type warning struct {
+	Line    int
+	Column  int
 	Message string
 }
 
@@ -31,7 +33,7 @@ func validatePython3(moduleName string, modulePath string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), linterTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, pythonBinPath, "-m", "a7", modulePath)
+	cmd := exec.CommandContext(ctx, pythonBinPath, "-m", "pylint", "-f", "json", "--py3k", "-d", "W1618", "--persistent", "no", "--exit-zero", modulePath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -42,15 +44,21 @@ func validatePython3(moduleName string, modulePath string) ([]string, error) {
 		return nil, fmt.Errorf("error running the linter on (%s): %s", err, stderr.String())
 	}
 
+	res := []string{}
+	if stdout.Len() == 0 {
+		// No warning
+		return res, nil
+	}
+
 	var warnings []warning
 	if err := json.Unmarshal(stdout.Bytes(), &warnings); err != nil {
 		return nil, fmt.Errorf("could not Unmarshal warnings from Python3 linter: %s", err)
 	}
 
-	res := []string{}
 	// no post processing needed for now, we just retrieve every messages
 	for _, warn := range warnings {
-		res = append(res, warn.Message)
+		message := fmt.Sprintf("Line %d, column %d: %s", warn.Line, warn.Column, warn.Message)
+		res = append(res, message)
 	}
 
 	return res, nil
