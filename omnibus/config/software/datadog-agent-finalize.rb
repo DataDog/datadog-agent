@@ -50,6 +50,11 @@ build do
             delete "#{install_dir}/bin/agent/dist/*.yaml"
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         elsif linux?
+            # Fix pip after building on extended toolchain in CentOS builder
+            if redhat?
+              command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec sed -i 's/\/opt\/centos\/devtoolset\-1\.1\/root//g' {} \;"
+            end
+
             # Move system service files
             mkdir "/etc/init"
             move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
