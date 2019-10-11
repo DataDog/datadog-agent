@@ -205,10 +205,6 @@ def read_requirements(file_contents)
   reqs
 end
 
-def pip_freeze
-  `/opt/datadog-agent/embedded/bin/pip freeze 2> /dev/null`
-end
-
 def is_port_bound(port)
   if os == :windows
     port_regex = Regexp.new(port.to_s)
