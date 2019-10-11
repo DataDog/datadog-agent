@@ -65,16 +65,29 @@ type JMXFetch struct {
 	JavaCustomJarPaths []string
 	LogLevel           string
 	Command            string
-	ReportOnConsole    bool
+	Reporter           JMXReporter
 	Checks             []string
 	IPCPort            int
 	IPCHost            string
+	Output             func(...interface{})
 	defaultJmxCommand  string
 	cmd                *exec.Cmd
 	managed            bool
 	shutdown           chan struct{}
 	stopped            chan struct{}
 }
+
+// JMXFetch supports different way of reporting the data it has fetched.
+type JMXReporter string
+
+var (
+	// ReporterStatsd reports the output to statsd.
+	ReporterStatsd JMXReporter = "statsd" // default one
+	// ReporterConsole reports the output into the console as plain text
+	ReporterConsole JMXReporter = "console"
+	// ReporterJson reports the output into the console as json
+	ReporterJson JMXReporter = "json"
+)
 
 // checkInstanceCfg lists the config options on the instance against which we make some sanity checks
 // on how they're configured. All the other options should be checked on JMXFetch's side.
@@ -108,6 +121,9 @@ func (j *JMXFetch) setDefaults() {
 	if j.Checks == nil {
 		j.Checks = []string{}
 	}
+	if j.Output == nil {
+		j.Output = log.Info
+	}
 }
 
 // Start starts the JMXFetch process
@@ -132,9 +148,14 @@ func (j *JMXFetch) Start(manage bool) error {
 		bindHost = "localhost"
 	}
 
-	reporter := fmt.Sprintf("statsd:%s:%s", bindHost, config.Datadog.GetString("dogstatsd_port"))
-	if j.ReportOnConsole {
+	var reporter string
+	switch j.Reporter {
+	case ReporterConsole:
 		reporter = "console"
+	case ReporterJson:
+		reporter = "json"
+	default:
+		reporter = fmt.Sprintf("statsd:%s:%s", bindHost, config.Datadog.GetString("dogstatsd_port"))
 	}
 
 	//TODO : support auto discovery
@@ -220,11 +241,12 @@ func (j *JMXFetch) Start(manage bool) error {
 	if err != nil {
 		return err
 	}
+
 	go func() {
 	scan:
 		in := bufio.NewScanner(stdout)
 		for in.Scan() {
-			log.Info(in.Text())
+			j.Output(in.Text())
 		}
 		if in.Err() == bufio.ErrTooLong {
 			goto scan

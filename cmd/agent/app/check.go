@@ -139,7 +139,13 @@ var checkCmd = &cobra.Command{
 			}
 
 			if check.IsJMXConfig(conf.Name, conf.InitConfig) {
-				return fmt.Errorf("running a jmx check with the check command is not supported, please use the jmx command instead")
+				// we'll mimic the check command behavior with JMXFetch by running
+				// it with the JSON reporter and the list_with_metrics command.
+				fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
+				if err := RunJmxListWithMetrics(); err != nil {
+					return fmt.Errorf("while running the jmx check: %v", err)
+				}
+				return nil
 			}
 		}
 
@@ -221,6 +227,8 @@ var checkCmd = &cobra.Command{
 		}
 
 		cs := collector.GetChecksByNameForConfigs(checkName, allConfigs)
+
+		// something happened while getting the check(s), display some info.
 		if len(cs) == 0 {
 			for check, error := range autodiscovery.GetConfigErrors() {
 				if checkName == check {
