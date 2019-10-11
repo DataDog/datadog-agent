@@ -33,7 +33,6 @@ var (
 	globalAPIClient  *APIClient
 	ErrNotFound      = errors.New("entity not found")
 	ErrIsEmpty       = errors.New("entity is empty")
-	ErrOutdated      = errors.New("entity is outdated")
 	ErrNotLeader     = errors.New("not Leader")
 	isConnectVerbose = false
 )
@@ -210,62 +209,75 @@ func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 	return c.Cl.CoreV1().ComponentStatuses().List(metav1.ListOptions{TimeoutSeconds: &c.timeoutSeconds})
 }
 
-// GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
-func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (string, bool, error) {
-	namespace := common.GetResourcesNamespace()
-	tokenConfigMap, err := c.Cl.CoreV1().ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
+func (c *APIClient) getOrCreateConfigMap(name, namespace string) (cmEvent *v1.ConfigMap, err error) {
+	cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
 	if err != nil {
-		log.Debugf("Could not find the ConfigMap %s: %s", configMapDCAToken, err.Error())
-		return "", false, ErrNotFound
+		log.Errorf("Could not get the ConfigMap %s: %s, trying to create it.", configMapDCAToken, err.Error())
+		cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Create(&v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      configMapDCAToken,
+				Namespace: namespace,
+			},
+			Data: make(map[string]string),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("could not create the ConfigMap: %s", err.Error())
+		}
+		log.Infof("Created the ConfigMap %s", configMapDCAToken)
 	}
-	log.Infof("Found the ConfigMap %s", configMapDCAToken)
+	return cmEvent, nil
+}
 
-	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
-	tokenValue, found := tokenConfigMap.Data[eventTokenKey]
-	if !found {
-		log.Errorf("%s was not found in the ConfigMap %s", eventTokenKey, configMapDCAToken)
-		return "", found, ErrNotFound
+// GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
+func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, error) {
+	namespace := common.GetResourcesNamespace()
+	nowTs := time.Now()
+
+	cmEvent, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
+	if err != nil {
+		// we do not process event if we can't interact with the CM.
+		return "", time.Now(), err
 	}
-	log.Infof("%s is %q", token, tokenValue)
+	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
+	tokenValue, found := cmEvent.Data[eventTokenKey]
+	if !found {
+		log.Debugf("%s was not found in the ConfigMap %s, updating it to resync.", eventTokenKey, configMapDCAToken)
+		// we should try to set it to "" .
+		err = c.UpdateTokenInConfigmap(configMapDCAToken, "", time.Now())
+		return "", time.Now(), err
+
+	}
+	log.Tracef("%s is %q", token, tokenValue)
 
 	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
-	tokenTimeStr, set := tokenConfigMap.Data[eventTokenTS] // This is so we can have one timestamp per token
-
+	tokenTimeStr, set := cmEvent.Data[eventTokenTS]
 	if !set {
 		log.Debugf("Could not find timestamp associated with %s in the ConfigMap %s. Refreshing.", eventTokenTS, configMapDCAToken)
-		// We return ErrOutdated to reset the tokenValue and its timestamp as token's timestamp was not found.
-		return tokenValue, found, ErrOutdated
+		// The timestamp of the last List is not present, it will be set during the next Collection.
+		return tokenValue, nowTs, nil
 	}
 
 	tokenTime, err := time.Parse(time.RFC822, tokenTimeStr)
 	if err != nil {
-		return "", found, log.Errorf("could not convert the timestamp associated with %s from the ConfigMap %s", token, configMapDCAToken)
+		log.Errorf("Could not convert the timestamp associated with %s from the ConfigMap %s, resync might not work correctly.", token, configMapDCAToken)
+		return tokenValue, nowTs, nil
 	}
-	tokenAge := time.Now().Unix() - tokenTime.Unix()
-
-	if tokenAge > tokenTimeout {
-		log.Debugf("The tokenValue %s is outdated, refreshing the state", token)
-		return tokenValue, found, ErrOutdated
-	}
-	log.Debugf("Token %s was updated recently, using value to collect newer events.", token)
-	return tokenValue, found, nil
+	return tokenValue, tokenTime, err
 }
 
 // UpdateTokenInConfigmap updates the value of the `tokenValue` from the `tokenKey` and
 // sets its collected timestamp in the ConfigMap `configmaptokendca`
-func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
+func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string, timestamp time.Time) error {
 	namespace := common.GetResourcesNamespace()
-	tokenConfigMap, err := c.Cl.CoreV1().ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
+	tokenConfigMap, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
 	if err != nil {
 		return err
 	}
-
 	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
 	tokenConfigMap.Data[eventTokenKey] = tokenValue
 
-	now := time.Now()
 	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
-	tokenConfigMap.Data[eventTokenTS] = now.Format(time.RFC822) // Timestamps in the ConfigMap should all use the type int.
+	tokenConfigMap.Data[eventTokenTS] = timestamp.Format(time.RFC822) // Timestamps in the ConfigMap should all use the type int.
 
 	_, err = c.Cl.CoreV1().ConfigMaps(namespace).Update(tokenConfigMap)
 	if err != nil {
