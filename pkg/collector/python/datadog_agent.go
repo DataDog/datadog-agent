@@ -168,19 +168,19 @@ func SetCheckMetadata(checkID, name, value *C.char) {
 // Indirectly used by the C function `write_persistent_cache` that's mapped to `datadog_agent.write_persistent_cache`.
 //export WritePersistentCache
 func WritePersistentCache(key, value *C.char) {
-	key_name := C.GoString(key)
+	keyName := C.GoString(key)
 	val := C.GoString(value)
-	persistentcache.Write(key_name, val)
+	persistentcache.Write(keyName, val)
 }
 
 // ReadPersistentCache retrieves a value for one check instance
 // Indirectly used by the C function `read_persistent_cache` that's mapped to `datadog_agent.read_persistent_cache`.
 //export ReadPersistentCache
 func ReadPersistentCache(key *C.char) *C.char {
-	key_name := C.GoString(key)
-	data, err := persistentcache.Read(key_name)
+	keyName := C.GoString(key)
+	data, err := persistentcache.Read(keyName)
 	if err != nil {
-		log.Errorf("Failed to read cache %s: %s", key_name, err)
+		log.Errorf("Failed to read cache %s: %s", keyName, err)
 		return nil
 	}
 	return TrackedCString(data)

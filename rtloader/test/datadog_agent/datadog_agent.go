@@ -219,13 +219,13 @@ func setExternalHostTags(hostname *C.char, sourceType *C.char, tags **C.char) {
 
 //export writePersistentCache
 func writePersistentCache(key, value *C.char) {
-	key_name := C.GoString(key)
+	keyName := C.GoString(key)
 	val := C.GoString(value)
 
 	f, _ := os.OpenFile(tmpfile.Name(), os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
 	defer f.Close()
 
-	f.WriteString(key_name)
+	f.WriteString(keyName)
 	f.WriteString(val)
 }
 

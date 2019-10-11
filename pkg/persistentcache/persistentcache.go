@@ -15,7 +15,7 @@ import (
 )
 
 // Return a file where to store the data. We split the key by ":", using the
-// first prefix as directory, if present. This useful for integrations, which
+// first prefix as directory, if present. This is useful for integrations, which
 // use the check_id formed with $check_name:$hash
 func getFileForKey(key string) (string, error) {
 	parent := config.Datadog.GetString("run_path")
