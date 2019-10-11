@@ -20,7 +20,7 @@ import (
 // use the check_id formed with $check_name:$hash
 func getFileForKey(key string) (string, error) {
 	// Invalid characters to clean up
-	invalidChars, err := regexp.Compile("[<>:\"\\|?/\\*]")
+	invalidChars, err := regexp.Compile("[^a-zA-Z0-9_-]")
 	if err != nil {
 		return "", err
 	}
