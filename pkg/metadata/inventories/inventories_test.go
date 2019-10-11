@@ -24,6 +24,16 @@ func clearMetadata() {
 	agentCacheMutex.Lock()
 	defer agentCacheMutex.Unlock()
 	agentMetadataCache = make(AgentMetadata)
+
+	// purge metadataUpdatedC
+L:
+	for {
+		select {
+		case <-metadataUpdatedC:
+		default: // To make sure this call is not blocking
+			break L
+		}
+	}
 }
 
 type mockAutoConfig struct{}
