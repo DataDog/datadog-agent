@@ -352,6 +352,7 @@ func (h *AutoscalersController) addAutoscaler(obj interface{}) {
 // Adding the new obj and dropping the previous one is sufficient.
 // FIXME if the metric name or scope is changed in the HPA manifest we should propagate the change
 // to the Global store here
+// When the maxMetricsCount is reached concurrent ADD and UPDATE events can race.
 func (h *AutoscalersController) updateAutoscaler(old, obj interface{}) {
 	newAutoscaler, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler)
 	if !ok {
