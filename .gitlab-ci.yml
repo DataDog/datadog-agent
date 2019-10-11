@@ -151,28 +151,6 @@ before_script:
       - $RELEASE_VERSION_7 == ""
 
 #
-# Job conditions
-#
-
-# run job when building Datadog Cluster Agent release tag
-
-.run_on_cluster_agent_tag: &run_on_cluster_agent_tag
-  only:
-    refs:
-      - tags
-    variables:
-      - $CI_COMMIT_TAG =~ /^dca-([\d.-]|rc)+$/
-
-# skip job when building Datadog Cluster Agent release tag
-
-.skip_on_cluster_agent_tag: &skip_on_cluster_agent_tag
-  except:
-    refs:
-      - tags
-    variables:
-      - $CI_COMMIT_TAG =~ /^dca-([\d.-]|rc)+$/
-
-#
 # source_test
 #
 #
@@ -2162,26 +2140,6 @@ latest_release_7:
     - if [[ -z "$IMAGE" ]]; then echo "Need an image"; exit 1; fi
     - if [[ -z "$TAG" ]]; then echo "Need a tag to delete"; exit 1; fi
     - inv -e docker.delete ${ORGANIZATION} ${IMAGE} ${TAG} ${DOCKER_TOKEN} &>/dev/null
-
-dca_tag_release:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag_7
-  stage: deploy
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent:${CI_COMMIT_TAG#$(echo "dca-")}
-
-dca_latest_release:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag_7
-  stage: deploy
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent:latest
 
 # invalidate cloudfront cache
 deploy_cloudfront_invalidate:
