@@ -100,7 +100,7 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     if static:
         ldflags += "-s -w -linkmode=external '-extldflags=-static' "
     else:
-        ldflags += "-r {}/lib:{}/lib64 ".format(embedded_path, embedded_path)
+        ldflags += "-r {} ".format(':'.join(rtloader_lib))
 
     if os.environ.get("DELVE"):
         gcflags = "-N -l"
