@@ -639,6 +639,7 @@ agent_suse-x64-a6:
     PYTHON_RUNTIMES: '2,3'
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
+    - inv -e deps --verbose --dep-vendor-only
   <<: *skip_when_unwanted_on_6
   <<: *agent_build_common_suse_rpm
 
@@ -652,6 +653,7 @@ agent_suse-x64-a7:
     PYTHON_RUNTIMES: '3'
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
+    - inv -e deps --verbose --dep-vendor-only
   <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_suse_rpm
 
