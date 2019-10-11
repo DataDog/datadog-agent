@@ -153,7 +153,7 @@ func IsDefaultHostname(hostname string) bool {
 
 	var prefixes []string
 
-	if config.Datadog.GetBool("ec2.use_windows_prefix_detection") {
+	if config.Datadog.GetBool("ec2_use_windows_prefix_detection") {
 		prefixes = defaultPrefixes
 	} else {
 		prefixes = oldDefaultPrefixes

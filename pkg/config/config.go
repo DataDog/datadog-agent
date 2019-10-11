@@ -327,7 +327,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("metadata_endpoints_max_hostname_size", 255)
 
 	// EC2
-	config.BindEnvAndSetDefault("ec2.use_windows_prefix_detection", false)
+	config.BindEnvAndSetDefault("ec2_use_windows_prefix_detection", false)
 
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
