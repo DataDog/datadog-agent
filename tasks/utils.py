@@ -95,11 +95,10 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + " -L{}".format(' -L '.join(rtloader_lib))
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + " -w -I{} -I{}".format(rtloader_headers,
                                                                                   rtloader_common_headers)
-
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
         ldflags += "-s -w -linkmode=external '-extldflags=-static' "
-    else:
+    elif rtloader_lib:
         ldflags += "-r {} ".format(':'.join(rtloader_lib))
 
     if os.environ.get("DELVE"):
