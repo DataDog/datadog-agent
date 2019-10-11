@@ -444,6 +444,7 @@ run_dogstatsd_size_test:
 #
 .agent_build_common_deb: &agent_build_common_deb
   script:
+    - echo "About to build for $RELEASE_VERSION"
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Retrieve the system-probe from S3
@@ -535,6 +536,7 @@ puppy_deb-x64:
 
 .agent_build_common_rpm: &agent_build_common_rpm
   script:
+    - echo "About to build for $RELEASE_VERSION"
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
@@ -596,6 +598,7 @@ agent_rpm-x64-a7:
 
 .agent_build_common_suse_rpm: &agent_build_common_suse_rpm
   script:
+    - echo "About to build for $RELEASE_VERSION"
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
@@ -635,7 +638,7 @@ agent_suse-x64-a6:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     PYTHON_RUNTIMES: '2,3'
   before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
+    - export RELEASE_VERSION=$RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
   <<: *agent_build_common_suse_rpm
 
