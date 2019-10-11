@@ -42,7 +42,7 @@ var (
 	lastGetPayload      = timeNow()
 	lastGetPayloadMutex = &sync.Mutex{}
 
-	metadataUpdatedC = make(chan interface{})
+	metadataUpdatedC = make(chan interface{}, 1)
 )
 
 var (
