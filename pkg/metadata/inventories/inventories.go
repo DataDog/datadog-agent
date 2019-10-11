@@ -38,7 +38,10 @@ var (
 	agentCacheMutex    = &sync.Mutex{}
 
 	agentStartupTime = timeNow()
-	lastGetPayload   = timeNow()
+
+	lastGetPayload      = timeNow()
+	lastGetPayloadMutex = &sync.Mutex{}
+
 	metadataUpdatedC = make(chan interface{})
 )
 
@@ -115,7 +118,9 @@ func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMeta
 
 // GetPayload fills and returns the check metadata payload
 func GetPayload(hostname string, ac autoConfigInterface, coll collectorInterface) *Payload {
+	lastGetPayloadMutex.Lock()
 	lastGetPayload = timeNow()
+	lastGetPayloadMutex.Unlock()
 
 	checkCacheMutex.Lock()
 	defer checkCacheMutex.Unlock()
@@ -159,11 +164,13 @@ func StartMetadataUpdatedGoroutine(sc schedulerInterface, minSendInterval time.D
 	go func() {
 		for {
 			<-metadataUpdatedC
+			lastGetPayloadMutex.Lock()
 			delay := minSendInterval - timeSince(lastGetPayload)
 			if delay < 0 {
 				delay = 0
 			}
 			sc.TriggerAndResetCollectorTimer("inventories", delay)
+			lastGetPayloadMutex.Unlock()
 		}
 	}()
 	return nil
