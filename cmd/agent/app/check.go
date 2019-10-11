@@ -93,7 +93,7 @@ var checkCmd = &cobra.Command{
 			// Honour the deprecated --log-level argument
 			overrides := make(map[string]interface{})
 			overrides["log_level"] = logLevel
-			config.SetOverrides(overrides)
+			config.AddOverrides(overrides)
 		} else {
 			logLevel = config.GetEnv("DD_LOG_LEVEL", "off")
 		}

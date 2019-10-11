@@ -94,7 +94,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     ldflags, gcflags, env = get_build_flags(ctx, embedded_path=embedded_path,
-            rtloader_root=rtloader_root, python_home_2=python_home_2, python_home_3=python_home_3, arch=arch)
+            rtloader_root=rtloader_root, python_home_2=python_home_2, python_home_3=python_home_3,
+            with_both_python=with_both_python, arch=arch)
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:

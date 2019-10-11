@@ -140,14 +140,14 @@ func RunJmxCommand(command string, reporter jmxfetch.JMXReporter, output func(..
 		// Honour the deprecated --log-level argument
 		overrides := make(map[string]interface{})
 		overrides["log_level"] = jmxLogLevel
-		config.SetOverrides(overrides)
+		config.AddOverrides(overrides)
 	} else {
 		jmxLogLevel = config.GetEnv("DD_LOG_LEVEL", "debug")
 	}
 
 	overrides := make(map[string]interface{})
 	overrides["cmd_port"] = 0 // let the os assign an available port
-	config.SetOverrides(overrides)
+	config.AddOverrides(overrides)
 
 	err := common.SetupConfig(confFilePath)
 	if err != nil {

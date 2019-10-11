@@ -51,7 +51,8 @@ def get_multi_python_location(embedded_path=None, rtloader_root=None):
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
 def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
-                    rtloader_root=None, python_home_2=None, python_home_3=None, arch="x64"):
+                    rtloader_root=None, python_home_2=None, python_home_3=None,
+                    with_both_python=False, arch="x64"):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -80,6 +81,10 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
         ldflags += "-X {}/pkg/collector/python.pythonHome2={} ".format(REPO_PATH, python_home_2)
     if python_home_3:
         ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, python_home_3)
+
+    # If we're not building with both Python, we want to force the use of DefaultPython
+    if not with_both_python:
+        ldflags += "-X {}/pkg/config.ForceDefaultPython=true ".format(REPO_PATH)
 
     ldflags += "-X {}/pkg/config.DefaultPython={} ".format(REPO_PATH, get_default_python())
 
@@ -154,6 +159,7 @@ def get_version_ldflags(ctx, prefix=None):
     ldflags = "-X {}/pkg/version.Commit={} ".format(REPO_PATH, commit)
     ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True, prefix=prefix))
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
+
     return ldflags
 
 def get_git_commit():

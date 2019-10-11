@@ -44,7 +44,7 @@ const (
 	DefaultBatchPeriodInS = 5
 )
 
-var overrideVars = map[string]interface{}{}
+var overrideVars = make(map[string]interface{})
 
 // Datadog is the global configuration object
 var (
@@ -55,6 +55,11 @@ var (
 // Variables to initialize at build time
 var (
 	DefaultPython string
+
+	// ForceDefaultPython has its value set to true at compile time if we should ignore
+	// the Python version set in the configuration and use `DefaultPython` instead.
+	// We use this to force Python 3 in the Agent 7 as it's the only one available.
+	ForceDefaultPython string
 )
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
@@ -688,6 +693,20 @@ func load(config Config, origin string, loadSecret bool) error {
 		}
 	}
 
+	// If this variable is set to true, we'll use DefaultPython for the Python version,
+	// ignoring the python_version configuration value.
+	if ForceDefaultPython == "true" {
+		override := make(map[string]interface{})
+		override["python_version"] = DefaultPython
+
+		pv := config.GetString("python_version")
+		if pv != DefaultPython {
+			log.Warnf("Python version has been forced to %s", DefaultPython)
+		}
+
+		AddOverrides(override)
+	}
+
 	loadProxyFromEnv(config)
 	sanitizeAPIKey(config)
 	applyOverrides(config)
@@ -918,11 +937,13 @@ func IsKubernetes() bool {
 	return false
 }
 
-// SetOverrides provides an externally accessible method for
+// AddOverrides provides an externally accessible method for
 // overriding config variables.
 // This method must be called before Load() to be effective.
-func SetOverrides(vars map[string]interface{}) {
-	overrideVars = vars
+func AddOverrides(vars map[string]interface{}) {
+	for k, v := range vars {
+		overrideVars[k] = v
+	}
 }
 
 // applyOverrides overrides config variables.
