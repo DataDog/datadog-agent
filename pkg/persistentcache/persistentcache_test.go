@@ -33,7 +33,7 @@ func TestWritePersistentCache(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestWritePersistentCacheInvalidChar(t *testing.T) {
+func TestWritePersistentCacheColons(t *testing.T) {
 	testDir, err := ioutil.TempDir("", "fake-datadog-run-")
 	require.Nil(t, err, fmt.Sprintf("%v", err))
 	defer os.RemoveAll(testDir)
@@ -50,6 +50,41 @@ func TestWritePersistentCacheInvalidChar(t *testing.T) {
 	require.Nil(t, err)
 
 	expectPathFile := filepath.Join(testDir, "my", "key")
+	_, err = os.Stat(expectPathFile)
+	require.Nil(t, err)
+}
+
+func TestWritePersistentCacheInvalidChar(t *testing.T) {
+	testDir, err := ioutil.TempDir("", "fake-datadog-run-")
+	require.Nil(t, err, fmt.Sprintf("%v", err))
+	defer os.RemoveAll(testDir)
+	mockConfig := config.Mock()
+	mockConfig.Set("run_path", testDir)
+	err = Write("my/key", "myvalue")
+	assert.Nil(t, err)
+	value, err := Read("my/key")
+	assert.Equal(t, "myvalue", value)
+	assert.Nil(t, err)
+
+	expectPathFile := filepath.Join(testDir, "mykey")
+	_, err = os.Stat(expectPathFile)
+	require.Nil(t, err)
+
+	err = Write("my:key*foo", "myvalue")
+	assert.Nil(t, err)
+	expectPathFile = filepath.Join(testDir, "my", "keyfoo")
+	_, err = os.Stat(expectPathFile)
+	require.Nil(t, err)
+
+	err = Write("my\\key", "myvalue")
+	assert.Nil(t, err)
+	expectPathFile = filepath.Join(testDir, "mykey")
+	_, err = os.Stat(expectPathFile)
+	require.Nil(t, err)
+
+	err = Write("my|di*r:key<foo", "myvalue")
+	assert.Nil(t, err)
+	expectPathFile = filepath.Join(testDir, "mydir", "keyfoo")
 	_, err = os.Stat(expectPathFile)
 	require.Nil(t, err)
 }

@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -18,20 +19,25 @@ import (
 // first prefix as directory, if present. This is useful for integrations, which
 // use the check_id formed with $check_name:$hash
 func getFileForKey(key string) (string, error) {
-	parent := config.Datadog.GetString("run_path")
-	paths := strings.SplitN(key, ":", 2)
-	if len(paths) == 1 {
-		// If there is no colon, just return the key
-		return filepath.Join(parent, paths[0]), nil
-	}
-	// Otherwise, create the directory with a prefix
-	err := os.MkdirAll(filepath.Join(parent, paths[0]), 0700)
+	// Invalid characters to clean up
+	invalidChars, err := regexp.Compile("[<>:\"\\|?/\\*]")
 	if err != nil {
 		return "", err
 	}
-	// Make the file Windows compliant
-	cleanedPath := strings.Replace(paths[1], ":", "_", -1)
-	return filepath.Join(parent, paths[0], cleanedPath), nil
+	parent := config.Datadog.GetString("run_path")
+	paths := strings.SplitN(key, ":", 2)
+	cleanedPath := invalidChars.ReplaceAllString(paths[0], "")
+	if len(paths) == 1 {
+		// If there is no colon, just return the key
+		return filepath.Join(parent, cleanedPath), nil
+	}
+	// Otherwise, create the directory with a prefix
+	err = os.MkdirAll(filepath.Join(parent, cleanedPath), 0700)
+	if err != nil {
+		return "", err
+	}
+	cleanedFile := invalidChars.ReplaceAllString(paths[1], "")
+	return filepath.Join(parent, cleanedPath, cleanedFile), nil
 }
 
 // Write stores data on disk in the run directory.
