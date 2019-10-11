@@ -10,15 +10,14 @@
   source = "github.com/adjust/goautoneg"
 
 [[projects]]
-  digest = "1:80add72716890850681888ef2b2f9518f2459baa194ae8ece44aeaa140bf7945"
+  digest = "1:f8854a9233af0457591783788207552f6a6950521ce96e007382b1b506bfd5c6"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "58cdf294cbf0f38873204da85cc91ec07f14b678"
-  version = "4.13.0"
+  revision = "cb184060464f95df4a0610585953eec30adf186d"
 
 [[projects]]
   digest = "1:e64fddc819e2abc68792a743dd857c379449a56f2b9eaf030c03fb0ec19de884"

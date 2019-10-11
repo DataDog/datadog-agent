@@ -8,6 +8,7 @@ import (
 // Address is an IP abstraction that is family (v4/v6) agnostic
 type Address interface {
 	Bytes() []byte
+	ByteString() string
 	String() string
 }
 
@@ -24,9 +25,22 @@ func AddressFromNetIP(ip net.IP) Address {
 	return a
 }
 
-// AddressFromString creates an Address using the string representation of an v4 IP
+// AddressFromString creates an Address using the string representation of an IP
 func AddressFromString(ip string) Address {
 	return AddressFromNetIP(net.ParseIP(ip))
+}
+
+// AddressFromByteString creates an Address using the byte string representation of an IP
+func AddressFromByteString(ip string) Address {
+	if len(ip) == 16 {
+		return V6AddressFromBytes([]byte(ip))
+	}
+	return V4AddressFromBytes([]byte(ip))
+}
+
+// NetIPFromIPByteString returns a net.IP from an Address
+func NetIPFromIPByteString(ipBs string) net.IP {
+	return net.IP([]byte(ipBs))
 }
 
 // NetIPFromAddress returns a net.IP from an Address
@@ -58,6 +72,11 @@ func (a v4Address) Bytes() []byte {
 	return a[:]
 }
 
+// ByteString returns a byte representation of the underlying array as a string
+func (a v4Address) ByteString() string {
+	return string(a[:])
+}
+
 // String returns the human readable string representation of an IP
 func (a v4Address) String() string {
 	return net.IPv4(a[0], a[1], a[2], a[3]).String()
@@ -83,6 +102,11 @@ func V6AddressFromBytes(buf []byte) Address {
 // Bytes returns a byte array of the underlying array
 func (a v6Address) Bytes() []byte {
 	return a[:]
+}
+
+// ByteString returns a byte representation of the underlying array as a string
+func (a v6Address) ByteString() string {
+	return string(a[:])
 }
 
 // String returns the human readable string representation of an IP

@@ -99,6 +99,9 @@ func TestAddressV4(t *testing.T) {
 	// Should be able to recreate addr from IP string
 	assert.Equal(t, addr, AddressFromString("192.168.0.1"))
 	assert.Equal(t, "192.168.0.1", addr.String())
+	// Should be able to recreate addr from IP Byte string
+	assert.Equal(t, "\xc0\xa8\x00\x01", addr.ByteString())
+	assert.Equal(t, AddressFromByteString("\xc0\xa8\x00\x01"), addr)
 }
 
 func TestAddressV6(t *testing.T) {
@@ -129,4 +132,35 @@ func TestAddressV6(t *testing.T) {
 	// Should be able to recreate addr from IP string
 	assert.Equal(t, addr, AddressFromString("2001:db8::2:1"))
 	assert.Equal(t, "2001:db8::2:1", addr.String())
+	// Should be able to recreate addr from IP Byte string
+	assert.Equal(t, " \x01\r\xb8\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x01", addr.ByteString())
+	assert.Equal(t, AddressFromByteString(" \x01\r\xb8\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x01"), addr)
+}
+
+func TestAddressByteStrings(t *testing.T) {
+	// v4
+	addr := V4Address(16820416)
+	assert.Len(t, addr.ByteString(), 4) // Should only be 4 bytes
+	assert.Equal(t, "\xc0\xa8\x00\x01", addr.ByteString())
+	assert.Equal(t, addr, AddressFromByteString("\xc0\xa8\x00\x01"))
+	assert.Equal(t, NetIPFromAddress(addr), NetIPFromIPByteString("\xc0\xa8\x00\x01"))
+
+	addr = V4Address(0)
+	assert.Len(t, addr.ByteString(), 4) // Should only be 4 bytes
+	assert.Equal(t, "\x00\x00\x00\x00", addr.ByteString())
+	assert.Equal(t, addr, AddressFromByteString("\x00\x00\x00\x00"))
+	assert.Equal(t, NetIPFromAddress(addr), NetIPFromIPByteString("\x00\x00\x00\x00"))
+
+	// v6
+	addr = V6Address(72059793061183488, 3087860000)
+	assert.Len(t, addr.ByteString(), 16) // Should only be 16 bytes
+	assert.Equal(t, " \x01\r\xb8\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x01", addr.ByteString())
+	assert.Equal(t, addr, AddressFromByteString(" \x01\r\xb8\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x01"))
+	assert.Equal(t, NetIPFromAddress(addr), NetIPFromIPByteString(" \x01\r\xb8\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x01"))
+
+	addr = V6Address(0, 0)
+	assert.Len(t, addr.ByteString(), 16) // Should only be 16 bytes
+	assert.Equal(t, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.ByteString())
+	assert.Equal(t, addr, AddressFromByteString("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"))
+	assert.Equal(t, NetIPFromAddress(addr), NetIPFromIPByteString("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"))
 }

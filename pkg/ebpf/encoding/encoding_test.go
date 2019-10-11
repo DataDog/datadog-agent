@@ -46,19 +46,45 @@ func TestSerialization(t *testing.T) {
 		},
 	}
 
-	out := &model.Connections{
+	// Expected output for Protobuf
+	outPb := &model.Connections{
 		Conns: []*model.Connection{
 			{
-				Laddr:              &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
-				Raddr:              &model.Addr{Ip: "10.2.2.2", Port: int32(9000)},
-				TotalBytesSent:     1,
-				LastBytesSent:      2,
-				TotalBytesReceived: 100,
-				LastBytesReceived:  101,
-				TotalRetransmits:   201,
-				LastRetransmits:    201,
-				Pid:                int32(6000),
-				NetNS:              7,
+				Laddr:             &model.Addr{IpByteString: util.AddressFromString("10.1.1.1").ByteString(), Port: int32(1000)},
+				Raddr:             &model.Addr{IpByteString: util.AddressFromString("10.2.2.2").ByteString(), Port: int32(9000)},
+				LastBytesSent:     2,
+				LastBytesReceived: 101,
+				LastRetransmits:   201,
+				Pid:               int32(6000),
+				NetNS:             7,
+				IpTranslation: &model.IPTranslation{
+					ReplSrcIPByteString: util.AddressFromString("20.1.1.1").ByteString(),
+					ReplDstIPByteString: util.AddressFromString("20.1.1.1").ByteString(),
+					ReplSrcPort:         int32(40),
+					ReplDstPort:         int32(70),
+				},
+
+				Type:      model.ConnectionType_udp,
+				Family:    model.ConnectionFamily_v6,
+				Direction: model.ConnectionDirection_local,
+			},
+		},
+		Dns: map[string]*model.DNSEntry{
+			util.AddressFromString("172.217.12.145").ByteString(): {Names: []string{"golang.org"}},
+		},
+	}
+
+	// Expected output for JSON
+	outJson := &model.Connections{
+		Conns: []*model.Connection{
+			{
+				Laddr:             &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
+				Raddr:             &model.Addr{Ip: "10.2.2.2", Port: int32(9000)},
+				LastBytesSent:     2,
+				LastBytesReceived: 101,
+				LastRetransmits:   201,
+				Pid:               int32(6000),
+				NetNS:             7,
 				IpTranslation: &model.IPTranslation{
 					ReplSrcIP:   "20.1.1.1",
 					ReplDstIP:   "20.1.1.1",
@@ -87,13 +113,14 @@ func TestSerialization(t *testing.T) {
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
-		assert.Equal(out, result)
+		assert.Equal(outJson, result)
 	})
 
-	t.Run("requesting empty serialization", func(t *testing.T) {
+	t.Run("requesting empty serialization defaults to json", func(t *testing.T) {
 		assert := assert.New(t)
 		marshaler := GetMarshaler("")
-		// in case we request empty serialization type, default to application/json
+
+		// In case we request empty serialization type, default to application/json
 		assert.Equal("application/json", marshaler.ContentType())
 
 		blob, err := marshaler.Marshal(in)
@@ -102,7 +129,7 @@ func TestSerialization(t *testing.T) {
 		unmarshaler := GetUnmarshaler("")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
-		assert.Equal(out, result)
+		assert.Equal(outJson, result)
 	})
 
 	t.Run("requesting application/protobuf serialization", func(t *testing.T) {
@@ -116,10 +143,10 @@ func TestSerialization(t *testing.T) {
 		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
-		assert.Equal(out, result)
+		assert.Equal(outPb, result)
 	})
 
-	t.Run("requesting unsupported serialization format", func(t *testing.T) {
+	t.Run("requesting unsupported serialization format defaults to json", func(t *testing.T) {
 		assert := assert.New(t)
 		marshaler := GetMarshaler("application/whatever")
 
@@ -132,7 +159,7 @@ func TestSerialization(t *testing.T) {
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
-		assert.Equal(out, result)
+		assert.Equal(outJson, result)
 	})
 
 	t.Run("render default values with application/json", func(t *testing.T) {

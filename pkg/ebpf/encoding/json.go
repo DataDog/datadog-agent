@@ -18,9 +18,11 @@ type jsonSerializer struct {
 func (j jsonSerializer) Marshal(conns *ebpf.Connections) ([]byte, error) {
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	for i, conn := range conns.Conns {
-		agentConns[i] = FormatConnection(conn)
+		agentConns[i] = FormatConnection(conn, false)
 	}
-	payload := &model.Connections{Conns: agentConns, Dns: FormatDNS(conns.DNS)}
+
+	payload := &model.Connections{Conns: agentConns, Dns: FormatDNS(conns.DNS, false)}
+
 	writer := new(bytes.Buffer)
 	err := j.marshaller.Marshal(writer, payload)
 	return writer.Bytes(), err
