@@ -12,7 +12,6 @@ const (
 	defaultConfdPath            = "/etc/datadog-agent/conf.d"
 	defaultAdditionalChecksPath = "/etc/datadog-agent/checks.d"
 	defaultRunPath              = "/opt/datadog-agent/run"
-	defaultVarPath              = "/opt/datadog-agent/var"
 	defaultSyslogURI            = "unixgram:///dev/log"
 	defaultGuiPort              = -1
 )

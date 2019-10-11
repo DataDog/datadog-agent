@@ -24,7 +24,6 @@ const (
 	defaultConfdPath            = ""
 	defaultAdditionalChecksPath = ""
 	defaultRunPath              = ""
-	defaultVarPath              = ""
 	defaultSyslogURI            = ""
 	defaultGuiPort              = 5002
 )

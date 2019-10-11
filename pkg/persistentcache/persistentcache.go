@@ -18,22 +18,23 @@ import (
 // first prefix as directory, if present. This useful for integrations, which
 // use the check_id formed with $check_name:$hash
 func getFileForKey(key string) (string, error) {
+	parent := config.Datadog.GetString("run_path")
 	paths := strings.SplitN(key, ":", 2)
 	if len(paths) == 1 {
 		// If there is no colon, just return the key
-		return filepath.Join(config.Datadog.GetString("var_path"), paths[0]), nil
+		return filepath.Join(parent, paths[0]), nil
 	}
 	// Otherwise, create the directory with a prefix
-	err := os.MkdirAll(filepath.Join(config.Datadog.GetString("var_path"), paths[0]), 0700)
+	err := os.MkdirAll(filepath.Join(parent, paths[0]), 0700)
 	if err != nil {
 		return "", err
 	}
 	// Make the file Windows compliant
 	cleanedPath := strings.Replace(paths[1], ":", "_", -1)
-	return filepath.Join(config.Datadog.GetString("var_path"), paths[0], cleanedPath), nil
+	return filepath.Join(parent, paths[0], cleanedPath), nil
 }
 
-// Write stores data on disk in the var directory.
+// Write stores data on disk in the run directory.
 func Write(key, value string) error {
 	path, err := getFileForKey(key)
 	if err != nil {

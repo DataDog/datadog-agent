@@ -368,18 +368,7 @@
         </Component>
       </Directory>
 
-      <!-- Directory to store integration data-->
-      <Directory Id="STORAGEDIRECTORY" Name="var">
-        <Component Id="STORAGEDIRECTORY"
-                   Guid="afddd04a-1f9c-4773-9c95-5500876946a2"
-                   Permanent="yes"
-                   Location="either"
-                   NeverOverwrite="yes">
-          <CreateFolder/>
-        </Component>
-      </Directory>
-
-      <Directory Id="EXAMPLECONFSLOCATION" Name="conf.d">
+      <Directory Id="EXAMPLECONFSLOCATION" Name= "conf.d">
         <Component Id="conf.d"
                    Guid="54fcfacb-726b-46e3-a699-ec19258a24be"
                    Permanent="yes"
@@ -460,7 +449,6 @@
       <ComponentRef Id="conf.d" />
       <ComponentRef Id="checks.d" />
       <ComponentRef Id="REGISTRYDIRECTORY" />
-      <ComponentRef Id="STORAGEDIRECTORY" />
       <ComponentRef Id="ApplicationShortcut" />
       <ComponentRef Id="DATADOGAGENTSERVICE" />
       <ComponentRef Id="RTLOADERDLLS" />
