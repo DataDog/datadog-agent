@@ -99,7 +99,7 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
         ldflags += "-s -w -linkmode=external '-extldflags=-static' "
-    else:
+    elif rtloader_lib:
         ldflags += "-r {} ".format(':'.join(rtloader_lib))
 
     if os.environ.get("DELVE"):
