@@ -170,10 +170,12 @@ def get_git_commit():
 
 def get_default_python():
     """
-    Get the default python for the current build
+    Get the default python for the current build:
+    - default to 3 if PYTHON_RUNTIMES is not specified (so that dev builds default to 3)
+    - default to 2 if PYTHON_RUNTIMES includes both versions (so that builds with 2 and 3 default to 2)
     """
     py_runtimes = os.environ.get("PYTHON_RUNTIMES", "3")
-    return py_runtimes if ',' not in py_runtimes else "3"
+    return "2" if ',' in py_runtimes else py_runtimes
 
 
 def get_go_version():
