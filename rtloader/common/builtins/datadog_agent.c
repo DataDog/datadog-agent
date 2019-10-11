@@ -474,6 +474,8 @@ static PyObject *read_persistent_cache(PyObject *self, PyObject *args)
         PyObject *retval = PyStringFromCString(v);
         cgo_free(v);
         return retval;
+    } else {
+        PyErr_SetString(PyExc_RuntimeError, "failed to read data");
     }
     Py_RETURN_NONE;
 }

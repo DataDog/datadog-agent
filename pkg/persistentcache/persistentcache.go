@@ -14,6 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+// Return a file where to store the data. We split the key by ":", using the
+// first prefix as directory, if present. This useful for integrations, which
+// use the check_id formed with $check_name:$hash
 func getFileForKey(key string) (string, error) {
 	paths := strings.SplitN(key, ":", 2)
 	if len(paths) == 1 {
