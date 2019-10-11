@@ -93,7 +93,9 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string) (metrics.Event,
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUid),
 	}
 	if b.namespace != "" {
+		// TODO remove the deprecated namespace tag, we should only rely on kube_namespace
 		output.Tags = append(output.Tags, fmt.Sprintf("namespace:%s", b.namespace))
+		output.Tags = append(output.Tags, fmt.Sprintf("kube_namespace:%s", b.namespace))
 	}
 	output.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s since %s_ \n", formatStringIntMap(b.countByAction), b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n %%%"
 	return output, nil

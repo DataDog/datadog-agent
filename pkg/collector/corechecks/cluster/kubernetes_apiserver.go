@@ -124,8 +124,7 @@ func (k *KubeASCheck) Run() error {
 	if !k.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
 		if !config.Datadog.GetBool("leader_election") {
-			k.Warn("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
-			return nil
+			return log.Error("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		}
 		errLeader := k.runLeaderElection()
 		if errLeader != nil {
