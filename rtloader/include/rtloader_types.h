@@ -124,7 +124,7 @@ typedef void (*cb_set_external_tags_t)(char *, char *, char **);
 // (key, value)
 typedef void (*cb_write_persistent_cache_t)(char *, char *);
 // (value)
-typedef void (*cb_read_persistent_cache_t)(char *, char **);
+typedef char* (*cb_read_persistent_cache_t)(char *);
 
 // _util
 // (argv, argc, raise, stdout, stderr, ret_code, exception)

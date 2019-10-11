@@ -467,7 +467,7 @@ static PyObject *read_persistent_cache(PyObject *self, PyObject *args)
 
     char *v = NULL;
     Py_BEGIN_ALLOW_THREADS
-    cb_read_persistent_cache(key, &v);
+    v = cb_read_persistent_cache(key);
     Py_END_ALLOW_THREADS
 
     if (v != NULL) {

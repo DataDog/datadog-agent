@@ -31,7 +31,7 @@ extern void headers(char **);
 extern void setCheckMetadata(char*, char*, char*);
 extern void setExternalHostTags(char*, char*, char**);
 extern void writePersistentCache(char*, char*);
-extern void readPersistentCache(char*, char**);
+extern char* readPersistentCache(char*);
 
 
 static void initDatadogAgentTests(rtloader_t *rtloader) {
@@ -230,6 +230,6 @@ func writePersistentCache(key, value *C.char) {
 }
 
 //export readPersistentCache
-func readPersistentCache(key *C.char, in **C.char) {
-	*in = (*C.char)(helpers.TrackedCString("somevalue"))
+func readPersistentCache(key *C.char) *C.char {
+	return (*C.char)(helpers.TrackedCString("somevalue"))
 }

@@ -176,13 +176,12 @@ func WritePersistentCache(key, value *C.char) {
 // ReadPersistentCache retrieves a value for one check instance
 // Indirectly used by the C function `read_persistent_cache` that's mapped to `datadog_agent.read_persistent_cache`.
 //export ReadPersistentCache
-func ReadPersistentCache(key *C.char, value **C.char) {
+func ReadPersistentCache(key *C.char) *C.char {
 	key_name := C.GoString(key)
 	data, err := persistentcache.Read(key_name)
 	if err != nil {
 		log.Errorf("Failed to read cache %s: %s", key_name, err)
-		*value = nil
-		return
+		return nil
 	}
-	*value = TrackedCString(data)
+	return TrackedCString(data)
 }
