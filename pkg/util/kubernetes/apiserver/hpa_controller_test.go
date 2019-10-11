@@ -375,7 +375,7 @@ func TestAutoscalerController(t *testing.T) {
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
-	require.Equal(t, hctrl.metricsProcessedCount, 2)
+	require.Equal(t, hctrl.metricsProcessedCount, 1)
 	storedHPA, err = hctrl.autoscalersLister.HorizontalPodAutoscalers(mockedHPA.Namespace).Get(mockedHPA.Name)
 	require.NoError(t, err)
 	require.Equal(t, storedHPA, mockedHPA)
@@ -412,7 +412,40 @@ func TestAutoscalerController(t *testing.T) {
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
 
+	newMockedHPA := newFakeHorizontalPodAutoscaler(
+		"hpa_2",
+		"default",
+		"1",
+		"foo",
+		map[string]string{"foo": "bar"},
+	)
+	mockedHPA.Annotations = makeAnnotations("foo", map[string]string{"foo": "bar"})
+
+	// fake the ignoring
+	hctrl.metricsProcessedCount = 45
+
+	_, err = c.HorizontalPodAutoscalers("default").Create(newMockedHPA)
+	require.NoError(t, err)
+	select {
+	case <-hctrl.autoscalers:
+	case <-timeout.C:
+		require.FailNow(t, "Timeout waiting for HPAs to update")
+	}
+	require.Equal(t, hctrl.metricsProcessedCount, 45)
+	require.Equal(t, hctrl.overFlowingHPAs[newMockedHPA.UID], 1)
+
 	// Verify that a Delete removes the Data from the Global Store and decreases metricsProcessdCount
+	err = c.HorizontalPodAutoscalers("default").Delete(newMockedHPA.Name, &metav1.DeleteOptions{})
+	require.NoError(t, err)
+	select {
+	case <-ticker.C:
+		require.Equal(t, hctrl.metricsProcessedCount, 45)
+		require.Equal(t, len(hctrl.overFlowingHPAs), 0)
+	case <-timeout.C:
+		require.FailNow(t, "Timeout waiting for HPAs to update")
+	}
+
+	// Verify that a Delete removes the Data from the Global Store and decreases metricsProcessdCount at it was not ignored
 	err = c.HorizontalPodAutoscalers("default").Delete(mockedHPA.Name, &metav1.DeleteOptions{})
 	require.NoError(t, err)
 	select {
@@ -424,10 +457,20 @@ func TestAutoscalerController(t *testing.T) {
 		st := hctrl.toStore.data
 		hctrl.toStore.m.Unlock()
 		require.Len(t, st, 0)
-		require.Equal(t, hctrl.metricsProcessedCount, 1)
+		require.Equal(t, hctrl.metricsProcessedCount, 44)
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
+
+	_, err = c.HorizontalPodAutoscalers("default").Create(newMockedHPA)
+	require.NoError(t, err)
+	select {
+	case <-hctrl.autoscalers:
+	case <-timeout.C:
+		require.FailNow(t, "Timeout waiting for HPAs to update")
+	}
+	require.Equal(t, hctrl.metricsProcessedCount, 45)
+	require.Equal(t, len(hctrl.overFlowingHPAs), 0)
 }
 
 func TestAutoscalerSync(t *testing.T) {
@@ -453,7 +496,7 @@ func TestAutoscalerSync(t *testing.T) {
 	require.Error(t, err, errors.IsNotFound)
 
 	require.Empty(t, hctrl.overFlowingHPAs)
-	hctrl.metricsProcessedCount = 39
+	hctrl.metricsProcessedCount = 44
 	ignoredHPA := newFakeHorizontalPodAutoscaler(
 		"hpa_2",
 		"default",
@@ -477,9 +520,8 @@ func TestAutoscalerSync(t *testing.T) {
 	require.Nil(t, err)
 	require.NotEmpty(t, hctrl.overFlowingHPAs)
 	require.Equal(t, hctrl.overFlowingHPAs["123"], 2)
-	require.Equal(t, hctrl.metricsProcessedCount, 39)
+	require.Equal(t, hctrl.metricsProcessedCount, 44)
 	require.Equal(t, len(hctrl.toStore.data), 1)
-
 }
 
 func TestRemoveIgnoredHPAs(t *testing.T) {

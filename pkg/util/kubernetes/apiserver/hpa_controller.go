@@ -36,7 +36,7 @@ const (
 	// maxRetries is the maximum number of times we try to process an autoscaler before it is dropped out of the queue.
 	maxRetries = 10
 	// maxMetricsCount is the maximum number of metrics we can query from the backend.
-	maxMetricsCount = 40
+	maxMetricsCount = 45
 )
 
 type PollerConfig struct {
@@ -322,6 +322,10 @@ func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
 			h.overFlowingHPAs[hpa.UID] = len(new)
 			return nil
 		}
+		if _, ok := h.overFlowingHPAs[hpa.UID]; ok {
+			log.Debugf("Previously ignored HPA %s/%s will now be processed", hpa.Namespace, hpa.Name)
+			delete(h.overFlowingHPAs, hpa.UID)
+		}
 		h.toStore.m.Lock()
 		for metric, value := range new {
 			// We should only insert placeholders in the local cache.
@@ -369,6 +373,11 @@ func (h *AutoscalersController) updateAutoscaler(old, obj interface{}) {
 	// If the oldAutoscaler is behind a HPA in the queue that maximises processedMetricsCount, it will be added to overFlowingHPAs and garbage collected.
 	toDelete := hpa.Inspect(oldAutoscaler)
 	h.deleteFromLocalStore(toDelete)
+	// We re-evaluate if the HPA can be processed in syncAutoscaler, subsequently to the enqueue.
+	if _, ok := h.overFlowingHPAs[oldAutoscaler.UID]; !ok {
+		h.metricsProcessedCount -= len(toDelete)
+	}
+	delete(h.overFlowingHPAs, oldAutoscaler.UID)
 
 	log.Tracef("Processing update event for autoscaler %s/%s with configuration: %s", newAutoscaler.Namespace, newAutoscaler.Name, newAutoscaler.Annotations)
 	h.enqueue(newAutoscaler)
@@ -398,7 +407,9 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 		// Only decrease the count of processed metrics if we are able to successfully remove them from the global store.
 		// TODO pop HPAs from h.overFlowingHPAs and start processing the one(s) we have been ignoring up to the maxMetricsCount
 		// Current behavior: HPA will be evaluated next resync and processed if it does not have too many metrics.
-		h.metricsProcessedCount -= len(toDelete)
+		if _, ok := h.overFlowingHPAs[deletedHPA.UID]; !ok {
+			h.metricsProcessedCount -= len(toDelete)
+		}
 		delete(h.overFlowingHPAs, deletedHPA.UID)
 		return
 	}
@@ -423,9 +434,11 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 		h.enqueue(deletedHPA)
 		return
 	}
-	// Only decrease the count of processed metrics if we are able to successfully remove them from the global store.
+	// Only decrease the count of processed metrics if the HPA was not ignored and if we are able to successfully remove them from the global store.
 	// TODO pop HPAs from h.overFlowingHPAs and start processing the one(s) we have been ignoring, up to the maxMetricsCount
-	h.metricsProcessedCount -= len(toDelete)
+	if _, ok := h.overFlowingHPAs[deletedHPA.UID]; !ok {
+		h.metricsProcessedCount -= len(toDelete)
+	}
 	delete(h.overFlowingHPAs, deletedHPA.UID)
 }
 
