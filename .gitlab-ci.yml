@@ -644,7 +644,8 @@ agent_suse-x64-a7:
     - mkdir .omnibus\pkg
   stage: package_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  timeout: 2h 00m
+  # Unavailable on gitlab < 12.3
+  # timeout: 2h 00m
   script:
     - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e WINDOWS_BUILDER=true -e PYTHON_RUNTIMES=${PYTHON_RUNTIMES} -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES \build-agent6.bat --release-version %RELEASE_VERSION%
     - copy build-out\*.msi .omnibus\pkg
