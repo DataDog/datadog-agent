@@ -374,11 +374,12 @@ func (h *AutoscalersController) updateAutoscaler(old, obj interface{}) {
 	toDelete := hpa.Inspect(oldAutoscaler)
 	h.deleteFromLocalStore(toDelete)
 	// We re-evaluate if the HPA can be processed in syncAutoscaler, subsequently to the enqueue.
+	h.mu.Lock()
 	if _, ok := h.overFlowingHPAs[oldAutoscaler.UID]; !ok {
 		h.metricsProcessedCount -= len(toDelete)
 	}
 	delete(h.overFlowingHPAs, oldAutoscaler.UID)
-
+	h.mu.Unlock()
 	log.Tracef("Processing update event for autoscaler %s/%s with configuration: %s", newAutoscaler.Namespace, newAutoscaler.Name, newAutoscaler.Annotations)
 	h.enqueue(newAutoscaler)
 }

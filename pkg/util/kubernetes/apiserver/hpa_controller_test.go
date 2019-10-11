@@ -422,7 +422,9 @@ func TestAutoscalerController(t *testing.T) {
 	mockedHPA.Annotations = makeAnnotations("foo", map[string]string{"foo": "bar"})
 
 	// fake the ignoring
+	hctrl.mu.Lock()
 	hctrl.metricsProcessedCount = 45
+	hctrl.mu.Unlock()
 
 	_, err = c.HorizontalPodAutoscalers("default").Create(newMockedHPA)
 	require.NoError(t, err)
@@ -439,12 +441,14 @@ func TestAutoscalerController(t *testing.T) {
 	require.NoError(t, err)
 	select {
 	case <-ticker.C:
-		require.Equal(t, hctrl.metricsProcessedCount, 45)
-		require.Equal(t, len(hctrl.overFlowingHPAs), 0)
+
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
-
+	hctrl.mu.Lock()
+	require.Equal(t, hctrl.metricsProcessedCount, 45)
+	require.Equal(t, len(hctrl.overFlowingHPAs), 0)
+	hctrl.mu.Unlock()
 	// Verify that a Delete removes the Data from the Global Store and decreases metricsProcessdCount at it was not ignored
 	err = c.HorizontalPodAutoscalers("default").Delete(mockedHPA.Name, &metav1.DeleteOptions{})
 	require.NoError(t, err)
@@ -457,10 +461,12 @@ func TestAutoscalerController(t *testing.T) {
 		st := hctrl.toStore.data
 		hctrl.toStore.m.Unlock()
 		require.Len(t, st, 0)
-		require.Equal(t, hctrl.metricsProcessedCount, 44)
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
+	hctrl.mu.Lock()
+	require.Equal(t, hctrl.metricsProcessedCount, 44)
+	hctrl.mu.Unlock()
 
 	_, err = c.HorizontalPodAutoscalers("default").Create(newMockedHPA)
 	require.NoError(t, err)
@@ -496,7 +502,9 @@ func TestAutoscalerSync(t *testing.T) {
 	require.Error(t, err, errors.IsNotFound)
 
 	require.Empty(t, hctrl.overFlowingHPAs)
+	hctrl.mu.Lock()
 	hctrl.metricsProcessedCount = 44
+	hctrl.mu.Unlock()
 	ignoredHPA := newFakeHorizontalPodAutoscaler(
 		"hpa_2",
 		"default",
@@ -521,7 +529,9 @@ func TestAutoscalerSync(t *testing.T) {
 	require.NotEmpty(t, hctrl.overFlowingHPAs)
 	require.Equal(t, hctrl.overFlowingHPAs["123"], 2)
 	require.Equal(t, hctrl.metricsProcessedCount, 44)
+	hctrl.toStore.m.Lock()
 	require.Equal(t, len(hctrl.toStore.data), 1)
+	hctrl.toStore.m.Unlock()
 }
 
 func TestRemoveIgnoredHPAs(t *testing.T) {
@@ -541,10 +551,11 @@ func TestRemoveIgnoredHPAs(t *testing.T) {
 			},
 		},
 	}
-	expected := cachedHPAs[0]
 
 	e := removeIgnoredHPAs(listToIgnore, cachedHPAs)
-	require.Equal(t, expected, e)
+	require.Equal(t, len(e), 1)
+	require.Equal(t, e[0].UID, types.UID("ccc"))
+
 }
 
 // TestAutoscalerControllerGC tests the GC process of of the controller
