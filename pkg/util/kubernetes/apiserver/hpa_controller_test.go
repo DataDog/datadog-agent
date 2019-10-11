@@ -72,6 +72,7 @@ func newFakeAutoscalerController(client kubernetes.Interface, itf LeaderElectorI
 	)
 
 	autoscalerController.autoscalersListerSynced = func() bool { return true }
+	autoscalerController.overFlowingHPAs = make(map[types.UID]int)
 
 	return autoscalerController, informerFactory
 }
@@ -301,6 +302,7 @@ func TestAutoscalerController(t *testing.T) {
 
 	c := client.AutoscalingV2beta1()
 	require.NotNil(t, c)
+	require.Equal(t, hctrl.metricsProcessedCount, 0)
 
 	mockedHPA := newFakeHorizontalPodAutoscaler(
 		"hpa_1",
@@ -331,6 +333,8 @@ func TestAutoscalerController(t *testing.T) {
 		hctrl.toStore.m.Unlock()
 		require.NotEmpty(t, st)
 		require.Len(t, st, 1)
+		require.Equal(t, hctrl.metricsProcessedCount, 1)
+
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
@@ -371,7 +375,7 @@ func TestAutoscalerController(t *testing.T) {
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
-
+	require.Equal(t, hctrl.metricsProcessedCount, 2)
 	storedHPA, err = hctrl.autoscalersLister.HorizontalPodAutoscalers(mockedHPA.Namespace).Get(mockedHPA.Name)
 	require.NoError(t, err)
 	require.Equal(t, storedHPA, mockedHPA)
@@ -408,7 +412,7 @@ func TestAutoscalerController(t *testing.T) {
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
 
-	// Verify that a Delete removes the Data from the Global Store
+	// Verify that a Delete removes the Data from the Global Store and decreases metricsProcessdCount
 	err = c.HorizontalPodAutoscalers("default").Delete(mockedHPA.Name, &metav1.DeleteOptions{})
 	require.NoError(t, err)
 	select {
@@ -420,7 +424,7 @@ func TestAutoscalerController(t *testing.T) {
 		st := hctrl.toStore.data
 		hctrl.toStore.m.Unlock()
 		require.Len(t, st, 0)
-
+		require.Equal(t, hctrl.metricsProcessedCount, 1)
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
@@ -448,6 +452,57 @@ func TestAutoscalerSync(t *testing.T) {
 	err = hctrl.syncAutoscalers(fakeKey)
 	require.Error(t, err, errors.IsNotFound)
 
+	require.Empty(t, hctrl.overFlowingHPAs)
+	hctrl.metricsProcessedCount = 39
+	ignoredHPA := newFakeHorizontalPodAutoscaler(
+		"hpa_2",
+		"default",
+		"123",
+		"foo",
+		map[string]string{"foo": "bar"},
+	)
+	ignoredHPA.Spec.Metrics = append(ignoredHPA.Spec.Metrics, autoscalingv2.MetricSpec{
+		Type: v2beta1.ExternalMetricSourceType,
+		External: &v2beta1.ExternalMetricSource{
+			MetricName: "deadbeef",
+			MetricSelector: &metav1.LabelSelector{
+				MatchLabels: nil,
+			},
+		},
+	})
+	err = inf.Autoscaling().V2beta1().HorizontalPodAutoscalers().Informer().GetStore().Add(ignoredHPA)
+	require.NoError(t, err)
+	keyToIgnore := "default/hpa_2"
+	err = hctrl.syncAutoscalers(keyToIgnore)
+	require.Nil(t, err)
+	require.NotEmpty(t, hctrl.overFlowingHPAs)
+	require.Equal(t, hctrl.overFlowingHPAs["123"], 2)
+	require.Equal(t, hctrl.metricsProcessedCount, 39)
+	require.Equal(t, len(hctrl.toStore.data), 1)
+
+}
+
+func TestRemoveIgnoredHPAs(t *testing.T) {
+	listToIgnore := map[types.UID]int{
+		"aaa": 1,
+		"bbb": 2,
+	}
+	cachedHPAs := []*autoscalingv2.HorizontalPodAutoscaler{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				UID: "aaa",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				UID: "ccc",
+			},
+		},
+	}
+	expected := cachedHPAs[0]
+
+	e := removeIgnoredHPAs(listToIgnore, cachedHPAs)
+	require.Equal(t, expected, e)
 }
 
 // TestAutoscalerControllerGC tests the GC process of of the controller
@@ -456,6 +511,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 		caseName string
 		metrics  map[string]custommetrics.ExternalMetricValue
 		hpa      *v2beta1.HorizontalPodAutoscaler
+		ignored  map[types.UID]int
 		expected []custommetrics.ExternalMetricValue
 	}{
 		{
@@ -490,6 +546,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 					},
 				},
 			},
+			ignored: map[types.UID]int{},
 			expected: []custommetrics.ExternalMetricValue{ // skipped by gc
 				{
 					MetricName: "requests_per_s",
@@ -513,6 +570,73 @@ func TestAutoscalerControllerGC(t *testing.T) {
 					Valid:      false,
 				},
 			},
+			ignored:  map[types.UID]int{},
+			expected: []custommetrics.ExternalMetricValue{},
+		},
+		{
+			caseName: "hpa in global store but is ignored need to remove",
+			metrics: map[string]custommetrics.ExternalMetricValue{
+				"external_metric-default-foo-requests_per_s": {
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"bar": "baz"},
+					HPA:        custommetrics.ObjectReference{Name: "foo", Namespace: "default", UID: "1111"},
+					Timestamp:  12,
+					Value:      1,
+					Valid:      false,
+				},
+			},
+			hpa: &v2beta1.HorizontalPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "foo",
+					Namespace: "default",
+					UID:       "1111",
+				},
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: "requests_per_s",
+								MetricSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{"bar": "baz"},
+								},
+							},
+						},
+					},
+				},
+			},
+			ignored: map[types.UID]int{
+				"1111": 1,
+			},
+			expected: []custommetrics.ExternalMetricValue{},
+		},
+		{
+			// For this test case, we don't see a difference, as the hpa is dropped before getting to DiffExternalMetrics
+			caseName: "hpa not in global store but ignored",
+			metrics:  map[string]custommetrics.ExternalMetricValue{},
+			hpa: &v2beta1.HorizontalPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "foo",
+					Namespace: "default",
+					UID:       "1111",
+				},
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: "requests_per_s",
+								MetricSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{"bar": "baz"},
+								},
+							},
+						},
+					},
+				},
+			},
+			ignored: map[types.UID]int{
+				"1111": 1,
+			},
 			expected: []custommetrics.ExternalMetricValue{},
 		},
 	}
@@ -525,6 +649,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 			hctrl, inf := newFakeAutoscalerController(client, i, d)
 
 			hctrl.store = store
+			hctrl.overFlowingHPAs = testCase.ignored
 
 			if testCase.hpa != nil {
 				err := inf.

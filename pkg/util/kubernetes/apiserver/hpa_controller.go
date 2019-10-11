@@ -29,11 +29,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
 	// maxRetries is the maximum number of times we try to process an autoscaler before it is dropped out of the queue.
 	maxRetries = 10
+	// maxMetricsCount is the maximum number of metrics we can query from the backend.
+	maxMetricsCount = 40
 )
 
 type PollerConfig struct {
@@ -62,6 +65,11 @@ type AutoscalersController struct {
 	// used in unit tests to wait until hpas are synced
 	autoscalers chan interface{}
 
+	// metricsProcessedCount keeps track of the number of metrics queried per batch to avoid going over the backend limitation
+	metricsProcessedCount int
+	// overFlowingHPAs keeps a map of the HPA to the number of metrics in their specs that were ignored as there are already too many metrics being processed.
+	overFlowingHPAs map[types.UID]int
+
 	toStore   metricsBatch
 	hpaProc   hpa.ProcessorInterface
 	store     custommetrics.Store
@@ -80,6 +88,7 @@ func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInter
 	}
 
 	h.toStore.data = make(map[string]custommetrics.ExternalMetricValue)
+	h.overFlowingHPAs = make(map[types.UID]int)
 
 	gcPeriodSeconds := config.Datadog.GetInt("hpa_watcher_gc_period")
 	refreshPeriod := config.Datadog.GetInt("external_metrics_provider.refresh_period")
@@ -215,20 +224,29 @@ func (h *AutoscalersController) gc() {
 		log.Errorf("Could not list hpas: %v", err)
 		return
 	}
-
+	processedList := removeIgnoredHPAs(h.overFlowingHPAs, list)
 	emList, err := h.store.ListAllExternalMetricValues()
 	if err != nil {
 		log.Errorf("Could not list external metrics from store: %v", err)
 		return
 	}
-
-	deleted := hpa.DiffExternalMetrics(list, emList)
+	deleted := hpa.DiffExternalMetrics(processedList, emList)
 	if err = h.store.DeleteExternalMetricValues(deleted); err != nil {
 		log.Errorf("Could not delete the external metrics in the store: %v", err)
 		return
 	}
 	h.deleteFromLocalStore(deleted)
 	log.Debugf("Done GC run. Deleted %d metrics", len(deleted))
+}
+
+// removeIgnoredHPAs is used in the gc to avoid considering the ignored HPAs
+func removeIgnoredHPAs(ignored map[types.UID]int, listCached []*autoscalingv2.HorizontalPodAutoscaler) (toProcess []*autoscalingv2.HorizontalPodAutoscaler) {
+	for _, hpa := range listCached {
+		if _, ok := ignored[hpa.UID]; !ok {
+			toProcess = append(toProcess, hpa)
+		}
+	}
+	return
 }
 
 func (h *AutoscalersController) worker() {
@@ -298,13 +316,19 @@ func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
 			return ErrIsEmpty
 		}
 		new := h.hpaProc.ProcessHPAs(hpa)
+		if len(new)+h.metricsProcessedCount > maxMetricsCount {
+			log.Warnf("Currently processing %d metrics, skipping %s/%s as we can't process more than %d metrics",
+				h.metricsProcessedCount, hpa.Namespace, hpa.Name, maxMetricsCount)
+			h.overFlowingHPAs[hpa.UID] = len(new)
+			return nil
+		}
 		h.toStore.m.Lock()
 		for metric, value := range new {
 			// We should only insert placeholders in the local cache.
 			h.toStore.data[metric] = value
 		}
 		h.toStore.m.Unlock()
-
+		h.metricsProcessedCount += len(new)
 		log.Tracef("Local batch cache of HPA is %v", h.toStore.data)
 	}
 	return err
@@ -341,7 +365,8 @@ func (h *AutoscalersController) updateAutoscaler(old, obj interface{}) {
 		log.Tracef("Update received for the %s/%s, without a relevant change to the configuration", newAutoscaler.Namespace, newAutoscaler.Name)
 		return
 	}
-	// Need to delete the old object from the local cache. If the labels have changed, the syncAutoscaler would not override the old key.
+	// Need to delete the old object from the local cache. If the labels (tags) have changed, the syncAutoscaler would not override the old key.
+	// If the oldAutoscaler is behind a HPA in the queue that maximises processedMetricsCount, it will be added to overFlowingHPAs and garbage collected.
 	toDelete := hpa.Inspect(oldAutoscaler)
 	h.deleteFromLocalStore(toDelete)
 
@@ -370,6 +395,11 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 			h.enqueue(deletedHPA)
 			return
 		}
+		// Only decrease the count of processed metrics if we are able to successfully remove them from the global store.
+		// TODO pop HPAs from h.overFlowingHPAs and start processing the one(s) we have been ignoring up to the maxMetricsCount
+		// Current behavior: HPA will be evaluated next resync and processed if it does not have too many metrics.
+		h.metricsProcessedCount -= len(toDelete)
+		delete(h.overFlowingHPAs, deletedHPA.UID)
 		return
 	}
 
@@ -393,6 +423,10 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 		h.enqueue(deletedHPA)
 		return
 	}
+	// Only decrease the count of processed metrics if we are able to successfully remove them from the global store.
+	// TODO pop HPAs from h.overFlowingHPAs and start processing the one(s) we have been ignoring, up to the maxMetricsCount
+	h.metricsProcessedCount -= len(toDelete)
+	delete(h.overFlowingHPAs, deletedHPA.UID)
 }
 
 func (h *AutoscalersController) enqueue(obj interface{}) {
