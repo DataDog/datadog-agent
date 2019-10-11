@@ -94,6 +94,8 @@ NOTE: Changes made to this template should be reflected on the following templat
 
   Custom Metrics Server
   =====================
+  {{- if .custommetrics.Disabled }}
+    Status: {{ .custommetrics.Disabled }}
     {{- if .custommetrics.Error }}
     Error: {{ .custommetrics.Error }}
     {{ else }}
@@ -123,6 +125,7 @@ NOTE: Changes made to this template should be reflected on the following templat
       {{- end }}
     {{- end }}
     {{- end }}
+  {{- end }}
 {{- end }}
 
 {{- if .clusterchecks }}
