@@ -42,8 +42,8 @@ RUN find / -maxdepth 1 -type f -name 'datadog-agent*_amd64.deb' ! -name "$DD_AGE
     opt/datadog-agent/embedded/lib/python2.7/site-packages/Cryptodome/SelfTest \
  && if [ "$PYTHON_VERSION" = "2" ]; then \
         rm -rf \
-            opt/datadog-agent/embedded/bin/2to3-3.7 \
-            opt/datadog-agent/embedded/bin/easy_install3.7 \
+            opt/datadog-agent/embedded/bin/2to3-3* \
+            opt/datadog-agent/embedded/bin/easy_install-3* \
             opt/datadog-agent/embedded/bin/idle* \
             opt/datadog-agent/embedded/bin/pip3* \
             opt/datadog-agent/embedded/bin/pydoc* \
