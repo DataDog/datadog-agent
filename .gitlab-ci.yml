@@ -163,9 +163,7 @@ before_script:
     - echo "Running windows source tests"
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
-    # can we not use RELEASE_VERSION here and just test on HEAD like the other platform's tests?
-    # TODO: verify --release-version must be set to `--release-version %RELEASE_VERSION%`
-    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES \unittests.bat --release-version nightly
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES \unittests.bat
 
 run_tests_windows-x64:
   # temporarily allow failure for tests
