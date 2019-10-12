@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -354,8 +355,21 @@ func formatIPTranslation(c ct.Con, generation uint8) *connValue {
 	}
 }
 
-func formatKey(c ct.Con) (k connKey) {
+func formatKey(c ct.Con) (k connKey, ok bool) {
+	ok = true
 	k.ip = util.AddressFromNetIP(*c.Origin.Src)
 	k.port = *c.Origin.Proto.SrcPort
+
+	proto := *c.Origin.Proto.Number
+	switch proto {
+	case 6:
+		k.transport = process.ConnectionType_tcp
+	case 17:
+		k.transport = process.ConnectionType_udp
+
+	default:
+		ok = false
+	}
+
 	return
 }
