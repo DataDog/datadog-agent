@@ -15,15 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+// Invalid characters to clean up
+var invalidChars = regexp.MustCompile("[^a-zA-Z0-9_-]")
+
 // Return a file where to store the data. We split the key by ":", using the
 // first prefix as directory, if present. This is useful for integrations, which
 // use the check_id formed with $check_name:$hash
 func getFileForKey(key string) (string, error) {
-	// Invalid characters to clean up
-	invalidChars, err := regexp.Compile("[^a-zA-Z0-9_-]")
-	if err != nil {
-		return "", err
-	}
 	parent := config.Datadog.GetString("run_path")
 	paths := strings.SplitN(key, ":", 2)
 	cleanedPath := invalidChars.ReplaceAllString(paths[0], "")
@@ -32,7 +30,7 @@ func getFileForKey(key string) (string, error) {
 		return filepath.Join(parent, cleanedPath), nil
 	}
 	// Otherwise, create the directory with a prefix
-	err = os.MkdirAll(filepath.Join(parent, cleanedPath), 0700)
+	err := os.MkdirAll(filepath.Join(parent, cleanedPath), 0700)
 	if err != nil {
 		return "", err
 	}
