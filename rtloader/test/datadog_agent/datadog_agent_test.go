@@ -383,3 +383,32 @@ func TestSetExternalTagInvalidTagsList(t *testing.T) {
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
 }
+
+func TestWritePersistentCache(t *testing.T) {
+	code := `
+	datadog_agent.write_persistent_cache("12345", "someothervalue")
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "12345someothervalue" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
+
+func TestReadPersistentCache(t *testing.T) {
+	code := fmt.Sprintf(`
+	with open(r'%s', 'w') as f:
+		data = datadog_agent.read_persistent_cache("12345")
+		assert type(data) == type("")
+		f.write(data)
+	`, tmpfile.Name())
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "somevalue" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}

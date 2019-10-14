@@ -548,6 +548,28 @@ DATADOG_AGENT_RTLOADER_API void set_get_connection_info_cb(rtloader_t *, cb_get_
 */
 DATADOG_AGENT_RTLOADER_API void set_is_excluded_cb(rtloader_t *, cb_is_excluded_t);
 
+/*! \fn void set_write_persistent_cache_cb(rtloader_t *, cb_write_persistent_cache_t)
+    \brief Sets a callback to be used by rtloader to allow storing a value for a given
+    check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_write_persistent_cache_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_write_persistent_cache_cb(rtloader_t *, cb_write_persistent_cache_t);
+
+/*! \fn void set_read_persistent_cache_cb(rtloader_t *, cb_read_persistent_cache_t)
+    \brief Sets a callback to be used by rtloader to allow retrieving a value for a given
+    check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_read_persistent_cache_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_read_persistent_cache_cb(rtloader_t *, cb_read_persistent_cache_t);
+
 #ifdef __cplusplus
 }
 #endif

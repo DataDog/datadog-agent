@@ -873,6 +873,16 @@ void Two::setIsExcludedCb(cb_is_excluded_t cb)
     _set_is_excluded_cb(cb);
 }
 
+void Two::setWritePersistentCacheCb(cb_write_persistent_cache_t cb)
+{
+    _set_write_persistent_cache_cb(cb);
+}
+
+void Two::setReadPersistentCacheCb(cb_read_persistent_cache_t cb)
+{
+    _set_read_persistent_cache_cb(cb);
+}
+
 // Python Helpers
 
 // get_integration_list return a list of every datadog's wheels installed.
