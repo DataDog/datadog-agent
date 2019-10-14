@@ -441,6 +441,16 @@ char *get_interpreter_memory_usage(rtloader_t *rtloader)
     return AS_TYPE(RtLoader, rtloader)->getInterpreterMemoryUsage();
 }
 
+void set_write_persistent_cache_cb(rtloader_t *rtloader, cb_write_persistent_cache_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setWritePersistentCacheCb(cb);
+}
+
+void set_read_persistent_cache_cb(rtloader_t *rtloader, cb_read_persistent_cache_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setReadPersistentCacheCb(cb);
+}
+
 /*
  * _util API
  */
