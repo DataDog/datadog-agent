@@ -33,6 +33,7 @@ const EOFChar = unicode.MaxRune + 1
 // need a full-fledged tokenizer to implement a Lexer
 const (
 	LexError = TokenKind(57346) + iota
+
 	ID
 	Limit
 	Null
@@ -52,6 +53,11 @@ const (
 	GE
 	NE
 	As
+	From
+	Update
+	Insert
+	Into
+	Join
 
 	// FilteredGroupable specifies that the given token has been discarded by one of the
 	// token filters and that it is groupable together with consecutive FilteredGroupable
@@ -106,6 +112,11 @@ var keywords = map[string]TokenKind{
 	"SAVEPOINT": Savepoint,
 	"LIMIT":     Limit,
 	"AS":        As,
+	"FROM":      From,
+	"UPDATE":    Update,
+	"INSERT":    Insert,
+	"INTO":      Into,
+	"JOIN":      Join,
 }
 
 // Err returns the last error that the tokenizer encountered, or nil.
@@ -242,7 +253,7 @@ func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 	}
 	upper := bytes.ToUpper(buffer.Bytes())
 	if keywordID, found := keywords[string(upper)]; found {
-		return keywordID, upper
+		return keywordID, buffer.Bytes()
 	}
 	return ID, buffer.Bytes()
 }
