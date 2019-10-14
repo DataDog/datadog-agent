@@ -182,7 +182,7 @@ suites:
 
 # Installs the latest release Agent 5, then updates it to the latest release
 # candidate
-- name: dd-agent-upgrade-agent5
+- name: dd-agent-upgrade-agent5-<%=ENV['AGENT_VERSION']%>
   excludes: <% if sles15_platforms.nil? || sles15_platforms.empty? %>[]<% end %> # Agent 5 package doesn't work on SLES 15
     <% sles15_platforms.each do |p| %>
     - <%= p %>

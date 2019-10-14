@@ -66,7 +66,7 @@ platforms:
 
 suites:
 
-- name: dd-test-install
+- name: dd-test-install-<%=ENV['AGENT_VERSION']%>
   includes:
     <% platforms_x64.each do |platform| %>
     - <%= platform %>

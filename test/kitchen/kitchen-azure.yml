@@ -184,7 +184,7 @@ suites:
 %>
 
 # Install the latest release candidate using Chef
-- name: dd-agent
+- name: dd-agent-<%=ENV['AGENT_VERSION']%>
   run_list:
     - "recipe[dd-agent-install]"
   attributes:
@@ -209,7 +209,7 @@ suites:
 
 # Installs the latest release Agent 6, then updates it to the latest release
 # candidate
-- name: dd-agent-upgrade-agent6
+- name: dd-agent-upgrade-agent6-<%=ENV['AGENT_VERSION']%>
   run_list:
     - "recipe[dd-agent-install]"
     - "recipe[dd-agent-upgrade]"
@@ -255,7 +255,7 @@ suites:
 
 # Installs the latest release Agent 5, then updates it to the latest release
 # candidate
-- name: dd-agent-upgrade-agent5
+- name: dd-agent-upgrade-agent5-<%=ENV['AGENT_VERSION']%>
   excludes: <% if (sles15_platforms.nil? || sles15_platforms.empty?) && (windows_platforms.nil? || windows_platforms.empty?) %>[]<% end %> # Agent 5 package doesn't work on SLES 15
     <% sles15_platforms.each do |p| %>
     - <%= p %>
@@ -310,7 +310,7 @@ suites:
 
 
 # Installs the latest release candidate using the install script
-- name: dd-agent-install-script
+- name: dd-agent-install-script-<%=ENV['AGENT_VERSION']%>
   excludes: <% if windows_platforms.nil? || windows_platforms.empty? %>[]<% end %>
     <% windows_platforms.each do |p| %>
     - <%= p %>
@@ -330,7 +330,7 @@ suites:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
 # Installs the latest release candidate using the step-by-step instructions (on dogweb)
-- name: dd-agent-step-by-step
+- name: dd-agent-step-by-step-<%=ENV['AGENT_VERSION']%>
   run_list:
     - "recipe[dd-agent-step-by-step]"
   excludes: <% if windows_platforms.nil? || windows_platforms.empty? %>[]<% end %>
