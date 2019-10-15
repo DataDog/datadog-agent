@@ -273,6 +273,9 @@ func StartAgent() error {
 		log.Info("logs-agent disabled")
 	}
 
+	// Detect Cloud Provider
+	go util.DetectCloudProvider()
+
 	// create and setup the Autoconfig instance
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check

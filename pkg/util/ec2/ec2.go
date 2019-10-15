@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,15 +35,17 @@ func GetInstanceID() (string, error) {
 	return getMetadataItemWithMaxLength("/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 }
 
+// IsRunningOn returns true if the agent is running on AWS
+func IsRunningOn() bool {
+	if _, err := GetHostname(); err == nil {
+		return true
+	}
+	return false
+}
+
 // GetHostname fetches the hostname for current host from the EC2 metadata API
 func GetHostname() (string, error) {
-	hostname, err := getMetadataItemWithMaxLength("/hostname", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
-
-	// registering that we're running on AWS
-	if err == nil {
-		inventories.SetAgentMetadata(inventories.CloudProviderMetatadaName, CloudProviderName)
-	}
-	return hostname, err
+	return getMetadataItemWithMaxLength("/hostname", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 }
 
 // GetNetworkID retrieves the network ID using the EC2 metadata endpoint. For

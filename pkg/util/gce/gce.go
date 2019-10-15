@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
@@ -45,6 +44,14 @@ type gceProjectMetadata struct {
 	NumericProjectID int64
 }
 
+// IsRunningOn returns true if the agent is running on GCE
+func IsRunningOn() bool {
+	if _, err := GetHostname(); err == nil {
+		return true
+	}
+	return false
+}
+
 // GetHostname returns the hostname querying GCE Metadata api
 func GetHostname() (string, error) {
 	hostname, err := getResponseWithMaxLength(metadataURL+"/instance/hostname",
@@ -52,9 +59,6 @@ func GetHostname() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve hostname from GCE: %s", err)
 	}
-
-	// registering that we're running on GCP
-	inventories.SetAgentMetadata(inventories.CloudProviderMetatadaName, CloudProviderName)
 	return hostname, nil
 }
 

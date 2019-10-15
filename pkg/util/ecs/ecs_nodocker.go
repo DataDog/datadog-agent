@@ -9,6 +9,16 @@ package ecs
 
 import "github.com/DataDog/datadog-agent/pkg/util/docker"
 
+const (
+	// CloudProviderName contains the inventory name of for ECS
+	CloudProviderName = "AWS"
+)
+
+// IsRunningOn returns true if the agent is running on ECS/Fargate
+func IsRunningOn() bool {
+	return false
+}
+
 // GetUtil returns an ECS util
 func GetUtil() (*Util, error) {
 	return nil, docker.ErrDockerNotCompiled

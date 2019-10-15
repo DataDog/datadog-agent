@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 )
 
 // declare these as vars not const to ease testing
@@ -24,6 +23,14 @@ var (
 	CloudProviderName = "Alibaba"
 )
 
+// IsRunningOn returns true if the agent is running on Alibaba
+func IsRunningOn() bool {
+	if _, err := GetHostAlias(); err == nil {
+		return true
+	}
+	return false
+}
+
 // GetHostAlias returns the VM ID from the Alibaba Metadata api
 func GetHostAlias() (string, error) {
 	res, err := getResponseWithMaxLength(metadataURL+"/latest/meta-data/instance-id",
@@ -31,9 +38,6 @@ func GetHostAlias() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("Alibaba HostAliases: unable to query metadata endpoint: %s", err)
 	}
-
-	// registering that we're running on alibaba
-	inventories.SetAgentMetadata(inventories.CloudProviderMetatadaName, CloudProviderName)
 	return res, err
 }
 
