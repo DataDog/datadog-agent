@@ -52,7 +52,7 @@ build do
         elsif linux?
             # Fix pip after building on extended toolchain in CentOS builder
             if redhat?
-              command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec sed -i 's/\/opt\/centos\/devtoolset\-1\.1\/root//g' {} \;"
+              command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec sed -i 's/\\/opt\\/centos\\/devtoolset\\-1\\.1\\/root//g' {} \\;"
             end
 
             # Move system service files
