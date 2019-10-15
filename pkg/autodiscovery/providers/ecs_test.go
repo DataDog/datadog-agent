@@ -8,7 +8,7 @@ package providers
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,12 +18,12 @@ func TestParseECSContainers(t *testing.T) {
 		"com.datadoghq.ad.init_configs": "[{}, {}]",
 		"com.datadoghq.ad.instances":    "[{\"nginx_status_url\": \"http://%%host%%\"}, {\"url\": \"http://%%host%%/healthz\"}]",
 	}
-	c := metadata.ContainerMetadata{
+	c := v2.Container{
 		DockerID: "deadbeef",
 		Image:    "test",
 		Labels:   labels,
 	}
-	tpls, err := parseECSContainers([]metadata.ContainerMetadata{c})
+	tpls, err := parseECSContainers([]v2.Container{c})
 	assert.Nil(t, err)
 	assert.Len(t, tpls, 2)
 	assert.Equal(t, []string{"docker://deadbeef"}, tpls[0].ADIdentifiers)
@@ -39,5 +39,4 @@ func TestParseECSContainers(t *testing.T) {
 	assert.Equal(t, "ecs:docker://deadbeef", string(tpls[1].Source))
 	assert.Len(t, tpls[1].Instances, 1)
 	assert.Equal(t, "{\"url\":\"http://%%host%%/healthz\"}", string(tpls[1].Instances[0]))
-
 }

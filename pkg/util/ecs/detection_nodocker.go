@@ -7,23 +7,10 @@
 
 package ecs
 
-import "github.com/DataDog/datadog-agent/pkg/util/docker"
-import "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
-
 const (
 	// CloudProviderName contains the inventory name of for ECS
 	CloudProviderName = "AWS"
 )
-
-// IsRunningOn returns true if the agent is running on ECS/Fargate
-func IsRunningOn() bool {
-	return false
-}
-
-// GetUtil returns an ECS util
-func GetUtil() (*Util, error) {
-	return nil, docker.ErrDockerNotCompiled
-}
 
 // IsECSInstance returns whether the agent is running in ECS.
 func IsECSInstance() bool {
@@ -36,8 +23,7 @@ func IsFargateInstance() bool {
 	return false
 }
 
-// GetTaskMetadata extracts the metadata payload for the task the agent is in.
-func GetTaskMetadata() (metadata.TaskMetadata, error) {
-	var meta metadata.TaskMetadata
-	return meta, nil
+// IsRunningOn returns true if the agent is running on ECS/Fargate
+func IsRunningOn() bool {
+	return false
 }

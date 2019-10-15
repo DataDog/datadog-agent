@@ -10,27 +10,71 @@ package ecs
 import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 )
 
 func init() {
 	diagnosis.Register("ECS Metadata availability", diagnoseECS)
+	diagnosis.Register("ECS Metadata with tags availability", diagnoseECSTags)
 	diagnosis.Register("ECS Fargate Metadata availability", diagnoseFargate)
+	diagnosis.Register("ECS Fargate Metadata with tags availability", diagnoseFargateTags)
 }
 
 // diagnose the ECS metadata API availability
 func diagnoseECS() error {
-	_, err := GetUtil()
+	client, err := ecsmeta.V1()
 	if err != nil {
 		log.Error(err)
+		return err
 	}
-	return err
+	log.Info("successfully detected ECS metadata server endpoint")
+
+	if _, err = client.GetTasks(); err != nil {
+		log.Error(err)
+		return err
+	}
+	log.Info("successfully retrieved task list from ECS metadata server")
+
+	return nil
+}
+
+// diagnose the ECS metadata with tags API availability
+func diagnoseECSTags() error {
+	client, err := ecsmeta.V3FromCurrentTask()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	log.Info("successfully detected ECS metadata server endpoint for resource tags")
+
+	if _, err = client.GetTaskWithTags(); err != nil {
+		log.Error(err)
+		return err
+	}
+	log.Info("successfully retrieved task with potential tags from ECS metadata server")
+
+	return nil
 }
 
 // diagnose the ECS Fargate metadata API availability
 func diagnoseFargate() error {
-	_, err := GetTaskMetadata()
-	if err != nil {
+	if _, err := ecsmeta.V2().GetTask(); err != nil {
 		log.Error(err)
+		return err
 	}
-	return err
+	log.Info("successfully retrieved task from Fargate metadata endpoint")
+
+	return nil
+}
+
+// diagnose the ECS Fargate metadata with tags API availability
+func diagnoseFargateTags() error {
+	if _, err := ecsmeta.V2().GetTaskWithTags(); err != nil {
+		log.Error(err)
+		return err
+	}
+	log.Info("successfully retrieved task with potential tags from Fargate metadata endpoint")
+
+	return nil
 }
