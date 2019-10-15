@@ -10,7 +10,8 @@ stages:
   - pkg_metrics
   - image_build
   - image_deploy
-  - deploy
+  - deploy6
+  - deploy7
   - deploy_invalidate
   - e2e
   - testkitchen_cleanup
@@ -62,7 +63,7 @@ variables:
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly
   DATADOG_AGENT_BUILDIMAGES: v1709713-2adac2a
-  DATADOG_AGENT_BUILDERS: v1755190-c671974
+  DATADOG_AGENT_BUILDERS: v1790442-01a4d70
   DATADOG_AGENT_WINBUILDIMAGES: v1782031-7bc5447
 
 
@@ -1726,7 +1727,7 @@ check_if_build_only:
 deploy_deb-6:
   <<: *run_when_triggered
   <<: *skip_when_unwanted_on_6
-  stage: deploy
+  stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1736,7 +1737,7 @@ deploy_deb-6:
     # (same as the check_already_deployed_version). We do this twice to mitigate
     # races and issues with retries while failing early if there is an issue.
     - pushd $OMNIBUS_PACKAGE_DIR
-    - /deploy_scripts/fail_deb_is_pkg_already_exists.sh
+    - /deploy_scripts/fail_deb_is_pkg_already_exists.sh *_6.*amd64.deb
     - popd
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
@@ -1758,7 +1759,7 @@ deploy_deb-6:
 deploy_deb-7:
   <<: *run_when_triggered
   <<: *skip_when_unwanted_on_7
-  stage: deploy
+  stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1768,7 +1769,7 @@ deploy_deb-7:
     # (same as the check_already_deployed_version). We do this twice to mitigate
     # races and issues with retries while failing early if there is an issue.
     - pushd $OMNIBUS_PACKAGE_DIR
-    - /deploy_scripts/fail_deb_is_pkg_already_exists.sh
+    - /deploy_scripts/fail_deb_is_pkg_already_exists.sh *_7.*amd64.deb
     - popd
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
@@ -1789,7 +1790,7 @@ deploy_deb-7:
 
 # deploy windows packages to a public s3 bucket when pushed on master
 deploy_windows_master:
-  stage: deploy
+  stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1799,7 +1800,7 @@ deploy_windows_master:
     - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/master/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 deploy_windows_master-latest-6:
-  stage: deploy
+  stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1809,7 +1810,7 @@ deploy_windows_master-latest-6:
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-6*-x86_64.msi "s3://$WINDOWS_BUILDS_S3_BUCKET/master/datadog-agent-6-latest.amd64.msi" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 deploy_windows_master-latest-7:
-  stage: deploy
+  stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1820,7 +1821,7 @@ deploy_windows_master-latest-7:
 
 # deploy windows packages to a public s3 bucket when tagged
 deploy_windows_tags:
-  stage: deploy
+  stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1830,7 +1831,7 @@ deploy_windows_tags:
     - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 deploy_windows_tags-latest-6:
-  stage: deploy
+  stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1844,7 +1845,7 @@ deploy_windows_tags-latest-6:
     - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-6*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-6-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
 
 deploy_windows_tags-latest-7:
-  stage: deploy
+  stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1859,7 +1860,7 @@ deploy_windows_tags-latest-7:
 
 # deploy android packages to a public s3 bucket when tagged
 deploy_android_tags:
-  stage: deploy
+  stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1872,7 +1873,7 @@ deploy_android_tags:
 deploy_rpm-6:
   <<: *run_when_triggered
   <<: *skip_when_unwanted_on_6
-  stage: deploy
+  stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1893,7 +1894,7 @@ deploy_rpm-6:
 deploy_rpm-7:
   <<: *run_when_triggered
   <<: *skip_when_unwanted_on_7
-  stage: deploy
+  stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1915,7 +1916,7 @@ deploy_rpm-7:
 deploy_suse_rpm-6:
   <<: *run_when_triggered
   <<: *skip_when_unwanted_on_6
-  stage: deploy
+  stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
@@ -1936,7 +1937,7 @@ deploy_suse_rpm-6:
 deploy_suse_rpm-7:
   <<: *run_when_triggered
   <<: *skip_when_unwanted_on_7
-  stage: deploy
+  stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
@@ -1957,7 +1958,7 @@ deploy_suse_rpm-7:
 # deploy dsd binary to staging bucket
 deploy_dsd:
   <<: *run_when_triggered
-  stage: deploy
+  stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1970,7 +1971,7 @@ deploy_dsd:
 # deploy dsd binary to staging bucket
 deploy_puppy:
   <<: *run_when_triggered
-  stage: deploy
+  stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -2006,7 +2007,7 @@ tag_release_6:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_tag_6
   <<: *skip_when_unwanted_on_6
-  stage: deploy
+  stage: deploy6
   when: manual
   variables:
     PYTHON_RUNTIMES: '2,3'
@@ -2023,7 +2024,7 @@ tag_release_7:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_tag_7
   <<: *skip_when_unwanted_on_7
-  stage: deploy
+  stage: deploy7
   when: manual
   variables:
     PYTHON_RUNTIMES: '3'
@@ -2037,7 +2038,7 @@ latest_release_6:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_tag_6
   <<: *skip_when_unwanted_on_6
-  stage: deploy
+  stage: deploy6
   when: manual
   variables:
     <<: *docker_hub_variables
@@ -2057,7 +2058,7 @@ latest_release_7:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_tag_7
   <<: *skip_when_unwanted_on_7
-  stage: deploy
+  stage: deploy7
   when: manual
   variables:
     <<: *docker_hub_variables
