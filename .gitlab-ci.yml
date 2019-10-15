@@ -1991,6 +1991,8 @@ deploy_process_and_sysprobe:
     - ls
   tags: [ "runner:main", "size:large" ]
   script:
+    # The shell expansion `datadog-agent_*_amd64.deb` might return multiple
+    # entries, so we sort them and get the first one.
     - dpkg -x $(ls -1 datadog-agent_*_amd64.deb | sort -V | head -n 1) ./out
     # Use tag or shortened branch with short commit hash to identify the binary
     - export SHORT_REF=$(echo $CI_COMMIT_REF_NAME | cut -d'/' -f2- | cut -c -10 | sed -E 's/[^[:alnum:]]+/-/g')
