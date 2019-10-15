@@ -1,1 +1,192 @@
 package dogstatsd_tmp
+
+import (
+	"bytes"
+	"fmt"
+	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+type eventPriority int
+
+const (
+	priorityNormal eventPriority = iota
+	priorityLow
+)
+
+type alertType int
+
+const (
+	alertTypeSuccess alertType = iota
+	alertTypeInfo
+	alertTypeWarning
+	alertTypeError
+)
+
+type dogstatsdEvent struct {
+	title          []byte
+	text           []byte
+	timestamp      int64
+	hostname       []byte
+	aggregationKey []byte
+	priority       eventPriority
+	sourceType     []byte
+	alertType      alertType
+	tags           [][]byte
+}
+
+type eventHeader struct {
+	titleLength int
+	textLength  int
+}
+
+var (
+	eventTimestampPrefix      = []byte("d:")
+	eventHostnamePrefix       = []byte("h:")
+	eventAggregationKeyPrefix = []byte("k:")
+	eventPriorityPrefix       = []byte("p:")
+	eventSourceTypePrefix     = []byte("s:")
+	eventAlertTypePrefix      = []byte("t:")
+	eventTagsPrefix           = []byte("#")
+
+	eventPriorityLow    = []byte("low")
+	eventPriorityNormal = []byte("normal")
+
+	eventAlertTypeError   = []byte("error")
+	eventAlertTypeWarning = []byte("warning")
+	eventAlertTypeInfo    = []byte("info")
+	eventAlertTypeSuccess = []byte("success")
+)
+
+// splitHeaderEvent splits the event and the
+func splitHeaderEvent(message []byte) ([]byte, []byte, error) {
+	sepIndex := bytes.Index(message, colonSeparator)
+	if sepIndex == -1 {
+		return nil, nil, fmt.Errorf("invalid event: %q", message)
+	}
+	return message[:sepIndex], message[sepIndex+1:], nil
+}
+
+func parseHeader(rawHeader []byte) (eventHeader, error) {
+	if len(rawHeader) < 7 {
+		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
+	}
+	rawLengths := rawHeader[3 : len(rawHeader)-1]
+	sepIndex := bytes.Index(rawLengths, commaSeparator)
+	if sepIndex == -1 {
+		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
+	}
+	rawTitleLength := rawLengths[:sepIndex]
+	rawTextLength := rawLengths[sepIndex+1:]
+	titleLength, err := strconv.ParseInt(string(rawTitleLength), 10, 32)
+	if err != nil {
+		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
+	}
+	textLength, err := strconv.ParseInt(string(rawTextLength), 10, 32)
+	if err != nil {
+		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
+	}
+	return eventHeader{
+		titleLength: int(titleLength),
+		textLength:  int(textLength),
+	}, nil
+}
+
+func cleanEventText(text []byte) []byte {
+	return bytes.Replace(text, []byte("\\n"), []byte("\n"), -1)
+}
+
+func parseEventTimestamp(rawTimestamp []byte) (int64, error) {
+	return strconv.ParseInt(string(rawTimestamp), 10, 64)
+}
+
+func parseEventPriority(rawPriority []byte) (eventPriority, error) {
+	switch {
+	case bytes.Equal(rawPriority, eventPriorityNormal):
+		return priorityNormal, nil
+	case bytes.Equal(rawPriority, eventPriorityLow):
+		return priorityLow, nil
+	}
+	return priorityNormal, fmt.Errorf("invalid event priority: %q", rawPriority)
+}
+
+func parseEventAlertType(rawAlertType []byte) (alertType, error) {
+	switch {
+	case bytes.Equal(rawAlertType, eventAlertTypeSuccess):
+		return alertTypeSuccess, nil
+	case bytes.Equal(rawAlertType, eventAlertTypeInfo):
+		return alertTypeInfo, nil
+	case bytes.Equal(rawAlertType, eventAlertTypeWarning):
+		return alertTypeWarning, nil
+	case bytes.Equal(rawAlertType, eventAlertTypeError):
+		return alertTypeError, nil
+	}
+	return alertTypeInfo, fmt.Errorf("invalid alert type: %q", rawAlertType)
+}
+
+func applyOptionalField(event dogstatsdEvent, optionalField []byte) (dogstatsdEvent, error) {
+	newEvent := event
+	var err error
+	switch {
+	case bytes.HasPrefix(optionalField, eventTimestampPrefix):
+		newEvent.timestamp, err = parseEventTimestamp(optionalField[len(eventTimestampPrefix):])
+	case bytes.HasPrefix(optionalField, eventHostnamePrefix):
+		newEvent.hostname = optionalField[len(eventHostnamePrefix):]
+	case bytes.HasPrefix(optionalField, eventAggregationKeyPrefix):
+		newEvent.aggregationKey = optionalField[len(eventAggregationKeyPrefix):]
+	case bytes.HasPrefix(optionalField, eventPriorityPrefix):
+		newEvent.priority, err = parseEventPriority(optionalField[len(eventPriorityPrefix):])
+	case bytes.HasPrefix(optionalField, eventSourceTypePrefix):
+		newEvent.sourceType = optionalField[len(eventSourceTypePrefix):]
+	case bytes.HasPrefix(optionalField, eventAlertTypePrefix):
+		newEvent.alertType, err = parseEventAlertType(optionalField[len(eventAlertTypePrefix):])
+	case bytes.HasPrefix(optionalField, eventTagsPrefix):
+		newEvent.tags = parseTags(optionalField[len(eventTagsPrefix):])
+	}
+	if err != nil {
+		return event, err
+	}
+	return newEvent, nil
+}
+
+func parseEvent(message []byte) (dogstatsdEvent, error) {
+	rawHeader, rawEvent, err := splitHeaderEvent(message)
+	if err != nil {
+		return dogstatsdEvent{}, err
+	}
+	header, err := parseHeader(rawHeader)
+	if err != nil {
+		return dogstatsdEvent{}, err
+	}
+	if len(rawEvent) < header.textLength+header.titleLength+1 {
+		return dogstatsdEvent{}, fmt.Errorf("invalid event: %q", message)
+	}
+	if header.titleLength == 0 || header.textLength == 0 {
+		return dogstatsdEvent{}, fmt.Errorf("invalid event, empty title or text: %q", message)
+	}
+	title := cleanEventText(rawEvent[:header.titleLength])
+	text := cleanEventText(rawEvent[header.titleLength+1 : header.titleLength+1+header.textLength])
+
+	event := dogstatsdEvent{
+		title:     title,
+		text:      text,
+		priority:  priorityNormal,
+		alertType: alertTypeInfo,
+	}
+
+	if len(rawEvent) == header.textLength+header.titleLength+1 {
+		return event, nil
+	}
+
+	optionalFields := rawEvent[header.titleLength+1+header.textLength+1:]
+	var optionalField []byte
+	for optionalFields != nil {
+		optionalField, optionalFields = nextField(optionalFields)
+		event, err = applyOptionalField(event, optionalField)
+		if err != nil {
+			log.Warnf("invalid event optional field: %v", err)
+		}
+	}
+	return event, nil
+}
