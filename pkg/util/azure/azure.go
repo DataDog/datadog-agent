@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 )
 
 // declare these as vars not const to ease testing
@@ -26,6 +25,14 @@ var (
 	CloudProviderName = "Azure"
 )
 
+// IsRunningOn returns true if the agent is running on Azure
+func IsRunningOn() bool {
+	if _, err := GetHostAlias(); err == nil {
+		return true
+	}
+	return false
+}
+
 // GetHostAlias returns the VM ID from the Azure Metadata api
 func GetHostAlias() (string, error) {
 	res, err := getResponseWithMaxLength(metadataURL+"/metadata/instance/compute/vmId?api-version=2017-04-02&format=text",
@@ -33,9 +40,6 @@ func GetHostAlias() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
 	}
-
-	// registering that we're running on Azure
-	inventories.SetAgentMetadata(inventories.CloudProviderMetatadaName, CloudProviderName)
 	return res, nil
 }
 
