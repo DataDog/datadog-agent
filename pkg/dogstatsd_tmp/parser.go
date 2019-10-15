@@ -29,7 +29,7 @@ var (
 
 	fieldSeparator = []byte("|")
 	colonSeparator = []byte(":")
-	tagsSeparator  = []byte(",")
+	commaSeparator = []byte(",")
 )
 
 func findMessageType(message []byte) messageType {
@@ -58,5 +58,5 @@ func parseTags(rawTags []byte) [][]byte {
 	if len(rawTags) == 0 {
 		return nil
 	}
-	return bytes.Split(rawTags, tagsSeparator)
+	return bytes.Split(rawTags, commaSeparator)
 }
