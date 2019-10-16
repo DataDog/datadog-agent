@@ -149,12 +149,17 @@ func GetPayload(hostname string, ac autoConfigInterface, coll collectorInterface
 
 	agentCacheMutex.Lock()
 	defer agentCacheMutex.Unlock()
+	// Creating a copy of agentMetadataCache
+	agentMetadata := make(AgentMetadata)
+	for k, v := range agentMetadataCache {
+		agentMetadata[k] = v
+	}
 
 	return &Payload{
 		Hostname:      hostname,
 		Timestamp:     timeNow().UnixNano(),
 		CheckMetadata: &checkMetadata,
-		AgentMetadata: &agentMetadataCache,
+		AgentMetadata: &agentMetadata,
 	}
 }
 
