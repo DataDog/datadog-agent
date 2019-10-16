@@ -543,7 +543,7 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
     if (hLsa) {
         LsaClose(hLsa);
     }
-    return er;
+    return 0;
 
 }
 HMODULE hDllModule;
