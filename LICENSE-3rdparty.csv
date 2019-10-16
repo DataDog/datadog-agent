@@ -1,4 +1,5 @@
 Component,Origin,License
+core,bitbucket.org/ww/goautoneg,BSD-3-Clause
 core,github.com/benesch/cgosymbolizer,BSD-3-Clause
 core,github.com/ianlancetaylor/cgosymbolizer,BSD-3-Clause
 core,github.com/DataDog/agent-payload,BSD-3-Clause
