@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // NewAutoscalersController returns a new AutoscalersController
@@ -87,13 +89,9 @@ func (h *AutoscalersController) gc() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	log.Infof("Starting garbage collection process on the Autoscalers")
-
-	list, err := h.autoscalersLister.HorizontalPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
-	if err != nil {
-		log.Errorf("Could not list hpas: %v", err)
-	}
-
 	listWPA := []*v1alpha1.WatermarkPodAutoscaler{}
+	var err error
+
 	if h.wpaEnabled {
 		listWPA, err = h.wpaLister.WatermarkPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
 		if err != nil {
@@ -101,14 +99,21 @@ func (h *AutoscalersController) gc() {
 			return
 		}
 	}
-	processedList := removeIgnoredHPAs(h.overFlowingHPAs, list)
+
+	list, err := h.autoscalersLister.HorizontalPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
+	if err != nil {
+		log.Errorf("Could not list hpas: %v", err)
+		return
+	}
+
+	processedList := removeIgnoredAutoscaler(h.overFlowingHPAs, list)
 	emList, err := h.store.ListAllExternalMetricValues()
 	if err != nil {
 		log.Errorf("Could not list external metrics from store: %v", err)
 		return
 	}
 
-	deleted := hpa.DiffExternalMetrics(processedList, listWPA, emList)
+	deleted := autoscalers.DiffExternalMetrics(processedList, listWPA, emList)
 	if err = h.store.DeleteExternalMetricValues(deleted); err != nil {
 		log.Errorf("Could not delete the external metrics in the store: %v", err)
 		return
@@ -196,7 +201,6 @@ func (h *AutoscalersController) updateExternalMetrics() {
 func (h *AutoscalersController) processingLoop() {
 	tickerAutoscalerRefreshProcess := time.NewTicker(time.Duration(h.poller.refreshPeriod) * time.Second)
 	gcPeriodSeconds := time.NewTicker(time.Duration(h.poller.gcPeriodSeconds) * time.Second)
-	log.Info("we are processing")
 	go func() {
 		for {
 			select {
