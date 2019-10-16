@@ -154,26 +154,25 @@ func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
 			log.Errorf("Could not parse empty hpa %s/%s from local store", ns, name)
 			return ErrIsEmpty
 		}
-		new := h.hpaProc.ProcessHPAs(hpa)
-		if len(new)+h.metricsProcessedCount > maxMetricsCount {
-			log.Warnf("Currently processing %d metrics, skipping %s/%s as we can't process more than %d metrics",
-				h.metricsProcessedCount, hpa.Namespace, hpa.Name, maxMetricsCount)
-			h.overFlowingHPAs[hpa.UID] = len(new)
-			return nil
-		}
-		if _, ok := h.overFlowingHPAs[hpa.UID]; ok {
-			log.Debugf("Previously ignored HPA %s/%s will now be processed", hpa.Namespace, hpa.Name)
-			delete(h.overFlowingHPAs, hpa.UID)
-		}
 		emList := autoscalers.InspectHPA(hpaCached)
 		newMetrics := h.hpaProc.ProcessEMList(emList)
+		if len(newMetrics)+h.metricsProcessedCount > maxMetricsCount {
+			log.Warnf("Currently processing %d metrics, skipping %s/%s as we can't process more than %d metrics",
+				h.metricsProcessedCount, hpaCached.Namespace, hpaCached.Name, maxMetricsCount)
+			h.overFlowingHPAs[hpaCached.UID] = len(newMetrics)
+			return nil
+		}
+		if _, ok := h.overFlowingHPAs[hpaCached.UID]; ok {
+			log.Debugf("Previously ignored HPA %s/%s will now be processed", hpaCached.Namespace, hpaCached.Name)
+			delete(h.overFlowingHPAs, hpaCached.UID)
+		}
 		h.toStore.m.Lock()
 		for metric, value := range newMetrics {
 			// We should only insert placeholders in the local cache.
 			h.toStore.data[metric] = value
 		}
 		h.toStore.m.Unlock()
-		h.metricsProcessedCount += len(new)
+		h.metricsProcessedCount += len(newMetrics)
 		log.Tracef("Local batch cache of Ref is %v", h.toStore.data)
 	}
 	return err
