@@ -21,23 +21,23 @@ const (
 
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
-	buffer      *MessageBuffer
-	serializer  Serializer
-	batchPeriod time.Duration
+	buffer     *MessageBuffer
+	serializer Serializer
+	batchWait  time.Duration
 }
 
 // NewBatchStrategy returns a new batchStrategy.
-func NewBatchStrategy(serializer Serializer, batchPeriod time.Duration) Strategy {
+func NewBatchStrategy(serializer Serializer, batchWait time.Duration) Strategy {
 	return &batchStrategy{
-		buffer:      NewMessageBuffer(maxBatchSize, maxContentSize),
-		serializer:  serializer,
-		batchPeriod: batchPeriod,
+		buffer:     NewMessageBuffer(maxBatchSize, maxContentSize),
+		serializer: serializer,
+		batchWait:  batchWait,
 	}
 }
 
 // Send accumulates messages to a buffer and sends them when the buffer is full or outdated.
 func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error) {
-	flushTimer := time.NewTimer(s.batchPeriod)
+	flushTimer := time.NewTimer(s.batchWait)
 	defer func() {
 		flushTimer.Stop()
 	}()
@@ -62,7 +62,7 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 					}
 				}
 				s.sendBuffer(outputChan, send)
-				flushTimer.Reset(s.batchPeriod)
+				flushTimer.Reset(s.batchWait)
 			}
 			if !added {
 				// it's possible that the message could not be added because the buffer was full
@@ -73,7 +73,7 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 			// the first message that was added to the buffer has been here for too long,
 			// send the payload now
 			s.sendBuffer(outputChan, send)
-			flushTimer.Reset(s.batchPeriod)
+			flushTimer.Reset(s.batchWait)
 		}
 	}
 }

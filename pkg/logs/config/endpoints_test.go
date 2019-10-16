@@ -124,7 +124,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	endpoints, err = BuildEndpoints()
 	suite.Nil(err)
 	suite.True(endpoints.UseHTTP)
-	suite.Equal(endpoints.BatchPeriod, 5*time.Second)
+	suite.Equal(endpoints.BatchWait, 5*time.Second)
 
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseSSL)
@@ -173,12 +173,12 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 
 	suite.config.Set("logs_config.use_http", true)
 	suite.config.Set("logs_config.dd_url", "foo")
-	suite.config.Set("logs_config.batch_period_in_s", 9)
+	suite.config.Set("logs_config.batch_wait", 9)
 
 	endpoints, err = BuildEndpoints()
 	suite.Nil(err)
 	suite.True(endpoints.UseHTTP)
-	suite.Equal(endpoints.BatchPeriod, 9*time.Second)
+	suite.Equal(endpoints.BatchWait, 9*time.Second)
 
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseSSL)
@@ -225,15 +225,15 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFailWithInvalidOverride
 	}
 }
 
-func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFallbackOnDefaultWithInvalidBatchPeriod() {
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFallbackOnDefaultWithInvalidBatchWait() {
 	suite.config.Set("logs_config.use_http", true)
 
-	invalidBatchPeriods := []int{-1, 0, 11}
-	for _, batchPeriod := range invalidBatchPeriods {
-		suite.config.Set("logs_config.batch_period_in_s", batchPeriod)
+	invalidBatchWaits := []int{-1, 0, 11}
+	for _, batchWait := range invalidBatchWaits {
+		suite.config.Set("logs_config.batch_wait", batchWait)
 		endpoints, err := BuildEndpoints()
 		suite.Nil(err)
-		suite.Equal(endpoints.BatchPeriod, coreConfig.DefaultBatchPeriodInS*time.Second)
+		suite.Equal(endpoints.BatchWait, coreConfig.DefaultBatchWait*time.Second)
 	}
 }
 

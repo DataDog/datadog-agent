@@ -165,9 +165,9 @@ func buildHTTPEndpoints() (*Endpoints, error) {
 		additionals[i].UseSSL = main.UseSSL
 	}
 
-	batchPeriod := batchPeriod(coreConfig.Datadog)
+	batchWait := batchWait(coreConfig.Datadog)
 
-	return NewEndpoints(main, additionals, false, true, batchPeriod), nil
+	return NewEndpoints(main, additionals, false, true, batchWait), nil
 }
 
 func isSetAndNotEmpty(config coreConfig.Config, key string) bool {
@@ -195,11 +195,11 @@ func parseAddress(address string) (string, int, error) {
 	return host, port, nil
 }
 
-func batchPeriod(config coreConfig.Config) time.Duration {
-	batchPeriodInS := coreConfig.Datadog.GetInt("logs_config.batch_period_in_s")
-	if batchPeriodInS < 1 || 10 < batchPeriodInS {
-		log.Warnf("Invalid batch_period_in_s: %v should be in [1, 10], fallback on %v", batchPeriodInS, coreConfig.DefaultBatchPeriodInS)
-		return coreConfig.DefaultBatchPeriodInS * time.Second
+func batchWait(config coreConfig.Config) time.Duration {
+	batchWait := coreConfig.Datadog.GetInt("logs_config.batch_wait")
+	if batchWait < 1 || 10 < batchWait {
+		log.Warnf("Invalid batch_wait: %v should be in [1, 10], fallback on %v", batchWait, coreConfig.DefaultBatchWait)
+		return coreConfig.DefaultBatchWait * time.Second
 	}
-	return (time.Duration(batchPeriodInS) * time.Second)
+	return (time.Duration(batchWait) * time.Second)
 }
