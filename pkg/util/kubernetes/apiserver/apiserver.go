@@ -218,7 +218,6 @@ func (c *APIClient) getOrCreateConfigMap(name, namespace string) (cmEvent *v1.Co
 				Name:      configMapDCAToken,
 				Namespace: namespace,
 			},
-			Data: make(map[string]string),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("could not create the ConfigMap: %s", err.Error())
@@ -239,6 +238,9 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 		return "", time.Now(), err
 	}
 	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
+	if cmEvent.Data == nil {
+		cmEvent.Data = make(map[string]string)
+	}
 	tokenValue, found := cmEvent.Data[eventTokenKey]
 	if !found {
 		log.Debugf("%s was not found in the ConfigMap %s, updating it to resync.", eventTokenKey, configMapDCAToken)
@@ -274,6 +276,9 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string, timestamp t
 		return err
 	}
 	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
+	if tokenConfigMap.Data == nil {
+		tokenConfigMap.Data = make(map[string]string)
+	}
 	tokenConfigMap.Data[eventTokenKey] = tokenValue
 
 	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
