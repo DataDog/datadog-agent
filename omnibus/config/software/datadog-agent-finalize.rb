@@ -50,6 +50,15 @@ build do
             delete "#{install_dir}/bin/agent/dist/*.yaml"
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         elsif linux?
+            # Fix pip after building on extended toolchain in CentOS builder
+            if redhat?
+              rhel_toolchain_root = "/opt/centos/devtoolset-1.1/root"
+              # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
+              command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec grep -inH '#{rhel_toolchain_root}' {} \\; |  egrep '.*'"
+              # replace paths with expected target toolchain location
+              command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec sed -i 's##{rhel_toolchain_root}##g' {} \\;"
+            end
+
             # Move system service files
             mkdir "/etc/init"
             move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
