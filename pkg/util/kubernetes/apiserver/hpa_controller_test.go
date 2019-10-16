@@ -27,9 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
-	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/informers"
 )
 
 func newFakeConfigMapStore(t *testing.T, ns, name string, metrics map[string]custommetrics.ExternalMetricValue) (custommetrics.Store, kubernetes.Interface) {
@@ -561,7 +558,7 @@ func TestRemoveIgnoredHPAs(t *testing.T) {
 		},
 	}
 
-	e := removeIgnoredHPAs(listToIgnore, cachedHPAs)
+	e := removeIgnoredAutoscaler(listToIgnore, cachedHPAs)
 	require.Equal(t, len(e), 1)
 	require.Equal(t, e[0].UID, types.UID("ccc"))
 
@@ -638,10 +635,10 @@ func TestAutoscalerControllerGC(t *testing.T) {
 		{
 			caseName: "hpa in global store but is ignored need to remove",
 			metrics: map[string]custommetrics.ExternalMetricValue{
-				"external_metric-default-foo-requests_per_s": {
+				"external_metric-horizontal-default-foo-requests_per_s": {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"bar": "baz"},
-					HPA:        custommetrics.ObjectReference{Name: "foo", Namespace: "default", UID: "1111"},
+					Ref:        custommetrics.ObjectReference{Type: "horizontal", Name: "foo", Namespace: "default", UID: "1111"},
 					Timestamp:  12,
 					Value:      1,
 					Valid:      false,
