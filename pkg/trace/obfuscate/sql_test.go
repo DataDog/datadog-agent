@@ -6,6 +6,7 @@
 package obfuscate
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -16,6 +17,12 @@ import (
 type sqlTestCase struct {
 	query    string
 	expected string
+}
+
+type sqlTokenizerTestCase struct {
+	str          string
+	expected     string
+	expectedKind TokenKind
 }
 
 func SQLSpan(query string) *pb.Span {
@@ -411,6 +418,18 @@ ORDER BY [b].[Name]`,
 			`update Attendees set email = '626837270@qq.com', first_name = "贺新春送猪福加企鹅1054948000领98綵斤", last_name = '王子198442com体验猪多优惠', journal_activity_id = 4246684839261125564, changed = "2019-05-24 00:26:22" where id = 123`,
 			`update Attendees set email = ? first_name = ? last_name = ? journal_activity_id = ? changed = ? where id = ?`,
 		},
+		{
+			"SELECT\r\n\t                CodiFormacio\r\n\t                ,DataInici\r\n\t                ,DataFi\r\n\t                ,Tipo\r\n\t                ,CodiTecnicFormador\r\n\t                ,p.nombre AS TutorNombre\r\n\t                ,p.mail AS TutorMail\r\n\t                ,Sessions.Direccio\r\n\t                ,Sessions.NomEmpresa\r\n\t                ,Sessions.Telefon\r\n                FROM\r\n                ----------------------------\r\n                (SELECT\r\n\t                CodiFormacio\r\n\t                ,case\r\n\t                   when ModalitatSessio = '1' then 'Presencial'--Teoria\r\n\t                   when ModalitatSessio = '2' then 'Presencial'--Practica\r\n\t                   when ModalitatSessio = '3' then 'Online'--Tutoria\r\n                       when ModalitatSessio = '4' then 'Presencial'--Examen\r\n\t                   ELSE 'Presencial'\r\n\t                end as Tipo\r\n\t                ,ModalitatSessio\r\n\t                ,DataInici\r\n\t                ,DataFi\r\n                     ,NomEmpresa\r\n\t                ,Telefon\r\n\t                ,CodiTecnicFormador\r\n\t                ,CASE\r\n\t                   WHEn EsAltres = 1 then FormacioLlocImparticioDescripcio\r\n\t                   else Adreca + ' - ' + CodiPostal + ' ' + Poblacio\r\n\t                end as Direccio\r\n\t\r\n                FROM Consultas.dbo.View_AsActiva__FormacioSessions_InfoLlocImparticio) AS Sessions\r\n                ----------------------------------------\r\n                LEFT JOIN Consultas.dbo.View_AsActiva_Operari AS o\r\n\t                ON o.CodiOperari = Sessions.CodiTecnicFormador\r\n                LEFT JOIN MainAPP.dbo.persona AS p\r\n\t                ON 'preven\\' + o.codioperari = p.codi\r\n                WHERE Sessions.CodiFormacio = 'F00000017898'",
+			`SELECT CodiFormacio, DataInici, DataFi, Tipo, CodiTecnicFormador, p.nombre, p.mail, Sessions.Direccio, Sessions.NomEmpresa, Sessions.Telefon FROM ( SELECT CodiFormacio, case when ModalitatSessio = ? then ? when ModalitatSessio = ? then ? when ModalitatSessio = ? then ? when ModalitatSessio = ? then ? ELSE ? end, ModalitatSessio, DataInici, DataFi, NomEmpresa, Telefon, CodiTecnicFormador, CASE WHEn EsAltres = ? then FormacioLlocImparticioDescripcio else Adreca + ? + CodiPostal + ? + Poblacio end FROM Consultas.dbo.View_AsActiva__FormacioSessions_InfoLlocImparticio ) LEFT JOIN Consultas.dbo.View_AsActiva_Operari ON o.CodiOperari = Sessions.CodiTecnicFormador LEFT JOIN MainAPP.dbo.persona ON ? + o.codioperari = p.codi WHERE Sessions.CodiFormacio = ?`,
+		},
+		{
+			"SELECT   *       FROM \n\tfoo   LEFT JOIN bar ON \t'backslash\\'\n = foo.b WHERE foo.name = 'String'",
+			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
+		},
+		{
+			`SELECT *      FROM foo LEFT JOIN bar ON 'backslash\' = foo.b LEFT JOIN bar2 ON 'backslash2\' = foo.b2 WHERE foo.name = 'String'`,
+			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b LEFT JOIN bar2 ON ? = foo.b2 WHERE foo.name = ?",
+		},
 	}
 
 	for i, c := range cases {
@@ -418,6 +437,243 @@ ORDER BY [b].[Name]`,
 			s := SQLSpan(c.query)
 			NewObfuscator(nil).Obfuscate(s)
 			assert.Equal(t, c.expected, s.Resource)
+		})
+	}
+}
+
+func TestSQLTokenizerEscapeBackslashQuotes(t *testing.T) {
+	cases := []sqlTokenizerTestCase{
+		{
+			`'Simple string'`,
+			"Simple string",
+			String,
+		},
+		{
+			`'String with backslash at end \'`,
+			"String with backslash at end '",
+			LexError,
+		},
+		{
+			`'String with backslash \ in the middle'`,
+			"String with backslash \\ in the middle",
+			String,
+		},
+		{
+			`'String with backslash-escaped quote at end \''`,
+			"String with backslash-escaped quote at end '",
+			String,
+		},
+		{
+			`'String with backslash-escaped quote \' in middle'`,
+			"String with backslash-escaped quote ' in middle",
+			String,
+		},
+		{
+			`'String with backslash-escaped embedded string \'foo\' in the middle'`,
+			"String with backslash-escaped embedded string 'foo' in the middle",
+			String,
+		},
+		{
+			`'String with backslash-escaped embedded string at end \'foo\''`,
+			"String with backslash-escaped embedded string at end 'foo'",
+			String,
+		},
+		{
+			`'String with backslash-escaped embedded string \'foo\' in the middle'`,
+			"String with backslash-escaped embedded string 'foo' in the middle",
+			String,
+		},
+		{
+			`'String with double-backslash-escaped embedded string \\'foo\\' in the middle'`,
+			"String with double-backslash-escaped embedded string \\'foo\\' in the middle",
+			String,
+		},
+		{
+			`'String with backslash-escaped embedded string \'foo\' in the middle followed by one at the end \'`,
+			"String with backslash-escaped embedded string 'foo' in the middle followed by one at the end '",
+			LexError,
+		},
+		{
+			`'String with embedded string at end ''foo'''`,
+			"String with embedded string at end 'foo'",
+			String,
+		},
+		{
+			`'String with embedded string ''foo'' in the middle'`,
+			"String with embedded string 'foo' in the middle",
+			String,
+		},
+		{
+			`'String with tab at end	'`,
+			"String with tab at end\t",
+			String,
+		},
+		{
+			`'String with tab	in the middle'`,
+			"String with tab\tin the middle",
+			String,
+		},
+		{
+			`'String with newline at the end
+'`,
+			"String with newline at the end\n",
+			String,
+		},
+		{
+			`'String with newline
+in the middle'`,
+			"String with newline\nin the middle",
+			String,
+		},
+		{
+			`'Simple string missing closing quote`,
+			"Simple string missing closing quote",
+			LexError,
+		},
+		{
+			`'String missing closing quote with backslash at end \`,
+			"String missing closing quote with backslash at end \\",
+			LexError,
+		},
+		{
+			`'String with backslash \ in the middle missing closing quote`,
+			"String with backslash \\ in the middle missing closing quote",
+			LexError,
+		},
+		// The following case will treat the final quote as unescaped
+		{
+			`'String missing closing quote with backslash-escaped quote at end \'`,
+			"String missing closing quote with backslash-escaped quote at end '",
+			LexError,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(fmt.Sprintf("tokenize_%s", c.str), func(t *testing.T) {
+			tokenizer := NewSQLTokenizer(c.str)
+			kind, buffer := tokenizer.Scan()
+			assert.Equal(t, c.expectedKind, kind)
+			assert.Equal(t, c.expected, string(buffer))
+		})
+	}
+}
+
+func TestSQLTokenizerDoNotEscapeBackslashQuotes(t *testing.T) {
+	cases := []sqlTokenizerTestCase{
+		{
+			`'Simple string'`,
+			"Simple string",
+			String,
+		},
+		{
+			`'String with backslash at end \'`,
+			"String with backslash at end \\",
+			String,
+		},
+		{
+			`'String with backslash \ in the middle'`,
+			"String with backslash \\ in the middle",
+			String,
+		},
+		// The following case will treat backslash as literal and double single quote as a single quote
+		// thus missing the final single quote
+		{
+			`'String with backslash-escaped quote at end \''`,
+			"String with backslash-escaped quote at end \\'",
+			LexError,
+		},
+		{
+			`'String with backslash-escaped quote \' in middle'`,
+			"String with backslash-escaped quote \\",
+			String,
+		},
+		{
+			`'String with backslash-escaped embedded string \'foo\' in the middle'`,
+			"String with backslash-escaped embedded string \\",
+			String,
+		},
+		{
+			`'String with backslash-escaped embedded string at end \'foo\''`,
+			"String with backslash-escaped embedded string at end \\",
+			String,
+		},
+		{
+			`'String with backslash-escaped embedded string \'foo\' in the middle'`,
+			"String with backslash-escaped embedded string \\",
+			String,
+		},
+		{
+			`'String with double-backslash-escaped embedded string \\'foo\\' in the middle'`,
+			"String with double-backslash-escaped embedded string \\\\",
+			String,
+		},
+		{
+			`'String with backslash-escaped embedded string \'foo\' in the middle followed by one at the end \'`,
+			"String with backslash-escaped embedded string \\",
+			String,
+		},
+		{
+			`'String with embedded string at end ''foo'''`,
+			"String with embedded string at end 'foo'",
+			String,
+		},
+		{
+			`'String with embedded string ''foo'' in the middle'`,
+			"String with embedded string 'foo' in the middle",
+			String,
+		},
+		{
+			`'String with tab at end	'`,
+			"String with tab at end\t",
+			String,
+		},
+		{
+			`'String with tab	in the middle'`,
+			"String with tab\tin the middle",
+			String,
+		},
+		{
+			`'String with newline at the end
+'`,
+			"String with newline at the end\n",
+			String,
+		},
+		{
+			`'String with newline
+in the middle'`,
+			"String with newline\nin the middle",
+			String,
+		},
+		{
+			`'Simple string missing closing quote`,
+			"Simple string missing closing quote",
+			LexError,
+		},
+		{
+			`'String missing closing quote with backslash at end \`,
+			"String missing closing quote with backslash at end \\",
+			LexError,
+		},
+		{
+			`'String with backslash \ in the middle missing closing quote`,
+			"String with backslash \\ in the middle missing closing quote",
+			LexError,
+		},
+		// The following case will treat the final quote as unescaped
+		{
+			`'String missing closing quote with backslash-escaped quote at end \'`,
+			"String missing closing quote with backslash-escaped quote at end \\",
+			String,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(fmt.Sprintf("tokenize_%s", c.str), func(t *testing.T) {
+			tokenizer := NewSQLTokenizer(c.str)
+			tokenizer.backslashQuote.ignoreEscape = true
+			kind, buffer := tokenizer.Scan()
+			assert.Equal(t, c.expectedKind, kind)
+			assert.Equal(t, c.expected, string(buffer))
 		})
 	}
 }
@@ -516,7 +772,7 @@ func TestSQLErrors(t *testing.T) {
 
 	_, err = obfuscateSQLString("SELECT age FROM profile WHERE name='John \\")
 	assert.Error(err)
-	assert.Equal(`at position 42: unexpected EOF after escape character in string`, err.Error())
+	assert.Equal(`at position 43: unexpected EOF in string`, err.Error())
 
 	_, err = obfuscateSQLString("SELECT age FROM profile WHERE name='John")
 	assert.Error(err)
@@ -525,6 +781,15 @@ func TestSQLErrors(t *testing.T) {
 	_, err = obfuscateSQLString("/* abcd")
 	assert.Error(err)
 	assert.Equal(`at position 7: unexpected EOF in comment`, err.Error())
+
+	// using mixed cases of backslash escaping the single quote
+	_, err = obfuscateSQLString("SELECT age FROM profile WHERE name='John\\' and place='John\\'s House'")
+	assert.Error(err)
+	assert.Equal(`at position 70: unexpected EOF in string`, err.Error())
+
+	_, err = obfuscateSQLString("SELECT age FROM profile WHERE place='John\\'s House' and name='John\\'")
+	assert.Error(err)
+	assert.Equal(`at position 68: unexpected byte 92`, err.Error())
 }
 
 // Benchmark the Tokenizer using a SQL statement

@@ -9,13 +9,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"io"
 )
 
 const sqlQueryTag = "sql.query"
+const nonParsableResource = "Non-parsable SQL query"
 
 // tokenFilter is a generic interface that a sqlObfuscator expects. It defines
 // the Filter() function used to filter or replace given tokens.
@@ -159,14 +160,42 @@ func obfuscateSQLString(in string) (string, error) {
 		err       error
 		lastToken TokenKind
 	)
+
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded
 	// or replaced.
-	token, buff := tokenizer.Scan()
-	for ; token != EOFChar; token, buff = tokenizer.Scan() {
+	for {
+		pos := tokenizer.pos
+		hasEscaped := tokenizer.backslashQuote.hasEscaped
+		token, buff := tokenizer.Scan()
+		if token == EOFChar {
+			break
+		}
+
+		if hasEscaped != tokenizer.backslashQuote.hasEscaped {
+			// tokenizer has encountered its first escaped quote
+			tokenizer.backslashQuote.firstEscapedPos = pos
+			tokenizer.backslashQuote.firstEscapedOutputLen = out.Len()
+			tokenizer.backslashQuote.firstEscapedLastToken = lastToken
+		}
+
 		if token == LexError {
+			// if at any point we've tried escaping a backslash-quote, e.g. \'
+			// try re-lexing the input without escapes
+			if !tokenizer.backslashQuote.ignoreEscape && tokenizer.backslashQuote.hasEscaped {
+				// back up the reader and the output buffer
+				tokenizer.Seek(int64(tokenizer.backslashQuote.firstEscapedPos), io.SeekStart)
+				out.Truncate(tokenizer.backslashQuote.firstEscapedOutputLen)
+				lastToken = tokenizer.backslashQuote.firstEscapedLastToken
+
+				// try once more without escaping backslash quotes
+				tokenizer.backslashQuote.ignoreEscape = true
+				continue
+			}
+
 			return "", tokenizer.Err()
 		}
+
 		for _, f := range filters {
 			if token, buff, err = f.Filter(token, lastToken, buff); err != nil {
 				return "", err
@@ -215,7 +244,7 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 		if _, ok := span.Meta[sqlQueryTag]; !ok {
 			span.Meta[sqlQueryTag] = span.Resource
 		}
-		span.Resource = "Non-parsable SQL query"
+		span.Resource = nonParsableResource
 		tags = append(tags, "outcome:error")
 		return
 	}

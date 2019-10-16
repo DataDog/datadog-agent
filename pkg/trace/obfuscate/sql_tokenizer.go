@@ -71,10 +71,22 @@ const (
 // SQLTokenizer is the struct used to generate SQL
 // tokens for the parser.
 type SQLTokenizer struct {
-	rd       *strings.Reader // the "rune" reader
-	pos      int             // byte offset of lastChar
-	lastChar rune            // last read rune
-	err      error           // any error occurred while reading
+	rd             *strings.Reader // the "rune" reader
+	pos            int             // byte offset of lastChar
+	lastChar       rune            // last read rune
+	err            error           // any error occurred while reading
+	backslashQuote BackslashQuoteContext
+}
+
+// BackslashQuoteContext is a struct that encapsulates
+// several variables related to how the tokenizer
+// treats backslashes within strings in SQL queries
+type BackslashQuoteContext struct {
+	ignoreEscape          bool      // indicates we should not try to escape quotes
+	hasEscaped            bool      // indicates we have encountered a quote to escape
+	firstEscapedPos       int       // position of Tokenizer when first escaped quote encountered
+	firstEscapedOutputLen int       // length of output buffer when first escaped quote encountered
+	firstEscapedLastToken TokenKind // value of lastToken when first escaped quote encountered
 }
 
 // NewSQLTokenizer creates a new SQLTokenizer for the given SQL string.
@@ -88,6 +100,21 @@ func (tkn *SQLTokenizer) Reset(in string) {
 	tkn.pos = 0
 	tkn.lastChar = 0
 	tkn.err = nil
+}
+
+// Seek the underlying string reader to a particular position
+// in the stream. Only use this if you are certain this position corresponds to the start of a rune.
+// This will set lastChar to 0, and err to nil
+func (tkn *SQLTokenizer) Seek(offset int64, whence int) (int64, error) {
+	i, err := tkn.rd.Seek(offset, whence)
+	if err != nil {
+		return 0, err
+	}
+
+	tkn.pos = int(i)
+	tkn.lastChar = 0
+	tkn.err = nil
+	return i, nil
 }
 
 // keywords used to recognize string tokens
@@ -411,6 +438,7 @@ exit:
 
 func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
+	const backlash = '\\'
 	for {
 		ch := tkn.lastChar
 		tkn.next()
@@ -420,14 +448,12 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 			} else {
 				break
 			}
-		} else if ch == '\\' {
-			if tkn.lastChar == EOFChar {
-				tkn.setErr("unexpected EOF after escape character in string")
-				return LexError, buffer.Bytes()
+		} else if ch == backlash {
+			if tkn.lastChar == delim && !tkn.backslashQuote.ignoreEscape {
+				ch = delim
+				tkn.next()
+				tkn.backslashQuote.hasEscaped = true
 			}
-
-			ch = tkn.lastChar
-			tkn.next()
 		}
 		if ch == EOFChar {
 			tkn.setErr("unexpected EOF in string")
