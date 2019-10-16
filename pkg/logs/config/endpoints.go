@@ -26,16 +26,16 @@ type Endpoints struct {
 	Additionals []Endpoint
 	UseProto    bool
 	UseHTTP     bool
-	BatchPeriod time.Duration
+	BatchWait   time.Duration
 }
 
 // NewEndpoints returns a new endpoints composite.
-func NewEndpoints(main Endpoint, additionals []Endpoint, useProto bool, useHTTP bool, batchPeriod time.Duration) *Endpoints {
+func NewEndpoints(main Endpoint, additionals []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration) *Endpoints {
 	return &Endpoints{
 		Main:        main,
 		Additionals: additionals,
 		UseProto:    useProto,
 		UseHTTP:     useHTTP,
-		BatchPeriod: batchPeriod,
+		BatchWait:   batchWait,
 	}
 }

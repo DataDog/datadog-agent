@@ -16,11 +16,11 @@ import (
 )
 
 // newBatchStrategyWithLimits returns a new batchStrategy.
-func newBatchStrategyWithLimits(serializer Serializer, batchSize int, contentSize int, batchPeriod time.Duration) Strategy {
+func newBatchStrategyWithLimits(serializer Serializer, batchSize int, contentSize int, batchWait time.Duration) Strategy {
 	return &batchStrategy{
-		buffer:      NewMessageBuffer(batchSize, contentSize),
-		serializer:  serializer,
-		batchPeriod: batchPeriod,
+		buffer:     NewMessageBuffer(batchSize, contentSize),
+		serializer: serializer,
+		batchWait:  batchWait,
 	}
 }
 
