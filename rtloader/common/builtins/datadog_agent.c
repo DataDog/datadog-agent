@@ -354,20 +354,26 @@ PyObject *tracemalloc_enabled(PyObject *self, PyObject *args)
     \return a PyObject * pointer to a python string with the canonical clustername. Or
     `None` if the callback is unavailable.
 
-    This function is callable as the `datadog_agent.get_clustername` python method, it uses
-    the `cb_get_clustername()` callback to retrieve the value from the agent with CGO. If
-    the callback has not been set `None` will be returned.
+    This function is callable as the `datadog_agent.log` python method, it calls back
+    into the agent via the `agent_log()` and its `cb_log()` callback. This allows us to use
+    the agent logging facilities from python-land.
+    Should the callback not be available the function will do nothing.
 */
 static PyObject *log_message(PyObject *self, PyObject *args)
 {
     char *message = NULL;
     int log_level;
 
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
     // PyArg_ParseTuple returns a pointer to the existing string in &message
     // No need to free the result.
     if (!PyArg_ParseTuple(args, "si", &message, &log_level)) {
+        PyGILState_Release(gstate);
         return NULL;
     }
+
+    PyGILState_Release(gstate);
 
     agent_log(log_level, message);
     Py_RETURN_NONE;
