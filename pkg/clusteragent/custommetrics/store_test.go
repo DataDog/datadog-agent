@@ -170,14 +170,14 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 
 			list, err := store.ListAllExternalMetricValues()
 			require.NoError(t, err)
-			assert.ElementsMatch(t, tt.expected, list)
+			assert.ElementsMatch(t, tt.expected, list.External)
 
 			err = store.DeleteExternalMetricValues(list)
 			require.NoError(t, err)
 
 			list, err = store.ListAllExternalMetricValues()
 			require.NoError(t, err)
-			assert.Empty(t, list)
+			assert.Empty(t, list.External)
 		})
 	}
 }

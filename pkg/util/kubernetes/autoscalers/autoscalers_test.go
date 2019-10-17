@@ -404,10 +404,10 @@ func makeWPASpec(metricName string, labels map[string]string) v1alpha1.Watermark
 
 func TestDiffExternalMetrics(t *testing.T) {
 	testCases := map[string]struct {
-		lhs      []*autoscalingv2.HorizontalPodAutoscaler
-		wpahs    []*v1alpha1.WatermarkPodAutoscaler
-		rhs      []custommetrics.ExternalMetricValue
-		expected []custommetrics.ExternalMetricValue
+		informerHPAs  []*autoscalingv2.HorizontalPodAutoscaler
+		informerWPAs  []*v1alpha1.WatermarkPodAutoscaler
+		storedMetrics []custommetrics.ExternalMetricValue
+		expected      []custommetrics.ExternalMetricValue
 	}{
 		"delete invalid metric": {
 
@@ -671,11 +671,68 @@ func TestDiffExternalMetrics(t *testing.T) {
 				},
 			},
 		},
+		"upgrade from old template": {[]*autoscalingv2.HorizontalPodAutoscaler{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:       types.UID(5),
+					Namespace: "bar",
+					Name:      "foo",
+				},
+				Spec: makeSpec("requests_per_s_one", map[string]string{"foo": "bar"}),
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:       types.UID(7),
+					Namespace: "baz",
+					Name:      "foo",
+				},
+				Spec: makeSpec("requests_per_s_two", map[string]string{"foo": "foobar"}),
+			},
+		},
+			[]*v1alpha1.WatermarkPodAutoscaler{},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "requests_per_s_one",
+					Labels:     map[string]string{"foo": "bar"},
+					Valid:      true,
+					Ref: custommetrics.ObjectReference{
+						Type:      "horizontal",
+						UID:       string(5),
+						Namespace: "bar",
+						Name:      "foo",
+					},
+				},
+				{
+					MetricName: "requests_per_s_two",
+					Labels:     map[string]string{"foo": "bar"},
+					Valid:      false,
+					Ref: custommetrics.ObjectReference{
+						Type:      "horizontal",
+						UID:       string(7),
+						Namespace: "baz",
+						Name:      "foo",
+					},
+				},
+			},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "requests_per_s_two",
+					Labels:     map[string]string{"foo": "bar"},
+					Valid:      false,
+					Ref: custommetrics.ObjectReference{
+						Type:      "horizontal",
+						UID:       string(7),
+						Name:      "foo",
+						Namespace: "baz",
+					},
+				},
+			},
+		},
 	}
 
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
-			got := DiffExternalMetrics(testCase.lhs, testCase.wpahs, testCase.rhs)
+			got := DiffExternalMetrics(testCase.informerHPAs, testCase.informerWPAs, testCase.storedMetrics)
 			assert.ElementsMatch(t, testCase.expected, got)
 		})
 	}

@@ -60,7 +60,7 @@ func TestUpdateWPA(t *testing.T) {
 	hctrl.updateExternalMetrics()
 	metrics, err := store.ListAllExternalMetricValues()
 	require.NoError(t, err)
-	require.Len(t, metrics, 0)
+	require.Len(t, metrics.External, 0)
 
 	// Start the DCA with already existing Data
 	// Check if nothing in local store and Global Store is full we update the Global Store metrics correctly
@@ -81,7 +81,7 @@ func TestUpdateWPA(t *testing.T) {
 	// Check that the store is up to date
 	metrics, err = store.ListAllExternalMetricValues()
 	require.NoError(t, err)
-	require.Len(t, metrics, 1)
+	require.Len(t, metrics.External, 1)
 	hctrl.toStore.m.Lock()
 	require.Len(t, hctrl.toStore.data, 0)
 	hctrl.toStore.m.Unlock()
@@ -90,7 +90,7 @@ func TestUpdateWPA(t *testing.T) {
 
 	metrics, err = store.ListAllExternalMetricValues()
 	require.NoError(t, err)
-	require.Len(t, metrics, 1)
+	require.Len(t, metrics.External, 1)
 	hctrl.toStore.m.Lock()
 	require.Len(t, hctrl.toStore.data, 0)
 	hctrl.toStore.m.Unlock()
@@ -113,7 +113,7 @@ func TestUpdateWPA(t *testing.T) {
 	hctrl.updateExternalMetrics()
 	metrics, err = store.ListAllExternalMetricValues()
 	require.NoError(t, err)
-	require.Len(t, metrics, 2)
+	require.Len(t, metrics.External, 2)
 
 	// DCA becomes leader
 	// Check that if there is conflicting info from the local store and the Global Store that we merge correctly
@@ -133,9 +133,9 @@ func TestUpdateWPA(t *testing.T) {
 	hctrl.updateExternalMetrics()
 	metrics, err = store.ListAllExternalMetricValues()
 	require.NoError(t, err)
-	require.Len(t, metrics, 2)
+	require.Len(t, metrics.External, 2)
 
-	for _, m := range metrics {
+	for _, m := range metrics.External {
 		require.True(t, m.Valid)
 		if m.MetricName == "metric2" {
 			require.True(t, reflect.DeepEqual(m.Labels, map[string]string{"foo": "baz"}))
@@ -271,9 +271,9 @@ func TestWPAController(t *testing.T) {
 	case <-ticker.C:
 		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
-		require.NotZero(t, len(storedExternal))
-		require.Equal(t, storedExternal[0].Value, float64(14.123))
-		require.Equal(t, storedExternal[0].Labels, map[string]string{"foo": "bar"})
+		require.NotZero(t, len(storedExternal.External))
+		require.Equal(t, storedExternal.External[0].Value, float64(14.123))
+		require.Equal(t, storedExternal.External[0].Labels, map[string]string{"foo": "bar"})
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
@@ -330,9 +330,9 @@ func TestWPAController(t *testing.T) {
 	case <-ticker.C:
 		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
-		require.NotZero(t, len(storedExternal))
-		require.Equal(t, storedExternal[0].Value, float64(1.01))
-		require.Equal(t, storedExternal[0].Labels, map[string]string{"dcos_version": "2.1.9"})
+		require.NotZero(t, len(storedExternal.External))
+		require.Equal(t, storedExternal.External[0].Value, float64(1.01))
+		require.Equal(t, storedExternal.External[0].Labels, map[string]string{"dcos_version": "2.1.9"})
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for WPAs to update")
 	}
@@ -344,7 +344,7 @@ func TestWPAController(t *testing.T) {
 	case <-ticker.C:
 		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
-		require.Len(t, storedExternal, 0)
+		require.Len(t, storedExternal.External, 0)
 		hctrl.toStore.m.Lock()
 		st := hctrl.toStore.data
 		hctrl.toStore.m.Unlock()
@@ -474,7 +474,7 @@ func TestWPAGC(t *testing.T) {
 			hctrl.gc() // force gc to run
 			allMetrics, err := store.ListAllExternalMetricValues()
 			require.NoError(t, err)
-			assert.ElementsMatch(t, testCase.expected, allMetrics)
+			assert.ElementsMatch(t, testCase.expected, allMetrics.External)
 		})
 	}
 }

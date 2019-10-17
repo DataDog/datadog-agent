@@ -93,7 +93,7 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 			}
 			p.isServing = false
 		} else {
-			for _, metric := range rawMetrics {
+			for _, metric := range rawMetrics.External {
 				// Only metrics that exist in Datadog and available are eligible to be evaluated in the Autoscaler Controller process.
 				if !metric.Valid {
 					continue
