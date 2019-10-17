@@ -73,8 +73,10 @@
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
 
     <Property Id="DDAGENTUSER_NAME" />
-    <Property Id="DDAGENTUSER_PASSWORD"  />
-
+    <Property Id="DDAGENTUSER_PASSWORD" Hidden="yes" />
+    <Property Id="APIKEY" Hidden="yes" />
+    <Property Id="FinalizeInstall" Hidden="yes" />
+    
      <PropertyRef Id="WIX_ACCOUNT_ADMINISTRATORS" />
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
      <PropertyRef Id="WIX_ACCOUNT_USERS" />
