@@ -90,8 +90,11 @@ func DiffExternalMetrics(informerList []*autoscalingv2.HorizontalPodAutoscaler, 
 	}
 
 	for _, em := range storedMetricsList {
+		log.Infof("Evaluating DiffExternalM %v", em)
 		var found bool
 		emList := autoscalerMetrics[em.Ref.UID]
+		log.Infof("Evaluating enList  DiffExternalM %v", emList)
+
 		if emList == nil {
 			toDelete = append(toDelete, em)
 			continue

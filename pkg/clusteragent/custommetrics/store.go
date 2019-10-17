@@ -50,9 +50,9 @@ func init() {
 type Store interface {
 	SetExternalMetricValues(map[string]ExternalMetricValue) error
 
-	DeleteExternalMetricValues([]ExternalMetricValue) error
+	DeleteExternalMetricValues(*MetricsBundle) error
 
-	ListAllExternalMetricValues() ([]ExternalMetricValue, error)
+	ListAllExternalMetricValues() (*MetricsBundle, error)
 
 	GetMetrics() (*MetricsBundle, error)
 }
@@ -135,8 +135,8 @@ func (c *configMapStore) SetExternalMetricValues(added map[string]ExternalMetric
 }
 
 // DeleteExternalMetricValues deletes the external metrics from the store.
-func (c *configMapStore) DeleteExternalMetricValues(deleted []ExternalMetricValue) error {
-	if len(deleted) == 0 {
+func (c *configMapStore) DeleteExternalMetricValues(deleted *MetricsBundle) error {
+	if len(deleted.External) == 0 && len(deleted.Deprecated) == 0 {
 		return nil
 	}
 
@@ -146,17 +146,33 @@ func (c *configMapStore) DeleteExternalMetricValues(deleted []ExternalMetricValu
 	if c.cm == nil {
 		return errNotInitialized
 	}
-	for _, m := range deleted {
+	for _, m := range deleted.External {
 		key := ExternalMetricValueKeyFunc(m)
 		delete(c.cm.Data, key)
 		log.Debugf("Deleted metric %s for Autoscaler %s/%s from the configmap %s", m.MetricName, m.Ref.Namespace, m.Ref.Name, c.name)
+	}
+	for _, m := range deleted.Deprecated {
+		key := DeprecatedExternalMetricValueKeyFunc(m)
+		delete(c.cm.Data, key)
+		log.Debugf("Deleted key %s deprecated metric %s for HPA %s/%s from the configmap %s", key, m.MetricName, m.HPA.Namespace, m.HPA.Name, c.name)
 	}
 	return c.updateConfigMap()
 }
 
 // ListAllExternalMetricValues returns the most up-to-date list of external metrics from the configmap.
 // Any replica can safely call this function.
-func (c *configMapStore) ListAllExternalMetricValues() ([]ExternalMetricValue, error) {
+func (c *configMapStore) ListAllExternalMetricValues() (*MetricsBundle, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err := c.getConfigMap(); err != nil {
+		return nil, err
+	}
+	return c.doGetMetrics()
+}
+
+// ListAllDeprecatedMetricValues returns the list of external metrics that do not use the new format.
+// Any replica can safely call this function. Although it should only be called to clean the Store.
+func (c *configMapStore) ListAllDeprecatedMetricValues() ([]DeprecatedExternalMetricValue, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if err := c.getConfigMap(); err != nil {
@@ -166,7 +182,7 @@ func (c *configMapStore) ListAllExternalMetricValues() ([]ExternalMetricValue, e
 	if err != nil {
 		return nil, err
 	}
-	return bundle.External, nil
+	return bundle.Deprecated, nil
 }
 
 // GetMetrics returns a bundle of all the metrics from the local copy of the configmap.
@@ -186,6 +202,17 @@ func (c *configMapStore) doGetMetrics() (*MetricsBundle, error) {
 		m := ExternalMetricValue{}
 		if err := json.Unmarshal([]byte(v), &m); err != nil {
 			log.Debugf("Could not unmarshal the external metric for key %s: %v", k, err)
+			continue
+		}
+		if m.Ref.Type == "" {
+			// We are processing a deprecated format, invalidate for now.
+			deprecated := DeprecatedExternalMetricValue{}
+			if err := json.Unmarshal([]byte(v), &deprecated); err != nil {
+				log.Debugf("Could not unmarshal the external metric for key %s: %v", k, err)
+				continue
+			}
+			deprecated.Valid = false
+			bundle.Deprecated = append(bundle.Deprecated, deprecated)
 			continue
 		}
 		bundle.External = append(bundle.External, m)
@@ -225,6 +252,16 @@ func ExternalMetricValueKeyFunc(val ExternalMetricValue) string {
 		val.Ref.Type,
 		val.Ref.Namespace,
 		val.Ref.Name,
+		val.MetricName,
+	}
+	return strings.Join(parts, keyDelimeter)
+}
+
+func DeprecatedExternalMetricValueKeyFunc(val DeprecatedExternalMetricValue) string {
+	parts := []string{
+		"external_metric",
+		val.HPA.Namespace,
+		val.HPA.Name,
 		val.MetricName,
 	}
 	return strings.Join(parts, keyDelimeter)

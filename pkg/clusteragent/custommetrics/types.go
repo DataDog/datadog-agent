@@ -16,6 +16,15 @@ type ExternalMetricValue struct {
 	Valid      bool              `json:"valid"`
 }
 
+type DeprecatedExternalMetricValue struct {
+	MetricName string            `json:"metricName"`
+	Labels     map[string]string `json:"labels"`
+	Timestamp  int64             `json:"ts"`
+	HPA        ObjectReference   `json:"hpa"`
+	Value      float64           `json:"value"`
+	Valid      bool              `json:"valid"`
+}
+
 // ObjectReference contains enough information to let you identify the referred resource.
 type ObjectReference struct {
 	Type      string `json:"type"`
@@ -25,5 +34,6 @@ type ObjectReference struct {
 }
 
 type MetricsBundle struct {
-	External []ExternalMetricValue
+	External   []ExternalMetricValue
+	Deprecated []DeprecatedExternalMetricValue
 }

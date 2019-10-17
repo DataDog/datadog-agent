@@ -35,7 +35,7 @@ func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInter
 	h := &AutoscalersController{
 		clientSet: client,
 		le:        le, // only trigger GC and updateExternalMetrics by the Leader.
-		queue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
+		HPAqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
 	}
 
 	h.toStore.data = make(map[string]custommetrics.ExternalMetricValue)
@@ -69,13 +69,22 @@ func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInter
 	return h, nil
 }
 
+func (h *AutoscalersController) enqueueWPA(obj interface{}) {
+	key, err := cache.MetaNamespaceKeyFunc(obj)
+	if err != nil {
+		log.Debugf("Couldn't get key for object %v: %v", obj, err)
+		return
+	}
+	h.WPAqueue.AddRateLimited(key)
+}
+
 func (h *AutoscalersController) enqueue(obj interface{}) {
 	key, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
 		log.Debugf("Couldn't get key for object %v: %v", obj, err)
 		return
 	}
-	h.queue.AddRateLimited(key)
+	h.HPAqueue.AddRateLimited(key)
 }
 
 // RunControllerLoop is the public method to trigger the lifecycle loop of the External Metrics store
@@ -112,14 +121,14 @@ func (h *AutoscalersController) gc() {
 		log.Errorf("Could not list external metrics from store: %v", err)
 		return
 	}
-
-	deleted := autoscalers.DiffExternalMetrics(processedList, listWPA, emList)
-	if err = h.store.DeleteExternalMetricValues(deleted); err != nil {
+	toDelete := &custommetrics.MetricsBundle{}
+	toDelete.External = autoscalers.DiffExternalMetrics(processedList, listWPA, emList.External)
+	if err = h.store.DeleteExternalMetricValues(toDelete); err != nil {
 		log.Errorf("Could not delete the external metrics in the store: %v", err)
 		return
 	}
-	h.deleteFromLocalStore(deleted)
-	log.Debugf("Done GC run. Deleted %d metrics", len(deleted))
+	h.deleteFromLocalStore(toDelete.External)
+	log.Debugf("Done GC run. Deleted %d metrics", len(toDelete.External))
 }
 
 // removeIgnoredHPAs is used in the gc to avoid considering the ignored HPAs
@@ -135,8 +144,12 @@ func removeIgnoredAutoscaler(ignored map[types.UID]int, listCached []*autoscalin
 func (h *AutoscalersController) deleteFromLocalStore(toDelete []custommetrics.ExternalMetricValue) {
 	h.toStore.m.Lock()
 	defer h.toStore.m.Unlock()
+	log.Infof("called deleteFromLocalStore for %v", toDelete)
 	for _, d := range toDelete {
 		key := custommetrics.ExternalMetricValueKeyFunc(d)
+		//if _, ok := h.toStore.data[key]; !ok {
+		//		key = fmt.Sprintf("external_metrics---%s", d.MetricName)
+		//}
 		delete(h.toStore.data, key)
 	}
 }
@@ -144,35 +157,46 @@ func (h *AutoscalersController) deleteFromLocalStore(toDelete []custommetrics.Ex
 func (h *AutoscalersController) handleErr(err error, key interface{}) {
 	if err == nil {
 		log.Tracef("Faithfully dropping key %v", key)
-		h.queue.Forget(key)
+		h.HPAqueue.Forget(key)
 		return
 	}
 
-	if h.queue.NumRequeues(key) < maxRetries {
-		log.Debugf("Error syncing the autoscaler %v, will rety for another %d times: %v", key, maxRetries-h.queue.NumRequeues(key), err)
-		h.queue.AddRateLimited(key)
+	if h.HPAqueue.NumRequeues(key) < maxRetries {
+		log.Debugf("Error syncing the autoscaler %v, will rety for another %d times: %v", key, maxRetries-h.HPAqueue.NumRequeues(key), err)
+		h.HPAqueue.AddRateLimited(key)
 		return
 	}
-	log.Errorf("Too many errors trying to sync the autoscaler %v, dropping out of the queue: %v", key, err)
-	h.queue.Forget(key)
+	log.Errorf("Too many errors trying to sync the autoscaler %v, dropping out of the HPAqueue: %v", key, err)
+	h.HPAqueue.Forget(key)
 }
 
 func (h *AutoscalersController) updateExternalMetrics() {
 	// Grab what is available in the Global store.
 	emList, err := h.store.ListAllExternalMetricValues()
+	log.Infof("deprecated is %v, ext is %v", emList.Deprecated, emList.External)
 	if err != nil {
 		log.Errorf("Error while retrieving external metrics from the store: %s", err)
 		return
 	}
+	if len(emList.Deprecated) != 0 {
+		toDelete := &custommetrics.MetricsBundle{
+			Deprecated: emList.Deprecated,
+		}
+		h.store.DeleteExternalMetricValues(toDelete)
+		// need to return here or to recall list as external might contain wrong data.
+	}
+
 	// This could be avoided, in addition to other places, if we returned a map[string]custommetrics.ExternalMetricValue from ListAllExternalMetricValues
 	globalCache := make(map[string]custommetrics.ExternalMetricValue)
-	for _, e := range emList {
+	for _, e := range emList.External {
 		i := custommetrics.ExternalMetricValueKeyFunc(e)
 		globalCache[i] = e
 	}
+	log.Infof("global cache is %v", globalCache)
 
 	// using several metrics with the same name with different labels in the same Ref is not supported.
 	h.toStore.m.Lock()
+	log.Infof("toStore is %v", h.toStore.data)
 	for i, j := range h.toStore.data {
 		if _, ok := globalCache[i]; !ok {
 			globalCache[i] = j

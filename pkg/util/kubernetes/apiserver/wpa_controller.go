@@ -14,7 +14,9 @@ import (
 	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions/datadoghq/v1alpha1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,7 +24,7 @@ import (
 
 // RunWPA starts the controller to process events about Watermark Pod Autoscalers
 func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}) {
-	defer h.queue.ShutDown()
+	defer h.WPAqueue.ShutDown()
 
 	log.Infof("Starting WPA Controller ... ")
 	defer log.Infof("Stopping WPA Controller")
@@ -42,6 +44,7 @@ func ExtendToWPAController(h *AutoscalersController, wpaInformer v1alpha1.Waterm
 			DeleteFunc: h.deleteWPAutoscaler,
 		},
 	)
+	h.WPAqueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "wpa-autoscalers")
 	h.wpaLister = wpaInformer.Lister()
 	h.wpaListerSynced = wpaInformer.Informer().HasSynced
 }
@@ -52,13 +55,13 @@ func (h *AutoscalersController) workerWPA() {
 }
 
 func (h *AutoscalersController) processNextWPA() bool {
-	key, quit := h.queue.Get()
+	key, quit := h.WPAqueue.Get()
 	if quit {
-		log.Infof("WPA controller queue is shutting down, stopping processing")
+		log.Error("WPA controller HPAqueue is shutting down, stopping processing")
 		return false
 	}
 	log.Tracef("Processing %s", key)
-	defer h.queue.Done(key)
+	defer h.WPAqueue.Done(key)
 
 	err := h.syncWatermarkPoAutoscalers(key)
 	h.handleErr(err, key)
@@ -71,9 +74,6 @@ func (h *AutoscalersController) processNextWPA() bool {
 }
 
 func (h *AutoscalersController) syncWatermarkPoAutoscalers(key interface{}) error {
-	if !h.le.IsLeader() {
-		return nil
-	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -95,6 +95,9 @@ func (h *AutoscalersController) syncWatermarkPoAutoscalers(key interface{}) erro
 			return ErrIsEmpty
 		}
 		emList := autoscalers.InspectWPA(wpaCached)
+		if len(emList) == 0 {
+			return nil
+		}
 		newMetrics := h.hpaProc.ProcessEMList(emList)
 		h.toStore.m.Lock()
 		for metric, value := range newMetrics {
@@ -116,7 +119,7 @@ func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
 		return
 	}
 	log.Debugf("Adding WPA %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
-	h.enqueue(newAutoscaler)
+	h.enqueueWPA(newAutoscaler)
 }
 
 func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
@@ -128,7 +131,7 @@ func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
 	oldAutoscaler, ok := old.(*apis_v1alpha1.WatermarkPodAutoscaler)
 	if !ok {
 		log.Errorf("Expected an WatermarkPodAutoscaler type, got: %v", old)
-		h.enqueue(newAutoscaler) // We still want to enqueue the newAutoscaler to get the new change
+		h.enqueueWPA(newAutoscaler) // We still want to enqueue the newAutoscaler to get the new change
 		return
 	}
 
@@ -141,28 +144,28 @@ func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
 	h.deleteFromLocalStore(toDelete)
 
 	log.Tracef("Processing update event for wpa %s/%s with configuration: %s", newAutoscaler.Namespace, newAutoscaler.Name, newAutoscaler.Annotations)
-	h.enqueue(newAutoscaler)
+	h.enqueueWPA(newAutoscaler)
 }
 
 // Processing the Delete Events in the Eventhandler as obj is deleted from the local store thereafter.
 // Only here can we retrieve the content of the WPA to properly process and delete it.
-// FIXME we could have an update in the queue while processing the deletion, we should make
+// FIXME we could have an update in the WPAqueue while processing the deletion, we should make
 // sure we process them in order instead. For now, the gc logic allows us to recover.
 func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-
+	toDelete := &custommetrics.MetricsBundle{}
 	deletedWPA, ok := obj.(*apis_v1alpha1.WatermarkPodAutoscaler)
 	if ok {
-		toDelete := autoscalers.InspectWPA(deletedWPA)
-		h.deleteFromLocalStore(toDelete)
+		toDelete.External = autoscalers.InspectWPA(deletedWPA)
+		h.deleteFromLocalStore(toDelete.External)
 		log.Debugf("Deleting %s/%s from the local cache", deletedWPA.Namespace, deletedWPA.Name)
 		if !h.le.IsLeader() {
 			return
 		}
 		log.Infof("Deleting entries of metrics from Ref %s/%s in the Global Store", deletedWPA.Namespace, deletedWPA.Name)
 		if err := h.store.DeleteExternalMetricValues(toDelete); err != nil {
-			h.enqueue(deletedWPA)
+			h.enqueueWPA(deletedWPA)
 			return
 		}
 		return
@@ -181,11 +184,11 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 	}
 
 	log.Debugf("Deleting Metrics from WPA %s/%s", deletedWPA.Namespace, deletedWPA.Name)
-	toDelete := autoscalers.InspectWPA(deletedWPA)
+	toDelete.External = autoscalers.InspectWPA(deletedWPA)
 	log.Debugf("Deleting %s/%s from the local cache", deletedWPA.Namespace, deletedWPA.Name)
-	h.deleteFromLocalStore(toDelete)
+	h.deleteFromLocalStore(toDelete.External)
 	if err := h.store.DeleteExternalMetricValues(toDelete); err != nil {
-		h.enqueue(deletedWPA)
+		h.enqueueWPA(deletedWPA)
 		return
 	}
 }
