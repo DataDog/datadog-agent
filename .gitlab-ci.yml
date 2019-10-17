@@ -1483,7 +1483,7 @@ testkitchen_cleanup_azure-a7:
     - docker build $BUILD_ARG --pull --tag $TARGET_TAG $BUILD_CONTEXT
     - docker push $TARGET_TAG
 
-# build agent6 image
+# build agent6 py2 image
 build_agent6:
   <<: *docker_build_job_definition
   <<: *skip_when_unwanted_on_6
@@ -1494,7 +1494,7 @@ build_agent6:
     BUILD_ARG: --target release --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
     TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
 
-# build agent6 jmx image
+# build agent6 py2 jmx image
 build_agent6_jmx:
   <<: *docker_build_job_definition
   <<: *skip_when_unwanted_on_6
@@ -1505,6 +1505,29 @@ build_agent6_jmx:
     TAG_SUFFIX: -py2-jmx
     BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
     TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+
+# build agent6 py3 image
+build_agent6_py3:
+  <<: *docker_build_job_definition
+  <<: *skip_when_unwanted_on_6
+  variables:
+    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -py3
+    BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+
+# build agent6 py3 jmx image
+build_agent6_py3_jmx:
+  <<: *docker_build_job_definition
+  <<: *skip_when_unwanted_on_6
+  variables:
+    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    BUILD_ARTIFACT_GLOB: datadog-agent_6*_amd64.deb
+    TAG_SUFFIX: -py3-jmx
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
 
 # TESTING ONLY: This image is for internal testing purposes, not customer facing.
 # build agent6 jmx unified image (including python3)
@@ -1525,7 +1548,7 @@ build_agent7:
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
-    TAG_SUFFIX: -py3
+    TAG_SUFFIX: -7-py3
     BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
     TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
 
@@ -1536,7 +1559,7 @@ build_agent7_jmx:
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
-    TAG_SUFFIX: -py3-jmx
+    TAG_SUFFIX: -7-py3-jmx
     BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
     TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
 
@@ -2033,8 +2056,8 @@ tag_release_7:
     <<: *docker_hub_variables
   script:
     - VERSION=$(inv -e agent.version)
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:${VERSION}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:${VERSION}-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3 datadog/agent:${VERSION}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3-jmx datadog/agent:${VERSION}-jmx
 
 latest_release_6:
   <<: *docker_tag_job_definition
@@ -2068,8 +2091,8 @@ latest_release_7:
     # TODO: uncomment the following when agent 7 is released
     #- inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:latest
     #- inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:latest-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:7
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:7-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3 datadog/agent:7
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3-jmx datadog/agent:7-jmx
 
 #
 # Use these steps to revert the latest tags to a previous release
