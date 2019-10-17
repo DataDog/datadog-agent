@@ -311,8 +311,10 @@ func (t *TopologyCheck) nodeToStackStateComponent(node v1.Node) topology.Compone
 		}
 	}
 	// this allow merging with host reported by main agent
+	var instanceId string
 	if len(node.Spec.ProviderID) > 0 {
-		identifiers = append(identifiers, fmt.Sprintf("urn:host:/%s", extractInstanceIdFromProviderId(node.Spec)))
+		instanceId = extractInstanceIdFromProviderId(node.Spec)
+		identifiers = append(identifiers, fmt.Sprintf("urn:host:/%s", instanceId))
 	}
 
 	log.Tracef("Created identifiers for %s: %v", node.Name, identifiers)
@@ -336,10 +338,13 @@ func (t *TopologyCheck) nodeToStackStateComponent(node v1.Node) topology.Compone
 			"creationTimestamp": node.CreationTimestamp,
 			"tags":              tags,
 			"status":            nodeStatus,
-			"namespace":         node.Namespace,
 			"identifiers":       identifiers,
 			//"taints": node.Spec.Taints,
 		},
+	}
+
+	if instanceId != "" {
+		component.Data["instanceId"] = instanceId
 	}
 
 	log.Tracef("Created StackState node component %s: %v", nodeExternalID, component.JSONString())
@@ -439,6 +444,8 @@ func (t *TopologyCheck) containerToStackStateComponent(node v1.Node, pod v1.Pod,
 			"image":        container.Image,
 			"container_id": strippedContainerId,
 		},
+		"pod":          pod.Name,
+		"namespace":    pod.Namespace,
 		"restartCount": container.RestartCount,
 		"identifiers":  identifiers,
 		"tags":         tags,
