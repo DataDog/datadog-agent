@@ -99,7 +99,7 @@ RUN apt-get update \
   # https://security-tracker.debian.org/tracker/CVE-2016-2779
   && rm -f /usr/sbin/runuser \
   # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954
-  && rm -f /usr/lib/x86_64-linux-gnu/libdb-5.3.so \
+  && rm -f /usr/lib/x86_64-linux-gnu/libdb-5.3.so
 
 # Install openjdk-11-jre-headless on jmx flavor
 # Due to this bug https://bugs.openjdk.java.net/browse/JDK-8217766, we need to be able to
@@ -110,8 +110,10 @@ RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
  && apt-get update \
  && mkdir /usr/share/man/man1 \
  && apt-get install --no-install-recommends -y openjdk-11-jre-headless \
- && apt-get clean; fi \
- && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+ && apt-get clean; fi
+
+# cleaning up
+RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Copy agent from extract stage
 COPY --from=extract /output/ /
