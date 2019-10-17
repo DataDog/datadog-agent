@@ -101,7 +101,7 @@ func (s *SocketFilterSnooper) Close() {
 func (s *SocketFilterSnooper) run(packets <-chan gopacket.Packet) {
 	for packet := range packets {
 		layer := packet.Layer(layers.LayerTypeDNS)
-		if layer.LayerType() != layers.LayerTypeDNS {
+		if layer == nil {
 			continue
 		}
 		dns, ok := layer.(*layers.DNS)
