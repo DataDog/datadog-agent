@@ -197,6 +197,9 @@ bool Three::addPythonPath(const char *path)
 
 rtloader_gilstate_t Three::GILEnsure()
 {
+    if (_Py_IsFinalizing()) {
+        return DATADOG_AGENT_RTLOADER_GIL_FINALIZING;
+    }
     PyGILState_STATE state = PyGILState_Ensure();
     if (state == PyGILState_LOCKED) {
         return DATADOG_AGENT_RTLOADER_GIL_LOCKED;
@@ -208,7 +211,7 @@ void Three::GILRelease(rtloader_gilstate_t state)
 {
     if (state == DATADOG_AGENT_RTLOADER_GIL_LOCKED) {
         PyGILState_Release(PyGILState_LOCKED);
-    } else {
+    } else if (state == DATADOG_AGENT_RTLOADER_GIL_UNLOCKED) {
         PyGILState_Release(PyGILState_UNLOCKED);
     }
 }

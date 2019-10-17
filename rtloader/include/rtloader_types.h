@@ -32,7 +32,8 @@ extern "C" {
 
 typedef enum rtloader_gilstate_e {
     DATADOG_AGENT_RTLOADER_GIL_LOCKED = 0,
-    DATADOG_AGENT_RTLOADER_GIL_UNLOCKED
+    DATADOG_AGENT_RTLOADER_GIL_UNLOCKED,
+    DATADOG_AGENT_RTLOADER_GIL_FINALIZING
 } rtloader_gilstate_t;
 
 typedef enum {
