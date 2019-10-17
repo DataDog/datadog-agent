@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -39,6 +40,9 @@ type SocketFilterSnooper struct {
 	cache        *reverseDNSCache
 	exit         chan struct{}
 	wg           sync.WaitGroup
+
+	// telemetry
+	packets int64
 }
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
@@ -82,7 +86,9 @@ func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Ad
 }
 
 func (s *SocketFilterSnooper) GetStats() map[string]int64 {
-	return s.cache.Stats()
+	stats := s.cache.Stats()
+	stats["packets_captured"] = atomic.SwapInt64(&s.packets, 0)
+	return stats
 }
 
 // Close terminates the DNS traffic snooper as well as the underlying socket and the attached filter
@@ -125,6 +131,7 @@ func (s *SocketFilterSnooper) createPacketStream(chanSize int) <-chan gopacket.P
 		for {
 			packet, err := s.source.NextPacket()
 			if err == nil {
+				atomic.AddInt64(&s.packets, 1)
 				packetChan <- packet
 				continue
 			}
