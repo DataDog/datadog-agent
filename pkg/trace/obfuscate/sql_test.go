@@ -461,32 +461,32 @@ func TestSQLTokenizerEscapeBackslashQuotes(t *testing.T) {
 		{
 			`'String with backslash-escaped quote at end \''`,
 			"String with backslash-escaped quote at end '",
-			String,
+			EscapedString,
 		},
 		{
 			`'String with backslash-escaped quote \' in middle'`,
 			"String with backslash-escaped quote ' in middle",
-			String,
+			EscapedString,
 		},
 		{
 			`'String with backslash-escaped embedded string \'foo\' in the middle'`,
 			"String with backslash-escaped embedded string 'foo' in the middle",
-			String,
+			EscapedString,
 		},
 		{
 			`'String with backslash-escaped embedded string at end \'foo\''`,
 			"String with backslash-escaped embedded string at end 'foo'",
-			String,
+			EscapedString,
 		},
 		{
 			`'String with backslash-escaped embedded string \'foo\' in the middle'`,
 			"String with backslash-escaped embedded string 'foo' in the middle",
-			String,
+			EscapedString,
 		},
 		{
 			`'String with double-backslash-escaped embedded string \\'foo\\' in the middle'`,
 			"String with double-backslash-escaped embedded string \\'foo\\' in the middle",
-			String,
+			EscapedString,
 		},
 		{
 			`'String with backslash-escaped embedded string \'foo\' in the middle followed by one at the end \'`,
@@ -670,7 +670,7 @@ in the middle'`,
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("tokenize_%s", c.str), func(t *testing.T) {
 			tokenizer := NewSQLTokenizer(c.str)
-			tokenizer.backslashQuote.ignoreEscape = true
+			tokenizer.ignoreEscape = true
 			kind, buffer := tokenizer.Scan()
 			assert.Equal(t, c.expectedKind, kind)
 			assert.Equal(t, c.expected, string(buffer))

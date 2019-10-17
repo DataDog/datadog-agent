@@ -83,13 +83,13 @@ func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (token
 		return FilteredGroupable, []byte("?"), nil
 	case '=':
 		switch token {
-		case DoubleQuotedString:
+		case DoubleQuotedString, DoubleQuotedEscapedString:
 			// double-quoted strings after assignments are eligible for obfuscation
 			return FilteredGroupable, []byte("?"), nil
 		}
 	}
 	switch token {
-	case String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
+	case String, EscapedString, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
 		return FilteredGroupable, []byte("?"), nil
 	default:
 		return token, buffer, nil
@@ -159,6 +159,11 @@ func obfuscateSQLString(in string) (string, error) {
 		out       bytes.Buffer
 		err       error
 		lastToken TokenKind
+
+		hasEscaped         bool
+		backtrackPos       int       // position of Tokenizer when first escaped quote encountered
+		backtrackOutLen    int       // length of output buffer when first escaped quote encountered
+		backtrackLastToken TokenKind // value of lastToken when first escaped quote encountered
 	)
 
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
@@ -166,30 +171,30 @@ func obfuscateSQLString(in string) (string, error) {
 	// or replaced.
 	for {
 		pos := tokenizer.pos
-		hasEscaped := tokenizer.backslashQuote.hasEscaped
 		token, buff := tokenizer.Scan()
 		if token == EOFChar {
 			break
 		}
 
-		if hasEscaped != tokenizer.backslashQuote.hasEscaped {
-			// tokenizer has encountered its first escaped quote
-			tokenizer.backslashQuote.firstEscapedPos = pos
-			tokenizer.backslashQuote.firstEscapedOutputLen = out.Len()
-			tokenizer.backslashQuote.firstEscapedLastToken = lastToken
+		if (token == EscapedString || token == DoubleQuotedEscapedString) && !hasEscaped {
+			// tokenizer has encountered its first escaped string
+			hasEscaped = true
+			backtrackPos = pos
+			backtrackOutLen = out.Len()
+			backtrackLastToken = lastToken
 		}
 
 		if token == LexError {
 			// if at any point we've tried escaping a backslash-quote, e.g. \'
 			// try re-lexing the input without escapes
-			if !tokenizer.backslashQuote.ignoreEscape && tokenizer.backslashQuote.hasEscaped {
+			if !tokenizer.ignoreEscape && hasEscaped {
 				// back up the reader and the output buffer
-				tokenizer.Seek(int64(tokenizer.backslashQuote.firstEscapedPos), io.SeekStart)
-				out.Truncate(tokenizer.backslashQuote.firstEscapedOutputLen)
-				lastToken = tokenizer.backslashQuote.firstEscapedLastToken
+				tokenizer.Seek(int64(backtrackPos), io.SeekStart)
+				out.Truncate(backtrackOutLen)
+				lastToken = backtrackLastToken
 
 				// try once more without escaping backslash quotes
-				tokenizer.backslashQuote.ignoreEscape = true
+				tokenizer.ignoreEscape = true
 				continue
 			}
 

@@ -37,7 +37,9 @@ const (
 	Limit
 	Null
 	String
+	EscapedString
 	DoubleQuotedString
+	DoubleQuotedEscapedString
 	Number
 	BooleanLiteral
 	ValueArg
@@ -71,22 +73,11 @@ const (
 // SQLTokenizer is the struct used to generate SQL
 // tokens for the parser.
 type SQLTokenizer struct {
-	rd             *strings.Reader // the "rune" reader
-	pos            int             // byte offset of lastChar
-	lastChar       rune            // last read rune
-	err            error           // any error occurred while reading
-	backslashQuote BackslashQuoteContext
-}
-
-// BackslashQuoteContext is a struct that encapsulates
-// several variables related to how the tokenizer
-// treats backslashes within strings in SQL queries
-type BackslashQuoteContext struct {
-	ignoreEscape          bool      // indicates we should not try to escape quotes
-	hasEscaped            bool      // indicates we have encountered a quote to escape
-	firstEscapedPos       int       // position of Tokenizer when first escaped quote encountered
-	firstEscapedOutputLen int       // length of output buffer when first escaped quote encountered
-	firstEscapedLastToken TokenKind // value of lastToken when first escaped quote encountered
+	rd           *strings.Reader // the "rune" reader
+	pos          int             // byte offset of lastChar
+	lastChar     rune            // last read rune
+	err          error           // any error occurred while reading
+	ignoreEscape bool            // indicates we should not try to escape quotes
 }
 
 // NewSQLTokenizer creates a new SQLTokenizer for the given SQL string.
@@ -438,7 +429,7 @@ exit:
 
 func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
-	const backlash = '\\'
+	const escapeCharacter = '\\'
 	for {
 		ch := tkn.lastChar
 		tkn.next()
@@ -448,11 +439,16 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 			} else {
 				break
 			}
-		} else if ch == backlash {
-			if tkn.lastChar == delim && !tkn.backslashQuote.ignoreEscape {
-				ch = delim
+		} else if ch == escapeCharacter {
+			if tkn.lastChar == delim && !tkn.ignoreEscape {
+				if kind == String {
+					kind = EscapedString
+				} else if kind == DoubleQuotedString {
+					kind = DoubleQuotedEscapedString
+				}
+
+				ch = tkn.lastChar
 				tkn.next()
-				tkn.backslashQuote.hasEscaped = true
 			}
 		}
 		if ch == EOFChar {
