@@ -142,6 +142,7 @@ func createProcCtrMessages(
 	if len(ctrs) > 0 {
 		msgs = append(msgs, &model.CollectorProc{
 			HostName:   cfg.HostName,
+			NetworkId:  networkID,
 			Info:       sysInfo,
 			Processes:  ctrProcs,
 			Containers: ctrs,
