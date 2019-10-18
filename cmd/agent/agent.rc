@@ -4,9 +4,17 @@
 
 
 #ifdef BUILD_ARCH_x86
-APP_MANIFEST RT_MANIFEST agent32.exe.manifest
+  #ifdef PY2_RUNTIME
+     APP_MANIFEST RT_MANIFEST agent32-py2.exe.manifest
+  #else 
+     APP_MANIFEST RT_MANIFEST agent32-py3.exe.manifest
+  #endif
 #elif defined BUILD_ARCH_x64
-APP_MANIFEST RT_MANIFEST agent.exe.manifest
+  #ifdef PY2_RUNTIME
+    APP_MANIFEST RT_MANIFEST agent-py2.exe.manifest
+  #else 
+    APP_MANIFEST RT_MANIFEST agent-py3.exe.manifest
+  #endif
 #else
 #error no architecture
 #endif

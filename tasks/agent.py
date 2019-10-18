@@ -110,6 +110,13 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
                 build_exclude.append(ex)
 
     if sys.platform == 'win32':
+        python_runtimes = os.environ.get("PYTHON_RUNTIMES") or "3"
+        python_runtimes = python_runtimes.split(',')
+
+        py_runtime_var = "PY3_RUNTIME"
+        if '2' in python_runtimes:
+            py_runtime_var = "PY2_RUNTIME"
+
         windres_target = "pe-x86-64"
 
         # Important for x-compiling
@@ -128,7 +135,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         command = "windmc --target {target_arch} -r cmd/agent cmd/agent/agentmsg.mc ".format(target_arch=windres_target)
         ctx.run(command, env=env)
 
-        command = "windres --target {target_arch} --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} --define BUILD_ARCH_{build_arch}=1".format(
+        command = "windres --target {target_arch} --define {py_runtime_var}=1 --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} --define BUILD_ARCH_{build_arch}=1".format(
+            py_runtime_var=py_runtime_var,
             build_maj=build_maj,
             build_min=build_min,
             build_patch=build_patch,
