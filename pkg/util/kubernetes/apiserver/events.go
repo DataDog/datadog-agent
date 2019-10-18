@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 
@@ -26,7 +26,9 @@ func (c *APIClient) RunEventCollection(resVer string, lastListTime time.Time, ev
 	var added []*v1.Event
 	syncTimeout := time.Duration(resync) * time.Second
 	// list if latestResVer is "" or if lastListTS is > syncTimeout
-	if resVer == "" || time.Now().Sub(lastListTime) > syncTimeout {
+	diffTime := time.Now().Sub(lastListTime)
+	if resVer == "" || diffTime > syncTimeout {
+		log.Debugf("return listForEventResync diffTime: %d > %d", diffTime, syncTimeout)
 		return c.listForEventResync(eventReadTimeout, eventCardinalityLimit, filter)
 	}
 	// Start watcher with the most up to date RV
@@ -136,9 +138,9 @@ func (c *APIClient) listForEventResync(eventReadTimeout int64, eventCardinalityL
 		log.Errorf("Error Listing events: %s", err.Error())
 		return nil, resVer, lastListTime, err
 	}
-	for _, e := range evList.Items {
+	for id := range evList.Items {
 		// List call returns a different type than the Watch call.
-		added = append(added, &e)
+		added = append(added, &evList.Items[id])
 	}
 	return added, evList.ResourceVersion, time.Now(), nil
 }
