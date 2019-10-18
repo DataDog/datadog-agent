@@ -90,18 +90,6 @@ ENV DOCKER_DD_AGENT=true \
     # Allow readonlyrootfs
     S6_READ_ONLY_ROOT=1
 
-# Install openjdk-11-jre-headless on jmx flavor
-# Due to this bug https://bugs.openjdk.java.net/browse/JDK-8217766, we need to be able to
-# pull from testing since this is the only place for now where a version > 11.0.4 is available.
-RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
- && echo "deb http://deb.debian.org/debian testing main" > /etc/apt/sources.list.d/testing.list \
- && apt-get update \
- && mkdir /usr/share/man/man1 \
- && apt-get install --no-install-recommends -y openjdk-11-jre-headless \
- && apt-get clean \
- && rm /etc/apt/sources.list.d/testing.list \
- && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*; fi
-
 # make sure we have recent dependencies
 RUN apt-get update \
   # CVE-fixing time!
@@ -111,8 +99,21 @@ RUN apt-get update \
   # https://security-tracker.debian.org/tracker/CVE-2016-2779
   && rm -f /usr/sbin/runuser \
   # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954
-  && rm -f /usr/lib/x86_64-linux-gnu/libdb-5.3.so \
-  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+  && rm -f /usr/lib/x86_64-linux-gnu/libdb-5.3.so
+
+# Install openjdk-11-jre-headless on jmx flavor
+# Due to this bug https://bugs.openjdk.java.net/browse/JDK-8217766, we need to be able to
+# pull from testing since this is the only place for now where a version > 11.0.4 is available.
+# we leave testing in the sources to avoid dependencies conflict in custom images
+RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
+ && echo "deb http://deb.debian.org/debian testing main" > /etc/apt/sources.list.d/testing.list \
+ && apt-get update \
+ && mkdir /usr/share/man/man1 \
+ && apt-get install --no-install-recommends -y openjdk-11-jre-headless \
+ && apt-get clean; fi
+
+# cleaning up
+RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Copy agent from extract stage
 COPY --from=extract /output/ /
