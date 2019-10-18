@@ -972,82 +972,78 @@ deploy_windows_testing-a7:
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET_A7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-
 #
 # Kitchen Test Common templates
 #
 
 .kitchen_common: &kitchen_common
-  script:
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - bash -l tasks/run-test-kitchen.sh
+  <<: *run_when_testkitchen_triggered
+  stage: testkitchen_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   artifacts:
     expire_in: 2 weeks
     when: always
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
+  tags: [ "runner:main", "size:large" ]
+  retry: 1
+
+.kitchen_a6_common: &kitchen_a6_common
+  variables:
+    PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+
+.kitchen_a7_common: &kitchen_a7_common
+  variables:
+    PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+
+.kitchen_chef_common: &kitchen_chef_common
+  script:
+    - bash -l tasks/run-test-kitchen.sh chef-test
+
+.kitchen_step_by_step_common: &kitchen_step_by_step_common
+  script:
+    - bash -l tasks/run-test-kitchen.sh step-by-step-test
+
+.kitchen_install_script_common: &kitchen_install_script_common
+  script:
+    - bash -l tasks/run-test-kitchen.sh install-script-test
+
+.kitchen_upgrade5_common: &kitchen_upgrade5_common
+  script:
+    - bash -l tasks/run-test-kitchen.sh upgrade5-test
+
+.kitchen_upgrade6_common: &kitchen_upgrade6_common
+  script:
+    - bash -l tasks/run-test-kitchen.sh upgrade6-test
 
 .kitchen_windows_installer_common: &kitchen_windows_installer_common
+  <<: *kitchen_common
   script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
     - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - bash -l tasks/kitchen_setup.sh
     - bash -l tasks/run-test-kitchen.sh windows-install-test
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
 
-.kitchen_windows_upgrade_common: &kitchen_windows_upgrade_common
-  script:
+.kitchen_windows_a6_common: &kitchen_windows_a6_common
+  <<: *kitchen_common
+  <<: *kitchen_a6_common
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
+    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
     - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - bash -l tasks/run-test-kitchen.sh windows-upgrade5-test
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+    - bash -l tasks/kitchen_setup.sh
 
-kitchen_windows_upgrade5to6:
-  stage: testkitchen_testing
-  allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
-  <<: *skip_when_unwanted_on_6
-  variables:
-    PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
-    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_windows_upgrade_common
-
-kitchen_windows_upgrade5to7:
-  stage: testkitchen_testing
-  allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
-  <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+.kitchen_windows_a7_common: &kitchen_windows_a7_common
+  <<: *kitchen_common
+  <<: *kitchen_a7_common
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
@@ -1056,238 +1052,391 @@ kitchen_windows_upgrade5to7:
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_windows_upgrade_common
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
 
-# run dd-agent-testing on windows
-kitchen_windows-a6:
-  stage: testkitchen_testing
-  allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
-  <<: *skip_when_unwanted_on_6
-  variables:
-    PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+.kitchen_centos_common: &kitchen_centos_common
+  <<: *kitchen_common
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
-    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+    - export TEST_PLATFORMS="centos-69,OpenLogic:CentOS:6.9:6.9.20180530"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-80,RedHat:RHEL:8:8.0.2019062020"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
 
-kitchen_windows-a7:
-  stage: testkitchen_testing
-  allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
-  <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+.kitchen_ubuntu_common: &kitchen_ubuntu_common
+  <<: *kitchen_common
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
-    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+    - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,Canonical:UbuntuServer:16.04.0-LTS:16.04.201906170"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-18-04,Canonical:UbuntuServer:18.04-LTS:18.04.201906040"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
 
-kitchen_windows-a7-2008:
-  stage: testkitchen_testing
-  allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
-  <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+.kitchen_suse_common: &kitchen_suse_common
+  <<: *kitchen_common
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
-    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
-  tags: [ "runner:main", "size:large" ]
+    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP4:2019.06.17"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,SUSE:SLES-Standard:15:2019.06.17"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+.kitchen_debian_common: &kitchen_debian_common
   <<: *kitchen_common
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.20190313.0"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,credativ:Debian:9:9.20190515.0"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-10,Debian:debian-10:10:0.20190709.401"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
 
-
+# run dd-agent-testing for the windows installer
 kitchen_windows_installer-a6:
-  stage: testkitchen_testing
   allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
-  variables:
-    PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
-    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
-  tags: [ "runner:main", "size:large" ]
   <<: *kitchen_windows_installer_common
+  <<: *kitchen_a6_common
+  before_script:
+    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
+  retry: 0
 
 kitchen_windows_installer-a7:
-  stage: testkitchen_testing
   allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
-    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
-  tags: [ "runner:main", "size:large" ]
   <<: *kitchen_windows_installer_common
+  <<: *kitchen_a7_common
+  before_script:
+    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
+  retry: 0
 
+# run dd-agent-testing on windows
+kitchen_windows_chef-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_windows_a6_common
+  <<: *kitchen_chef_common
+
+kitchen_windows_chef-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_windows_a7_common
+  <<: *kitchen_chef_common
+
+kitchen_windows_upgrade5-a6:
+  allow_failure: true
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_windows_a6_common
+  <<: *kitchen_upgrade5_common
+  retry: 0
+
+kitchen_windows_upgrade5-a7:
+  allow_failure: true
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_windows_a7_common
+  <<: *kitchen_upgrade5_common
+  retry: 0
+
+kitchen_windows_upgrade6-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_windows_a6_common
+  <<: *kitchen_upgrade6_common
+
+kitchen_windows_upgrade6-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7  
+  <<: *kitchen_windows_a7_common
+  <<: *kitchen_upgrade6_common
 
 # run dd-agent-testing on centos
-kitchen_centos-a6:
-  stage: testkitchen_testing
+kitchen_centos_chef-a6:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
-  variables:
-    PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="centos-69,OpenLogic:CentOS:6.9:6.9.20180530"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-80,RedHat:RHEL:8:8.0.2019062020"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_centos_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_chef_common
 
-kitchen_centos-a7:
-  stage: testkitchen_testing
+kitchen_centos_chef-a7:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="centos-69,OpenLogic:CentOS:6.9:6.9.20180530"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-80,RedHat:RHEL:8:8.0.2019062020"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_centos_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_chef_common
+
+kitchen_centos_install_script-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_centos_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_install_script_common
+
+kitchen_centos_install_script-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_centos_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_install_script_common
+
+kitchen_centos_step_by_step-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_centos_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_centos_step_by_step-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_centos_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_centos_upgrade5-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_centos_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_centos_upgrade5-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_centos_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_centos_upgrade6-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_centos_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade6_common
+
+kitchen_centos_upgrade6-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_centos_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade6_common
 
 # run dd-agent-testing on ubuntu
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
-kitchen_ubuntu-a6:
-  stage: testkitchen_testing
+kitchen_ubuntu_chef-a6:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
-  variables:
-    PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,Canonical:UbuntuServer:16.04.0-LTS:16.04.201906170"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-18-04,Canonical:UbuntuServer:18.04-LTS:18.04.201906040"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_chef_common
 
-kitchen_ubuntu-a7:
-  stage: testkitchen_testing
+kitchen_ubuntu_chef-a7:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,Canonical:UbuntuServer:16.04.0-LTS:16.04.201906170"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-18-04,Canonical:UbuntuServer:18.04-LTS:18.04.201906040"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_chef_common
+
+kitchen_ubuntu_install_script-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_install_script_common
+
+kitchen_ubuntu_install_script-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_install_script_common
+
+kitchen_ubuntu_step_by_step-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_ubuntu_step_by_step-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_ubuntu_upgrade5-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_ubuntu_upgrade5-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_ubuntu_upgrade6-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade6_common
+
+kitchen_ubuntu_upgrade6-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade6_common
 
 # run dd-agent-testing on suse
-kitchen_suse-a6:
-  stage: testkitchen_testing
+kitchen_suse_chef-a6:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
-  variables:
-    PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP4:2019.06.17"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,SUSE:SLES-Standard:15:2019.06.17"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_suse_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_chef_common
 
-kitchen_suse-a7:
-  stage: testkitchen_testing
+kitchen_suse_chef-a7:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP4:2019.06.17"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,SUSE:SLES-Standard:15:2019.06.17"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_suse_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_chef_common
+
+kitchen_suse_install_script-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_suse_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_install_script_common
+
+kitchen_suse_install_script-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_suse_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_install_script_common
+
+kitchen_suse_step_by_step-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_suse_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_suse_step_by_step-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_suse_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_suse_upgrade5-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_suse_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_suse_upgrade5-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_suse_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_suse_upgrade6-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_suse_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade6_common
+
+kitchen_suse_upgrade6-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_suse_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade6_common 
 
 # run dd-agent-testing on debian
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
-kitchen_debian-a6:
-  stage: testkitchen_testing
+kitchen_debian_chef-a6:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
-  variables:
-    PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.20190313.0"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,credativ:Debian:9:9.20190515.0"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-10,Debian:debian-10:10:0.20190709.401"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_debian_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_chef_common
 
-kitchen_debian-a7:
-  stage: testkitchen_testing
+kitchen_debian_chef-a7:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.20190313.0"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,credativ:Debian:9:9.20190515.0"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-10,Debian:debian-10:10:0.20190709.401"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_debian_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_chef_common
+
+kitchen_debian_install_script-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_debian_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_install_script_common
+
+kitchen_debian_install_script-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_debian_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_install_script_common
+
+kitchen_debian_step_by_step-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_debian_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_debian_step_by_step-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_debian_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_debian_upgrade5-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_debian_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_debian_upgrade5-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_debian_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_debian_upgrade6-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_debian_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade6_common
+
+kitchen_debian_upgrade6-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_debian_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade6_common
 
 #
 # pkg_metrics: send metrics about packages
