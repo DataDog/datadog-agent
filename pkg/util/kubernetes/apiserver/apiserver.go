@@ -210,19 +210,19 @@ func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 }
 
 func (c *APIClient) getOrCreateConfigMap(name, namespace string) (cmEvent *v1.ConfigMap, err error) {
-	cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
+	cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
-		log.Errorf("Could not get the ConfigMap %s: %s, trying to create it.", configMapDCAToken, err.Error())
+		log.Errorf("Could not get the ConfigMap %s: %s, trying to create it.", name, err.Error())
 		cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Create(&v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      configMapDCAToken,
+				Name:      name,
 				Namespace: namespace,
 			},
 		})
 		if err != nil {
 			return nil, fmt.Errorf("could not create the ConfigMap: %s", err.Error())
 		}
-		log.Infof("Created the ConfigMap %s", configMapDCAToken)
+		log.Infof("Created the ConfigMap %s", name)
 	}
 	return cmEvent, nil
 }
@@ -245,9 +245,8 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 	if !found {
 		log.Debugf("%s was not found in the ConfigMap %s, updating it to resync.", eventTokenKey, configMapDCAToken)
 		// we should try to set it to "" .
-		err = c.UpdateTokenInConfigmap(configMapDCAToken, "", time.Now())
+		err = c.UpdateTokenInConfigmap(eventTokenKey, "", time.Now())
 		return "", time.Now(), err
-
 	}
 	log.Tracef("%s is %q", token, tokenValue)
 
@@ -259,7 +258,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 		return tokenValue, nowTs, nil
 	}
 
-	tokenTime, err := time.Parse(time.RFC822, tokenTimeStr)
+	tokenTime, err := time.Parse(time.RFC3339, tokenTimeStr)
 	if err != nil {
 		log.Errorf("Could not convert the timestamp associated with %s from the ConfigMap %s, resync might not work correctly.", token, configMapDCAToken)
 		return tokenValue, nowTs, nil
@@ -282,7 +281,7 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string, timestamp t
 	tokenConfigMap.Data[eventTokenKey] = tokenValue
 
 	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
-	tokenConfigMap.Data[eventTokenTS] = timestamp.Format(time.RFC822) // Timestamps in the ConfigMap should all use the type int.
+	tokenConfigMap.Data[eventTokenTS] = timestamp.Format(time.RFC3339) // Timestamps in the ConfigMap should all use the type int.
 
 	_, err = c.Cl.CoreV1().ConfigMaps(namespace).Update(tokenConfigMap)
 	if err != nil {

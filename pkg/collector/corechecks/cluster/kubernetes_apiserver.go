@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v2"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -35,6 +35,7 @@ const (
 	kubernetesAPIServerCheckName = "kubernetes_apiserver"
 	eventTokenKey                = "event"
 	maxEventCardinality          = 300
+	defaultResyncPeriodInSecond  = 300
 )
 
 // KubeASConfig is the config of the API server.
@@ -70,6 +71,7 @@ func (c *KubeASConfig) parse(data []byte) error {
 	c.CollectEvent = config.Datadog.GetBool("collect_kubernetes_events")
 	c.CollectOShiftQuotas = true
 	c.EventCollectionTimeoutMs = config.Datadog.GetInt("kubernetes_event_collection_timeout")
+	c.ResyncPeriodEvents = defaultResyncPeriodInSecond
 
 	return yaml.Unmarshal(data, c)
 }
