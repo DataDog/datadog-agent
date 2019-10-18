@@ -149,7 +149,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 
 	var reverseDNS ReverseDNS = nullReverseDNS{}
-	if config.DNSInspection {
+	if shouldEnableSocketFilter(config) {
 		filter := m.SocketFilter("socket/dns_filter")
 		if filter == nil {
 			return nil, fmt.Errorf("error retrieving socket filter")
@@ -711,6 +711,13 @@ func SectionsFromConfig(c *Config) map[string]bpflib.SectionParams {
 		tcpCloseEventMap.sectionName(): {
 			MapMaxEntries: 1024,
 		},
-		"socket/dns_filter": {},
+		"socket/dns_filter": {
+			Disabled: !shouldEnableSocketFilter(c),
+		},
 	}
+}
+
+func shouldEnableSocketFilter(c *Config) bool {
+	isRHELOrCentos, _ := isRHELOrCentOS()
+	return c.DNSInspection && !isRHELOrCentos
 }
