@@ -35,7 +35,7 @@ var secretInfoCommand = &cobra.Command{
 
 		err := common.SetupConfigWithoutSecrets(confFilePath)
 		if err != nil {
-			fmt.Printf("unable to set up global agent configuration: %v", err)
+			fmt.Printf("unable to set up global agent configuration: %v\n", err)
 			return nil
 		}
 
@@ -46,12 +46,12 @@ var secretInfoCommand = &cobra.Command{
 		}
 
 		if err := util.SetAuthToken(); err != nil {
-			fmt.Printf("%s", err)
+			fmt.Println(err)
 			return nil
 		}
 
 		if err := showSecretInfo(); err != nil {
-			fmt.Printf("%s", err)
+			fmt.Println(err)
 			return nil
 		}
 		return nil

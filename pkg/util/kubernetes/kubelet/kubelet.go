@@ -196,7 +196,7 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 
 	err = ku.podUnmarshaller.unmarshal(data, &pods)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to unmarshal podlist, invalid or null: %s", err)
 	}
 
 	// ensure we dont have nil pods

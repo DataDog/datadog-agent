@@ -36,11 +36,14 @@ def get_gopath(ctx):
     return gopath
 
 def get_multi_python_location(embedded_path=None, rtloader_root=None):
+    rtloader_lib = []
     if rtloader_root is None:
-        rtloader_lib = ["{}/lib".format(embedded_path),
-                        "{}/lib64".format(embedded_path)]
+        for libdir in ["lib", "lib64"]:
+            libpath = os.path.join(embedded_path, libdir)
+            if os.path.exists(libpath):
+                rtloader_lib.append(libpath)
     else: # if rtloader_root is specified we're working in dev mode from the rtloader folder
-        rtloader_lib = ["{}/rtloader".format(rtloader_root)]
+        rtloader_lib.append("{}/rtloader".format(rtloader_root))
 
     rtloader_headers = "{}/include".format(rtloader_root or embedded_path)
     rtloader_common_headers = "{}/common".format(rtloader_root or embedded_path)
@@ -48,7 +51,8 @@ def get_multi_python_location(embedded_path=None, rtloader_root=None):
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
 def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
-                    rtloader_root=None, python_home_2=None, python_home_3=None, arch="x64"):
+                    rtloader_root=None, python_home_2=None, python_home_3=None,
+                    with_both_python=False, arch="x64"):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -78,20 +82,25 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     if python_home_3:
         ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, python_home_3)
 
+    # If we're not building with both Python, we want to force the use of DefaultPython
+    if not with_both_python:
+        ldflags += "-X {}/pkg/config.ForceDefaultPython=true ".format(REPO_PATH)
+
     ldflags += "-X {}/pkg/config.DefaultPython={} ".format(REPO_PATH, get_default_python())
 
     # adding rtloader libs and headers to the env
-    env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + ":{}".format(':'.join(rtloader_lib)) # OSX
-    env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + ":{}".format(':'.join(rtloader_lib)) # linux
-    env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + " -L{}".format(' -L '.join(rtloader_lib))
+    if rtloader_lib:
+        env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + ":{}".format(':'.join(rtloader_lib)) # OSX
+        env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + ":{}".format(':'.join(rtloader_lib)) # linux
+        env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + " -L{}".format(' -L '.join(rtloader_lib))
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + " -w -I{} -I{}".format(rtloader_headers,
                                                                                   rtloader_common_headers)
 
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
         ldflags += "-s -w -linkmode=external '-extldflags=-static' "
-    else:
-        ldflags += "-r {}/lib:{}/lib64 ".format(embedded_path, embedded_path)
+    elif rtloader_lib:
+        ldflags += "-r {} ".format(':'.join(rtloader_lib))
 
     if os.environ.get("DELVE"):
         gcflags = "-N -l"
@@ -150,6 +159,7 @@ def get_version_ldflags(ctx, prefix=None):
     ldflags = "-X {}/pkg/version.Commit={} ".format(REPO_PATH, commit)
     ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True, prefix=prefix))
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
+
     return ldflags
 
 def get_git_commit():
@@ -160,10 +170,12 @@ def get_git_commit():
 
 def get_default_python():
     """
-    Get the default python for the current build
+    Get the default python for the current build:
+    - default to 3 if PYTHON_RUNTIMES is not specified (so that dev builds default to 3)
+    - default to 2 if PYTHON_RUNTIMES includes both versions (so that builds with 2 and 3 default to 2)
     """
     py_runtimes = os.environ.get("PYTHON_RUNTIMES", "3")
-    return py_runtimes if ',' not in py_runtimes else "3"
+    return "2" if ',' in py_runtimes else py_runtimes
 
 
 def get_go_version():

@@ -1,10 +1,12 @@
-name "datadog-a7-py2"
-default_version "0.0.7"
+name "pylint2"
+# Ship 1.x as 2.x only supports python 3
+default_version "1.9.5"
 
 dependency "pip2"
 
 build do
-  ship_license "https://raw.githubusercontent.com/DataDog/datadog-checks-shared/master/LICENSE"
+  # pylint is only called in a subprocess by the Agent, so the Agent doesn't have to be GPL as well
+  ship_license "GPLv2"
 
   # aliases for the pips
   if windows?
@@ -16,11 +18,11 @@ build do
   end
 
   if windows?
-    # this pins a dependency of pylint->datadog-a7, later versions (up to v3.7.1) are broken.
+    # this pins a dependency of pylint, later versions (up to v3.7.1) are broken.
     command "#{python2} -m pip install configparser==3.5.0"
-    command "#{python2} -m pip install datadog-a7==#{version}"
+    command "#{python2} -m pip install pylint==#{version}"
   else
     command "#{pip2} install configparser==3.5.0"
-    command "#{pip2} install datadog-a7==#{version}"
+    command "#{pip2} install pylint==#{version}"
   end
 end

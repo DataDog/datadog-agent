@@ -18,6 +18,8 @@ static cb_get_version_t cb_get_version = NULL;
 static cb_headers_t cb_headers = NULL;
 static cb_set_check_metadata_t cb_set_check_metadata = NULL;
 static cb_set_external_tags_t cb_set_external_tags = NULL;
+static cb_write_persistent_cache_t cb_write_persistent_cache = NULL;
+static cb_read_persistent_cache_t cb_read_persistent_cache = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -29,6 +31,8 @@ static PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *log_message(PyObject *self, PyObject *args);
 static PyObject *set_check_metadata(PyObject *self, PyObject *args);
 static PyObject *set_external_tags(PyObject *self, PyObject *args);
+static PyObject *write_persistent_cache(PyObject *self, PyObject *args);
+static PyObject *read_persistent_cache(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -40,6 +44,8 @@ static PyMethodDef methods[] = {
     { "log", log_message, METH_VARARGS, "Log a message through the agent logger." },
     { "set_check_metadata", set_check_metadata, METH_VARARGS, "Send metadata for Checks." },
     { "set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags." },
+    { "write_persistent_cache", write_persistent_cache, METH_VARARGS, "Store a value for a given key." },
+    { "read_persistent_cache", read_persistent_cache, METH_VARARGS, "Retrieve the value associated with a key." },
     { NULL, NULL } // guards
 };
 
@@ -88,6 +94,16 @@ void _set_get_clustername_cb(cb_get_clustername_t cb)
 void _set_set_check_metadata_cb(cb_set_check_metadata_t cb)
 {
     cb_set_check_metadata = cb;
+}
+
+void _set_write_persistent_cache_cb(cb_write_persistent_cache_t cb)
+{
+    cb_write_persistent_cache = cb;
+}
+
+void _set_read_persistent_cache_cb(cb_read_persistent_cache_t cb)
+{
+    cb_read_persistent_cache = cb;
 }
 
 void _set_set_external_tags_cb(cb_set_external_tags_t cb)
@@ -338,20 +354,26 @@ PyObject *tracemalloc_enabled(PyObject *self, PyObject *args)
     \return a PyObject * pointer to a python string with the canonical clustername. Or
     `None` if the callback is unavailable.
 
-    This function is callable as the `datadog_agent.get_clustername` python method, it uses
-    the `cb_get_clustername()` callback to retrieve the value from the agent with CGO. If
-    the callback has not been set `None` will be returned.
+    This function is callable as the `datadog_agent.log` python method, it calls back
+    into the agent via the `agent_log()` and its `cb_log()` callback. This allows us to use
+    the agent logging facilities from python-land.
+    Should the callback not be available the function will do nothing.
 */
 static PyObject *log_message(PyObject *self, PyObject *args)
 {
     char *message = NULL;
     int log_level;
 
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
     // PyArg_ParseTuple returns a pointer to the existing string in &message
     // No need to free the result.
     if (!PyArg_ParseTuple(args, "si", &message, &log_level)) {
+        PyGILState_Release(gstate);
         return NULL;
     }
+
+    PyGILState_Release(gstate);
 
     agent_log(log_level, message);
     Py_RETURN_NONE;
@@ -382,8 +404,8 @@ static PyObject *set_check_metadata(PyObject *self, PyObject *args)
 
     // datadog_agent.set_check_metadata(check_id, name, value)
     if (!PyArg_ParseTuple(args, "sss", &check_id, &name, &value)) {
-      PyGILState_Release(gstate);
-      return NULL;
+        PyGILState_Release(gstate);
+        return NULL;
     }
 
     PyGILState_Release(gstate);
@@ -392,7 +414,78 @@ static PyObject *set_check_metadata(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-//
+/*! \fn PyObject *write_persistent_cache(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog_agent.write_persistent_cache` method, storing
+    the value for the key.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a 2-ary tuple containing the key and the value to store.
+    \return A PyObject* pointer to `None`.
+
+    This function is callable as the `datadog_agent.write_persistent_cache` Python method and
+    uses the `cb_write_persistent_cache()` callback to retrieve the value from the agent
+    with CGO. If the callback has not been set `None` will be returned.
+*/
+static PyObject *write_persistent_cache(PyObject *self, PyObject *args)
+{
+    // callback must be set
+    if (cb_write_persistent_cache == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    char *key, *value;
+
+    // datadog_agent.write_persistent_cache(key, value)
+    if (!PyArg_ParseTuple(args, "ss", &key, &value)) {
+        return NULL;
+    }
+
+    Py_BEGIN_ALLOW_THREADS
+    cb_write_persistent_cache(key, value);
+    Py_END_ALLOW_THREADS
+
+    Py_RETURN_NONE;
+}
+
+/*! \fn PyObject *read_persistent_cache(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog_agent.read_persistent_cache` method, retrieving
+    the value for the key previously stored.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a tuple containing the key to retrieve.
+    \return A PyObject* pointer to the value.
+
+    This function is callable as the `datadog_agent.read_persistent_cache` Python method and
+    uses the `cb_read_persistent_cache()` callback to retrieve the value from the agent
+    with CGO. If the callback has not been set `None` will be returned.
+*/
+static PyObject *read_persistent_cache(PyObject *self, PyObject *args)
+{
+    // callback must be set
+    if (cb_read_persistent_cache == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    char *key;
+
+    // datadog_agent.read_persistent_cache(key)
+    if (!PyArg_ParseTuple(args, "s", &key)) {
+        return NULL;
+    }
+
+    char *v = NULL;
+    Py_BEGIN_ALLOW_THREADS
+    v = cb_read_persistent_cache(key);
+    Py_END_ALLOW_THREADS
+
+    if (v == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "failed to read data");
+        return NULL;
+    }
+
+    PyObject *retval = PyStringFromCString(v);
+    cgo_free(v);
+    return retval;
+}
+
 /*! \fn PyObject *set_external_tags(PyObject *self, PyObject *args)
     \brief This function implements the `datadog_agent.set_external_tags` method,
     allowing to set additional external tags for hostnames.

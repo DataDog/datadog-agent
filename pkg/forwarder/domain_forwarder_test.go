@@ -44,7 +44,7 @@ func TestDomainForwarderStart(t *testing.T) {
 
 	assert.NotNil(t, forwarder.Start())
 
-	forwarder.Stop()
+	forwarder.Stop(false)
 }
 
 func TestDomainForwarderInit(t *testing.T) {
@@ -56,10 +56,10 @@ func TestDomainForwarderInit(t *testing.T) {
 
 func TestDomainForwarderStop(t *testing.T) {
 	forwarder := newDomainForwarder("test", 1, 10)
-	forwarder.Stop() // this should be a noop
+	forwarder.Stop(false) // this should be a noop
 	forwarder.Start()
 	assert.Equal(t, Started, forwarder.State())
-	forwarder.Stop()
+	forwarder.Stop(false)
 	assert.Len(t, forwarder.workers, 0)
 	assert.Len(t, forwarder.retryQueue, 0)
 	assert.Equal(t, Stopped, forwarder.State())
@@ -82,7 +82,7 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 
 	forwarder.Start()
 	// Stopping the worker for the TestRequeueTransaction
-	forwarder.workers[0].Stop()
+	forwarder.workers[0].Stop(false)
 
 	err = forwarder.sendHTTPTransactions(tr)
 	assert.Nil(t, err)
@@ -132,7 +132,7 @@ func TestRetryTransactions(t *testing.T) {
 func TestForwarderRetry(t *testing.T) {
 	forwarder := newDomainForwarder("test", 1, 10)
 	forwarder.Start()
-	defer forwarder.Stop()
+	defer forwarder.Stop(false)
 
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Hour)

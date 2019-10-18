@@ -36,5 +36,5 @@ func (rp *ResourcesCollector) Send(s *serializer.Serializer) error {
 }
 
 func init() {
-	catalog["resources"] = new(ResourcesCollector)
+	RegisterCollector("resources", new(ResourcesCollector))
 }

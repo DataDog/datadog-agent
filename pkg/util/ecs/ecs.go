@@ -29,6 +29,9 @@ const (
 	DefaultAgentPort = 51678
 	// Cache the fact we're running on ECS Fargate
 	isFargateInstanceCacheKey = "IsFargateInstanceCacheKey"
+
+	// CloudProviderName contains the inventory name of for ECS
+	CloudProviderName = "AWS"
 )
 
 type (
@@ -69,6 +72,11 @@ type (
 
 var globalUtil *Util
 var initOnce sync.Once
+
+// IsRunningOn returns true if the agent is running on ECS/Fargate
+func IsRunningOn() bool {
+	return IsECSInstance() || IsFargateInstance()
+}
 
 // GetUtil returns a ready to use ecs Util. It is backed by a shared singleton.
 func GetUtil() (*Util, error) {

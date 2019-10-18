@@ -139,7 +139,7 @@ func loadPythonInfo() error {
 	}
 
 	if err := common.SetupConfig(confFilePath); err != nil {
-		fmt.Printf("Cannot setup config, exiting: %v", err)
+		fmt.Printf("Cannot setup config, exiting: %v\n", err)
 		return err
 	}
 
@@ -363,7 +363,7 @@ func install(cmd *cobra.Command, args []string) error {
 
 		// Move configuration files
 		if err := moveConfigurationFilesOf(integration); err != nil {
-			fmt.Printf("Installed %s from %s", integration, wheelPath)
+			fmt.Printf("Installed %s from %s\n", integration, wheelPath)
 			return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
 		}
 
@@ -749,6 +749,22 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 	errorMsg := ""
 	for _, file := range files {
 		filename := file.Name()
+
+		// Copy SNMP profiles
+		if filename == "profiles" {
+			profileDest := filepath.Join(dstFolder, "profiles")
+			if err = os.MkdirAll(profileDest, 0755); err != nil {
+				errorMsg = fmt.Sprintf("%s\nError creating directory for SNMP profiles %s: %v", errorMsg, profileDest, err)
+				continue
+			}
+			profileSrc := filepath.Join(srcFolder, "profiles")
+			if err = moveConfigurationFiles(profileSrc, profileDest); err != nil {
+				errorMsg = fmt.Sprintf("%s\nError moving SNMP profiles from %s to %s: %v", errorMsg, profileSrc, profileDest, err)
+				continue
+			}
+			continue
+		}
+
 		// Replace existing file
 		if !yamlFileNameRe.MatchString(filename) {
 			continue
@@ -851,10 +867,7 @@ func show(cmd *cobra.Command, args []string) error {
 		// Print only the version for easier parsing
 		fmt.Println(version)
 	} else {
-		msg := `Package %s:
-Installed version: %s
-`
-		fmt.Printf(msg, packageName, version)
+		fmt.Printf("Package %s:\nInstalled version: %s\n", packageName, version)
 	}
 
 	return nil

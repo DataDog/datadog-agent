@@ -57,7 +57,6 @@ func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
 		if err != nil {
 			return []integration.Config{}, err
 		}
-		go d.listen()
 	}
 
 	var containers map[string]map[string]string
@@ -78,6 +77,9 @@ func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
 	d.syncCounter += 1
 	d.upToDate = true
 	d.Unlock()
+
+	// start listening after the first collection to avoid race in cache map init
+	go d.listen()
 
 	return parseDockerLabels(containers)
 }

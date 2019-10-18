@@ -29,5 +29,5 @@ func (hp *HostCollector) Send(s *serializer.Serializer) error {
 }
 
 func init() {
-	catalog["host"] = new(HostCollector)
+	RegisterCollector("host", new(HostCollector))
 }

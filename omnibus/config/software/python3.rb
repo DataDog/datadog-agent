@@ -54,6 +54,7 @@ if ohai["platform"] != "windows"
     major, minor, bugfix = version.split(".")
     block do
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/lib-dynload/readline.*"))
+      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))
     end
   end
 

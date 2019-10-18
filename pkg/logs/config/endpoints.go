@@ -5,13 +5,19 @@
 
 package config
 
+import (
+	"time"
+)
+
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
-	APIKey       string `mapstructure:"api_key"`
-	Host         string
-	Port         int
-	UseSSL       bool
-	ProxyAddress string
+	APIKey           string `mapstructure:"api_key"`
+	Host             string
+	Port             int
+	UseSSL           bool
+	UseCompression   bool
+	CompressionLevel int
+	ProxyAddress     string
 }
 
 // Endpoints holds the main endpoint and additional ones to dualship logs.
@@ -20,14 +26,16 @@ type Endpoints struct {
 	Additionals []Endpoint
 	UseProto    bool
 	UseHTTP     bool
+	BatchWait   time.Duration
 }
 
 // NewEndpoints returns a new endpoints composite.
-func NewEndpoints(main Endpoint, additionals []Endpoint, useProto bool, useHTTP bool) *Endpoints {
+func NewEndpoints(main Endpoint, additionals []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration) *Endpoints {
 	return &Endpoints{
 		Main:        main,
 		Additionals: additionals,
 		UseProto:    useProto,
 		UseHTTP:     useHTTP,
+		BatchWait:   batchWait,
 	}
 }

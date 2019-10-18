@@ -923,7 +923,6 @@ func TestSearchPodForContainerID(t *testing.T) {
 
 func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 	mockConfig := config.Mock()
-	mockConfig.Set("kubernetes_pod_expiration_duration", 0)
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_null_pod.json")
 	require.Nil(suite.T(), err)
@@ -944,16 +943,39 @@ func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 	pods, err := kubeutil.ForceGetLocalPodList()
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
-	require.Len(suite.T(), pods, 2)
+	require.Len(suite.T(), pods, 1)
 
 	for _, po := range pods {
 		require.NotNil(suite.T(), po)
 	}
 }
 
+func (suite *KubeletTestSuite) TestPodListOnKubeletInit() {
+	mockConfig := config.Mock()
+
+	kubelet, err := newDummyKubelet("./testdata/podlist_startup.json")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.Nil(suite.T(), err)
+
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubelet_auth_token_path", "")
+
+	kubeutil, err := GetKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
+	kubelet.dropRequests() // Throwing away first GETs
+
+	pods, err := kubeutil.ForceGetLocalPodList()
+	require.NotNil(suite.T(), err)
+	require.Nil(suite.T(), pods)
+}
+
 func (suite *KubeletTestSuite) TestPodListWithPersistentVolumeClaim() {
 	mockConfig := config.Mock()
-	mockConfig.Set("kubernetes_pod_expiration_duration", 0)
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_persistent_volume_claim.json")
 	require.Nil(suite.T(), err)

@@ -18,7 +18,18 @@ import (
 var (
 	metadataURL = "http://100.100.100.200"
 	timeout     = 300 * time.Millisecond
+
+	// CloudProviderName contains the inventory name of for EC2
+	CloudProviderName = "Alibaba"
 )
+
+// IsRunningOn returns true if the agent is running on Alibaba
+func IsRunningOn() bool {
+	if _, err := GetHostAlias(); err == nil {
+		return true
+	}
+	return false
+}
 
 // GetHostAlias returns the VM ID from the Alibaba Metadata api
 func GetHostAlias() (string, error) {

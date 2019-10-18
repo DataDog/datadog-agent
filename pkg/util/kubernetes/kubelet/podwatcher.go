@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const unreadinessTimeout = 25 * time.Second
+const unreadinessTimeout = 30 * time.Second
 
 // PodWatcher regularly pools the kubelet for new/changed/removed containers.
 // It keeps an internal state to only send the updated pods.

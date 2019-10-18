@@ -251,6 +251,12 @@ build do
         end
       end
 
+      # Copy SNMP profiles
+      profiles = "#{check_dir}/datadog_checks/#{check}/data/profiles"
+      if File.exist? profiles
+        copy profiles, "#{check_conf_dir}/"
+      end
+
       File.file?("#{check_dir}/setup.py") || next
       if windows?
         command "#{python} -m pip install --no-deps #{windows_safe_path(project_dir)}\\#{check}"
@@ -271,5 +277,4 @@ build do
   # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
   # older than the one shipped in the agent
   copy "#{project_dir}/requirements-agent-release.txt", "#{install_dir}/"
-
 end

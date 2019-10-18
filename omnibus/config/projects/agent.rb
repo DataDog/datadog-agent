@@ -144,7 +144,7 @@ else
 end
 
 if with_python_runtime? "2"
-  dependency 'datadog-a7-py2'
+  dependency 'pylint2'
   dependency 'datadog-agent-integrations-py2'
 end
 

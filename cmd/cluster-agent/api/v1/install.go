@@ -173,7 +173,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	nodeName := vars["nodeName"]
-	log.Debugf("Fetching metadata map on all pods of the node %s", nodeName)
+	log.Tracef("Fetching metadata map on all pods of the node %s", nodeName)
 	metaList, errNodes := as.GetMetadataMapBundleOnNode(nodeName)
 	if errNodes != nil {
 		log.Errorf("Could not collect the service map for %s, err: %v", nodeName, errNodes)
@@ -223,7 +223,7 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 			Returns: map[string]string
 			Example: "["Error":"could not collect the service map for all nodes: List services is not permitted at the cluster scope."]
 	*/
-	log.Info("Computing metadata map on all nodes")
+	log.Trace("Computing metadata map on all nodes")
 	cl, err := as.GetAPIClient()
 	if err != nil {
 		log.Errorf("Can't create client to query the API Server: %v", err)
