@@ -69,7 +69,7 @@
           output=json
         dest: /home/ubuntu/.aws/config
     - name: Run Docker login
-      shell: echo "{{ quay_password }}" | docker login --username={{ quay_user }} --password-stdin quay.io
+      shell: echo '{{ quay_password }}' | docker login --username={{ quay_user }} --password-stdin quay.io
     - name: Install Docker Compose
       become: true
       get_url:
@@ -90,6 +90,8 @@
       command: docker-compose up -d
       args:
         chdir: /home/ubuntu/
+      environment:
+        STACKSTATE_BRANCH: "{{ stackstate_branch }}"
 
 - name: Prepare Linux Agents (pre)
   hosts: agent_linux_vm

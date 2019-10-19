@@ -19,6 +19,12 @@ Make sure if you change the AWS_REGION to find the correct vpc subnet and replac
 
 Now execute `./molecule.sh`, this will show you the help.
 
+### When using the new security setup on local machines:
+
+* export AWS_PROFILE=stackstate-sandbox
+
+The AWS credentials will be picked up from your ~/.aws/credentials file
+
 ### Test
 
 Test are organized by scenarios, they are directories located under `molecule-role/molecule` and all molecule commands need to target a scenario, like:

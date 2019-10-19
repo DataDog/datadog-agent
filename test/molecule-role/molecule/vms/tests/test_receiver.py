@@ -216,28 +216,25 @@ def test_created_connection_before_start(host, common_vars):
 
 
 def test_host_metrics(host):
-    url = "http://localhost:7070/api/topic/sts_metrics?limit=2000"
+    url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=2000"
 
     def wait_for_metrics():
         data = host.check_output("curl \"%s\"" % url)
         json_data = json.loads(data)
-        with open("./topic-metrics.json", 'w') as f:
+        with open("./topic-multi-metrics.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
         metrics = {}
         for message in json_data["messages"]:
-            metric = message["message"]["Metric"]
+            m_host = message["message"]["MultiMetric"]["host"]
+            for m_name in message["message"]["MultiMetric"]["values"].keys():
+                if m_name not in metrics:
+                    metrics[m_name] = {}
+                if m_host not in metrics[m_name]:
+                    metrics[m_name][m_host] = []
 
-            m_name = metric["name"]
-            m_host = metric["host"]
-
-            if m_name not in metrics:
-                metrics[m_name] = {}
-            if m_host not in metrics[m_name]:
-                metrics[m_name][m_host] = []
-
-            values = [value["value"] for value in metric["value"]]
-            metrics[m_name][m_host] += values
+                values = [message["message"]["MultiMetric"]["values"][m_name]]
+                metrics[m_name][m_host] += values
 
         # These values are based on an ec2 micro instance for ubuntu and fedora
         # and small instance for windows

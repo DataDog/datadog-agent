@@ -8,7 +8,7 @@ services:
       ADVERTISED_HOST: kafka
       ADVERTISED_PORT: 9092
   receiver:
-    image: "quay.io/stackstate/stackstate-receiver:master"
+    image: "quay.io/stackstate/stackstate-receiver:${STACKSTATE_BRANCH}"
     command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
     ports:
       - 7077:7077
@@ -18,7 +18,7 @@ services:
       KAFKA_BROKERS: kafka:9092
     mem_limit: 1G
   correlate:
-    image: "quay.io/stackstate/stackstate-correlate:master"
+    image: "quay.io/stackstate/stackstate-correlate:${STACKSTATE_BRANCH}"
     entrypoint: "bin/stackstate-correlate -J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
     depends_on:
       - receiver
@@ -26,7 +26,7 @@ services:
       KAFKA_BROKERS: kafka:9092
     mem_limit: 1G
   topic-api:
-    image: "quay.io/stackstate/stackstate-topic-api:master"
+    image: "quay.io/stackstate/stackstate-topic-api:${STACKSTATE_BRANCH}"
     command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
     ports:
       - 7070:7070

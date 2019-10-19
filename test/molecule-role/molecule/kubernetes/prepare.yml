@@ -101,6 +101,8 @@
       command: docker-compose up -d
       args:
         chdir: /home/ubuntu/receiver
+      environment:
+        STACKSTATE_BRANCH: "{{ stackstate_branch }}"
     - name: Download and unarchive Terraform
       become: true
       unarchive:
