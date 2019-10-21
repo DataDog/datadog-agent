@@ -19,7 +19,7 @@ func TestDNSSnooping(t *testing.T) {
 
 	// Load socket filter
 	cfg := NewDefaultConfig()
-	err = m.Load(SectionsFromConfig(cfg))
+	err = m.Load(SectionsFromConfig(cfg, true))
 	require.NoError(t, err)
 
 	filter := m.SocketFilter("socket/dns_filter")
