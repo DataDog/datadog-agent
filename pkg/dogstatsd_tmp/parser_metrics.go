@@ -76,6 +76,8 @@ func parseMetricSampleSampleRate(rawSampleRate []byte) (float64, error) {
 
 func parseMetricSample(message []byte) (dogstatsdMetricSample, error) {
 	// fast path to eliminate most of the gibberish
+	// especially important here since all the unidentified garbage gets
+	// identified as metrics
 	if !hasMetricSampleFormat(message) {
 		return dogstatsdMetricSample{}, fmt.Errorf("invalid dogstatsd message format: %q", message)
 	}
