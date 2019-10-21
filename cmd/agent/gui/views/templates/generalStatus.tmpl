@@ -92,6 +92,15 @@
   </div>
 
   <div class="stat">
+    <span class="stat_title">Metadata</span>
+    <span class="stat_data">
+    {{- range $key, $value := .agent_metadata }}
+      {{ $key }}: {{ $value }}
+    {{- end }}
+    </span>
+  </div>
+
+  <div class="stat">
     <span class="stat_title">JMX Status</span>
     <span class="stat_data">
       {{- with .JMXStatus -}}
