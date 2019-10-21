@@ -12,7 +12,7 @@ def test_container_metrics(host):
     def wait_for_metrics():
         data = host.check_output("curl \"%s\"" % url)
         json_data = json.loads(data)
-        with open("./topic-multi-metrics.json", 'w') as f:
+        with open("./topic-sts-multi-metrics.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
         def get_keys(m_host):
@@ -29,13 +29,13 @@ def test_container_metrics(host):
     util.wait_until(wait_for_metrics, 60, 3)
 
 
-def test_agents_running(host):
+def test_no_datadog_metrics(host):
     url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=1000"
 
     def wait_for_metrics():
         data = host.check_output("curl \"%s\"" % url)
         json_data = json.loads(data)
-        with open("./topic-sts_multi_metrics.json", 'w') as f:
+        with open("./topic-sts-multi-metrics.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
         metrics = {}
