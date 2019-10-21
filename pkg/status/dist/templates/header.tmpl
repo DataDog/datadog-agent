@@ -98,6 +98,7 @@ NOTE: Changes made to this template should be reflected on the following templat
   =====================
   {{- if .custommetrics.Disabled }}
     Status: {{ .custommetrics.Disabled }}
+    {{- else -}}
     {{- if .custommetrics.Error }}
     Error: {{ .custommetrics.Error }}
     {{ else }}

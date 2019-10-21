@@ -6,7 +6,7 @@ NOTE: Changes made to this template should be reflected on the following templat
 Collector
 =========
 
-{{ with .pythonInit }}
+{{- with .pythonInit -}}
   {{- if .Errors }}
   Error initializing Python
   =========================
