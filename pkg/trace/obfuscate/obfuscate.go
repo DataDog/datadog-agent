@@ -9,6 +9,7 @@ package obfuscate
 
 import (
 	"bytes"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
@@ -44,6 +45,25 @@ type Config struct {
 
 	// Redis enables obfuscatiion of the "memcached.command" tag for spans of type "memcached".
 	Memcached bool
+
+	// Set to 1 if enabled 0 if not. We're using an integer
+	// so we can use the sync/atomic for thread-safe access.
+	ignoreEscapes int32
+}
+
+// SetIgnoreEscapes sets whether or not escape characters should be ignored,
+// i.e. treated as literal characters.
+func (o *Obfuscator) SetIgnoreEscapes(val bool) {
+	intValue := int32(0)
+	if val {
+		intValue = int32(1)
+	}
+	atomic.StoreInt32(&o.opts.ignoreEscapes, intValue)
+}
+
+// ShouldIgnoreEscapes returns whether or not escape characters should be ignored.
+func (o *Obfuscator) ShouldIgnoreEscapes() bool {
+	return atomic.LoadInt32(&o.opts.ignoreEscapes) == 1
 }
 
 // NewObfuscator creates a new Obfuscator.

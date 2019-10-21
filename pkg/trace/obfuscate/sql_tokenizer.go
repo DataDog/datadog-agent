@@ -37,9 +37,7 @@ const (
 	Limit
 	Null
 	String
-	EscapedString
 	DoubleQuotedString
-	DoubleQuotedEscapedString
 	Number
 	BooleanLiteral
 	ValueArg
@@ -70,19 +68,25 @@ const (
 	FilteredBracketedIdentifier
 )
 
+const escapeCharacter = '\\'
+
 // SQLTokenizer is the struct used to generate SQL
 // tokens for the parser.
 type SQLTokenizer struct {
-	rd           *strings.Reader // the "rune" reader
-	pos          int             // byte offset of lastChar
-	lastChar     rune            // last read rune
-	err          error           // any error occurred while reading
-	ignoreEscape bool            // indicates we should not try to escape quotes
+	rd            *strings.Reader // the "rune" reader
+	pos           int             // byte offset of lastChar
+	lastChar      rune            // last read rune
+	err           error           // any error occurred while reading
+	ignoreEscape  bool            // indicates we should not try to escape quotes
+	hasSeenEscape bool            // indicates whether this tokenizer has seen an escape character within a string
 }
 
 // NewSQLTokenizer creates a new SQLTokenizer for the given SQL string.
-func NewSQLTokenizer(sql string) *SQLTokenizer {
-	return &SQLTokenizer{rd: strings.NewReader(sql)}
+func NewSQLTokenizer(sql string, ignoreEscape bool) *SQLTokenizer {
+	return &SQLTokenizer{
+		rd:           strings.NewReader(sql),
+		ignoreEscape: ignoreEscape,
+	}
 }
 
 // Reset the underlying buffer and positions
@@ -91,21 +95,6 @@ func (tkn *SQLTokenizer) Reset(in string) {
 	tkn.pos = 0
 	tkn.lastChar = 0
 	tkn.err = nil
-}
-
-// Seek the underlying string reader to a particular position
-// in the stream. Only use this if you are certain this position corresponds to the start of a rune.
-// This will set lastChar to 0, and err to nil
-func (tkn *SQLTokenizer) Seek(offset int64, whence int) (int64, error) {
-	i, err := tkn.rd.Seek(offset, whence)
-	if err != nil {
-		return 0, err
-	}
-
-	tkn.pos = int(i)
-	tkn.lastChar = 0
-	tkn.err = nil
-	return i, nil
 }
 
 // keywords used to recognize string tokens
@@ -124,6 +113,9 @@ func (tkn *SQLTokenizer) Err() error { return tkn.err }
 func (tkn *SQLTokenizer) setErr(format string, args ...interface{}) {
 	tkn.err = fmt.Errorf("at position %d: %v", tkn.pos, fmt.Errorf(format, args...))
 }
+
+// HasSeenEscape returns whether or not this tokenizer has seen an escape character within a scanned string
+func (tkn *SQLTokenizer) HasSeenEscape() bool { return tkn.hasSeenEscape }
 
 // Scan scans the tokenizer for the next token and returns
 // the token type and the token buffer.
@@ -429,24 +421,22 @@ exit:
 
 func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
-	const escapeCharacter = '\\'
 	for {
 		ch := tkn.lastChar
 		tkn.next()
 		if ch == delim {
 			if tkn.lastChar == delim {
+				// doubling a delimiter is the default way to embed the delimiter within a string
 				tkn.next()
 			} else {
+				// a single delimiter denotes the end of the string
 				break
 			}
 		} else if ch == escapeCharacter {
-			if tkn.lastChar == delim && !tkn.ignoreEscape {
-				if kind == String {
-					kind = EscapedString
-				} else if kind == DoubleQuotedString {
-					kind = DoubleQuotedEscapedString
-				}
+			tkn.hasSeenEscape = true
 
+			if !tkn.ignoreEscape {
+				// treat as an escape character
 				ch = tkn.lastChar
 				tkn.next()
 			}

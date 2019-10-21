@@ -121,7 +121,7 @@ func TestSQLUTF8(t *testing.T) {
 			"SELECT Cli_Establiments.CODCLI, Cli_Establiments.Id_ESTAB_CLI, Cli_Establiments.CODIGO_CENTRO_AXAPTA, Cli_Establiments.NOMESTAB, Cli_Establiments.ADRECA, Cli_Establiments.CodPostal, Cli_Establiments.Poblacio, Cli_Establiments.Provincia, Cli_Establiments.TEL, Cli_Establiments.EMAIL, Cli_Establiments.PERS_CONTACTE, Cli_Establiments.PERS_CONTACTE_CARREC, Cli_Establiments.NumTreb, Cli_Establiments.Localitzacio, Tipus_Activitat.CNAE, Tipus_Activitat.Nom_ES, ACTIVO FROM Cli_Establiments LEFT OUTER JOIN Tipus_Activitat ON Cli_Establiments.Id_ACTIVITAT = Tipus_Activitat.IdActivitat Where CODCLI = ? AND CENTRE_CORRECTE = ? AND ACTIVO = ? ORDER BY Cli_Establiments.CODIGO_CENTRO_AXAPTA",
 		},
 	} {
-		out, err := obfuscateSQLString(tt.in)
+		out, err := NewObfuscator(nil).obfuscateSQLString(tt.in)
 		assert.NoError(err)
 		assert.Equal(tt.out, out)
 	}
@@ -423,12 +423,20 @@ ORDER BY [b].[Name]`,
 			`SELECT CodiFormacio, DataInici, DataFi, Tipo, CodiTecnicFormador, p.nombre, p.mail, Sessions.Direccio, Sessions.NomEmpresa, Sessions.Telefon FROM ( SELECT CodiFormacio, case when ModalitatSessio = ? then ? when ModalitatSessio = ? then ? when ModalitatSessio = ? then ? when ModalitatSessio = ? then ? ELSE ? end, ModalitatSessio, DataInici, DataFi, NomEmpresa, Telefon, CodiTecnicFormador, CASE WHEn EsAltres = ? then FormacioLlocImparticioDescripcio else Adreca + ? + CodiPostal + ? + Poblacio end FROM Consultas.dbo.View_AsActiva__FormacioSessions_InfoLlocImparticio ) LEFT JOIN Consultas.dbo.View_AsActiva_Operari ON o.CodiOperari = Sessions.CodiTecnicFormador LEFT JOIN MainAPP.dbo.persona ON ? + o.codioperari = p.codi WHERE Sessions.CodiFormacio = ?`,
 		},
 		{
-			"SELECT   *       FROM \n\tfoo   LEFT JOIN bar ON \t'backslash\\'\n = foo.b WHERE foo.name = 'String'",
+			`SELECT * FROM foo LEFT JOIN bar ON 'backslash\' = foo.b WHERE foo.name = 'String'`,
 			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
 		},
 		{
-			`SELECT *      FROM foo LEFT JOIN bar ON 'backslash\' = foo.b LEFT JOIN bar2 ON 'backslash2\' = foo.b2 WHERE foo.name = 'String'`,
+			`SELECT * FROM foo LEFT JOIN bar ON 'backslash\' = foo.b LEFT JOIN bar2 ON 'backslash2\' = foo.b2 WHERE foo.name = 'String'`,
 			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b LEFT JOIN bar2 ON ? = foo.b2 WHERE foo.name = ?",
+		},
+		{
+			`SELECT * FROM foo LEFT JOIN bar ON 'embedded ''quote'' in string' = foo.b WHERE foo.name = 'String'`,
+			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
+		},
+		{
+			`SELECT * FROM foo LEFT JOIN bar ON 'embedded \'quote\' in string' = foo.b WHERE foo.name = 'String'`,
+			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
 		},
 	}
 
@@ -441,7 +449,7 @@ ORDER BY [b].[Name]`,
 	}
 }
 
-func TestSQLTokenizerEscapeBackslashQuotes(t *testing.T) {
+func TestSQLTokenizerIgnoreEscapeFalse(t *testing.T) {
 	cases := []sqlTokenizerTestCase{
 		{
 			`'Simple string'`,
@@ -455,38 +463,48 @@ func TestSQLTokenizerEscapeBackslashQuotes(t *testing.T) {
 		},
 		{
 			`'String with backslash \ in the middle'`,
-			"String with backslash \\ in the middle",
+			"String with backslash  in the middle",
+			String,
+		},
+		{
+			`'String with double-backslash at end \\'`,
+			"String with double-backslash at end \\",
+			String,
+		},
+		{
+			`'String with double-backslash \\ in the middle'`,
+			"String with double-backslash \\ in the middle",
 			String,
 		},
 		{
 			`'String with backslash-escaped quote at end \''`,
 			"String with backslash-escaped quote at end '",
-			EscapedString,
+			String,
 		},
 		{
 			`'String with backslash-escaped quote \' in middle'`,
 			"String with backslash-escaped quote ' in middle",
-			EscapedString,
+			String,
 		},
 		{
 			`'String with backslash-escaped embedded string \'foo\' in the middle'`,
 			"String with backslash-escaped embedded string 'foo' in the middle",
-			EscapedString,
+			String,
 		},
 		{
 			`'String with backslash-escaped embedded string at end \'foo\''`,
 			"String with backslash-escaped embedded string at end 'foo'",
-			EscapedString,
+			String,
 		},
 		{
-			`'String with backslash-escaped embedded string \'foo\' in the middle'`,
-			"String with backslash-escaped embedded string 'foo' in the middle",
-			EscapedString,
+			`'String with double-backslash-escaped embedded string at the end \\'foo\\''`,
+			"String with double-backslash-escaped embedded string at the end \\",
+			String,
 		},
 		{
 			`'String with double-backslash-escaped embedded string \\'foo\\' in the middle'`,
-			"String with double-backslash-escaped embedded string \\'foo\\' in the middle",
-			EscapedString,
+			"String with double-backslash-escaped embedded string \\",
+			String,
 		},
 		{
 			`'String with backslash-escaped embedded string \'foo\' in the middle followed by one at the end \'`,
@@ -532,12 +550,12 @@ in the middle'`,
 		},
 		{
 			`'String missing closing quote with backslash at end \`,
-			"String missing closing quote with backslash at end \\",
+			"String missing closing quote with backslash at end ",
 			LexError,
 		},
 		{
 			`'String with backslash \ in the middle missing closing quote`,
-			"String with backslash \\ in the middle missing closing quote",
+			"String with backslash  in the middle missing closing quote",
 			LexError,
 		},
 		// The following case will treat the final quote as unescaped
@@ -550,7 +568,7 @@ in the middle'`,
 
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("tokenize_%s", c.str), func(t *testing.T) {
-			tokenizer := NewSQLTokenizer(c.str)
+			tokenizer := NewSQLTokenizer(c.str, false)
 			kind, buffer := tokenizer.Scan()
 			assert.Equal(t, c.expectedKind, kind)
 			assert.Equal(t, c.expected, string(buffer))
@@ -558,7 +576,7 @@ in the middle'`,
 	}
 }
 
-func TestSQLTokenizerDoNotEscapeBackslashQuotes(t *testing.T) {
+func TestSQLTokenizerIgnoreEscapeTrue(t *testing.T) {
 	cases := []sqlTokenizerTestCase{
 		{
 			`'Simple string'`,
@@ -575,6 +593,16 @@ func TestSQLTokenizerDoNotEscapeBackslashQuotes(t *testing.T) {
 			"String with backslash \\ in the middle",
 			String,
 		},
+		{
+			`'String with double-backslash at end \\'`,
+			"String with double-backslash at end \\\\",
+			String,
+		},
+		{
+			`'String with double-backslash \\ in the middle'`,
+			"String with double-backslash \\\\ in the middle",
+			String,
+		},
 		// The following case will treat backslash as literal and double single quote as a single quote
 		// thus missing the final single quote
 		{
@@ -588,18 +616,18 @@ func TestSQLTokenizerDoNotEscapeBackslashQuotes(t *testing.T) {
 			String,
 		},
 		{
-			`'String with backslash-escaped embedded string \'foo\' in the middle'`,
-			"String with backslash-escaped embedded string \\",
-			String,
-		},
-		{
-			`'String with backslash-escaped embedded string at end \'foo\''`,
-			"String with backslash-escaped embedded string at end \\",
+			`'String with backslash-escaped embedded string at the end \'foo\''`,
+			"String with backslash-escaped embedded string at the end \\",
 			String,
 		},
 		{
 			`'String with backslash-escaped embedded string \'foo\' in the middle'`,
 			"String with backslash-escaped embedded string \\",
+			String,
+		},
+		{
+			`'String with double-backslash-escaped embedded string at end \\'foo\\''`,
+			"String with double-backslash-escaped embedded string at end \\\\",
 			String,
 		},
 		{
@@ -669,7 +697,7 @@ in the middle'`,
 
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("tokenize_%s", c.str), func(t *testing.T) {
-			tokenizer := NewSQLTokenizer(c.str)
+			tokenizer := NewSQLTokenizer(c.str, true)
 			tokenizer.ignoreEscape = true
 			kind, buffer := tokenizer.Scan()
 			assert.Equal(t, c.expectedKind, kind)
@@ -709,7 +737,7 @@ LIMIT 1000`,
 
 	// The consumer is the same between executions
 	for _, tc := range testCases {
-		output, err := obfuscateSQLString(tc.query)
+		output, err := NewObfuscator(nil).obfuscateSQLString(tc.query)
 		assert.Nil(err)
 		assert.Equal(tc.expected, output)
 	}
@@ -722,74 +750,96 @@ func TestConsumerError(t *testing.T) {
 	// what to do with malformed SQL
 	input := "SELECT * FROM users WHERE users.id = '1 AND users.name = 'dog'"
 
-	output, err := obfuscateSQLString(input)
+	output, err := NewObfuscator(nil).obfuscateSQLString(input)
 	assert.NotNil(err)
 	assert.Equal("", output)
 }
 
 func TestSQLErrors(t *testing.T) {
-	assert := assert.New(t)
+	cases := []sqlTestCase{
+		{
+			"",
+			"result is empty",
+		},
 
-	_, err := obfuscateSQLString("")
-	assert.Error(err)
-	assert.Equal("result is empty", err.Error())
+		{
+			"SELECT a FROM b WHERE a.x !* 2",
+			`at position 27: expected "=" after "!", got "*" (42)`,
+		},
 
-	_, err = obfuscateSQLString("SELECT a FROM b WHERE a.x !* 2")
-	assert.Error(err)
-	assert.Equal(`at position 27: expected "=" after "!", got "*" (42)`, err.Error())
+		{
+			"SELECT 🥒",
+			`at position 11: unexpected byte 129362`,
+		},
 
-	_, err = obfuscateSQLString("SELECT 🥒")
-	assert.Error(err)
-	assert.Equal(`at position 11: unexpected byte 129362`, err.Error())
+		{
+			"SELECT name, `1a` FROM profile",
+			`at position 14: unexpected character "1" (49) in literal identifier`,
+		},
 
-	_, err = obfuscateSQLString("SELECT name, `1a` FROM profile")
-	assert.Error(err)
-	assert.Equal(`at position 14: unexpected character "1" (49) in literal identifier`, err.Error())
+		{
+			"SELECT name, `age}` FROM profile",
+			`at position 17: literal identifiers must end in "` + "`" + `", got "}" (125)`,
+		},
 
-	_, err = obfuscateSQLString("SELECT name, `age}` FROM profile")
-	assert.Error(err)
-	assert.Equal(`at position 17: literal identifiers must end in "`+"`"+`", got "}" (125)`, err.Error())
+		{
+			"SELECT %(asd)| FROM profile",
+			`at position 13: invalid character after variable identifier: "|" (124)`,
+		},
 
-	_, err = obfuscateSQLString("SELECT %(asd)| FROM profile")
-	assert.Error(err)
-	assert.Equal(`at position 13: invalid character after variable identifier: "|" (124)`, err.Error())
+		{
+			"USING $A FROM users",
+			`at position 7: prepared statements must start with digits, got "A" (65)`,
+		},
 
-	_, err = obfuscateSQLString("USING $A FROM users")
-	assert.Error(err)
-	assert.Equal(`at position 7: prepared statements must start with digits, got "A" (65)`, err.Error())
+		{
+			"USING $09 SELECT",
+			`at position 9: invalid number`,
+		},
 
-	_, err = obfuscateSQLString("USING $09 SELECT")
-	assert.Error(err)
-	assert.Equal(`at position 9: invalid number`, err.Error())
+		{
+			"INSERT VALUES (1, 2) INTO {ABC",
+			`at position 30: unexpected EOF in escape sequence`,
+		},
 
-	_, err = obfuscateSQLString("INSERT VALUES (1, 2) INTO {ABC")
-	assert.Error(err)
-	assert.Equal(`at position 30: unexpected EOF in escape sequence`, err.Error())
+		{
+			"SELECT one, :2two FROM profile",
+			`at position 13: bind variables should start with letters, got "2" (50)`,
+		},
 
-	_, err = obfuscateSQLString("SELECT one, :2two FROM profile")
-	assert.Error(err)
-	assert.Equal(`at position 13: bind variables should start with letters, got "2" (50)`, err.Error())
+		{
+			"SELECT age FROM profile WHERE name='John \\",
+			`at position 43: unexpected EOF in string`,
+		},
 
-	_, err = obfuscateSQLString("SELECT age FROM profile WHERE name='John \\")
-	assert.Error(err)
-	assert.Equal(`at position 43: unexpected EOF in string`, err.Error())
+		{
+			"SELECT age FROM profile WHERE name='John",
+			`at position 41: unexpected EOF in string`,
+		},
 
-	_, err = obfuscateSQLString("SELECT age FROM profile WHERE name='John")
-	assert.Error(err)
-	assert.Equal(`at position 41: unexpected EOF in string`, err.Error())
+		{
+			"/* abcd",
+			`at position 7: unexpected EOF in comment`,
+		},
 
-	_, err = obfuscateSQLString("/* abcd")
-	assert.Error(err)
-	assert.Equal(`at position 7: unexpected EOF in comment`, err.Error())
+		// using mixed cases of backslash escaping the single quote
+		{
+			"SELECT age FROM profile WHERE name='John\\' and place='John\\'s House'",
+			`at position 59: unexpected byte 92`,
+		},
 
-	// using mixed cases of backslash escaping the single quote
-	_, err = obfuscateSQLString("SELECT age FROM profile WHERE name='John\\' and place='John\\'s House'")
-	assert.Error(err)
-	assert.Equal(`at position 70: unexpected EOF in string`, err.Error())
-
-	_, err = obfuscateSQLString("SELECT age FROM profile WHERE place='John\\'s House' and name='John\\'")
-	assert.Error(err)
-	assert.Equal(`at position 68: unexpected byte 92`, err.Error())
+		{
+			"SELECT age FROM profile WHERE place='John\\'s House' and name='John\\'",
+			`at position 69: unexpected EOF in string`,
+		},
+	}
+	for i, tc := range cases {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			_, err := NewObfuscator(nil).obfuscateSQLString(tc.query)
+			assert.Error(t, err)
+			assert.Equal(t, tc.expected, err.Error())
+		})
+	}
 }
 
 // Benchmark the Tokenizer using a SQL statement
@@ -806,7 +856,7 @@ func BenchmarkTokenizer(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				_, _ = obfuscateSQLString(bm.query)
+				_, _ = NewObfuscator(nil).obfuscateSQLString(bm.query)
 			}
 		})
 	}

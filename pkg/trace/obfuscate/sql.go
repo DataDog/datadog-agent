@@ -9,10 +9,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"io"
 )
 
 const sqlQueryTag = "sql.query"
@@ -83,13 +83,13 @@ func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (token
 		return FilteredGroupable, []byte("?"), nil
 	case '=':
 		switch token {
-		case DoubleQuotedString, DoubleQuotedEscapedString:
+		case DoubleQuotedString:
 			// double-quoted strings after assignments are eligible for obfuscation
 			return FilteredGroupable, []byte("?"), nil
 		}
 	}
 	switch token {
-	case String, EscapedString, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
+	case String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
 		return FilteredGroupable, []byte("?"), nil
 	default:
 		return token, buffer, nil
@@ -152,52 +152,55 @@ func (f *groupingFilter) Reset() {
 // Process the given SQL or No-SQL string so that the resulting one is properly altered. This
 // function is generic and the behavior changes according to chosen tokenFilter implementations.
 // The process calls all filters inside the []tokenFilter.
-func obfuscateSQLString(in string) (string, error) {
-	tokenizer := NewSQLTokenizer(in)
+func (o *Obfuscator) obfuscateSQLString(in string) (string, error) {
+	ignoreEscapes := o.ShouldIgnoreEscapes()
+	tokenizer := NewSQLTokenizer(in, ignoreEscapes)
 	filters := []tokenFilter{&discardFilter{}, &replaceFilter{}, &groupingFilter{}}
+
+	out, err := attemptObfuscation(tokenizer, filters)
+	if err != nil {
+		// If the tokenizer failed, but saw an escape character in the process
+		// retry with opposite setting.
+		if tokenizer.HasSeenEscape() {
+			tokenizer = NewSQLTokenizer(in, !ignoreEscapes)
+			var err2 error
+			out, err2 = attemptObfuscation(tokenizer, filters)
+			if err2 == nil {
+				// If the second attempt succeeded, make the config change
+				err = nil
+				o.SetIgnoreEscapes(!ignoreEscapes)
+			}
+		}
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	if len(out) == 0 {
+		return "", errors.New("result is empty")
+	}
+
+	return out, nil
+}
+
+func attemptObfuscation(tokenizer *SQLTokenizer, filters []tokenFilter) (string, error) {
 	var (
 		out       bytes.Buffer
 		err       error
 		lastToken TokenKind
-
-		hasEscaped         bool
-		backtrackPos       int       // position of Tokenizer when first escaped quote encountered
-		backtrackOutLen    int       // length of output buffer when first escaped quote encountered
-		backtrackLastToken TokenKind // value of lastToken when first escaped quote encountered
 	)
 
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded
 	// or replaced.
 	for {
-		pos := tokenizer.pos
 		token, buff := tokenizer.Scan()
 		if token == EOFChar {
 			break
 		}
 
-		if (token == EscapedString || token == DoubleQuotedEscapedString) && !hasEscaped {
-			// tokenizer has encountered its first escaped string
-			hasEscaped = true
-			backtrackPos = pos
-			backtrackOutLen = out.Len()
-			backtrackLastToken = lastToken
-		}
-
 		if token == LexError {
-			// if at any point we've tried escaping a backslash-quote, e.g. \'
-			// try re-lexing the input without escapes
-			if !tokenizer.ignoreEscape && hasEscaped {
-				// back up the reader and the output buffer
-				tokenizer.Seek(int64(backtrackPos), io.SeekStart)
-				out.Truncate(backtrackOutLen)
-				lastToken = backtrackLastToken
-
-				// try once more without escaping backslash quotes
-				tokenizer.ignoreEscape = true
-				continue
-			}
-
 			return "", tokenizer.Err()
 		}
 
@@ -223,9 +226,7 @@ func obfuscateSQLString(in string) (string, error) {
 		}
 		lastToken = token
 	}
-	if out.Len() == 0 {
-		return "", errors.New("result is empty")
-	}
+
 	return out.String(), nil
 }
 
@@ -239,7 +240,7 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 		tags = append(tags, "outcome:empty-resource")
 		return
 	}
-	result, err := obfuscateSQLString(span.Resource)
+	result, err := o.obfuscateSQLString(span.Resource)
 	if err != nil {
 		// we have an error, discard the SQL to avoid polluting user resources.
 		log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
