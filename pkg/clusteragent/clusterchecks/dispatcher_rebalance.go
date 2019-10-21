@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const tolerationMargin float64 = 0.9
+
 type Weight struct {
 	nodeName string
 	busyness int
@@ -182,7 +184,7 @@ func (d *dispatcher) rebalance() {
 			}
 
 			pickedNodeName := pickNode(diffMap, sourceNodeName)
-			if diffMap[pickedNodeName]+checkWeight < diffMap[sourceNodeName] {
+			if diffMap[pickedNodeName]+checkWeight < int(float64(diffMap[sourceNodeName])*tolerationMargin) {
 				// move a check to a new node only if it keeps the busyness of the new node
 				// lower than the original node's busyness
 				rebalancingDecisions.Inc()
