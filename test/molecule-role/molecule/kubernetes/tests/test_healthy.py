@@ -33,3 +33,11 @@ def test_cluster_agent_healthy(host):
         assert host.run(c).rc == 0
 
     util.wait_until(assert_healthy, 30, 5)
+
+
+@pytest.mark.fourth
+def test_apply_pod_to_service_demo(host):
+    # We recognize DNAT connections after the agent is started, because we dunno directions of in-flight connections
+    # so we make sure we deploy the demo after the node agent is healthy
+    c = kubeconfig_env + "kubectl apply -f /home/ubuntu/deployment/test_connections/pod-to-service-cluster-ip.yaml"
+    assert host.run(c).rc == 0

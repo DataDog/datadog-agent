@@ -13,7 +13,7 @@ def test_agents_running(host):
     def wait_for_metrics():
         data = host.check_output("curl \"%s\"" % url)
         json_data = json.loads(data)
-        with open("./topic-sts_multi_metrics.json", 'w') as f:
+        with open("./topic-sts-multi-metrics.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
         metrics = {}

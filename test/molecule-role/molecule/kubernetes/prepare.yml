@@ -167,9 +167,3 @@
         chdir: /home/ubuntu/deployment/k8s
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-#    - name: Apply demo app config
-#      command: kubectl apply -f java-db-demo.yaml
-#      args:
-#        chdir: /home/ubuntu/deployment/demo-app
-#      environment:
-#        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
