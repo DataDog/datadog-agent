@@ -669,7 +669,7 @@ func createConfigFiles(filePath, tempDir, hostname string, permsInfos permission
 			permsInfos.add(filePath)
 		}
 	}
-	return nil
+	return err
 }
 
 // getSystemProbePath would take the path to datadog.yaml and replace the file name with system-probe.yaml
