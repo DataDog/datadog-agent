@@ -36,7 +36,7 @@ const (
 	eventTokenKey                 = "event"
 	maxEventCardinality           = 300
 	defaultResyncPeriodInSecond   = 300
-	defaultTimeoutEventCollection = 1000
+	defaultTimeoutEventCollection = 2000
 )
 
 // KubeASConfig is the config of the API server.
