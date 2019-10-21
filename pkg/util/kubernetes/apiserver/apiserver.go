@@ -245,7 +245,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 	if !found {
 		log.Debugf("%s was not found in the ConfigMap %s, updating it to resync.", eventTokenKey, configMapDCAToken)
 		// we should try to set it to "" .
-		err = c.UpdateTokenInConfigmap(eventTokenKey, "", time.Now())
+		err = c.UpdateTokenInConfigmap(token, "", time.Now())
 		return "", time.Now(), err
 	}
 	log.Tracef("%s is %q", token, tokenValue)
