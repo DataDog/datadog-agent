@@ -2700,14 +2700,25 @@ pupernetes-master:
   - inv -e e2e-tests --image=datadog/agent-dev:master-py2
   - inv -e e2e-tests --image=datadog/agent-dev:master-py3
 
-pupernetes-tags:
+pupernetes-tags-6:
   <<: *pupernetes_template
   <<: *run_when_triggered_on_tag_6
+  variables:
+    PYTHON_RUNTIMES: '2,3'
   when: manual
   script:
-  # note: it's not the agent-dev
-  - inv -e e2e-tests --image=datadog/agent:$CI_COMMIT_TAG
-  - inv -e e2e-tests --image=datadog/agent:${CI_COMMIT_TAG}-py3
+  - VERSION=$(inv -e agent.version)
+  - inv -e e2e-tests --image=datadog/agent:${VERSION}
+
+pupernetes-tags-7:
+  <<: *pupernetes_template
+  <<: *run_when_triggered_on_tag_7
+  variables:
+    PYTHON_RUNTIMES: '3'
+  when: manual
+  script:
+  - VERSION=$(inv -e agent.version)
+  - inv -e e2e-tests --image=datadog/agent:${VERSION}
 
 notify-on-failure:
   extends: .slack-notifier.on-failure
