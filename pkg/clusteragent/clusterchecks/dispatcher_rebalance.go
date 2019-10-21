@@ -15,6 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// tolerationMargin is used to lean towards stability when rebalancing cluster level checks
+// by moving a check from a node to another if destNodeBusyness + checkWeight < srcNodeBusyness*tolerationMargin
+// the 0.9 value is tentative and could be changed
 const tolerationMargin float64 = 0.9
 
 type Weight struct {
@@ -186,7 +189,8 @@ func (d *dispatcher) rebalance() {
 			pickedNodeName := pickNode(diffMap, sourceNodeName)
 			if diffMap[pickedNodeName]+checkWeight < int(float64(diffMap[sourceNodeName])*tolerationMargin) {
 				// move a check to a new node only if it keeps the busyness of the new node
-				// lower than the original node's busyness
+				// lower than the original node's busyness multiplied by the tolerationMargin value
+				// the toleration margin is used to lean towards stability over perfectly optimal balance
 				rebalancingDecisions.Inc()
 				err = d.moveCheck(sourceNodeName, pickedNodeName, checkID)
 				if err != nil {
