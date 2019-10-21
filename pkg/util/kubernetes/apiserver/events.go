@@ -28,8 +28,17 @@ func (c *APIClient) RunEventCollection(resVer string, lastListTime time.Time, ev
 	// list if latestResVer is "" or if lastListTS is > syncTimeout
 	diffTime := time.Now().Sub(lastListTime)
 	if resVer == "" || diffTime > syncTimeout {
-		log.Debugf("return listForEventResync diffTime: %d > %d", diffTime, syncTimeout)
-		return c.listForEventResync(eventReadTimeout, eventCardinalityLimit, filter)
+		log.Debugf("Return listForEventResync diffTime: %d/%d", diffTime, syncTimeout)
+		listed, lastResVer, lastTime, err := c.listForEventResync(eventReadTimeout, eventCardinalityLimit, filter)
+		if err != nil {
+			return nil, "", time.Now(), err
+		}
+		resVerInt, errConv := strconv.Atoi(resVer)
+		if errConv != nil {
+			// resver can be "" if we need to resync
+			resVerInt = 0
+		}
+		return diffEvents(resVerInt, listed), lastResVer, lastTime, nil
 	}
 	// Start watcher with the most up to date RV
 	evWatcher, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).Watch(metav1.ListOptions{
@@ -46,7 +55,7 @@ func (c *APIClient) RunEventCollection(resVer string, lastListTime time.Time, ev
 	defer evWatcher.Stop()
 	log.Debugf("Starting to watch from %s", resVer)
 	// watch during 2 * timeout maximum and store where we are at.
-	timeoutParse := time.NewTimer(time.Duration(eventReadTimeout*2) * time.Second)
+	timeoutParse := time.NewTimer(time.Duration(eventReadTimeout) * time.Second)
 	for {
 		select {
 		case rcv, ok := <-evWatcher.ResultChan():
@@ -91,7 +100,6 @@ func (c *APIClient) RunEventCollection(resVer string, lastListTime time.Time, ev
 				return added, resVer, lastListTime, err
 			}
 			added = append(added, ev)
-
 			i, err := strconv.Atoi(resVer)
 			if err != nil {
 				log.Errorf("Could not cast %s into an integer: %s", resVer, err.Error())

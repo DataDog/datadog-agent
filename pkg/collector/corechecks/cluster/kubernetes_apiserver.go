@@ -31,11 +31,12 @@ import (
 
 // Covers the Control Plane service check and the in memory pod metadata.
 const (
-	KubeControlPaneCheck         = "kube_apiserver_controlplane.up"
-	kubernetesAPIServerCheckName = "kubernetes_apiserver"
-	eventTokenKey                = "event"
-	maxEventCardinality          = 300
-	defaultResyncPeriodInSecond  = 300
+	KubeControlPaneCheck          = "kube_apiserver_controlplane.up"
+	kubernetesAPIServerCheckName  = "kubernetes_apiserver"
+	eventTokenKey                 = "event"
+	maxEventCardinality           = 300
+	defaultResyncPeriodInSecond   = 300
+	defaultTimeoutEventCollection = 2000
 )
 
 // KubeASConfig is the config of the API server.
@@ -70,7 +71,6 @@ func (c *KubeASConfig) parse(data []byte) error {
 	// default values
 	c.CollectEvent = config.Datadog.GetBool("collect_kubernetes_events")
 	c.CollectOShiftQuotas = true
-	c.EventCollectionTimeoutMs = config.Datadog.GetInt("kubernetes_event_collection_timeout")
 	c.ResyncPeriodEvents = defaultResyncPeriodInSecond
 
 	return yaml.Unmarshal(data, c)
@@ -89,6 +89,10 @@ func (k *KubeASCheck) Configure(config, initConfig integration.Data, source stri
 		log.Error("could not parse the config for the API server")
 		return err
 	}
+	if k.instance.EventCollectionTimeoutMs == 0 {
+		k.instance.EventCollectionTimeoutMs = defaultTimeoutEventCollection
+	}
+
 	if k.instance.MaxEventCollection == 0 {
 		k.instance.MaxEventCollection = maxEventCardinality
 	}
