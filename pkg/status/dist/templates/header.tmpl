@@ -56,11 +56,13 @@ NOTE: Changes made to this template should be reflected on the following templat
     {{$name}}: {{$value}}
     {{- end }}
   {{- end }}
+  {{- if .hostTags }}
   {{- if gt (len .hostTags) 0 }}
     host tags:
     {{- range $tag := .hostTags}}
       {{$tag}}
     {{- end }}
+  {{- end }}
   {{- end }}
     hostname provider: {{.hostnameStats.provider}}
   {{- if gt (len .hostnameStats.errors) 0 }}
