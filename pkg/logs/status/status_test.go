@@ -109,13 +109,19 @@ func TestStatusMetrics(t *testing.T) {
 	status := Get()
 	assert.Equal(t, int64(0), status.StatusMetrics["LogsProcessed"])
 	assert.Equal(t, int64(0), status.StatusMetrics["LogsSent"])
+	assert.Equal(t, int64(0), status.StatusMetrics["BytesSent"])
+	assert.Equal(t, int64(0), status.StatusMetrics["EncodedBytesSent"])
 
 	metrics.LogsProcessed.Set(5)
 	metrics.LogsSent.Set(3)
+	metrics.BytesSent.Set(42)
+	metrics.EncodedBytesSent.Set(21)
 	status = Get()
 
 	assert.Equal(t, int64(5), status.StatusMetrics["LogsProcessed"])
 	assert.Equal(t, int64(3), status.StatusMetrics["LogsSent"])
+	assert.Equal(t, int64(42), status.StatusMetrics["BytesSent"])
+	assert.Equal(t, int64(21), status.StatusMetrics["EncodedBytesSent"])
 
 	metrics.LogsProcessed.Set(math.MaxInt64)
 	metrics.LogsProcessed.Add(1)
