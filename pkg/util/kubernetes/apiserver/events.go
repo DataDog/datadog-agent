@@ -27,15 +27,18 @@ func (c *APIClient) RunEventCollection(resVer string, lastListTime time.Time, ev
 	syncTimeout := time.Duration(resync) * time.Second
 	// list if latestResVer is "" or if lastListTS is > syncTimeout
 	diffTime := time.Now().Sub(lastListTime)
-	if resVer == "" || time.Now().Sub(lastListTime) > syncTimeout {
+	if resVer == "" || diffTime > syncTimeout {
 		log.Debugf("Return listForEventResync diffTime: %d/%d", diffTime, syncTimeout)
 		listed, lastResVer, lastTime, err := c.listForEventResync(eventReadTimeout, eventCardinalityLimit, filter)
-		resVerInt, err := strconv.Atoi(resVer)
 		if err != nil {
-			log.Errorf("Could not cast %s into an integer: %s", resVer, err.Error())
+			return nil, "", time.Now(), err
+		}
+		resVerInt, errConv := strconv.Atoi(resVer)
+		if errConv != nil {
+			// resver can be "" if we need to resync
 			resVerInt = 0
 		}
-		return diffEvents(resVerInt, listed), lastResVer, lastTime, err
+		return diffEvents(resVerInt, listed), lastResVer, lastTime, nil
 	}
 	// Start watcher with the most up to date RV
 	evWatcher, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).Watch(metav1.ListOptions{
