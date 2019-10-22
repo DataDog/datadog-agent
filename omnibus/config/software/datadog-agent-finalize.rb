@@ -114,6 +114,8 @@ build do
 
             # removing the terminfo db from the embedded folder to reduce package size by ~7MB
             delete "#{install_dir}/embedded/share/terminfo"
+            # removing the symlink too
+            delete "#{install_dir}/embedded/lib/terminfo"
 
             # removing useless folder
             delete "#{install_dir}/embedded/share/aclocal"
