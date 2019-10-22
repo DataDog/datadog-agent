@@ -92,6 +92,11 @@ func startAutoscalersController(ctx ControllerContext) error {
 		return err
 	}
 	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
+		ctx.WPAInformerFactory, err = getWPAInformerFactory()
+		if err != nil {
+			log.Errorf("Error getting WPA Informer Factory: %s", err.Error())
+			return err
+		}
 		autoscalersController.wpaEnabled = true
 		// mutate the Autoscaler controller to embed an informer against the WPAs
 		ExtendToWPAController(autoscalersController, ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
