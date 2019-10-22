@@ -82,7 +82,7 @@ fi
 dd_agent_major_version=6
 if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   if [ "$DD_AGENT_MAJOR_VERSION" != "6" -a "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
-    echo "DD_AGENT_MAJOR_VERSION must be either 6 or 7"
+    echo "DD_AGENT_MAJOR_VERSION must be either 6 or 7. Current value: $DD_AGENT_MAJOR_VERSION"
     exit 1;
   fi
   dd_agent_major_version=$DD_AGENT_MAJOR_VERSION
@@ -91,7 +91,7 @@ fi
 dd_agent_dist_channel=stable
 if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
   if [ "$DD_AGENT_DIST_CHANNEL" != "stable" -a "$DD_AGENT_DIST_CHANNEL" != "beta" ]; then
-    echo "DD_AGENT_DIST_CHANNEL must be either 'stable' or 'beta'"
+    echo "DD_AGENT_DIST_CHANNEL must be either 'stable' or 'beta'. Current value: $DD_AGENT_DIST_CHANNEL"
     exit 1;
   fi
   dd_agent_dist_channel=$DD_AGENT_DIST_CHANNEL
