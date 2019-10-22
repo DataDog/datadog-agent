@@ -96,7 +96,19 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not read bpf module: %s", err)
 	}
 
-	err = m.Load(SectionsFromConfig(config))
+	// check if current platform is RHEL or CentOS because it affects what kprobe are we going to enable
+	isRHELOrCentos, err := isRHELOrCentOS()
+	if err != nil {
+		// if the platform couldn't be determined, treat it as non RHEL case
+		log.Warn("could not detect the platform, will use kprobes from kernel version > 4.1.x")
+	}
+
+	if isRHELOrCentos {
+		log.Info("detected platform as RHEL/CentOS, switch to use kprobes from kernel version 3.3.x")
+	}
+
+	enableSocketFilter := config.DNSInspection && !isRHELOrCentos
+	err = m.Load(SectionsFromConfig(config, enableSocketFilter))
 	if err != nil {
 		return nil, fmt.Errorf("could not load bpf module: %s", err)
 	}
@@ -119,17 +131,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
 
-	// check if current platform is RHEL or CentOS because it affects what kprobe are we going to enable
-	isRHELOrCentos, err := isRHELOrCentOS()
-	if err != nil {
-		// if the platform couldn't be determined, treat it as non RHEL case
-		log.Warn("could not detect the platform, will use kprobes from kernel version > 4.1.x")
-	}
-
-	if isRHELOrCentos {
-		log.Info("detected platform as RHEL/CentOS, switch to use kprobes from kernel version 3.3.x")
-	}
-
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes := config.EnabledKProbes(isRHELOrCentos)
 
@@ -149,7 +150,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 
 	var reverseDNS ReverseDNS = nullReverseDNS{}
-	if config.DNSInspection {
+	if enableSocketFilter {
 		filter := m.SocketFilter("socket/dns_filter")
 		if filter == nil {
 			return nil, fmt.Errorf("error retrieving socket filter")
@@ -697,7 +698,7 @@ func readLocalAddresses() map[util.Address]struct{} {
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)
-func SectionsFromConfig(c *Config) map[string]bpflib.SectionParams {
+func SectionsFromConfig(c *Config, enableSocketFilter bool) map[string]bpflib.SectionParams {
 	return map[string]bpflib.SectionParams{
 		connMap.sectionName(): {
 			MapMaxEntries: int(c.MaxTrackedConnections),
@@ -711,6 +712,8 @@ func SectionsFromConfig(c *Config) map[string]bpflib.SectionParams {
 		tcpCloseEventMap.sectionName(): {
 			MapMaxEntries: 1024,
 		},
-		"socket/dns_filter": {},
+		"socket/dns_filter": {
+			Disabled: !enableSocketFilter,
+		},
 	}
 }

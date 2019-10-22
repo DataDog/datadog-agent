@@ -828,7 +828,7 @@
   version = "v1.0"
 
 [[projects]]
-  digest = "1:3e7518df4c30983b334eeefd02d4c8a97788a1ea44c48e44eacd509b1623af7e"
+  digest = "1:1b6f213327a9343809b0328f41d7f2835a8750438292ab0898dbff1d6a60b7ad"
   name = "github.com/iovisor/gobpf"
   packages = [
     "elf",
@@ -836,7 +836,7 @@
     "pkg/cpuonline",
   ]
   pruneopts = ""
-  revision = "42285a7409f87cb399476b132e726aacfc63fbdc"
+  revision = "a14c39bf99c7539b5578baf2449ff2e37dd35901"
   source = "github.com/DataDog/gobpf"
 
 [[projects]]
