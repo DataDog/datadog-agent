@@ -1127,18 +1127,16 @@ kitchen_windows_chef-a7:
   <<: *kitchen_chef_common
 
 kitchen_windows_upgrade5-a6:
-  allow_failure: true
+  allow_failure: false
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_windows_a6_common
   <<: *kitchen_upgrade5_common
-  retry: 0
 
 kitchen_windows_upgrade5-a7:
-  allow_failure: true
+  allow_failure: false
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_windows_a7_common
   <<: *kitchen_upgrade5_common
-  retry: 0
 
 kitchen_windows_upgrade6-a6:
   allow_failure: false
