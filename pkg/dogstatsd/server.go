@@ -6,6 +6,7 @@
 package dogstatsd
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"expvar"
@@ -243,6 +244,20 @@ func (s *Server) worker(metricOut chan<- []*metrics.MetricSample, eventOut chan<
 			}
 		}
 	}
+}
+
+func nextMessage(packet *[]byte) (message []byte) {
+	if len(*packet) == 0 {
+		return nil
+	}
+
+	advance, message, err := bufio.ScanLines(*packet, true)
+	if err != nil || len(message) == 0 {
+		return nil
+	}
+
+	*packet = (*packet)[advance:]
+	return message
 }
 
 func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.MetricSample, events []*metrics.Event, serviceChecks []*metrics.ServiceCheck) ([]*metrics.MetricSample, []*metrics.Event, []*metrics.ServiceCheck) {

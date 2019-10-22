@@ -1,4 +1,4 @@
-package dogstatsd_tmp
+package dogstatsd
 
 import (
 	"bytes"
