@@ -33,6 +33,7 @@ type DockerConfigProvider struct {
 	labelCache   map[string]map[string]string
 	syncInterval int
 	syncCounter  int
+	onceListen   sync.Once
 }
 
 // NewDockerConfigProvider returns a new ConfigProvider connected to docker.
@@ -79,7 +80,7 @@ func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
 	d.Unlock()
 
 	// start listening after the first collection to avoid race in cache map init
-	go d.listen()
+	d.onceListen.Do(func() { go d.listen() })
 
 	return parseDockerLabels(containers)
 }
