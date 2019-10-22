@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/labels"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -30,9 +31,10 @@ const (
 
 // KubeEndpointsConfigProvider implements the ConfigProvider interface for the apiserver.
 type KubeEndpointsConfigProvider struct {
-	serviceLister   listersv1.ServiceLister
-	endpointsLister listersv1.EndpointsLister
-	upToDate        bool
+	serviceLister      listersv1.ServiceLister
+	endpointsLister    listersv1.EndpointsLister
+	upToDate           bool
+	monitoredEndpoints map[string]bool
 }
 
 // configInfo contains an endpoint check config template with its name and namespace
@@ -60,7 +62,7 @@ func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (Confi
 
 	servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    p.invalidate,
-		UpdateFunc: p.invalidateIfChanged,
+		UpdateFunc: p.invalidateIfChangedService,
 		DeleteFunc: p.invalidate,
 	})
 
@@ -69,6 +71,12 @@ func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (Confi
 		return nil, fmt.Errorf("cannot get endpoint informer: %s", err)
 	}
 	p.endpointsLister = endpointsInformer.Lister()
+
+	endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		UpdateFunc: p.invalidateIfChangedEndpoints,
+	})
+
+	p.monitoredEndpoints = make(map[string]bool)
 
 	return p, nil
 }
@@ -95,6 +103,8 @@ func (k *KubeEndpointsConfigProvider) Collect() ([]integration.Config, error) {
 			continue
 		}
 		generatedConfigs = append(generatedConfigs, generateConfigs(config.tpl, kep)...)
+		endpointsID := apiserver.EntityForEndpoints(config.namespace, config.name, "")
+		k.monitoredEndpoints[endpointsID] = true
 	}
 	return generatedConfigs, nil
 }
@@ -105,13 +115,17 @@ func (k *KubeEndpointsConfigProvider) IsUpToDate() (bool, error) {
 }
 
 func (k *KubeEndpointsConfigProvider) invalidate(obj interface{}) {
-	if obj != nil {
-		log.Trace("Invalidating configs on new/deleted service")
-		k.upToDate = false
+	castedObj, ok := obj.(*v1.Service)
+	if !ok {
+		log.Errorf("Expected a Service type, got: %v", obj)
+		return
 	}
+	log.Trace("Invalidating configs on new/deleted service")
+	delete(k.monitoredEndpoints, apiserver.EntityForEndpoints(castedObj.Namespace, castedObj.Name, ""))
+	k.upToDate = false
 }
 
-func (k *KubeEndpointsConfigProvider) invalidateIfChanged(old, obj interface{}) {
+func (k *KubeEndpointsConfigProvider) invalidateIfChangedService(old, obj interface{}) {
 	// Cast the updated object, don't invalidate on casting error.
 	// nil pointers are safely handled by the casting logic.
 	castedObj, ok := obj.(*v1.Service)
@@ -135,6 +149,34 @@ func (k *KubeEndpointsConfigProvider) invalidateIfChanged(old, obj interface{}) 
 		k.upToDate = false
 		return
 	}
+}
+
+func (k *KubeEndpointsConfigProvider) invalidateIfChangedEndpoints(old, obj interface{}) {
+	// Cast the updated object, don't invalidate on casting error.
+	// nil pointers are safely handled by the casting logic.
+	castedObj, ok := obj.(*v1.Endpoints)
+	if !ok {
+		log.Errorf("Expected an Endpoints type, got: %v", obj)
+		return
+	}
+	// Cast the old object, invalidate on casting error
+	castedOld, ok := old.(*v1.Endpoints)
+	if !ok {
+		log.Errorf("Expected a Endpoints type, got: %v", old)
+		k.upToDate = false
+		return
+	}
+	// Quick exit if resversion did not change
+	if castedObj.ResourceVersion == castedOld.ResourceVersion {
+		return
+	}
+	endpointsID := apiserver.EntityForEndpoints(castedObj.Namespace, castedObj.Name, "")
+	// Make sure we invalidate a monitored endpoints object
+	if found := k.monitoredEndpoints[endpointsID]; found {
+		// Invalidate only when subsets change
+		k.upToDate = equality.Semantic.DeepEqual(castedObj.Subsets, castedOld.Subsets)
+	}
+	return
 }
 
 func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
