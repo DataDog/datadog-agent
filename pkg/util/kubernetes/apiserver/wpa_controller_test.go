@@ -372,11 +372,11 @@ func TestWPASync(t *testing.T) {
 	err := inf.Datadoghq().V1alpha1().WatermarkPodAutoscalers().Informer().GetStore().Add(obj)
 	require.NoError(t, err)
 	key := "default/wpa_1"
-	err = hctrl.syncWatermarkPoAutoscalers(key)
+	err = hctrl.syncWPA(key)
 	require.NoError(t, err)
 
 	fakeKey := "default/prometheus"
-	err = hctrl.syncWatermarkPoAutoscalers(fakeKey)
+	err = hctrl.syncWPA(fakeKey)
 	require.Error(t, err, errors.IsNotFound)
 
 }
@@ -387,6 +387,7 @@ func TestWPAGC(t *testing.T) {
 		caseName string
 		metrics  map[string]custommetrics.ExternalMetricValue
 		wpa      *v1alpha1.WatermarkPodAutoscaler
+		ignored  map[types.UID]int
 		expected []custommetrics.ExternalMetricValue
 	}{
 		{
@@ -446,6 +447,43 @@ func TestWPAGC(t *testing.T) {
 			},
 			expected: []custommetrics.ExternalMetricValue{},
 		},
+		{
+			caseName: "wpa in global store but is ignored need to remove",
+			metrics: map[string]custommetrics.ExternalMetricValue{
+				"external_metric-horizontal-default-foo-requests_per_s": {
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"bar": "baz"},
+					Ref:        custommetrics.ObjectReference{Type: "horizontal", Name: "foo", Namespace: "default", UID: "1111"},
+					Timestamp:  12,
+					Value:      1,
+					Valid:      false,
+				},
+			},
+			wpa: &v1alpha1.WatermarkPodAutoscaler{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "foo",
+					Namespace: "default",
+					UID:       "1111",
+				},
+				Spec: v1alpha1.WatermarkPodAutoscalerSpec{
+					Metrics: []v1alpha1.MetricSpec{
+						{
+							Type: v1alpha1.ExternalMetricSourceType,
+							External: &v1alpha1.ExternalMetricSource{
+								MetricName: "requests_per_s",
+								MetricSelector: &v1.LabelSelector{
+									MatchLabels: map[string]string{"bar": "baz"},
+								},
+							},
+						},
+					},
+				},
+			},
+			ignored: map[types.UID]int{
+				"1111": 1,
+			},
+			expected: []custommetrics.ExternalMetricValue{},
+		},
 	}
 
 	for i, testCase := range testCases {
@@ -461,6 +499,7 @@ func TestWPAGC(t *testing.T) {
 			ExtendToWPAController(hctrl, inf.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
 
 			hctrl.store = store
+			hctrl.overFlowingAutoscalers = testCase.ignored
 
 			if testCase.wpa != nil {
 				err := inf.Datadoghq().
