@@ -115,7 +115,7 @@ func (h *AutoscalersController) gc() {
 		return
 	}
 
-	processedList := removeIgnoredAutoscaler(h.overFlowingHPAs, list)
+	processedList := removeIgnoredAutoscaler(h.overFlowingAutoscalers, list)
 	emList, err := h.store.ListAllExternalMetricValues()
 	if err != nil {
 		log.Errorf("Could not list external metrics from store: %v", err)
