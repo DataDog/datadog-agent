@@ -152,9 +152,8 @@ func (p *Provider) searchFiles(pattern string, source *config.LogSource) ([]*Fil
 	sort.SliceStable(paths, func(i, j int) bool {
 		return filepath.Base(paths[i]) > filepath.Base(paths[j])
 	})
-	isWildcardPath := p.containsWildcard(pattern)
 	for _, path := range paths {
-		files = append(files, NewFile(path, source, isWildcardPath))
+		files = append(files, NewFile(path, source, true))
 	}
 	return files, nil
 }
