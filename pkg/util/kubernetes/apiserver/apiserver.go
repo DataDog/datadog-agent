@@ -53,8 +53,6 @@ const (
 type APIClient struct {
 	// InformerFactory gives access to informers.
 	InformerFactory informers.SharedInformerFactory
-	// WPAInformerFactory
-	WPAInformerFactory wpa_informers.SharedInformerFactory
 
 	// used to setup the APIClient
 	initRetry      retry.Retrier
@@ -158,13 +156,6 @@ func (c *APIClient) connect() error {
 	c.InformerFactory, err = getInformerFactory()
 	if err != nil {
 		return err
-	}
-	if config.Datadog.Get("external_metrics_provider.wpa_controller") == true {
-		c.WPAInformerFactory, err = getWPAInformerFactory()
-		if err != nil {
-			log.Errorf("Error getting WPA Informer Factory: %s", err.Error())
-			return err
-		}
 	}
 
 	// Try to get apiserver version to confim connectivity
