@@ -26,6 +26,14 @@ func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, 
 	return convertEvent(sample, defaultHostname), nil
 }
 
+func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
+	sample, err := parseServiceCheck(message)
+	if err != nil {
+		return nil, err
+	}
+	return convertServiceCheck(sample, defaultHostname), nil
+}
+
 func TestConvertParseGauge(t *testing.T) {
 	parsed, err := parseMetricMessage([]byte("daemon:666|g"), "", nil, "default-hostname")
 
@@ -261,84 +269,156 @@ func TestConvertParseMetricError(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestConvertNamespace(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:21|ms"), "testNamespace.", nil, "default-hostname")
-
-	assert.NoError(t, err)
-
-	assert.Equal(t, "testNamespace.daemon", parsed.Name)
-	assert.Equal(t, "default-hostname", parsed.Host)
+func TestConvertParseMonokeyBatching(t *testing.T) {
+	// TODO: not implemented
+	// parsed, err := parseMetricMessage([]byte("test_gauge:1.5|g|#tag1:one,tag2:two:2.3|g|#tag3:three:3|g"), "default-hostname")
 }
 
-func TestConvertNamespaceBlacklist(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("datadog.agent.daemon:21|ms"), "testNamespace.", []string{"datadog.agent"}, "default-hostname")
-
-	assert.NoError(t, err)
-
-	assert.Equal(t, "datadog.agent.daemon", parsed.Name)
-	assert.Equal(t, "default-hostname", parsed.Host)
+func TestConvertEnsureUTF8(t *testing.T) {
+	assert.Equal(t, 1, 1)
 }
 
-func TestConvertEntityOriginDetectionNoTags(t *testing.T) {
-	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
-		if entity == "otherentity" {
-			return []string{"tag:ishouldnothave"}, nil
-		}
-		return []string{}, nil
-	}
-
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
-	assert.NoError(t, err)
-
-	assert.Equal(t, "daemon", parsed.Name)
-	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
-	require.Equal(t, 2, len(parsed.Tags))
-	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
-	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
-	assert.Equal(t, "my-hostname", parsed.Host)
-	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+func TestConvertMagicTags(t *testing.T) { // ie host:test-b
+	assert.Equal(t, 1, 1)
 }
 
-func TestConvertEntityOriginDetectionTags(t *testing.T) {
-	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
-		if entity == "kubernetes_pod_uid://foo" {
-			return []string{"foo:bar", "bar:buz"}, nil
-		}
-		return []string{}, nil
-	}
-
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
-	assert.NoError(t, err)
-
-	assert.Equal(t, "daemon", parsed.Name)
-	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
-	require.Equal(t, 4, len(parsed.Tags))
-	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
-	assert.Equal(t, "foo:bar", parsed.Tags[1])
-	assert.Equal(t, "bar:buz", parsed.Tags[2])
-	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[3])
-	assert.Equal(t, "my-hostname", parsed.Host)
-	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+func TestConvertScientificNotation(t *testing.T) {
+	assert.Equal(t, 1, 1)
 }
 
-func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
-	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
-		return nil, errors.New("cannot get tags")
-	}
+func TestConvertPacketStringEndings(t *testing.T) {
+	assert.Equal(t, 1, 1)
+}
 
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+func TestConvertServiceCheckMinimal(t *testing.T) {
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0"), "default-hostname")
+
+	assert.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "default-hostname", sc.Host)
+	assert.Equal(t, int64(0), sc.Ts)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "", sc.Message)
+	assert.Equal(t, []string(nil), sc.Tags)
+}
+
+func TestConvertServiceCheckError(t *testing.T) {
+	// not enough information
+	_, err := parseServiceCheckMessage([]byte("_sc|agent.up"), "default-hostname")
+	assert.Error(t, err)
+
+	_, err = parseServiceCheckMessage([]byte("_sc|agent.up|"), "default-hostname")
+	assert.Error(t, err)
+
+	// not invalid status
+	_, err = parseServiceCheckMessage([]byte("_sc|agent.up|OK"), "default-hostname")
+	assert.Error(t, err)
+
+	// not unknown status
+	_, err = parseServiceCheckMessage([]byte("_sc|agent.up|21"), "default-hostname")
+	assert.Error(t, err)
+
+	// invalid timestamp
+	_, err = parseServiceCheckMessage([]byte("_sc|agent.up|0|d:some_time"), "default-hostname")
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", parsed.Name)
-	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
-	require.Equal(t, 2, len(parsed.Tags))
-	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
-	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
-	assert.Equal(t, "my-hostname", parsed.Host)
-	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+	// unknown metadata
+	_, err = parseServiceCheckMessage([]byte("_sc|agent.up|0|u:unknown"), "default-hostname")
+	assert.NoError(t, err)
+}
+
+func TestConvertServiceCheckMetadataTimestamp(t *testing.T) {
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|d:21"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "default-hostname", sc.Host)
+	assert.Equal(t, int64(21), sc.Ts)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "", sc.Message)
+	assert.Equal(t, []string(nil), sc.Tags)
+}
+
+func TestConvertServiceCheckMetadataHostname(t *testing.T) {
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|h:localhost"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "localhost", sc.Host)
+	assert.Equal(t, int64(0), sc.Ts)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "", sc.Message)
+	assert.Equal(t, []string(nil), sc.Tags)
+}
+
+func TestConvertServiceCheckMetadataHostnameInTag(t *testing.T) {
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|#host:localhost"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "localhost", sc.Host)
+	assert.Equal(t, int64(0), sc.Ts)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "", sc.Message)
+	assert.Equal(t, []string{}, sc.Tags)
+}
+
+func TestConvertServiceCheckMetadataEmptyHostTag(t *testing.T) {
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|#host:,other:tag"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "", sc.Host)
+	assert.Equal(t, int64(0), sc.Ts)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "", sc.Message)
+	assert.Equal(t, []string{"other:tag"}, sc.Tags)
+}
+
+func TestConvertServiceCheckMetadataTags(t *testing.T) {
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|#tag1,tag2:test,tag3"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "default-hostname", sc.Host)
+	assert.Equal(t, int64(0), sc.Ts)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "", sc.Message)
+	assert.Equal(t, []string{"tag1", "tag2:test", "tag3"}, sc.Tags)
+}
+
+func TestConvertServiceCheckMetadataMessage(t *testing.T) {
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|m:this is fine"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "default-hostname", sc.Host)
+	assert.Equal(t, int64(0), sc.Ts)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "this is fine", sc.Message)
+	assert.Equal(t, []string(nil), sc.Tags)
+}
+
+func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
+	// all type
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2|m:this is fine"), "default-hostname")
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "localhost", sc.Host)
+	assert.Equal(t, int64(21), sc.Ts)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "this is fine", sc.Message)
+	assert.Equal(t, []string{"tag1:test", "tag2"}, sc.Tags)
+
+	// multiple time the same tag
+	sc, err = parseServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|h:localhost2|d:22"), "default-hostname")
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "localhost2", sc.Host)
+	assert.Equal(t, int64(22), sc.Ts)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "", sc.Message)
+	assert.Equal(t, []string(nil), sc.Tags)
 }
 
 func TestConvertEventMinimal(t *testing.T) {
@@ -612,4 +692,84 @@ func TestConvertEventMetadataMultiple(t *testing.T) {
 	assert.Equal(t, "aggKey", e.AggregationKey)
 	assert.Equal(t, "source test", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
+}
+
+func TestConvertNamespace(t *testing.T) {
+	parsed, err := parseMetricMessage([]byte("daemon:21|ms"), "testNamespace.", nil, "default-hostname")
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "testNamespace.daemon", parsed.Name)
+	assert.Equal(t, "default-hostname", parsed.Host)
+}
+
+func TestConvertNamespaceBlacklist(t *testing.T) {
+	parsed, err := parseMetricMessage([]byte("datadog.agent.daemon:21|ms"), "testNamespace.", []string{"datadog.agent"}, "default-hostname")
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "datadog.agent.daemon", parsed.Name)
+	assert.Equal(t, "default-hostname", parsed.Host)
+}
+
+func TestConvertEntityOriginDetectionNoTags(t *testing.T) {
+	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+		if entity == "otherentity" {
+			return []string{"tag:ishouldnothave"}, nil
+		}
+		return []string{}, nil
+	}
+
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
+	require.Equal(t, 2, len(parsed.Tags))
+	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
+	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
+	assert.Equal(t, "my-hostname", parsed.Host)
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}
+
+func TestConvertEntityOriginDetectionTags(t *testing.T) {
+	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+		if entity == "kubernetes_pod_uid://foo" {
+			return []string{"foo:bar", "bar:buz"}, nil
+		}
+		return []string{}, nil
+	}
+
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
+	require.Equal(t, 4, len(parsed.Tags))
+	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
+	assert.Equal(t, "foo:bar", parsed.Tags[1])
+	assert.Equal(t, "bar:buz", parsed.Tags[2])
+	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[3])
+	assert.Equal(t, "my-hostname", parsed.Host)
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}
+
+func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
+	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+		return nil, errors.New("cannot get tags")
+	}
+
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
+	require.Equal(t, 2, len(parsed.Tags))
+	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
+	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
+	assert.Equal(t, "my-hostname", parsed.Host)
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }

@@ -137,3 +137,36 @@ func convertEvent(event dogstatsdEvent, defaultHostname string) *metrics.Event {
 	}
 	return convertedEvent
 }
+
+func convertServiceCheckStatus(status serviceCheckStatus) metrics.ServiceCheckStatus {
+	switch status {
+	case serviceCheckStatusUnknown:
+		return metrics.ServiceCheckUnknown
+	case serviceCheckStatusOk:
+		return metrics.ServiceCheckOK
+	case serviceCheckStatusWarning:
+		return metrics.ServiceCheckWarning
+	case serviceCheckStatusCritical:
+		return metrics.ServiceCheckCritical
+	}
+	return metrics.ServiceCheckUnknown
+}
+
+func convertServiceCheck(serviceCheck dogstatsdServiceCheck, defaultHostname string) *metrics.ServiceCheck {
+	tags, hostFromTags := convertTags(serviceCheck.tags, defaultHostname)
+
+	convertedServiceCheck := &metrics.ServiceCheck{
+		CheckName: string(serviceCheck.name),
+		Ts:        serviceCheck.timestamp,
+		//Status: ser
+		Message: string(serviceCheck.message),
+		Tags:    tags,
+	}
+
+	if len(serviceCheck.hostname) != 0 {
+		convertedServiceCheck.Host = string(serviceCheck.hostname)
+	} else {
+		convertedServiceCheck.Host = hostFromTags
+	}
+	return convertedServiceCheck
+}
