@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    logs agent - tailed files discovered through a configuration entry with
+    Logs: tailed files discovered through a configuration entry with
     wildcard will properly have the `dirname` tag on all log entries.
