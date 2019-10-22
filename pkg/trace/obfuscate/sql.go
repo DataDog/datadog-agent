@@ -162,11 +162,10 @@ func (o *Obfuscator) obfuscateSQLString(in string) (string, error) {
 		// If the tokenizer failed, but saw an escape character in the process,
 		// try again treating escapes differently
 		tokenizer = NewSQLTokenizer(in, !literalEscapes)
-		var err2 error
-		if out, err2 = attemptObfuscation(tokenizer, filters); err2 == nil {
+		if out, err2 := attemptObfuscation(tokenizer, filters); err2 == nil {
 			// If the second attempt succeeded, change the default behavior
-			err = nil
 			o.SetLiteralEscapes(!literalEscapes)
+			return out, nil
 		}
 	}
 	return out, err
