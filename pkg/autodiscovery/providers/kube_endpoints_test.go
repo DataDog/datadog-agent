@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -55,6 +55,7 @@ func TestParseKubeServiceAnnotationsForEndpoints(t *testing.T) {
 						InitConfig:    integration.Data("{}"),
 						Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 						ClusterCheck:  false,
+						Source:        "kube_endpoints:kube_endpoint_uid://default/myservice/",
 					},
 					namespace: "default",
 					name:      "myservice",

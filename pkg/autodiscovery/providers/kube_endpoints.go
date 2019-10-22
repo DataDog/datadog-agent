@@ -144,11 +144,13 @@ func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
 			log.Debug("Ignoring a nil service")
 			continue
 		}
-		endptConf, errors := extractTemplatesFromMap(apiserver.EntityForEndpoints(svc.Namespace, svc.Name, ""), svc.Annotations, kubeEndpointAnnotationPrefix)
+		endpointsID := apiserver.EntityForEndpoints(svc.Namespace, svc.Name, "")
+		endptConf, errors := extractTemplatesFromMap(endpointsID, svc.Annotations, kubeEndpointAnnotationPrefix)
 		for _, err := range errors {
 			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
 		for i := range endptConf {
+			endptConf[i].Source = "kube_endpoints:" + endpointsID
 			configsInfo = append(configsInfo, configInfo{
 				tpl:       endptConf[i],
 				namespace: svc.Namespace,
