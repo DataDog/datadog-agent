@@ -52,11 +52,13 @@ func (d *DockerConfigProvider) String() string {
 // Collect retrieves all running containers and extract AD templates from their labels.
 func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
 	var err error
+	firstCollection := false
 	if d.dockerUtil == nil {
 		d.dockerUtil, err = docker.GetDockerUtil()
 		if err != nil {
 			return []integration.Config{}, err
 		}
+		firstCollection = true
 	}
 
 	var containers map[string]map[string]string
@@ -79,7 +81,9 @@ func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
 	d.Unlock()
 
 	// start listening after the first collection to avoid race in cache map init
-	go d.listen()
+	if firstCollection {
+		go d.listen()
+	}
 
 	return parseDockerLabels(containers)
 }
