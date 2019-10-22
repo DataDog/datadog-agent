@@ -91,3 +91,49 @@ func convertMetricSample(metricSample dogstatsdMetricSample, namespace string, n
 		RawValue:   string(metricSample.setValue),
 	}
 }
+
+func convertEventPriority(priority eventPriority) metrics.EventPriority {
+	switch priority {
+	case priorityNormal:
+		return metrics.EventPriorityNormal
+	case priorityLow:
+		return metrics.EventPriorityLow
+	}
+	return metrics.EventPriorityNormal
+}
+
+func convertEventAlertType(dogstatsdAlertType alertType) metrics.EventAlertType {
+	switch dogstatsdAlertType {
+	case alertTypeSuccess:
+		return metrics.EventAlertTypeSuccess
+	case alertTypeInfo:
+		return metrics.EventAlertTypeInfo
+	case alertTypeWarning:
+		return metrics.EventAlertTypeWarning
+	case alertTypeError:
+		return metrics.EventAlertTypeError
+	}
+	return metrics.EventAlertTypeSuccess
+}
+
+func convertEvent(event dogstatsdEvent, defaultHostname string) *metrics.Event {
+	tags, hostFromTags := convertTags(event.tags, defaultHostname)
+
+	convertedEvent := &metrics.Event{
+		Title:          string(event.title),
+		Text:           string(event.text),
+		Ts:             event.timestamp,
+		Priority:       convertEventPriority(event.priority),
+		Tags:           tags,
+		AlertType:      convertEventAlertType(event.alertType),
+		AggregationKey: string(event.aggregationKey),
+		SourceTypeName: string(event.sourceType),
+	}
+
+	if len(event.hostname) != 0 {
+		convertedEvent.Host = string(event.hostname)
+	} else {
+		convertedEvent.Host = hostFromTags
+	}
+	return convertedEvent
+}
