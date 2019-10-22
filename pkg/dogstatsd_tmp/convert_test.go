@@ -1,9 +1,11 @@
 package dogstatsd_tmp
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,6 +16,14 @@ func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []s
 		return nil, err
 	}
 	return convertMetricSample(sample, namespace, namespaceBlacklist, defaultHostname), nil
+}
+
+func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
+	sample, err := parseEvent(message)
+	if err != nil {
+		return nil, err
+	}
+	return convertEvent(sample, defaultHostname), nil
 }
 
 func TestConvertParseGauge(t *testing.T) {
@@ -249,4 +259,357 @@ func TestConvertParseMetricError(t *testing.T) {
 	// invalid sample rate
 	_, err = parseMetricMessage([]byte("daemon:666|g|@abc"), "", nil, "default-hostname")
 	assert.Error(t, err)
+}
+
+func TestConvertNamespace(t *testing.T) {
+	parsed, err := parseMetricMessage([]byte("daemon:21|ms"), "testNamespace.", nil, "default-hostname")
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "testNamespace.daemon", parsed.Name)
+	assert.Equal(t, "default-hostname", parsed.Host)
+}
+
+func TestConvertNamespaceBlacklist(t *testing.T) {
+	parsed, err := parseMetricMessage([]byte("datadog.agent.daemon:21|ms"), "testNamespace.", []string{"datadog.agent"}, "default-hostname")
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "datadog.agent.daemon", parsed.Name)
+	assert.Equal(t, "default-hostname", parsed.Host)
+}
+
+func TestConvertEntityOriginDetectionNoTags(t *testing.T) {
+	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+		if entity == "otherentity" {
+			return []string{"tag:ishouldnothave"}, nil
+		}
+		return []string{}, nil
+	}
+
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
+	require.Equal(t, 2, len(parsed.Tags))
+	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
+	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
+	assert.Equal(t, "my-hostname", parsed.Host)
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}
+
+func TestConvertEntityOriginDetectionTags(t *testing.T) {
+	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+		if entity == "kubernetes_pod_uid://foo" {
+			return []string{"foo:bar", "bar:buz"}, nil
+		}
+		return []string{}, nil
+	}
+
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
+	require.Equal(t, 4, len(parsed.Tags))
+	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
+	assert.Equal(t, "foo:bar", parsed.Tags[1])
+	assert.Equal(t, "bar:buz", parsed.Tags[2])
+	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[3])
+	assert.Equal(t, "my-hostname", parsed.Host)
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}
+
+func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
+	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+		return nil, errors.New("cannot get tags")
+	}
+
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
+	require.Equal(t, 2, len(parsed.Tags))
+	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
+	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
+	assert.Equal(t, "my-hostname", parsed.Host)
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}
+
+func TestConvertEventMinimal(t *testing.T) {
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "default-hostname", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestConvertEventMultilinesText(t *testing.T) {
+	e, err := parseEventMessage([]byte("_e{10,24}:test title|test\\line1\\nline2\\nline3"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test\\line1\nline2\nline3", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "default-hostname", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestConvertEventPipeInTitle(t *testing.T) {
+	e, err := parseEventMessage([]byte("_e{10,24}:test|title|test\\line1\\nline2\\nline3"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "test|title", e.Title)
+	assert.Equal(t, "test\\line1\nline2\nline3", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "default-hostname", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestConvertEventError(t *testing.T) {
+	// missing length header
+	_, err := parseEventMessage([]byte("_e:title|text"), "default-hostname")
+	assert.Error(t, err)
+
+	// greater length than packet
+	_, err = parseEventMessage([]byte("_e{10,10}:title|text"), "default-hostname")
+	assert.Error(t, err)
+
+	// zero length
+	_, err = parseEventMessage([]byte("_e{0,0}:a|a"), "default-hostname")
+	assert.Error(t, err)
+
+	// missing title or text length
+	_, err = parseEventMessage([]byte("_e{5555:title|text"), "default-hostname")
+	assert.Error(t, err)
+
+	// missing wrong len format
+	_, err = parseEventMessage([]byte("_e{a,1}:title|text"), "default-hostname")
+	assert.Error(t, err)
+
+	_, err = parseEventMessage([]byte("_e{1,a}:title|text"), "default-hostname")
+	assert.Error(t, err)
+
+	// missing title or text length
+	_, err = parseEventMessage([]byte("_e{5,}:title|text"), "default-hostname")
+	assert.Error(t, err)
+
+	_, err = parseEventMessage([]byte("_e{,4}:title|text"), "default-hostname")
+	assert.Error(t, err)
+
+	_, err = parseEventMessage([]byte("_e{}:title|text"), "default-hostname")
+	assert.Error(t, err)
+
+	_, err = parseEventMessage([]byte("_e{,}:title|text"), "default-hostname")
+	assert.Error(t, err)
+
+	// not enough information
+	_, err = parseEventMessage([]byte("_e|text"), "default-hostname")
+	assert.Error(t, err)
+
+	_, err = parseEventMessage([]byte("_e:|text"), "default-hostname")
+	assert.Error(t, err)
+
+	// invalid timestamp
+	_, err = parseEventMessage([]byte("_e{5,4}:title|text|d:abc"), "default-hostname")
+	assert.NoError(t, err)
+
+	// invalid priority
+	_, err = parseEventMessage([]byte("_e{5,4}:title|text|p:urgent"), "default-hostname")
+	assert.NoError(t, err)
+
+	// invalid priority
+	_, err = parseEventMessage([]byte("_e{5,4}:title|text|p:urgent"), "default-hostname")
+	assert.NoError(t, err)
+
+	// invalid alert type
+	_, err = parseEventMessage([]byte("_e{5,4}:title|text|t:test"), "default-hostname")
+	assert.NoError(t, err)
+
+	// unknown metadata
+	_, err = parseEventMessage([]byte("_e{5,4}:title|text|x:1234"), "default-hostname")
+	assert.NoError(t, err)
+}
+
+func TestConvertEventMetadataTimestamp(t *testing.T) {
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|d:21"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(21), e.Ts)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "default-hostname", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestConvertEventMetadataPriority(t *testing.T) {
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|p:low"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, metrics.EventPriorityLow, e.Priority)
+	assert.Equal(t, "default-hostname", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestConvertEventMetadataHostname(t *testing.T) {
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|h:localhost"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "localhost", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestConvertEventMetadataHostnameInTag(t *testing.T) {
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|#host:localhost"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "localhost", e.Host)
+	assert.Equal(t, []string{}, e.Tags)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestConvertEventMetadataEmptyHostTag(t *testing.T) {
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|#host:,other:tag"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "", e.Host)
+	assert.Equal(t, []string{"other:tag"}, e.Tags)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestConvertEventMetadataAlertType(t *testing.T) {
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|t:warning"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "default-hostname", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, metrics.EventAlertTypeWarning, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestConvertEventMetadataAggregatioKey(t *testing.T) {
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|k:some aggregation key"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "default-hostname", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "some aggregation key", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestConvertEventMetadataSourceType(t *testing.T) {
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|s:this is the source"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "default-hostname", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "this is the source", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestConvertEventMetadataTags(t *testing.T) {
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|#tag1,tag2:test"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "default-hostname", e.Host)
+	assert.Equal(t, []string{"tag1", "tag2:test"}, e.Tags)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestConvertEventMetadataMultiple(t *testing.T) {
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(12345), e.Ts)
+	assert.Equal(t, metrics.EventPriorityLow, e.Priority)
+	assert.Equal(t, "some.host", e.Host)
+	assert.Equal(t, []string{"tag1", "tag2:test"}, e.Tags)
+	assert.Equal(t, metrics.EventAlertTypeWarning, e.AlertType)
+	assert.Equal(t, "aggKey", e.AggregationKey)
+	assert.Equal(t, "source test", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
 }
