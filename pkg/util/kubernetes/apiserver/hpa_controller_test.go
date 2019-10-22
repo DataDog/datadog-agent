@@ -72,7 +72,7 @@ func newFakeAutoscalerController(client kubernetes.Interface, itf LeaderElectorI
 	ExtendToHPAController(autoscalerController, informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
 
 	autoscalerController.autoscalersListerSynced = func() bool { return true }
-	autoscalerController.overFlowingHPAs = make(map[types.UID]int)
+	autoscalerController.overFlowingAutoscalers = make(map[types.UID]int)
 
 	return autoscalerController, informerFactory
 }
@@ -440,7 +440,7 @@ func TestAutoscalerController(t *testing.T) {
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
 	require.Equal(t, hctrl.metricsProcessedCount, 45)
-	require.Equal(t, hctrl.overFlowingHPAs[newMockedHPA.UID], 1)
+	require.Equal(t, hctrl.overFlowingAutoscalers[newMockedHPA.UID], 1)
 
 	// Verify that a Delete removes the Data from the Global Store and decreases metricsProcessdCount
 	err = c.HorizontalPodAutoscalers("default").Delete(newMockedHPA.Name, &metav1.DeleteOptions{})
@@ -453,7 +453,7 @@ func TestAutoscalerController(t *testing.T) {
 	}
 	hctrl.mu.Lock()
 	require.Equal(t, hctrl.metricsProcessedCount, 45)
-	require.Equal(t, len(hctrl.overFlowingHPAs), 0)
+	require.Equal(t, len(hctrl.overFlowingAutoscalers), 0)
 	hctrl.mu.Unlock()
 	// Verify that a Delete removes the Data from the Global Store and decreases metricsProcessdCount at it was not ignored
 	err = c.HorizontalPodAutoscalers("default").Delete(mockedHPA.Name, &metav1.DeleteOptions{})
@@ -482,7 +482,7 @@ func TestAutoscalerController(t *testing.T) {
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
 	require.Equal(t, hctrl.metricsProcessedCount, 45)
-	require.Equal(t, len(hctrl.overFlowingHPAs), 0)
+	require.Equal(t, len(hctrl.overFlowingAutoscalers), 0)
 }
 
 func TestAutoscalerSync(t *testing.T) {
@@ -500,14 +500,14 @@ func TestAutoscalerSync(t *testing.T) {
 	err := inf.Autoscaling().V2beta1().HorizontalPodAutoscalers().Informer().GetStore().Add(obj)
 	require.NoError(t, err)
 	key := "default/hpa_1"
-	err = hctrl.syncAutoscalers(key)
+	err = hctrl.syncHPA(key)
 	require.NoError(t, err)
 
 	fakeKey := "default/prometheus"
-	err = hctrl.syncAutoscalers(fakeKey)
+	err = hctrl.syncHPA(fakeKey)
 	require.Error(t, err, errors.IsNotFound)
 
-	require.Empty(t, hctrl.overFlowingHPAs)
+	require.Empty(t, hctrl.overFlowingAutoscalers)
 	hctrl.mu.Lock()
 	hctrl.metricsProcessedCount = 44
 	hctrl.mu.Unlock()
@@ -530,10 +530,10 @@ func TestAutoscalerSync(t *testing.T) {
 	err = inf.Autoscaling().V2beta1().HorizontalPodAutoscalers().Informer().GetStore().Add(ignoredHPA)
 	require.NoError(t, err)
 	keyToIgnore := "default/hpa_2"
-	err = hctrl.syncAutoscalers(keyToIgnore)
+	err = hctrl.syncHPA(keyToIgnore)
 	require.Nil(t, err)
-	require.NotEmpty(t, hctrl.overFlowingHPAs)
-	require.Equal(t, hctrl.overFlowingHPAs["123"], 2)
+	require.NotEmpty(t, hctrl.overFlowingAutoscalers)
+	require.Equal(t, hctrl.overFlowingAutoscalers["123"], 2)
 	require.Equal(t, hctrl.metricsProcessedCount, 44)
 	hctrl.toStore.m.Lock()
 	require.Equal(t, len(hctrl.toStore.data), 1)
@@ -708,7 +708,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 			hctrl, inf := newFakeAutoscalerController(client, i, d)
 
 			hctrl.store = store
-			hctrl.overFlowingHPAs = testCase.ignored
+			hctrl.overFlowingAutoscalers = testCase.ignored
 
 			if testCase.hpa != nil {
 				err := inf.

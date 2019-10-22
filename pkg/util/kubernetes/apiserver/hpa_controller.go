@@ -68,8 +68,8 @@ type AutoscalersController struct {
 
 	// metricsProcessedCount keeps track of the number of metrics queried per batch to avoid going over the backend limitation
 	metricsProcessedCount int
-	// overFlowingHPAs keeps a map of the HPA to the number of metrics in their specs that were ignored as there are already too many metrics being processed.
-	overFlowingHPAs map[types.UID]int
+	// overFlowingAutoscalers keeps a map of the HPA to the number of metrics in their specs that were ignored as there are already too many metrics being processed.
+	overFlowingAutoscalers map[types.UID]int
 
 	toStore   metricsBatch
 	hpaProc   autoscalers.ProcessorInterface
@@ -107,11 +107,11 @@ func ExtendToHPAController(h *AutoscalersController, autoscalingInformer autosca
 }
 
 func (h *AutoscalersController) worker() {
-	for h.processNext() {
+	for h.processNextHPA() {
 	}
 }
 
-func (h *AutoscalersController) processNext() bool {
+func (h *AutoscalersController) processNextHPA() bool {
 	key, quit := h.HPAqueue.Get()
 	if quit {
 		log.Infof("HPA controller HPAqueue is shutting down, stopping processing")
@@ -120,7 +120,7 @@ func (h *AutoscalersController) processNext() bool {
 	log.Tracef("Processing %s", key)
 	defer h.HPAqueue.Done(key)
 
-	err := h.syncAutoscalers(key)
+	err := h.syncHPA(key)
 	h.handleErr(err, key)
 
 	// Debug output for unit tests only
@@ -130,7 +130,7 @@ func (h *AutoscalersController) processNext() bool {
 	return true
 }
 
-func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
+func (h *AutoscalersController) syncHPA(key interface{}) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -157,16 +157,19 @@ func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
 			return nil
 		}
 		newMetrics := h.hpaProc.ProcessEMList(emList)
+		// The syncWPA can also interact with the overflowing store.
+		h.mu.Lock()
 		if len(newMetrics)+h.metricsProcessedCount > maxMetricsCount {
 			log.Warnf("Currently processing %d metrics, skipping %s/%s as we can't process more than %d metrics",
 				h.metricsProcessedCount, hpaCached.Namespace, hpaCached.Name, maxMetricsCount)
-			h.overFlowingHPAs[hpaCached.UID] = len(newMetrics)
+			h.overFlowingAutoscalers[hpaCached.UID] = len(newMetrics)
 			return nil
 		}
-		if _, ok := h.overFlowingHPAs[hpaCached.UID]; ok {
+		if _, ok := h.overFlowingAutoscalers[hpaCached.UID]; ok {
 			log.Debugf("Previously ignored HPA %s/%s will now be processed", hpaCached.Namespace, hpaCached.Name)
-			delete(h.overFlowingHPAs, hpaCached.UID)
+			delete(h.overFlowingAutoscalers, hpaCached.UID)
 		}
+		h.mu.Unlock()
 		h.toStore.m.Lock()
 		for metric, value := range newMetrics {
 			// We should only insert placeholders in the local cache.
@@ -214,12 +217,12 @@ func (h *AutoscalersController) updateAutoscaler(old, obj interface{}) {
 	// Need to delete the old object from the local cache. If the labels have changed, the syncAutoscaler would not override the old key.
 	toDelete := autoscalers.InspectHPA(oldAutoscaler)
 	h.deleteFromLocalStore(toDelete)
-	// We re-evaluate if the HPA can be processed in syncAutoscaler, subsequently to the enqueue.
+	// We re-evaluate if the HPA can be processed in syncHPA, subsequently to the enqueue.
 	h.mu.Lock()
-	if _, ok := h.overFlowingHPAs[oldAutoscaler.UID]; !ok {
+	if _, ok := h.overFlowingAutoscalers[oldAutoscaler.UID]; !ok {
 		h.metricsProcessedCount -= len(toDelete)
 	}
-	delete(h.overFlowingHPAs, oldAutoscaler.UID)
+	delete(h.overFlowingAutoscalers, oldAutoscaler.UID)
 	h.mu.Unlock()
 	log.Tracef("Processing update event for autoscaler %s/%s with configuration: %s", newAutoscaler.Namespace, newAutoscaler.Name, newAutoscaler.Annotations)
 	h.enqueue(newAutoscaler)
@@ -247,12 +250,12 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 			return
 		}
 		// Only decrease the count of processed metrics if we are able to successfully remove them from the global store.
-		// TODO pop HPAs from h.overFlowingHPAs and start processing the one(s) we have been ignoring up to the maxMetricsCount
+		// TODO pop HPAs from h.overFlowingAutoscalers and start processing the one(s) we have been ignoring up to the maxMetricsCount
 		// Current behavior: HPA will be evaluated next resync and processed if it does not have too many metrics.
-		if _, ok := h.overFlowingHPAs[deletedHPA.UID]; !ok {
+		if _, ok := h.overFlowingAutoscalers[deletedHPA.UID]; !ok {
 			h.metricsProcessedCount -= len(toDelete.External)
 		}
-		delete(h.overFlowingHPAs, deletedHPA.UID)
+		delete(h.overFlowingAutoscalers, deletedHPA.UID)
 		return
 	}
 
@@ -277,9 +280,9 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 		return
 	}
 	// Only decrease the count of processed metrics if the HPA was not ignored and if we are able to successfully remove them from the global store.
-	// TODO pop HPAs from h.overFlowingHPAs and start processing the one(s) we have been ignoring, up to the maxMetricsCount
-	if _, ok := h.overFlowingHPAs[deletedHPA.UID]; !ok {
+	// TODO pop HPAs from h.overFlowingAutoscalers and start processing the one(s) we have been ignoring, up to the maxMetricsCount
+	if _, ok := h.overFlowingAutoscalers[deletedHPA.UID]; !ok {
 		h.metricsProcessedCount -= len(toDelete.External)
 	}
-	delete(h.overFlowingHPAs, deletedHPA.UID)
+	delete(h.overFlowingAutoscalers, deletedHPA.UID)
 }
