@@ -15,6 +15,11 @@
 /cmd/trace-agent/                       @DataDog/apm-agent
 /cmd/agent/app/integrations*.go         @DataDog/prodsec @DataDog/agent-integrations @DataDog/agent-core
 /cmd/agent/clcrunnerapi/                @DataDog/container-integrations @DataDog/agent-core
+/cmd/agent/*.manifest                   @DataDog/agent-platform
+/cmd/agent/*.mc                         @DataDog/agent-platform
+/cmd/agent/*.rc                         @DataDog/agent-platform
+/cmd/agent/install*.sh                  @DataDog/agent-platform
+/cmd/agent/version.h                    @DataDog/agent-platform
 /cmd/cluster-agent/                     @DataDog/container-integrations
 /cmd/process-agent/                     @DataDog/burrito
 /cmd/system-probe/                      @DataDog/burrito
