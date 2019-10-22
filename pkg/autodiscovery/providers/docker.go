@@ -53,9 +53,12 @@ func (d *DockerConfigProvider) String() string {
 func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
 	var err error
 	firstCollection := false
+
+	d.Lock()
 	if d.dockerUtil == nil {
 		d.dockerUtil, err = docker.GetDockerUtil()
 		if err != nil {
+			d.Unlock()
 			return []integration.Config{}, err
 		}
 		firstCollection = true
@@ -67,6 +70,7 @@ func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
 	if d.labelCache == nil || d.syncCounter == d.syncInterval {
 		containers, err = d.dockerUtil.AllContainerLabels()
 		if err != nil {
+			d.Unlock()
 			return []integration.Config{}, err
 		}
 		d.labelCache = containers
@@ -75,7 +79,6 @@ func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
 		containers = d.labelCache
 	}
 
-	d.Lock()
 	d.syncCounter += 1
 	d.upToDate = true
 	d.Unlock()
