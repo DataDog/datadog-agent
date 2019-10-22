@@ -73,19 +73,20 @@ const escapeCharacter = '\\'
 // SQLTokenizer is the struct used to generate SQL
 // tokens for the parser.
 type SQLTokenizer struct {
-	rd            *strings.Reader // the "rune" reader
-	pos           int             // byte offset of lastChar
-	lastChar      rune            // last read rune
-	err           error           // any error occurred while reading
-	ignoreEscape  bool            // indicates we should not try to escape quotes
-	hasSeenEscape bool            // indicates whether this tokenizer has seen an escape character within a string
+	rd       *strings.Reader // the "rune" reader
+	pos      int             // byte offset of lastChar
+	lastChar rune            // last read rune
+	err      error           // any error occurred while reading
+
+	literalEscapes bool // indicates we should not treat backslashes as escape characters
+	seenEscape     bool // indicates whether this tokenizer has seen an escape character within a string
 }
 
 // NewSQLTokenizer creates a new SQLTokenizer for the given SQL string.
-func NewSQLTokenizer(sql string, ignoreEscape bool) *SQLTokenizer {
+func NewSQLTokenizer(sql string, literalEscapes bool) *SQLTokenizer {
 	return &SQLTokenizer{
-		rd:           strings.NewReader(sql),
-		ignoreEscape: ignoreEscape,
+		rd:             strings.NewReader(sql),
+		literalEscapes: literalEscapes,
 	}
 }
 
@@ -114,8 +115,8 @@ func (tkn *SQLTokenizer) setErr(format string, args ...interface{}) {
 	tkn.err = fmt.Errorf("at position %d: %v", tkn.pos, fmt.Errorf(format, args...))
 }
 
-// HasSeenEscape returns whether or not this tokenizer has seen an escape character within a scanned string
-func (tkn *SQLTokenizer) HasSeenEscape() bool { return tkn.hasSeenEscape }
+// SeenEscape returns whether or not this tokenizer has seen an escape character within a scanned string
+func (tkn *SQLTokenizer) SeenEscape() bool { return tkn.seenEscape }
 
 // Scan scans the tokenizer for the next token and returns
 // the token type and the token buffer.
@@ -433,9 +434,9 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 				break
 			}
 		} else if ch == escapeCharacter {
-			tkn.hasSeenEscape = true
+			tkn.seenEscape = true
 
-			if !tkn.ignoreEscape {
+			if !tkn.literalEscapes {
 				// treat as an escape character
 				ch = tkn.lastChar
 				tkn.next()

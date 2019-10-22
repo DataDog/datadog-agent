@@ -46,24 +46,25 @@ type Config struct {
 	// Redis enables obfuscatiion of the "memcached.command" tag for spans of type "memcached".
 	Memcached bool
 
-	// Set to 1 if enabled 0 if not. We're using an integer
-	// so we can use the sync/atomic for thread-safe access.
-	ignoreEscapes int32
+	// literalEscapes reports whether we should treat escape characters literally or as escape characters.
+	// A non-zero value means 'yes'. Different SQL engines behave in different ways and the tokenizer needs
+	// to be generic.
+	// Not safe for concurrent use.
+	literalEscapes int32
 }
 
-// SetIgnoreEscapes sets whether or not escape characters should be ignored,
-// i.e. treated as literal characters.
-func (o *Obfuscator) SetIgnoreEscapes(val bool) {
-	intValue := int32(0)
-	if val {
-		intValue = int32(1)
+// SetLiteralEscapes sets whether or not escape characters should be treated literally,
+func (o *Obfuscator) SetLiteralEscapes(ok bool) {
+	if ok {
+		atomic.StoreInt32(&o.opts.literalEscapes, 1)
+	} else {
+		atomic.StoreInt32(&o.opts.literalEscapes, 0)
 	}
-	atomic.StoreInt32(&o.opts.ignoreEscapes, intValue)
 }
 
-// ShouldIgnoreEscapes returns whether or not escape characters should be ignored.
-func (o *Obfuscator) ShouldIgnoreEscapes() bool {
-	return atomic.LoadInt32(&o.opts.ignoreEscapes) == 1
+// LiteralEscapes returns whether or not escape characters should be treated literally.
+func (o *Obfuscator) LiteralEscapes() bool {
+	return atomic.LoadInt32(&o.opts.literalEscapes) == 1
 }
 
 // NewObfuscator creates a new Obfuscator.

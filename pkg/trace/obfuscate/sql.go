@@ -153,35 +153,23 @@ func (f *groupingFilter) Reset() {
 // function is generic and the behavior changes according to chosen tokenFilter implementations.
 // The process calls all filters inside the []tokenFilter.
 func (o *Obfuscator) obfuscateSQLString(in string) (string, error) {
-	ignoreEscapes := o.ShouldIgnoreEscapes()
-	tokenizer := NewSQLTokenizer(in, ignoreEscapes)
+	literalEscapes := o.LiteralEscapes()
+	tokenizer := NewSQLTokenizer(in, literalEscapes)
 	filters := []tokenFilter{&discardFilter{}, &replaceFilter{}, &groupingFilter{}}
 
 	out, err := attemptObfuscation(tokenizer, filters)
-	if err != nil {
-		// If the tokenizer failed, but saw an escape character in the process
-		// retry with opposite setting.
-		if tokenizer.HasSeenEscape() {
-			tokenizer = NewSQLTokenizer(in, !ignoreEscapes)
-			var err2 error
-			out, err2 = attemptObfuscation(tokenizer, filters)
-			if err2 == nil {
-				// If the second attempt succeeded, make the config change
-				err = nil
-				o.SetIgnoreEscapes(!ignoreEscapes)
-			}
+	if err != nil && tokenizer.SeenEscape() {
+		// If the tokenizer failed, but saw an escape character in the process,
+		// try again treating escapes differently
+		tokenizer = NewSQLTokenizer(in, !literalEscapes)
+		var err2 error
+		if out, err2 = attemptObfuscation(tokenizer, filters); err2 == nil {
+			// If the second attempt succeeded, change the default behavior
+			err = nil
+			o.SetLiteralEscapes(!literalEscapes)
 		}
 	}
-
-	if err != nil {
-		return "", err
-	}
-
-	if len(out) == 0 {
-		return "", errors.New("result is empty")
-	}
-
-	return out, nil
+	return out, err
 }
 
 func attemptObfuscation(tokenizer *SQLTokenizer, filters []tokenFilter) (string, error) {
@@ -190,7 +178,6 @@ func attemptObfuscation(tokenizer *SQLTokenizer, filters []tokenFilter) (string,
 		err       error
 		lastToken TokenKind
 	)
-
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded
 	// or replaced.
@@ -199,7 +186,6 @@ func attemptObfuscation(tokenizer *SQLTokenizer, filters []tokenFilter) (string,
 		if token == EOFChar {
 			break
 		}
-
 		if token == LexError {
 			return "", tokenizer.Err()
 		}
@@ -226,7 +212,9 @@ func attemptObfuscation(tokenizer *SQLTokenizer, filters []tokenFilter) (string,
 		}
 		lastToken = token
 	}
-
+	if out.Len() == 0 {
+		return "", errors.New("result is empty")
+	}
 	return out.String(), nil
 }
 

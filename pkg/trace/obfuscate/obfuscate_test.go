@@ -222,6 +222,24 @@ func TestObfuscateConfig(t *testing.T) {
 	))
 }
 
+func TestLiteralEscapes(t *testing.T) {
+	o := NewObfuscator(nil)
+
+	t.Run("default", func(t *testing.T) {
+		assert.False(t, o.LiteralEscapes())
+	})
+
+	t.Run("setter true", func(t *testing.T) {
+		o.SetLiteralEscapes(true)
+		assert.True(t, o.LiteralEscapes())
+	})
+
+	t.Run("setter false", func(t *testing.T) {
+		o.SetLiteralEscapes(false)
+		assert.False(t, o.LiteralEscapes())
+	})
+}
+
 func BenchmarkCompactWhitespaces(b *testing.B) {
 	str := "a b       cde     fg       hi                     j  jk   lk lkjfdsalfd     afsd sfdafsd f"
 	for i := 0; i < b.N; i++ {

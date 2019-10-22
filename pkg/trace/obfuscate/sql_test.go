@@ -698,7 +698,7 @@ in the middle'`,
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("tokenize_%s", c.str), func(t *testing.T) {
 			tokenizer := NewSQLTokenizer(c.str, true)
-			tokenizer.ignoreEscape = true
+			tokenizer.literalEscapes = true
 			kind, buffer := tokenizer.Scan()
 			assert.Equal(t, c.expectedKind, kind)
 			assert.Equal(t, c.expected, string(buffer))
@@ -838,6 +838,72 @@ func TestSQLErrors(t *testing.T) {
 			_, err := NewObfuscator(nil).obfuscateSQLString(tc.query)
 			assert.Error(t, err)
 			assert.Equal(t, tc.expected, err.Error())
+		})
+	}
+}
+
+func TestLiteralEscapesUpdates(t *testing.T) {
+	cases := []struct {
+		name     string
+		initial  bool
+		query    string
+		success  bool
+		expected bool
+	}{
+		{
+			"Basic string. Initially false, is unchanged.",
+			false,
+			`SELECT * FROM foo WHERE field1 = 'value1' AND field2 = 'value2'`,
+			true,
+			false,
+		},
+		{
+			"Basic string. Initially true, is unchanged.",
+			true,
+			`SELECT * FROM foo WHERE field1 = 'value1' AND field2 = 'value2'`,
+			true,
+			true,
+		},
+		{
+			"String with literal backslash. Initially false, updates to true.",
+			false,
+			`SELECT * FROM foo WHERE name = 'backslash\' AND id ='1234'`,
+			true,
+			true,
+		},
+		{
+			"String with escaped quotes. Initially true, updates to false.",
+			true,
+			`SELECT * FROM foo WHERE name = 'embedded \'string\' in quotes' AND id ='1234'`,
+			true,
+			false,
+		},
+		{
+			"Mixed case. Initially false. Fails obfuscation and does not change behavior.",
+			false,
+			`SELECT age FROM profile WHERE name='John\' and place='John\'s House'`,
+			false,
+			false,
+		},
+		{
+			"Mixed case. Initially true. Fails obfuscation and does not change behavior.",
+			true,
+			`SELECT age FROM profile WHERE name='John\' and place='John\'s House'`,
+			false,
+			true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			o := NewObfuscator(nil)
+			o.SetLiteralEscapes(c.initial)
+			_, err := o.obfuscateSQLString(c.query)
+			if c.success {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+			assert.Equal(t, c.expected, o.LiteralEscapes(), "Unexpected final value of LiteralEscapes")
 		})
 	}
 }
