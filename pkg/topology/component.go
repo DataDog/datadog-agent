@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-
+// Data type is used as an alias for the golang map
 type Data = map[string]interface{}
 
 // Component is a representation of a topology component

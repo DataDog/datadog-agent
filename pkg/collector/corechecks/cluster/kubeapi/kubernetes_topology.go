@@ -33,27 +33,11 @@ type ClusterCollector struct {
 	Name string
 	CollectorFunction func()error
 }
+
 type ContainerCorrelation struct {
 	NodeName string
 	MappingFunction func (nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation)
 }
-
-type Relation struct {
-	SourceExternalId string
-	TargetExternalId string
-	RelationType string
-	Data topology.Data
-}
-
-type NodeClusterRelation = Relation
-type PodNodeRelation = Relation
-type ServicePodRelation = Relation
-type DaemonSetPodRelation = Relation
-type ReplicaSetPodRelation = Relation
-type StatefulSetPodRelation = Relation
-type CronJobPodRelation = Relation
-type PersistentVolumePodRelation = Relation
-type VolumePodRelation = Relation
 
 const (
 	Kubernetes ClusterType = "kubernetes"
