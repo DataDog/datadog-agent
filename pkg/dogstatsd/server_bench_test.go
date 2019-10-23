@@ -8,7 +8,6 @@ package dogstatsd
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -17,9 +16,9 @@ func BenchmarkParsePacket(b *testing.B) {
 	defer s.Stop()
 
 	for n := 0; n < b.N; n++ {
-		packet := listeners.Packet{
+		packet := Packet{
 			Contents: []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"),
-			Origin:   listeners.NoOrigin,
+			Origin:   NoOrigin,
 		}
 		s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
 	}

@@ -5,7 +5,7 @@
 
 // +build !linux
 
-package listeners
+package dogstatsd
 
 import (
 	"errors"

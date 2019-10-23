@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -50,11 +49,11 @@ func init() {
 
 // Server represent a Dogstatsd server
 type Server struct {
-	listeners             []listeners.StatsdListener
-	packetsIn             chan listeners.Packets
+	listeners             []StatsdListener
+	packetsIn             chan Packets
 	Statistics            *util.Stats
 	Started               bool
-	packetPool            *listeners.PacketPool
+	packetPool            *PacketPool
 	stopChan              chan bool
 	health                *health.Handle
 	metricPrefix          string
@@ -94,13 +93,13 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 		metricsStats = true
 	}
 
-	packetsChannel := make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
-	packetPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
-	tmpListeners := make([]listeners.StatsdListener, 0, 2)
+	packetsChannel := make(chan Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
+	packetPool := NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+	tmpListeners := make([]StatsdListener, 0, 2)
 
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSListener(packetsChannel, packetPool)
+		unixListener, err := NewUDSListener(packetsChannel, packetPool)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
@@ -108,7 +107,7 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 		}
 	}
 	if config.Datadog.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel, packetPool)
+		udpListener, err := NewUDPListener(packetsChannel, packetPool)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
@@ -167,7 +166,7 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 		if err != nil {
 			log.Warnf("Could not connect to statsd forward host : %s", err)
 		} else {
-			s.packetsIn = make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
+			s.packetsIn = make(chan Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
 			go s.forwarder(con, packetsChannel)
 		}
 	}
@@ -199,7 +198,7 @@ func (s *Server) handleMessages(metricOut chan<- []*metrics.MetricSample, eventO
 	}
 }
 
-func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets) {
+func (s *Server) forwarder(fcon net.Conn, packetsChannel chan Packets) {
 	for {
 		select {
 		case <-s.stopChan:
@@ -260,11 +259,11 @@ func nextMessage(packet *[]byte) (message []byte) {
 	return message
 }
 
-func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.MetricSample, events []*metrics.Event, serviceChecks []*metrics.ServiceCheck) ([]*metrics.MetricSample, []*metrics.Event, []*metrics.ServiceCheck) {
+func (s *Server) parsePacket(packet *Packet, metricSamples []*metrics.MetricSample, events []*metrics.Event, serviceChecks []*metrics.ServiceCheck) ([]*metrics.MetricSample, []*metrics.Event, []*metrics.ServiceCheck) {
 	extraTags := s.extraTags
 
 	log.Tracef("Dogstatsd receive: %s", packet.Contents)
-	if packet.Origin != listeners.NoOrigin {
+	if packet.Origin != NoOrigin {
 		originTags, err := tagger.Tag(packet.Origin, tagger.DogstatsdCardinality)
 		if err != nil {
 			log.Errorf(err.Error())

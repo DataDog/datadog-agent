@@ -6,7 +6,7 @@
 // +build !windows
 // UDS won't work in windows
 
-package listeners
+package dogstatsd
 
 import (
 	"io/ioutil"

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-package listeners
+package dogstatsd
 
 // Packet represents a statsd packet ready to process,
 // with its origin metadata if applicable.

@@ -4,7 +4,7 @@
 // Copyright 2016-2019 Datadog, Inc.
 // +build !windows
 
-package listeners
+package dogstatsd
 
 import (
 	"fmt"

@@ -9,7 +9,7 @@
 // Most of it is tested by test/integration/dogstatsd/origin_detection_test.go
 // that requires a docker environment to run
 
-package listeners
+package dogstatsd
 
 import (
 	"io/ioutil"

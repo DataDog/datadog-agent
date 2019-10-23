@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"strconv"
 	"testing"
 	"time"
 
@@ -19,26 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
-
-// getAvailableUDPPort requests a random port number and makes sure it is available
-func getAvailableUDPPort() (int, error) {
-	conn, err := net.ListenPacket("udp", ":0")
-	if err != nil {
-		return -1, fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	defer conn.Close()
-
-	_, portString, err := net.SplitHostPort(conn.LocalAddr().String())
-	if err != nil {
-		return -1, fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	portInt, err := strconv.Atoi(portString)
-	if err != nil {
-		return -1, fmt.Errorf("can't convert udp port: %s", err)
-	}
-
-	return portInt, nil
-}
 
 func TestNewServer(t *testing.T) {
 	port, err := getAvailableUDPPort()
