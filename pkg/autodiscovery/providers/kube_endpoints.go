@@ -59,7 +59,8 @@ func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (Confi
 	}
 
 	p := &KubeEndpointsConfigProvider{
-		serviceLister: servicesInformer.Lister(),
+		serviceLister:      servicesInformer.Lister(),
+		monitoredEndpoints: make(map[string]bool),
 	}
 
 	servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -77,8 +78,6 @@ func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (Confi
 	endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: p.invalidateIfChangedEndpoints,
 	})
-
-	p.monitoredEndpoints = make(map[string]bool)
 
 	return p, nil
 }
@@ -123,12 +122,13 @@ func (k *KubeEndpointsConfigProvider) IsUpToDate() (bool, error) {
 func (k *KubeEndpointsConfigProvider) invalidate(obj interface{}) {
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %v", obj)
+		log.Errorf("Expected a Service type, got: %T", obj)
 		return
 	}
-	log.Trace("Invalidating configs on new/deleted service")
+	endpointsID := apiserver.EntityForEndpoints(castedObj.Namespace, castedObj.Name, "")
+	log.Tracef("Invalidating configs on new/deleted service, endpoints entity: %s", endpointsID)
 	k.m.Lock()
-	delete(k.monitoredEndpoints, apiserver.EntityForEndpoints(castedObj.Namespace, castedObj.Name, ""))
+	delete(k.monitoredEndpoints, endpointsID)
 	k.upToDate = false
 	k.m.Unlock()
 }
@@ -138,13 +138,13 @@ func (k *KubeEndpointsConfigProvider) invalidateIfChangedService(old, obj interf
 	// nil pointers are safely handled by the casting logic.
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %v", obj)
+		log.Errorf("Expected a Service type, got: %T", obj)
 		return
 	}
 	// Cast the old object, invalidate on casting error
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %v", old)
+		log.Errorf("Expected a Service type, got: %T", old)
 		k.m.Lock()
 		k.upToDate = false
 		k.m.Unlock()
@@ -168,13 +168,13 @@ func (k *KubeEndpointsConfigProvider) invalidateIfChangedEndpoints(old, obj inte
 	// nil pointers are safely handled by the casting logic.
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected an Endpoints type, got: %v", obj)
+		log.Errorf("Expected an Endpoints type, got: %T", obj)
 		return
 	}
 	// Cast the old object, invalidate on casting error
 	castedOld, ok := old.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected a Endpoints type, got: %v", old)
+		log.Errorf("Expected a Endpoints type, got: %T", old)
 		k.m.Lock()
 		k.upToDate = false
 		k.m.Unlock()
