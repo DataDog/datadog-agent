@@ -32,11 +32,11 @@ const (
 
 // kubeEndpointsConfigProvider implements the ConfigProvider interface for the apiserver.
 type kubeEndpointsConfigProvider struct {
+	sync.RWMutex
 	serviceLister      listersv1.ServiceLister
 	endpointsLister    listersv1.EndpointsLister
 	upToDate           bool
 	monitoredEndpoints map[string]bool
-	sync.RWMutex
 }
 
 // configInfo contains an endpoint check config template with its name and namespace
