@@ -63,7 +63,9 @@ func StartControllers(ctx ControllerContext) error {
 	// factory uses lazy initialization (delays the creation of an informer until the first
 	// time it's needed).
 	ctx.InformerFactory.Start(ctx.StopCh)
-	ctx.WPAInformerFactory.Start(ctx.StopCh)
+	if ctx.WPAInformerFactory != nil {
+		ctx.WPAInformerFactory.Start(ctx.StopCh)
+	}
 
 	return nil
 }
@@ -91,12 +93,7 @@ func startAutoscalersController(ctx ControllerContext) error {
 	if err != nil {
 		return err
 	}
-	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
-		ctx.WPAInformerFactory, err = getWPAInformerFactory()
-		if err != nil {
-			log.Errorf("Error getting WPA Informer Factory: %s", err.Error())
-			return err
-		}
+	if ctx.WPAInformerFactory != nil {
 		autoscalersController.wpaEnabled = true
 		// mutate the Autoscaler controller to embed an informer against the WPAs
 		ExtendToWPAController(autoscalersController, ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers())

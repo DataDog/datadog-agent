@@ -31,6 +31,7 @@ func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}) {
 	if !cache.WaitForCacheSync(stopCh, h.wpaListerSynced) {
 		return
 	}
+	// TODO remove go routine here ?
 	go wait.Until(h.workerWPA, time.Second, stopCh)
 	<-stopCh
 }
@@ -100,7 +101,6 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 		}
 		newMetrics := h.hpaProc.ProcessEMList(emList)
 		// The syncWPA can also interact with the overflowing store.
-		h.mu.Lock()
 		if len(newMetrics)+h.metricsProcessedCount > maxMetricsCount {
 			log.Warnf("Currently processing %d metrics, skipping %s/%s as we can't process more than %d metrics",
 				h.metricsProcessedCount, wpaCached.Namespace, wpaCached.Name, maxMetricsCount)
@@ -111,7 +111,7 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 			log.Debugf("Previously ignored HPA %s/%s will now be processed", wpaCached.Namespace, wpaCached.Name)
 			delete(h.overFlowingAutoscalers, wpaCached.UID)
 		}
-		h.mu.Unlock()
+
 		h.toStore.m.Lock()
 		for metric, value := range newMetrics {
 			// We should only insert placeholders in the local cache.
