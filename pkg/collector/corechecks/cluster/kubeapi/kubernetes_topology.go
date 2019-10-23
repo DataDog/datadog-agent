@@ -25,13 +25,37 @@ import (
 
 const (
 	kubernetesAPITopologyCheckName = "kubernetes_api_topology"
+	Deployment = "Deployment"
+	DaemonSet = "DaemonSet"
+	StatefulSet = "StatefulSet"
+	ReplicaSet = "ReplicaSet"
 )
 
 type ClusterType string
 
 type ClusterCollector struct {
-	Name string
-	CollectorFunction func()error
+	Name              string
+	CollectorFunction func() error
+}
+
+type DaemonSetPodCorrelation struct {
+	DaemonSetName string
+	PodComponent *topology.Component
+}
+
+type DeploymentPodCorrelation struct {
+	DeploymentName string
+	PodComponent *topology.Component
+}
+
+type ReplicaSetPodCorrelation struct {
+	ReplicaSetName string
+	PodComponent *topology.Component
+}
+
+type StatefulSetPodCorrelation struct {
+	StatefulSetName string
+	PodComponent *topology.Component
 }
 
 type ContainerCorrelation struct {
@@ -126,16 +150,15 @@ func (t *TopologyCheck) Run() error {
 
 	// Make a channel for each of the relations to avoid passing data down into all the functions
 	containerCorrelationChannel := make(chan *ContainerCorrelation)
-	defer close(containerCorrelationChannel)
+	daemonSetPodCorrelationChannel := make(chan *DaemonSetPodCorrelation)
+	deploymentPodCorrelationChannel := make(chan *DeploymentPodCorrelation)
+	replicaSetPodCorrelationChannel := make(chan *ReplicaSetPodCorrelation)
+	statefulSetPodCorrelationChannel := make(chan *StatefulSetPodCorrelation)
 
 	// make a channel that is responsible for publishing components and relations
 	componentChannel := make(chan *topology.Component)
 	relationChannel := make(chan *topology.Relation)
 	errChannel := make(chan error)
-
-	defer close(componentChannel)
-	defer close(relationChannel)
-	defer close(errChannel)
 
 	/*
 		cluster -> map cluster -> component
@@ -174,7 +197,9 @@ func (t *TopologyCheck) Run() error {
 		ClusterCollector{
 			Name: "GetClusterPods",
 			CollectorFunction: func() error {
-				return  t.getAllPods(componentChannel, relationChannel, containerCorrelationChannel)
+				return  t.getAllPods(componentChannel, relationChannel, containerCorrelationChannel,
+					daemonSetPodCorrelationChannel, deploymentPodCorrelationChannel, replicaSetPodCorrelationChannel,
+					statefulSetPodCorrelationChannel)
 			},
 		},
 		ClusterCollector{
@@ -183,70 +208,49 @@ func (t *TopologyCheck) Run() error {
 				return t.getAllServices(componentChannel, relationChannel)
 			},
 		},
+		ClusterCollector{
+			Name: "GetClusterDaemonSets",
+			CollectorFunction: func() error {
+				return t.getAllDaemonSets(componentChannel, relationChannel, daemonSetPodCorrelationChannel)
+			},
+		},
+		ClusterCollector{
+			Name: "GetClusterDeployments",
+			CollectorFunction: func() error {
+				return t.getAllDeployments(componentChannel, relationChannel, deploymentPodCorrelationChannel)
+			},
+		},
+		ClusterCollector{
+			Name: "GetClusterReplicaSets",
+			CollectorFunction: func() error {
+				return t.getAllReplicaSets(componentChannel, relationChannel, replicaSetPodCorrelationChannel)
+			},
+		},
+		ClusterCollector{
+			Name: "GetClusterStatefulSets",
+			CollectorFunction: func() error {
+				return t.getAllStatefulSets(componentChannel, relationChannel, statefulSetPodCorrelationChannel)
+			},
+		},
+		ClusterCollector{
+			Name: "GetClusterCronJobs",
+			CollectorFunction: func() error {
+				return t.getAllCronJobs(componentChannel, relationChannel)
+			},
+		},
+		ClusterCollector{
+			Name: "GetClusterPersistentVolumes",
+			CollectorFunction: func() error {
+				return t.getAllPersistentVolumes(componentChannel, relationChannel)
+			},
+		},
+		ClusterCollector{
+			Name: "GetClusterVolumes",
+			CollectorFunction: func() error {
+				return t.getAllVolumes(componentChannel, relationChannel)
+			},
+		},
 	)
-
-	//// get all the daemon sets
-	//go func() {
-	//	err = t.getAllDaemonSets()
-	//	if err != nil {
-	//		errChannel <- err
-	//	}
-	//
-	//}()
-	//
-	//// get all the deployments
-	//go func() {
-	//	err = t.getAllDeployments()
-	//	if err != nil {
-	//		errChannel <- err
-	//	}
-	//
-	//}()
-	//
-	//// get all the replica sets
-	//go func() {
-	//	err = t.getAllReplicaSets()
-	//	if err != nil {
-	//		errChannel <- err
-	//	}
-	//
-	//}()
-	//
-	//// get all the stateful sets
-	//go func() {
-	//	err = t.getAllStatefulSets()
-	//	if err != nil {
-	//		errChannel <- err
-	//	}
-	//
-	//}()
-	//
-	//// get all the cron jobs
-	//go func() {
-	//	err = t.getAllCronJobs()
-	//	if err != nil {
-	//		errChannel <- err
-	//	}
-	//
-	//}()
-	//
-	//// get all the persistent volumes
-	//go func() {
-	//	err = t.getAllPersistentVolumes()
-	//	if err != nil {
-	//		errChannel <- err
-	//	}
-	//
-	//}()
-	//
-	//// get all the volumes
-	//go func() {
-	//	err = t.getAllVolumes()
-	//	if err != nil {
-	//		errChannel <- err
-	//	}
-	//
-	//}()
 
 	for _, collector := range clusterCollectors {
 		go func(col ClusterCollector) {
@@ -281,6 +285,15 @@ func (t *TopologyCheck) Run() error {
 	wg.Add(len(clusterCollectors))
 
 	wg.Wait()
+
+	defer close(containerCorrelationChannel)
+	defer close(daemonSetPodCorrelationChannel)
+	defer close(deploymentPodCorrelationChannel)
+	defer close(replicaSetPodCorrelationChannel)
+	defer close(statefulSetPodCorrelationChannel)
+	defer close(componentChannel)
+	defer close(relationChannel)
+	defer close(errChannel)
 
 	// get all the containers
 	batcher.GetBatcher().SubmitStopSnapshot(t.instance.CheckID, t.instance.Instance)
@@ -339,8 +352,12 @@ func (t *TopologyCheck) getAllNodes(componentChan chan<- *topology.Component, re
 	return nil
 }
 
-// get all the pods in the k8s cluster
-func (t *TopologyCheck) getAllPods(componentChan chan<- *topology.Component, relationChan chan<- *topology.Relation, containerCorrChan chan<- *ContainerCorrelation) error {
+// get all the pods in the cluster
+func (t *TopologyCheck) getAllPods(componentChan chan<- *topology.Component, relationChan chan<- *topology.Relation,
+	containerCorrChan chan<- *ContainerCorrelation, dsPodCorrChan chan<- *DaemonSetPodCorrelation,
+	depPodCorrChan chan<- *DeploymentPodCorrelation, rsPodCorrChan chan<- *ReplicaSetPodCorrelation,
+	ssPodCorrChan chan<- *StatefulSetPodCorrelation) error {
+
 	pods, err := t.ac.GetPods()
 	if err != nil {
 		return err
@@ -353,6 +370,21 @@ func (t *TopologyCheck) getAllPods(componentChan chan<- *topology.Component, rel
 
 		// creates and publishes StackState pod component with relations
 		component := t.podToStackStateComponent(pod)
+
+		// check to see if this pod is "managed" by a kubernetes controller
+		for _, ref := range pod.OwnerReferences {
+			switch kind := ref.Kind; kind {
+				case DaemonSet:
+					dsPodCorrChan <- &DaemonSetPodCorrelation{DaemonSetName: ref.Name, PodComponent: component}
+				case Deployment:
+					depPodCorrChan <- &DeploymentPodCorrelation{DeploymentName: ref.Name, PodComponent: component}
+				case ReplicaSet:
+					rsPodCorrChan <- &ReplicaSetPodCorrelation{ReplicaSetName: ref.Name, PodComponent: component}
+				case StatefulSet:
+					ssPodCorrChan <- &StatefulSetPodCorrelation{StatefulSetName: ref.Name, PodComponent: component}
+			}
+		}
+
 		componentChan <- component
 		relationChan <- t.podToNodeStackStateRelation(pod)
 		containerCorrChan <- &ContainerCorrelation{pod.Spec.NodeName, t.buildContainerMappingFunction(pod, component.ExternalID)}
@@ -361,6 +393,7 @@ func (t *TopologyCheck) getAllPods(componentChan chan<- *topology.Component, rel
 	return nil
 }
 
+// build the function that is used to correlate container to nodes
 func (t *TopologyCheck)  buildContainerMappingFunction(pod v1.Pod, podExternalID string) func (nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation) {
 	return func (nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation) {
 		// creates a StackState component for the kubernetes pod containers + relation to pod
@@ -379,7 +412,7 @@ func (t *TopologyCheck)  buildContainerMappingFunction(pod v1.Pod, podExternalID
 	}
 }
 
-// get all the services in the k8s cluster
+// get all the services in the cluster
 func (t *TopologyCheck) getAllServices(componentChan chan<- *topology.Component, relationChan chan<- *topology.Relation) error {
 	services, err := t.ac.GetServices()
 	if err != nil {
@@ -437,6 +470,96 @@ func (t *TopologyCheck) getAllServices(componentChan chan<- *topology.Component,
 			}
 		}
 
+	}
+
+	return nil
+}
+
+// get all the daemon sets in the cluster
+func (t *TopologyCheck) getAllDaemonSets(componentChan chan<- *topology.Component, relationChan chan<- *topology.Relation,
+	dsPodCorrChan chan<- *DaemonSetPodCorrelation) error {
+	ds, err := t.ac.GetDaemonSets()
+	if err != nil {
+		return err
+	}
+
+	for _, daemonset := range ds {
+		log.Tracef("Found DaemonSet: %v", daemonset)
+	}
+
+	return nil
+}
+
+// get all the replica sets in the cluster
+func (t *TopologyCheck) getAllReplicaSets(componentChan chan<- *topology.Component, relationChan chan<- *topology.Relation,
+	rsPodCorrChan chan<- *ReplicaSetPodCorrelation) error {
+	rs, err := t.ac.GetReplicaSets()
+	if err != nil {
+		return err
+	}
+
+	for _, replicaset := range rs {
+		log.Tracef("Found ReplicaSet: %v", replicaset)
+	}
+
+	return nil
+}
+
+// get all the deployments in the cluster
+func (t *TopologyCheck) getAllDeployments(componentChan chan<- *topology.Component, relationChan chan<- *topology.Relation,
+	depPodCorrChan chan<- *DeploymentPodCorrelation) error {
+	deps, err := t.ac.GetDeployments()
+	if err != nil {
+		return err
+	}
+
+	for _, deployment := range deps {
+		log.Tracef("Found Depyloment: %v", deployment)
+	}
+
+	return nil
+}
+
+// get all the stateful sets in the cluster
+func (t *TopologyCheck) getAllStatefulSets(componentChan chan<- *topology.Component, relationChan chan<- *topology.Relation,
+	ssPodCorrChan chan<- *StatefulSetPodCorrelation) error {
+	ss, err := t.ac.GetStatefulSets()
+	if err != nil {
+		return err
+	}
+
+	for _, statefulset := range ss {
+		log.Tracef("Found StatefulSet: %v", statefulset)
+	}
+
+	return nil
+}
+
+// get all the cron jobs in the cluster
+func (t *TopologyCheck) getAllCronJobs(componentChan chan<- *topology.Component, relationChan chan<- *topology.Relation) error {
+	_, err := t.ac.GetCronJobs()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// get all the persistent volumes in the cluster
+func (t *TopologyCheck) getAllPersistentVolumes(componentChan chan<- *topology.Component, relationChan chan<- *topology.Relation) error {
+	_, err := t.ac.GetPersistentVolumeClaims()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// get all the volumes in the cluster
+func (t *TopologyCheck) getAllVolumes(componentChan chan<- *topology.Component, relationChan chan<- *topology.Relation) error {
+	_, err := t.ac.GetVolumeAttachments()
+	if err != nil {
+		return err
 	}
 
 	return nil
