@@ -15,8 +15,8 @@ type Endpoint struct {
 	Host             string
 	Port             int
 	UseSSL           bool
-	UseCompression   bool
-	CompressionLevel int
+	UseCompression   bool `mapstructure:"use_compression"`
+	CompressionLevel int  `mapstructure:"compression_level"`
 	ProxyAddress     string
 }
 

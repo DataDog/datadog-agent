@@ -280,8 +280,10 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpoints() {
 
 	suite.config.Set("logs_config.additional_endpoints", []map[string]interface{}{
 		{
-			"host":    "foo",
-			"api_key": "1234",
+			"host":              "foo",
+			"api_key":           "1234",
+			"use_compression":   true,
+			"compression_level": 1,
 		},
 	})
 
@@ -302,6 +304,8 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpoints() {
 	endpoint = endpoints.Additionals[0]
 	suite.Equal("foo", endpoint.Host)
 	suite.Equal("1234", endpoint.APIKey)
+	suite.True(endpoint.UseCompression)
+	suite.Equal(1, endpoint.CompressionLevel)
 	suite.True(endpoint.UseSSL)
 }
 
