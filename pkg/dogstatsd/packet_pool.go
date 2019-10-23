@@ -23,18 +23,17 @@ type PacketPool struct {
 
 // NewPacketPool creates a new pool with a specified buffer size
 func NewPacketPool(bufferSize int) *PacketPool {
-	return &PacketPool{
-		pool: sync.Pool{
-			New: func() interface{} {
-				packet := &Packet{
-					buffer: make([]byte, bufferSize),
-					Origin: NoOrigin,
-				}
-				packet.Contents = packet.buffer[0:0]
-				return packet
-			},
-		},
+	pool := &PacketPool{pool: sync.Pool{}}
+	pool.pool.New = func() interface{} {
+		packet := &Packet{
+			buffer: make([]byte, bufferSize),
+			Origin: NoOrigin,
+		}
+		packet.Contents = packet.buffer[0:0]
+		packet.pool = pool
+		return packet
 	}
+	return pool
 }
 
 // Get gets a Packet object read for use.
