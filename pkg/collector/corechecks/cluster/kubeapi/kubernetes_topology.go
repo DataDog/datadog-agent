@@ -17,11 +17,10 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"github.com/docker/docker/cli/command/service"
 	"gopkg.in/yaml.v2"
 	"k8s.io/api/core/v1"
-	"k8s.io/kubernetes/plugin/pkg/auth/authorizer/node"
 	"strings"
+	"sync"
 )
 
 const (
@@ -29,6 +28,15 @@ const (
 )
 
 type ClusterType string
+
+type ClusterCollector struct {
+	Name string
+	CollectorFunction func()error
+}
+type ContainerCorrelation struct {
+	NodeName string
+	MappingFunction func (nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation)
+}
 
 type Relation struct {
 	SourceExternalId string
@@ -127,125 +135,168 @@ func (t *TopologyCheck) Run() error {
 	// start the topology snapshot with the batch-er
 	batcher.GetBatcher().SubmitStartSnapshot(t.instance.CheckID, t.instance.Instance)
 
+	// set up a WaitGroup to wait for the concurrent topology gathering of the functions below
+	var wg sync.WaitGroup
+
+	var clusterCollectors []ClusterCollector
+
 	// Make a channel for each of the relations to avoid passing data down into all the functions
-	nodeChannel := make(chan NodeClusterRelation)
-	podChannel := make(chan PodNodeRelation)
-	serviceChannel := make(chan ServicePodRelation)
-	daemonsetChannel := make(chan DaemonSetPodRelation)
-	replicasetChannel := make(chan ReplicaSetPodRelation)
-	statefulsetChannel := make(chan StatefulSetPodRelation)
-	cronjobChannel := make(chan CronJobPodRelation)
-	persistentvolumeChannel := make(chan PersistentVolumePodRelation)
-	volumeChannel := make(chan VolumePodRelation)
+	containerCorrelationChannel := make(chan *ContainerCorrelation)
+	defer close(containerCorrelationChannel)
 
 	// make a channel that is responsible for publishing components and relations
-	componentChannel := make(chan topology.Component)
-	relationChannel := make(chan topology.Relation)
+	componentChannel := make(chan *topology.Component)
+	relationChannel := make(chan *topology.Relation)
+	errChannel := make(chan error)
 
-	componentsDone := make(chan struct{})
+	defer close(componentChannel)
+	defer close(relationChannel)
+	defer close(errChannel)
 
 	/*
 		cluster -> map cluster -> component
-					  relation <- node
 
 		node -> map node -> component
-					     -> cluster
-				relation <- pod
+					     -> cluster relation
+			   component <- container correlator
+				relation <-
 
-		pod -> map pod -> component
-					   -> map container -> component
-										-> relation
-					   -> node
-					   <- service
+		pod -> map pod 	  		 -> component
+								 -> node relation
+			container correlator <- map func container -> component
+													   -> relation
 
 		service -> map service -> component
-							   -> pod
+							   -> endpoints as identifiers
+							   -> pod relation
 
 		component -> publish component
-		complete -> relation -> publish relation
+		relation -> publish relation
 	*/
 
+	clusterCollectors = append(clusterCollectors,
+		ClusterCollector {
+			Name: "GetClusterComponent",
+			CollectorFunction: func() error {
+				return t.getClusterComponent(componentChannel)
+			},
+		},
+		ClusterCollector{
+			Name: "GetClusterNodes",
+			CollectorFunction: func() error {
+				return t.getAllNodes(componentChannel, relationChannel, containerCorrelationChannel)
+			},
+		},
+		ClusterCollector{
+			Name: "GetClusterPods",
+			CollectorFunction: func() error {
+				return  t.getAllPods(componentChannel, relationChannel, containerCorrelationChannel)
+			},
+		},
+		ClusterCollector{
+			Name: "GetClusterServices",
+			CollectorFunction: func() error {
+				return t.getAllServices(componentChannel, relationChannel)
+			},
+		},
+	)
 
+	//// get all the daemon sets
+	//go func() {
+	//	err = t.getAllDaemonSets()
+	//	if err != nil {
+	//		errChannel <- err
+	//	}
+	//
+	//}()
+	//
+	//// get all the deployments
+	//go func() {
+	//	err = t.getAllDeployments()
+	//	if err != nil {
+	//		errChannel <- err
+	//	}
+	//
+	//}()
+	//
+	//// get all the replica sets
+	//go func() {
+	//	err = t.getAllReplicaSets()
+	//	if err != nil {
+	//		errChannel <- err
+	//	}
+	//
+	//}()
+	//
+	//// get all the stateful sets
+	//go func() {
+	//	err = t.getAllStatefulSets()
+	//	if err != nil {
+	//		errChannel <- err
+	//	}
+	//
+	//}()
+	//
+	//// get all the cron jobs
+	//go func() {
+	//	err = t.getAllCronJobs()
+	//	if err != nil {
+	//		errChannel <- err
+	//	}
+	//
+	//}()
+	//
+	//// get all the persistent volumes
+	//go func() {
+	//	err = t.getAllPersistentVolumes()
+	//	if err != nil {
+	//		errChannel <- err
+	//	}
+	//
+	//}()
+	//
+	//// get all the volumes
+	//go func() {
+	//	err = t.getAllVolumes()
+	//	if err != nil {
+	//		errChannel <- err
+	//	}
+	//
+	//}()
 
-	// create a cluster component
-	clusterComponent, err := t.getClusterComponent()
-	if err != nil {
-		return err
-	}
-	// send the cluster component to be published
-	componentChannel <- clusterComponent
-
-	// get all the nodes
-	nodes, err := t.getAllNodes(clusterComponent)
-	if err != nil {
-		return err
-	}
-
-	// get all the pods
-	err = t.getAllPods(nodes)
-	if err != nil {
-		return err
-	}
-
-	// get all the services
-	err = t.getAllServices()
-	if err != nil {
-		return err
+	for _, collector := range clusterCollectors {
+		go func() {
+			defer wg.Done()
+			log.Tracef("Starting cluster collection: %s", collector.Name)
+			err := collector.CollectorFunction()
+			if err != nil {
+				errChannel <- err
+			}
+		}()
 	}
 
 	go func() {
+		// publish all incoming components
+		for component := range componentChannel {
+			log.Tracef("Publishing StackState cluster component for %s: %v", component.ExternalID, component.JSONString())
+			batcher.GetBatcher().SubmitComponent(t.instance.CheckID, t.instance.Instance, *component)
+		}
 
+		// publish all incoming relations
+		for relation := range relationChannel {
+			log.Tracef("Publishing StackState node -> cluster relation %s->%s", relation.SourceID, relation.TargetID)
+			batcher.GetBatcher().SubmitRelation(t.instance.CheckID, t.instance.Instance, *relation)
+		}
+
+		// publish all incoming errors
+		for err := range errChannel {
+			_ = log.Error(err)
+		}
 	}()
 
-	// get all the daemon sets
-	err = t.getAllDaemonSets()
-	if err != nil {
-		return err
-	}
+	wg.Add(len(clusterCollectors))
 
-	// get all the deployments
-	err = t.getAllDeployments()
-	if err != nil {
-		return err
-	}
-
-	// get all the replica sets
-	err = t.getAllReplicaSets()
-	if err != nil {
-		return err
-	}
-
-	// get all the stateful sets
-	err = t.getAllStatefulSets()
-	if err != nil {
-		return err
-	}
-
-	// get all the cron jobs
-	err = t.getAllCronJobs()
-	if err != nil {
-		return err
-	}
-
-	// get all the persistent volumes
-	err = t.getAllPersistentVolumes()
-	if err != nil {
-		return err
-	}
-
-	// get all the volumes
-	err = t.getAllVolumes()
-	if err != nil {
-		return err
-	}
-
-	// once components are done send in the relations, and complete the topology snapshot
-	select {
-	case component := <-componentChannel:
-		t.publishComponent(component)
-	case relation := <-relationChannel:
-		t.publishRelation(relation)
-	}
+	wg.Wait()
 
 	// get all the containers
 	batcher.GetBatcher().SubmitStopSnapshot(t.instance.CheckID, t.instance.Instance)
@@ -254,77 +305,98 @@ func (t *TopologyCheck) Run() error {
 	return nil
 }
 
-func (t *TopologyCheck) publishComponent(component topology.Component) {
-	log.Tracef("Publishing StackState cluster component for %s: %v", component.ExternalID, component.JSONString())
-	batcher.GetBatcher().SubmitComponent(t.instance.CheckID, t.instance.Instance, component)
-}
-
-func (t *TopologyCheck) publishRelation(relation topology.Relation) {
-	log.Tracef("Publishing StackState node -> cluster relation %s->%s", relation.SourceID, relation.TargetID)
-	batcher.GetBatcher().SubmitRelation(t.instance.CheckID, t.instance.Instance, relation)
-}
-
 // create a cluster component for the cluster
-func (t *TopologyCheck) getClusterComponent() (topology.Component, error) {
+func (t *TopologyCheck) getClusterComponent(componentChan chan<- *topology.Component) error {
 	if t.instance.Instance.Type == "" || t.instance.ClusterName == "" {
-		return topology.Component{}, errors.New("cluster name or cluster instance type could not be detected, " +
+		return errors.New("cluster name or cluster instance type could not be detected, " +
 			"therefore we are unable to create the cluster component")
 	}
 
-
+	componentChan <- t.clusterToStackStateComponent()
+	return nil
 }
-
-// get all the nodes in the k8s cluster
-func (t *TopologyCheck) getAllNodes() (components []*topology.Component, relations []*topology.Relation, error) {
+// get all the nodes in the cluster
+func (t *TopologyCheck) getAllNodes(componentChan chan<- *topology.Component, relationChan chan<- *topology.Relation, containerCorrChan <-chan *ContainerCorrelation) error {
 	nodes, err := t.ac.GetNodes()
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	for _, node := range nodes {
 		// creates and publishes StackState node component
 		component := t.nodeToStackStateComponent(node)
-		// creates a StackState relation for the kubernetes node -> cluster
+		// creates a StackState relation for the cluster node -> cluster
 		relation := t.nodeToClusterStackStateRelation(node)
 
-		components = append(components, component)
-		relations = append(relations, relation)
+		componentChan <- component
+		relationChan <- relation
 	}
 
-	return components, relations, nil
-}
-
-// get all the pods in the k8s cluster
-func (t *TopologyCheck) getAllPods(nodes []v1.Node) error {
-	pods, err := t.ac.GetPods()
-	if err != nil {
-		return err
-	}
-
-	components := make([]*topology.Component, 0)
-
-	for _, pod := range pods {
-		var node *v1.Node
-		for _, n := range nodes {
-			if n.Name == pod.Spec.NodeName {
-				node = &n
-				break
+	// map containers that require the Node instanceId
+	for containerCorrelation := range containerCorrChan {
+		log.Tracef("Creating correlation for containers running on node %s", containerCorrelation.NodeName)
+		for _, node := range nodes {
+			nodeIdentifier := extractInstanceIdFromProviderId(node.Spec)
+			if nodeIdentifier != "" {
+				containerComponents, containerRelations := containerCorrelation.MappingFunction(nodeIdentifier)
+				// publish the node components
+				for _, component := range containerComponents {
+					componentChan <- component
+				}
+				// publish the node relations
+				for _, relation := range containerRelations {
+					relationChan <- relation
+				}
 			}
+			break
 		}
-		if node == nil {
-			return fmt.Errorf("could not find node for pod %s", pod.Name)
-		}
-
-		// creates and publishes StackState pod component with relations
-		component := t.mapAndSubmitPodWithRelations(*node, pod)
-		components = append(components, &component)
 	}
 
 	return nil
 }
 
+// get all the pods in the k8s cluster
+func (t *TopologyCheck) getAllPods(componentChan chan<- *topology.Component, relationChan chan<- *topology.Relation, containerCorrChan chan<- *ContainerCorrelation) error {
+	pods, err := t.ac.GetPods()
+	if err != nil {
+		return err
+	}
+
+	for _, pod := range pods {
+		if pod.Spec.NodeName == "" {
+			return fmt.Errorf("could not find node for pod %s", pod.Name)
+		}
+
+		// creates and publishes StackState pod component with relations
+		component := t.podToStackStateComponent(pod)
+		componentChan <- component
+		relationChan <- t.podToNodeStackStateRelation(pod)
+		containerCorrChan <- &ContainerCorrelation{pod.Spec.NodeName, t.buildContainerMappingFunction(pod, component.ExternalID)}
+	}
+
+	return nil
+}
+
+func (t *TopologyCheck)  buildContainerMappingFunction(pod v1.Pod, podExternalID string) func (nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation) {
+	return func (nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation) {
+		// creates a StackState component for the kubernetes pod containers + relation to pod
+		for _, container := range pod.Status.ContainerStatuses {
+
+			// submit the StackState component for publishing to StackState
+			containerComponent := t.containerToStackStateComponent(nodeIdentifier, pod, container)
+			// create the relation between the container and pod
+			containerRelation := t.containerToPodStackStateRelation(containerComponent.ExternalID, podExternalID)
+
+			components = append(components, &containerComponent)
+			relations = append(relations, &containerRelation)
+		}
+
+		return components, relations
+	}
+}
+
 // get all the services in the k8s cluster
-func (t *TopologyCheck) getAllServices() error {
+func (t *TopologyCheck) getAllServices(componentChan chan<- *topology.Component, relationChan chan<- *topology.Relation) error {
 	services, err := t.ac.GetServices()
 	if err != nil {
 		return err
@@ -335,7 +407,6 @@ func (t *TopologyCheck) getAllServices() error {
 		return err
 	}
 
-	components := make([]*topology.Component, 0)
 	serviceEndpointIdentifiers := make(map[string][]EndpointID, 0)
 
 	// Get all the endpoints for the Service
@@ -368,67 +439,31 @@ func (t *TopologyCheck) getAllServices() error {
 	for _, service := range services {
 		// creates and publishes StackState service component with relations
 		serviceID := buildServiceID(service.Namespace, service.Name)
-		component := t.mapAndSubmitService(service, serviceEndpointIdentifiers[serviceID])
-		components = append(components, &component)
+		serviceEndpoints := serviceEndpointIdentifiers[serviceID]
+		component := t.serviceToStackStateComponent(service, serviceEndpoints)
+
+		componentChan <- component
+
+		for _, endpoint := range serviceEndpoints {
+			// create the relation between the service and pod on the endpoint
+			if endpoint.RefExternalID != "" {
+				relation := podToServiceStackStateRelation(component.ExternalID, endpoint.RefExternalID)
+
+				relationChan <- relation
+			}
+		}
+
 	}
 
 	return nil
 }
 
-// Map and Submit the Kubernetes Pod into a StackState component
-func (t *TopologyCheck) mapAndSubmitPodWithRelations(node v1.Node, pod v1.Pod) topology.Component {
-	// submit the StackState component for publishing to StackState
-	podComponent := t.podToStackStateComponent(pod)
-	log.Tracef("Publishing StackState pod component for %s: %v", podComponent.ExternalID, podComponent.JSONString())
-	batcher.GetBatcher().SubmitComponent(t.instance.CheckID, t.instance.Instance, podComponent)
-
-	// creates a StackState relation for the kubernetes node -> pod
-	relation := t.podToNodeStackStateRelation(pod)
-	log.Tracef("Publishing StackState pod -> node relation %s->%s", relation.SourceID, relation.TargetID)
-	batcher.GetBatcher().SubmitRelation(t.instance.CheckID, t.instance.Instance, relation)
-
-	// creates a StackState component for the kubernetes pod containers + relation to pod
-	for _, container := range pod.Status.ContainerStatuses {
-
-		// submit the StackState component for publishing to StackState
-		containerComponent := t.containerToStackStateComponent(node, pod, container)
-		log.Tracef("Publishing StackState container component for %s: %v", containerComponent.ExternalID, containerComponent.JSONString())
-		batcher.GetBatcher().SubmitComponent(t.instance.CheckID, t.instance.Instance, containerComponent)
-
-		// create the relation between the container and pod
-		relation := containerToPodStackStateRelation(containerComponent.ExternalID, podComponent.ExternalID)
-		log.Tracef("Publishing StackState container -> pod relation %s->%s", relation.SourceID, relation.TargetID)
-		batcher.GetBatcher().SubmitRelation(t.instance.CheckID, t.instance.Instance, relation)
-	}
-
-	return podComponent
-}
-
-// Map and Submit the Kubernetes Service into a StackState component with endpoints as identifiers
-func (t *TopologyCheck) mapAndSubmitService(service v1.Service, endpoints []EndpointID) topology.Component {
-
-	// submit the StackState component for publishing to StackState
-	serviceComponent := t.serviceToStackStateComponent(service, endpoints)
-	log.Tracef("Publishing StackState service component for %s: %v", serviceComponent.ExternalID, serviceComponent.JSONString())
-	batcher.GetBatcher().SubmitComponent(t.instance.CheckID, t.instance.Instance, serviceComponent)
-
-	for _, endpoint := range endpoints {
-		// create the relation between the service and pod on the endpoint
-		if endpoint.RefExternalID != "" {
-			relation := podToServiceStackStateRelation(serviceComponent.ExternalID, endpoint.RefExternalID)
-			log.Tracef("Publishing StackState service -> pod relation %s->%s", relation.SourceID, relation.TargetID)
-			batcher.GetBatcher().SubmitRelation(t.instance.CheckID, t.instance.Instance, relation)
-		}
-	}
-
-	return serviceComponent
-}
-
-func (t *TopologyCheck) clusterToStackStateComponent(node v1.Node) *topology.Component {
+// Creates a StackState component from a Kubernetes Cluster
+func (t *TopologyCheck) clusterToStackStateComponent() *topology.Component {
 	clusterExternalID := t.buildClusterExternalID()
 	component := &topology.Component{
 		ExternalID: clusterExternalID,
-		Type:       topology.Type{Name: fmt.Sprintf("")},
+		Type:       topology.Type{Name: "cluster"},
 		Data: map[string]interface{}{
 			"name":              t.instance.ClusterName,
 		},
@@ -500,13 +535,13 @@ func (t *TopologyCheck) nodeToStackStateComponent(node v1.Node) *topology.Compon
 }
 
 // Creates a StackState relation from a Kubernetes Pod to Node relation
-func (t *TopologyCheck) nodeToClusterStackStateRelation(node v1.Node) topology.Relation {
+func (t *TopologyCheck) nodeToClusterStackStateRelation(node v1.Node) *topology.Relation {
 	nodeExternalID := t.buildNodeExternalID(t.instance.ClusterName, node.Name)
 	clusterExternalID := t.buildClusterExternalID()
 
 	log.Tracef("Mapping kubernetes node to cluster relation: %s -> %s", nodeExternalID, clusterExternalID)
 
-	relation := topology.Relation{
+	relation := &topology.Relation{
 		ExternalID: fmt.Sprintf("%s->%s", nodeExternalID, clusterExternalID),
 		SourceID:   nodeExternalID,
 		TargetID:   clusterExternalID,
@@ -520,7 +555,7 @@ func (t *TopologyCheck) nodeToClusterStackStateRelation(node v1.Node) topology.R
 }
 
 // Creates a StackState component from a Kubernetes Pod
-func (t *TopologyCheck) podToStackStateComponent(pod v1.Pod) topology.Component {
+func (t *TopologyCheck) podToStackStateComponent(pod v1.Pod) *topology.Component {
 	// creates a StackState component for the kubernetes pod
 	log.Tracef("Mapping kubernetes pod to StackState Component: %s", pod.String())
 
@@ -540,7 +575,7 @@ func (t *TopologyCheck) podToStackStateComponent(pod v1.Pod) topology.Component 
 	tags := emptyIfNil(pod.Labels)
 	tags = t.addClusterNameTag(tags)
 
-	component := topology.Component{
+	component := &topology.Component{
 		ExternalID: podExternalID,
 		Type:       topology.Type{Name: "pod"},
 		Data: map[string]interface{}{
@@ -564,13 +599,13 @@ func (t *TopologyCheck) podToStackStateComponent(pod v1.Pod) topology.Component 
 }
 
 // Creates a StackState relation from a Kubernetes Pod to Node relation
-func (t *TopologyCheck) podToNodeStackStateRelation(pod v1.Pod) topology.Relation {
+func (t *TopologyCheck) podToNodeStackStateRelation(pod v1.Pod) *topology.Relation {
 	podExternalID := t.buildPodExternalID(t.instance.ClusterName, pod.Name)
 	nodeExternalID := t.buildNodeExternalID(t.instance.ClusterName, pod.Spec.NodeName)
 
 	log.Tracef("Mapping kubernetes pod to node relation: %s -> %s", podExternalID, nodeExternalID)
 
-	relation := topology.Relation{
+	relation := &topology.Relation{
 		ExternalID: fmt.Sprintf("%s->%s", podExternalID, nodeExternalID),
 		SourceID:   podExternalID,
 		TargetID:   nodeExternalID,
@@ -584,14 +619,14 @@ func (t *TopologyCheck) podToNodeStackStateRelation(pod v1.Pod) topology.Relatio
 }
 
 // Creates a StackState component from a Kubernetes Pod Container
-func (t *TopologyCheck) containerToStackStateComponent(node v1.Node, pod v1.Pod, container v1.ContainerStatus) topology.Component {
+func (t *TopologyCheck) containerToStackStateComponent(nodeIdentifier string, pod v1.Pod, container v1.ContainerStatus) topology.Component {
 	log.Tracef("Mapping kubernetes pod container to StackState component: %s", container.String())
 	// create identifier list to merge with StackState components
 
 	identifier := ""
 	strippedContainerId := extractLastFragment(container.ContainerID)
-	if len(node.Spec.ProviderID) > 0 {
-		identifier = fmt.Sprintf("%s:%s", extractInstanceIdFromProviderId(node.Spec), strippedContainerId)
+	if len(nodeIdentifier) > 0 {
+		identifier = fmt.Sprintf("%s:%s", nodeIdentifier, strippedContainerId)
 	} else {
 		identifier = strippedContainerId
 	}
@@ -634,7 +669,7 @@ func (t *TopologyCheck) containerToStackStateComponent(node v1.Node, pod v1.Pod,
 }
 
 // Creates a StackState relation from a Kubernetes Container to Pod relation
-func containerToPodStackStateRelation(containerExternalID, podExternalID string) topology.Relation {
+func (t *TopologyCheck)  containerToPodStackStateRelation(containerExternalID, podExternalID string) topology.Relation {
 	log.Tracef("Mapping kubernetes container to pod relation: %s -> %s", containerExternalID, podExternalID)
 
 	relation := topology.Relation{
@@ -651,7 +686,7 @@ func containerToPodStackStateRelation(containerExternalID, podExternalID string)
 }
 
 // Creates a StackState component from a Kubernetes Pod Service
-func (t *TopologyCheck) serviceToStackStateComponent(service v1.Service, endpoints []EndpointID) topology.Component {
+func (t *TopologyCheck) serviceToStackStateComponent(service v1.Service, endpoints []EndpointID) *topology.Component {
 	log.Tracef("Mapping kubernetes pod service to StackState component: %s", service.String())
 	// create identifier list to merge with StackState components
 	var identifiers []string
@@ -696,7 +731,7 @@ func (t *TopologyCheck) serviceToStackStateComponent(service v1.Service, endpoin
 		data["ingressPoints"] = service.Status.LoadBalancer.Ingress
 	}
 
-	component := topology.Component{
+	component := &topology.Component{
 		ExternalID: serviceExternalID,
 		Type:       topology.Type{Name: "service"},
 		Data:       data,
@@ -708,10 +743,10 @@ func (t *TopologyCheck) serviceToStackStateComponent(service v1.Service, endpoin
 }
 
 // Creates a StackState component from a Kubernetes Pod Service
-func podToServiceStackStateRelation(refExternalID, serviceExternalID string) topology.Relation {
+func podToServiceStackStateRelation(refExternalID, serviceExternalID string) *topology.Relation {
 	log.Tracef("Mapping kubernetes reference to service relation: %s -> %s", refExternalID, serviceExternalID)
 
-	relation := topology.Relation{
+	relation := &topology.Relation{
 		ExternalID: fmt.Sprintf("%s->%s", refExternalID, serviceExternalID),
 		SourceID:   refExternalID,
 		TargetID:   serviceExternalID,
