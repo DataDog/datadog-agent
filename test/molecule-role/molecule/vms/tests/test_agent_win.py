@@ -43,7 +43,7 @@ def test_stackstate_agent_log(host, hostname):
     util.wait_until(wait_for_check_successes, 30, 3)
 
     agent_log = host.ansible("win_shell", "cat \"{}\"".format(agent_log_path), check=False)["stdout"]
-    with open("./{}.log".format(hostname), 'w') as f:
+    with open("./{}.log".format(hostname), 'wb') as f:
         f.write(agent_log.encode('utf-8'))
 
     # Check for errors
@@ -66,7 +66,7 @@ def test_stackstate_process_agent_no_log_errors(host, hostname):
     util.wait_until(wait_for_check_successes, 30, 3)
 
     process_agent_log = host.ansible("win_shell", "cat \"{}\"".format(process_agent_log_path), check=False)["stdout"]
-    with open("./{}-process.log".format(hostname), 'w') as f:
+    with open("./{}-process.log".format(hostname), 'wb') as f:
         f.write(process_agent_log.encode('utf-8'))
 
     # Check for errors

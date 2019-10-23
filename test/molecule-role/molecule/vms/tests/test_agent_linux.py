@@ -57,7 +57,7 @@ def test_stackstate_agent_log(host, hostname):
     util.wait_until(wait_for_check_successes, 30, 3)
 
     agent_log = host.file(agent_log_path).content_string
-    with open("./{}.log".format(hostname), 'w') as f:
+    with open("./{}.log".format(hostname), 'wb') as f:
         f.write(agent_log.encode('utf-8'))
 
     # Check for errors
@@ -90,7 +90,7 @@ def test_stackstate_process_agent_no_log_errors(host, hostname):
     util.wait_until(wait_for_check_successes, 30, 3)
 
     process_agent_log = host.file(process_agent_log_path).content_string
-    with open("./{}-process.log".format(hostname), 'w') as f:
+    with open("./{}-process.log".format(hostname), 'wb') as f:
         f.write(process_agent_log.encode('utf-8'))
 
     # Check for errors
@@ -113,7 +113,7 @@ def test_stackstate_trace_agent_no_log_errors(host, hostname):
     util.wait_until(wait_for_check_successes, 30, 3)
 
     trace_agent_log = host.file(trace_agent_log_path).content_string
-    with open("./{}-trace.log".format(hostname), 'w') as f:
+    with open("./{}-trace.log".format(hostname), 'wb') as f:
         f.write(trace_agent_log.encode('utf-8'))
 
     # Check for errors

@@ -7,42 +7,48 @@
   vars_files:
     - common_vars.yml
   tasks:
-    - block:
-        - name: Delete kubernetes stackstate objects
-          command: kubectl delete -k overlays
-          args:
-            chdir: /home/ubuntu/deployment/k8s
-          environment:
-            KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    - name: Delete kubernetes stackstate objects
+      command: kubectl delete -k overlays
+      args:
+        chdir: /home/ubuntu/deployment/k8s
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
-        - name: Wait for pods to be deleted
-          command: kubectl wait --timeout=30s --for=delete pods --all
-          environment:
-            KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    - name: Delete kubernetes DNAT test objects
+      command: kubectl delete -f pod-to-service-cluster-ip.yaml
+      args:
+        chdir: /home/ubuntu/deployment/test_connections
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
-        - name: Fetch list of nodes
-          command: kubectl get nodes -o json
-          environment:
-            KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-          register: node_list
+    - name: Wait for pods to be deleted
+      command: kubectl wait --timeout=30s --for=delete pods --all
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
-        - name: Nodes
-          set_fact:
-            k8s_nodes: "{{ node_list.stdout | from_json | json_query('items[*].metadata.name') }}"
+    - name: Fetch list of nodes
+      command: kubectl get nodes -o json
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+      register: node_list
 
-        - name: Drain nodes
-          command: "kubectl drain {{ item }} --ignore-daemonsets --delete-local-data"
-          loop: "{{ k8s_nodes }}"
-          environment:
-            KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    - name: Nodes
+      set_fact:
+        k8s_nodes: "{{ node_list.stdout | from_json | json_query('items[*].metadata.name') }}"
 
-        - name: Delete nodes
-          command: "kubectl delete node {{ item }}"
-          loop: "{{ k8s_nodes }}"
-          environment:
-            KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    - name: Drain nodes
+      command: "kubectl drain {{ item }} --ignore-daemonsets --delete-local-data"
+      loop: "{{ k8s_nodes }}"
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
-        - name: Downsize the cluster
-          ec2_asg:
-            name: "eks-{{ cluster_name }}-cluster"
-            desired_capacity: 0
+    - name: Delete nodes
+      command: "kubectl delete node {{ item }}"
+      loop: "{{ k8s_nodes }}"
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Downsize the cluster
+      ec2_asg:
+        name: "eks-{{ cluster_name }}-cluster"
+        desired_capacity: 0

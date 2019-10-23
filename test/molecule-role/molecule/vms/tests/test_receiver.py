@@ -221,7 +221,7 @@ def test_host_metrics(host):
     def wait_for_metrics():
         data = host.check_output("curl \"%s\"" % url)
         json_data = json.loads(data)
-        with open("./topic-multi-metrics.json", 'w') as f:
+        with open("./topic-sts-multi-metrics.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
         metrics = {}
@@ -263,15 +263,15 @@ def test_host_metrics(host):
         # Memory
         assert_metric("system.mem.total", lambda v: v > 900.0, lambda v: v > 900.0, lambda v: v > 2000.0)
         assert_metric("system.mem.usable", lambda v: 1000.0 > v > 300.0, lambda v: 1000.0 > v > 300.0, lambda v: 1500.0 > v > 300.0)
-        assert_metric("system.mem.pct_usable", lambda v: 1.0 > v > 0.3, lambda v: 1.0 > v > 0.3, lambda v: 1.0 > v > 0.2)
+        assert_metric("system.mem.pct_usable", lambda v: 1.0 > v > 0.3, lambda v: 1.0 > v > 0.3, lambda v: 1.0 > v > 0.1)
 
         # Load - only linux
         assert_metric("system.load.norm.1", lambda v: v >= 0.0, lambda v: v >= 0.0, None)
 
         # CPU
-        assert_metric("system.cpu.idle", lambda v: v > 0.0, lambda v: v >= 0.0, lambda v: v >= 0.0)
+        assert_metric("system.cpu.idle", lambda v: v >= 0.0, lambda v: v >= 0.0, lambda v: v >= 0.0)
         assert_metric("system.cpu.iowait", lambda v: v >= 0.0, lambda v: v >= 0.0, lambda v: v >= 0.0)
-        assert_metric("system.cpu.system", lambda v: v > 0.0, lambda v: v > 0.0, lambda v: v > 0.0)
+        assert_metric("system.cpu.system", lambda v: v >= 0.0, lambda v: v >= 0.0, lambda v: v >= 0.0)
         assert_metric("system.cpu.user", lambda v: v >= 0.0, lambda v: v >= 0.0, lambda v: v >= 0.0)
 
         # Inodes
