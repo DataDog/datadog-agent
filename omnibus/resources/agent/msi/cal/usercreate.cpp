@@ -250,8 +250,15 @@ int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring&
 
 }
 
-
-
+int doSetUserPassword(const std::wstring& name, const wchar_t * domain, const wchar_t* passbuf)
+{
+    USER_INFO_1003 ui;
+    memset(&ui,0, sizeof(USER_INFO_1003));
+    ui.usri1003_password = (LPWSTR)passbuf;
+    DWORD ret = NetUserSetInfo(NULL, name.c_str(), 1003, (LPBYTE)&ui, NULL);
+    WcaLog(LOGMSG_STANDARD, "NetUserSetInfo Change Password %d", ret);
+    return ret;
+}
 DWORD DeleteUser(const wchar_t* host, const wchar_t* name){
     NET_API_STATUS ret = NetUserDel(NULL, name);
     return (DWORD)ret;
