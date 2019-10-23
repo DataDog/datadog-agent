@@ -182,9 +182,9 @@ func convertServiceCheck(serviceCheck dogstatsdServiceCheck, defaultHostname str
 	convertedServiceCheck := &metrics.ServiceCheck{
 		CheckName: string(serviceCheck.name),
 		Ts:        serviceCheck.timestamp,
-		//Status: ser
-		Message: string(serviceCheck.message),
-		Tags:    tags,
+		Status:    convertServiceCheckStatus(serviceCheck.status),
+		Message:   string(serviceCheck.message),
+		Tags:      tags,
 	}
 
 	if len(serviceCheck.hostname) != 0 {
