@@ -278,7 +278,7 @@ func TestInvalidateIfChangedService(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {
-			provider := &KubeEndpointsConfigProvider{upToDate: true}
+			provider := &kubeEndpointsConfigProvider{upToDate: true}
 			provider.invalidateIfChangedService(tc.old, tc.obj)
 
 			upToDate, err := provider.IsUpToDate()
@@ -598,7 +598,7 @@ func TestInvalidateIfChangedEndpoints(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			provider := &KubeEndpointsConfigProvider{
+			provider := &kubeEndpointsConfigProvider{
 				upToDate: true,
 				monitoredEndpoints: map[string]bool{
 					apiserver.EntityForEndpoints("default", "myservice", ""): true,
