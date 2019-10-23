@@ -212,10 +212,6 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
             goto LExit;
         }
-		if (!setUserProfileFolder(data.getUsername(), nullptr, passToUse)) {
-			WcaLog(LOGMSG_STANDARD, "Failed to set the user profile folder. Uninstall will not remove it");
-			// Continue as this error should not prevent the user for installing the agent.
-		}
         hr = 0;
     }
     if (!ddServiceExists) {
@@ -493,25 +489,9 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
                 WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
             }
         }
-
-		std::wstring userProfileFolder;
-		if (!getUserProfileFolder(installedUser.c_str(), userProfileFolder)) {
-			WcaLog(LOGMSG_STANDARD, "Error when retrieving the user profile folder. User profile folder will not be removed.");
-			return false;
-		}
-
         // delete the user
         er = DeleteUser(NULL, installedUser.c_str());
-        if (0 == er) {
-			auto userSid = GetSidString(sid);
-			if (userSid && RemoveUserProfile(installedUser, userProfileFolder, *userSid)) {
-				WcaLog(LOGMSG_STANDARD, "User profile removed.");
-			}
-			else {
-				WcaLog(LOGMSG_STANDARD, "Cannot remove user profile.");
-			}
-        }
-        else {
+        if (0 != er) {
             // don't actually fail on failure.  We're doing an uninstall,
             // and failing will just leave the system in a more confused state
             WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog user %d", er);
