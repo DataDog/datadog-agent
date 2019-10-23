@@ -249,14 +249,14 @@ func (t *TopologyCheck) Run() error {
 	//}()
 
 	for _, collector := range clusterCollectors {
-		go func() {
+		go func(col ClusterCollector) {
 			defer wg.Done()
-			log.Tracef("Starting cluster collection: %s", collector.Name)
-			err := collector.CollectorFunction()
+			log.Tracef("Starting cluster collection: %s", col.Name)
+			err := col.CollectorFunction()
 			if err != nil {
 				errChannel <- err
 			}
-		}()
+		}(collector)
 	}
 
 	go func() {
