@@ -93,9 +93,7 @@ func (k *KubeEndpointsConfigProvider) Collect() ([]integration.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	k.m.Lock()
-	k.upToDate = true
-	k.m.Unlock()
+	k.setUpToDate(true)
 
 	var generatedConfigs []integration.Config
 	parsedConfigsInfo := parseServiceAnnotationsForEndpoints(services)
@@ -128,9 +126,9 @@ func (k *KubeEndpointsConfigProvider) invalidate(obj interface{}) {
 	endpointsID := apiserver.EntityForEndpoints(castedObj.Namespace, castedObj.Name, "")
 	log.Tracef("Invalidating configs on new/deleted service, endpoints entity: %s", endpointsID)
 	k.m.Lock()
+	defer k.m.Unlock()
 	delete(k.monitoredEndpoints, endpointsID)
 	k.upToDate = false
-	k.m.Unlock()
 }
 
 func (k *KubeEndpointsConfigProvider) invalidateIfChangedService(old, obj interface{}) {
@@ -145,9 +143,7 @@ func (k *KubeEndpointsConfigProvider) invalidateIfChangedService(old, obj interf
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
 		log.Errorf("Expected a Service type, got: %T", old)
-		k.m.Lock()
-		k.upToDate = false
-		k.m.Unlock()
+		k.setUpToDate(false)
 		return
 	}
 	// Quick exit if resversion did not change
@@ -156,9 +152,7 @@ func (k *KubeEndpointsConfigProvider) invalidateIfChangedService(old, obj interf
 	}
 	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeEndpointAnnotationPrefix) {
 		log.Trace("Invalidating configs on service end annotations change")
-		k.m.Lock()
-		k.upToDate = false
-		k.m.Unlock()
+		k.setUpToDate(false)
 		return
 	}
 }
@@ -175,9 +169,7 @@ func (k *KubeEndpointsConfigProvider) invalidateIfChangedEndpoints(old, obj inte
 	castedOld, ok := old.(*v1.Endpoints)
 	if !ok {
 		log.Errorf("Expected a Endpoints type, got: %T", old)
-		k.m.Lock()
-		k.upToDate = false
-		k.m.Unlock()
+		k.setUpToDate(false)
 		return
 	}
 	// Quick exit if resversion did not change
@@ -187,12 +179,19 @@ func (k *KubeEndpointsConfigProvider) invalidateIfChangedEndpoints(old, obj inte
 	// Make sure we invalidate a monitored endpoints object
 	endpointsID := apiserver.EntityForEndpoints(castedObj.Namespace, castedObj.Name, "")
 	k.m.Lock()
+	defer k.m.Unlock()
 	if found := k.monitoredEndpoints[endpointsID]; found {
 		// Invalidate only when subsets change
 		k.upToDate = equality.Semantic.DeepEqual(castedObj.Subsets, castedOld.Subsets)
 	}
-	k.m.Unlock()
 	return
+}
+
+// setUpToDate is a thread-safe method to update the upToDate value
+func (k *KubeEndpointsConfigProvider) setUpToDate(v bool) {
+	k.m.Lock()
+	defer k.m.Unlock()
+	k.upToDate = v
 }
 
 func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
