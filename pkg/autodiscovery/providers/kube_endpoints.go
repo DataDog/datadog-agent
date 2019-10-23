@@ -10,6 +10,7 @@ package providers
 
 import (
 	"fmt"
+	"sync"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -35,6 +36,7 @@ type KubeEndpointsConfigProvider struct {
 	endpointsLister    listersv1.EndpointsLister
 	upToDate           bool
 	monitoredEndpoints map[string]bool
+	m                  sync.RWMutex
 }
 
 // configInfo contains an endpoint check config template with its name and namespace
@@ -92,7 +94,9 @@ func (k *KubeEndpointsConfigProvider) Collect() ([]integration.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	k.m.Lock()
 	k.upToDate = true
+	k.m.Unlock()
 
 	var generatedConfigs []integration.Config
 	parsedConfigsInfo := parseServiceAnnotationsForEndpoints(services)
@@ -104,7 +108,9 @@ func (k *KubeEndpointsConfigProvider) Collect() ([]integration.Config, error) {
 		}
 		generatedConfigs = append(generatedConfigs, generateConfigs(config.tpl, kep)...)
 		endpointsID := apiserver.EntityForEndpoints(config.namespace, config.name, "")
+		k.m.Lock()
 		k.monitoredEndpoints[endpointsID] = true
+		k.m.Unlock()
 	}
 	return generatedConfigs, nil
 }
@@ -121,8 +127,10 @@ func (k *KubeEndpointsConfigProvider) invalidate(obj interface{}) {
 		return
 	}
 	log.Trace("Invalidating configs on new/deleted service")
+	k.m.Lock()
 	delete(k.monitoredEndpoints, apiserver.EntityForEndpoints(castedObj.Namespace, castedObj.Name, ""))
 	k.upToDate = false
+	k.m.Unlock()
 }
 
 func (k *KubeEndpointsConfigProvider) invalidateIfChangedService(old, obj interface{}) {
@@ -137,7 +145,9 @@ func (k *KubeEndpointsConfigProvider) invalidateIfChangedService(old, obj interf
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
 		log.Errorf("Expected a Service type, got: %v", old)
+		k.m.Lock()
 		k.upToDate = false
+		k.m.Unlock()
 		return
 	}
 	// Quick exit if resversion did not change
@@ -146,7 +156,9 @@ func (k *KubeEndpointsConfigProvider) invalidateIfChangedService(old, obj interf
 	}
 	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeEndpointAnnotationPrefix) {
 		log.Trace("Invalidating configs on service end annotations change")
+		k.m.Lock()
 		k.upToDate = false
+		k.m.Unlock()
 		return
 	}
 }
@@ -163,19 +175,23 @@ func (k *KubeEndpointsConfigProvider) invalidateIfChangedEndpoints(old, obj inte
 	castedOld, ok := old.(*v1.Endpoints)
 	if !ok {
 		log.Errorf("Expected a Endpoints type, got: %v", old)
+		k.m.Lock()
 		k.upToDate = false
+		k.m.Unlock()
 		return
 	}
 	// Quick exit if resversion did not change
 	if castedObj.ResourceVersion == castedOld.ResourceVersion {
 		return
 	}
-	endpointsID := apiserver.EntityForEndpoints(castedObj.Namespace, castedObj.Name, "")
 	// Make sure we invalidate a monitored endpoints object
+	endpointsID := apiserver.EntityForEndpoints(castedObj.Namespace, castedObj.Name, "")
+	k.m.Lock()
 	if found := k.monitoredEndpoints[endpointsID]; found {
 		// Invalidate only when subsets change
 		k.upToDate = equality.Semantic.DeepEqual(castedObj.Subsets, castedOld.Subsets)
 	}
+	k.m.Unlock()
 	return
 }
 
