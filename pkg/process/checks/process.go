@@ -1,6 +1,7 @@
 package checks
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -20,6 +21,8 @@ const emptyCtrID = ""
 
 // Process is a singleton ProcessCheck.
 var Process = &ProcessCheck{}
+
+var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
 // ProcessCheck collects full state, including cmdline args and related metadata,
 // for live and running processes. The instance will store some state between
@@ -71,6 +74,9 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
 		return nil, err
+	}
+	if len(cpuTimes) == 0 {
+		return nil, errEmptyCPUTime
 	}
 	procs, err := getAllProcesses(cfg)
 	if err != nil {
