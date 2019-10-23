@@ -116,6 +116,59 @@ func TestDNSCacheExpiration(t *testing.T) {
 	assert.Equal(t, 0, cache.Len())
 }
 
+func TestDNSCacheTelemetry(t *testing.T) {
+	ttl := 100 * time.Millisecond
+	cache := newReverseDNSCache(1000, ttl, disableAutomaticExpiration)
+	t1 := time.Now()
+
+	translation := newTranslation([]byte("host-a"))
+	translation.add(util.AddressFromString("192.168.0.1"))
+	cache.Add(translation, t1)
+
+	expected := map[string]int64{
+		"lookups":  0,
+		"resolved": 0,
+		"ips":      1,
+		"added":    1,
+		"expired":  0,
+	}
+	assert.Equal(t, expected, cache.Stats())
+
+	conns := []ConnectionStats{
+		{
+			Source: util.AddressFromString("127.0.0.1"),
+			Dest:   util.AddressFromString("192.168.0.1"),
+		},
+		{
+			Source: util.AddressFromString("127.0.0.1"),
+			Dest:   util.AddressFromString("192.168.0.2"),
+		},
+	}
+
+	// Attempt to resolve IPs
+	cache.Get(conns, t1)
+	expected = map[string]int64{
+		"lookups":  3, // 127.0.0.1, 192.168.0.1, 192.168.0.2
+		"resolved": 1, // 192.168.0.1
+		"ips":      1,
+		"added":    0,
+		"expired":  0,
+	}
+	assert.Equal(t, expected, cache.Stats())
+
+	// Expire IP
+	t2 := t1.Add(ttl + 1*time.Millisecond)
+	cache.Expire(t2)
+	expected = map[string]int64{
+		"lookups":  0,
+		"resolved": 0,
+		"ips":      0,
+		"added":    0,
+		"expired":  1,
+	}
+	assert.Equal(t, expected, cache.Stats())
+}
+
 func BenchmarkDNSCacheGet(b *testing.B) {
 	const numIPs = 10000
 
