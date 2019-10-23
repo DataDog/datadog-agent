@@ -20,30 +20,6 @@ var (
 	getTags tagRetriever = tagger.Tag
 )
 
-func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (*metrics.MetricSample, error) {
-	sample, err := parseMetricSample(message)
-	if err != nil {
-		return nil, err
-	}
-	return convertMetricSample(sample, namespace, namespaceBlacklist, defaultHostname), nil
-}
-
-func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
-	sample, err := parseEvent(message)
-	if err != nil {
-		return nil, err
-	}
-	return convertEvent(sample, defaultHostname), nil
-}
-
-func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
-	sample, err := parseServiceCheck(message)
-	if err != nil {
-		return nil, err
-	}
-	return convertServiceCheck(sample, defaultHostname), nil
-}
-
 func convertTags(tags [][]byte, defaultHostname string) ([]string, string) {
 	if len(tags) == 0 {
 		return nil, defaultHostname
@@ -89,7 +65,7 @@ func convertMetricType(dogstatsdMetricType metricType) metrics.MetricType {
 	return metrics.GaugeType
 }
 
-func convertMetricSample(metricSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string, defaultHostname string) *metrics.MetricSample {
+func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string, defaultHostname string) *metrics.MetricSample {
 	metricName := string(metricSample.name)
 	if namespace != "" {
 		blacklisted := false
@@ -140,7 +116,7 @@ func convertEventAlertType(dogstatsdAlertType alertType) metrics.EventAlertType 
 	return metrics.EventAlertTypeSuccess
 }
 
-func convertEvent(event dogstatsdEvent, defaultHostname string) *metrics.Event {
+func enirchEvent(event dogstatsdEvent, defaultHostname string) *metrics.Event {
 	tags, hostFromTags := convertTags(event.tags, defaultHostname)
 
 	convertedEvent := &metrics.Event{
@@ -176,7 +152,7 @@ func convertServiceCheckStatus(status serviceCheckStatus) metrics.ServiceCheckSt
 	return metrics.ServiceCheckUnknown
 }
 
-func convertServiceCheck(serviceCheck dogstatsdServiceCheck, defaultHostname string) *metrics.ServiceCheck {
+func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, defaultHostname string) *metrics.ServiceCheck {
 	tags, hostFromTags := convertTags(serviceCheck.tags, defaultHostname)
 
 	convertedServiceCheck := &metrics.ServiceCheck{

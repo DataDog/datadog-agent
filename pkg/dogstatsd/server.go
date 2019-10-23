@@ -259,6 +259,30 @@ func nextMessage(packet *[]byte) (message []byte) {
 	return message
 }
 
+func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (*metrics.MetricSample, error) {
+	sample, err := parseMetricSample(message)
+	if err != nil {
+		return nil, err
+	}
+	return enrichMetricSample(sample, namespace, namespaceBlacklist, defaultHostname), nil
+}
+
+func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
+	sample, err := parseEvent(message)
+	if err != nil {
+		return nil, err
+	}
+	return enirchEvent(sample, defaultHostname), nil
+}
+
+func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
+	sample, err := parseServiceCheck(message)
+	if err != nil {
+		return nil, err
+	}
+	return enrichServiceCheck(sample, defaultHostname), nil
+}
+
 func (s *Server) parsePacket(packet *Packet, metricSamples []*metrics.MetricSample, events []*metrics.Event, serviceChecks []*metrics.ServiceCheck) ([]*metrics.MetricSample, []*metrics.Event, []*metrics.ServiceCheck) {
 	extraTags := s.extraTags
 
