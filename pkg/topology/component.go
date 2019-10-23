@@ -5,11 +5,14 @@ import (
 	"fmt"
 )
 
+
+type Data = map[string]interface{}
+
 // Component is a representation of a topology component
 type Component struct {
 	ExternalID string                 `json:"externalId"`
 	Type       Type                   `json:"type"`
-	Data       map[string]interface{} `json:"data"`
+	Data       Data `json:"data"`
 }
 
 // JSONString returns a JSON string of the Component
