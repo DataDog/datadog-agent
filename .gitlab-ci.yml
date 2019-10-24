@@ -102,6 +102,7 @@ before_script:
     - tags
     - triggers
     - web
+    - albertvaka/remove-seds
 
 # run job only when triggered by an external tool (ex: Jenkins) and when
 # RELEASE_VERSION_X is NOT "nightly". In this setting we are building either a
