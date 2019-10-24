@@ -1877,7 +1877,6 @@ deploy_windows_tags-latest-7:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   <<: *run_when_triggered_on_tag_7
-  <<: *skip_when_unwanted_on_7
   tags: [ "runner:main", "size:large" ]
   script:
     # By default we update the "latest" artifacts on our s3 bucket so the
@@ -2035,7 +2034,6 @@ deploy_process_and_sysprobe:
 tag_release_6:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_tag_6
-  <<: *skip_when_unwanted_on_6
   stage: deploy6
   when: manual
   variables:
@@ -2052,7 +2050,6 @@ tag_release_6:
 tag_release_7:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_tag_7
-  <<: *skip_when_unwanted_on_7
   stage: deploy7
   when: manual
   variables:
@@ -2066,7 +2063,6 @@ tag_release_7:
 latest_release_6:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_tag_6
-  <<: *skip_when_unwanted_on_6
   stage: deploy6
   when: manual
   variables:
@@ -2086,7 +2082,6 @@ latest_release_6:
 latest_release_7:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_tag_7
-  <<: *skip_when_unwanted_on_7
   stage: deploy7
   when: manual
   variables:
