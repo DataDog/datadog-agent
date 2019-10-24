@@ -1581,7 +1581,8 @@ build_dogstatsd:
 # Docker dev image deployments
 #
 
-twistlock_scan:
+twistlock_scan-6:
+  <<: *skip_when_unwanted_on_6
   stage: image_deploy
   tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
@@ -1603,6 +1604,26 @@ twistlock_scan:
     - scan ${SRC_AGENT}:${SRC_TAG}-py3-jmx
     - scan ${SRC_DSD}:${SRC_TAG}
     - scan ${SRC_DCA}:${SRC_TAG}
+
+twistlock_scan-7:
+  <<: *skip_when_unwanted_on_7
+  stage: image_deploy
+  tags: [ "runner:docker", "size:large" ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
+  dependencies: [] # Don't download Gitlab artefacts
+  allow_failure: true # Don't block the pipeline
+  variables:
+    SRC_AGENT: *agent_ecr
+    SRC_DSD: *dogstatsd_ecr
+    SRC_DCA: *cluster-agent_ecr
+  before_script:
+    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
+    - export DOCKER_CLIENT_ADDRESS=$DOCKER_HOST
+    - TWISTLOCK_PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.twistlock_password --with-decryption --query "Parameter.Value" --out text)
+    - scan () { echo -e "\n==== Scanning $1 ====\n"; docker pull $1 > /dev/null; /twistcli images scan --address="$TWISTLOCK_URL" --user="$TWISTLOCK_USER" --password="$TWISTLOCK_PASS" --vulnerability-threshold=$THRESHOLD --details $1; }
+  script:
+    - scan ${SRC_AGENT}:${SRC_TAG}-7-py3
+    - scan ${SRC_AGENT}:${SRC_TAG}-7-py3-jmx
 
 .docker_tag_job_definition: &docker_tag_job_definition
   stage: image_deploy
