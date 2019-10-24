@@ -170,21 +170,6 @@ func (c *configMapStore) ListAllExternalMetricValues() (*MetricsBundle, error) {
 	return c.doGetMetrics()
 }
 
-// ListAllDeprecatedMetricValues returns the list of external metrics that do not use the new format.
-// Any replica can safely call this function. Although it should only be called to clean the Store.
-func (c *configMapStore) ListAllDeprecatedMetricValues() ([]DeprecatedExternalMetricValue, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if err := c.getConfigMap(); err != nil {
-		return nil, err
-	}
-	bundle, err := c.doGetMetrics()
-	if err != nil {
-		return nil, err
-	}
-	return bundle.Deprecated, nil
-}
-
 // GetMetrics returns a bundle of all the metrics from the local copy of the configmap.
 func (c *configMapStore) GetMetrics() (*MetricsBundle, error) {
 	c.mu.RLock()
