@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"encoding/json"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -41,6 +42,131 @@ func TestNewConfigMapStore(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, store.(*configMapStore).cm)
 	assert.NotEmpty(t, store.(*configMapStore).cm.Annotations[storeLastUpdatedAnnotationKey])
+}
+
+func makeConfigMapData(v interface{}) string {
+	tests, err := json.Marshal(v)
+	if err != nil {
+		return ""
+	}
+	return string(tests)
+}
+
+func TestDeprecationStrategy(t *testing.T) {
+
+	client := fake.NewSimpleClientset()
+	tests := []struct {
+		desc    string
+		toStore map[string]string
+		output  *MetricsBundle
+	}{
+		{
+			"2 deprecated Metrics",
+			map[string]string{
+				"external_metric-default-bar-requests_per_s": makeConfigMapData(DeprecatedExternalMetricValue{
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "backend"},
+					HPA:        ObjectReference{Name: "bar", Namespace: "default"},
+				}),
+				"external_metric-default-foo-requests_per_s": makeConfigMapData(DeprecatedExternalMetricValue{
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "frontend"},
+					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+				}),
+			},
+			&MetricsBundle{
+				Deprecated: []DeprecatedExternalMetricValue{
+					{
+						MetricName: "requests_per_s",
+						Labels:     map[string]string{"role": "frontend"},
+						HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+						Valid:      false,
+					},
+					{
+						MetricName: "requests_per_s",
+						Labels:     map[string]string{"role": "backend"},
+						HPA:        ObjectReference{Name: "bar", Namespace: "default"},
+						Valid:      false,
+					},
+				},
+				External: []ExternalMetricValue{},
+			},
+		},
+		{
+			"1 deprecated metric 1 external",
+			map[string]string{
+				"external_metric-default-foo-requests_per_s": makeConfigMapData(DeprecatedExternalMetricValue{
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "backend"},
+					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+				}),
+				"external_metric-watermark-default-bar-requests_per_s": makeConfigMapData(ExternalMetricValue{
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "frontend"},
+					Ref:        ObjectReference{Type: "watermark", Name: "bar", Namespace: "default"},
+				}),
+			},
+			&MetricsBundle{
+				Deprecated: []DeprecatedExternalMetricValue{
+					{
+						MetricName: "requests_per_s",
+						Labels:     map[string]string{"role": "backend"},
+						HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+						Valid:      false,
+					},
+				},
+				External: []ExternalMetricValue{
+					{
+						MetricName: "requests_per_s",
+						Labels:     map[string]string{"role": "frontend"},
+						Ref:        ObjectReference{Type: "watermark", Name: "bar", Namespace: "default"},
+						Valid:      false,
+					},
+				},
+			},
+		},
+		{
+			"0 deprecated metric 1 external",
+			map[string]string{
+				"external_metric-watermark-default-foo-requests_per_s": makeConfigMapData(ExternalMetricValue{
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "frontend"},
+					Ref:        ObjectReference{Type: "watermark", Name: "foo", Namespace: "default"},
+				}),
+			},
+			&MetricsBundle{
+				Deprecated: []DeprecatedExternalMetricValue{},
+				External: []ExternalMetricValue{
+					{
+						MetricName: "requests_per_s",
+						Labels:     map[string]string{"role": "frontend"},
+						Ref:        ObjectReference{Type: "watermark", Name: "foo", Namespace: "default"},
+						Valid:      false,
+					},
+				},
+			},
+		},
+	}
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
+			store, err := NewConfigMapStore(client, "default", fmt.Sprintf("test-%d", i))
+			require.NoError(t, err)
+			require.NotNil(t, store.(*configMapStore).cm)
+
+			// inject the mocked content
+			store.(*configMapStore).cm.Data = tt.toStore
+			_, err = client.CoreV1().ConfigMaps("default").Update(store.(*configMapStore).cm)
+			require.NoError(t, err)
+
+			// Confirm that we are able to isolate the deprecated templates
+			m, err := store.ListAllExternalMetricValues()
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tt.output.External, m.External)
+			assert.ElementsMatch(t, tt.output.Deprecated, m.Deprecated)
+
+		})
+	}
+
 }
 
 func TestConfigMapStoreExternalMetrics(t *testing.T) {
@@ -116,6 +242,11 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
 					Ref:        ObjectReference{Type: "horizontal", Name: "foo", Namespace: "default"},
+				},
+				"external_metric-default-foo-requests_per_s": {
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "frontend"},
+					Ref:        ObjectReference{Name: "foo", Namespace: "default"},
 				},
 			},
 			[]ExternalMetricValue{
