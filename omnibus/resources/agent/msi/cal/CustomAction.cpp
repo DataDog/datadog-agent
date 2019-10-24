@@ -175,7 +175,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             }
         }
     }
-    hr = S_OK;
+    hr = -1;
     sid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
     if (!sid) {
         WcaLog(LOGMSG_STANDARD, "Failed to get SID for %s", data.getFullUsernameMbcs().c_str());
@@ -202,15 +202,21 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
         WcaLog(LOGMSG_STANDARD, "failed to add service login right");
         goto LExit;
     }
-    nErr = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
-    if (nErr != NERR_Success) {
-        WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
-        goto LExit;
-    }
-    nErr = AddUserToGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
-    if (nErr != NERR_Success) {
-        WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
-        goto LExit;
+    hr = 0;
+    
+    if(!ddUserExists){
+        hr = -1;
+        nErr = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
+        if (nErr != NERR_Success) {
+            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
+            goto LExit;
+        }
+        nErr = AddUserToGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
+        if (nErr != NERR_Success) {
+            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
+            goto LExit;
+        }
+        hr = 0;
     }
     if (!ddServiceExists) {
         WcaLog(LOGMSG_STANDARD, "attempting to install services");
