@@ -60,9 +60,9 @@ func TestUPDReceive(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	metricOut := make(chan []*metrics.MetricSample)
-	eventOut := make(chan []*metrics.Event)
-	serviceOut := make(chan []*metrics.ServiceCheck)
+	metricOut := make(chan []MetricSample)
+	eventOut := make(chan []Event)
+	serviceOut := make(chan []ServiceCheck)
 	s, err := NewServer(metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -79,10 +79,10 @@ func TestUPDReceive(t *testing.T) {
 		assert.Equal(t, 1, len(res))
 		sample := res[0]
 		assert.NotNil(t, sample)
-		assert.Equal(t, sample.Name, "daemon")
+		assert.Equal(t, sample.Name, []byte("daemon"))
 		assert.EqualValues(t, sample.Value, 666.0)
-		assert.Equal(t, sample.Mtype, metrics.GaugeType)
-		assert.ElementsMatch(t, sample.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2"})
+		assert.Equal(t, sample.MetricType, metrics.GaugeType)
+		assert.ElementsMatch(t, sample.Tags, [][]byte{[]byte("sometag1:somevalue1"), []byte("sometag2:somevalue2")})
 	case <-time.After(100 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -93,9 +93,9 @@ func TestUPDReceive(t *testing.T) {
 		assert.Equal(t, 1, len(res))
 		sample := res[0]
 		assert.NotNil(t, sample)
-		assert.Equal(t, sample.Name, "daemon")
+		assert.Equal(t, sample.Name, []byte("daemon"))
 		assert.EqualValues(t, sample.Value, 666.0)
-		assert.Equal(t, metrics.CounterType, sample.Mtype)
+		assert.Equal(t, metrics.CounterType, sample.MetricType)
 		assert.Equal(t, 0.5, sample.SampleRate)
 	case <-time.After(100 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
@@ -107,9 +107,9 @@ func TestUPDReceive(t *testing.T) {
 		assert.Equal(t, 1, len(res))
 		sample := res[0]
 		assert.NotNil(t, sample)
-		assert.Equal(t, sample.Name, "daemon")
+		assert.Equal(t, sample.Name, []byte("daemon"))
 		assert.EqualValues(t, sample.Value, 666.0)
-		assert.Equal(t, metrics.HistogramType, sample.Mtype)
+		assert.Equal(t, metrics.HistogramType, sample.MetricType)
 		assert.Equal(t, 0.5, sample.SampleRate)
 	case <-time.After(100 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
@@ -121,9 +121,9 @@ func TestUPDReceive(t *testing.T) {
 		assert.Equal(t, 1, len(res))
 		sample := res[0]
 		assert.NotNil(t, sample)
-		assert.Equal(t, sample.Name, "daemon")
+		assert.Equal(t, sample.Name, []byte("daemon"))
 		assert.EqualValues(t, sample.Value, 666.0)
-		assert.Equal(t, metrics.HistogramType, sample.Mtype)
+		assert.Equal(t, metrics.HistogramType, sample.MetricType)
 		assert.Equal(t, 0.5, sample.SampleRate)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
@@ -135,9 +135,9 @@ func TestUPDReceive(t *testing.T) {
 		assert.Equal(t, 1, len(res))
 		sample := res[0]
 		assert.NotNil(t, sample)
-		assert.Equal(t, sample.Name, "daemon_set")
-		assert.Equal(t, sample.RawValue, "abc")
-		assert.Equal(t, sample.Mtype, metrics.SetType)
+		assert.Equal(t, sample.Name, []byte("daemon_set"))
+		assert.Equal(t, sample.SetValue, []byte("abc"))
+		assert.Equal(t, sample.MetricType, metrics.SetType)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -150,7 +150,7 @@ func TestUPDReceive(t *testing.T) {
 		sample := res[0]
 
 		assert.NotNil(t, sample)
-		assert.Equal(t, sample.Name, "daemon2")
+		assert.Equal(t, sample.Name, []byte("daemon2"))
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -171,7 +171,7 @@ func TestUPDReceive(t *testing.T) {
 		assert.Equal(t, 1, len(res))
 		serviceCheck := res[0]
 		assert.NotNil(t, serviceCheck)
-		assert.Equal(t, serviceCheck.CheckName, "agent.up")
+		assert.Equal(t, serviceCheck.Name, []byte("agent.up"))
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -182,7 +182,7 @@ func TestUPDReceive(t *testing.T) {
 	case res := <-eventOut:
 		event := res[0]
 		assert.NotNil(t, event)
-		assert.ElementsMatch(t, event.Tags, []string{"tag1", "tag2:test"})
+		assert.ElementsMatch(t, event.Tags, [][]byte{[]byte("tag1"), []byte("tag2:test")})
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -194,7 +194,7 @@ func TestUPDReceive(t *testing.T) {
 		assert.Equal(t, 1, len(res))
 		event := res[0]
 		assert.NotNil(t, event)
-		assert.Equal(t, event.Title, "test title2")
+		assert.Equal(t, event.Title, []byte("test title2"))
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -219,9 +219,9 @@ func TestUDPForward(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	metricOut := make(chan []*metrics.MetricSample)
-	eventOut := make(chan []*metrics.Event)
-	serviceOut := make(chan []*metrics.ServiceCheck)
+	metricOut := make(chan []MetricSample)
+	eventOut := make(chan []Event)
+	serviceOut := make(chan []ServiceCheck)
 	s, err := NewServer(metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -256,9 +256,9 @@ func TestHistToDist(t *testing.T) {
 	config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "dist.")
 	defer config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "")
 
-	metricOut := make(chan []*metrics.MetricSample)
-	eventOut := make(chan []*metrics.Event)
-	serviceOut := make(chan []*metrics.ServiceCheck)
+	metricOut := make(chan []MetricSample)
+	eventOut := make(chan []Event)
+	serviceOut := make(chan []ServiceCheck)
 	s, err := NewServer(metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -276,14 +276,14 @@ func TestHistToDist(t *testing.T) {
 		histMetric := histMetrics[0]
 		distMetric := histMetrics[1]
 		assert.NotNil(t, histMetric)
-		assert.Equal(t, histMetric.Name, "daemon")
+		assert.Equal(t, histMetric.Name, []byte("daemon"))
 		assert.EqualValues(t, histMetric.Value, 666.0)
-		assert.Equal(t, metrics.HistogramType, histMetric.Mtype)
+		assert.Equal(t, metrics.HistogramType, histMetric.MetricType)
 
 		assert.NotNil(t, distMetric)
-		assert.Equal(t, distMetric.Name, "dist.daemon")
+		assert.Equal(t, distMetric.Name, []byte("dist.daemon"))
 		assert.EqualValues(t, distMetric.Value, 666.0)
-		assert.Equal(t, metrics.DistributionType, distMetric.Mtype)
+		assert.Equal(t, metrics.DistributionType, distMetric.MetricType)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -296,9 +296,9 @@ func TestExtraTags(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
 	defer config.Datadog.SetDefault("dogstatsd_tags", []string{})
 
-	metricOut := make(chan []*metrics.MetricSample)
-	eventOut := make(chan []*metrics.Event)
-	serviceOut := make(chan []*metrics.ServiceCheck)
+	metricOut := make(chan []MetricSample)
+	eventOut := make(chan []Event)
+	serviceOut := make(chan []ServiceCheck)
 	s, err := NewServer(metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -315,19 +315,20 @@ func TestExtraTags(t *testing.T) {
 		assert.Equal(t, 1, len(res))
 		sample := res[0]
 		assert.NotNil(t, sample)
-		assert.Equal(t, sample.Name, "daemon")
+		assert.Equal(t, sample.Name, []byte("daemon"))
 		assert.EqualValues(t, sample.Value, 666.0)
-		assert.Equal(t, sample.Mtype, metrics.GaugeType)
-		assert.ElementsMatch(t, sample.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2", "sometag3:somevalue3"})
+		assert.Equal(t, sample.MetricType, metrics.GaugeType)
+		assert.ElementsMatch(t, sample.Tags, [][]byte{[]byte("sometag1:somevalue1"), []byte("sometag2:somevalue2")})
+		assert.ElementsMatch(t, sample.ExtraTags, []string{"sometag3:somevalue3"})
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
 }
 
 func TestDebugStats(t *testing.T) {
-	metricOut := make(chan []*metrics.MetricSample)
-	eventOut := make(chan []*metrics.Event)
-	serviceOut := make(chan []*metrics.ServiceCheck)
+	metricOut := make(chan []MetricSample)
+	eventOut := make(chan []Event)
+	serviceOut := make(chan []ServiceCheck)
 	s, err := NewServer(metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()

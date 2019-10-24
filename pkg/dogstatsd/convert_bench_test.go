@@ -3,8 +3,6 @@ package dogstatsd
 import (
 	"fmt"
 	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func buildRawSample(tagCount int) []byte {
@@ -17,7 +15,7 @@ func buildRawSample(tagCount int) []byte {
 }
 
 // used to store the result and avoid optimizations
-var sample *metrics.MetricSample
+var sample MetricSample
 
 func BenchmarkParseMetric(b *testing.B) {
 	for i := 1; i < 1000; i *= 4 {
@@ -26,8 +24,7 @@ func BenchmarkParseMetric(b *testing.B) {
 			sb.ResetTimer()
 
 			for n := 0; n < sb.N; n++ {
-				rawSample, _ := parseMetricMessage(rawSample, "", []string{}, "default-hostname")
-				sample = convertMetricSample(rawSample)
+				sample, _ = parseMetricMessage(rawSample, "", []string{}, "default-hostname")
 			}
 		})
 	}

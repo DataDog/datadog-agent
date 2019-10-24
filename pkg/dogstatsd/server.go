@@ -75,7 +75,7 @@ type metricStat struct {
 }
 
 // NewServer returns a running Dogstatsd server
-func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metrics.Event, serviceCheckOut chan<- []*metrics.ServiceCheck) (*Server, error) {
+func NewServer(metricOut chan<- []MetricSample, eventOut chan<- []Event, serviceCheckOut chan<- []ServiceCheck) (*Server, error) {
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -176,7 +176,7 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 	return s, nil
 }
 
-func (s *Server) handleMessages(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metrics.Event, serviceCheckOut chan<- []*metrics.ServiceCheck) {
+func (s *Server) handleMessages(metricOut chan<- []MetricSample, eventOut chan<- []Event, serviceCheckOut chan<- []ServiceCheck) {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
 		go s.Statistics.Update(&dogstatsdPacketsLastSec)
@@ -216,16 +216,16 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan Packets) {
 	}
 }
 
-func (s *Server) worker(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metrics.Event, serviceCheckOut chan<- []*metrics.ServiceCheck) {
+func (s *Server) worker(metricOut chan<- []MetricSample, eventOut chan<- []Event, serviceCheckOut chan<- []ServiceCheck) {
 	for {
 		select {
 		case <-s.stopChan:
 			return
 		case <-s.health.C:
 		case packets := <-s.packetsIn:
-			events := make([]*metrics.Event, 0, len(packets))
-			serviceChecks := make([]*metrics.ServiceCheck, 0, len(packets))
-			metricSamples := make([]*metrics.MetricSample, 0, len(packets))
+			events := make([]Event, 0, len(packets))
+			serviceChecks := make([]ServiceCheck, 0, len(packets))
+			metricSamples := make([]MetricSample, 0, len(packets))
 
 			for _, packet := range packets {
 				metricSamples, events, serviceChecks = s.parsePacket(packet, metricSamples, events, serviceChecks)
@@ -257,58 +257,6 @@ func nextMessage(packet *[]byte) (message []byte) {
 
 	*packet = (*packet)[advance:]
 	return message
-}
-
-func convertTags(tags [][]byte, extraTags []string) []string {
-	if len(tags) == 0 {
-		return nil
-	}
-	strTags := make([]string, 0, len(tags)+len(extraTags))
-	for _, tag := range tags {
-		strTags = append(strTags, string(tag))
-	}
-	for _, tag := range extraTags {
-		strTags = append(strTags, tag)
-	}
-	return strTags
-}
-
-func convertMetricSample(metricSample MetricSample) *metrics.MetricSample {
-	return &metrics.MetricSample{
-		Host:       string(metricSample.Hostname),
-		Name:       string(metricSample.Name),
-		Tags:       convertTags(metricSample.Tags, metricSample.ExtraTags),
-		Mtype:      metricSample.MetricType,
-		RawValue:   string(metricSample.SetValue),
-		SampleRate: metricSample.SampleRate,
-		Timestamp:  metricSample.Timestamp,
-		Value:      metricSample.Value,
-	}
-}
-
-func convertEvent(event Event) *metrics.Event {
-	return &metrics.Event{
-		Title:          string(event.Title),
-		Text:           string(event.Text),
-		Ts:             event.Timestamp,
-		Priority:       event.Priority,
-		Host:           string(event.Hostname),
-		Tags:           convertTags(event.Tags, event.ExtraTags),
-		AlertType:      event.AlertType,
-		AggregationKey: string(event.AggregationKey),
-		SourceTypeName: string(event.SourceTypeName),
-	}
-}
-
-func convertServiceCheck(serviceCheck ServiceCheck) *metrics.ServiceCheck {
-	return &metrics.ServiceCheck{
-		CheckName: string(serviceCheck.Name),
-		Host:      string(serviceCheck.Hostname),
-		Ts:        serviceCheck.Timestamp,
-		Status:    serviceCheck.Status,
-		Message:   string(serviceCheck.Message),
-		Tags:      convertTags(serviceCheck.Tags, serviceCheck.ExtraTags),
-	}
 }
 
 func cloneHistogramToDistribution(histogramSample MetricSample, prefix string) MetricSample {
@@ -352,7 +300,7 @@ func parseServiceCheckMessage(message []byte, defaultHostname string) (ServiceCh
 	return enrichServiceCheck(sample, []byte(defaultHostname)), nil
 }
 
-func (s *Server) parsePacket(packet *Packet, metricSamples []*metrics.MetricSample, events []*metrics.Event, serviceChecks []*metrics.ServiceCheck) ([]*metrics.MetricSample, []*metrics.Event, []*metrics.ServiceCheck) {
+func (s *Server) parsePacket(packet *Packet, metricSamples []MetricSample, events []Event, serviceChecks []ServiceCheck) ([]MetricSample, []Event, []ServiceCheck) {
 	extraTags := s.extraTags
 
 	log.Tracef("Dogstatsd receive: %s", packet.Contents)
@@ -386,7 +334,7 @@ func (s *Server) parsePacket(packet *Packet, metricSamples []*metrics.MetricSamp
 				serviceCheck.ExtraTags = append(serviceCheck.ExtraTags, extraTags...)
 			}
 			dogstatsdServiceCheckPackets.Add(1)
-			serviceChecks = append(serviceChecks, convertServiceCheck(serviceCheck))
+			serviceChecks = append(serviceChecks, serviceCheck)
 		} else if bytes.HasPrefix(message, []byte("_e")) {
 			event, err := parseEventMessage(message, s.defaultHostname)
 			if err != nil {
@@ -398,7 +346,7 @@ func (s *Server) parsePacket(packet *Packet, metricSamples []*metrics.MetricSamp
 				event.ExtraTags = append(event.ExtraTags, extraTags...)
 			}
 			dogstatsdEventPackets.Add(1)
-			events = append(events, convertEvent(event))
+			events = append(events, event)
 		} else {
 			sample, err := parseMetricMessage(message, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
 			if err != nil {
@@ -413,10 +361,9 @@ func (s *Server) parsePacket(packet *Packet, metricSamples []*metrics.MetricSamp
 				sample.ExtraTags = append(sample.ExtraTags, extraTags...)
 			}
 			dogstatsdMetricPackets.Add(1)
-			convertedSample := convertMetricSample(sample)
-			metricSamples = append(metricSamples, convertedSample)
+			metricSamples = append(metricSamples, sample)
 			if s.histToDist && sample.MetricType == metrics.HistogramType {
-				metricSamples = append(metricSamples, convertMetricSample(cloneHistogramToDistribution(sample, s.histToDistPrefix)))
+				metricSamples = append(metricSamples, cloneHistogramToDistribution(sample, s.histToDistPrefix))
 			}
 		}
 	}

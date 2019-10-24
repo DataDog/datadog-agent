@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -164,9 +165,9 @@ func StopDefaultAggregator() {
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-	bufferedMetricIn       chan []*metrics.MetricSample
-	bufferedServiceCheckIn chan []*metrics.ServiceCheck
-	bufferedEventIn        chan []*metrics.Event
+	dogstatsdMetricIn       chan []dogstatsd.MetricSample
+	dogstatsdServiceCheckIn chan []dogstatsd.ServiceCheck
+	dogstatsdEventIn        chan []dogstatsd.Event
 
 	metricIn       chan *metrics.MetricSample
 	eventIn        chan metrics.Event
@@ -194,9 +195,9 @@ type BufferedAggregator struct {
 // NewBufferedAggregator instantiates a BufferedAggregator
 func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
-		bufferedMetricIn:       make(chan []*metrics.MetricSample, 100), // TODO make buffer size configurable
-		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, 100), // TODO make buffer size configurable
-		bufferedEventIn:        make(chan []*metrics.Event, 100),        // TODO make buffer size configurable
+		dogstatsdMetricIn:       make(chan []dogstatsd.MetricSample, 100), // TODO make buffer size configurable
+		dogstatsdServiceCheckIn: make(chan []dogstatsd.ServiceCheck, 100), // TODO make buffer size configurable
+		dogstatsdEventIn:        make(chan []dogstatsd.Event, 100),        // TODO make buffer size configurable
 
 		metricIn:       make(chan *metrics.MetricSample, 100), // TODO make buffer size configurable
 		serviceCheckIn: make(chan metrics.ServiceCheck, 100),  // TODO make buffer size configurable
@@ -258,9 +259,9 @@ func (agg *BufferedAggregator) GetChannels() (chan *metrics.MetricSample, chan m
 	return agg.metricIn, agg.eventIn, agg.serviceCheckIn
 }
 
-// GetBufferedChannels returns a channel which can be subsequently used to send MetricSamples, Event or ServiceCheck
-func (agg *BufferedAggregator) GetBufferedChannels() (chan []*metrics.MetricSample, chan []*metrics.Event, chan []*metrics.ServiceCheck) {
-	return agg.bufferedMetricIn, agg.bufferedEventIn, agg.bufferedServiceCheckIn
+// GetDogstatsdChannels returns a channel which can be subsequently used to send MetricSamples, Event or ServiceCheck
+func (agg *BufferedAggregator) GetDogstatsdChannels() (chan []dogstatsd.MetricSample, chan []dogstatsd.Event, chan []dogstatsd.ServiceCheck) {
+	return agg.dogstatsdMetricIn, agg.dogstatsdEventIn, agg.dogstatsdServiceCheckIn
 }
 
 // SetHostname sets the hostname that the aggregator uses by default on all the data it sends
@@ -606,6 +607,58 @@ func (agg *BufferedAggregator) Stop() {
 
 }
 
+func convertDogstatsdTags(tags [][]byte, extraTags []string) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+	strTags := make([]string, 0, len(tags)+len(extraTags))
+	for _, tag := range tags {
+		strTags = append(strTags, string(tag))
+	}
+	for _, tag := range extraTags {
+		strTags = append(strTags, tag)
+	}
+	return strTags
+}
+
+func convertDogstatsdMetricSample(metricSample dogstatsd.MetricSample) *metrics.MetricSample {
+	return &metrics.MetricSample{
+		Host:       string(metricSample.Hostname),
+		Name:       string(metricSample.Name),
+		Tags:       convertDogstatsdTags(metricSample.Tags, metricSample.ExtraTags),
+		Mtype:      metricSample.MetricType,
+		RawValue:   string(metricSample.SetValue),
+		SampleRate: metricSample.SampleRate,
+		Timestamp:  metricSample.Timestamp,
+		Value:      metricSample.Value,
+	}
+}
+
+func convertDogstatsdEvent(event dogstatsd.Event) metrics.Event {
+	return metrics.Event{
+		Title:          string(event.Title),
+		Text:           string(event.Text),
+		Ts:             event.Timestamp,
+		Priority:       event.Priority,
+		Host:           string(event.Hostname),
+		Tags:           convertDogstatsdTags(event.Tags, event.ExtraTags),
+		AlertType:      event.AlertType,
+		AggregationKey: string(event.AggregationKey),
+		SourceTypeName: string(event.SourceTypeName),
+	}
+}
+
+func convertDogstatsdServiceCheck(serviceCheck dogstatsd.ServiceCheck) metrics.ServiceCheck {
+	return metrics.ServiceCheck{
+		CheckName: string(serviceCheck.Name),
+		Host:      string(serviceCheck.Hostname),
+		Ts:        serviceCheck.Timestamp,
+		Status:    serviceCheck.Status,
+		Message:   string(serviceCheck.Message),
+		Tags:      convertDogstatsdTags(serviceCheck.Tags, serviceCheck.ExtraTags),
+	}
+}
+
 func (agg *BufferedAggregator) run() {
 	if agg.TickerChan == nil {
 		flushPeriod := agg.flushInterval
@@ -640,20 +693,20 @@ func (agg *BufferedAggregator) run() {
 			aggregatorServiceCheck.Add(1)
 			agg.addServiceCheck(serviceCheck)
 
-		case metrics := <-agg.bufferedMetricIn:
+		case metrics := <-agg.dogstatsdMetricIn:
 			aggregatorDogstatsdMetricSample.Add(int64(len(metrics)))
 			for _, sample := range metrics {
-				agg.addSample(sample, timeNowNano())
+				agg.addSample(convertDogstatsdMetricSample(sample), timeNowNano())
 			}
-		case serviceChecks := <-agg.bufferedServiceCheckIn:
+		case serviceChecks := <-agg.dogstatsdServiceCheckIn:
 			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
 			for _, serviceCheck := range serviceChecks {
-				agg.addServiceCheck(*serviceCheck)
+				agg.addServiceCheck(convertDogstatsdServiceCheck(serviceCheck))
 			}
-		case events := <-agg.bufferedEventIn:
+		case events := <-agg.dogstatsdEventIn:
 			aggregatorEvent.Add(int64(len(events)))
 			for _, event := range events {
-				agg.addEvent(*event)
+				agg.addEvent(convertDogstatsdEvent(event))
 			}
 
 		case h := <-agg.hostnameUpdate:
