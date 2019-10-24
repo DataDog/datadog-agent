@@ -98,31 +98,31 @@ func (h *AutoscalersController) gc() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	log.Infof("Starting garbage collection process on the Autoscalers")
-	listWPA := []*v1alpha1.WatermarkPodAutoscaler{}
+	rawListWPA := []*v1alpha1.WatermarkPodAutoscaler{}
 	var err error
 
 	if h.wpaEnabled {
-		listWPA, err = h.wpaLister.WatermarkPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
+		rawListWPA, err = h.wpaLister.WatermarkPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
 		if err != nil {
 			log.Errorf("Error listing the WatermarkPodAutoscalers %v", err)
 			return
 		}
 	}
 
-	list, err := h.autoscalersLister.HorizontalPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
+	rawListHPA, err := h.autoscalersLister.HorizontalPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
 	if err != nil {
 		log.Errorf("Could not list hpas: %v", err)
 		return
 	}
 
-	processedList := removeIgnoredAutoscaler(h.overFlowingAutoscalers, list)
+	hpaList, wpaList := removeIgnoredAutoscaler(h.overFlowingAutoscalers, rawListHPA, rawListWPA)
 	emList, err := h.store.ListAllExternalMetricValues()
 	if err != nil {
 		log.Errorf("Could not list external metrics from store: %v", err)
 		return
 	}
 	toDelete := &custommetrics.MetricsBundle{}
-	toDelete.External = autoscalers.DiffExternalMetrics(processedList, listWPA, emList.External)
+	toDelete.External = autoscalers.DiffExternalMetrics(hpaList, wpaList, emList.External)
 	if err = h.store.DeleteExternalMetricValues(toDelete); err != nil {
 		log.Errorf("Could not delete the external metrics in the store: %v", err)
 		return
@@ -131,11 +131,16 @@ func (h *AutoscalersController) gc() {
 	log.Debugf("Done GC run. Deleted %d metrics", len(toDelete.External))
 }
 
-// removeIgnoredHPAs is used in the gc to avoid considering the ignored HPAs
-func removeIgnoredAutoscaler(ignored map[types.UID]int, listCached []*autoscalingv2.HorizontalPodAutoscaler) (toProcess []*autoscalingv2.HorizontalPodAutoscaler) {
+// removeIgnoredAutoscaler is used in the gc to avoid considering the ignored Autoscalers
+func removeIgnoredAutoscaler(ignored map[types.UID]int, listCached []*autoscalingv2.HorizontalPodAutoscaler, listCachedWPA []*v1alpha1.WatermarkPodAutoscaler) (HPAToProcess []*autoscalingv2.HorizontalPodAutoscaler, WPAToProcess []*v1alpha1.WatermarkPodAutoscaler) {
 	for _, hpa := range listCached {
 		if _, ok := ignored[hpa.UID]; !ok {
-			toProcess = append(toProcess, hpa)
+			HPAToProcess = append(HPAToProcess, hpa)
+		}
+	}
+	for _, wpa := range listCachedWPA {
+		if _, ok := ignored[wpa.UID]; !ok {
+			WPAToProcess = append(WPAToProcess, wpa)
 		}
 	}
 	return
@@ -144,12 +149,8 @@ func removeIgnoredAutoscaler(ignored map[types.UID]int, listCached []*autoscalin
 func (h *AutoscalersController) deleteFromLocalStore(toDelete []custommetrics.ExternalMetricValue) {
 	h.toStore.m.Lock()
 	defer h.toStore.m.Unlock()
-	log.Infof("called deleteFromLocalStore for %v", toDelete)
 	for _, d := range toDelete {
 		key := custommetrics.ExternalMetricValueKeyFunc(d)
-		//if _, ok := h.toStore.data[key]; !ok {
-		//		key = fmt.Sprintf("external_metrics---%s", d.MetricName)
-		//}
 		delete(h.toStore.data, key)
 	}
 }
@@ -173,7 +174,6 @@ func (h *AutoscalersController) handleErr(err error, key interface{}) {
 func (h *AutoscalersController) updateExternalMetrics() {
 	// Grab what is available in the Global store.
 	emList, err := h.store.ListAllExternalMetricValues()
-	log.Infof("deprecated is %v, ext is %v", emList.Deprecated, emList.External)
 	if err != nil {
 		log.Errorf("Error while retrieving external metrics from the store: %s", err)
 		return
@@ -192,11 +192,9 @@ func (h *AutoscalersController) updateExternalMetrics() {
 		i := custommetrics.ExternalMetricValueKeyFunc(e)
 		globalCache[i] = e
 	}
-	log.Infof("global cache is %v", globalCache)
 
 	// using several metrics with the same name with different labels in the same Ref is not supported.
 	h.toStore.m.Lock()
-	log.Infof("toStore is %v", h.toStore.data)
 	for i, j := range h.toStore.data {
 		if _, ok := globalCache[i]; !ok {
 			globalCache[i] = j
