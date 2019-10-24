@@ -66,7 +66,7 @@ func (sc *ServiceCollector) CollectorFunction() error {
 						switch kind := address.TargetRef.Kind; kind {
 						// add endpoint url as identifier and create service -> pod relation
 						case "Pod":
-							endpointID.RefExternalID = sc.buildPodExternalID(sc.GetInstance().URL, address.TargetRef.Name)
+							endpointID.RefExternalID = sc.buildPodExternalID(address.TargetRef.Name)
 						// ignore different Kind's for now, create no relation
 						default:
 						}
@@ -129,7 +129,7 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 
 	log.Tracef("Created identifiers for %s: %v", service.Name, identifiers)
 
-	serviceExternalID := sc.buildServiceExternalID(sc.GetInstance().URL, serviceID)
+	serviceExternalID := sc.buildServiceExternalID(serviceID)
 
 	tags := emptyIfNil(service.Labels)
 	tags = sc.addClusterNameTag(tags)

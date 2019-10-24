@@ -4,7 +4,7 @@
 // Copyright 2016-2019 Datadog, Inc.
 // +build kubeapiserver
 
-package kubeapi
+package topology_collectors
 
 import (
 	"github.com/stretchr/testify/assert"
@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func TestInstanceId(t *testing.T) {
+func TestInstanceIdExtractor(t *testing.T) {
 	nodeSpecProviderId := "aws:///us-east-1b/i-024b28584ed2e6321"
 
 	instanceId := extractInstanceIdFromProviderId(v1.NodeSpec{ProviderID: nodeSpecProviderId})

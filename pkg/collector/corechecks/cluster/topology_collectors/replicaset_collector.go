@@ -48,7 +48,7 @@ func (dsc *ReplicaSetCollector) replicaSetToStackStateComponent(replicaSet v1.Re
 	tags := emptyIfNil(replicaSet.Labels)
 	tags = dsc.addClusterNameTag(tags)
 
-	replicaSetExternalID := dsc.buildReplicaSetExternalID(dsc.GetInstance().URL, replicaSet.Name)
+	replicaSetExternalID := dsc.buildReplicaSetExternalID(replicaSet.Name)
 	component := &topology.Component{
 		ExternalID: replicaSetExternalID,
 		Type:       topology.Type{Name: "replicaset"},

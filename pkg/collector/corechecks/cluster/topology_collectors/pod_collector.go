@@ -53,16 +53,16 @@ func (pc *PodCollector) CollectorFunction() error {
 		for _, ref := range pod.OwnerReferences {
 			switch kind := ref.Kind; kind {
 			case DaemonSet:
-				dsExternalID := pc.buildDaemonSetExternalID(pc.GetInstance().URL, ref.Name)
+				dsExternalID := pc.buildDaemonSetExternalID(ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(dsExternalID, component.ExternalID)
 			case Deployment:
-				dmExternalID := pc.buildDeploymentExternalID(pc.GetInstance().URL, ref.Name)
+				dmExternalID := pc.buildDeploymentExternalID(ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(dmExternalID, component.ExternalID)
 			case ReplicaSet:
-				rsExternalID := pc.buildReplicaSetExternalID(pc.GetInstance().URL, ref.Name)
+				rsExternalID := pc.buildReplicaSetExternalID(ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(rsExternalID, component.ExternalID)
 			case StatefulSet:
-				ssExternalID := pc.buildStatefulSetExternalID(pc.GetInstance().URL, ref.Name)
+				ssExternalID := pc.buildStatefulSetExternalID(ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(ssExternalID, component.ExternalID)
 			}
 		}
@@ -86,7 +86,7 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 	}
 	log.Tracef("Created identifiers for %s: %v", pod.Name, identifiers)
 
-	podExternalID := pc.buildPodExternalID(pc.GetInstance().URL, pod.Name)
+	podExternalID := pc.buildPodExternalID(pod.Name)
 
 	// clear out the unnecessary status array values
 	podStatus := pod.Status
@@ -121,8 +121,8 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 
 // Creates a StackState relation from a Kubernetes / OpenShift Pod to Node relation
 func (pc *PodCollector) podToNodeStackStateRelation(pod v1.Pod) *topology.Relation {
-	podExternalID := pc.buildPodExternalID(pc.GetInstance().URL, pod.Name)
-	nodeExternalID := pc.buildNodeExternalID(pc.GetInstance().URL, pod.Spec.NodeName)
+	podExternalID := pc.buildPodExternalID(pod.Name)
+	nodeExternalID := pc.buildNodeExternalID(pod.Spec.NodeName)
 
 	log.Tracef("Mapping kubernetes pod to node relation: %s -> %s", podExternalID, nodeExternalID)
 
@@ -156,7 +156,7 @@ func (pc *PodCollector) containerToStackStateComponent(nodeIdentifier string, po
 	}
 	log.Tracef("Created identifiers for %s: %v", container.Name, identifiers)
 
-	containerExternalID := pc.buildContainerExternalID(pc.GetInstance().URL, pod.Name, container.Name)
+	containerExternalID := pc.buildContainerExternalID(pod.Name, container.Name)
 
 	tags := emptyIfNil(pod.Labels)
 	tags = pc.addClusterNameTag(tags)

@@ -30,14 +30,14 @@ type ClusterTopologyCollector interface {
 	GetName() string
 	addClusterNameTag(tags map[string]string) map[string]string
 	buildClusterExternalID() string
-	buildContainerExternalID(clusterName, podName, containerName string) string
-	buildDaemonSetExternalID(clusterName, daemonSetName string) string
-	buildDeploymentExternalID(clusterName, deploymentName string) string
-	buildNodeExternalID(clusterName, nodeName string) string
-	buildPodExternalID(clusterName, podName string) string
-	buildReplicaSetExternalID(clusterName, replicaSetName string) string
-	buildServiceExternalID(clusterName, serviceID string) string
-	buildStatefulSetExternalID(clusterName, statefulSetName string) string
+	buildContainerExternalID(podName, containerName string) string
+	buildDaemonSetExternalID(daemonSetName string) string
+	buildDeploymentExternalID(deploymentName string) string
+	buildNodeExternalID(nodeName string) string
+	buildPodExternalID(podName string) string
+	buildReplicaSetExternalID(replicaSetName string) string
+	buildServiceExternalID(serviceID string) string
+	buildStatefulSetExternalID(statefulSetName string) string
 }
 
 type clusterTopologyCollector struct {
@@ -73,36 +73,36 @@ func (c *clusterTopologyCollector) buildClusterExternalID() string {
 	return fmt.Sprintf("urn:cluster:%s/%s", c.Instance.Type, c.Instance.URL)
 }
 
-func (c *clusterTopologyCollector) buildNodeExternalID(clusterName, nodeName string) string {
-	return fmt.Sprintf("urn:/%s:%s:node:%s", c.Instance.Type, clusterName, nodeName)
+func (c *clusterTopologyCollector) buildNodeExternalID(nodeName string) string {
+	return fmt.Sprintf("urn:/%s:%s:node:%s", c.Instance.Type, c.Instance.URL, nodeName)
 }
 
-func (c *clusterTopologyCollector) buildPodExternalID(clusterName, podName string) string {
-	return fmt.Sprintf("urn:/%s:%s:pod:%s", c.Instance.Type, clusterName, podName)
+func (c *clusterTopologyCollector) buildPodExternalID(podName string) string {
+	return fmt.Sprintf("urn:/%s:%s:pod:%s", c.Instance.Type, c.Instance.URL, podName)
 }
 
-func (c *clusterTopologyCollector) buildContainerExternalID(clusterName, podName, containerName string) string {
-	return fmt.Sprintf("urn:/%s:%s:pod:%s:container:%s", c.Instance.Type, clusterName, podName, containerName)
+func (c *clusterTopologyCollector) buildContainerExternalID(podName, containerName string) string {
+	return fmt.Sprintf("urn:/%s:%s:pod:%s:container:%s", c.Instance.Type, c.Instance.URL, podName, containerName)
 }
 
-func (c *clusterTopologyCollector) buildServiceExternalID(clusterName, serviceID string) string {
-	return fmt.Sprintf("urn:/%s:%s:service:%s", c.Instance.Type, clusterName, serviceID)
+func (c *clusterTopologyCollector) buildServiceExternalID(serviceID string) string {
+	return fmt.Sprintf("urn:/%s:%s:service:%s", c.Instance.Type, c.Instance.URL, serviceID)
 }
 
-func (c *clusterTopologyCollector) buildDaemonSetExternalID(clusterName, daemonSetName string) string {
-	return fmt.Sprintf("urn:/%s:%s:daemonset:%s", c.Instance.Type, clusterName, daemonSetName)
+func (c *clusterTopologyCollector) buildDaemonSetExternalID(daemonSetName string) string {
+	return fmt.Sprintf("urn:/%s:%s:daemonset:%s", c.Instance.Type, c.Instance.URL, daemonSetName)
 }
 
-func (c *clusterTopologyCollector) buildDeploymentExternalID(clusterName, deploymentName string) string {
-	return fmt.Sprintf("urn:/%s:%s:deployment:%s", c.Instance.Type, clusterName, deploymentName)
+func (c *clusterTopologyCollector) buildDeploymentExternalID(deploymentName string) string {
+	return fmt.Sprintf("urn:/%s:%s:deployment:%s", c.Instance.Type, c.Instance.URL, deploymentName)
 }
 
-func (c *clusterTopologyCollector) buildReplicaSetExternalID(clusterName, replicaSetName string) string {
-	return fmt.Sprintf("urn:/%s:%s:replicaset:%s", c.Instance.Type, clusterName, replicaSetName)
+func (c *clusterTopologyCollector) buildReplicaSetExternalID(replicaSetName string) string {
+	return fmt.Sprintf("urn:/%s:%s:replicaset:%s", c.Instance.Type, c.Instance.URL, replicaSetName)
 }
 
-func (c *clusterTopologyCollector) buildStatefulSetExternalID(clusterName, statefulSetName string) string {
-	return fmt.Sprintf("urn:/%s:%s:statefulset:%s", c.Instance.Type, clusterName, statefulSetName)
+func (c *clusterTopologyCollector) buildStatefulSetExternalID(statefulSetName string) string {
+	return fmt.Sprintf("urn:/%s:%s:statefulset:%s", c.Instance.Type, c.Instance.URL, statefulSetName)
 }
 
 func (c *clusterTopologyCollector) addClusterNameTag(tags map[string]string) map[string]string {

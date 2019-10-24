@@ -106,7 +106,7 @@ func (nc *NodeCollector) nodeToStackStateComponent(node v1.Node) *topology.Compo
 
 	log.Tracef("Created identifiers for %s: %v", node.Name, identifiers)
 
-	nodeExternalID := nc.buildNodeExternalID(nc.GetInstance().URL, node.Name)
+	nodeExternalID := nc.buildNodeExternalID(node.Name)
 
 	// clear out the unnecessary status array values
 	nodeStatus := node.Status
@@ -141,7 +141,7 @@ func (nc *NodeCollector) nodeToStackStateComponent(node v1.Node) *topology.Compo
 
 // Creates a StackState relation from a Kubernetes Pod to Node relation
 func (nc *NodeCollector) nodeToClusterStackStateRelation(node v1.Node) *topology.Relation {
-	nodeExternalID := nc.buildNodeExternalID(nc.GetInstance().URL, node.Name)
+	nodeExternalID := nc.buildNodeExternalID(node.Name)
 	clusterExternalID := nc.buildClusterExternalID()
 
 	log.Tracef("Mapping kubernetes node to cluster relation: %s -> %s", nodeExternalID, clusterExternalID)

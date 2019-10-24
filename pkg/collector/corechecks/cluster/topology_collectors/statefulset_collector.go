@@ -48,7 +48,7 @@ func (ssc *StatefulSetCollector) statefulSetToStackStateComponent(statefulSet v1
 	tags := emptyIfNil(statefulSet.Labels)
 	tags = ssc.addClusterNameTag(tags)
 
-	statefulSetExternalID := ssc.buildStatefulSetExternalID(ssc.GetInstance().URL, statefulSet.Name)
+	statefulSetExternalID := ssc.buildStatefulSetExternalID(statefulSet.Name)
 	component := &topology.Component{
 		ExternalID: statefulSetExternalID,
 		Type:       topology.Type{Name: "statefulset"},
