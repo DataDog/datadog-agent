@@ -28,6 +28,7 @@ type MetricSample struct {
 	SetValue   []byte
 	MetricType metrics.MetricType
 	Tags       [][]byte
+	ExtraTags  []string
 	Hostname   []byte
 	SampleRate float64
 	Timestamp  float64
@@ -44,6 +45,7 @@ type Event struct {
 	Priority       metrics.EventPriority
 	Hostname       []byte
 	Tags           [][]byte
+	ExtraTags      []string
 	AlertType      metrics.EventAlertType
 	AggregationKey []byte
 	SourceTypeName []byte
@@ -60,4 +62,5 @@ type ServiceCheck struct {
 	Status    metrics.ServiceCheckStatus
 	Message   []byte
 	Tags      [][]byte
+	ExtraTags []string
 }

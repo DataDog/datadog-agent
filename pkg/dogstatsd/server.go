@@ -259,73 +259,84 @@ func nextMessage(packet *[]byte) (message []byte) {
 	return message
 }
 
-func convertTags(tags [][]byte) []string {
+func convertTags(tags [][]byte, extraTags []string) []string {
 	if len(tags) == 0 {
 		return nil
 	}
-	strTags := make([]string, 0, len(tags))
+	strTags := make([]string, 0, len(tags)+len(extraTags))
 	for _, tag := range tags {
 		strTags = append(strTags, string(tag))
+	}
+	for _, tag := range extraTags {
+		strTags = append(strTags, tag)
 	}
 	return strTags
 }
 
-func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (*metrics.MetricSample, error) {
+func convertMetricSample(metricSample MetricSample) *metrics.MetricSample {
+	return &metrics.MetricSample{
+		Host:       string(metricSample.Hostname),
+		Name:       string(metricSample.Name),
+		Tags:       convertTags(metricSample.Tags, metricSample.ExtraTags),
+		Mtype:      metricSample.MetricType,
+		RawValue:   string(metricSample.SetValue),
+		SampleRate: metricSample.SampleRate,
+		Timestamp:  metricSample.Timestamp,
+		Value:      metricSample.Value,
+	}
+}
+
+func convertEvent(event Event) *metrics.Event {
+	return &metrics.Event{
+		Title:          string(event.Title),
+		Text:           string(event.Text),
+		Ts:             event.Timestamp,
+		Priority:       event.Priority,
+		Host:           string(event.Hostname),
+		Tags:           convertTags(event.Tags, event.ExtraTags),
+		AlertType:      event.AlertType,
+		AggregationKey: string(event.AggregationKey),
+		SourceTypeName: string(event.SourceTypeName),
+	}
+}
+
+func convertServiceCheck(serviceCheck ServiceCheck) *metrics.ServiceCheck {
+	return &metrics.ServiceCheck{
+		CheckName: string(serviceCheck.Name),
+		Host:      string(serviceCheck.Hostname),
+		Ts:        serviceCheck.Timestamp,
+		Status:    serviceCheck.Status,
+		Message:   string(serviceCheck.Message),
+		Tags:      convertTags(serviceCheck.Tags, serviceCheck.ExtraTags),
+	}
+}
+
+func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (MetricSample, error) {
 	sample, err := parseMetricSample(message)
 	if err != nil {
-		return nil, err
+		return MetricSample{}, err
 	}
 	var blacklist [][]byte
 	for _, blacklistedNamespace := range namespaceBlacklist {
 		blacklist = append(blacklist, []byte(blacklistedNamespace))
 	}
-	enrichedSample := enrichMetricSample(sample, []byte(namespace), blacklist, []byte(defaultHostname))
-	return &metrics.MetricSample{
-		Host:       string(enrichedSample.Hostname),
-		Name:       string(enrichedSample.Name),
-		Tags:       convertTags(enrichedSample.Tags),
-		Mtype:      enrichedSample.MetricType,
-		RawValue:   string(enrichedSample.SetValue),
-		SampleRate: enrichedSample.SampleRate,
-		Timestamp:  enrichedSample.Timestamp,
-		Value:      enrichedSample.Value,
-	}, nil
+	return enrichMetricSample(sample, []byte(namespace), blacklist, []byte(defaultHostname)), nil
 }
 
-func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
+func parseEventMessage(message []byte, defaultHostname string) (Event, error) {
 	sample, err := parseEvent(message)
 	if err != nil {
-		return nil, err
+		return Event{}, err
 	}
-	enrichedEvent := enirchEvent(sample, []byte(defaultHostname))
-
-	return &metrics.Event{
-		Title:          string(enrichedEvent.Title),
-		Text:           string(enrichedEvent.Text),
-		Ts:             enrichedEvent.Timestamp,
-		Priority:       enrichedEvent.Priority,
-		Host:           string(enrichedEvent.Hostname),
-		Tags:           convertTags(enrichedEvent.Tags),
-		AlertType:      enrichedEvent.AlertType,
-		AggregationKey: string(enrichedEvent.AggregationKey),
-		SourceTypeName: string(enrichedEvent.SourceTypeName),
-	}, nil
+	return enirchEvent(sample, []byte(defaultHostname)), nil
 }
 
-func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
+func parseServiceCheckMessage(message []byte, defaultHostname string) (ServiceCheck, error) {
 	sample, err := parseServiceCheck(message)
 	if err != nil {
-		return nil, err
+		return ServiceCheck{}, err
 	}
-	enrichedServiceCheck := enrichServiceCheck(sample, []byte(defaultHostname))
-	return &metrics.ServiceCheck{
-		CheckName: string(enrichedServiceCheck.Name),
-		Host:      string(enrichedServiceCheck.Hostname),
-		Ts:        enrichedServiceCheck.Timestamp,
-		Status:    enrichedServiceCheck.Status,
-		Message:   string(enrichedServiceCheck.Message),
-		Tags:      convertTags(enrichedServiceCheck.Tags),
-	}, nil
+	return enrichServiceCheck(sample, []byte(defaultHostname)), nil
 }
 
 func (s *Server) parsePacket(packet *Packet, metricSamples []*metrics.MetricSample, events []*metrics.Event, serviceChecks []*metrics.ServiceCheck) ([]*metrics.MetricSample, []*metrics.Event, []*metrics.ServiceCheck) {
@@ -359,10 +370,10 @@ func (s *Server) parsePacket(packet *Packet, metricSamples []*metrics.MetricSamp
 				continue
 			}
 			if len(extraTags) > 0 {
-				serviceCheck.Tags = append(serviceCheck.Tags, extraTags...)
+				serviceCheck.ExtraTags = append(serviceCheck.ExtraTags, extraTags...)
 			}
 			dogstatsdServiceCheckPackets.Add(1)
-			serviceChecks = append(serviceChecks, serviceCheck)
+			serviceChecks = append(serviceChecks, convertServiceCheck(serviceCheck))
 		} else if bytes.HasPrefix(message, []byte("_e")) {
 			event, err := parseEventMessage(message, s.defaultHostname)
 			if err != nil {
@@ -371,10 +382,10 @@ func (s *Server) parsePacket(packet *Packet, metricSamples []*metrics.MetricSamp
 				continue
 			}
 			if len(extraTags) > 0 {
-				event.Tags = append(event.Tags, extraTags...)
+				event.ExtraTags = append(event.ExtraTags, extraTags...)
 			}
 			dogstatsdEventPackets.Add(1)
-			events = append(events, event)
+			events = append(events, convertEvent(event))
 		} else {
 			sample, err := parseMetricMessage(message, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
 			if err != nil {
@@ -383,15 +394,16 @@ func (s *Server) parsePacket(packet *Packet, metricSamples []*metrics.MetricSamp
 				continue
 			}
 			if s.debugMetricsStats {
-				s.storeMetricStats(sample.Name)
+				s.storeMetricStats(string(sample.Name))
 			}
 			if len(extraTags) > 0 {
-				sample.Tags = append(sample.Tags, extraTags...)
+				sample.ExtraTags = append(sample.ExtraTags, extraTags...)
 			}
 			dogstatsdMetricPackets.Add(1)
-			metricSamples = append(metricSamples, sample)
-			if s.histToDist && sample.Mtype == metrics.HistogramType {
-				distSample := sample.Copy()
+			convertedSample := convertMetricSample(sample)
+			metricSamples = append(metricSamples, convertedSample)
+			if s.histToDist && convertedSample.Mtype == metrics.HistogramType {
+				distSample := convertedSample.Copy()
 				distSample.Name = s.histToDistPrefix + distSample.Name
 				distSample.Mtype = metrics.DistributionType
 				metricSamples = append(metricSamples, distSample)

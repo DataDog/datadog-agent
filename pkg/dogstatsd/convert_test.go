@@ -10,8 +10,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func parseAndConvertMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (*metrics.MetricSample, error) {
+	parsed, err := parseMetricMessage(message, namespace, namespaceBlacklist, defaultHostname)
+	if err != nil {
+		return nil, err
+	}
+	return convertMetricSample(parsed), nil
+}
+
+func parseAndConvertEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
+	parsed, err := parseEventMessage(message, defaultHostname)
+	if err != nil {
+		return nil, err
+	}
+	return convertEvent(parsed), nil
+}
+
+func parseAndConvertServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
+	parsed, err := parseServiceCheckMessage(message, defaultHostname)
+	if err != nil {
+		return nil, err
+	}
+	return convertServiceCheck(parsed), nil
+}
+
 func TestConvertParseGauge(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:666|g"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -24,7 +48,7 @@ func TestConvertParseGauge(t *testing.T) {
 }
 
 func TestConvertParseCounter(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:21|c"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:21|c"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -37,7 +61,7 @@ func TestConvertParseCounter(t *testing.T) {
 }
 
 func TestConvertParseCounterWithTags(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("custom_counter:1|c|#protocol:http,bench"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("custom_counter:1|c|#protocol:http,bench"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -52,7 +76,7 @@ func TestConvertParseCounterWithTags(t *testing.T) {
 }
 
 func TestConvertParseHistogram(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:21|h"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:21|h"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -65,7 +89,7 @@ func TestConvertParseHistogram(t *testing.T) {
 }
 
 func TestConvertParseTimer(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:21|ms"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:21|ms"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -78,7 +102,7 @@ func TestConvertParseTimer(t *testing.T) {
 }
 
 func TestConvertParseSet(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:abc|s"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:abc|s"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -91,7 +115,7 @@ func TestConvertParseSet(t *testing.T) {
 }
 
 func TestConvertParseDistribution(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:3.5|d"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:3.5|d"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -103,7 +127,7 @@ func TestConvertParseDistribution(t *testing.T) {
 }
 
 func TestConvertParseSetUnicode(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:♬†øU†øU¥ºuT0♪|s"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:♬†øU†øU¥ºuT0♪|s"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -116,7 +140,7 @@ func TestConvertParseSetUnicode(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithTags(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -131,7 +155,7 @@ func TestConvertParseGaugeWithTags(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithHostTag(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,sometag2:somevalue2"), "", nil, "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -145,7 +169,7 @@ func TestConvertParseGaugeWithHostTag(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithEmptyHostTag(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:,sometag2:somevalue2"), "", nil, "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -159,7 +183,7 @@ func TestConvertParseGaugeWithEmptyHostTag(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithNoTags(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:666|g"), "", nil, "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -171,7 +195,7 @@ func TestConvertParseGaugeWithNoTags(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithSampleRate(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|@0.21"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:666|g|@0.21"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -184,7 +208,7 @@ func TestConvertParseGaugeWithSampleRate(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithPoundOnly(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:666|g|#"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -197,7 +221,7 @@ func TestConvertParseGaugeWithPoundOnly(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithUnicode(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"), "", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -212,42 +236,42 @@ func TestConvertParseGaugeWithUnicode(t *testing.T) {
 
 func TestConvertParseMetricError(t *testing.T) {
 	// not enough information
-	_, err := parseMetricMessage([]byte("daemon:666"), "", nil, "default-hostname")
+	_, err := parseAndConvertMetricMessage([]byte("daemon:666"), "", nil, "default-hostname")
 	assert.Error(t, err)
 
-	_, err = parseMetricMessage([]byte("daemon:666|"), "", nil, "default-hostname")
+	_, err = parseAndConvertMetricMessage([]byte("daemon:666|"), "", nil, "default-hostname")
 	assert.Error(t, err)
 
-	_, err = parseMetricMessage([]byte("daemon:|g"), "", nil, "default-hostname")
+	_, err = parseAndConvertMetricMessage([]byte("daemon:|g"), "", nil, "default-hostname")
 	assert.Error(t, err)
 
-	_, err = parseMetricMessage([]byte(":666|g"), "", nil, "default-hostname")
+	_, err = parseAndConvertMetricMessage([]byte(":666|g"), "", nil, "default-hostname")
 	assert.Error(t, err)
 
 	// too many value
-	_, err = parseMetricMessage([]byte("daemon:666:777|g"), "", nil, "default-hostname")
+	_, err = parseAndConvertMetricMessage([]byte("daemon:666:777|g"), "", nil, "default-hostname")
 	assert.Error(t, err)
 
 	// unknown metadata prefix
-	_, err = parseMetricMessage([]byte("daemon:666|g|m:test"), "", nil, "default-hostname")
+	_, err = parseAndConvertMetricMessage([]byte("daemon:666|g|m:test"), "", nil, "default-hostname")
 	assert.NoError(t, err)
 
 	// invalid value
-	_, err = parseMetricMessage([]byte("daemon:abc|g"), "", nil, "default-hostname")
+	_, err = parseAndConvertMetricMessage([]byte("daemon:abc|g"), "", nil, "default-hostname")
 	assert.Error(t, err)
 
 	// invalid metric type
-	_, err = parseMetricMessage([]byte("daemon:666|unknown"), "", nil, "default-hostname")
+	_, err = parseAndConvertMetricMessage([]byte("daemon:666|unknown"), "", nil, "default-hostname")
 	assert.Error(t, err)
 
 	// invalid sample rate
-	_, err = parseMetricMessage([]byte("daemon:666|g|@abc"), "", nil, "default-hostname")
+	_, err = parseAndConvertMetricMessage([]byte("daemon:666|g|@abc"), "", nil, "default-hostname")
 	assert.Error(t, err)
 }
 
 func TestConvertParseMonokeyBatching(t *testing.T) {
 	// TODO: not implemented
-	// parsed, err := parseMetricMessage([]byte("test_gauge:1.5|g|#tag1:one,tag2:two:2.3|g|#tag3:three:3|g"), "default-hostname")
+	// parsed, err := parseAndConvertMetricMessage([]byte("test_gauge:1.5|g|#tag1:one,tag2:two:2.3|g|#tag3:three:3|g"), "default-hostname")
 }
 
 func TestConvertEnsureUTF8(t *testing.T) {
@@ -267,7 +291,7 @@ func TestConvertPacketStringEndings(t *testing.T) {
 }
 
 func TestConvertServiceCheckMinimal(t *testing.T) {
-	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0"), "default-hostname")
+	sc, err := parseAndConvertServiceCheckMessage([]byte("_sc|agent.up|0"), "default-hostname")
 
 	assert.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -280,31 +304,31 @@ func TestConvertServiceCheckMinimal(t *testing.T) {
 
 func TestConvertServiceCheckError(t *testing.T) {
 	// not enough information
-	_, err := parseServiceCheckMessage([]byte("_sc|agent.up"), "default-hostname")
+	_, err := parseAndConvertServiceCheckMessage([]byte("_sc|agent.up"), "default-hostname")
 	assert.Error(t, err)
 
-	_, err = parseServiceCheckMessage([]byte("_sc|agent.up|"), "default-hostname")
+	_, err = parseAndConvertServiceCheckMessage([]byte("_sc|agent.up|"), "default-hostname")
 	assert.Error(t, err)
 
 	// not invalid status
-	_, err = parseServiceCheckMessage([]byte("_sc|agent.up|OK"), "default-hostname")
+	_, err = parseAndConvertServiceCheckMessage([]byte("_sc|agent.up|OK"), "default-hostname")
 	assert.Error(t, err)
 
 	// not unknown status
-	_, err = parseServiceCheckMessage([]byte("_sc|agent.up|21"), "default-hostname")
+	_, err = parseAndConvertServiceCheckMessage([]byte("_sc|agent.up|21"), "default-hostname")
 	assert.Error(t, err)
 
 	// invalid timestamp
-	_, err = parseServiceCheckMessage([]byte("_sc|agent.up|0|d:some_time"), "default-hostname")
+	_, err = parseAndConvertServiceCheckMessage([]byte("_sc|agent.up|0|d:some_time"), "default-hostname")
 	assert.NoError(t, err)
 
 	// unknown metadata
-	_, err = parseServiceCheckMessage([]byte("_sc|agent.up|0|u:unknown"), "default-hostname")
+	_, err = parseAndConvertServiceCheckMessage([]byte("_sc|agent.up|0|u:unknown"), "default-hostname")
 	assert.NoError(t, err)
 }
 
 func TestConvertServiceCheckMetadataTimestamp(t *testing.T) {
-	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|d:21"), "default-hostname")
+	sc, err := parseAndConvertServiceCheckMessage([]byte("_sc|agent.up|0|d:21"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -316,7 +340,7 @@ func TestConvertServiceCheckMetadataTimestamp(t *testing.T) {
 }
 
 func TestConvertServiceCheckMetadataHostname(t *testing.T) {
-	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|h:localhost"), "default-hostname")
+	sc, err := parseAndConvertServiceCheckMessage([]byte("_sc|agent.up|0|h:localhost"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -328,7 +352,7 @@ func TestConvertServiceCheckMetadataHostname(t *testing.T) {
 }
 
 func TestConvertServiceCheckMetadataHostnameInTag(t *testing.T) {
-	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|#host:localhost"), "default-hostname")
+	sc, err := parseAndConvertServiceCheckMessage([]byte("_sc|agent.up|0|#host:localhost"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -340,7 +364,7 @@ func TestConvertServiceCheckMetadataHostnameInTag(t *testing.T) {
 }
 
 func TestConvertServiceCheckMetadataEmptyHostTag(t *testing.T) {
-	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|#host:,other:tag"), "default-hostname")
+	sc, err := parseAndConvertServiceCheckMessage([]byte("_sc|agent.up|0|#host:,other:tag"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -352,7 +376,7 @@ func TestConvertServiceCheckMetadataEmptyHostTag(t *testing.T) {
 }
 
 func TestConvertServiceCheckMetadataTags(t *testing.T) {
-	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|#tag1,tag2:test,tag3"), "default-hostname")
+	sc, err := parseAndConvertServiceCheckMessage([]byte("_sc|agent.up|0|#tag1,tag2:test,tag3"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -364,7 +388,7 @@ func TestConvertServiceCheckMetadataTags(t *testing.T) {
 }
 
 func TestConvertServiceCheckMetadataMessage(t *testing.T) {
-	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|m:this is fine"), "default-hostname")
+	sc, err := parseAndConvertServiceCheckMessage([]byte("_sc|agent.up|0|m:this is fine"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -377,7 +401,7 @@ func TestConvertServiceCheckMetadataMessage(t *testing.T) {
 
 func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
 	// all type
-	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2|m:this is fine"), "default-hostname")
+	sc, err := parseAndConvertServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2|m:this is fine"), "default-hostname")
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost", sc.Host)
@@ -387,7 +411,7 @@ func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
 	assert.Equal(t, []string{"tag1:test", "tag2"}, sc.Tags)
 
 	// multiple time the same tag
-	sc, err = parseServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|h:localhost2|d:22"), "default-hostname")
+	sc, err = parseAndConvertServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|h:localhost2|d:22"), "default-hostname")
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost2", sc.Host)
@@ -398,7 +422,7 @@ func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
 }
 
 func TestConvertEventMinimal(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text"), "default-hostname")
+	e, err := parseAndConvertEventMessage([]byte("_e{10,9}:test title|test text"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -414,7 +438,7 @@ func TestConvertEventMinimal(t *testing.T) {
 }
 
 func TestConvertEventMultilinesText(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,24}:test title|test\\line1\\nline2\\nline3"), "default-hostname")
+	e, err := parseAndConvertEventMessage([]byte("_e{10,24}:test title|test\\line1\\nline2\\nline3"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -430,7 +454,7 @@ func TestConvertEventMultilinesText(t *testing.T) {
 }
 
 func TestConvertEventPipeInTitle(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,24}:test|title|test\\line1\\nline2\\nline3"), "default-hostname")
+	e, err := parseAndConvertEventMessage([]byte("_e{10,24}:test|title|test\\line1\\nline2\\nline3"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test|title", e.Title)
@@ -447,71 +471,71 @@ func TestConvertEventPipeInTitle(t *testing.T) {
 
 func TestConvertEventError(t *testing.T) {
 	// missing length header
-	_, err := parseEventMessage([]byte("_e:title|text"), "default-hostname")
+	_, err := parseAndConvertEventMessage([]byte("_e:title|text"), "default-hostname")
 	assert.Error(t, err)
 
 	// greater length than packet
-	_, err = parseEventMessage([]byte("_e{10,10}:title|text"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e{10,10}:title|text"), "default-hostname")
 	assert.Error(t, err)
 
 	// zero length
-	_, err = parseEventMessage([]byte("_e{0,0}:a|a"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e{0,0}:a|a"), "default-hostname")
 	assert.Error(t, err)
 
 	// missing title or text length
-	_, err = parseEventMessage([]byte("_e{5555:title|text"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e{5555:title|text"), "default-hostname")
 	assert.Error(t, err)
 
 	// missing wrong len format
-	_, err = parseEventMessage([]byte("_e{a,1}:title|text"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e{a,1}:title|text"), "default-hostname")
 	assert.Error(t, err)
 
-	_, err = parseEventMessage([]byte("_e{1,a}:title|text"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e{1,a}:title|text"), "default-hostname")
 	assert.Error(t, err)
 
 	// missing title or text length
-	_, err = parseEventMessage([]byte("_e{5,}:title|text"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e{5,}:title|text"), "default-hostname")
 	assert.Error(t, err)
 
-	_, err = parseEventMessage([]byte("_e{,4}:title|text"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e{,4}:title|text"), "default-hostname")
 	assert.Error(t, err)
 
-	_, err = parseEventMessage([]byte("_e{}:title|text"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e{}:title|text"), "default-hostname")
 	assert.Error(t, err)
 
-	_, err = parseEventMessage([]byte("_e{,}:title|text"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e{,}:title|text"), "default-hostname")
 	assert.Error(t, err)
 
 	// not enough information
-	_, err = parseEventMessage([]byte("_e|text"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e|text"), "default-hostname")
 	assert.Error(t, err)
 
-	_, err = parseEventMessage([]byte("_e:|text"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e:|text"), "default-hostname")
 	assert.Error(t, err)
 
 	// invalid timestamp
-	_, err = parseEventMessage([]byte("_e{5,4}:title|text|d:abc"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e{5,4}:title|text|d:abc"), "default-hostname")
 	assert.NoError(t, err)
 
 	// invalid priority
-	_, err = parseEventMessage([]byte("_e{5,4}:title|text|p:urgent"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e{5,4}:title|text|p:urgent"), "default-hostname")
 	assert.NoError(t, err)
 
 	// invalid priority
-	_, err = parseEventMessage([]byte("_e{5,4}:title|text|p:urgent"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e{5,4}:title|text|p:urgent"), "default-hostname")
 	assert.NoError(t, err)
 
 	// invalid alert type
-	_, err = parseEventMessage([]byte("_e{5,4}:title|text|t:test"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e{5,4}:title|text|t:test"), "default-hostname")
 	assert.NoError(t, err)
 
 	// unknown metadata
-	_, err = parseEventMessage([]byte("_e{5,4}:title|text|x:1234"), "default-hostname")
+	_, err = parseAndConvertEventMessage([]byte("_e{5,4}:title|text|x:1234"), "default-hostname")
 	assert.NoError(t, err)
 }
 
 func TestConvertEventMetadataTimestamp(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|d:21"), "default-hostname")
+	e, err := parseAndConvertEventMessage([]byte("_e{10,9}:test title|test text|d:21"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -527,7 +551,7 @@ func TestConvertEventMetadataTimestamp(t *testing.T) {
 }
 
 func TestConvertEventMetadataPriority(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|p:low"), "default-hostname")
+	e, err := parseAndConvertEventMessage([]byte("_e{10,9}:test title|test text|p:low"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -543,7 +567,7 @@ func TestConvertEventMetadataPriority(t *testing.T) {
 }
 
 func TestConvertEventMetadataHostname(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|h:localhost"), "default-hostname")
+	e, err := parseAndConvertEventMessage([]byte("_e{10,9}:test title|test text|h:localhost"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -559,7 +583,7 @@ func TestConvertEventMetadataHostname(t *testing.T) {
 }
 
 func TestConvertEventMetadataHostnameInTag(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|#host:localhost"), "default-hostname")
+	e, err := parseAndConvertEventMessage([]byte("_e{10,9}:test title|test text|#host:localhost"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -575,7 +599,7 @@ func TestConvertEventMetadataHostnameInTag(t *testing.T) {
 }
 
 func TestConvertEventMetadataEmptyHostTag(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|#host:,other:tag"), "default-hostname")
+	e, err := parseAndConvertEventMessage([]byte("_e{10,9}:test title|test text|#host:,other:tag"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -591,7 +615,7 @@ func TestConvertEventMetadataEmptyHostTag(t *testing.T) {
 }
 
 func TestConvertEventMetadataAlertType(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|t:warning"), "default-hostname")
+	e, err := parseAndConvertEventMessage([]byte("_e{10,9}:test title|test text|t:warning"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -607,7 +631,7 @@ func TestConvertEventMetadataAlertType(t *testing.T) {
 }
 
 func TestConvertEventMetadataAggregatioKey(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|k:some aggregation key"), "default-hostname")
+	e, err := parseAndConvertEventMessage([]byte("_e{10,9}:test title|test text|k:some aggregation key"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -623,7 +647,7 @@ func TestConvertEventMetadataAggregatioKey(t *testing.T) {
 }
 
 func TestConvertEventMetadataSourceType(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|s:this is the source"), "default-hostname")
+	e, err := parseAndConvertEventMessage([]byte("_e{10,9}:test title|test text|s:this is the source"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -639,7 +663,7 @@ func TestConvertEventMetadataSourceType(t *testing.T) {
 }
 
 func TestConvertEventMetadataTags(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|#tag1,tag2:test"), "default-hostname")
+	e, err := parseAndConvertEventMessage([]byte("_e{10,9}:test title|test text|#tag1,tag2:test"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -655,7 +679,7 @@ func TestConvertEventMetadataTags(t *testing.T) {
 }
 
 func TestConvertEventMetadataMultiple(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"), "default-hostname")
+	e, err := parseAndConvertEventMessage([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -671,7 +695,7 @@ func TestConvertEventMetadataMultiple(t *testing.T) {
 }
 
 func TestConvertNamespace(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:21|ms"), "testNamespace.", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:21|ms"), "testNamespace.", nil, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -680,7 +704,7 @@ func TestConvertNamespace(t *testing.T) {
 }
 
 func TestConvertNamespaceBlacklist(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("datadog.agent.daemon:21|ms"), "testNamespace.", []string{"datadog.agent"}, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("datadog.agent.daemon:21|ms"), "testNamespace.", []string{"datadog.agent"}, "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -696,7 +720,7 @@ func TestConvertEntityOriginDetectionNoTags(t *testing.T) {
 		return []string{}, nil
 	}
 
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -717,7 +741,7 @@ func TestConvertEntityOriginDetectionTags(t *testing.T) {
 		return []string{}, nil
 	}
 
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -737,7 +761,7 @@ func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
 		return nil, errors.New("cannot get tags")
 	}
 
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseAndConvertMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
