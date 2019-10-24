@@ -336,7 +336,7 @@ func TestConvertServiceCheckMetadataHostnameInTag(t *testing.T) {
 	assert.Equal(t, int64(0), sc.Ts)
 	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
-	assert.Equal(t, []string{}, sc.Tags)
+	assert.Equal(t, []string(nil), sc.Tags)
 }
 
 func TestConvertServiceCheckMetadataEmptyHostTag(t *testing.T) {
@@ -567,7 +567,7 @@ func TestConvertEventMetadataHostnameInTag(t *testing.T) {
 	assert.Equal(t, int64(0), e.Ts)
 	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "localhost", e.Host)
-	assert.Equal(t, []string{}, e.Tags)
+	assert.Equal(t, []string(nil), e.Tags)
 	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
@@ -724,10 +724,10 @@ func TestConvertEntityOriginDetectionTags(t *testing.T) {
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
 	require.Equal(t, 4, len(parsed.Tags))
-	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
-	assert.Equal(t, "foo:bar", parsed.Tags[1])
-	assert.Equal(t, "bar:buz", parsed.Tags[2])
-	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[3])
+	assert.Contains(t, parsed.Tags, "sometag1:somevalue1")
+	assert.Contains(t, parsed.Tags, "foo:bar")
+	assert.Contains(t, parsed.Tags, "bar:buz")
+	assert.Contains(t, parsed.Tags, "sometag2:somevalue2")
 	assert.Equal(t, "my-hostname", parsed.Host)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }

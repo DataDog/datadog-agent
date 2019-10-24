@@ -2,7 +2,6 @@ package dogstatsd
 
 import (
 	"bytes"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -20,17 +19,19 @@ var (
 	getTags tagRetriever = tagger.Tag
 )
 
-func convertTags(tags [][]byte, defaultHostname string) ([]string, string) {
+func enrichTags(tags [][]byte, defaultHostname []byte) ([][]byte, []byte) {
 	if len(tags) == 0 {
 		return nil, defaultHostname
 	}
 
-	tagsList := make([]string, 0, len(tags))
+	newTags := tags[:0]
+	var extraTags []string
+
 	host := defaultHostname
 
 	for _, tag := range tags {
 		if bytes.HasPrefix(tag, hostTagPrefix) {
-			host = string(tag[len(hostTagPrefix):])
+			host = tag[len(hostTagPrefix):]
 		} else if bytes.HasPrefix(tag, entityIDTagPrefix) {
 			// currently only supported for pods
 			entity := kubelet.KubePodTaggerEntityPrefix + string(tag[len(entityIDTagPrefix):])
@@ -39,12 +40,16 @@ func convertTags(tags [][]byte, defaultHostname string) ([]string, string) {
 				log.Tracef("Cannot get tags for entity %s: %s", entity, err)
 				continue
 			}
-			tagsList = append(tagsList, entityTags...)
+			extraTags = append(extraTags, entityTags...)
 		} else {
-			tagsList = append(tagsList, string(tag))
+			newTags = append(newTags, tag)
 		}
 	}
-	return tagsList, host
+
+	for _, extraTag := range extraTags {
+		newTags = append(newTags, []byte(extraTag))
+	}
+	return newTags, host
 }
 
 func convertMetricType(dogstatsdMetricType metricType) metrics.MetricType {
@@ -65,30 +70,32 @@ func convertMetricType(dogstatsdMetricType metricType) metrics.MetricType {
 	return metrics.GaugeType
 }
 
-func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string, defaultHostname string) *metrics.MetricSample {
-	metricName := string(metricSample.name)
-	if namespace != "" {
+func enrichMetricSample(metricSample dogstatsdMetricSample, namespace []byte, namespaceBlacklist [][]byte, defaultHostname []byte) MetricSample {
+	metricName := metricSample.name
+	if len(namespace) != 0 {
 		blacklisted := false
 		for _, prefix := range namespaceBlacklist {
-			if strings.HasPrefix(metricName, prefix) {
+			if bytes.HasPrefix(metricName, prefix) {
 				blacklisted = true
 			}
 		}
 		if !blacklisted {
-			metricName = namespace + metricName
+			metricName = make([]byte, 0, len(namespace)+len(metricSample.name))
+			metricName = append(metricName, namespace...)
+			metricName = append(metricName, metricSample.name...)
 		}
 	}
 
-	tags, hostname := convertTags(metricSample.tags, defaultHostname)
+	tags, hostname := enrichTags(metricSample.tags, defaultHostname)
 
-	return &metrics.MetricSample{
-		Host:       hostname,
+	return MetricSample{
+		Hostname:   hostname,
 		Name:       metricName,
 		Tags:       tags,
-		Mtype:      convertMetricType(metricSample.metricType),
+		MetricType: convertMetricType(metricSample.metricType),
 		Value:      metricSample.value,
 		SampleRate: metricSample.sampleRate,
-		RawValue:   string(metricSample.setValue),
+		SetValue:   metricSample.setValue,
 	}
 }
 
@@ -116,24 +123,24 @@ func convertEventAlertType(dogstatsdAlertType alertType) metrics.EventAlertType 
 	return metrics.EventAlertTypeSuccess
 }
 
-func enirchEvent(event dogstatsdEvent, defaultHostname string) *metrics.Event {
-	tags, hostFromTags := convertTags(event.tags, defaultHostname)
+func enirchEvent(event dogstatsdEvent, defaultHostname []byte) Event {
+	tags, hostFromTags := enrichTags(event.tags, defaultHostname)
 
-	convertedEvent := &metrics.Event{
-		Title:          string(event.title),
-		Text:           string(event.text),
-		Ts:             event.timestamp,
+	convertedEvent := Event{
+		Title:          event.title,
+		Text:           event.text,
+		Timestamp:      event.timestamp,
 		Priority:       convertEventPriority(event.priority),
 		Tags:           tags,
 		AlertType:      convertEventAlertType(event.alertType),
-		AggregationKey: string(event.aggregationKey),
-		SourceTypeName: string(event.sourceType),
+		AggregationKey: event.aggregationKey,
+		SourceTypeName: event.sourceType,
 	}
 
 	if len(event.hostname) != 0 {
-		convertedEvent.Host = string(event.hostname)
+		convertedEvent.Hostname = event.hostname
 	} else {
-		convertedEvent.Host = hostFromTags
+		convertedEvent.Hostname = hostFromTags
 	}
 	return convertedEvent
 }
@@ -152,21 +159,21 @@ func convertServiceCheckStatus(status serviceCheckStatus) metrics.ServiceCheckSt
 	return metrics.ServiceCheckUnknown
 }
 
-func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, defaultHostname string) *metrics.ServiceCheck {
-	tags, hostFromTags := convertTags(serviceCheck.tags, defaultHostname)
+func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, defaultHostname []byte) ServiceCheck {
+	tags, hostFromTags := enrichTags(serviceCheck.tags, defaultHostname)
 
-	convertedServiceCheck := &metrics.ServiceCheck{
-		CheckName: string(serviceCheck.name),
-		Ts:        serviceCheck.timestamp,
+	convertedServiceCheck := ServiceCheck{
+		Name:      serviceCheck.name,
+		Timestamp: serviceCheck.timestamp,
 		Status:    convertServiceCheckStatus(serviceCheck.status),
-		Message:   string(serviceCheck.message),
+		Message:   serviceCheck.message,
 		Tags:      tags,
 	}
 
 	if len(serviceCheck.hostname) != 0 {
-		convertedServiceCheck.Host = string(serviceCheck.hostname)
+		convertedServiceCheck.Hostname = serviceCheck.hostname
 	} else {
-		convertedServiceCheck.Host = hostFromTags
+		convertedServiceCheck.Hostname = hostFromTags
 	}
 	return convertedServiceCheck
 }

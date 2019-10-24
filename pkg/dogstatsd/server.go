@@ -259,12 +259,37 @@ func nextMessage(packet *[]byte) (message []byte) {
 	return message
 }
 
+func convertTags(tags [][]byte) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+	strTags := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		strTags = append(strTags, string(tag))
+	}
+	return strTags
+}
+
 func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (*metrics.MetricSample, error) {
 	sample, err := parseMetricSample(message)
 	if err != nil {
 		return nil, err
 	}
-	return enrichMetricSample(sample, namespace, namespaceBlacklist, defaultHostname), nil
+	var blacklist [][]byte
+	for _, blacklistedNamespace := range namespaceBlacklist {
+		blacklist = append(blacklist, []byte(blacklistedNamespace))
+	}
+	enrichedSample := enrichMetricSample(sample, []byte(namespace), blacklist, []byte(defaultHostname))
+	return &metrics.MetricSample{
+		Host:       string(enrichedSample.Hostname),
+		Name:       string(enrichedSample.Name),
+		Tags:       convertTags(enrichedSample.Tags),
+		Mtype:      enrichedSample.MetricType,
+		RawValue:   string(enrichedSample.SetValue),
+		SampleRate: enrichedSample.SampleRate,
+		Timestamp:  enrichedSample.Timestamp,
+		Value:      enrichedSample.Value,
+	}, nil
 }
 
 func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
@@ -272,7 +297,19 @@ func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, 
 	if err != nil {
 		return nil, err
 	}
-	return enirchEvent(sample, defaultHostname), nil
+	enrichedEvent := enirchEvent(sample, []byte(defaultHostname))
+
+	return &metrics.Event{
+		Title:          string(enrichedEvent.Title),
+		Text:           string(enrichedEvent.Text),
+		Ts:             enrichedEvent.Timestamp,
+		Priority:       enrichedEvent.Priority,
+		Host:           string(enrichedEvent.Hostname),
+		Tags:           convertTags(enrichedEvent.Tags),
+		AlertType:      enrichedEvent.AlertType,
+		AggregationKey: string(enrichedEvent.AggregationKey),
+		SourceTypeName: string(enrichedEvent.SourceTypeName),
+	}, nil
 }
 
 func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
@@ -280,7 +317,15 @@ func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.
 	if err != nil {
 		return nil, err
 	}
-	return enrichServiceCheck(sample, defaultHostname), nil
+	enrichedServiceCheck := enrichServiceCheck(sample, []byte(defaultHostname))
+	return &metrics.ServiceCheck{
+		CheckName: string(enrichedServiceCheck.Name),
+		Host:      string(enrichedServiceCheck.Hostname),
+		Ts:        enrichedServiceCheck.Timestamp,
+		Status:    enrichedServiceCheck.Status,
+		Message:   string(enrichedServiceCheck.Message),
+		Tags:      convertTags(enrichedServiceCheck.Tags),
+	}, nil
 }
 
 func (s *Server) parsePacket(packet *Packet, metricSamples []*metrics.MetricSample, events []*metrics.Event, serviceChecks []*metrics.ServiceCheck) ([]*metrics.MetricSample, []*metrics.Event, []*metrics.ServiceCheck) {

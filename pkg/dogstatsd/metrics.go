@@ -30,7 +30,7 @@ type MetricSample struct {
 	Tags       [][]byte
 	Hostname   []byte
 	SampleRate float64
-	Timestamp  int64
+	Timestamp  float64
 }
 
 // Event is an event originating from DogStatsD
