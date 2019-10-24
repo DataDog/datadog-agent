@@ -7,7 +7,6 @@
 package topology_collectors
 
 import (
-	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/kubeapi"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"testing"
 
@@ -16,7 +15,7 @@ import (
 
 func TestExternalIDBuilders(t *testing.T) {
 
-	instance := topology.Instance{Type: string(kubeapi.Kubernetes), URL: "Test-Cluster-Name"}
+	instance := topology.Instance{Type: "kubernetes", URL: "Test-Cluster-Name"}
 	clusterTopologyCollector := NewClusterTopologyCollector(instance, nil)
 
 	clusterTopologyCollector.buildClusterExternalID()
