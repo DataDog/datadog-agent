@@ -558,7 +558,7 @@ func TestRemoveIgnoredHPAs(t *testing.T) {
 		},
 	}
 
-	e := removeIgnoredAutoscaler(listToIgnore, cachedHPAs)
+	e, _ := removeIgnoredAutoscaler(listToIgnore, cachedHPAs, nil)
 	require.Equal(t, len(e), 1)
 	require.Equal(t, e[0].UID, types.UID("ccc"))
 
