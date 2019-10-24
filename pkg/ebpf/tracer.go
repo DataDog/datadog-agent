@@ -647,6 +647,9 @@ func (t *Tracer) populatePortMapping(mp *bpflib.Map) ([]uint16, error) {
 }
 
 func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionDirection {
+	if conn.Type == UDP {
+		return NONE
+	}
 	sourceLocal := t.isLocalAddress(conn.Source)
 	destLocal := t.isLocalAddress(conn.Dest)
 
