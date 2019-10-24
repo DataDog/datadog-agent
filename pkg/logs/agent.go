@@ -114,6 +114,13 @@ func (a *Agent) Stop() {
 		// trying to write to the network.
 		a.destinationsCtx.Stop()
 		// Wait again for the stopper to complete.
-		<-c
+		// In some situation, the stopper unfortunately never succeed to complete,
+		// we've already reached the grace period, give it some more seconds and
+		// then force quit.
+		timeout := time.NewTicker(10 * time.Second)
+		select {
+		case <-c:
+		case <-timeout.C:
+		}
 	}
 }
