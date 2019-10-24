@@ -153,7 +153,7 @@ func (f *groupingFilter) Reset() {
 // function is generic and the behavior changes according to chosen tokenFilter implementations.
 // The process calls all filters inside the []tokenFilter.
 func (o *Obfuscator) obfuscateSQLString(in string) (string, error) {
-	literalEscapes := o.LiteralEscapes()
+	literalEscapes := o.SQLLiteralEscapes()
 	tokenizer := NewSQLTokenizer(in, literalEscapes)
 	filters := []tokenFilter{&discardFilter{}, &replaceFilter{}, &groupingFilter{}}
 
@@ -164,7 +164,7 @@ func (o *Obfuscator) obfuscateSQLString(in string) (string, error) {
 		tokenizer = NewSQLTokenizer(in, !literalEscapes)
 		if out, err2 := attemptObfuscation(tokenizer, filters); err2 == nil {
 			// If the second attempt succeeded, change the default behavior
-			o.SetLiteralEscapes(!literalEscapes)
+			o.SetSQLLiteralEscapes(!literalEscapes)
 			return out, nil
 		}
 	}

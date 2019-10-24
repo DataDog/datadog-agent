@@ -440,8 +440,8 @@ ORDER BY [b].[Name]`,
 		},
 	}
 
-	for i, c := range cases {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
+	for _, c := range cases {
+		t.Run("", func(t *testing.T) {
 			s := SQLSpan(c.query)
 			NewObfuscator(nil).Obfuscate(s)
 			assert.Equal(t, c.expected, s.Resource)
@@ -833,8 +833,8 @@ func TestSQLErrors(t *testing.T) {
 			`at position 69: unexpected EOF in string`,
 		},
 	}
-	for i, tc := range cases {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
+	for _, tc := range cases {
+		t.Run("", func(t *testing.T) {
 			_, err := NewObfuscator(nil).obfuscateSQLString(tc.query)
 			assert.Error(t, err)
 			assert.Equal(t, tc.expected, err.Error())
@@ -896,14 +896,14 @@ func TestLiteralEscapesUpdates(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			o := NewObfuscator(nil)
-			o.SetLiteralEscapes(c.initial)
+			o.SetSQLLiteralEscapes(c.initial)
 			_, err := o.obfuscateSQLString(c.query)
 			if c.success {
 				assert.NoError(t, err)
 			} else {
 				assert.Error(t, err)
 			}
-			assert.Equal(t, c.expected, o.LiteralEscapes(), "Unexpected final value of LiteralEscapes")
+			assert.Equal(t, c.expected, o.SQLLiteralEscapes(), "Unexpected final value of SQLLiteralEscapes")
 		})
 	}
 }

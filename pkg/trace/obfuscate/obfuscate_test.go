@@ -226,17 +226,17 @@ func TestLiteralEscapes(t *testing.T) {
 	o := NewObfuscator(nil)
 
 	t.Run("default", func(t *testing.T) {
-		assert.False(t, o.LiteralEscapes())
+		assert.False(t, o.SQLLiteralEscapes())
 	})
 
-	t.Run("setter true", func(t *testing.T) {
-		o.SetLiteralEscapes(true)
-		assert.True(t, o.LiteralEscapes())
+	t.Run("true", func(t *testing.T) {
+		o.SetSQLLiteralEscapes(true)
+		assert.True(t, o.SQLLiteralEscapes())
 	})
 
-	t.Run("setter false", func(t *testing.T) {
-		o.SetLiteralEscapes(false)
-		assert.False(t, o.LiteralEscapes())
+	t.Run("false", func(t *testing.T) {
+		o.SetSQLLiteralEscapes(false)
+		assert.False(t, o.SQLLiteralEscapes())
 	})
 }
 
