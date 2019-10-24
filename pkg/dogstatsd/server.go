@@ -311,6 +311,19 @@ func convertServiceCheck(serviceCheck ServiceCheck) *metrics.ServiceCheck {
 	}
 }
 
+func cloneHistogramToDistribution(histogramSample MetricSample, prefix string) MetricSample {
+	distSample := histogramSample
+	distSample.Tags = make([][]byte, len(distSample.Tags))
+	distSample.ExtraTags = make([]string, len(distSample.ExtraTags))
+	copy(distSample.Tags, histogramSample.Tags)
+	copy(distSample.ExtraTags, histogramSample.ExtraTags)
+	distSample.Name = make([]byte, 0, len(histogramSample.Name)+len(prefix))
+	distSample.Name = append(distSample.Name, prefix...)
+	distSample.Name = append(distSample.Name, histogramSample.Name...)
+	distSample.MetricType = metrics.DistributionType
+	return distSample
+}
+
 func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (MetricSample, error) {
 	sample, err := parseMetricSample(message)
 	if err != nil {
@@ -402,11 +415,8 @@ func (s *Server) parsePacket(packet *Packet, metricSamples []*metrics.MetricSamp
 			dogstatsdMetricPackets.Add(1)
 			convertedSample := convertMetricSample(sample)
 			metricSamples = append(metricSamples, convertedSample)
-			if s.histToDist && convertedSample.Mtype == metrics.HistogramType {
-				distSample := convertedSample.Copy()
-				distSample.Name = s.histToDistPrefix + distSample.Name
-				distSample.Mtype = metrics.DistributionType
-				metricSamples = append(metricSamples, distSample)
+			if s.histToDist && sample.MetricType == metrics.HistogramType {
+				metricSamples = append(metricSamples, convertMetricSample(cloneHistogramToDistribution(sample, s.histToDistPrefix)))
 			}
 		}
 	}
