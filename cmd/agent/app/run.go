@@ -293,6 +293,12 @@ func StartAgent() error {
 		}
 	}
 
+	networkMode, err := util.GetAgentNetworkMode()
+	if err != nil {
+		return log.Errorf("Error while getting network mode: %v", err)
+	}
+	log.Infof("Network Mode is: %s", networkMode)
+
 	// start dependent services
 	startDependentServices()
 	return nil

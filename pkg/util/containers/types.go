@@ -37,6 +37,14 @@ const (
 	ContainerUnhealthy             = "unhealthy"
 )
 
+// Container network modes
+const (
+	HostNetworkMode   string = "host"
+	BridgeNetworkMode        = "bridge"
+	NoneNetworkMode          = "none"
+	AwsvpcNetworkMode        = "awsvpc"
+)
+
 // Container represents a single container on a machine
 // and includes Cgroup-level statistics about the container.
 type Container struct {

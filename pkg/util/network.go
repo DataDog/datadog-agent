@@ -1,3 +1,5 @@
+// +build docker
+
 package util
 
 import (
@@ -5,6 +7,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,4 +47,21 @@ func GetNetworkID() (string, error) {
 	}
 
 	return "", fmt.Errorf("could not detect network ID")
+}
+
+// GetAgentNetworkMode retrieves from Docker the network mode of the Agent container
+func GetAgentNetworkMode() (string, error) {
+	cacheNetworkModeKey := cache.BuildAgentKey("networkMode")
+	if cacheNetworkMode, found := cache.Cache.Get(cacheNetworkModeKey); found {
+		return cacheNetworkMode.(string), nil
+	}
+
+	log.Debugf("GetAgentNetworkMode trying Docker")
+	networkMode, err := docker.GetAgentContainerNetworkMode()
+	if err != nil {
+		return "", fmt.Errorf("could not detect agent network mode: %v", err)
+	}
+	cache.Cache.Set(cacheNetworkModeKey, networkMode, cache.NoExpiration)
+	log.Debugf("GetAgentNetworkMode: using network mode from Docker: %s", networkMode)
+	return networkMode, nil
 }
