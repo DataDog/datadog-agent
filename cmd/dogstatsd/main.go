@@ -183,7 +183,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")
-	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetBufferedChannels())
+	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetDogstatsdChannels())
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return nil
