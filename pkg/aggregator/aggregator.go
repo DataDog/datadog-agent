@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"bytes"
 	"expvar"
 	"fmt"
 	"sort"
@@ -236,6 +237,41 @@ func deduplicateTags(tags []string) []string {
 		tags[j] = tags[i]
 	}
 	return tags[:j+1]
+}
+
+func deduplicateRawTags(tags [][]byte) [][]byte {
+	if len(tags) == 0 {
+		return tags
+	}
+	selectionSort(tags)
+
+	j := 0
+	for i := 1; i < len(tags); i++ {
+		if bytes.Equal(tags[j], tags[i]) {
+			continue
+		}
+		j++
+		tags[j] = tags[i]
+	}
+	return tags[:j+1]
+}
+
+func selectionSort(array [][]byte) {
+	var min int
+	var tmp []byte
+
+	for i := 0; i < len(array); i++ {
+		min = i
+		for j := i + 1; j < len(array); j++ {
+			if bytes.Compare(array[j], array[min]) < 0 {
+				min = j
+			}
+		}
+
+		tmp = array[i]
+		array[i] = array[min]
+		array[min] = tmp
+	}
 }
 
 // AddRecurrentSeries adds a serie to the series that are sent at every flush
@@ -607,16 +643,13 @@ func (agg *BufferedAggregator) Stop() {
 
 }
 
-func convertDogstatsdTags(tags [][]byte, extraTags []string) []string {
+func convertDogstatsdTags(tags [][]byte) []string {
 	if len(tags) == 0 {
 		return nil
 	}
-	strTags := make([]string, 0, len(tags)+len(extraTags))
+	strTags := make([]string, 0, len(tags))
 	for _, tag := range tags {
 		strTags = append(strTags, string(tag))
-	}
-	for _, tag := range extraTags {
-		strTags = append(strTags, tag)
 	}
 	return strTags
 }
@@ -625,7 +658,7 @@ func convertDogstatsdMetricSample(metricSample dogstatsd.MetricSample) *metrics.
 	return &metrics.MetricSample{
 		Host:       string(metricSample.Hostname),
 		Name:       string(metricSample.Name),
-		Tags:       convertDogstatsdTags(metricSample.Tags, metricSample.ExtraTags),
+		Tags:       convertDogstatsdTags(metricSample.Tags),
 		Mtype:      metricSample.MetricType,
 		RawValue:   string(metricSample.SetValue),
 		SampleRate: metricSample.SampleRate,
@@ -641,7 +674,7 @@ func convertDogstatsdEvent(event dogstatsd.Event) metrics.Event {
 		Ts:             event.Timestamp,
 		Priority:       event.Priority,
 		Host:           string(event.Hostname),
-		Tags:           convertDogstatsdTags(event.Tags, event.ExtraTags),
+		Tags:           convertDogstatsdTags(event.Tags),
 		AlertType:      event.AlertType,
 		AggregationKey: string(event.AggregationKey),
 		SourceTypeName: string(event.SourceTypeName),
@@ -655,7 +688,7 @@ func convertDogstatsdServiceCheck(serviceCheck dogstatsd.ServiceCheck) metrics.S
 		Ts:        serviceCheck.Timestamp,
 		Status:    serviceCheck.Status,
 		Message:   string(serviceCheck.Message),
-		Tags:      convertDogstatsdTags(serviceCheck.Tags, serviceCheck.ExtraTags),
+		Tags:      convertDogstatsdTags(serviceCheck.Tags),
 	}
 }
 
