@@ -197,10 +197,12 @@ func (t *TopologyCheck) Run() error {
 		),
 	)
 
+	wg.Add(len(clusterCollectors))
+
 	for _, collector := range clusterCollectors {
 		go func(col collectors.ClusterTopologyCollector) {
 			defer wg.Done()
-			log.Tracef("Starting cluster topology collector: %s", col.GetName())
+			log.Debugf("Starting cluster topology collector: %s", col.GetName())
 			err := col.CollectorFunction()
 			if err != nil {
 				errChannel <- err
@@ -226,8 +228,6 @@ func (t *TopologyCheck) Run() error {
 			_ = log.Error(err)
 		}
 	}()
-
-	wg.Add(len(clusterCollectors))
 
 	wg.Wait()
 
