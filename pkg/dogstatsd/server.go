@@ -262,9 +262,7 @@ func nextMessage(packet *[]byte) (message []byte) {
 func cloneHistogramToDistribution(histogramSample MetricSample, prefix string) MetricSample {
 	distSample := histogramSample
 	distSample.Tags = make([][]byte, len(distSample.Tags))
-	distSample.ExtraTags = make([]string, len(distSample.ExtraTags))
 	copy(distSample.Tags, histogramSample.Tags)
-	copy(distSample.ExtraTags, histogramSample.ExtraTags)
 	distSample.Name = make([]byte, 0, len(histogramSample.Name)+len(prefix))
 	distSample.Name = append(distSample.Name, prefix...)
 	distSample.Name = append(distSample.Name, histogramSample.Name...)
@@ -358,7 +356,9 @@ func (s *Server) parsePacket(packet *Packet, metricSamples []MetricSample, event
 				s.storeMetricStats(string(sample.Name))
 			}
 			if len(extraTags) > 0 {
-				sample.ExtraTags = append(sample.ExtraTags, extraTags...)
+				for _, tag := range extraTags {
+					sample.Tags = append(sample.Tags, []byte(tag))
+				}
 			}
 			dogstatsdMetricPackets.Add(1)
 			metricSamples = append(metricSamples, sample)

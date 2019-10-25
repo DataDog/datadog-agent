@@ -28,7 +28,6 @@ type MetricSample struct {
 	SetValue   []byte
 	MetricType metrics.MetricType
 	Tags       [][]byte
-	ExtraTags  []string
 	Hostname   []byte
 	SampleRate float64
 	Timestamp  float64

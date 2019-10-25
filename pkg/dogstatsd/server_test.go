@@ -318,8 +318,7 @@ func TestExtraTags(t *testing.T) {
 		assert.Equal(t, sample.Name, []byte("daemon"))
 		assert.EqualValues(t, sample.Value, 666.0)
 		assert.Equal(t, sample.MetricType, metrics.GaugeType)
-		assert.ElementsMatch(t, sample.Tags, [][]byte{[]byte("sometag1:somevalue1"), []byte("sometag2:somevalue2")})
-		assert.ElementsMatch(t, sample.ExtraTags, []string{"sometag3:somevalue3"})
+		assert.ElementsMatch(t, sample.Tags, [][]byte{[]byte("sometag1:somevalue1"), []byte("sometag2:somevalue2"), []byte("sometag3:somevalue3")})
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
