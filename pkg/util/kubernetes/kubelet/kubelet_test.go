@@ -231,6 +231,30 @@ func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
 		}, ku.GetRawConnectionInfo())
 }
 
+func (suite *KubeletTestSuite) TestGetRawLocalPodList() {
+	mockConfig := config.Mock()
+
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.Nil(suite.T(), err)
+
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubelet_auth_token_path", "")
+
+	kubeutil, err := GetKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
+	kubelet.dropRequests() // Throwing away first GETs
+
+	pods, err := kubeutil.GetRawLocalPodList()
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), pods, 7)
+}
+
 func (suite *KubeletTestSuite) TestGetLocalPodList() {
 	mockConfig := config.Mock()
 

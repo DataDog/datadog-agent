@@ -28,6 +28,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+
+	"k8s.io/apimachinery/pkg/runtime"
+	clientsetscheme "k8s.io/client-go/kubernetes/scheme"
+	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -165,6 +169,29 @@ func (ku *KubeUtil) GetNodename() (string, error) {
 	}
 
 	return "", fmt.Errorf("failed to get the kubernetes nodename, pod list length: %d", len(pods))
+}
+
+// GetRawLocalPodList returns the unfiltered pod list from the kubelet
+func (ku KubeUtil) GetRawLocalPodList() ([]v1.Pod, error) {
+	data, code, err := ku.QueryKubelet(kubeletPodPath)
+
+	if err != nil {
+		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletApiEndpoint, kubeletPodPath, err)
+	}
+	if code != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletApiEndpoint, kubeletPodPath, string(data))
+	}
+
+	podListData, err := runtime.Decode(clientsetscheme.Codecs.UniversalDecoder(v1.SchemeGroupVersion), data)
+	if err != nil {
+		return nil, fmt.Errorf("unable to decode the pod list: %s", err)
+	}
+	podList, ok := podListData.(*v1.PodList)
+	if !ok {
+		return nil, fmt.Errorf("pod list type assertion failed on %v", podListData)
+	}
+
+	return podList.Items, nil
 }
 
 // GetLocalPodList returns the list of pods running on the node.
