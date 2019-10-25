@@ -7,13 +7,13 @@
 package kubeapi
 
 import (
+	"fmt"
 	collectors "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/topology_collectors"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/pkg/errors"
-	"sync"
-	"testing"
-
 	"github.com/stretchr/testify/assert"
+	"strconv"
+	"testing"
 )
 
 func TestRunClusterCollectors(t *testing.T) {
@@ -21,13 +21,16 @@ func TestRunClusterCollectors(t *testing.T) {
 	kubernetesTopologyCheck := KubernetesApiTopologyFactory().(*TopologyCheck)
 	instance := topology.Instance{Type: "kubernetes", URL: "test-cluster-name"}
 
-	var wg sync.WaitGroup
 	componentChannel := make(chan *topology.Component)
 	relationChannel := make(chan *topology.Relation)
 	errChannel := make(chan error)
+	waitGroupChannel := make(chan int)
 	defer close(componentChannel)
 	defer close(relationChannel)
 	defer close(errChannel)
+	defer close(waitGroupChannel)
+
+	setupTopologyAssertion(t, componentChannel, relationChannel, errChannel, waitGroupChannel)
 
 	var clusterCollectors []collectors.ClusterTopologyCollector
 	commonClusterCollector := collectors.NewClusterTopologyCollector(instance, nil)
@@ -36,31 +39,38 @@ func TestRunClusterCollectors(t *testing.T) {
 		NewTestCollector(componentChannel, relationChannel, commonClusterCollector),
 		NewErrorTestCollector(componentChannel, relationChannel, commonClusterCollector),
 	)
+	kubernetesTopologyCheck.runClusterCollectors(clusterCollectors, waitGroupChannel, errChannel)
+}
 
-	wg.Add(len(clusterCollectors))
-
-	kubernetesTopologyCheck.runClusterCollectors(clusterCollectors, wg, errChannel)
-
-	component1 := <- componentChannel
-	assert.Equal(t, component1.ExternalID, "1")
-
-	component2 := <- componentChannel
-	assert.Equal(t, component2.ExternalID, "2")
-
-	component3 := <- componentChannel
-	assert.Equal(t, component3.ExternalID, "3")
-
-	component4 := <- componentChannel
-	assert.Equal(t, component4.ExternalID, "4")
-
-	relation1 := <- relationChannel
-	assert.Equal(t, relation1.ExternalID, "1->2")
-
-	relation2 := <- relationChannel
-	assert.Equal(t, relation2.ExternalID, "3->4")
-
-	error := <- errChannel
-	assert.Equal(t, "ErrorTestCollector", error.Error())
+// sets up the receiver that handles the component, relation and error channel and asserts the response.
+func setupTopologyAssertion(t *testing.T , componentChannel <-chan *topology.Component, relationChannel <-chan *topology.Relation,
+	errorChannel <-chan error, waitGroupChannel <-chan int) {
+	go func() {
+		componentCount := 1
+		relationCount := 1
+	loop:
+		for {
+			select {
+			case component := <- componentChannel:
+				// match the component with the count number that represents the ExternalID
+				assert.Equal(t, strconv.Itoa(componentCount), component.ExternalID)
+				componentCount = componentCount + 1
+			case relation := <- relationChannel:
+				// match the relation with the count number -> +1 that represents the ExternalID
+				assert.Equal(t, fmt.Sprintf("%s->%s", strconv.Itoa(relationCount), strconv.Itoa(relationCount+1)), relation.ExternalID)
+				relationCount = relationCount + 2
+			case err := <- errorChannel:
+				// match the error message
+				assert.Equal(t, "ErrorTestCollector", err.Error())
+			case cnt := <- waitGroupChannel:
+				// match the wait group channel closing message
+				assert.Equal(t, 1, cnt)
+				break loop
+			default:
+				// no message received, continue looping
+			}
+		}
+	}()
 }
 
 // TestCollector implements the ClusterTopologyCollector interface.
