@@ -2,7 +2,11 @@
 
 package topology_collectors
 
-import "github.com/StackVista/stackstate-agent/pkg/topology"
+import (
+	"github.com/StackVista/stackstate-agent/pkg/topology"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
+	"k8s.io/api/batch/v1beta1"
+)
 
 // CronJobCollector implements the ClusterTopologyCollector interface.
 type CronJobCollector struct {
@@ -27,10 +31,45 @@ func (_ *CronJobCollector) GetName() string {
 
 // Collects and Published the Cron Job Components
 func (cjc *CronJobCollector) CollectorFunction() error {
-	_, err := cjc.GetAPIClient().GetCronJobs()
+	cronJobs, err := cjc.GetAPIClient().GetCronJobs()
 	if err != nil {
 		return err
 	}
 
+	for _, cj := range cronJobs {
+		cjc.ComponentChan <- cjc.cronJobToStackStateComponent(cj)
+	}
+
 	return nil
+}
+
+// Creates a StackState CronJob component from a Kubernetes / OpenShift Cluster
+func (cjc *CronJobCollector) cronJobToStackStateComponent(cronJob v1beta1.CronJob) *topology.Component {
+	log.Tracef("Mapping CronJob to StackState component: %s", cronJob.String())
+
+	tags := emptyIfNil(cronJob.Labels)
+	tags = cjc.addClusterNameTag(tags)
+
+	cronJobExternalID := cjc.buildCronJobExternalID(cronJob.Name)
+	component := &topology.Component{
+		ExternalID: cronJobExternalID,
+		Type:       topology.Type{Name: "cronjob"},
+		Data: map[string]interface{}{
+			"name":              cronJob.Name,
+			"kind":              cronJob.Kind,
+			"creationTimestamp": cronJob.CreationTimestamp,
+			"tags":              tags,
+			"namespace":         cronJob.Namespace,
+			"uid":           cronJob.UID,
+			"generateName":  cronJob.GenerateName,
+			"concurrencyPolicy":  cronJob.Spec.ConcurrencyPolicy,
+			"schedule":  cronJob.Spec.Schedule,
+		},
+	}
+
+	//jobs := cronJob.Status.Active
+
+	log.Tracef("Created StackState CronJob component %s: %v", cronJobExternalID, component.JSONString())
+
+	return component
 }

@@ -39,6 +39,12 @@ type ClusterTopologyCollector interface {
 	buildReplicaSetExternalID(replicaSetName string) string
 	buildServiceExternalID(serviceID string) string
 	buildStatefulSetExternalID(statefulSetName string) string
+	buildCronJobExternalID(cronJobName string) string
+	buildJobExternalID(jobName string) string
+	buildIngressExternalID(ingressName string) string
+	buildPersistentVolumeExternalID(volumeName string) string
+	buildVolumeExternalID(volumeName string) string
+	buildEndpointID(endpointID string) string
 }
 
 type clusterTopologyCollector struct {
@@ -108,6 +114,30 @@ func (c *clusterTopologyCollector) buildStatefulSetExternalID(statefulSetName st
 
 func (c *clusterTopologyCollector) buildConfigMapExternalID(configMapName string) string {
 	return fmt.Sprintf("urn:/%s:%s:configmap:%s", c.Instance.Type, c.Instance.URL, configMapName)
+}
+
+func (c *clusterTopologyCollector) buildCronJobExternalID(cronJobName string) string {
+	return fmt.Sprintf("urn:/%s:%s:cronjob:%s", c.Instance.Type, c.Instance.URL, cronJobName)
+}
+
+func (c *clusterTopologyCollector) buildJobExternalID(jobName string) string {
+	return fmt.Sprintf("urn:/%s:%s:job:%s", c.Instance.Type, c.Instance.URL, jobName)
+}
+
+func (c *clusterTopologyCollector) buildIngressExternalID(ingressName string) string {
+	return fmt.Sprintf("urn:/%s:%s:ingress:%s", c.Instance.Type, c.Instance.URL, ingressName)
+}
+
+func (c *clusterTopologyCollector) buildPersistentVolumeExternalID(volumeName string) string {
+	return fmt.Sprintf("urn:/%s:%s:persistent-volume:%s", c.Instance.Type, c.Instance.URL, volumeName)
+}
+
+func (c *clusterTopologyCollector) buildVolumeExternalID(volumeName string) string {
+	return fmt.Sprintf("urn:/%s:%s:volume:%s", c.Instance.Type, c.Instance.URL, volumeName)
+}
+
+func (c *clusterTopologyCollector) buildEndpointID(endpointID string) string {
+	return fmt.Sprintf("urn:endpoint:/%s:%s", c.Instance.URL, endpointID)
 }
 
 func (c *clusterTopologyCollector) addClusterNameTag(tags map[string]string) map[string]string {

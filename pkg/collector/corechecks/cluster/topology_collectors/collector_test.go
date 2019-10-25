@@ -57,6 +57,30 @@ func TestCollectorInterface(t *testing.T) {
 	actualConfigMapExternalID := testCollector.buildConfigMapExternalID(configMapName)
 	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:configmap:test-configmap", actualConfigMapExternalID)
 
+	cronJobName := "test-cronjob"
+	actualCronJobExternalID := testCollector.buildCronJobExternalID(cronJobName)
+	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:cronjob:test-cronjob", actualCronJobExternalID)
+
+	jobName := "test-job"
+	actualJobExternalID := testCollector.buildJobExternalID(jobName)
+	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:job:test-job", actualJobExternalID)
+
+	ingressName := "test-ingress"
+	actualIngressExternalID := testCollector.buildIngressExternalID(ingressName)
+	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:ingress:test-ingress", actualIngressExternalID)
+
+	persistentVolumeName := "test-persistent-volume"
+	actualPersistentVolumeExternalID := testCollector.buildPersistentVolumeExternalID(persistentVolumeName)
+	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:persistent-volume:test-persistent-volume", actualPersistentVolumeExternalID)
+
+	volumeName := "test-volume"
+	actualVolumeExternalID := testCollector.buildVolumeExternalID(volumeName)
+	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:volume:test-volume", actualVolumeExternalID)
+
+	endpointName := "test-url"
+	actualEndpointExternalID := testCollector.buildEndpointID(endpointName)
+	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:endpoint:test-url", actualEndpointExternalID)
+
 	expectedCollectorName := "Test Collector"
 	actualCollectorName := testCollector.GetName()
 	assert.Equal(t, expectedCollectorName, actualCollectorName)

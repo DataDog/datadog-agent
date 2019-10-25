@@ -90,6 +90,28 @@ func (t *TopologyCheck) Run() error {
 	errChannel := make(chan error)
 	waitGroupChannel := make(chan int)
 
+	go func(componentChan <-chan *topology.Component, relationChan <-chan *topology.Relation,
+		errorChan <-chan error, waitGroupChan <-chan int) {
+	loop:
+		for {
+			select {
+			case component := <- componentChan:
+				log.Debugf("Publishing StackState %s component for %s: %v", component.Type.Name, component.ExternalID, component.JSONString())
+				batcher.GetBatcher().SubmitComponent(t.instance.CheckID, t.instance.Instance, *component)
+			case relation := <- relationChan:
+				log.Debugf("Publishing StackState %s relation %s->%s", relation.Type.Name, relation.SourceID, relation.TargetID)
+				batcher.GetBatcher().SubmitRelation(t.instance.CheckID, t.instance.Instance, *relation)
+			case err := <- errorChan:
+				_ = log.Error(err)
+			case <- waitGroupChan:
+				log.Debug("All collectors have been finished their work, continuing to publish data to StackState")
+				break loop
+			default:
+				// no message received, continue looping
+			}
+		}
+	}(componentChannel, relationChannel, errChannel, waitGroupChannel)
+
 	/*
 		cluster -> map cluster -> component
 
@@ -202,35 +224,14 @@ func (t *TopologyCheck) Run() error {
 
 	for _, collector := range clusterCollectors {
 		go func(col collectors.ClusterTopologyCollector) {
+			defer wg.Done()
 			log.Debugf("Starting cluster topology collector: %s", col.GetName())
 			err := col.CollectorFunction()
 			if err != nil {
 				errChannel <- err
 			}
-			defer wg.Done()
 		}(collector)
 	}
-	go func(componentChan <-chan *topology.Component, relationChan <-chan *topology.Relation,
-		errorChan <-chan error, waitGroupChan <-chan int) {
-	loop:
-		for {
-			select {
-			case component := <- componentChan:
-				log.Debugf("Publishing StackState %s component for %s: %v", component.Type.Name, component.ExternalID, component.JSONString())
-				batcher.GetBatcher().SubmitComponent(t.instance.CheckID, t.instance.Instance, *component)
-			case relation := <- relationChan:
-				log.Debugf("Publishing StackState %s relation %s->%s", relation.Type.Name, relation.SourceID, relation.TargetID)
-				batcher.GetBatcher().SubmitRelation(t.instance.CheckID, t.instance.Instance, *relation)
-			case err := <- errorChan:
-				_ = log.Error(err)
-			case <- waitGroupChan:
-				log.Debug("All collectors have been finished their work, continuing to publish data to StackState")
-				break loop
-			default:
-				// no message received, continue looping
-			}
-		}
-	}(componentChannel, relationChannel, errChannel, waitGroupChannel)
 
 	wg.Wait()
 	waitGroupChannel <- 1
