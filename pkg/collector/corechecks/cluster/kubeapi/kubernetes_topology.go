@@ -76,11 +76,6 @@ func (t *TopologyCheck) Run() error {
 	// start the topology snapshot with the batch-er
 	batcher.GetBatcher().SubmitStartSnapshot(t.instance.CheckID, t.instance.Instance)
 
-	// set up a WaitGroup to wait for the concurrent topology gathering of the functions below
-	var wg sync.WaitGroup
-
-	var clusterCollectors []collectors.ClusterTopologyCollector
-
 	// Make a channel for each of the relations to avoid passing data down into all the functions
 	containerCorrelationChannel := make(chan *collectors.ContainerCorrelation)
 
@@ -90,17 +85,17 @@ func (t *TopologyCheck) Run() error {
 	errChannel := make(chan error)
 	waitGroupChannel := make(chan int)
 
-	go func(componentChan <-chan *topology.Component, relationChan <-chan *topology.Relation,
+	go func(instance *TopologyConfig, componentChan <-chan *topology.Component, relationChan <-chan *topology.Relation,
 		errorChan <-chan error, waitGroupChan <-chan int) {
 	loop:
 		for {
 			select {
 			case component := <- componentChan:
 				log.Debugf("Publishing StackState %s component for %s: %v", component.Type.Name, component.ExternalID, component.JSONString())
-				batcher.GetBatcher().SubmitComponent(t.instance.CheckID, t.instance.Instance, *component)
+				batcher.GetBatcher().SubmitComponent(instance.CheckID, instance.Instance, *component)
 			case relation := <- relationChan:
 				log.Debugf("Publishing StackState %s relation %s->%s", relation.Type.Name, relation.SourceID, relation.TargetID)
-				batcher.GetBatcher().SubmitRelation(t.instance.CheckID, t.instance.Instance, *relation)
+				batcher.GetBatcher().SubmitRelation(instance.CheckID, instance.Instance, *relation)
 			case err := <- errorChan:
 				_ = log.Error(err)
 			case <- waitGroupChan:
@@ -110,7 +105,7 @@ func (t *TopologyCheck) Run() error {
 				// no message received, continue looping
 			}
 		}
-	}(componentChannel, relationChannel, errChannel, waitGroupChannel)
+	}(t.instance, componentChannel, relationChannel, errChannel, waitGroupChannel)
 
 	/*
 		cluster -> map cluster -> component
@@ -133,7 +128,10 @@ func (t *TopologyCheck) Run() error {
 		relation -> publish relation
 	*/
 
-	//
+	// set up a WaitGroup to wait for the concurrent topology gathering of the functions below
+	var wg sync.WaitGroup
+
+	var clusterCollectors []collectors.ClusterTopologyCollector
 	commonClusterCollector := collectors.NewClusterTopologyCollector(t.instance.Instance, t.ac)
 
 	clusterCollectors = append(clusterCollectors,
@@ -222,18 +220,11 @@ func (t *TopologyCheck) Run() error {
 
 	wg.Add(len(clusterCollectors))
 
-	for _, collector := range clusterCollectors {
-		go func(col collectors.ClusterTopologyCollector) {
-			defer wg.Done()
-			log.Debugf("Starting cluster topology collector: %s", col.GetName())
-			err := col.CollectorFunction()
-			if err != nil {
-				errChannel <- err
-			}
-		}(collector)
-	}
+	t.runClusterCollectors(clusterCollectors, wg, errChannel)
 
+	log.Debug("Waiting for Cluster Collectors to Finish")
 	wg.Wait()
+	log.Debug("WaitGroup for Cluster Collectors has finished, stopping topology publish loop")
 	waitGroupChannel <- 1
 
 	defer close(containerCorrelationChannel)
@@ -246,7 +237,23 @@ func (t *TopologyCheck) Run() error {
 	batcher.GetBatcher().SubmitStopSnapshot(t.instance.CheckID, t.instance.Instance)
 	batcher.GetBatcher().SubmitComplete(t.instance.CheckID)
 
+	log.Debugf("Topology Check for cluster: %s completed successfully", t.instance.ClusterName)
+
 	return nil
+}
+
+// runs all of the cluster collectors, notify the wait groups and submit errors to the error channel
+func (t *TopologyCheck) runClusterCollectors(clusterCollectors []collectors.ClusterTopologyCollector, waitGroup sync.WaitGroup, errorChannel chan<- error) {
+	for _, collector := range clusterCollectors {
+		go func(col collectors.ClusterTopologyCollector, wg sync.WaitGroup, errCh chan<- error) {
+			defer wg.Done()
+			log.Debugf("Starting cluster topology collector: %s", col.GetName())
+			err := col.CollectorFunction()
+			if err != nil {
+				errCh <- err
+			}
+		}(collector, waitGroup, errorChannel)
+	}
 }
 
 // KubernetesASFactory is exported for integration testing.

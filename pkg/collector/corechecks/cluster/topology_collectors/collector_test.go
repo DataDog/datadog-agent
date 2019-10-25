@@ -18,8 +18,8 @@ func TestCollectorInterface(t *testing.T) {
 	instance := topology.Instance{Type: "kubernetes", URL: "Test-Cluster-Name"}
 	testCollector := NewTestCollector(NewClusterTopologyCollector(instance, nil))
 
-	testCollector.buildClusterExternalID()
-	assert.Equal(t, "urn:cluster:%s/%s", "")
+	actualClusterExternalID := testCollector.buildClusterExternalID()
+	assert.Equal(t, "urn:cluster:kubernetes/Test-Cluster-Name", actualClusterExternalID)
 
 	podName := "test-pod-name"
 	containerName := "test-container-name"
@@ -79,7 +79,7 @@ func TestCollectorInterface(t *testing.T) {
 
 	endpointName := "test-url"
 	actualEndpointExternalID := testCollector.buildEndpointID(endpointName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:endpoint:test-url", actualEndpointExternalID)
+	assert.Equal(t, "urn:endpoint:/Test-Cluster-Name:test-url", actualEndpointExternalID)
 
 	expectedCollectorName := "Test Collector"
 	actualCollectorName := testCollector.GetName()
