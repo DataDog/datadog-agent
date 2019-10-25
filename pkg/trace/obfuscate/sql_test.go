@@ -6,6 +6,7 @@
 package obfuscate
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"testing"
@@ -843,67 +844,59 @@ func TestSQLErrors(t *testing.T) {
 }
 
 func TestLiteralEscapesUpdates(t *testing.T) {
-	cases := []struct {
-		name     string
-		initial  bool
-		query    string
-		success  bool
-		expected bool
+	for _, c := range []struct {
+		initial bool
+		query   string
+		err     error
+		want    bool
 	}{
 		{
-			"Basic string. Initially false, is unchanged.",
 			false,
 			`SELECT * FROM foo WHERE field1 = 'value1' AND field2 = 'value2'`,
-			true,
+			nil,
 			false,
 		},
 		{
-			"Basic string. Initially true, is unchanged.",
 			true,
 			`SELECT * FROM foo WHERE field1 = 'value1' AND field2 = 'value2'`,
-			true,
+			nil,
 			true,
 		},
 		{
-			"String with literal backslash. Initially false, updates to true.",
 			false,
 			`SELECT * FROM foo WHERE name = 'backslash\' AND id ='1234'`,
-			true,
+			nil,
 			true,
 		},
 		{
-			"String with escaped quotes. Initially true, updates to false.",
 			true,
 			`SELECT * FROM foo WHERE name = 'embedded \'string\' in quotes' AND id ='1234'`,
-			true,
+			nil,
 			false,
 		},
 		{
-			"Mixed case. Initially false. Fails obfuscation and does not change behavior.",
 			false,
 			`SELECT age FROM profile WHERE name='John\' and place='John\'s House'`,
-			false,
+			errors.New("at position 59: unexpected byte 92"),
 			false,
 		},
 		{
-			"Mixed case. Initially true. Fails obfuscation and does not change behavior.",
 			true,
 			`SELECT age FROM profile WHERE name='John\' and place='John\'s House'`,
-			false,
+			errors.New("at position 69: unexpected EOF in string"),
 			true,
 		},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
+	} {
+		t.Run("", func(t *testing.T) {
 			o := NewObfuscator(nil)
 			o.SetSQLLiteralEscapes(c.initial)
 			_, err := o.obfuscateSQLString(c.query)
-			if c.success {
-				assert.NoError(t, err)
+			if c.err != nil {
+				assert.Equal(t, c.err, err)
 			} else {
-				assert.Error(t, err)
+				assert.NoError(t, err)
 			}
-			assert.Equal(t, c.expected, o.SQLLiteralEscapes(), "Unexpected final value of SQLLiteralEscapes")
+			assert.Equal(t, c.want, o.SQLLiteralEscapes(), "Unexpected final value of SQLLiteralEscapes")
 		})
 	}
 }
