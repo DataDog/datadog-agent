@@ -30,20 +30,20 @@ func TestCounterAddSample(t *testing.T) {
 	assert.EqualValues(t, 0, counter.value)
 
 	// Add sample with SampleRate
-	sample := MetricSample{
+	sample := MetricSampleValue{
 		Value:      2,
 		SampleRate: 0.5,
 	}
 
-	counter.addSample(&sample, 10)
+	counter.addSample(sample, 10)
 	assert.EqualValues(t, 4, counter.value, "SampleRate should have modify the counter value")
 	assert.True(t, counter.sampled)
 
 	// Add more samples
 	sampleValues := []float64{1, 2, 5, 0, 8, 3}
 	for _, sampleValue := range sampleValues {
-		sample := MetricSample{Value: sampleValue, SampleRate: 1}
-		counter.addSample(&sample, 55)
+		sample := MetricSampleValue{Value: sampleValue, SampleRate: 1}
+		counter.addSample(sample, 55)
 	}
 
 	series, err := counter.flush(60)
@@ -63,8 +63,8 @@ func TestCounterAddSample(t *testing.T) {
 	// Add a few new samples and flush: the counter should've been reset after the previous flush
 	sampleValues = []float64{5, 3}
 	for _, sampleValue := range sampleValues {
-		sample := MetricSample{Value: sampleValue, SampleRate: 0.5}
-		counter.addSample(&sample, 65)
+		sample := MetricSampleValue{Value: sampleValue, SampleRate: 0.5}
+		counter.addSample(sample, 65)
 	}
 	series, err = counter.flush(70)
 	assert.Nil(t, err)

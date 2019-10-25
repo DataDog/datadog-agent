@@ -30,8 +30,8 @@ func TestHistogramConfError(t *testing.T) {
 
 func TestConfigureDefault(t *testing.T) {
 	hist := NewHistogram(10)
-	hist.addSample(&MetricSample{Value: 1}, 50)
-	hist.addSample(&MetricSample{Value: 2}, 55)
+	hist.addSample(MetricSampleValue{Value: 1}, 50)
+	hist.addSample(MetricSampleValue{Value: 2}, 55)
 
 	_, err := hist.flush(60)
 	require.Nil(t, err)
@@ -71,12 +71,12 @@ func TestDefaultHistogramSampling(t *testing.T) {
 	assert.NotNil(t, err)
 
 	// Add samples
-	mHistogram.addSample(&MetricSample{Value: 1}, 50)
-	mHistogram.addSample(&MetricSample{Value: 10}, 51)
-	mHistogram.addSample(&MetricSample{Value: 4}, 55)
-	mHistogram.addSample(&MetricSample{Value: 5}, 55)
-	mHistogram.addSample(&MetricSample{Value: 2}, 55)
-	mHistogram.addSample(&MetricSample{Value: 2}, 55)
+	mHistogram.addSample(MetricSampleValue{Value: 1}, 50)
+	mHistogram.addSample(MetricSampleValue{Value: 10}, 51)
+	mHistogram.addSample(MetricSampleValue{Value: 4}, 55)
+	mHistogram.addSample(MetricSampleValue{Value: 5}, 55)
+	mHistogram.addSample(MetricSampleValue{Value: 2}, 55)
+	mHistogram.addSample(MetricSampleValue{Value: 2}, 55)
 
 	series, err := mHistogram.flush(60)
 	assert.Nil(t, err)
@@ -111,12 +111,12 @@ func TestCustomHistogramSampling(t *testing.T) {
 	assert.NotNil(t, err)
 
 	// Add samples
-	mHistogram.addSample(&MetricSample{Value: 1}, 50)
-	mHistogram.addSample(&MetricSample{Value: 10}, 51)
-	mHistogram.addSample(&MetricSample{Value: 4}, 55)
-	mHistogram.addSample(&MetricSample{Value: 5}, 55)
-	mHistogram.addSample(&MetricSample{Value: 2}, 55)
-	mHistogram.addSample(&MetricSample{Value: 2}, 55)
+	mHistogram.addSample(MetricSampleValue{Value: 1}, 50)
+	mHistogram.addSample(MetricSampleValue{Value: 10}, 51)
+	mHistogram.addSample(MetricSampleValue{Value: 4}, 55)
+	mHistogram.addSample(MetricSampleValue{Value: 5}, 55)
+	mHistogram.addSample(MetricSampleValue{Value: 2}, 55)
+	mHistogram.addSample(MetricSampleValue{Value: 2}, 55)
 
 	series, err := mHistogram.flush(60)
 	assert.Nil(t, err)
@@ -164,7 +164,7 @@ func TestHistogramPercentiles(t *testing.T) {
 	shuffle(percentiles) // in place
 	for _, p := range percentiles {
 		for j := 0; j < 20; j++ {
-			mHistogram.addSample(&MetricSample{Value: p}, 50)
+			mHistogram.addSample(MetricSampleValue{Value: p}, 50)
 		}
 	}
 
@@ -199,10 +199,10 @@ func TestHistogramSampleRate(t *testing.T) {
 	mHistogram := NewHistogram(10)
 	mHistogram.configure([]string{"max", "min", "median", "avg", "sum", "count"}, []int{20, 95, 80})
 
-	mHistogram.addSample(&MetricSample{Value: 1}, 50)
-	mHistogram.addSample(&MetricSample{Value: 2, SampleRate: 0.5}, 50)
-	mHistogram.addSample(&MetricSample{Value: 3, SampleRate: 0.2}, 50)
-	mHistogram.addSample(&MetricSample{Value: 10, SampleRate: 0.5}, 50)
+	mHistogram.addSample(MetricSampleValue{Value: 1}, 50)
+	mHistogram.addSample(MetricSampleValue{Value: 2, SampleRate: 0.5}, 50)
+	mHistogram.addSample(MetricSampleValue{Value: 3, SampleRate: 0.2}, 50)
+	mHistogram.addSample(MetricSampleValue{Value: 10, SampleRate: 0.5}, 50)
 
 	series, err := mHistogram.flush(60)
 	assert.Nil(t, err)
@@ -239,12 +239,12 @@ func TestHistogramReset(t *testing.T) {
 	mHistogram := NewHistogram(10)
 	mHistogram.configure([]string{"max", "min", "median", "avg", "sum", "count"}, []int{20, 95, 80})
 
-	mHistogram.addSample(&MetricSample{Value: 1}, 50)
-	mHistogram.addSample(&MetricSample{Value: 2, SampleRate: 0.5}, 50)
+	mHistogram.addSample(MetricSampleValue{Value: 1}, 50)
+	mHistogram.addSample(MetricSampleValue{Value: 2, SampleRate: 0.5}, 50)
 	_, err := mHistogram.flush(60)
 	assert.Nil(t, err)
 
-	mHistogram.addSample(&MetricSample{Value: 10}, 50)
+	mHistogram.addSample(MetricSampleValue{Value: 10}, 50)
 	series, err := mHistogram.flush(70)
 	assert.Nil(t, err)
 	require.Len(t, series, 9)
@@ -284,10 +284,10 @@ func benchHistogram(b *testing.B, number int, sampleRate float64) {
 	for n := 0; n < b.N; n++ {
 		h := NewHistogram(1)
 		h.configure([]string{"max", "min", "median", "avg", "sum", "count"}, []int{20, 95, 80})
-		m := MetricSample{Value: 21, SampleRate: sampleRate}
+		m := MetricSampleValue{Value: 21, SampleRate: sampleRate}
 
 		for i := 0; i < number; i++ {
-			h.addSample(&m, 10)
+			h.addSample(m, 10)
 		}
 		h.flush(10)
 	}

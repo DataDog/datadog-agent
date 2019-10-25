@@ -28,8 +28,8 @@ func TestSetAddSample(t *testing.T) {
 	// Add samples
 	sampleValues := []string{"a", "b", "c", "c", "b"}
 	for _, sampleValue := range sampleValues {
-		sample := MetricSample{RawValue: sampleValue}
-		set.addSample(&sample, 55)
+		sample := MetricSampleValue{RawValue: sampleValue}
+		set.addSample(sample, 55)
 	}
 	series, err := set.flush(60)
 	require.Nil(t, err)
@@ -43,8 +43,8 @@ func TestSetAddSample(t *testing.T) {
 	// Add a few new samples and flush: the set should've been reset after the previous flush
 	sampleValues = []string{"b", "b"}
 	for _, sampleValue := range sampleValues {
-		sample := MetricSample{RawValue: sampleValue}
-		set.addSample(&sample, 65)
+		sample := MetricSampleValue{RawValue: sampleValue}
+		set.addSample(sample, 65)
 	}
 	series, err = set.flush(70)
 	require.Nil(t, err)

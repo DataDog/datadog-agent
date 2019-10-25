@@ -22,15 +22,15 @@ func TestMonotonicCountSampling(t *testing.T) {
 	assert.NotNil(t, err)
 
 	// Flush with one sample only and no prior samples: error
-	monotonicCount.addSample(&MetricSample{Value: 1}, 45)
+	monotonicCount.addSample(MetricSampleValue{Value: 1}, 45)
 	_, err = monotonicCount.flush(40)
 	assert.NotNil(t, err)
 
 	// Add samples
-	monotonicCount.addSample(&MetricSample{Value: 2}, 50)
-	monotonicCount.addSample(&MetricSample{Value: 3}, 55)
-	monotonicCount.addSample(&MetricSample{Value: 6}, 55)
-	monotonicCount.addSample(&MetricSample{Value: 7}, 58)
+	monotonicCount.addSample(MetricSampleValue{Value: 2}, 50)
+	monotonicCount.addSample(MetricSampleValue{Value: 3}, 55)
+	monotonicCount.addSample(MetricSampleValue{Value: 6}, 55)
+	monotonicCount.addSample(MetricSampleValue{Value: 7}, 58)
 	series, err := monotonicCount.flush(60)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
@@ -43,7 +43,7 @@ func TestMonotonicCountSampling(t *testing.T) {
 	assert.NotNil(t, err)
 
 	// Add a single sample
-	monotonicCount.addSample(&MetricSample{Value: 11}, 75)
+	monotonicCount.addSample(MetricSampleValue{Value: 11}, 75)
 	series, err = monotonicCount.flush(80)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
@@ -52,11 +52,11 @@ func TestMonotonicCountSampling(t *testing.T) {
 	}
 
 	// Add sequence of non-monotonic samples
-	monotonicCount.addSample(&MetricSample{Value: 12}, 85)
-	monotonicCount.addSample(&MetricSample{Value: 10}, 85)
-	monotonicCount.addSample(&MetricSample{Value: 20}, 85)
-	monotonicCount.addSample(&MetricSample{Value: 13}, 85)
-	monotonicCount.addSample(&MetricSample{Value: 17}, 85)
+	monotonicCount.addSample(MetricSampleValue{Value: 12}, 85)
+	monotonicCount.addSample(MetricSampleValue{Value: 10}, 85)
+	monotonicCount.addSample(MetricSampleValue{Value: 20}, 85)
+	monotonicCount.addSample(MetricSampleValue{Value: 13}, 85)
+	monotonicCount.addSample(MetricSampleValue{Value: 17}, 85)
 	series, err = monotonicCount.flush(90)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {

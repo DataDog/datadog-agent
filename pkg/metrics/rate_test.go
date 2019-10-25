@@ -20,9 +20,9 @@ func TestRateSampling(t *testing.T) {
 	mRate2 := Rate{}
 
 	// Add samples
-	mRate1.addSample(&MetricSample{Value: 1}, 50)
-	mRate1.addSample(&MetricSample{Value: 11}, 52.5)
-	mRate2.addSample(&MetricSample{Value: 1}, 60)
+	mRate1.addSample(MetricSampleValue{Value: 1}, 50)
+	mRate1.addSample(MetricSampleValue{Value: 11}, 52.5)
+	mRate2.addSample(MetricSampleValue{Value: 1}, 60)
 
 	// First rate
 	series, err := mRate1.flush(60)
@@ -42,9 +42,9 @@ func TestRateSamplingMultipleSamplesInSameFlush(t *testing.T) {
 	mRate := Rate{}
 
 	// Add samples
-	mRate.addSample(&MetricSample{Value: 1}, 50)
-	mRate.addSample(&MetricSample{Value: 2}, 55)
-	mRate.addSample(&MetricSample{Value: 4}, 61)
+	mRate.addSample(MetricSampleValue{Value: 1}, 50)
+	mRate.addSample(MetricSampleValue{Value: 2}, 55)
+	mRate.addSample(MetricSampleValue{Value: 4}, 61)
 
 	// Should compute rate based on the last 2 samples
 	series, err := mRate.flush(65)
@@ -60,8 +60,8 @@ func TestRateSamplingNoSampleForOneFlush(t *testing.T) {
 	mRate := Rate{}
 
 	// Add samples
-	mRate.addSample(&MetricSample{Value: 1}, 50)
-	mRate.addSample(&MetricSample{Value: 2}, 55)
+	mRate.addSample(MetricSampleValue{Value: 1}, 50)
+	mRate.addSample(MetricSampleValue{Value: 2}, 55)
 
 	// First flush: no error
 	_, err := mRate.flush(60)
@@ -72,7 +72,7 @@ func TestRateSamplingNoSampleForOneFlush(t *testing.T) {
 	assert.NotNil(t, err)
 
 	// Third flush w/ sample
-	mRate.addSample(&MetricSample{Value: 4}, 60)
+	mRate.addSample(MetricSampleValue{Value: 4}, 60)
 	// Should compute rate based on the last 2 samples
 	series, err := mRate.flush(60)
 	assert.Nil(t, err)
@@ -87,8 +87,8 @@ func TestRateSamplingSamplesAtSameTimestamp(t *testing.T) {
 	mRate := Rate{}
 
 	// Add samples
-	mRate.addSample(&MetricSample{Value: 1}, 50)
-	mRate.addSample(&MetricSample{Value: 2}, 50)
+	mRate.addSample(MetricSampleValue{Value: 1}, 50)
+	mRate.addSample(MetricSampleValue{Value: 2}, 50)
 
 	series, err := mRate.flush(60)
 
@@ -101,8 +101,8 @@ func TestRateSamplingNegativeRate(t *testing.T) {
 	mRate := Rate{}
 
 	// Add samples, with second value below first one
-	mRate.addSample(&MetricSample{Value: 2}, 50)
-	mRate.addSample(&MetricSample{Value: 1}, 55)
+	mRate.addSample(MetricSampleValue{Value: 2}, 50)
+	mRate.addSample(MetricSampleValue{Value: 1}, 55)
 
 	// Should return an error
 	series, err := mRate.flush(60)
@@ -110,7 +110,7 @@ func TestRateSamplingNegativeRate(t *testing.T) {
 	assert.Len(t, series, 0)
 
 	// Add a sample again, this time with positive diff
-	mRate.addSample(&MetricSample{Value: 3}, 62)
+	mRate.addSample(MetricSampleValue{Value: 3}, 62)
 	// Should compute rate based on the last 2 samples
 	series, err = mRate.flush(70)
 	assert.Nil(t, err)

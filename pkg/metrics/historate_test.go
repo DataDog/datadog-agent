@@ -22,7 +22,7 @@ func TestHistorateEmptyFlush(t *testing.T) {
 
 func TestHistorateAddSampleOnce(t *testing.T) {
 	h := NewHistorate(1)
-	h.addSample(&MetricSample{Value: 1}, 50)
+	h.addSample(MetricSampleValue{Value: 1}, 50)
 
 	// Flush one sample: error
 	_, err := h.flush(50)
@@ -32,8 +32,8 @@ func TestHistorateAddSampleOnce(t *testing.T) {
 func TestHistorateAddSample(t *testing.T) {
 	h := NewHistorate(1)
 
-	h.addSample(&MetricSample{Value: 1}, 50)
-	h.addSample(&MetricSample{Value: 2}, 51)
+	h.addSample(MetricSampleValue{Value: 1}, 50)
+	h.addSample(MetricSampleValue{Value: 2}, 51)
 
 	// Flush one sample: error
 	series, err := h.flush(52)
