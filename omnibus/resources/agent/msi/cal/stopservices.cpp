@@ -97,7 +97,12 @@ VOID  DoStopSvc(MSIHANDLE hInstall, std::wstring &svcName)
 
     if (hService == NULL)
     {
-        WcaLog(LOGMSG_STANDARD, "OpenService failed (%d)\n", GetLastError());
+        DWORD err = GetLastError();
+        if(ERROR_SERVICE_DOES_NOT_EXIST == err) {
+            WcaLog(LOGMSG_STANDARD, "Didn't stop service: Service not found (this is expected on new installs)");
+        } else {
+            WcaLog(LOGMSG_STANDARD, "Didn't stop service: OpenService failed (%d)\n", err);
+        }
         CloseServiceHandle(hScManager);
         return;
     }
