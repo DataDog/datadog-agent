@@ -332,6 +332,8 @@ func (s *Server) parsePacket(packet *Packet, metricSamples []MetricSample, event
 				serviceCheck.ExtraTags = append(serviceCheck.ExtraTags, extraTags...)
 			}
 			dogstatsdServiceCheckPackets.Add(1)
+			packet.borrow()
+			serviceCheck.packet = packet
 			serviceChecks = append(serviceChecks, serviceCheck)
 		} else if bytes.HasPrefix(message, []byte("_e")) {
 			event, err := parseEventMessage(message, s.defaultHostname)
@@ -344,6 +346,8 @@ func (s *Server) parsePacket(packet *Packet, metricSamples []MetricSample, event
 				event.ExtraTags = append(event.ExtraTags, extraTags...)
 			}
 			dogstatsdEventPackets.Add(1)
+			packet.borrow()
+			event.packet = packet
 			events = append(events, event)
 		} else {
 			sample, err := parseMetricMessage(message, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
@@ -361,6 +365,8 @@ func (s *Server) parsePacket(packet *Packet, metricSamples []MetricSample, event
 				}
 			}
 			dogstatsdMetricPackets.Add(1)
+			packet.borrow()
+			sample.packet = packet
 			metricSamples = append(metricSamples, sample)
 			if s.histToDist && sample.MetricType == metrics.HistogramType {
 				metricSamples = append(metricSamples, cloneHistogramToDistribution(sample, s.histToDistPrefix))

@@ -736,16 +736,19 @@ func (agg *BufferedAggregator) run() {
 			aggregatorDogstatsdMetricSample.Add(int64(len(metrics)))
 			for _, sample := range metrics {
 				agg.addDogstatsdSample(sample, timeNowNano())
+				sample.Release()
 			}
 		case serviceChecks := <-agg.dogstatsdServiceCheckIn:
 			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
 			for _, serviceCheck := range serviceChecks {
 				agg.addServiceCheck(convertDogstatsdServiceCheck(serviceCheck))
+				serviceCheck.Release()
 			}
 		case events := <-agg.dogstatsdEventIn:
 			aggregatorEvent.Add(int64(len(events)))
 			for _, event := range events {
 				agg.addEvent(convertDogstatsdEvent(event))
+				event.Release()
 			}
 
 		case h := <-agg.hostnameUpdate:
