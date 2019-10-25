@@ -22,12 +22,12 @@ func MakeContextMetrics() ContextMetrics {
 }
 
 // AddSample add a sample to the current ContextMetrics and initialize a new metrics if needed.
-func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSample, timestamp float64, interval int64) error {
-	if math.IsInf(sample.Value, 0) || math.IsNaN(sample.Value) {
-		return fmt.Errorf("sample with value '%v'", sample.Value)
+func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sampleType MetricType, sampleValue MetricSampleValue, timestamp float64, interval int64) error {
+	if math.IsInf(sampleValue.Value, 0) || math.IsNaN(sampleValue.Value) {
+		return fmt.Errorf("sample with value '%v'", sampleValue.Value)
 	}
 	if _, ok := m[contextKey]; !ok {
-		switch sample.Mtype {
+		switch sampleType {
 		case GaugeType:
 			m[contextKey] = &Gauge{}
 		case RateType:
@@ -45,12 +45,12 @@ func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSamp
 		case CounterType:
 			m[contextKey] = NewCounter(interval)
 		default:
-			err := fmt.Errorf("unknown sample metric type: %v", sample.Mtype)
+			err := fmt.Errorf("unknown sample metric type: %v", sampleType)
 			log.Error(err)
 			return err
 		}
 	}
-	m[contextKey].addSample(sample, timestamp)
+	m[contextKey].addSample(sampleValue, timestamp)
 	return nil
 }
 

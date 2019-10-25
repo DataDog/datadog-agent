@@ -400,6 +400,12 @@ func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, tim
 	agg.statsdSampler.addSample(metricSample, timestamp)
 }
 
+// addSample adds the metric sample
+func (agg *BufferedAggregator) addDogstatsdSample(metricSample dogstatsd.MetricSample, timestamp float64) {
+	metricSample.Tags = deduplicateRawTags(metricSample.Tags)
+	agg.statsdSampler.addDogstatsdSample(metricSample, timestamp)
+}
+
 // GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 func (agg *BufferedAggregator) GetSeriesAndSketches() (metrics.Series, metrics.SketchSeriesList) {
 	agg.mu.Lock()
@@ -729,7 +735,7 @@ func (agg *BufferedAggregator) run() {
 		case metrics := <-agg.dogstatsdMetricIn:
 			aggregatorDogstatsdMetricSample.Add(int64(len(metrics)))
 			for _, sample := range metrics {
-				agg.addSample(convertDogstatsdMetricSample(sample), timeNowNano())
+				agg.addDogstatsdSample(sample, timeNowNano())
 			}
 		case serviceChecks := <-agg.dogstatsdServiceCheckIn:
 			aggregatorServiceCheck.Add(int64(len(serviceChecks)))

@@ -22,7 +22,7 @@ func NewCounter(interval int64) *Counter {
 	}
 }
 
-func (c *Counter) addSample(sample *MetricSample, timestamp float64) {
+func (c *Counter) addSample(sample MetricSampleValue, timestamp float64) {
 	c.value += sample.Value * (1 / sample.SampleRate)
 	c.sampled = true
 }

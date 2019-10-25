@@ -72,6 +72,13 @@ type MetricSample struct {
 	Timestamp  float64
 }
 
+// MetricSampleValue holds the value of a metric sample
+type MetricSampleValue struct {
+	Value      float64
+	RawValue   string
+	SampleRate float64
+}
+
 // Implement the MetricSampleContext interface
 
 // GetName returns the metric sample name

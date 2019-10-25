@@ -22,10 +22,10 @@ func NewHistorate(interval int64) *Historate {
 	}
 }
 
-func (h *Historate) addSample(sample *MetricSample, timestamp float64) {
+func (h *Historate) addSample(sample MetricSampleValue, timestamp float64) {
 	if h.previousTimestamp != 0 {
 		v := (sample.Value - h.previousSample) / (timestamp - h.previousTimestamp)
-		h.histogram.addSample(&MetricSample{Value: v}, timestamp)
+		h.histogram.addSample(MetricSampleValue{Value: v}, timestamp)
 		h.sampled = true
 	}
 	h.previousSample, h.previousTimestamp = sample.Value, timestamp

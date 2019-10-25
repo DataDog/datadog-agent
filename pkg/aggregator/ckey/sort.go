@@ -5,6 +5,8 @@
 
 package ckey
 
+import "bytes"
+
 // selectionSort is a in-place sorting algorithm used as
 // an alternative to the sort package to avoid heap allocations
 // in the metric intake section. It is benchmarked faster than
@@ -17,6 +19,24 @@ func selectionSort(array []string) {
 		min = i
 		for j := i + 1; j < len(array); j++ {
 			if array[j] < array[min] {
+				min = j
+			}
+		}
+
+		tmp = array[i]
+		array[i] = array[min]
+		array[min] = tmp
+	}
+}
+
+func selectionSortBytes(array [][]byte) {
+	var min int
+	var tmp []byte
+
+	for i := 0; i < len(array); i++ {
+		min = i
+		for j := i + 1; j < len(array); j++ {
+			if bytes.Compare(array[j], array[min]) < 0 {
 				min = j
 			}
 		}

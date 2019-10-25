@@ -66,6 +66,28 @@ func Generate(name, hostname string, tags []string) ContextKey {
 	return hash
 }
 
+// GenerateBytes returns the ContextKey hash for the given parameters.
+// The tags array is sorted in place to avoid heap allocations.
+func GenerateBytes(name, hostname []byte, tags [][]byte) ContextKey {
+	mmh := hashPool.Get().(*mmh3.HashWriter128)
+	mmh.Reset()
+	defer hashPool.Put(mmh)
+
+	selectionSortBytes(tags)
+
+	mmh.Write(name)
+	mmh.WriteString(",")
+	for _, t := range tags {
+		mmh.Write(t)
+		mmh.WriteString(",")
+	}
+	mmh.Write(hostname)
+
+	var hash [byteSize]byte
+	mmh.Sum(hash[0:0])
+	return hash
+}
+
 // Compare returns an integer comparing two strings lexicographically.
 // The result will be 0 if a==b, -1 if a < b, and +1 if a > b.
 func Compare(a, b ContextKey) int {

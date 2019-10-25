@@ -16,7 +16,7 @@ func NewSet() *Set {
 	return &Set{values: make(map[string]bool)}
 }
 
-func (s *Set) addSample(sample *MetricSample, timestamp float64) {
+func (s *Set) addSample(sample MetricSampleValue, timestamp float64) {
 	s.values[sample.RawValue] = true
 }
 

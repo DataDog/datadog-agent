@@ -8,6 +8,7 @@ package aggregator
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -54,6 +55,41 @@ func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) b
 	return bucketStartTimestamp+s.interval > timestamp
 }
 
+func (s *TimeSampler) addDogstatsdSample(metricSample dogstatsd.MetricSample, timestamp float64) {
+	// Keep track of the context
+	contextKey := s.contextResolver.trackContextBytes(metricSample.Name, metricSample.Tags, metricSample.Hostname, timestamp)
+	bucketStart := s.calculateBucketStart(timestamp)
+
+	switch metricSample.MetricType {
+	case metrics.DistributionType:
+		s.sketchMap.insert(bucketStart, contextKey, metricSample.Value)
+	default:
+		// If it's a new bucket, initialize it
+		bucketMetrics, ok := s.metricsByTimestamp[bucketStart]
+		if !ok {
+			bucketMetrics = metrics.MakeContextMetrics()
+			s.metricsByTimestamp[bucketStart] = bucketMetrics
+		}
+		// Update LastSampled timestamp for counters
+		if metricSample.MetricType == metrics.CounterType {
+			s.counterLastSampledByContext[contextKey] = timestamp
+		}
+
+		sampleValue := metrics.MetricSampleValue{
+			Value:      metricSample.Value,
+			SampleRate: metricSample.SampleRate,
+		}
+		if metricSample.MetricType == metrics.SetType {
+			sampleValue.RawValue = string(metricSample.SetValue)
+		}
+
+		// Add sample to bucket
+		if err := bucketMetrics.AddSample(contextKey, metricSample.MetricType, sampleValue, timestamp, s.interval); err != nil {
+			log.Debug("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Hostname, metricSample.Tags, err)
+		}
+	}
+}
+
 // Add the metricSample to the correct bucket
 func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp float64) {
 	// Keep track of the context
@@ -75,8 +111,14 @@ func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 			s.counterLastSampledByContext[contextKey] = timestamp
 		}
 
+		sampleValue := metrics.MetricSampleValue{
+			Value:      metricSample.Value,
+			RawValue:   metricSample.RawValue,
+			SampleRate: metricSample.SampleRate,
+		}
+
 		// Add sample to bucket
-		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval); err != nil {
+		if err := bucketMetrics.AddSample(contextKey, metricSample.Mtype, sampleValue, timestamp, s.interval); err != nil {
 			log.Debug("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
 		}
 	}
@@ -209,19 +251,14 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 	expirySeconds := config.Datadog.GetFloat64("dogstatsd_expiry_seconds")
 	for counterContext, lastSampled := range s.counterLastSampledByContext {
 		if expirySeconds+lastSampled > float64(timestamp) {
-			sample := &metrics.MetricSample{
-				Name:       "",
+			sample := metrics.MetricSampleValue{
 				Value:      0.0,
 				RawValue:   "0.0",
-				Mtype:      metrics.CounterType,
-				Tags:       []string{},
-				Host:       "",
 				SampleRate: 1,
-				Timestamp:  float64(timestamp),
 			}
 			// Add a zero value sample to the counter
 			// It is ok to add a 0 sample to a counter that was already sampled in the bucket, it won't change its value
-			contextMetrics.AddSample(counterContext, sample, float64(timestamp), s.interval)
+			contextMetrics.AddSample(counterContext, metrics.CounterType, sample, float64(timestamp), s.interval)
 
 			// Update the tracked context so that the contextResolver doesn't expire counter contexts too early
 			// i.e. while we are still sending zeros for them

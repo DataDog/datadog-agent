@@ -30,11 +30,38 @@ func generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.Co
 	return ckey.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), metricSampleContext.GetTags())
 }
 
+// generateContextKey generates the contextKey associated with the context of the metricSample
+func generateContextKeyBytes(name []byte, tags [][]byte, hostname []byte) ckey.ContextKey {
+	return ckey.GenerateBytes(name, hostname, tags)
+}
+
 func newContextResolver() *ContextResolver {
 	return &ContextResolver{
 		contextsByKey: make(map[ckey.ContextKey]*Context),
 		lastSeenByKey: make(map[ckey.ContextKey]float64),
 	}
+}
+
+func convertBytesTags(rawTags [][]byte) []string {
+	tags := make([]string, 0, len(rawTags))
+	for _, tag := range rawTags {
+		tags = append(tags, string(tag))
+	}
+	return tags
+}
+
+func (cr *ContextResolver) trackContextBytes(name []byte, tags [][]byte, hostname []byte, currentTimestamp float64) ckey.ContextKey {
+	contextKey := generateContextKeyBytes(name, tags, hostname)
+	if _, ok := cr.contextsByKey[contextKey]; !ok {
+		cr.contextsByKey[contextKey] = &Context{
+			Name: string(name),
+			Tags: convertBytesTags(tags),
+			Host: string(hostname),
+		}
+	}
+	cr.lastSeenByKey[contextKey] = currentTimestamp
+
+	return contextKey
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context

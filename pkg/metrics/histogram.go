@@ -104,7 +104,7 @@ func (h *Histogram) configure(aggregates []string, percentiles []int) {
 	h.percentiles = percentiles
 }
 
-func (h *Histogram) addSample(sample *MetricSample, timestamp float64) {
+func (h *Histogram) addSample(sample MetricSampleValue, timestamp float64) {
 	rate := sample.SampleRate
 	if rate == 0 {
 		rate = 1

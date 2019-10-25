@@ -17,7 +17,7 @@ type Rate struct {
 	timestamp         float64
 }
 
-func (r *Rate) addSample(sample *MetricSample, timestamp float64) {
+func (r *Rate) addSample(sample MetricSampleValue, timestamp float64) {
 	if r.timestamp != 0 {
 		r.previousSample, r.previousTimestamp = r.sample, r.timestamp
 	}
