@@ -88,6 +88,7 @@ func (t *TopologyCheck) Run() error {
 	componentChannel := make(chan *topology.Component)
 	relationChannel := make(chan *topology.Relation)
 	errChannel := make(chan error)
+	waitGroupChannel := make(chan int)
 
 	/*
 		cluster -> map cluster -> component
@@ -201,40 +202,44 @@ func (t *TopologyCheck) Run() error {
 
 	for _, collector := range clusterCollectors {
 		go func(col collectors.ClusterTopologyCollector) {
-			defer wg.Done()
 			log.Debugf("Starting cluster topology collector: %s", col.GetName())
 			err := col.CollectorFunction()
 			if err != nil {
 				errChannel <- err
 			}
+			defer wg.Done()
 		}(collector)
 	}
-
-	go func() {
-		// publish all incoming components
-		for component := range componentChannel {
-			log.Debugf("Publishing StackState cluster component for %s: %v", component.ExternalID, component.JSONString())
-			batcher.GetBatcher().SubmitComponent(t.instance.CheckID, t.instance.Instance, *component)
+	go func(componentChan <-chan *topology.Component, relationChan <-chan *topology.Relation,
+		errorChan <-chan error, waitGroupChan <-chan int) {
+	loop:
+		for {
+			select {
+			case component := <- componentChan:
+				log.Debugf("Publishing StackState %s component for %s: %v", component.Type.Name, component.ExternalID, component.JSONString())
+				batcher.GetBatcher().SubmitComponent(t.instance.CheckID, t.instance.Instance, *component)
+			case relation := <- relationChan:
+				log.Debugf("Publishing StackState %s relation %s->%s", relation.Type.Name, relation.SourceID, relation.TargetID)
+				batcher.GetBatcher().SubmitRelation(t.instance.CheckID, t.instance.Instance, *relation)
+			case err := <- errorChan:
+				_ = log.Error(err)
+			case <- waitGroupChan:
+				log.Debug("All collectors have been finished their work, continuing to publish data to StackState")
+				break loop
+			default:
+				// no message received, continue looping
+			}
 		}
-
-		// publish all incoming relations
-		for relation := range relationChannel {
-			log.Debugf("Publishing StackState node -> cluster relation %s->%s", relation.SourceID, relation.TargetID)
-			batcher.GetBatcher().SubmitRelation(t.instance.CheckID, t.instance.Instance, *relation)
-		}
-
-		// publish all incoming errors
-		for err := range errChannel {
-			_ = log.Error(err)
-		}
-	}()
+	}(componentChannel, relationChannel, errChannel, waitGroupChannel)
 
 	wg.Wait()
+	waitGroupChannel <- 1
 
 	defer close(containerCorrelationChannel)
 	defer close(componentChannel)
 	defer close(relationChannel)
 	defer close(errChannel)
+	defer close(waitGroupChannel)
 
 	// get all the containers
 	batcher.GetBatcher().SubmitStopSnapshot(t.instance.CheckID, t.instance.Instance)

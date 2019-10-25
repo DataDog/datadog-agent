@@ -13,43 +13,79 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestExternalIDBuilders(t *testing.T) {
+func TestCollectorInterface(t *testing.T) {
 
 	instance := topology.Instance{Type: "kubernetes", URL: "Test-Cluster-Name"}
-	clusterTopologyCollector := NewClusterTopologyCollector(instance, nil)
+	testCollector := NewTestCollector(NewClusterTopologyCollector(instance, nil))
 
-	clusterTopologyCollector.buildClusterExternalID()
+	testCollector.buildClusterExternalID()
 	assert.Equal(t, "urn:cluster:%s/%s", "")
 
 	podName := "test-pod-name"
 	containerName := "test-container-name"
-	actualContainerExternalID := clusterTopologyCollector.buildContainerExternalID(podName, containerName)
+	actualContainerExternalID := testCollector.buildContainerExternalID(podName, containerName)
 	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:pod:test-pod-name:container:test-container-name", actualContainerExternalID)
 
 	daemonSetName := "test-daemonset"
-	actualDaemonSetExternalID := clusterTopologyCollector.buildDaemonSetExternalID(daemonSetName)
+	actualDaemonSetExternalID := testCollector.buildDaemonSetExternalID(daemonSetName)
 	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:daemonset:test-daemonset", actualDaemonSetExternalID)
 
 	deploymentName := "test-deployment"
-	actualDeploymentExternalID := clusterTopologyCollector.buildDeploymentExternalID(deploymentName)
+	actualDeploymentExternalID := testCollector.buildDeploymentExternalID(deploymentName)
 	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:deployment:test-deployment", actualDeploymentExternalID)
 
 	nodeName := "test-node"
-	actualNodeExternalID := clusterTopologyCollector.buildNodeExternalID(nodeName)
+	actualNodeExternalID := testCollector.buildNodeExternalID(nodeName)
 	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:node:test-node", actualNodeExternalID)
 
-	actualPodExternalID := clusterTopologyCollector.buildPodExternalID(podName)
+	actualPodExternalID := testCollector.buildPodExternalID(podName)
 	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:pod:test-pod-name", actualPodExternalID)
 
 	replicaSetName := "test-replicaset"
-	actualReplicaSetExternalID := clusterTopologyCollector.buildReplicaSetExternalID(replicaSetName)
+	actualReplicaSetExternalID := testCollector.buildReplicaSetExternalID(replicaSetName)
 	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:replicaset:test-replicaset", actualReplicaSetExternalID)
 
 	serviceID := "test-service"
-	actualServiceExternalID := clusterTopologyCollector.buildServiceExternalID(serviceID)
+	actualServiceExternalID := testCollector.buildServiceExternalID(serviceID)
 	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:service:test-service", actualServiceExternalID)
 
 	statefulSetName := "test-statefulset"
-	actualStatefulSetExternalID := clusterTopologyCollector.buildStatefulSetExternalID(statefulSetName)
+	actualStatefulSetExternalID := testCollector.buildStatefulSetExternalID(statefulSetName)
 	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:statefulset:test-statefulset", actualStatefulSetExternalID)
+
+	configMapName := "test-configmap"
+	actualConfigMapExternalID := testCollector.buildConfigMapExternalID(configMapName)
+	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:configmap:test-configmap", actualConfigMapExternalID)
+
+	expectedCollectorName := "Test Collector"
+	actualCollectorName := testCollector.GetName()
+	assert.Equal(t, expectedCollectorName, actualCollectorName)
+
+	expectedErrorMessage := "CollectorFunction NotImplemented"
+	actualResult := testCollector.CollectorFunction()
+	if actualResult != nil && actualResult.Error() != expectedErrorMessage {
+		t.Errorf("Error actual = %v, and Expected = %v.", actualResult, expectedErrorMessage)
+	}
+
+	actualCollectorInstanceURL := testCollector.GetInstance().URL
+	assert.Equal(t, instance.URL, actualCollectorInstanceURL)
+	actualCollectorInstanceType := testCollector.GetInstance().Type
+	assert.Equal(t, instance.Type, actualCollectorInstanceType)
+}
+
+// TestCollector implements the ClusterTopologyCollector interface.
+type TestCollector struct {
+	ClusterTopologyCollector
+}
+
+// NewTestCollector
+func NewTestCollector(clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+	return &TestCollector{
+		ClusterTopologyCollector: clusterTopologyCollector,
+	}
+}
+
+// GetName returns the name of the TestCollector
+func (_ *TestCollector) GetName() string {
+	return "Test Collector"
 }

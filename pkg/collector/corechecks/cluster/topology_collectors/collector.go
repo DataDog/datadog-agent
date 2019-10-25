@@ -30,6 +30,7 @@ type ClusterTopologyCollector interface {
 	GetName() string
 	addClusterNameTag(tags map[string]string) map[string]string
 	buildClusterExternalID() string
+	buildConfigMapExternalID(configMapName string) string
 	buildContainerExternalID(podName, containerName string) string
 	buildDaemonSetExternalID(daemonSetName string) string
 	buildDeploymentExternalID(deploymentName string) string
@@ -103,6 +104,10 @@ func (c *clusterTopologyCollector) buildReplicaSetExternalID(replicaSetName stri
 
 func (c *clusterTopologyCollector) buildStatefulSetExternalID(statefulSetName string) string {
 	return fmt.Sprintf("urn:/%s:%s:statefulset:%s", c.Instance.Type, c.Instance.URL, statefulSetName)
+}
+
+func (c *clusterTopologyCollector) buildConfigMapExternalID(configMapName string) string {
+	return fmt.Sprintf("urn:/%s:%s:configmap:%s", c.Instance.Type, c.Instance.URL, configMapName)
 }
 
 func (c *clusterTopologyCollector) addClusterNameTag(tags map[string]string) map[string]string {

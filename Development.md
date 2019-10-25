@@ -16,3 +16,8 @@ git checkout ${STACKSTATE_AGENT_BRANCH_NAME} && \
 source .gitlab-scripts/setup_env.sh && \
 inv -e agent.omnibus-build --base-dir /omnibus --skip-sign
 ```
+
+mounting your local directory into the gitlab docker container: 
+```bash
+docker run -it --name stackstate-agent-builder --mount type=bind,source="${PWD}",target=/go/src/github.com/StackVista/stackstate-agent,readonly docker.io/stackstate/stackstate-agent-runner-gitlab:deb_20190429
+```
