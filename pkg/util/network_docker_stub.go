@@ -1,4 +1,4 @@
-// +build freebsd netbsd openbsd solaris dragonfly
+// +build !docker
 
 package util
 
