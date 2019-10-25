@@ -84,6 +84,8 @@ func parseContainerNetworkMode(hostConfig *container.HostConfig) (string, error)
 	}
 	mode := string(hostConfig.NetworkMode)
 	switch mode {
+	case containers.DefaultNetworkMode:
+		return containers.DefaultNetworkMode, nil
 	case containers.HostNetworkMode:
 		return containers.HostNetworkMode, nil
 	case containers.BridgeNetworkMode:

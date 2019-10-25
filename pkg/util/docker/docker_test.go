@@ -436,6 +436,14 @@ func TestParseContainerNetworkMode(t *testing.T) {
 		wantErr    bool
 	}{
 		{
+			name: "default",
+			hostConfig: &container.HostConfig{
+				NetworkMode: "default",
+			},
+			want:    "default",
+			wantErr: false,
+		},
+		{
 			name: "host",
 			hostConfig: &container.HostConfig{
 				NetworkMode: "host",
@@ -470,7 +478,7 @@ func TestParseContainerNetworkMode(t *testing.T) {
 		{
 			name: "unknown",
 			hostConfig: &container.HostConfig{
-				NetworkMode: "unknown",
+				NetworkMode: "unknown network",
 			},
 			want:    "",
 			wantErr: true,

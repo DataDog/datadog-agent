@@ -39,10 +39,11 @@ const (
 
 // Container network modes
 const (
-	HostNetworkMode   string = "host"
-	BridgeNetworkMode        = "bridge"
-	NoneNetworkMode          = "none"
-	AwsvpcNetworkMode        = "awsvpc"
+	DefaultNetworkMode string = "default" // bridge
+	HostNetworkMode           = "host"
+	BridgeNetworkMode         = "bridge"
+	NoneNetworkMode           = "none"
+	AwsvpcNetworkMode         = "awsvpc"
 )
 
 // Container represents a single container on a machine
