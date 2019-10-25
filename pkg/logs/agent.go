@@ -117,7 +117,7 @@ func (a *Agent) Stop() {
 		// In some situation, the stopper unfortunately never succeed to complete,
 		// we've already reached the grace period, give it some more seconds and
 		// then force quit.
-		timeout := time.NewTicker(10 * time.Second)
+		timeout := time.NewTimer(10 * time.Second)
 		select {
 		case <-c:
 		case <-timeout.C:
