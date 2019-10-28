@@ -78,7 +78,7 @@ func TestCollectorInterface(t *testing.T) {
 	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:volume:test-volume", actualVolumeExternalID)
 
 	endpointName := "test-url"
-	actualEndpointExternalID := testCollector.buildEndpointID(endpointName)
+	actualEndpointExternalID := testCollector.buildEndpointExternalID(endpointName)
 	assert.Equal(t, "urn:endpoint:/Test-Cluster-Name:test-url", actualEndpointExternalID)
 
 	expectedCollectorName := "Test Collector"

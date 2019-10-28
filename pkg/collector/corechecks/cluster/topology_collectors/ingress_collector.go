@@ -54,10 +54,10 @@ func (dmc *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingres
 
 	for _, ingressPoints := range ingress.Status.LoadBalancer.Ingress {
 		if ingressPoints.Hostname != "" {
-			identifiers = append(identifiers, dmc.buildEndpointID(ingressPoints.Hostname))
+			identifiers = append(identifiers, dmc.buildEndpointExternalID(ingressPoints.Hostname))
 		}
 		if ingressPoints.IP != "" {
-			identifiers = append(identifiers, dmc.buildEndpointID(ingressPoints.IP))
+			identifiers = append(identifiers, dmc.buildEndpointExternalID(ingressPoints.IP))
 		}
 	}
 

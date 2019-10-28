@@ -102,18 +102,10 @@ func (t *TopologyCheck) Run() error {
 	relationChannel := make(chan *topology.Relation)
 	errChannel := make(chan error)
 	waitGroupChannel := make(chan int)
-	defer close(containerCorrelationChannel)
-	defer close(componentChannel)
-	defer close(relationChannel)
-	defer close(errChannel)
-	defer close(waitGroupChannel)
 
 	t.setupTopologyReceiver(componentChannel, relationChannel, errChannel, waitGroupChannel)
-
-	var clusterCollectors []collectors.ClusterTopologyCollector
 	commonClusterCollector := collectors.NewClusterTopologyCollector(t.instance.Instance, t.ac)
-
-	clusterCollectors = append(clusterCollectors,
+	clusterCollectors := []collectors.ClusterTopologyCollector{
 		// Register Cluster Component Collector
 		collectors.NewClusterCollector(
 			componentChannel,
@@ -195,7 +187,7 @@ func (t *TopologyCheck) Run() error {
 			relationChannel,
 			commonClusterCollector,
 		),
-	)
+	}
 
 	t.runClusterCollectors(clusterCollectors, waitGroupChannel, errChannel)
 	// get all the containers
@@ -203,6 +195,13 @@ func (t *TopologyCheck) Run() error {
 	batcher.GetBatcher().SubmitComplete(t.instance.CheckID)
 
 	log.Debugf("Topology Check for cluster: %s completed successfully", t.instance.ClusterName)
+
+	// close all the created channels
+	close(containerCorrelationChannel)
+	close(componentChannel)
+	close(relationChannel)
+	close(errChannel)
+	close(waitGroupChannel)
 
 	return nil
 }
@@ -233,42 +232,53 @@ func (t *TopologyCheck) setupTopologyReceiver(componentChannel <-chan *topology.
 }
 
 // runs all of the cluster collectors, notify the wait groups and submit errors to the error channel
-func (t *TopologyCheck) runClusterCollectors(clusterCollectors []collectors.ClusterTopologyCollector, waitGroupChannel chan int, errorChannel chan<- error) {
+func (t *TopologyCheck) runClusterCollectors(clusterCollectors []collectors.ClusterTopologyCollector, waitGroupChannel chan<- int, errorChannel chan<- error) {
 	// set up a WaitGroup to wait for the concurrent topology gathering of the functions below
 	var waitGroup sync.WaitGroup
 
 	for _, collector := range clusterCollectors {
 		// add this collector to the wait group
-		waitGroup.Add(1)
-		go func(col collectors.ClusterTopologyCollector, errCh chan<- error, wg *sync.WaitGroup) {
-			defer wg.Done()
-			log.Debugf("Starting cluster topology collector: %s\n", col.GetName())
-			err := col.CollectorFunction()
-			if err != nil {
-				errCh <- err
-			}
-			// mark this collector as complete
-		}(collector, errorChannel, &waitGroup)
+		runCollector(collector, errorChannel, &waitGroup)
 	}
 
-	// have a 5 min timeout
-	go func() {
-		timeout := time.Duration(5) * time.Minute
-		select {
-		case <- waitGroupChannel:
-			// Wait Group completed before the timeout, carry on
-			break
-		case <-time.After(timeout):
-			_ = log.Warn("WaitGroup for Cluster Collectors did not finish in time, stopping execution")
-			waitGroupChannel <- 1
-		}
-
-	}()
-
+	timeout := time.Duration(5) * time.Minute
 	log.Debugf("Waiting for Cluster Collectors to Finish")
-	waitGroup.Wait()
-	log.Debugf("WaitGroup for Cluster Collectors has finished, stopping topology publish loop")
+	_ = waitTimeout(&waitGroup, timeout)
+	// submit the end to the topology listener
 	waitGroupChannel <- 1
+}
+
+// waitTimeout waits for the waitgroup for the specified max timeout.
+// Returns true if waiting timed out.
+func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	wgChan := make(chan struct{})
+	go func() {
+		defer close(wgChan)
+		wg.Wait()
+	}()
+	select {
+	case <-wgChan:
+		log.Debugf("WaitGroup for Cluster Collectors has finished, stopping topology publish loop")
+		return false // completed normally
+	case <-time.After(timeout):
+		_ = log.Warn("WaitGroup for Cluster Collectors did not finish in time, stopping topology publish loop")
+		return true // timed out
+	}
+}
+
+// runCollector
+func runCollector(collector collectors.ClusterTopologyCollector, errorChannel chan<- error, wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		log.Debugf("Starting cluster topology collector: %s\n", collector.GetName())
+		err := collector.CollectorFunction()
+		if err != nil {
+			errorChannel <- err
+		}
+		// mark this collector as complete
+		log.Debugf("Finished cluster topology collector: %s\n", collector.GetName())
+	}()
 }
 
 // KubernetesASFactory is exported for integration testing.
