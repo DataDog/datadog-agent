@@ -270,7 +270,6 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 func runCollector(collector collectors.ClusterTopologyCollector, errorChannel chan<- error, wg *sync.WaitGroup) {
 	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		log.Debugf("Starting cluster topology collector: %s\n", collector.GetName())
 		err := collector.CollectorFunction()
 		if err != nil {
@@ -278,6 +277,7 @@ func runCollector(collector collectors.ClusterTopologyCollector, errorChannel ch
 		}
 		// mark this collector as complete
 		log.Debugf("Finished cluster topology collector: %s\n", collector.GetName())
+		wg.Done()
 	}()
 }
 
