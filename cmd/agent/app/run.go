@@ -295,7 +295,7 @@ func StartAgent() error {
 
 	networkMode, err := util.GetAgentNetworkMode()
 	if err != nil {
-		log.Errorf("Error while getting network mode: %v", err)
+		log.Infof("Error while getting network mode: %v", err)
 	}
 	log.Infof("Network Mode is: %s", networkMode)
 
