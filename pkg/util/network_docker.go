@@ -20,6 +20,7 @@ func GetAgentNetworkMode() (string, error) {
 	log.Debugf("GetAgentNetworkMode trying Docker")
 	networkMode, err := docker.GetAgentContainerNetworkMode()
 	if err != nil {
+		cache.Cache.Set(cacheNetworkModeKey, networkMode, cache.NoExpiration)
 		return "", fmt.Errorf("could not detect agent network mode: %v", err)
 	}
 	cache.Cache.Set(cacheNetworkModeKey, networkMode, cache.NoExpiration)
