@@ -490,6 +490,9 @@ func initConfig(config Config) {
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
 
+	// k8s explorer
+	config.BindEnvAndSetDefault("k8s_explorer.cluster_name", "")
+
 	// Process agent
 	config.SetKnown("process_config.dd_agent_env")
 	config.SetKnown("process_config.enabled")

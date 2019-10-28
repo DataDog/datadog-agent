@@ -71,6 +71,7 @@ type AgentConfig struct {
 	StatsdHost         string
 	StatsdPort         int
 	ProcessExpVarPort  int
+	KubeClusterName    string
 
 	// System probe collection configuration
 	EnableSystemProbe              bool
@@ -195,6 +196,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 			"container":   10 * time.Second,
 			"rtcontainer": 2 * time.Second,
 			"connections": 30 * time.Second,
+			"pod":         10 * time.Second,
 		},
 
 		// DataScrubber to hide command line sensitive words
@@ -305,6 +307,11 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	if cfg.Windows.ArgsRefreshInterval == 0 {
 		log.Warnf("invalid configuration: windows_collect_skip_new_args was set to 0.  Disabling argument collection")
 		cfg.Windows.ArgsRefreshInterval = -1
+	}
+
+	// activate the pod collection if we have the cluster name set
+	if canAccessContainers && cfg.KubeClusterName != "" {
+		cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
 	}
 
 	return cfg, nil

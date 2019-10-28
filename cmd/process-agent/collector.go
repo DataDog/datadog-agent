@@ -89,7 +89,7 @@ func (l *Collector) runCheck(c checks.Check) {
 	updateLastCollectTime(time.Now())
 	messages, err := c.Run(l.cfg, atomic.AddInt32(&l.groupID, 1))
 	if err != nil {
-		log.Criticalf("Unable to run check '%s': %s", c.Name(), err)
+		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 	} else {
 		l.send <- checkPayload{messages, c.Endpoint()}
 		// update proc and container count for info
