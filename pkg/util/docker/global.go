@@ -8,14 +8,10 @@
 package docker
 
 import (
-	"errors"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/docker/docker/api/types/container"
 
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
