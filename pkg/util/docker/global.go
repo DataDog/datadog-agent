@@ -64,41 +64,6 @@ func HostnameProvider() (string, error) {
 	return du.GetHostname()
 }
 
-// GetAgentContainerNetworkMode provides the network mode of the Agent container
-func GetAgentContainerNetworkMode() (string, error) {
-	du, err := GetDockerUtil()
-	if err != nil {
-		return "", err
-	}
-	agentContainer, err := du.InspectSelf()
-	if err != nil {
-		return "", err
-	}
-	return parseContainerNetworkMode(agentContainer.HostConfig)
-}
-
-// parseContainerNetworkMode returns the network mode of a container
-func parseContainerNetworkMode(hostConfig *container.HostConfig) (string, error) {
-	if hostConfig == nil {
-		return "", errors.New("the HostConfig field is nil")
-	}
-	mode := string(hostConfig.NetworkMode)
-	switch mode {
-	case containers.DefaultNetworkMode:
-		return containers.DefaultNetworkMode, nil
-	case containers.HostNetworkMode:
-		return containers.HostNetworkMode, nil
-	case containers.BridgeNetworkMode:
-		return containers.BridgeNetworkMode, nil
-	case containers.NoneNetworkMode:
-		return containers.NoneNetworkMode, nil
-	}
-	if strings.HasPrefix(mode, "container:") {
-		return containers.AwsvpcNetworkMode, nil
-	}
-	return "", fmt.Errorf("unknown network mode: %s", mode)
-}
-
 // Config is an exported configuration object that is used when
 // initializing the DockerUtil.
 type Config struct {

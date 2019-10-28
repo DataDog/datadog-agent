@@ -10,6 +10,7 @@ package docker
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -19,8 +20,10 @@ import (
 	"strings"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -47,10 +50,10 @@ func findDockerNetworks(containerID string, pid int, container types.Container) 
 	netMode := container.HostConfig.NetworkMode
 	// Check the known network modes that require specific handling.
 	// Other network modes will look at the docker NetworkSettings.
-	if netMode == "host" {
+	if netMode == containers.HostNetworkMode {
 		log.Debugf("Container %s is in network host mode, its network metrics are for the whole host", containerID)
 		return []dockerNetwork{hostNetwork}
-	} else if netMode == "none" {
+	} else if netMode == containers.NoneNetworkMode {
 		log.Debugf("Container %s is in network mode 'none', we will collect metrics for the whole host", containerID)
 		return []dockerNetwork{hostNetwork}
 	} else if strings.HasPrefix(netMode, "container:") {
@@ -164,4 +167,39 @@ func DefaultGateway() (net.IP, error) {
 		}
 	}
 	return ip, nil
+}
+
+// GetAgentContainerNetworkMode provides the network mode of the Agent container
+func GetAgentContainerNetworkMode() (string, error) {
+	du, err := GetDockerUtil()
+	if err != nil {
+		return "", err
+	}
+	agentContainer, err := du.InspectSelf()
+	if err != nil {
+		return "", err
+	}
+	return parseContainerNetworkMode(agentContainer.HostConfig)
+}
+
+// parseContainerNetworkMode returns the network mode of a container
+func parseContainerNetworkMode(hostConfig *container.HostConfig) (string, error) {
+	if hostConfig == nil {
+		return "", errors.New("the HostConfig field is nil")
+	}
+	mode := string(hostConfig.NetworkMode)
+	switch mode {
+	case containers.DefaultNetworkMode:
+		return containers.DefaultNetworkMode, nil
+	case containers.HostNetworkMode:
+		return containers.HostNetworkMode, nil
+	case containers.BridgeNetworkMode:
+		return containers.BridgeNetworkMode, nil
+	case containers.NoneNetworkMode:
+		return containers.NoneNetworkMode, nil
+	}
+	if strings.HasPrefix(mode, "container:") {
+		return containers.AwsvpcNetworkMode, nil
+	}
+	return "", fmt.Errorf("unknown network mode: %s", mode)
 }
