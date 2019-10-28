@@ -69,10 +69,7 @@ func (t *TopologyCheck) Configure(config, initConfig integration.Data) error {
 func (t *TopologyCheck) Run() error {
 	// initialize kube api check
 	err := t.InitKubeApiCheck()
-	if err == apiserver.ErrNotLeader {
-		log.Debug("Agent is not leader, will not run the check")
-		return nil
-	} else if err != nil {
+	if err != nil {
 		return err
 	}
 

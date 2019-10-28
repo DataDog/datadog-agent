@@ -34,28 +34,13 @@ func (k *CommonCheck) InitKubeApiCheck() error {
 		return errors.New(errMsg)
 	}
 
-	// Only run if Leader Election is enabled.
-	if !config.Datadog.GetBool("leader_election") {
-		var errMsg = "leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events"
-		_ = k.Warn(errMsg)
-		return errors.New(errMsg)
-	}
-	errLeader := k.runLeaderElection()
-	if errLeader != nil {
-		if errLeader == apiserver.ErrNotLeader {
-			// Only the leader can instantiate the apiserver client.
-			return apiserver.ErrNotLeader
-		}
-		return errLeader
-	}
-
 	var err error
 	// API Server client initialisation on first run
 	if k.ac == nil {
 		// We start the API Server Client.
 		k.ac, err = apiserver.GetAPIClient()
 		if err != nil {
-			_ = k.Warnf("Could not connect to apiserver: %s", err.Error())
+			_ = k.Warnf("Could not connect to cluster API Server: %s", err.Error())
 			return err
 		}
 	}
