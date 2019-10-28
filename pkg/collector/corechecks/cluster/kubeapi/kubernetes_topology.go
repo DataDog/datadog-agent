@@ -16,6 +16,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"sync"
+	"time"
 )
 
 const (
@@ -232,23 +233,37 @@ func (t *TopologyCheck) setupTopologyReceiver(componentChannel <-chan *topology.
 }
 
 // runs all of the cluster collectors, notify the wait groups and submit errors to the error channel
-func (t *TopologyCheck) runClusterCollectors(clusterCollectors []collectors.ClusterTopologyCollector, waitGroupChannel chan<- int, errorChannel chan<- error) {
+func (t *TopologyCheck) runClusterCollectors(clusterCollectors []collectors.ClusterTopologyCollector, waitGroupChannel chan int, errorChannel chan<- error) {
 	// set up a WaitGroup to wait for the concurrent topology gathering of the functions below
 	var waitGroup sync.WaitGroup
 
 	for _, collector := range clusterCollectors {
 		// add this collector to the wait group
 		waitGroup.Add(1)
-		go func(col collectors.ClusterTopologyCollector, errCh chan<- error) {
+		go func(col collectors.ClusterTopologyCollector, errCh chan<- error, wg *sync.WaitGroup) {
+			defer wg.Done()
 			log.Debugf("Starting cluster topology collector: %s\n", col.GetName())
 			err := col.CollectorFunction()
 			if err != nil {
 				errCh <- err
 			}
 			// mark this collector as complete
-			waitGroup.Done()
-		}(collector, errorChannel)
+		}(collector, errorChannel, &waitGroup)
 	}
+
+	// have a 5 min timeout
+	go func() {
+		timeout := time.Duration(5) * time.Minute
+		select {
+		case <- waitGroupChannel:
+			// Wait Group completed before the timeout, carry on
+			break
+		case <-time.After(timeout):
+			_ = log.Warn("WaitGroup for Cluster Collectors did not finish in time, stopping execution")
+			waitGroupChannel <- 1
+		}
+
+	}()
 
 	log.Debugf("Waiting for Cluster Collectors to Finish")
 	waitGroup.Wait()

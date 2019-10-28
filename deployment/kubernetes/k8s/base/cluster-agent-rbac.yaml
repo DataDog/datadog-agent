@@ -13,14 +13,42 @@ rules:
   - nodes
   - componentstatuses
   - configmaps
-  - volumeattachments
   - persistentvolumeclaims
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - "storage.k8s.io"
+  resources:
+  - volumeattachments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - "apps"
+  resources:
+  - statefulsets
   - daemonsets
   - replicasets
-  - cronjobs
   - deployments
-  - statefulsets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - "extensions"
+  resources:
   - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - "batch"
+  resources:
+  - cronjobs
   verbs:
   - get
   - list
