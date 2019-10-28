@@ -280,6 +280,9 @@ suites:
       windows_agent_url: https://s3.amazonaws.com/ddagent-windows-stable/
     dd-agent-5:
       api_key: <%= api_key %>
+      windows_agent_url: https://s3.amazonaws.com/ddagent-windows-unstable
+      # temporary, hand-rolled a5
+      windows_agent_filename: datadog-agent-5.32.3.git.1.53ce09c4-1-x86_64
     dd-agent-upgrade:
       add_new_repo: true
       aptrepo: <%= aptrepo %>
