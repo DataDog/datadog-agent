@@ -56,9 +56,9 @@ type Server struct {
 	packetPool            *PacketPool
 	stopChan              chan bool
 	health                *health.Handle
-	metricPrefix          string
+	metricPrefix          []byte
 	metricPrefixBlacklist [][]byte
-	defaultHostname       string
+	defaultHostname       []byte
 	histToDist            bool
 	histToDistPrefix      string
 	extraTags             []string
@@ -120,9 +120,9 @@ func NewServer(metricOut chan<- []MetricSample, eventOut chan<- []Event, service
 	}
 
 	// check configuration for custom namespace
-	metricPrefix := config.Datadog.GetString("statsd_metric_namespace")
-	if metricPrefix != "" && !strings.HasSuffix(metricPrefix, ".") {
-		metricPrefix = metricPrefix + "."
+	metricPrefixString := config.Datadog.GetString("statsd_metric_namespace")
+	if metricPrefixString != "" && !strings.HasSuffix(metricPrefixString, ".") {
+		metricPrefixString = metricPrefixString + "."
 	}
 	metricPrefixBlacklistString := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
 	var metricPrefixBlacklist [][]byte
@@ -148,9 +148,9 @@ func NewServer(metricOut chan<- []MetricSample, eventOut chan<- []Event, service
 		packetPool:            packetPool,
 		stopChan:              make(chan bool),
 		health:                health.Register("dogstatsd-main"),
-		metricPrefix:          metricPrefix,
+		metricPrefix:          []byte(metricPrefixString),
 		metricPrefixBlacklist: metricPrefixBlacklist,
-		defaultHostname:       defaultHostname,
+		defaultHostname:       []byte(defaultHostname),
 		histToDist:            histToDist,
 		histToDistPrefix:      histToDistPrefix,
 		extraTags:             extraTags,
@@ -274,7 +274,7 @@ func cloneHistogramToDistribution(histogramSample MetricSample, prefix string) M
 	return distSample
 }
 
-func parseMetricMessage(message []byte, namespace string, namespaceBlacklist [][]byte, defaultHostname string) (MetricSample, error) {
+func parseMetricMessage(message []byte, namespace []byte, namespaceBlacklist [][]byte, defaultHostname []byte) (MetricSample, error) {
 	sample, err := parseMetricSample(message)
 	if err != nil {
 		return MetricSample{}, err
@@ -282,7 +282,7 @@ func parseMetricMessage(message []byte, namespace string, namespaceBlacklist [][
 	return enrichMetricSample(sample, []byte(namespace), namespaceBlacklist, []byte(defaultHostname)), nil
 }
 
-func parseEventMessage(message []byte, defaultHostname string) (Event, error) {
+func parseEventMessage(message []byte, defaultHostname []byte) (Event, error) {
 	sample, err := parseEvent(message)
 	if err != nil {
 		return Event{}, err
@@ -290,7 +290,7 @@ func parseEventMessage(message []byte, defaultHostname string) (Event, error) {
 	return enirchEvent(sample, []byte(defaultHostname)), nil
 }
 
-func parseServiceCheckMessage(message []byte, defaultHostname string) (ServiceCheck, error) {
+func parseServiceCheckMessage(message []byte, defaultHostname []byte) (ServiceCheck, error) {
 	sample, err := parseServiceCheck(message)
 	if err != nil {
 		return ServiceCheck{}, err
