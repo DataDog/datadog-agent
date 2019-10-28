@@ -9,6 +9,7 @@ package v1
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 
@@ -19,6 +20,9 @@ import (
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// clcRunnerIpHeader refers to the cluster level check runner ip passed in the request headers
+const clcRunnerIpHeader = "Clc-Runner-IP"
 
 // Install registers v1 API endpoints
 func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
@@ -50,7 +54,7 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 			return
 		}
 
-		clientIP, err := parseClientIP(r.RemoteAddr)
+		clientIP, err := validateClientIP(r.Header.Get(clcRunnerIpHeader))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			incrementRequestMetric("postCheckStatus", http.StatusInternalServerError)
@@ -159,13 +163,14 @@ func clusterChecksDisabledHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Cluster-checks are not enabled"))
 }
 
-// parseClientIP retrieves the http client IP from the remoteAddr attribute
-func parseClientIP(remoteAddr string) (string, error) {
-	clientIP, _, err := net.SplitHostPort(remoteAddr)
-	if err != nil {
-		log.Debugf("Error while parsing CLC worker address %s: %v", remoteAddr, err)
-		return "", err
+// validateClientIP validates the http client IP retrieved from the request's header.
+// Empty IPs are considered valid for backward compatibility with old clc runner versions
+// that don't set the clcRunnerIpHeader header field.
+func validateClientIP(addr string) (string, error) {
+	if addr != "" && net.ParseIP(addr) == nil {
+		log.Debugf("Error while parsing CLC runner addreqss %s", addr)
+		return "", fmt.Errorf("cannot parse CLC runner address: %s", addr)
 	}
 
-	return clientIP, nil
+	return addr, nil
 }
