@@ -12,6 +12,15 @@ rules:
   - pods
   - nodes
   - componentstatuses
+  - configmaps
+  - volumeattachments
+  - persistentvolumeclaims
+  - daemonsets
+  - replicasets
+  - cronjobs
+  - deployments
+  - statefulsets
+  - ingresses
   verbs:
   - get
   - list

@@ -235,16 +235,18 @@ func (t *TopologyCheck) setupTopologyReceiver(componentChannel <-chan *topology.
 func (t *TopologyCheck) runClusterCollectors(clusterCollectors []collectors.ClusterTopologyCollector, waitGroupChannel chan<- int, errorChannel chan<- error) {
 	// set up a WaitGroup to wait for the concurrent topology gathering of the functions below
 	var waitGroup sync.WaitGroup
-	waitGroup.Add(len(clusterCollectors))
 
 	for _, collector := range clusterCollectors {
+		// add this collector to the wait group
+		waitGroup.Add(1)
 		go func(col collectors.ClusterTopologyCollector, errCh chan<- error) {
-			defer waitGroup.Done()
 			log.Debugf("Starting cluster topology collector: %s\n", col.GetName())
 			err := col.CollectorFunction()
 			if err != nil {
 				errCh <- err
 			}
+			// mark this collector as complete
+			waitGroup.Done()
 		}(collector, errorChannel)
 	}
 
