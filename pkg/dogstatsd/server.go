@@ -57,7 +57,7 @@ type Server struct {
 	stopChan              chan bool
 	health                *health.Handle
 	metricPrefix          string
-	metricPrefixBlacklist []string
+	metricPrefixBlacklist [][]byte
 	defaultHostname       string
 	histToDist            bool
 	histToDistPrefix      string
@@ -124,7 +124,11 @@ func NewServer(metricOut chan<- []MetricSample, eventOut chan<- []Event, service
 	if metricPrefix != "" && !strings.HasSuffix(metricPrefix, ".") {
 		metricPrefix = metricPrefix + "."
 	}
-	metricPrefixBlacklist := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
+	metricPrefixBlacklistString := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
+	var metricPrefixBlacklist [][]byte
+	for _, blacklistedNamespace := range metricPrefixBlacklistString {
+		metricPrefixBlacklist = append(metricPrefixBlacklist, []byte(blacklistedNamespace))
+	}
 
 	defaultHostname, err := util.GetHostname()
 	if err != nil {
@@ -270,16 +274,12 @@ func cloneHistogramToDistribution(histogramSample MetricSample, prefix string) M
 	return distSample
 }
 
-func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (MetricSample, error) {
+func parseMetricMessage(message []byte, namespace string, namespaceBlacklist [][]byte, defaultHostname string) (MetricSample, error) {
 	sample, err := parseMetricSample(message)
 	if err != nil {
 		return MetricSample{}, err
 	}
-	var blacklist [][]byte
-	for _, blacklistedNamespace := range namespaceBlacklist {
-		blacklist = append(blacklist, []byte(blacklistedNamespace))
-	}
-	return enrichMetricSample(sample, []byte(namespace), blacklist, []byte(defaultHostname)), nil
+	return enrichMetricSample(sample, []byte(namespace), namespaceBlacklist, []byte(defaultHostname)), nil
 }
 
 func parseEventMessage(message []byte, defaultHostname string) (Event, error) {
