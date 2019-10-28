@@ -195,9 +195,7 @@ func (t *TopologyCheck) Run() error {
 	batcher.GetBatcher().SubmitComplete(t.instance.CheckID)
 
 	log.Debugf("Topology Check for cluster: %s completed successfully", t.instance.ClusterName)
-
 	// close all the created channels
-	close(containerCorrelationChannel)
 	close(componentChannel)
 	close(relationChannel)
 	close(errChannel)

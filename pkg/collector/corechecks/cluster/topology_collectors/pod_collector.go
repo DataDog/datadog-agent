@@ -72,6 +72,9 @@ func (pc *PodCollector) CollectorFunction() error {
 		pc.ContainerCorrChan <- &ContainerCorrelation{pod.Spec.NodeName, pc.buildContainerMappingFunction(pod, component.ExternalID)}
 	}
 
+	// close container correlation channel
+	close(pc.ContainerCorrChan)
+
 	return nil
 }
 
