@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// clcRunnerIpHeader refers to the cluster level check runner ip passed in the request headers
-const clcRunnerIpHeader = "Clc-Runner-IP"
+// xForwardedForHeader refers to the cluster level check runner ip passed in the request headers
+const xForwardedForHeader = "X-Forwarded-For"
 
 // Install registers v1 API endpoints
 func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
@@ -54,7 +54,7 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 			return
 		}
 
-		clientIP, err := validateClientIP(r.Header.Get(clcRunnerIpHeader))
+		clientIP, err := validateClientIP(r.Header.Get(xForwardedForHeader))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			incrementRequestMetric("postCheckStatus", http.StatusInternalServerError)
