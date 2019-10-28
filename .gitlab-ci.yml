@@ -58,7 +58,7 @@ variables:
   S3_ARTEFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   S3_DSD6_URI: s3://dsd6-staging/linux
-  RELEASE_VERSION: nightly
+  RELEASE_VERSION_6: nightly
   DATADOG_AGENT_BUILDIMAGES: v1631023-f2ae59b
   DATADOG_AGENT_BUILDERS: v1613952-f072482
 
@@ -100,7 +100,7 @@ before_script:
     - web
 
 # run job only when triggered by an external tool (ex: Jenkins) and when
-# RELEASE_VERSION is NOT "nightly". In this setting we are building either a
+# RELEASE_VERSION_6 is NOT "nightly". In this setting we are building either a
 # new tagged version of the agent (an RC for example). In both cases the
 # artifacts should be uploaded to our staging repository.
 
@@ -110,11 +110,11 @@ before_script:
       - triggers
   except: # we have to use except since gitlab doens't handle '!=' operator
     variables:
-      - $RELEASE_VERSION == "nightly"
-      - $RELEASE_VERSION == "" # no  RELEASE_VERSION means a nightly build for omnibus
+      - $RELEASE_VERSION_6 == "nightly"
+      - $RELEASE_VERSION_6 == "" # no  RELEASE_VERSION_6 means a nightly build for omnibus
 
 # run job only when triggered by an external tool (ex: Jenkins) and when
-# RELEASE_VERSION is "nightly". In this setting we build from master and update
+# RELEASE_VERSION_6 is "nightly". In this setting we build from master and update
 # the nightly build for windows, linux and docker.
 
 .run_when_triggered_on_nightly: &run_when_triggered_on_nightly
@@ -122,7 +122,7 @@ before_script:
     refs:
       - triggers
     variables:
-      - $RELEASE_VERSION == "nightly"
+      - $RELEASE_VERSION_6 == "nightly"
 
 #
 # Job conditions
@@ -350,7 +350,7 @@ agent_deb-x64:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION_6" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -name "datadog-agent*_amd64.deb" -exec dpkg -c {} \;
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent_*_amd64.deb $S3_ARTEFACTS_URI/datadog-agent_amd64.deb
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent-dbg_*_amd64.deb $S3_ARTEFACTS_URI/datadog-agent-dbg_amd64.deb
@@ -379,7 +379,7 @@ puppy_deb-x64:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --puppy --log-level debug --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps
+    - inv -e agent.omnibus-build --puppy --log-level debug --release-version "$RELEASE_VERSION_6" --base-dir $OMNIBUS_BASE_DIR --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -name "datadog-puppy*_amd64.deb" -exec dpkg -c {} \;
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb $S3_ARTEFACTS_URI/datadog-puppy_amd64.deb
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
@@ -414,7 +414,7 @@ agent_rpm-x64:
     # Retrieve the system-probe from S3
     - $S3_CP_CMD $S3_ARTEFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
     # use --skip-deps since the deps are installed by `before_script`
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION_6" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
@@ -449,7 +449,7 @@ agent_suse-x64:
     # Retrieve the system-probe from S3
     - $S3_CP_CMD $S3_ARTEFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
     # use --skip-deps since the deps are installed by `before_script`
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache --skip-deps
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION_6" --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache --skip-deps
     - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
     - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR_SUSE/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR_SUSE
@@ -492,7 +492,7 @@ build_windows_msi_x64:
     # remove artifacts from previous pipelines that may come from the cache
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
     # use --skip-deps since the deps are installed by `before_script`
-    - inv agent.omnibus-build --release-version %RELEASE_VERSION% --omnibus-s3-cache --base-dir %OMNIBUS_BASE_DIR_WIN_OMNIBUS% --skip-deps
+    - inv agent.omnibus-build --release-version %RELEASE_VERSION_6% --omnibus-s3-cache --base-dir %OMNIBUS_BASE_DIR_WIN_OMNIBUS% --skip-deps
     # copy the results from the build dir to here, because artifacts must be relative to the project directory
     - copy %OMNIBUS_BASE_DIR_WIN%\pkg\* %WIN_CI_PROJECT_DIR%\.omnibus\pkg
   artifacts:
@@ -545,7 +545,7 @@ dogstatsd_deb-x64:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
+    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_6" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -name "datadog-dogstatsd*_amd64.deb" -exec dpkg -c {} \;
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-dogstatsd*_amd64.deb $S3_ARTEFACTS_URI/datadog-dogstatsd_amd64.deb
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-dogstatsd*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
@@ -579,7 +579,7 @@ dogstatsd_rpm-x64:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
+    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_6" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' -print0 | sort -z | xargs -0 -I '{}' rpm -i '{}'
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
@@ -613,7 +613,7 @@ dogstatsd_suse-x64:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache --skip-deps
+    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_6" --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache --skip-deps
     - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*.rpm' -print0 | sort -z | xargs -0 -I '{}' rpm -i '{}'
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR_SUSE/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR_SUSE
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
