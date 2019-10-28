@@ -233,7 +233,6 @@ func (s *Server) worker(metricOut chan<- []MetricSample, eventOut chan<- []Event
 
 			for _, packet := range packets {
 				metricSamples, events, serviceChecks = s.parsePacket(packet, metricSamples, events, serviceChecks)
-				s.packetPool.Put(packet)
 			}
 
 			if len(metricSamples) != 0 {
