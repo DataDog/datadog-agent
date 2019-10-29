@@ -18,11 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// xForwardedForHeader refers to the cluster level check runner ip passed in the request headers
-const xForwardedForHeader = "X-Forwarded-For"
+// realIPHeader refers to the cluster level check runner ip passed in the request headers
+const realIPHeader = "X-Real-Ip"
 
 // Install registers v1 API endpoints
 func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
@@ -54,7 +55,7 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 			return
 		}
 
-		clientIP, err := validateClientIP(r.Header.Get(xForwardedForHeader))
+		clientIP, err := validateClientIP(r.Header.Get(realIPHeader))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			incrementRequestMetric("postCheckStatus", http.StatusInternalServerError)
@@ -165,11 +166,15 @@ func clusterChecksDisabledHandler(w http.ResponseWriter, r *http.Request) {
 
 // validateClientIP validates the http client IP retrieved from the request's header.
 // Empty IPs are considered valid for backward compatibility with old clc runner versions
-// that don't set the clcRunnerIpHeader header field.
+// that don't set the realIPHeader header field.
 func validateClientIP(addr string) (string, error) {
 	if addr != "" && net.ParseIP(addr) == nil {
-		log.Debugf("Error while parsing CLC runner addreqss %s", addr)
+		log.Debugf("Error while parsing CLC runner address %s", addr)
 		return "", fmt.Errorf("cannot parse CLC runner address: %s", addr)
+	}
+
+	if addr == "" && config.Datadog.GetBool("cluster_checks.advanced_dispatching_enabled") {
+		log.Warn("Advanced dispatching error: cannot get runners IPs from http headers, make sure to upgrade cluster check runners")
 	}
 
 	return addr, nil
