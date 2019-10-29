@@ -2,6 +2,28 @@
 Release Notes
 =============
 
+.. _Release Notes_6.14.2:
+
+6.14.2
+======
+
+.. _Release Notes_6.14.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-10-29
+
+
+.. _Release Notes_6.14.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- In Windows, allows the install to succeed successfully even in the event
+  that the user was not cleaned up successfully from a previous install.
+
+
 .. _Release Notes_6.14.1:
 
 6.14.1
