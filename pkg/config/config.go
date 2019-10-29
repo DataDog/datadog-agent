@@ -249,9 +249,9 @@ func initConfig(config Config) {
 	// After this happens we flush this buffer of datagrams to a queue for processing. The size of this queue
 	// is `dogstatsd_queue_size`.
 	config.BindEnvAndSetDefault("dogstatsd_buffer_size", 1024*8)
-	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_size", 512)
+	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_size", 64)
 	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_flush_timeout", 100*time.Millisecond)
-	config.BindEnvAndSetDefault("dogstatsd_queue_size", 100)
+	config.BindEnvAndSetDefault("dogstatsd_queue_size", 896)
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
