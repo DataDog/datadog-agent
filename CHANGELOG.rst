@@ -12,8 +12,9 @@ Release Notes
 Prelude
 -------
 
-Release on: 2019-10-29
+Released on: 2019-10-29
 
+This release is only available for Windows.
 
 .. _Release Notes_6.14.2_Bug Fixes:
 
