@@ -16,6 +16,12 @@ const (
 	ReplicaSet = "ReplicaSet"
 )
 
+// IngressCorrelation
+type IngressCorrelation struct {
+	ServiceName string
+	IngressExternalID string
+}
+
 // ContainerCorrelation
 type ContainerCorrelation struct {
 	NodeName string

@@ -4,6 +4,8 @@ package topology_collectors
 
 import (
 	"github.com/StackVista/stackstate-agent/pkg/topology"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
+	v1 "k8s.io/api/batch/v1"
 )
 
 // JobCollector implements the ClusterTopologyCollector interface.
@@ -28,7 +30,44 @@ func (_ *JobCollector) GetName() string {
 }
 
 // Collects and Published the Job Components
-func (cc *JobCollector) CollectorFunction() error {
+func (jc *JobCollector) CollectorFunction() error {
+	jobs, err := jc.GetAPIClient().GetJobs()
+	if err != nil {
+		return err
+	}
+
+	for _, j := range jobs {
+		jc.ComponentChan <- jc.jobToStackStateComponent(j)
+	}
 
 	return nil
+}
+
+// Creates a StackState Job component from a Kubernetes / OpenShift Cluster
+func (jc *JobCollector) jobToStackStateComponent(job v1.Job) *topology.Component {
+	log.Tracef("Mapping Job to StackState component: %s", job.String())
+
+	tags := emptyIfNil(job.Labels)
+	tags = jc.addClusterNameTag(tags)
+
+	cronJobExternalID := jc.buildCronJobExternalID(job.Name)
+	component := &topology.Component{
+		ExternalID: cronJobExternalID,
+		Type:       topology.Type{Name: "job"},
+		Data: map[string]interface{}{
+			"name":              job.Name,
+			"kind":              job.Kind,
+			"creationTimestamp": job.CreationTimestamp,
+			"tags":              tags,
+			"namespace":         job.Namespace,
+			"uid":           job.UID,
+			"generateName":  job.GenerateName,
+			"backoffLimit":  job.Spec.BackoffLimit,
+			"parallelism":  job.Spec.Parallelism,
+		},
+	}
+
+	log.Tracef("Created StackState Job component %s: %v", cronJobExternalID, component.JSONString())
+
+	return component
 }

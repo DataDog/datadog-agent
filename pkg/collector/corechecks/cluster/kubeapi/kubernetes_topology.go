@@ -96,6 +96,7 @@ func (t *TopologyCheck) Run() error {
 
 	// Make a channel for each of the relations to avoid passing data down into all the functions
 	containerCorrelationChannel := make(chan *collectors.ContainerCorrelation)
+	serviceCorrelationChannel := make(chan *collectors.IngressCorrelation)
 
 	// make a channel that is responsible for publishing components and relations
 	componentChannel := make(chan *topology.Component)
@@ -137,6 +138,7 @@ func (t *TopologyCheck) Run() error {
 		collectors.NewIngressCollector(
 			componentChannel,
 			relationChannel,
+			serviceCorrelationChannel,
 			commonClusterCollector,
 		),
 		// Register Job Component Collector
@@ -174,6 +176,7 @@ func (t *TopologyCheck) Run() error {
 		collectors.NewServiceCollector(
 			componentChannel,
 			relationChannel,
+			serviceCorrelationChannel,
 			commonClusterCollector,
 		),
 		// Register StatefulSet Component Collector
@@ -239,7 +242,7 @@ func (t *TopologyCheck) runClusterCollectors(clusterCollectors []collectors.Clus
 		runCollector(collector, errorChannel, &waitGroup)
 	}
 
-	timeout := time.Duration(5) * time.Minute
+	timeout := time.Duration(t.instance.CollectTimeout) * time.Minute
 	log.Debugf("Waiting for Cluster Collectors to Finish")
 	_ = waitTimeout(&waitGroup, timeout)
 	// submit the end to the topology listener

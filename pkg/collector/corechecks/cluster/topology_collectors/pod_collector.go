@@ -50,6 +50,7 @@ func (pc *PodCollector) CollectorFunction() error {
 		component := pc.podToStackStateComponent(pod)
 
 		// check to see if this pod is "managed" by a kubernetes controller
+		log.Debugf("Pod: %s, owner ref: %v", pod.Name, pod.OwnerReferences)
 		for _, ref := range pod.OwnerReferences {
 			switch kind := ref.Kind; kind {
 			case DaemonSet:

@@ -66,6 +66,8 @@ func (cmc *ConfigMapCollector) configMapToStackStateComponent(configMap v1.Confi
 		},
 	}
 
+	log.Debugf("ConfigMap: %s, owner ref: %v", configMap.Name, configMap.OwnerReferences)
+
 	log.Tracef("Created StackState ConfigMap component %s: %v", configMapExternalID, component.JSONString())
 
 	return component
