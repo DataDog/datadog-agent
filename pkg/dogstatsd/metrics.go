@@ -2,20 +2,25 @@ package dogstatsd
 
 import "github.com/DataDog/datadog-agent/pkg/metrics"
 
-// PacketMetrics contains the samples, events and service checks contained in a
-// specific packet.
-type PacketMetrics struct {
-	Samples       []MetricSample
-	Events        []Event
-	ServiceChecks []ServiceCheck
+const batchSize = 32
 
-	packet *Packet
+// MetricSampleBatch is a batch of metric samples to be sent to the aggregator
+type MetricSampleBatch struct {
+	Samples [batchSize]MetricSample
+	Count   int
 }
 
-// Release releases the underlying packet by returning it to it's pool.
-// The elements of the PacketMetrics are not safe for access beyond this call.
-func (pm *PacketMetrics) Release() {
-	pm.packet.release()
+// Add adds a sample to the batch
+func (b *MetricSampleBatch) Add(sample MetricSample) {
+	if b.Count < batchSize {
+		b.Samples[b.Count] = sample
+		b.Count++
+	}
+}
+
+// IsFull returns
+func (b *MetricSampleBatch) IsFull() bool {
+	return b.Count >= batchSize
 }
 
 // MetricSample is a metric sample originating from DogStatsD
@@ -41,6 +46,24 @@ func (s *MetricSample) Release() {
 	}
 }
 
+// EventBatch is a batch of events to be sent to the aggregator
+type EventBatch struct {
+	Events [batchSize]Event
+	Count  int
+}
+
+// Add adds an event to the batch
+func (b *EventBatch) Add(event Event) {
+	if b.Count < batchSize {
+		b.Events[b.Count] = event
+		b.Count++
+	}
+}
+
+func (b *EventBatch) IsFull() bool {
+	return b.Count >= batchSize
+}
+
 // Event is an event originating from DogStatsD
 // Structuraly, this is similar to metrics.Event with []byte slices
 // instead of strings. Under the hood those []byte slices are pointing to
@@ -64,6 +87,24 @@ func (e *Event) Release() {
 	if e.packet != nil {
 		e.packet.release()
 	}
+}
+
+// ServiceCheckBatch is a batch of service checks to be sent to the aggregator
+type ServiceCheckBatch struct {
+	ServiceChecks [batchSize]ServiceCheck
+	Count         int
+}
+
+// Add adds an event to the batch
+func (b *ServiceCheckBatch) Add(serviceCheck ServiceCheck) {
+	if b.Count < batchSize {
+		b.ServiceChecks[b.Count] = serviceCheck
+		b.Count++
+	}
+}
+
+func (b *ServiceCheckBatch) IsFull() bool {
+	return b.Count >= batchSize
 }
 
 // ServiceCheck is a service check originating from DogStatsD

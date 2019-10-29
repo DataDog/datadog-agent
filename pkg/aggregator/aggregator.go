@@ -166,9 +166,9 @@ func StopDefaultAggregator() {
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-	dogstatsdMetricIn       chan []dogstatsd.MetricSample
-	dogstatsdServiceCheckIn chan []dogstatsd.ServiceCheck
-	dogstatsdEventIn        chan []dogstatsd.Event
+	dogstatsdMetricIn       chan dogstatsd.MetricSampleBatch
+	dogstatsdServiceCheckIn chan dogstatsd.ServiceCheckBatch
+	dogstatsdEventIn        chan dogstatsd.EventBatch
 
 	metricIn       chan *metrics.MetricSample
 	eventIn        chan metrics.Event
@@ -196,9 +196,9 @@ type BufferedAggregator struct {
 // NewBufferedAggregator instantiates a BufferedAggregator
 func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
-		dogstatsdMetricIn:       make(chan []dogstatsd.MetricSample, 100), // TODO make buffer size configurable
-		dogstatsdServiceCheckIn: make(chan []dogstatsd.ServiceCheck, 100), // TODO make buffer size configurable
-		dogstatsdEventIn:        make(chan []dogstatsd.Event, 100),        // TODO make buffer size configurable
+		dogstatsdMetricIn:       make(chan dogstatsd.MetricSampleBatch, 100), // TODO make buffer size configurable
+		dogstatsdServiceCheckIn: make(chan dogstatsd.ServiceCheckBatch, 100), // TODO make buffer size configurable
+		dogstatsdEventIn:        make(chan dogstatsd.EventBatch, 100),        // TODO make buffer size configurable
 
 		metricIn:       make(chan *metrics.MetricSample, 100), // TODO make buffer size configurable
 		serviceCheckIn: make(chan metrics.ServiceCheck, 100),  // TODO make buffer size configurable
@@ -296,7 +296,7 @@ func (agg *BufferedAggregator) GetChannels() (chan *metrics.MetricSample, chan m
 }
 
 // GetDogstatsdChannels returns a channel which can be subsequently used to send MetricSamples, Event or ServiceCheck
-func (agg *BufferedAggregator) GetDogstatsdChannels() (chan []dogstatsd.MetricSample, chan []dogstatsd.Event, chan []dogstatsd.ServiceCheck) {
+func (agg *BufferedAggregator) GetDogstatsdChannels() (chan dogstatsd.MetricSampleBatch, chan dogstatsd.EventBatch, chan dogstatsd.ServiceCheckBatch) {
 	return agg.dogstatsdMetricIn, agg.dogstatsdEventIn, agg.dogstatsdServiceCheckIn
 }
 
@@ -732,23 +732,23 @@ func (agg *BufferedAggregator) run() {
 			aggregatorServiceCheck.Add(1)
 			agg.addServiceCheck(serviceCheck)
 
-		case metrics := <-agg.dogstatsdMetricIn:
-			aggregatorDogstatsdMetricSample.Add(int64(len(metrics)))
-			for _, sample := range metrics {
-				agg.addDogstatsdSample(sample, timeNowNano())
-				sample.Release()
+		case batch := <-agg.dogstatsdMetricIn:
+			aggregatorDogstatsdMetricSample.Add(int64(batch.Count))
+			for i := 0; i < batch.Count; i++ {
+				agg.addDogstatsdSample(batch.Samples[i], timeNowNano())
+				batch.Samples[i].Release()
 			}
-		case serviceChecks := <-agg.dogstatsdServiceCheckIn:
-			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
-			for _, serviceCheck := range serviceChecks {
-				agg.addServiceCheck(convertDogstatsdServiceCheck(serviceCheck))
-				serviceCheck.Release()
+		case batch := <-agg.dogstatsdServiceCheckIn:
+			aggregatorServiceCheck.Add(int64(batch.Count))
+			for i := 0; i < batch.Count; i++ {
+				agg.addServiceCheck(convertDogstatsdServiceCheck(batch.ServiceChecks[i]))
+				batch.ServiceChecks[i].Release()
 			}
-		case events := <-agg.dogstatsdEventIn:
-			aggregatorEvent.Add(int64(len(events)))
-			for _, event := range events {
-				agg.addEvent(convertDogstatsdEvent(event))
-				event.Release()
+		case batch := <-agg.dogstatsdEventIn:
+			aggregatorEvent.Add(int64(batch.Count))
+			for i := 0; i < batch.Count; i++ {
+				agg.addEvent(convertDogstatsdEvent(batch.Events[i]))
+				batch.Events[i].Release()
 			}
 
 		case h := <-agg.hostnameUpdate:
