@@ -4,6 +4,7 @@ package topology_collectors
 
 import (
 	"github.com/StackVista/stackstate-agent/pkg/topology"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // VolumeCollector implements the ClusterTopologyCollector interface.
@@ -29,9 +30,13 @@ func (_ *VolumeCollector) GetName() string {
 
 // Collects and Published the Volume Components
 func (vc *VolumeCollector) CollectorFunction() error {
-	_, err := vc.GetAPIClient().GetVolumeAttachments()
+	volumes, err := vc.GetAPIClient().GetVolumeAttachments()
 	if err != nil {
 		return err
+	}
+
+	for _, v := range volumes {
+		log.Debugf("Received volume attachment: %v", v.String())
 	}
 
 	return nil

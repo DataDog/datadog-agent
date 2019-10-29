@@ -122,6 +122,10 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 	podStatus.ContainerStatuses = make([]v1.ContainerStatus, 0)
 
 	tags := emptyIfNil(pod.Labels)
+	// add service account as a label to filter on
+	if pod.Spec.ServiceAccountName != "" {
+		tags["service-account"] = pod.Spec.ServiceAccountName
+	}
 	tags = pc.addClusterNameTag(tags)
 
 	component := &topology.Component{
