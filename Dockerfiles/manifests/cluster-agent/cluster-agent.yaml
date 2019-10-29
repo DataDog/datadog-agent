@@ -32,7 +32,7 @@ spec:
           - name: DD_COLLECT_KUBERNETES_TOPOLOGY
             value: "true"
           - name: DD_COLLECT_KUBERNETES_TIMEOUT
-              value: 10
+              value: "10"
           - name: DD_LEADER_ELECTION
             value: "true"
           - name: DD_CLUSTER_AGENT_AUTH_TOKEN

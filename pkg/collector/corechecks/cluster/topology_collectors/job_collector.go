@@ -50,9 +50,9 @@ func (jc *JobCollector) jobToStackStateComponent(job v1.Job) *topology.Component
 	tags := emptyIfNil(job.Labels)
 	tags = jc.addClusterNameTag(tags)
 
-	cronJobExternalID := jc.buildCronJobExternalID(job.Name)
+	jobExternalID := jc.buildJobExternalID(job.Name)
 	component := &topology.Component{
-		ExternalID: cronJobExternalID,
+		ExternalID: jobExternalID,
 		Type:       topology.Type{Name: "job"},
 		Data: map[string]interface{}{
 			"name":              job.Name,
@@ -67,7 +67,9 @@ func (jc *JobCollector) jobToStackStateComponent(job v1.Job) *topology.Component
 		},
 	}
 
-	log.Tracef("Created StackState Job component %s: %v", cronJobExternalID, component.JSONString())
+	log.Debugf("Job: %s, owner ref: %v", job.Name, job.OwnerReferences)
+
+	log.Tracef("Created StackState Job component %s: %v", jobExternalID, component.JSONString())
 
 	return component
 }

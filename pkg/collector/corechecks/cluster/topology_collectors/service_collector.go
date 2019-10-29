@@ -126,6 +126,11 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 
 	// all external ip's which are associated with this service, but are not managed by kubernetes
 	for _, ip := range service.Spec.ExternalIPs {
+		// verify that the ip is not empty
+		if ip == "" {
+			continue
+		}
+		// map all of the ports for the ip
 		for _, port := range service.Spec.Ports {
 			identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%d", ip, port.Port))
 		}
@@ -133,14 +138,24 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 
 	// all endpoints for this service
 	for _, endpoint := range endpoints {
+		// verify that the endpoint url is not empty
+		if endpoint.URL == "" {
+			continue
+		}
 		identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, endpoint.URL))
 	}
 
 	switch service.Spec.Type {
 	case v1.ServiceTypeClusterIP:
-		identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.ClusterIP))
+		// verify that the cluster ip is not empty
+		if service.Spec.ClusterIP != "" {
+			identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.ClusterIP))
+		}
 	case v1.ServiceTypeLoadBalancer:
-		identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.LoadBalancerIP))
+		// verify that the loadbalancer ip is not empty
+		if service.Spec.LoadBalancerIP != "" {
+			identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.LoadBalancerIP))
+		}
 	default:
 	}
 
