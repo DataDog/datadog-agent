@@ -12,6 +12,8 @@ rules:
   verbs:
   - get
 - nonResourceURLs:
+  - "/version"
+  - "/healthz"
   - "/metrics"
   verbs:
   - get
