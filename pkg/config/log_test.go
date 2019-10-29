@@ -33,7 +33,9 @@ func benchmarkLogFormat(logFormat string, b *testing.B) {
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, logFormat)
 
+	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
+		buff.Reset()
 		l.Infof("Hello I am a log")
 	}
 }
@@ -66,7 +68,9 @@ func benchmarkLogFormatWithContext(logFormat string, b *testing.B) {
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, logFormat)
 	context := []interface{}{"extra", "context", "foo", "bar"}
 
+	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
+		buff.Reset()
 		l.SetContext(context)
 		l.Infof("Hello I am a log")
 		l.SetContext(nil)
