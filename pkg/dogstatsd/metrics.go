@@ -18,7 +18,7 @@ func (b *MetricSampleBatch) Add(sample MetricSample) {
 	}
 }
 
-// IsFull returns
+// IsFull returns whether or not the batch is full
 func (b *MetricSampleBatch) IsFull() bool {
 	return b.Count >= batchSize
 }
@@ -60,6 +60,7 @@ func (b *EventBatch) Add(event Event) {
 	}
 }
 
+// IsFull returns whether or not the batch is full
 func (b *EventBatch) IsFull() bool {
 	return b.Count >= batchSize
 }
@@ -103,6 +104,7 @@ func (b *ServiceCheckBatch) Add(serviceCheck ServiceCheck) {
 	}
 }
 
+// IsFull returns whether or not the batch is full
 func (b *ServiceCheckBatch) IsFull() bool {
 	return b.Count >= batchSize
 }
