@@ -20,9 +20,10 @@ Release on: 2019-10-29
 Bug Fixes
 ---------
 
-- In Windows, allows the install to succeed successfully even in the event
+- On Windows, allows the install to succeed successfully even in the event
   that the user was not cleaned up successfully from a previous install.
 
+- On Windows, do not remove the home folder of the Agent's user (`dd-agent-user`) on uninstall.
 
 .. _Release Notes_6.14.1:
 
