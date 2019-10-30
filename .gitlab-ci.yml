@@ -1801,7 +1801,8 @@ twistlock_scan-7:
 
 dev_branch_docker_hub:
   <<: *docker_tag_job_definition
-  needs: ["build_agent6", "build_agent6_jmx", "build_agent6_py3", "build_agent6_py3_jmx", "build_agent6_py2py3_jmx", "build_agent7", "build_agent7_jmx", "build_dogstatsd"]
+  # missing "build_agent7", "build_agent7_jmx", "build_dogstatsd"
+  needs: ["build_agent6", "build_agent6_jmx", "build_agent6_py3", "build_agent6_py3_jmx", "build_agent6_py2py3_jmx"]
   when: manual
   except:
     - master
@@ -1819,6 +1820,8 @@ dev_branch_docker_hub:
 
 dev_master_docker_hub:
   <<: *docker_tag_job_definition
+  # missing "build_agent7", "build_agent7_jmx", "build_dogstatsd"
+  needs: ["build_agent6", "build_agent6_jmx", "build_agent6_py3", "build_agent6_py3_jmx", "build_agent6_py2py3_jmx"]
   only:
     - master
   variables:
