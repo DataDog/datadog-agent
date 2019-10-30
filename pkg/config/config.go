@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -372,7 +373,13 @@ func initConfig(config Config) {
 	// Note that trace-agent environment variables are parsed in pkg/trace/config/env.go
 	// since some of them require custom parsing algorithms. DO NOT add environment variable
 	// bindings here, add them there instead.
-	config.BindEnvAndSetDefault("apm_config.enabled", true)
+	if runtime.GOARCH == "386" {
+		// on Windows-32 bit, the trace agent isn't installed.  Set the default to disabled
+		// so that there aren't messages in the log about failing to start.
+		config.BindEnvAndSetDefault("apm_config.enabled", false)
+	} else {
+		config.BindEnvAndSetDefault("apm_config.enabled", true)
+	}
 
 	// Process agent
 	config.SetDefault("process_config.enabled", "false")
