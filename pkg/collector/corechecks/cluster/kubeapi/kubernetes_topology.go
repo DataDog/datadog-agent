@@ -184,12 +184,6 @@ func (t *TopologyCheck) Run() error {
 			componentChannel,
 			commonClusterCollector,
 		),
-		// Register Persistent Volume Component Collector
-		collectors.NewVolumeCollector(
-			componentChannel,
-			relationChannel,
-			commonClusterCollector,
-		),
 	}
 
 	t.runClusterCollectors(clusterCollectors, waitGroupChannel, errChannel)
