@@ -50,7 +50,7 @@ func (cmc *ConfigMapCollector) configMapToStackStateComponent(configMap v1.Confi
 	tags := emptyIfNil(configMap.Labels)
 	tags = cmc.addClusterNameTag(tags)
 
-	configMapExternalID := cmc.buildConfigMapExternalID(configMap.Name)
+	configMapExternalID := cmc.buildConfigMapExternalID(configMap.Namespace, configMap.Name)
 	component := &topology.Component{
 		ExternalID: configMapExternalID,
 		Type:       topology.Type{Name: "configmap"},

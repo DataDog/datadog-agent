@@ -36,20 +36,20 @@ type ClusterTopologyCollector interface {
 	GetName() string
 	addClusterNameTag(tags map[string]string) map[string]string
 	buildClusterExternalID() string
-	buildConfigMapExternalID(configMapName string) string
+	buildConfigMapExternalID(namespace, configMapID string) string
 	buildContainerExternalID(podName, containerName string) string
-	buildDaemonSetExternalID(daemonSetName string) string
-	buildDeploymentExternalID(deploymentName string) string
+	buildDaemonSetExternalID(daemonSetID string) string
+	buildDeploymentExternalID(deploymentID string) string
 	buildNodeExternalID(nodeName string) string
-	buildPodExternalID(podName string) string
-	buildReplicaSetExternalID(replicaSetName string) string
+	buildPodExternalID(podID string) string
+	buildReplicaSetExternalID(replicaSetID string) string
 	buildServiceExternalID(serviceID string) string
-	buildStatefulSetExternalID(statefulSetName string) string
-	buildCronJobExternalID(cronJobName string) string
-	buildJobExternalID(jobName string) string
-	buildIngressExternalID(ingressName string) string
-	buildPersistentVolumeExternalID(volumeName string) string
-	buildVolumeExternalID(volumeName string) string
+	buildStatefulSetExternalID(statefulSetID string) string
+	buildCronJobExternalID(cronJobID string) string
+	buildJobExternalID(jobID string) string
+	buildIngressExternalID(ingressID string) string
+	buildPersistentVolumeExternalID(volumeID string) string
+	buildVolumeExternalID(volumeID string) string
 	buildEndpointExternalID(endpointID string) string
 }
 
@@ -137,9 +137,10 @@ func (c *clusterTopologyCollector) buildStatefulSetExternalID(statefulSetID stri
 }
 
 // buildConfigMapExternalID
+// namespace
 // configMapID
-func (c *clusterTopologyCollector) buildConfigMapExternalID(configMapID string) string {
-	return fmt.Sprintf("urn:/%s:%s:configmap:%s", c.Instance.Type, c.Instance.URL, configMapID)
+func (c *clusterTopologyCollector) buildConfigMapExternalID(namespace, configMapID string) string {
+	return fmt.Sprintf("urn:/%s:%s:configmap:%s:%s", c.Instance.Type, c.Instance.URL, namespace, configMapID)
 }
 
 // buildCronJobExternalID

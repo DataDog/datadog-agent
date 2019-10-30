@@ -53,9 +53,10 @@ func TestCollectorInterface(t *testing.T) {
 	actualStatefulSetExternalID := testCollector.buildStatefulSetExternalID(statefulSetName)
 	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:statefulset:test-statefulset", actualStatefulSetExternalID)
 
+	configMapNamespace := "test-namespace"
 	configMapName := "test-configmap"
-	actualConfigMapExternalID := testCollector.buildConfigMapExternalID(configMapName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:configmap:test-configmap", actualConfigMapExternalID)
+	actualConfigMapExternalID := testCollector.buildConfigMapExternalID(configMapNamespace, configMapName)
+	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:configmap:test-namespace:test-configmap", actualConfigMapExternalID)
 
 	cronJobName := "test-cronjob"
 	actualCronJobExternalID := testCollector.buildCronJobExternalID(cronJobName)

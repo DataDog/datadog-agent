@@ -202,8 +202,6 @@ func (pc *PodCollector) containerToStackStateComponent(nodeIdentifier string, po
 		},
 		"pod":          pod.Name,
 		"podIP":          pod.Status.PodIP,
-		"containerPort": containerPort.ContainerPort,
-		"hostPort": containerPort.HostPort,
 		"namespace":    pod.Namespace,
 		"restartCount": container.RestartCount,
 		"identifiers":  identifiers,
@@ -212,6 +210,14 @@ func (pc *PodCollector) containerToStackStateComponent(nodeIdentifier string, po
 
 	if container.State.Running != nil {
 		data["startTime"] = container.State.Running.StartedAt
+	}
+
+	if containerPort != nil && containerPort.ContainerPort != 0 {
+		data["containerPort"] = containerPort.ContainerPort
+	}
+
+	if containerPort != nil && containerPort.HostPort != 0 {
+		data["hostPort"] = containerPort.HostPort
 	}
 
 	component := &topology.Component{
