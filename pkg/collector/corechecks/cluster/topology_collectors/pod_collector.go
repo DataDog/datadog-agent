@@ -353,8 +353,9 @@ func (pc *PodCollector) volumeToStackStateComponent(pod v1.Pod, volume v1.Volume
 		ExternalID: volumeExternalID,
 		Type:       topology.Type{Name: "volume"},
 		Data: map[string]interface{}{
-			"name":              volume.Name,
-			"source":              volume.VolumeSource,
+			"name":   volume.Name,
+			"source": volume.VolumeSource,
+			"tags":   tags,
 		},
 	}
 
