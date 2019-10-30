@@ -146,13 +146,7 @@ func (nc *NodeCollector) nodeToClusterStackStateRelation(node v1.Node) *topology
 
 	log.Tracef("Mapping kubernetes node to cluster relation: %s -> %s", nodeExternalID, clusterExternalID)
 
-	relation := &topology.Relation{
-		ExternalID: fmt.Sprintf("%s->%s", nodeExternalID, clusterExternalID),
-		SourceID:   nodeExternalID,
-		TargetID:   clusterExternalID,
-		Type:       topology.Type{Name: "belongs_to"},
-		Data:       map[string]interface{}{},
-	}
+	relation := nc.CreateRelation(nodeExternalID, clusterExternalID, "belongs_to")
 
 	log.Tracef("Created StackState node -> cluster relation %s->%s", relation.SourceID, relation.TargetID)
 

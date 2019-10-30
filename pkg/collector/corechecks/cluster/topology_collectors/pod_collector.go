@@ -54,9 +54,10 @@ func (pc *PodCollector) CollectorFunction() error {
 
 		// creates and publishes StackState pod component with relations
 		component := pc.podToStackStateComponent(pod)
+		pc.ComponentChan <- component
+		pc.RelationChan <- pc.podToNodeStackStateRelation(pod)
 
 		// check to see if this pod is "managed" by a kubernetes controller
-		log.Debugf("Pod: %s, owner ref: %v", pod.Name, pod.OwnerReferences)
 		for _, ref := range pod.OwnerReferences {
 			switch kind := ref.Kind; kind {
 			case DaemonSet:
@@ -74,9 +75,41 @@ func (pc *PodCollector) CollectorFunction() error {
 			}
 		}
 
+		// map the volume components and relation to this pod
+		for _, vol := range pod.Spec.Volumes {
+			var volumeExternalID string
+			if pc.isPersistentVolume(vol) {
+				volumeExternalID = pc.buildPersistentVolumeExternalID(vol.Name)
+			} else {
+				volComponent := pc.volumeToStackStateComponent(pod, vol)
+				volumeExternalID = volComponent.ExternalID
+				pc.ComponentChan <- volComponent
+			}
+
+			pc.RelationChan <- pc.podToVolumeStackStateRelation(component.ExternalID, volumeExternalID)
+		}
+
 		// map container to exposed ports
 		containerPorts := make(map[string]ContainerPort)
 		for _, c := range pod.Spec.Containers {
+
+			// map relations between the container and the volume
+			for _, mount := range c.VolumeMounts {
+				containerExternalID := pc.buildContainerExternalID(pod.Name, c.Name)
+				volumeExternalID :=  pc.buildVolumeExternalID(pod.Name, mount.Name)
+				pc.RelationChan <- pc.containerToVolumeStackStateRelation(containerExternalID, volumeExternalID, mount)
+			}
+
+			// map relations to config map
+			for _, env := range c.EnvFrom {
+				pc.RelationChan <- pc.podToConfigMapStackStateRelation(component.ExternalID, pc.buildConfigMapExternalID(pod.Namespace, env.ConfigMapRef.LocalObjectReference.Name))
+			}
+
+			// map relations to config map for this variable
+			for _, env := range c.Env {
+				pc.RelationChan <- pc.podToConfigMapVarStackStateRelation(component.ExternalID, pc.buildConfigMapExternalID(pod.Namespace, env.ValueFrom.ConfigMapKeyRef.LocalObjectReference.Name))
+			}
+
 			for _, port := range c.Ports {
 				containerPorts[fmt.Sprintf("%s_%s", c.Image, c.Name)] = ContainerPort{
 					HostPort: port.HostPort,
@@ -85,8 +118,6 @@ func (pc *PodCollector) CollectorFunction() error {
 			}
 		}
 
-		pc.ComponentChan <- component
-		pc.RelationChan <- pc.podToNodeStackStateRelation(pod)
 		pc.ContainerCorrChan <- &ContainerCorrelation{pod.Spec.NodeName, pc.buildContainerMappingFunction(pod, component.ExternalID, containerPorts)}
 	}
 
@@ -94,6 +125,26 @@ func (pc *PodCollector) CollectorFunction() error {
 	close(pc.ContainerCorrChan)
 
 	return nil
+}
+
+// Checks to see if the volume is a persistent volume
+func (pc *PodCollector) isPersistentVolume(volume v1.Volume) bool {
+	if volume.EmptyDir != nil || volume.Secret != nil || volume.ConfigMap != nil || volume.DownwardAPI != nil ||
+		volume.Projected != nil {
+		return false
+	}
+
+	// persistent volume types
+	if volume.HostPath != nil || volume.GCEPersistentDisk != nil || volume.AWSElasticBlockStore != nil ||
+		volume.NFS != nil || volume.ISCSI != nil || volume.Glusterfs != nil ||
+		volume.RBD != nil || volume.FlexVolume != nil || volume.Cinder != nil || volume.CephFS != nil ||
+		volume.Flocker != nil || volume.DownwardAPI != nil || volume.FC != nil || volume.AzureFile != nil ||
+		volume.VsphereVolume != nil || volume.Quobyte != nil || volume.AzureDisk != nil || volume.PhotonPersistentDisk != nil ||
+		volume.Projected != nil || volume.PortworxVolume != nil || volume.ScaleIO != nil || volume.StorageOS != nil{
+		return true
+	}
+
+	return false
 }
 
 // Creates a StackState component from a Kubernetes / OpenShift Pod
@@ -159,13 +210,7 @@ func (pc *PodCollector) podToNodeStackStateRelation(pod v1.Pod) *topology.Relati
 
 	log.Tracef("Mapping kubernetes pod to node relation: %s -> %s", podExternalID, nodeExternalID)
 
-	relation := &topology.Relation{
-		ExternalID: fmt.Sprintf("%s->%s", podExternalID, nodeExternalID),
-		SourceID:   podExternalID,
-		TargetID:   nodeExternalID,
-		Type:       topology.Type{Name: "scheduled_on"},
-		Data:       map[string]interface{}{},
-	}
+	relation := pc.CreateRelation(podExternalID, nodeExternalID, "scheduled_on")
 
 	log.Tracef("Created StackState pod -> node relation %s->%s", relation.SourceID, relation.TargetID)
 
@@ -235,13 +280,7 @@ func (pc *PodCollector) containerToStackStateComponent(nodeIdentifier string, po
 func (pc *PodCollector)  containerToPodStackStateRelation(containerExternalID, podExternalID string) *topology.Relation {
 	log.Tracef("Mapping kubernetes container to pod relation: %s -> %s", containerExternalID, podExternalID)
 
-	relation := &topology.Relation{
-		ExternalID: fmt.Sprintf("%s->%s", containerExternalID, podExternalID),
-		SourceID:   containerExternalID,
-		TargetID:   podExternalID,
-		Type:       topology.Type{Name: "enclosed_in"},
-		Data:       map[string]interface{}{},
-	}
+	relation := pc.CreateRelation(containerExternalID, podExternalID, "enclosed_in")
 
 	log.Tracef("Created StackState container -> pod relation %s->%s", relation.SourceID, relation.TargetID)
 
@@ -252,15 +291,104 @@ func (pc *PodCollector)  containerToPodStackStateRelation(containerExternalID, p
 func (pc *PodCollector)  controllerWorkloadToPodStackStateRelation(controllerExternalID, podExternalID string) *topology.Relation {
 	log.Tracef("Mapping kubernetes controller workload to pod relation: %s -> %s", controllerExternalID, podExternalID)
 
-	relation := &topology.Relation{
-		ExternalID: fmt.Sprintf("%s->%s", controllerExternalID, podExternalID),
-		SourceID:   controllerExternalID,
-		TargetID:   podExternalID,
-		Type:       topology.Type{Name: "controls"},
-		Data:       map[string]interface{}{},
-	}
+	relation := pc.CreateRelation(controllerExternalID, podExternalID, "controls")
 
 	log.Tracef("Created StackState controller workload -> pod relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
+// Creates a StackState relation from a Kubernetes / OpenShift Pod to ConfigMap relation
+func (pc *PodCollector)  podToConfigMapStackStateRelation(podExternalID, configMapExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes pod to config map relation: %s -> %s", podExternalID, configMapExternalID)
+
+	relation := pc.CreateRelation(podExternalID, configMapExternalID, "uses")
+
+	log.Tracef("Created StackState pod -> config map relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
+// Creates a StackState relation from a Kubernetes / OpenShift Pod to ConfigMap variable relation
+func (pc *PodCollector)  podToConfigMapVarStackStateRelation(podExternalID, configMapExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes pod to config map var relation: %s -> %s", podExternalID, configMapExternalID)
+
+	relation := pc.CreateRelation(podExternalID, configMapExternalID, "uses_value")
+
+	log.Tracef("Created StackState pod -> config map var relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
+// Creates a StackState component from a Kubernetes / OpenShift Volume
+func (pc *PodCollector) volumeToStackStateComponent(pod v1.Pod, volume v1.Volume) *topology.Component {
+	// creates a StackState component for the kubernetes pod
+	log.Tracef("Mapping kubernetes volume to StackState Component: %s", pod.String())
+
+	identifiers := make([]string, 0)
+	//if volume.EmptyDir != nil {
+	//	identifiers = append(identifiers, fmt.Sprintf("urn:volume:/%s:%s:%s", pc.GetInstance().URL, pod.Name, ))
+	//}
+	//if volume.Secret != nil {
+	//	identifiers = append(identifiers, fmt.Sprintf("urn:volume:/%s:%s:%s", pc.GetInstance().URL, pod.Name, ))
+	//}
+	//if volume.DownwardAPI != nil {
+	//	identifiers = append(identifiers, fmt.Sprintf("urn:volume:/%s:%s:%s", pc.GetInstance().URL, pod.Name, ))
+	//}
+	//if volume.ConfigMap != nil {
+	//	identifiers = append(identifiers, fmt.Sprintf("urn:volume:/%s:%s:%s", pc.GetInstance().URL, pod.Name, ))
+	//}
+	//if volume.Projected != nil {
+	//	identifiers = append(identifiers, fmt.Sprintf("urn:volume:/%s:%s:%s", pc.GetInstance().URL, pod.Name, ))
+	//}
+
+	log.Tracef("Created identifiers for %s: %v", pod.Name, identifiers)
+
+	volumeExternalID := pc.buildVolumeExternalID(pod.Name, volume.Name)
+
+	tags := make(map[string]string, 0)
+	tags = pc.addClusterNameTag(tags)
+
+	component := &topology.Component{
+		ExternalID: volumeExternalID,
+		Type:       topology.Type{Name: "volume"},
+		Data: map[string]interface{}{
+			"name":              volume.Name,
+			"source":              volume.VolumeSource,
+		},
+	}
+
+	log.Tracef("Created StackState volume component %s: %v", volumeExternalID, component.JSONString())
+
+	return component
+}
+
+// Create a StackState relation from a Kubernetes / OpenShift Pod to a Volume
+func (pc *PodCollector) podToVolumeStackStateRelation(podExternalID, volumeExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes pod to volume relation: %s -> %s", podExternalID, volumeExternalID)
+
+	relation := pc.CreateRelation(podExternalID, volumeExternalID, "claims")
+
+	log.Tracef("Created StackState pod -> volume relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
+// Create a StackState relation from a Kubernetes / OpenShift Container to a Volume
+func (pc *PodCollector) containerToVolumeStackStateRelation(containerExternalID, volumeExternalID string, mount v1.VolumeMount) *topology.Relation {
+	log.Tracef("Mapping kubernetes container to volume relation: %s -> %s", containerExternalID, volumeExternalID)
+
+	data := map[string]interface{}{
+		"name": mount.Name,
+		"readOnly": mount.ReadOnly,
+		"mountPath": mount.MountPath,
+		"subPath" : mount.SubPath,
+		"mountPropagation": mount.MountPropagation,
+	}
+
+	relation := pc.CreateRelationData(containerExternalID, volumeExternalID, "uses", data)
+
+	log.Tracef("Created StackState container -> volume relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
 }

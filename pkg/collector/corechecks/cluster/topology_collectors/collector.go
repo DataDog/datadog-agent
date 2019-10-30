@@ -34,6 +34,8 @@ type ClusterTopologyCollector interface {
 	GetAPIClient() *apiserver.APIClient
 	GetInstance() topology.Instance
 	GetName() string
+	CreateRelation(sourceExternalID, targetExternalID, typeName string) *topology.Relation
+	CreateRelationData(sourceExternalID, targetExternalID, typeName string, data map[string]interface{}) *topology.Relation
 	addClusterNameTag(tags map[string]string) map[string]string
 	buildClusterExternalID() string
 	buildConfigMapExternalID(namespace, configMapID string) string
@@ -48,8 +50,8 @@ type ClusterTopologyCollector interface {
 	buildCronJobExternalID(cronJobID string) string
 	buildJobExternalID(jobID string) string
 	buildIngressExternalID(ingressID string) string
-	buildPersistentVolumeExternalID(volumeID string) string
-	buildVolumeExternalID(volumeID string) string
+	buildVolumeExternalID(podName, volumeID string) string
+	buildPersistentVolumeExternalID(persistentVolumeID string) string
 	buildEndpointExternalID(endpointID string) string
 }
 
@@ -81,6 +83,36 @@ func (c *clusterTopologyCollector) GetAPIClient() *apiserver.APIClient {
 // CollectorFunction
 func (c *clusterTopologyCollector) CollectorFunction() error {
 	return errors.New("CollectorFunction NotImplemented")
+}
+
+// CreateRelationData creates a StackState relation called typeName for the given sourceExternalID and targetExternalID
+func (c *clusterTopologyCollector) CreateRelationData(sourceExternalID, targetExternalID, typeName string, data map[string]interface{}) *topology.Relation {
+	var _data map[string]interface{}
+
+	if data != nil {
+		_data = data
+	} else {
+		_data = map[string]interface{}{}
+	}
+
+	return &topology.Relation{
+		ExternalID: fmt.Sprintf("%s->%s", sourceExternalID, targetExternalID),
+		SourceID:   sourceExternalID,
+		TargetID:   targetExternalID,
+		Type:       topology.Type{Name: typeName},
+		Data:       _data,
+	}
+}
+
+// CreateRelation creates a StackState relation called typeName for the given sourceExternalID and targetExternalID
+func (c *clusterTopologyCollector) CreateRelation(sourceExternalID, targetExternalID, typeName string) *topology.Relation {
+	return &topology.Relation{
+		ExternalID: fmt.Sprintf("%s->%s", sourceExternalID, targetExternalID),
+		SourceID:   sourceExternalID,
+		TargetID:   targetExternalID,
+		Type:       topology.Type{Name: typeName},
+		Data:       map[string]interface{}{},
+	}
 }
 
 // buildClusterExternalID
@@ -161,16 +193,16 @@ func (c *clusterTopologyCollector) buildIngressExternalID(ingressID string) stri
 	return fmt.Sprintf("urn:/%s:%s:ingress:%s", c.Instance.Type, c.Instance.URL, ingressID)
 }
 
-// buildPersistentVolumeExternalID
-// volumeID
-func (c *clusterTopologyCollector) buildPersistentVolumeExternalID(volumeID string) string {
-	return fmt.Sprintf("urn:/%s:%s:persistent-volume:%s", c.Instance.Type, c.Instance.URL, volumeID)
-}
-
 // buildVolumeExternalID
 // volumeID
-func (c *clusterTopologyCollector) buildVolumeExternalID(volumeID string) string {
-	return fmt.Sprintf("urn:/%s:%s:volume:%s", c.Instance.Type, c.Instance.URL, volumeID)
+func (c *clusterTopologyCollector) buildVolumeExternalID(podName, volumeID string) string {
+	return fmt.Sprintf("urn:/%s:%s:pod:%s:volume:%s", c.Instance.Type, c.Instance.URL, podName, volumeID)
+}
+
+// buildPersistentVolumeExternalID
+// persistentVolumeID
+func (c *clusterTopologyCollector) buildPersistentVolumeExternalID(persistentVolumeID string) string {
+	return fmt.Sprintf("urn:/%s:%s:persistent-volume:%s", c.Instance.Type, c.Instance.URL, persistentVolumeID)
 }
 
 // buildEndpointExternalID

@@ -13,6 +13,7 @@ rules:
   - nodes
   - componentstatuses
   - configmaps
+  - persistentvolumes
   - persistentvolumeclaims
   verbs:
   - get

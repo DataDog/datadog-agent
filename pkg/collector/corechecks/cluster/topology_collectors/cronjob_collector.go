@@ -3,7 +3,6 @@
 package topology_collectors
 
 import (
-	"fmt"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"k8s.io/api/batch/v1beta1"
@@ -87,13 +86,7 @@ func (cjc *CronJobCollector)  cronJobToJobStackStateRelation(job v1.ObjectRefere
 
 	log.Tracef("Mapping kubernetes cron job to job relation: %s -> %s", cronJobExternalID, jobExternalID)
 
-	relation := &topology.Relation{
-		ExternalID: fmt.Sprintf("%s->%s", cronJobExternalID, jobExternalID),
-		SourceID:   cronJobExternalID,
-		TargetID:   jobExternalID,
-		Type:       topology.Type{Name: "creates"},
-		Data:       map[string]interface{}{},
-	}
+	relation := cjc.CreateRelation(cronJobExternalID, jobExternalID, "creates")
 
 	log.Tracef("Created StackState cron job -> job relation %s->%s", relation.SourceID, relation.TargetID)
 
