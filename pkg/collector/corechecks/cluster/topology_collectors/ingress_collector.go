@@ -40,8 +40,30 @@ func (ic *IngressCollector) CollectorFunction() error {
 	}
 
 	for _, in := range ingresses {
-		ic.ComponentChan <- ic.ingressToStackStateComponent(in)
+		component := ic.ingressToStackStateComponent(in)
+		ic.ComponentChan <- component
+		// submit relation to service name for correlation
+		if in.Spec.Backend.ServiceName != "" {
+			ic.ServiceCorrelationChannel <- &IngressCorrelation{
+				ServiceName:       in.Spec.Backend.ServiceName,
+				IngressExternalID: component.ExternalID,
+			}
+		}
+
+		// submit relation to service name in the ingress rules for correlation
+		for _, rules := range in.Spec.Rules {
+			for _, path := range rules.HTTP.Paths {
+				ic.ServiceCorrelationChannel <- &IngressCorrelation{
+					ServiceName: path.Backend.ServiceName,
+					IngressExternalID: component.ExternalID,
+				}
+			}
+		}
+
 	}
+
+	// close the service correlation channel
+	close(ic.ServiceCorrelationChannel)
 
 	return nil
 }
@@ -79,27 +101,6 @@ func (ic *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress
 			"generateName":  ingress.GenerateName,
 		},
 	}
-
-	// submit relation to service name for correlation
-	if ingress.Spec.Backend.ServiceName != "" {
-		ic.ServiceCorrelationChannel <- &IngressCorrelation{
-			ServiceName:       ingress.Spec.Backend.ServiceName,
-			IngressExternalID: ingressExternalID,
-		}
-	}
-
-	// submit relation to service name in the ingress rules for correlation
-	for _, rules := range ingress.Spec.Rules {
-		for _, path := range rules.HTTP.Paths {
-			ic.ServiceCorrelationChannel <- &IngressCorrelation{
-				ServiceName: path.Backend.ServiceName,
-				IngressExternalID: ingressExternalID,
-			}
-		}
-	}
-
-	// close the service correlation channel
-	close(ic.ServiceCorrelationChannel)
 
 	log.Tracef("Created StackState Ingress component %s: %v", ingressExternalID, component.JSONString())
 
