@@ -1801,7 +1801,8 @@ twistlock_scan-7:
 
 dev_branch_docker_hub:
   <<: *docker_tag_job_definition
-  # missing "build_agent7", "build_agent7_jmx", "build_dogstatsd"
+  # FIXME: missing "build_agent7", "build_agent7_jmx", "build_dogstatsd" to
+  # respect the ci_dag_limit_needs, only trigger manually when all are completed
   needs: ["build_agent6", "build_agent6_jmx", "build_agent6_py3", "build_agent6_py3_jmx", "build_agent6_py2py3_jmx"]
   when: manual
   except:
@@ -1820,8 +1821,7 @@ dev_branch_docker_hub:
 
 dev_master_docker_hub:
   <<: *docker_tag_job_definition
-  # missing "build_agent7", "build_agent7_jmx", "build_dogstatsd"
-  needs: ["build_agent6", "build_agent6_jmx", "build_agent6_py3", "build_agent6_py3_jmx", "build_agent6_py2py3_jmx"]
+  # TODO: add DAG needs when the ci_dag_limit_needs is > 5
   only:
     - master
   variables:
@@ -1848,6 +1848,7 @@ dca_dev_branch_docker_hub:
 
 dca_dev_master_docker_hub:
   <<: *docker_tag_job_definition
+  needs: ["build_cluster_agent"]
   only:
     - master
   variables:
@@ -1859,6 +1860,7 @@ dca_dev_master_docker_hub:
 dev_nightly_docker_hub:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_nightly
+  # TODO: add DAG needs when the ci_dag_limit_needs is > 5
   variables:
     <<: *docker_hub_variables
   script:
