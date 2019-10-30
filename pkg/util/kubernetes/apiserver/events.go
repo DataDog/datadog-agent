@@ -99,6 +99,10 @@ func (c *APIClient) RunEventCollection(resVer string, lastListTime time.Time, ev
 				// should not be happening, it means the object is not correctly formatted in etcd.
 				return added, resVer, lastListTime, err
 			}
+			// in some cases events show up from the past, using 1 hour to be consistent with the APIServer
+			if float64(time.Now().Unix()-ev.LastTimestamp.Unix()) > 3600 {
+				continue
+			}
 			added = append(added, ev)
 			i, err := strconv.Atoi(resVer)
 			if err != nil {
