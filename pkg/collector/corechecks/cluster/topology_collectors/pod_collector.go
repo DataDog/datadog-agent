@@ -75,10 +75,10 @@ func (pc *PodCollector) CollectorFunction() error {
 		}
 
 		// map container to exposed ports
-		containerPorts := make(map[string]*ContainerPort)
+		containerPorts := make(map[string]ContainerPort)
 		for _, c := range pod.Spec.Containers {
 			for _, port := range c.Ports {
-				containerPorts[fmt.Sprintf("%s_%s", c.Image, c.Name)] = &ContainerPort{
+				containerPorts[fmt.Sprintf("%s_%s", c.Image, c.Name)] = ContainerPort{
 					HostPort: port.HostPort,
 					ContainerPort: port.ContainerPort,
 				}
@@ -173,7 +173,7 @@ func (pc *PodCollector) podToNodeStackStateRelation(pod v1.Pod) *topology.Relati
 }
 
 // Creates a StackState component from a Kubernetes / OpenShift Pod Container
-func (pc *PodCollector) containerToStackStateComponent(nodeIdentifier string, pod v1.Pod, container v1.ContainerStatus, containerPort *ContainerPort) *topology.Component {
+func (pc *PodCollector) containerToStackStateComponent(nodeIdentifier string, pod v1.Pod, container v1.ContainerStatus, containerPort ContainerPort) *topology.Component {
 	log.Tracef("Mapping kubernetes pod container to StackState component: %s", container.String())
 	// create identifier list to merge with StackState components
 
@@ -212,11 +212,11 @@ func (pc *PodCollector) containerToStackStateComponent(nodeIdentifier string, po
 		data["startTime"] = container.State.Running.StartedAt
 	}
 
-	if containerPort != nil && containerPort.ContainerPort != 0 {
+	if containerPort.ContainerPort != 0 {
 		data["containerPort"] = containerPort.ContainerPort
 	}
 
-	if containerPort != nil && containerPort.HostPort != 0 {
+	if containerPort.HostPort != 0 {
 		data["hostPort"] = containerPort.HostPort
 	}
 
@@ -266,13 +266,18 @@ func (pc *PodCollector)  controllerWorkloadToPodStackStateRelation(controllerExt
 }
 
 // build the function that is used to correlate container to nodes
-func (pc *PodCollector)  buildContainerMappingFunction(pod v1.Pod, podExternalID string, containerPorts map[string]*ContainerPort) func (nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation) {
+func (pc *PodCollector)  buildContainerMappingFunction(pod v1.Pod, podExternalID string, containerPorts map[string]ContainerPort) func (nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation) {
 	return func (nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation) {
 		// creates a StackState component for the kubernetes pod containers + relation to pod
 		for _, container := range pod.Status.ContainerStatuses {
 
+			containerPort := ContainerPort{}
+			if cntPort, found := containerPorts[fmt.Sprintf("%s_%s", container.Image, container.Name)]; found {
+				containerPort = cntPort
+			}
+
 			// submit the StackState component for publishing to StackState
-			containerComponent := pc.containerToStackStateComponent(nodeIdentifier, pod, container, containerPorts[fmt.Sprintf("%s_%s", container.Image, container.Name)])
+			containerComponent := pc.containerToStackStateComponent(nodeIdentifier, pod, container, containerPort)
 			// create the relation between the container and pod
 			containerRelation := pc.containerToPodStackStateRelation(containerComponent.ExternalID, podExternalID)
 
