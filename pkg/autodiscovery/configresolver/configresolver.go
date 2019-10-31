@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -28,6 +27,10 @@ var templateVariables = map[string]variableGetter{
 	"port":     getPort,
 	"hostname": getHostname,
 }
+
+// fileProvider refers to the file AD config provider
+// redeclared in this module to avoid import cycle
+const fileProvider = "file"
 
 // SubstituteTemplateVariables replaces %%VARIABLES%% using the variableGetters passed in
 func SubstituteTemplateVariables(config *integration.Config, getters map[string]variableGetter, svc listeners.Service) error {
@@ -93,7 +96,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
 
-	if strings.HasPrefix(tpl.Source, "file:") && svc.GetAnnotatedCheckNames() != "" {
+	if tpl.Provider == fileProvider && svc.GetAnnotatedCheckNames() != "" {
 		checkNames := []string{}
 		err := json.Unmarshal([]byte(svc.GetAnnotatedCheckNames()), &checkNames)
 		if err != nil {

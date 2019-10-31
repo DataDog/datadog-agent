@@ -21,13 +21,14 @@ import (
 )
 
 type dummyService struct {
-	ID            string
-	ADIdentifiers []string
-	Hosts         map[string]string
-	Ports         []listeners.ContainerPort
-	Pid           int
-	Hostname      string
-	CreationTime  integration.CreationTime
+	ID                  string
+	ADIdentifiers       []string
+	Hosts               map[string]string
+	Ports               []listeners.ContainerPort
+	Pid                 int
+	Hostname            string
+	CreationTime        integration.CreationTime
+	AnnotatedCheckNames string
 }
 
 // GetEntity returns the service entity name
@@ -80,9 +81,9 @@ func (s *dummyService) IsReady() bool {
 	return true
 }
 
-// GetAnnotatedCheckNames stub
+// GetAnnotatedCheckNames returns
 func (s *dummyService) GetAnnotatedCheckNames() string {
-	return ""
+	return s.AnnotatedCheckNames
 }
 
 func TestGetFallbackHost(t *testing.T) {
@@ -428,6 +429,71 @@ func TestResolve(t *testing.T) {
 				Instances:     []integration.Data{integration.Data("host: %%FOO%%")},
 			},
 			errorString: "yaml: found character that cannot start any token",
+		},
+		//// check overrides
+		{
+			testName: "same check: override check from file",
+			svc: &dummyService{
+				ID:                  "a5901276aed1",
+				ADIdentifiers:       []string{"redis"},
+				AnnotatedCheckNames: "[\"redis\"]",
+			},
+			tpl: integration.Config{
+				Name:          "redis",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%")},
+				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
+				Provider:      "file",
+			},
+			errorString: "ignoring config from file: another config is defined for the check redis via annotations",
+		},
+		{
+			testName: "different checks: don't override check from file",
+			svc: &dummyService{
+				ID:                  "a5901276aed1",
+				ADIdentifiers:       []string{"redis"},
+				AnnotatedCheckNames: "[\"tcp_check\",\"http_check\"]",
+			},
+			tpl: integration.Config{
+				Name:          "redis",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: localhost")},
+				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
+				Provider:      "file",
+			},
+			out: integration.Config{
+				Name:          "redis",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: localhost")},
+				InitConfig:    integration.Data{},
+				Entity:        "a5901276aed1",
+				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
+				Provider:      "file",
+			},
+		},
+		{
+			testName: "not annotated: don't override check from file",
+			svc: &dummyService{
+				ID:                  "a5901276aed1",
+				ADIdentifiers:       []string{"redis"},
+				AnnotatedCheckNames: "",
+			},
+			tpl: integration.Config{
+				Name:          "redis",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: localhost")},
+				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
+				Provider:      "file",
+			},
+			out: integration.Config{
+				Name:          "redis",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: localhost")},
+				InitConfig:    integration.Data{},
+				Entity:        "a5901276aed1",
+				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
+				Provider:      "file",
+			},
 		},
 	}
 	validTemplates := 0
