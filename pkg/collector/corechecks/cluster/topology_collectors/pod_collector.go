@@ -102,12 +102,16 @@ func (pc *PodCollector) CollectorFunction() error {
 
 			// map relations to config map
 			for _, env := range c.EnvFrom {
-				pc.RelationChan <- pc.podToConfigMapStackStateRelation(component.ExternalID, pc.buildConfigMapExternalID(pod.Namespace, env.ConfigMapRef.LocalObjectReference.Name))
+				if env.ConfigMapRef != nil {
+					pc.RelationChan <- pc.podToConfigMapStackStateRelation(component.ExternalID, pc.buildConfigMapExternalID(pod.Namespace, env.ConfigMapRef.LocalObjectReference.Name))
+				}
 			}
 
 			// map relations to config map for this variable
 			for _, env := range c.Env {
-				pc.RelationChan <- pc.podToConfigMapVarStackStateRelation(component.ExternalID, pc.buildConfigMapExternalID(pod.Namespace, env.ValueFrom.ConfigMapKeyRef.LocalObjectReference.Name))
+				if env.ValueFrom != nil && env.ValueFrom.ConfigMapKeyRef != nil {
+					pc.RelationChan <- pc.podToConfigMapVarStackStateRelation(component.ExternalID, pc.buildConfigMapExternalID(pod.Namespace, env.ValueFrom.ConfigMapKeyRef.LocalObjectReference.Name))
+				}
 			}
 
 			for _, port := range c.Ports {
