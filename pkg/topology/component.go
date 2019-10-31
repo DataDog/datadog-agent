@@ -25,7 +25,7 @@ func (c Component) JSONString() string {
 	return string(b)
 }
 
-// Add adds the value for the given key to the map if the value is not nil
+// PutNonEmpty adds the value for the given key to the map if the value is not nil
 func (d Data) PutNonEmpty(key string, value interface{}) bool {
 	if value != nil {
 		switch value.(type) {
