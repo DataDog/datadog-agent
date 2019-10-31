@@ -7,9 +7,9 @@ def check_user_exists(name)
   outp
 end
 shared_examples_for 'a device with no files installed' do
-  it 'has no DataDog program files directory' do
-    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog")
-  end
+  #it 'has no DataDog program files directory' do
+  #  expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog")
+  #end
   it 'has no DataDog program data directory' do
     expect(File).not_to exist("#{ENV['ProgramData']}\\DataDog\\conf.d")
     expect(File).not_to exist("#{ENV['ProgramData']}\\DataDog\\checks.d")
