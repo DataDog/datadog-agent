@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	newIdentifierLabel        = "com.datadoghq.ad.check.id"
-	legacyIdentifierLabel     = "com.datadoghq.sd.check.id"
-	dockerADTemplateLabelName = "com.datadoghq.ad.instances"
+	newIdentifierLabel         = "com.datadoghq.ad.check.id"
+	legacyIdentifierLabel      = "com.datadoghq.sd.check.id"
+	dockerADTemplateLabelName  = "com.datadoghq.ad.instances"
+	dockerADTemplateChechNames = "com.datadoghq.ad.check_names"
 )
 
 // ComputeContainerServiceIDs takes an entity name, an image (resolved to an actual name) and labels
@@ -31,11 +32,6 @@ func ComputeContainerServiceIDs(entity string, image string, labels map[string]s
 
 	ids := []string{entity}
 
-	// AD template in labels, don't add image names
-	if _, found := labels[dockerADTemplateLabelName]; found {
-		return ids
-	}
-
 	// Add Image names (long then short if different)
 	long, short, _, err := containers.SplitImageName(image)
 	if err != nil {
@@ -48,4 +44,9 @@ func ComputeContainerServiceIDs(entity string, image string, labels map[string]s
 		ids = append(ids, short)
 	}
 	return ids
+}
+
+// getCheckNamesFromLabels returns json string of check names defined in docker labels
+func getCheckNamesFromLabels(labels map[string]string) string {
+	return labels[dockerADTemplateChechNames]
 }

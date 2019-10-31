@@ -84,7 +84,7 @@ func TestGetConfigIDFromPs(t *testing.T) {
 		Labels: map[string]string{"com.datadoghq.ad.instances": "[]]"},
 	}
 	ids = dl.getConfigIDFromPs(templatedCo)
-	assert.Equal(t, []string{"docker://deadbeef"}, ids)
+	assert.Equal(t, []string{"docker://deadbeef", "org/test", "test"}, ids)
 }
 
 func TestGetHostsFromPs(t *testing.T) {

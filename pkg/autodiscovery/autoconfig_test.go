@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -349,4 +350,32 @@ func TestGetLoadedConfigNotInitialized(t *testing.T) {
 	ac := AutoConfig{}
 	cfgs := ac.GetLoadedConfigs()
 	require.Len(t, cfgs, 0)
+}
+
+func TestCheckOverride(t *testing.T) {
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+	tpl := integration.Config{
+		Name:          "redis",
+		ADIdentifiers: []string{"redis"},
+		Provider:      providers.File,
+	}
+
+	ac.processNewService(&dummyService{
+		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
+		ADIdentifiers: []string{"redis"},
+		CheckNames:    "[\"redis\"]",
+	})
+
+	// check must be overrided
+	assert.Len(t, ac.resolveTemplate(tpl), 0)
+
+	ac.processNewService(&dummyService{
+		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
+		ADIdentifiers: []string{"redis"},
+		CheckNames:    "[\"tcp_check\"]",
+	})
+
+	// check must be scheduled
+	assert.Len(t, ac.resolveTemplate(tpl), 1)
+
 }

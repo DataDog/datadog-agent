@@ -18,6 +18,7 @@ type dummyService struct {
 	Pid           int
 	Hostname      string
 	CreationTime  integration.CreationTime
+	CheckNames    string
 }
 
 // GetEntity returns the service entity name
@@ -70,7 +71,7 @@ func (s *dummyService) IsReady() bool {
 	return true
 }
 
-// GetAnnotatedCheckNames stub
-func (s *dummyService) GetAnnotatedCheckNames() string {
-	return ""
+// GetCheckNames returns json string of check names defined in docker labels
+func (s *dummyService) GetCheckNames() string {
+	return s.CheckNames
 }

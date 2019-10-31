@@ -363,8 +363,8 @@ func (s *KubeContainerService) IsReady() bool {
 	return s.ready
 }
 
-// GetAnnotatedCheckNames returns if the check names found in annotation
-func (s *KubeContainerService) GetAnnotatedCheckNames() string {
+// GetCheckNames returns names of checks defined in pod annotations as a json string
+func (s *KubeContainerService) GetCheckNames() string {
 	return s.annotatedCheckNames
 }
 
@@ -422,7 +422,8 @@ func (s *KubePodService) IsReady() bool {
 	return true
 }
 
-// GetAnnotatedCheckNames stub
-func (s *KubePodService) GetAnnotatedCheckNames() string {
+// GetCheckNames returns json string of check names defined in kubernetes annotations or docker labels
+// KubePodService doesn't implement this method
+func (s *KubePodService) GetCheckNames() string {
 	return ""
 }

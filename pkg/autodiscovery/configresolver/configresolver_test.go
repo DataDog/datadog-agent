@@ -21,14 +21,14 @@ import (
 )
 
 type dummyService struct {
-	ID                  string
-	ADIdentifiers       []string
-	Hosts               map[string]string
-	Ports               []listeners.ContainerPort
-	Pid                 int
-	Hostname            string
-	CreationTime        integration.CreationTime
-	AnnotatedCheckNames string
+	ID            string
+	ADIdentifiers []string
+	Hosts         map[string]string
+	Ports         []listeners.ContainerPort
+	Pid           int
+	Hostname      string
+	CreationTime  integration.CreationTime
+	CheckNames    string
 }
 
 // GetEntity returns the service entity name
@@ -81,9 +81,9 @@ func (s *dummyService) IsReady() bool {
 	return true
 }
 
-// GetAnnotatedCheckNames returns
-func (s *dummyService) GetAnnotatedCheckNames() string {
-	return s.AnnotatedCheckNames
+// GetCheckNames returns json string of check names defined in docker labels
+func (s *dummyService) GetCheckNames() string {
+	return s.CheckNames
 }
 
 func TestGetFallbackHost(t *testing.T) {
@@ -434,9 +434,9 @@ func TestResolve(t *testing.T) {
 		{
 			testName: "same check: override check from file",
 			svc: &dummyService{
-				ID:                  "a5901276aed1",
-				ADIdentifiers:       []string{"redis"},
-				AnnotatedCheckNames: "[\"redis\"]",
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				CheckNames:    "[\"redis\"]",
 			},
 			tpl: integration.Config{
 				Name:          "redis",
@@ -450,9 +450,9 @@ func TestResolve(t *testing.T) {
 		{
 			testName: "different checks: don't override check from file",
 			svc: &dummyService{
-				ID:                  "a5901276aed1",
-				ADIdentifiers:       []string{"redis"},
-				AnnotatedCheckNames: "[\"tcp_check\",\"http_check\"]",
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				CheckNames:    "[\"tcp_check\",\"http_check\"]",
 			},
 			tpl: integration.Config{
 				Name:          "redis",
@@ -474,9 +474,9 @@ func TestResolve(t *testing.T) {
 		{
 			testName: "not annotated: don't override check from file",
 			svc: &dummyService{
-				ID:                  "a5901276aed1",
-				ADIdentifiers:       []string{"redis"},
-				AnnotatedCheckNames: "",
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				CheckNames:    "",
 			},
 			tpl: integration.Config{
 				Name:          "redis",

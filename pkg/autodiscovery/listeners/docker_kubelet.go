@@ -106,7 +106,8 @@ func (s *DockerKubeletService) IsReady() bool {
 	return kubelet.IsPodReady(pod)
 }
 
-// GetAnnotatedCheckNames stub
-func (s *DockerKubeletService) GetAnnotatedCheckNames() string {
+// GetCheckNames returns json string of check names defined in kubernetes annotations or docker labels
+// DockerKubeletService doesn't implement this method
+func (s *DockerKubeletService) GetCheckNames() string {
 	return ""
 }

@@ -96,9 +96,9 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
 
-	if tpl.Provider == fileProvider && svc.GetAnnotatedCheckNames() != "" {
+	if tpl.Provider == fileProvider && svc.GetCheckNames() != "" {
 		checkNames := []string{}
-		err := json.Unmarshal([]byte(svc.GetAnnotatedCheckNames()), &checkNames)
+		err := json.Unmarshal([]byte(svc.GetCheckNames()), &checkNames)
 		if err != nil {
 			log.Debugf("Cannot parse check names: %v", err)
 		} else {

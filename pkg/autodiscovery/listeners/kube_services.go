@@ -284,8 +284,9 @@ func (s *KubeServiceService) IsReady() bool {
 	return true
 }
 
-// GetAnnotatedCheckNames stub
-func (s *KubeServiceService) GetAnnotatedCheckNames() string {
+// GetCheckNames returns json string of check names defined in kubernetes annotations or docker labels
+// KubeServiceService doesn't implement this method
+func (s *KubeServiceService) GetCheckNames() string {
 	return ""
 }
 

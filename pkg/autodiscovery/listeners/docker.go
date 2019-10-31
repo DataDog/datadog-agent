@@ -52,6 +52,7 @@ type DockerService struct {
 	pid           int
 	hostname      string
 	creationTime  integration.CreationTime
+	checkNames    string
 }
 
 func init() {
@@ -142,6 +143,7 @@ func (l *DockerListener) init() {
 				DockerService: DockerService{
 					cID:           co.ID,
 					adIdentifiers: l.getConfigIDFromPs(co),
+					checkNames:    getCheckNamesFromLabels(co.Labels),
 					// Host and Ports will be looked up when needed
 				},
 			}
@@ -152,6 +154,7 @@ func (l *DockerListener) init() {
 				hosts:         l.getHostsFromPs(co),
 				ports:         l.getPortsFromPs(co),
 				creationTime:  integration.Before,
+				checkNames:    getCheckNamesFromLabels(co.Labels),
 			}
 		}
 		l.newService <- svc
@@ -572,7 +575,7 @@ func (s *DockerService) IsReady() bool {
 	return true
 }
 
-// GetAnnotatedCheckNames stub
-func (s *DockerService) GetAnnotatedCheckNames() string {
-	return ""
+// GetCheckNames returns json string of check names defined in docker labels
+func (s *DockerService) GetCheckNames() string {
+	return s.checkNames
 }
