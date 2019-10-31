@@ -7,15 +7,15 @@ resource "aws_key_pair" "keypair" {
 //  Create the master userdata script.
 data "template_file" "setup-master" {
   template = "${file("${path.module}/files/setup-master.sh")}"
-  vars {
-    region            = "${var.region}}"
+  vars = {
+    region            = "${var.region}"
     availability_zone = "${data.aws_availability_zones.azs.names[0]}"
   }
 }
 
 //  Launch configuration for the consul cluster auto-scaling group.
 resource "aws_instance" "master" {
-  ami                  = "${data.aws_ami.rhel7_5.id}"
+  ami                  = "ami-092acf20fad7f7795"
   # Master nodes require at least 16GB of memory.
   instance_type        = "m4.xlarge"
   subnet_id            = "${aws_subnet.public-subnet.id}"
@@ -55,8 +55,8 @@ resource "aws_instance" "master" {
 //  Create the node userdata script.
 data "template_file" "setup-node" {
   template = "${file("${path.module}/files/setup-node.sh")}"
-  vars {
-    region            = "${var.region}}"
+  vars = {
+    region            = "${var.region}"
     availability_zone = "${data.aws_availability_zones.azs.names[0]}"
   }
 }
@@ -64,7 +64,7 @@ data "template_file" "setup-node" {
 //  Create the two nodes. This would be better as a Launch Configuration and
 //  autoscaling group, but I'm keeping it simple...
 resource "aws_instance" "node1" {
-  ami                  = "${data.aws_ami.rhel7_5.id}"
+  ami                  = "ami-092acf20fad7f7795"
   instance_type        = "${var.amisize}"
   subnet_id            = "${aws_subnet.public-subnet.id}"
   user_data            = "${data.template_file.setup-node.rendered}"
@@ -101,7 +101,7 @@ resource "aws_instance" "node1" {
 }
 
 resource "aws_instance" "node2" {
-  ami                  = "${data.aws_ami.rhel7_5.id}"
+  ami                  = "ami-092acf20fad7f7795"
   instance_type        = "${var.amisize}"
   subnet_id            = "${aws_subnet.public-subnet.id}"
   user_data            = "${data.template_file.setup-node.rendered}"
