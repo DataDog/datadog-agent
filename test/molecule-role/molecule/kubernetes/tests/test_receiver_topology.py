@@ -32,6 +32,7 @@ def _relation_data(json_data, type_name, external_id_assert_fn):
             return p["TopologyRelation"]["sourceId"]
     return None
 
+
 def _find_component(json_data, type_name, external_id_assert_fn):
     for message in json_data["messages"]:
         p = message["message"]["TopologyElement"]["payload"]
@@ -40,6 +41,7 @@ def _find_component(json_data, type_name, external_id_assert_fn):
                 external_id_assert_fn(p["TopologyComponent"]["externalId"]):
             return p["TopologyComponent"]
     return None
+
 
 def test_agent_base_topology(host, common_vars):
     cluster_name = common_vars['cluster_name']
@@ -119,28 +121,28 @@ def test_agent_base_topology(host, common_vars):
         )
         # 1 config map
         configmap_match = re.compile("urn:/kubernetes:{}:configmap:aws-auth".format(cluster_name))
-        assert  _find_component(
+        assert _find_component(
             json_data=json_data,
             type_name="configmap",
             external_id_assert_fn=lambda v: configmap_match.findall(v)
         )
         # 1 replicaset cluster-agent
-        replicaset_match =  re.compile("urn:/kubernetes:{}:replicaset:stackstate-cluster-agent-.*".format(cluster_name))
-        assert  _find_component(
+        replicaset_match = re.compile("urn:/kubernetes:{}:replicaset:stackstate-cluster-agent-.*".format(cluster_name))
+        assert _find_component(
             json_data=json_data,
             type_name="replicaset",
             external_id_assert_fn=lambda v: replicaset_match.findall(v)
         )
         # 1 deployment cluster-agent
-        deployment_match =  re.compile("urn:/kubernetes:{}:deployment:stackstate-cluster-agent".format(cluster_name))
-        assert  _find_component(
+        deployment_match = re.compile("urn:/kubernetes:{}:deployment:stackstate-cluster-agent".format(cluster_name))
+        assert _find_component(
             json_data=json_data,
             type_name="deployment",
             external_id_assert_fn=lambda v: deployment_match.findall(v)
         )
         # 1 daemonset node-agent
-        daemonset_match =  re.compile("urn:/kubernetes:{}:daemonset:stackstate-agent".format(cluster_name))
-        assert  _find_component(
+        daemonset_match = re.compile("urn:/kubernetes:{}:daemonset:stackstate-agent".format(cluster_name))
+        assert _find_component(
             json_data=json_data,
             type_name="daemonset",
             external_id_assert_fn=lambda v: daemonset_match.findall(v)
