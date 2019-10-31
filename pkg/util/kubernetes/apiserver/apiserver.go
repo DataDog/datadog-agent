@@ -56,6 +56,7 @@ type APIClient struct {
 	initRetry      retry.Retrier
 	Cl             kubernetes.Interface
 	timeoutSeconds int64
+	APICollectorClient
 }
 
 // GetAPIClient returns the shared ApiClient instance.

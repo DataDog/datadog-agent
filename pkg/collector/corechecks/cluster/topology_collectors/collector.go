@@ -31,7 +31,7 @@ type ContainerCorrelation struct {
 // ClusterTopologyCollector collects cluster components and relations.
 type ClusterTopologyCollector interface {
 	CollectorFunction() error
-	GetAPIClient() *apiserver.APIClient
+	GetAPIClient() apiserver.APICollectorClient
 	GetInstance() topology.Instance
 	GetName() string
 	CreateRelation(sourceExternalID, targetExternalID, typeName string) *topology.Relation
@@ -50,19 +50,19 @@ type ClusterTopologyCollector interface {
 	buildCronJobExternalID(cronJobID string) string
 	buildJobExternalID(jobID string) string
 	buildIngressExternalID(ingressID string) string
-	buildVolumeExternalID(podName, volumeID string) string
+	buildVolumeExternalID(volumeID string) string
 	buildPersistentVolumeExternalID(persistentVolumeID string) string
 	buildEndpointExternalID(endpointID string) string
 }
 
 type clusterTopologyCollector struct {
 	Instance        topology.Instance
-	APIClient                    *apiserver.APIClient
+	APICollectorClient                    apiserver.APICollectorClient
 }
 
 // NewClusterTopologyCollector
-func NewClusterTopologyCollector(instance topology.Instance, ac *apiserver.APIClient) ClusterTopologyCollector {
-	return &clusterTopologyCollector{ Instance:instance, APIClient: ac }
+func NewClusterTopologyCollector(instance topology.Instance, ac apiserver.APICollectorClient) ClusterTopologyCollector {
+	return &clusterTopologyCollector{ Instance:instance, APICollectorClient: ac }
 }
 
 // GetName
@@ -76,8 +76,8 @@ func (c *clusterTopologyCollector) GetInstance() topology.Instance {
 }
 
 // GetAPIClient
-func (c *clusterTopologyCollector) GetAPIClient() *apiserver.APIClient {
-	return c.APIClient
+func (c *clusterTopologyCollector) GetAPIClient() apiserver.APICollectorClient {
+	return c.APICollectorClient
 }
 
 // CollectorFunction
@@ -195,8 +195,8 @@ func (c *clusterTopologyCollector) buildIngressExternalID(ingressID string) stri
 
 // buildVolumeExternalID
 // volumeID
-func (c *clusterTopologyCollector) buildVolumeExternalID(podName, volumeID string) string {
-	return fmt.Sprintf("urn:/%s:%s:pod:%s:volume:%s", c.Instance.Type, c.Instance.URL, podName, volumeID)
+func (c *clusterTopologyCollector) buildVolumeExternalID(volumeID string) string {
+	return fmt.Sprintf("urn:/%s:%s:volume:%s", c.Instance.Type, c.Instance.URL, volumeID)
 }
 
 // buildPersistentVolumeExternalID

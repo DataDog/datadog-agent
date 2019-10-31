@@ -56,15 +56,16 @@ func (cmc *ConfigMapCollector) configMapToStackStateComponent(configMap v1.Confi
 		Type:       topology.Type{Name: "configmap"},
 		Data: map[string]interface{}{
 			"name":              configMap.Name,
-			"kind":              configMap.Kind,
 			"creationTimestamp": configMap.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         configMap.Namespace,
-			"data": configMap.Data,
 			"uid":           configMap.UID,
-			"generateName":  configMap.GenerateName,
 		},
 	}
+
+	component.Data.PutNonEmpty("generateName", configMap.GenerateName)
+	component.Data.PutNonEmpty("kind", configMap.Kind)
+	component.Data.PutNonEmpty("data", configMap.Data)
 
 	log.Tracef("Created StackState ConfigMap component %s: %v", configMapExternalID, component.JSONString())
 

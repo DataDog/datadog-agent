@@ -6,7 +6,7 @@ import (
 )
 
 // Data type is used as an alias for the golang map
-type Data = map[string]interface{}
+type Data map[string]interface{}
 
 // Component is a representation of a topology component
 type Component struct {
@@ -23,4 +23,20 @@ func (c Component) JSONString() string {
 		return fmt.Sprintf("{\"error\": \"%s\"}", err.Error())
 	}
 	return string(b)
+}
+
+// Add adds the value for the given key to the map if the value is not nil
+func (d Data) PutNonEmpty(key string, value interface{}) bool {
+	if value != nil {
+		switch value.(type) {
+		case string:
+			if value.(string) != "" {
+				d[key] = value
+			}
+		default:
+			break
+		}
+	}
+
+	return true
 }

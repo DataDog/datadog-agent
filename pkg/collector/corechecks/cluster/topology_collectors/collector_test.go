@@ -70,10 +70,9 @@ func TestCollectorInterface(t *testing.T) {
 	actualIngressExternalID := testCollector.buildIngressExternalID(ingressName)
 	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:ingress:test-ingress", actualIngressExternalID)
 
-	volumePodName := "test-pod"
 	volumeName := "test-volume"
-	actualVolumeExternalID := testCollector.buildVolumeExternalID(volumePodName, volumeName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:pod:test-pod:volume:test-volume", actualVolumeExternalID)
+	actualVolumeExternalID := testCollector.buildVolumeExternalID(volumeName)
+	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:volume:test-volume", actualVolumeExternalID)
 
 	endpointName := "test-url"
 	actualEndpointExternalID := testCollector.buildEndpointExternalID(endpointName)
