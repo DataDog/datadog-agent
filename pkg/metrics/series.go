@@ -19,9 +19,18 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
-var seriesExpvar = expvar.NewMap("series")
+var (
+	seriesExpvar = expvar.NewMap("series")
+
+	tlmSeries = telemetry.NewCounter(
+		"metrics", "series_split",
+		[]string{"action"},
+		"Series split",
+	)
+)
 
 // Point represents a metric value at a specific time
 type Point struct {
@@ -139,6 +148,7 @@ func (series Series) MarshalJSON() ([]byte, error) {
 // SplitPayload breaks the payload into, at least, "times" number of pieces
 func (series Series) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 	seriesExpvar.Add("TimesSplit", 1)
+	tlmSeries.Inc("times_split")
 
 	// We need to split series without splitting metrics across multiple
 	// payload. So we first group series by metric name.
@@ -154,6 +164,7 @@ func (series Series) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 	// if we only have one metric name we cannot split further
 	if len(metricsPerName) == 1 {
 		seriesExpvar.Add("SplitMetricsTooBig", 1)
+		tlmSeries.Inc("split_metrics_too_big")
 		return nil, fmt.Errorf("Cannot split metric '%s' into %d payload (it contains %d series)", series[0].Name, times, len(series))
 	}
 

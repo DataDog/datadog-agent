@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -22,6 +23,12 @@ var (
 	schedulerExpvars       *expvar.Map
 	schedulerQueuesCount   = expvar.Int{}
 	schedulerChecksEntered = expvar.Int{}
+
+	// TODO(remy): check state? Is the check.ID really interesting?
+	tlmChecksEntered = telemetry.NewCounter("checks", "entered",
+		[]string{"check_id", "check_name"}, "How many checks entered the scheduler")
+	tlmQueuesCount = telemetry.NewCounter("checks", "queues_count",
+		[]string{"check_id", "check_name"}, "How many queues were opened")
 )
 
 func init() {
@@ -83,6 +90,7 @@ func (s *Scheduler) Enter(check check.Check) error {
 	if _, ok := s.jobQueues[check.Interval()]; !ok {
 		s.jobQueues[check.Interval()] = newJobQueue(check.Interval())
 		s.startQueue(s.jobQueues[check.Interval()])
+		tlmQueuesCount.Inc(string(check.ID()), check.String())
 		schedulerQueuesCount.Add(1)
 	}
 	s.jobQueues[check.Interval()].addJob(check)
@@ -90,6 +98,7 @@ func (s *Scheduler) Enter(check check.Check) error {
 	s.checkToQueue[check.ID()] = s.jobQueues[check.Interval()]
 
 	schedulerChecksEntered.Add(1)
+	tlmChecksEntered.Inc(string(check.ID()), check.String())
 	schedulerExpvars.Set("Queues", expvar.Func(expQueues(s)))
 	return nil
 }

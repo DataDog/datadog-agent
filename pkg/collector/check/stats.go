@@ -8,6 +8,25 @@ package check
 import (
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
+
+var (
+	tlmRuns = telemetry.NewCounter("checks", "runs",
+		[]string{"check_id", "check_name", "check_version"}, "Check runs")
+	tlmErrors = telemetry.NewCounter("checks", "errors",
+		[]string{"check_id", "check_name", "check_version"}, "Check errors")
+	tlmWarnings = telemetry.NewCounter("checks", "warnings",
+		[]string{"check_id", "check_name", "check_version"}, "Check warnings")
+	tlmMetricsSamples = telemetry.NewCounter("checks", "metrics_samples",
+		[]string{"check_id", "check_name", "check_version"}, "Metrics count")
+	tlmEvents = telemetry.NewCounter("checks", "events",
+		[]string{"check_id", "check_name", "check_version"}, "Events count")
+	tlmServices = telemetry.NewCounter("checks", "services_checks",
+		[]string{"check_id", "check_name", "check_version"}, "Service checks count")
+	tlmExecutionTime = telemetry.NewGauge("checks", "execution_time",
+		[]string{"check_id", "check_name", "check_version"}, "Check execution time")
 )
 
 // Stats holds basic runtime statistics about check instances
@@ -54,6 +73,8 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 	cs.LastExecutionTime = tms
 	cs.ExecutionTimes[cs.TotalRuns%uint64(len(cs.ExecutionTimes))] = tms
 	cs.TotalRuns++
+	tlmRuns.Inc(string(cs.CheckID), cs.CheckName, cs.CheckVersion)
+	tlmExecutionTime.Set(float64(tms), string(cs.CheckID), cs.CheckName, cs.CheckVersion)
 	var totalExecutionTime int64
 	ringSize := cs.TotalRuns
 	if ringSize > uint64(len(cs.ExecutionTimes)) {
@@ -65,6 +86,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 	cs.AverageExecutionTime = totalExecutionTime / int64(ringSize)
 	if err != nil {
 		cs.TotalErrors++
+		tlmErrors.Inc(string(cs.CheckID), cs.CheckName, cs.CheckVersion)
 		cs.LastError = err.Error()
 	} else {
 		cs.LastError = ""
@@ -73,6 +95,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 	if len(warnings) != 0 {
 		for _, w := range warnings {
 			cs.TotalWarnings++
+			tlmWarnings.Inc(string(cs.CheckID), cs.CheckName, cs.CheckVersion)
 			cs.LastWarnings = append(cs.LastWarnings, w.Error())
 		}
 	}
@@ -82,18 +105,21 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 		cs.MetricSamples = m
 		if cs.TotalMetricSamples <= 1000001 {
 			cs.TotalMetricSamples += m
+			tlmMetricsSamples.Add(float64(m), string(cs.CheckID), cs.CheckName, cs.CheckVersion)
 		}
 	}
 	if ev, ok := metricStats["Events"]; ok {
 		cs.Events = ev
 		if cs.TotalEvents <= 1000001 {
 			cs.TotalEvents += ev
+			tlmEvents.Add(float64(ev), string(cs.CheckID), cs.CheckName, cs.CheckVersion)
 		}
 	}
 	if sc, ok := metricStats["ServiceChecks"]; ok {
 		cs.ServiceChecks = sc
 		if cs.TotalServiceChecks <= 1000001 {
 			cs.TotalServiceChecks += sc
+			tlmServices.Add(float64(sc), string(cs.CheckID), cs.CheckName, cs.CheckVersion)
 		}
 	}
 }

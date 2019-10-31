@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -24,6 +25,24 @@ var (
 	udsPacketReadingErrors   = expvar.Int{}
 	udsPackets               = expvar.Int{}
 	udsBytes                 = expvar.Int{}
+
+	tlmUDSPackets = telemetry.NewCounter(
+		"dogstatsd", "uds_packets",
+		[]string{"state"},
+		"Dogstatsd UDS packets count",
+	)
+
+	tlmUDSOriginDetectionError = telemetry.NewCounter(
+		"dogstatsd", "uds_origin_detection_error",
+		nil,
+		"Dogstatsd UDS origin detection error count",
+	)
+
+	tlmUDSPacketsBytes = telemetry.NewCounter(
+		"dogstatsd", "uds_packets_bytes",
+		[]string{"state"},
+		"Dogstatsd UDS packets count",
+	)
 )
 
 func init() {
@@ -132,6 +151,7 @@ func (l *UDSListener) Listen() {
 			if taggingErr != nil {
 				log.Warnf("dogstatsd-uds: error processing origin, data will not be tagged : %v", taggingErr)
 				udsOriginDetectionErrors.Add(1)
+				tlmUDSOriginDetectionError.Inc()
 			} else {
 				packet.Origin = container
 			}
@@ -150,10 +170,13 @@ func (l *UDSListener) Listen() {
 
 			log.Errorf("dogstatsd-uds: error reading packet: %v", err)
 			udsPacketReadingErrors.Add(1)
+			tlmUDSPackets.Inc("error")
 			continue
 		}
+		tlmUDSPackets.Inc("ok")
 
 		udsBytes.Add(int64(n))
+		tlmUDPPacketsBytes.Add(float64(n))
 		packet.Contents = packet.buffer[:n]
 
 		// packetBuffer handles the forwarding of the packets to the dogstatsd server intake channel
