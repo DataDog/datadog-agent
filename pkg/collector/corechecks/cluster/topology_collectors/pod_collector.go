@@ -109,7 +109,7 @@ func (pc *PodCollector) CollectorFunction() error {
 
 			// map relations to config map for this variable
 			for _, env := range c.Env {
-				if env.ValueFrom != nil {
+				if env.ValueFrom != nil && env.ValueFrom.ConfigMapKeyRef != nil {
 					pc.RelationChan <- pc.podToConfigMapVarStackStateRelation(component.ExternalID, pc.buildConfigMapExternalID(pod.Namespace, env.ValueFrom.ConfigMapKeyRef.LocalObjectReference.Name))
 				}
 			}
