@@ -7,10 +7,12 @@ package configresolver
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -90,6 +92,20 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 	}
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
+
+	if strings.HasPrefix(tpl.Source, "file:") && svc.GetAnnotatedCheckNames() != "" {
+		checkNames := []string{}
+		err := json.Unmarshal([]byte(svc.GetAnnotatedCheckNames()), &checkNames)
+		if err != nil {
+			log.Debugf("Cannot parse check names: %v", err)
+		} else {
+			for _, checkName := range checkNames {
+				if tpl.Name == checkName {
+					return resolvedConfig, fmt.Errorf("ignoring config from file: another config is defined for the check %s via annotations", checkName)
+				}
+			}
+		}
+	}
 
 	if resolvedConfig.IsCheckConfig() && !svc.IsReady() {
 		return resolvedConfig, errors.New("unable to resolve, service not ready")

@@ -204,7 +204,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, "container_id://containerid", string(service.GetTaggerEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
-		assert.Equal(t, []string{"docker://containerid"}, adIdentifiers)
+		assert.Equal(t, []string{"docker://containerid", "datadoghq.com/baz:latest", "baz"}, adIdentifiers)
 		hosts, err := service.GetHosts()
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)

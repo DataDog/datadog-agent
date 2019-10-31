@@ -23,8 +23,10 @@ import (
 )
 
 const (
-	newPodAnnotationFormat    = "ad.datadoghq.com/%s.instances"
-	legacyPodAnnotationFormat = "service-discovery.datadoghq.com/%s.instances"
+	newPodAnnotationFormat              = "ad.datadoghq.com/%s.instances"
+	legacyPodAnnotationFormat           = "service-discovery.datadoghq.com/%s.instances"
+	newPodAnnotationCheckNamesFormat    = "ad.datadoghq.com/%s.check_names"
+	legacyPodAnnotationCheckNamesFormat = "service-discovery.datadoghq.com/%s.check_names"
 )
 
 // KubeletListener listen to kubelet pod creation
@@ -42,12 +44,13 @@ type KubeletListener struct {
 
 // KubeContainerService implements and store results from the Service interface for the Kubelet listener
 type KubeContainerService struct {
-	entity        string
-	adIdentifiers []string
-	hosts         map[string]string
-	ports         []ContainerPort
-	creationTime  integration.CreationTime
-	ready         bool
+	entity              string
+	adIdentifiers       []string
+	hosts               map[string]string
+	ports               []ContainerPort
+	creationTime        integration.CreationTime
+	ready               bool
+	annotatedCheckNames string
 }
 
 // KubePodService registers pod as a Service, implements and store results from the Service interface for the Kubelet listener
@@ -216,9 +219,9 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 			// Add container uid as ID
 			svc.adIdentifiers = append(svc.adIdentifiers, entity)
 
-			// Stop here if we find an AD template annotation
+			// Cache check names if the pod template is annotated
 			if podHasADTemplate(pod.Metadata.Annotations, containerName) {
-				break
+				svc.annotatedCheckNames = getCheckNames(pod.Metadata.Annotations, containerName)
 			}
 
 			// Add other identifiers if no template found
@@ -278,6 +281,16 @@ func podHasADTemplate(annotations map[string]string, containerName string) bool 
 		return true
 	}
 	return false
+}
+
+func getCheckNames(annotations map[string]string, containerName string) string {
+	if checkNames, found := annotations[fmt.Sprintf(newPodAnnotationCheckNamesFormat, containerName)]; found {
+		return checkNames
+	}
+	if checkNames, found := annotations[fmt.Sprintf(legacyPodAnnotationCheckNamesFormat, containerName)]; found {
+		return checkNames
+	}
+	return ""
 }
 
 func (l *KubeletListener) removeService(entity string) {
@@ -350,6 +363,11 @@ func (s *KubeContainerService) IsReady() bool {
 	return s.ready
 }
 
+// GetAnnotatedCheckNames returns if the check names found in annotation
+func (s *KubeContainerService) GetAnnotatedCheckNames() string {
+	return s.annotatedCheckNames
+}
+
 // GetEntity returns the unique entity name linked to that service
 func (s *KubePodService) GetEntity() string {
 	return s.entity
@@ -402,4 +420,9 @@ func (s *KubePodService) GetCreationTime() integration.CreationTime {
 // IsReady returns if the service is ready
 func (s *KubePodService) IsReady() bool {
 	return true
+}
+
+// GetAnnotatedCheckNames stub
+func (s *KubePodService) GetAnnotatedCheckNames() string {
+	return ""
 }

@@ -35,6 +35,7 @@ type Service interface {
 	GetHostname() (string, error)              // hostname.domainname for the entity
 	GetCreationTime() integration.CreationTime // created before or after the agent start
 	IsReady() bool                             // is the service ready
+	GetAnnotatedCheckNames() string
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling

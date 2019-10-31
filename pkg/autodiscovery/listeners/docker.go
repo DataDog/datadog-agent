@@ -571,3 +571,8 @@ func findKubernetesInLabels(labels map[string]string) bool {
 func (s *DockerService) IsReady() bool {
 	return true
 }
+
+// GetAnnotatedCheckNames stub
+func (s *DockerService) GetAnnotatedCheckNames() string {
+	return ""
+}

@@ -304,3 +304,8 @@ func (s *KubeEndpointService) GetCreationTime() integration.CreationTime {
 func (s *KubeEndpointService) IsReady() bool {
 	return true
 }
+
+// GetAnnotatedCheckNames stub
+func (s *KubeEndpointService) GetAnnotatedCheckNames() string {
+	return ""
+}

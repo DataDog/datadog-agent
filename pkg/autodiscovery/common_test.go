@@ -69,3 +69,8 @@ func (s *dummyService) GetCreationTime() integration.CreationTime {
 func (s *dummyService) IsReady() bool {
 	return true
 }
+
+// GetAnnotatedCheckNames stub
+func (s *dummyService) GetAnnotatedCheckNames() string {
+	return ""
+}

@@ -105,3 +105,8 @@ func (s *DockerKubeletService) IsReady() bool {
 
 	return kubelet.IsPodReady(pod)
 }
+
+// GetAnnotatedCheckNames stub
+func (s *DockerKubeletService) GetAnnotatedCheckNames() string {
+	return ""
+}

@@ -248,3 +248,8 @@ func (s *ECSService) GetCreationTime() integration.CreationTime {
 func (s *ECSService) IsReady() bool {
 	return true
 }
+
+// GetAnnotatedCheckNames stub
+func (s *ECSService) GetAnnotatedCheckNames() string {
+	return ""
+}

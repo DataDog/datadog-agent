@@ -284,6 +284,11 @@ func (s *KubeServiceService) IsReady() bool {
 	return true
 }
 
+// GetAnnotatedCheckNames stub
+func (s *KubeServiceService) GetAnnotatedCheckNames() string {
+	return ""
+}
+
 func isServiceAnnotated(ksvc *v1.Service) bool {
 	_, found := ksvc.Annotations[kubeServiceAnnotationFormat]
 	return found
