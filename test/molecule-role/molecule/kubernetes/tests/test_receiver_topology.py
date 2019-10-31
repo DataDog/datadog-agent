@@ -32,6 +32,14 @@ def _relation_data(json_data, type_name, external_id_assert_fn):
             return p["TopologyRelation"]["sourceId"]
     return None
 
+def _find_component(json_data, type_name, external_id_assert_fn):
+    for message in json_data["messages"]:
+        p = message["message"]["TopologyElement"]["payload"]
+        if "TopologyComponent" in p and \
+            p["TopologyComponent"]["typeName"] == type_name and \
+                external_id_assert_fn(p["TopologyComponent"]["externalId"]):
+            return p["TopologyComponent"]
+    return None
 
 def test_agent_base_topology(host, common_vars):
     cluster_name = common_vars['cluster_name']
@@ -109,6 +117,34 @@ def test_agent_base_topology(host, common_vars):
             cluster_name=cluster_name,
             identifiers_assert_fn=lambda identifiers: next(x for x in identifiers if x.startswith("urn:endpoint:/%s:" % cluster_name))
         )
+        # 1 config map
+        configmap_match = re.compile("urn:/kubernetes:{}:configmap:aws-auth".format(cluster_name))
+        assert  _find_component(
+            json_data=json_data,
+            type_name="configmap",
+            external_id_assert_fn=lambda v: configmap_match.findall(v)
+        )
+        # 1 replicaset cluster-agent
+        replicaset_match =  re.compile("urn:/kubernetes:{}:replicaset:stackstate-cluster-agent-.*".format(cluster_name))
+        assert  _find_component(
+            json_data=json_data,
+            type_name="replicaset",
+            external_id_assert_fn=lambda v: replicaset_match.findall(v)
+        )
+        # 1 deployment cluster-agent
+        deployment_match =  re.compile("urn:/kubernetes:{}:deployment:stackstate-cluster-agent".format(cluster_name))
+        assert  _find_component(
+            json_data=json_data,
+            type_name="deployment",
+            external_id_assert_fn=lambda v: deployment_match.findall(v)
+        )
+        # 1 daemonset node-agent
+        daemonset_match =  re.compile("urn:/kubernetes:{}:daemonset:stackstate-agent".format(cluster_name))
+        assert  _find_component(
+            json_data=json_data,
+            type_name="daemonset",
+            external_id_assert_fn=lambda v: daemonset_match.findall(v)
+        )
 
         # Pod -> Node (scheduled on)
         # stackstate-agent pods is scheduled_on a node (2 times)
@@ -170,4 +206,18 @@ def test_agent_base_topology(host, common_vars):
             type_name="exposes",
             external_id_assert_fn=lambda eid:  pod_service_match.findall(eid)
         ).startswith("urn:/kubernetes:%s:service:%s:pod-service" % (cluster_name, namespace))
+        # cluster-agent replicaset controls cluster-agent pod
+        replicaset_controls_match = re.compile("urn:/kubernetes:%s:replicaset:stackstate-cluster-agent-.*->urn:/kubernetes:%s:pod:stackstate-cluster-agent-.*" % (cluster_name, cluster_name))
+        assert _relation_data(
+            json_data=json_data,
+            type_name="controls",
+            external_id_assert_fn=lambda eid:  replicaset_controls_match.findall(eid)
+        ).startswith("urn:/kubernetes:%s:replicaset:stackstate-cluster-agent" % (cluster_name))
+        # node-agent daemonset controls node-agent pod
+        daemonset_controls_match = re.compile("urn:/kubernetes:%s:daemonset:stackstate-agent->urn:/kubernetes:%s:pod:stackstate-agent-.*" % (cluster_name, cluster_name))
+        assert _relation_data(
+            json_data=json_data,
+            type_name="controls",
+            external_id_assert_fn=lambda eid:  daemonset_controls_match.findall(eid)
+        ).startswith("urn:/kubernetes:%s:daemonset:stackstate-agent" % (cluster_name))
     util.wait_until(wait_for_components, 120, 3)
