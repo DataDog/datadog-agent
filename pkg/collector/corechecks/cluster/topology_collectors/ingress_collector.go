@@ -12,20 +12,23 @@ import (
 type IngressCollector struct {
 	ComponentChan chan<- *topology.Component
 	RelationChan chan<- *topology.Relation
+	ServiceCorrelationChannel chan<- *IngressCorrelation
 	ClusterTopologyCollector
 }
 
 // NewIngressCollector
-func NewIngressCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+func NewIngressCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
+	serviceCorrelationChannel chan<- *IngressCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &IngressCollector{
 		ComponentChan: componentChannel,
 		RelationChan: relationChannel,
+		ServiceCorrelationChannel: serviceCorrelationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
 
 // GetName returns the name of the Collector
-func (_ *IngressCollector) GetName() string {
+func (ic *IngressCollector) GetName() string {
 	return "Ingress Collector"
 }
 
@@ -37,31 +40,53 @@ func (ic *IngressCollector) CollectorFunction() error {
 	}
 
 	for _, in := range ingresses {
-		ic.ComponentChan <- ic.ingressToStackStateComponent(in)
+		component := ic.ingressToStackStateComponent(in)
+		ic.ComponentChan <- component
+		// submit relation to service name for correlation
+		if in.Spec.Backend.ServiceName != "" {
+			ic.ServiceCorrelationChannel <- &IngressCorrelation{
+				ServiceName:       in.Spec.Backend.ServiceName,
+				IngressExternalID: component.ExternalID,
+			}
+		}
+
+		// submit relation to service name in the ingress rules for correlation
+		for _, rules := range in.Spec.Rules {
+			for _, path := range rules.HTTP.Paths {
+				ic.ServiceCorrelationChannel <- &IngressCorrelation{
+					ServiceName: path.Backend.ServiceName,
+					IngressExternalID: component.ExternalID,
+				}
+			}
+		}
+
 	}
+
+	// close the service correlation channel
+	close(ic.ServiceCorrelationChannel)
 
 	return nil
 }
 
 // Creates a StackState deployment component from a Kubernetes / OpenShift Cluster
-func (dmc *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress) *topology.Component {
+func (ic *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress) *topology.Component {
 	log.Tracef("Mapping Ingress to StackState component: %s", ingress.String())
 
 	tags := emptyIfNil(ingress.Labels)
-	tags = dmc.addClusterNameTag(tags)
+	tags = ic.addClusterNameTag(tags)
 
 	identifiers := make([]string, 0)
 
 	for _, ingressPoints := range ingress.Status.LoadBalancer.Ingress {
 		if ingressPoints.Hostname != "" {
-			identifiers = append(identifiers, dmc.buildEndpointExternalID(ingressPoints.Hostname))
+			identifiers = append(identifiers, ic.buildEndpointExternalID(ingressPoints.Hostname))
 		}
 		if ingressPoints.IP != "" {
-			identifiers = append(identifiers, dmc.buildEndpointExternalID(ingressPoints.IP))
+			identifiers = append(identifiers, ic.buildEndpointExternalID(ingressPoints.IP))
 		}
 	}
 
-	ingressExternalID := dmc.buildIngressExternalID(ingress.Name)
+	ingressExternalID := ic.buildIngressExternalID(ingress.Name)
 	component := &topology.Component{
 		ExternalID: ingressExternalID,
 		Type:       topology.Type{Name: "ingress"},

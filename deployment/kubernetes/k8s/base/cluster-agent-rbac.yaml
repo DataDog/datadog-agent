@@ -13,6 +13,7 @@ rules:
   - nodes
   - componentstatuses
   - configmaps
+  - persistentvolumes
   - persistentvolumeclaims
   verbs:
   - get
@@ -48,6 +49,7 @@ rules:
 - apiGroups:
   - "batch"
   resources:
+  - jobs
   - cronjobs
   verbs:
   - get

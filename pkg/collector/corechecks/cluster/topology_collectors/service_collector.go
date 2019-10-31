@@ -13,6 +13,7 @@ import (
 type ServiceCollector struct {
 	ComponentChan chan<- *topology.Component
 	RelationChan chan<- *topology.Relation
+	ServiceCorrelationChannel <-chan *IngressCorrelation
 	ClusterTopologyCollector
 }
 
@@ -24,10 +25,11 @@ type EndpointID struct {
 
 // NewServiceCollector
 func NewServiceCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
-	clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+	serviceCorrelationChannel <-chan *IngressCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &ServiceCollector{
 		ComponentChan: componentChannel,
 		RelationChan: relationChannel,
+		ServiceCorrelationChannel: serviceCorrelationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -78,6 +80,8 @@ func (sc *ServiceCollector) CollectorFunction() error {
 		}
 	}
 
+	serviceMap := make(map[string][]string)
+
 	for _, service := range services {
 		// creates and publishes StackState service component with relations
 		serviceID := buildServiceID(service.Namespace, service.Name)
@@ -95,12 +99,25 @@ func (sc *ServiceCollector) CollectorFunction() error {
 			}
 		}
 
+		serviceMap[service.Name] = append(serviceMap[service.Name], component.ExternalID)
 	}
+
+	// map ingresses that require the Service ExternalID
+	for serviceCorrelation := range sc.ServiceCorrelationChannel {
+		log.Tracef("Creating correlation between ingress and target service: %s -> %s", serviceCorrelation.IngressExternalID, serviceCorrelation.ServiceName)
+
+		for _, matchingServiceExternalID := range serviceMap[serviceCorrelation.ServiceName] {
+			// publish the ingress -> service relations
+			relation := sc.ingressToServiceStackStateRelation(serviceCorrelation.IngressExternalID, matchingServiceExternalID)
+			sc.RelationChan <- relation
+		}
+	}
+
 
 	return nil
 }
 
-// Creates a StackState component from a Kubernetes / OpenShift Pod Service
+// Creates a StackState component from a Kubernetes / OpenShift Service
 func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, endpoints []EndpointID) *topology.Component {
 	log.Tracef("Mapping kubernetes pod service to StackState component: %s", service.String())
 	// create identifier list to merge with StackState components
@@ -109,6 +126,11 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 
 	// all external ip's which are associated with this service, but are not managed by kubernetes
 	for _, ip := range service.Spec.ExternalIPs {
+		// verify that the ip is not empty
+		if ip == "" {
+			continue
+		}
+		// map all of the ports for the ip
 		for _, port := range service.Spec.Ports {
 			identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%d", ip, port.Port))
 		}
@@ -116,14 +138,24 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 
 	// all endpoints for this service
 	for _, endpoint := range endpoints {
+		// verify that the endpoint url is not empty
+		if endpoint.URL == "" {
+			continue
+		}
 		identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, endpoint.URL))
 	}
 
 	switch service.Spec.Type {
 	case v1.ServiceTypeClusterIP:
-		identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.ClusterIP))
+		// verify that the cluster ip is not empty
+		if service.Spec.ClusterIP != "" {
+			identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.ClusterIP))
+		}
 	case v1.ServiceTypeLoadBalancer:
-		identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.LoadBalancerIP))
+		// verify that the loadbalancer ip is not empty
+		if service.Spec.LoadBalancerIP != "" {
+			identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.LoadBalancerIP))
+		}
 	default:
 	}
 
@@ -157,9 +189,9 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 	return component
 }
 
-// Creates a StackState component from a Kubernetes / OpenShift Pod Service
+// Creates a StackState relation from a Kubernetes / OpenShift Pod to Service
 func (sc *ServiceCollector) podToServiceStackStateRelation(refExternalID, serviceExternalID string) *topology.Relation {
-	log.Tracef("Mapping kubernetes reference to service relation: %s -> %s", refExternalID, serviceExternalID)
+	log.Tracef("Mapping kubernetes pod to service relation: %s -> %s", refExternalID, serviceExternalID)
 
 	relation := &topology.Relation{
 		ExternalID: fmt.Sprintf("%s->%s", refExternalID, serviceExternalID),
@@ -169,10 +201,28 @@ func (sc *ServiceCollector) podToServiceStackStateRelation(refExternalID, servic
 		Data:       map[string]interface{}{},
 	}
 
-	log.Tracef("Created StackState reference -> service relation %s->%s", relation.SourceID, relation.TargetID)
+	log.Tracef("Created StackState pod -> service relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
 }
+
+// Creates a StackState component from a Kubernetes / OpenShift Ingress to Service
+func (sc *ServiceCollector) ingressToServiceStackStateRelation(ingressExternalID, serviceExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes ingress to service relation: %s -> %s", ingressExternalID, serviceExternalID)
+
+	relation := &topology.Relation{
+		ExternalID: fmt.Sprintf("%s->%s", ingressExternalID, serviceExternalID),
+		SourceID:   ingressExternalID,
+		TargetID:   serviceExternalID,
+		Type:       topology.Type{Name: "routes"},
+		Data:       map[string]interface{}{},
+	}
+
+	log.Tracef("Created StackState ingress -> service relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
 
 // buildServiceID - combination of the service namespace and service name
 func buildServiceID(serviceNamespace, serviceName string) string {
