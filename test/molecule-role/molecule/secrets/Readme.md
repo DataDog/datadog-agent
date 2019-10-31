@@ -69,3 +69,13 @@ Secrets handle decrypted:
 - api_key: from stackstate.yaml
 
 ```
+
+You can debug your decoding script from console using approach below
+
+```
+sudo su stackstate-agent - bash -c "echo '{\"version\": \"1.0\", \"secrets\": [\"secret1\", \"secret2\"]}' | /path/to/the/secret_backend_command"
+```
+
+You can show decrypted config
+
+sudo -u stackstate-agent -- stackstate-agent configcheck

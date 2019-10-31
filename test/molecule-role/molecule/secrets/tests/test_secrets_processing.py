@@ -16,19 +16,16 @@ def test_stackstate_agent_secret_output_no_datadog(host, common_vars):
     assert "Datadog" not in secret_cmd.stdout
 
 
-def test_stackstate_agent_restartable(host):
-    host.ansible("file", "dest=/var/log/stackstate-agent/agent.log state=absent", become=True)
-    assert host.ansible("service", "name=stackstate-agent enabled=true state=restarted", become=True)['changed']
+def test_stackstate_agent_was_successfully(host):
+    assert not host.ansible("service", "name=stackstate-agent enabled=true state=started")['changed']
 
 
 def test_stackstate_agentprocess_restartable(host):
-    host.ansible("file", "dest=/var/log/stackstate-agent/process-agent.log state=absent", become=True)
-    assert host.ansible("service", "name=stackstate-agent-process state=restarted", become=True)['changed']
+    assert not host.ansible("service", "name=stackstate-agent-process state=started", become=True)['changed']
 
 
 def test_stackstate_agenttrace_restartable(host):
-    host.ansible("file", "dest=/var/log/stackstate-agent/trace-agent.log state=absent", become=True)
-    assert host.ansible("service", "name=stackstate-agent-trace state=restarted", become=True)['changed']
+    assert not host.ansible("service", "name=stackstate-agent-trace state=started", become=True)['changed']
 
 
 def test_stackstate_agent_log(host, hostname):
@@ -84,25 +81,25 @@ def test_stackstate_agent_log(host, hostname):
 #         print("Considering: %s" % line)
 #         assert not re.search("error", line, re.IGNORECASE)
 
-
-def test_stackstate_trace_agent_no_log_errors(host, hostname):
-    trace_agent_log_path = "/var/log/stackstate-agent/trace-agent.log"
-
-    # Check for presence of success
-    def wait_for_check_successes():
-        trace_agent_log = host.file(trace_agent_log_path).content_string
-        print(trace_agent_log)
-
-        assert re.search("total number of tracked services", trace_agent_log)
-        assert re.search("trace-agent running on host", trace_agent_log)
-
-    util.wait_until(wait_for_check_successes, 30, 3)
-
-    trace_agent_log = host.file(trace_agent_log_path).content_string
-    with open("./{}-trace.log".format(hostname), 'wb') as f:
-        f.write(trace_agent_log.encode('utf-8'))
-
-    # Check for errors
-    for line in trace_agent_log.splitlines():
-        print("Considering: %s" % line)
-        assert not re.search("error", line, re.IGNORECASE)
+# Nothing is traced in this scenario
+# def test_stackstate_trace_agent_no_log_errors(host, hostname):
+#     trace_agent_log_path = "/var/log/stackstate-agent/trace-agent.log"
+#
+#     # Check for presence of success
+#     def wait_for_check_successes():
+#         trace_agent_log = host.file(trace_agent_log_path).content_string
+#         print(trace_agent_log)
+#
+#         assert re.search("total number of tracked services", trace_agent_log)
+#         assert re.search("trace-agent running on host", trace_agent_log)
+#
+#     util.wait_until(wait_for_check_successes, 30, 3)
+#
+#     trace_agent_log = host.file(trace_agent_log_path).content_string
+#     with open("./{}-trace.log".format(hostname), 'wb') as f:
+#         f.write(trace_agent_log.encode('utf-8'))
+#
+#     # Check for errors
+#     for line in trace_agent_log.splitlines():
+#         print("Considering: %s" % line)
+#         assert not re.search("error", line, re.IGNORECASE)
