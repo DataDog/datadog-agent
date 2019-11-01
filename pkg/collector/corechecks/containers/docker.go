@@ -267,7 +267,7 @@ func (d *DockerCheck) Run() error {
 		// Collect open file descriptor counts
 		fileDescCount := 0
 		for _, pid := range c.Pids {
-			fdCount, err := cmetrics.GetFileDescriptorLen(pid)
+			fdCount, err := cmetrics.GetFileDescriptorLen(int(pid))
 			if err != nil {
 				log.Warnf("Failed to get file desc length for pid %d, container %s: %s", pid, c.ID[:12], err)
 				continue

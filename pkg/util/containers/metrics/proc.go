@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// +build docker
+// +build linux
 
 package metrics
 
@@ -14,9 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func GetFileDescriptorLen(pid int32) (int, error) {
+// Define hostProcFunc for ease of mock testing
+var hostProcFunc func(...string) string = func(stuff ...string) string {
+	return hostProc(stuff...)
+}
+
+func GetFileDescriptorLen(pid int) (int, error) {
 	// Open proc file descriptor dir
-	fdPath := hostProc(strconv.Itoa(int(pid)), "fd")
+	fdPath := hostProcFunc(strconv.Itoa(pid), "fd")
 	d, err := os.Open(fdPath)
 	if err != nil {
 		return 0, err
