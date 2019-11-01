@@ -105,7 +105,7 @@ func (t *TopologyCheck) Run() error {
 	waitGroupChannel := make(chan int)
 
 	t.setupTopologyReceiver(componentChannel, relationChannel, errChannel, waitGroupChannel)
-	commonClusterCollector := collectors.NewClusterTopologyCollector(t.instance.Instance, t.ac.APICollectorClient)
+	commonClusterCollector := collectors.NewClusterTopologyCollector(t.instance.Instance, t.ac)
 	clusterCollectors := []collectors.ClusterTopologyCollector{
 		// Register Cluster Component Collector
 		collectors.NewClusterCollector(
