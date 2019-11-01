@@ -64,7 +64,7 @@ func (pc *PodCollector) CollectorFunction() error {
 				dsExternalID := pc.buildDaemonSetExternalID(ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(dsExternalID, component.ExternalID)
 			case Deployment:
-				dmExternalID := pc.buildDeploymentExternalID(ref.Name)
+				dmExternalID := pc.buildDeploymentExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(dmExternalID, component.ExternalID)
 			case ReplicaSet:
 				rsExternalID := pc.buildReplicaSetExternalID(ref.Name)
@@ -359,6 +359,7 @@ func (pc *PodCollector) volumeToStackStateComponent(pod v1.Pod, volume v1.Volume
 		Data: map[string]interface{}{
 			"name":   volume.Name,
 			"source": volume.VolumeSource,
+			"identifiers": identifiers,
 			"tags":   tags,
 		},
 	}

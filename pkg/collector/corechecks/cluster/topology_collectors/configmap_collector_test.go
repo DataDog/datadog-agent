@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	coreV1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,76 +18,74 @@ import (
 	"time"
 )
 
-var creationTime v1.Time
-
 func TestConfigMapCollector(t *testing.T) {
 
 	componentChannel := make(chan *topology.Component)
-	relationChannel := make(chan *topology.Relation)
 	defer close(componentChannel)
-	defer close(relationChannel)
 
 	creationTime = v1.Time{ Time: time.Now().Add(-1*time.Hour) }
 
-	cmc := NewConfigMapCollector(componentChannel, relationChannel, NewTestCommonClusterCollector(MockConfigMapAPICollectorClient{}))
-
+	cmc := NewConfigMapCollector(componentChannel, NewTestCommonClusterCollector(MockConfigMapAPICollectorClient{}))
 	expectedCollectorName := "ConfigMap Collector"
-	actualCollectorName := cmc.GetName()
-	assert.Equal(t, expectedCollectorName, actualCollectorName)
-
-	// Trigger Collector Function
-	go func() {
-		log.Debugf("Starting cluster topology collector: %s\n", cmc.GetName())
-		err := cmc.CollectorFunction()
-		// assert no error occurred
-		assert.Nil(t, err)
-		// mark this collector as complete
-		log.Debugf("Finished cluster topology collector: %s\n", cmc.GetName())
-	}()
+	RunCollectorTest(t, cmc, expectedCollectorName)
 
 	type test struct {
+		testCase string
 		expected *topology.Component
 	}
 
-	tests := []test{
-		{expected: &topology.Component{
-			ExternalID: "urn:/kubernetes:test-cluster-name:configmap:test-namespace:test-configmap-1",
-			Type: topology.Type{Name:"configmap"},
-			Data:topology.Data{
-				"name":"test-configmap-1",
-				"creationTimestamp": creationTime,
-				"tags":map[string]string{"test":"label", "cluster-name":"test-cluster-name"},
-				"namespace":"test-namespace",
-				"uid": types.UID("test-configmap-1"),
+	for _, tc := range []struct {
+		testCase string
+		expected *topology.Component
+	}{
+		{
+			testCase: "Test Cron Job 1 - Complete",
+			expected: &topology.Component{
+				ExternalID: "urn:/kubernetes:test-cluster-name:configmap:test-namespace:test-configmap-1",
+				Type:       topology.Type{Name: "configmap"},
+				Data: topology.Data{
+					"name":              "test-configmap-1",
+					"creationTimestamp": creationTime,
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+					"namespace":         "test-namespace",
+					"uid":               types.UID("test-configmap-1"),
+					"data":              map[string]string{"key1": "value1", "key2": "longersecretvalue2"},
+				},
 			},
-		}},
-		{expected: &topology.Component{
-			ExternalID: "urn:/kubernetes:test-cluster-name:configmap:test-namespace:test-configmap-2",
-			Type: topology.Type{Name:"configmap"},
-			Data:topology.Data{
-				"name":"test-configmap-2",
-				"creationTimestamp": creationTime,
-				"tags":map[string]string{"test":"label", "cluster-name":"test-cluster-name"},
-				"namespace":"test-namespace",
-				"uid": types.UID("test-configmap-2"),
+		},
+		{
+			testCase: "Test Cron Job 2 - Without Data",
+			expected: &topology.Component{
+				ExternalID: "urn:/kubernetes:test-cluster-name:configmap:test-namespace:test-configmap-2",
+				Type:       topology.Type{Name: "configmap"},
+				Data: topology.Data{
+					"name":              "test-configmap-2",
+					"creationTimestamp": creationTime,
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+					"namespace":         "test-namespace",
+					"uid":               types.UID("test-configmap-2"),
+				},
 			},
-		}},
-		{expected: &topology.Component{
-			ExternalID: "urn:/kubernetes:test-cluster-name:configmap:test-namespace:test-configmap-3",
-			Type: topology.Type{Name:"configmap"},
-			Data:topology.Data{
-				"name":"test-configmap-3",
-				"creationTimestamp": creationTime,
-				"tags":map[string]string{"test":"label", "cluster-name":"test-cluster-name"},
-				"namespace":"test-namespace",
-				"uid": types.UID("test-configmap-3"),
+		},
+		{
+			testCase: "Test Cron Job 3 - Minimal",
+			expected: &topology.Component{
+				ExternalID: "urn:/kubernetes:test-cluster-name:configmap:test-namespace:test-configmap-3",
+				Type:       topology.Type{Name: "configmap"},
+				Data: topology.Data{
+					"name":              "test-configmap-3",
+					"creationTimestamp": creationTime,
+					"tags":              map[string]string{"cluster-name":"test-cluster-name"},
+					"namespace":         "test-namespace",
+					"uid":               types.UID("test-configmap-3"),
+				},
 			},
-		}},
-	}
-
-	for _, tc := range tests {
-		configMap := <- componentChannel
-		assert.EqualValues(t, tc.expected, configMap)
+		},
+	} {
+		t.Run(tc.testCase, func(t *testing.T) {
+			component := <- componentChannel
+			assert.EqualValues(t, tc.expected, component)
+		})
 	}
 
 }
@@ -100,7 +97,8 @@ type MockConfigMapAPICollectorClient struct {
 func (m MockConfigMapAPICollectorClient) GetConfigMaps() ([]coreV1.ConfigMap, error) {
 	configMaps := make([]coreV1.ConfigMap, 0)
 	for i := 1; i <= 3; i++ {
-		configMaps = append(configMaps, coreV1.ConfigMap{
+
+		configMap := coreV1.ConfigMap{
 			TypeMeta: v1.TypeMeta{
 				Kind: "",
 			},
@@ -108,16 +106,25 @@ func (m MockConfigMapAPICollectorClient) GetConfigMaps() ([]coreV1.ConfigMap, er
 				Name:              fmt.Sprintf("test-configmap-%d", i),
 				CreationTimestamp: creationTime,
 				Namespace:         "test-namespace",
-				Labels: map[string]string{
-					"test": "label",
-				},
 				UID:          types.UID(fmt.Sprintf("test-configmap-%d", i)),
 				GenerateName: "",
 			},
-			Data: map[string]string{
-				"key": "value",
-			},
-		})
+		}
+
+		if i == 1 {
+			configMap.Data = map[string]string{
+				"key1": "value1",
+				"key2": "longersecretvalue2",
+			}
+		}
+
+		if i != 3 {
+			configMap.Labels = map[string]string{
+				"test": "label",
+			}
+		}
+
+		configMaps = append(configMaps, configMap)
 	}
 
 	return configMaps, nil

@@ -115,7 +115,6 @@ func (t *TopologyCheck) Run() error {
 		// Register ConfigMap Component Collector
 		collectors.NewConfigMapCollector(
 			componentChannel,
-			relationChannel,
 			commonClusterCollector,
 		),
 		// Register CronJob Component Collector
@@ -170,6 +169,7 @@ func (t *TopologyCheck) Run() error {
 		// Register ReplicaSet Component Collector
 		collectors.NewReplicaSetCollector(
 			componentChannel,
+			relationChannel,
 			commonClusterCollector,
 		),
 		// Register Service Component Collector

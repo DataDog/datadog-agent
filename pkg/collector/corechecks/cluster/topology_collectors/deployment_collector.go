@@ -48,7 +48,7 @@ func (dmc *DeploymentCollector) deploymentToStackStateComponent(deployment v1.De
 	tags := emptyIfNil(deployment.Labels)
 	tags = dmc.addClusterNameTag(tags)
 
-	deploymentExternalID := dmc.buildDeploymentExternalID(deployment.Name)
+	deploymentExternalID := dmc.buildDeploymentExternalID(deployment.Namespace, deployment.Name)
 	component := &topology.Component{
 		ExternalID: deploymentExternalID,
 		Type:       topology.Type{Name: "deployment"},

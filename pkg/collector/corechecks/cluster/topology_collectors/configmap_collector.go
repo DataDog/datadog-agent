@@ -11,15 +11,13 @@ import (
 // ConfigMapCollector implements the ClusterTopologyCollector interface.
 type ConfigMapCollector struct {
 	ComponentChan chan<- *topology.Component
-	RelationChan chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
 // NewConfigMapCollector
-func NewConfigMapCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+func NewConfigMapCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &ConfigMapCollector{
 		ComponentChan: componentChannel,
-		RelationChan: relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }

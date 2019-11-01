@@ -9,10 +9,31 @@ package topology_collectors
 import (
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"testing"
 )
+
+var creationTime v1.Time
 
 func NewTestCommonClusterCollector(client apiserver.APICollectorClient) ClusterTopologyCollector {
 	instance := topology.Instance{Type: "kubernetes", URL: "test-cluster-name"}
 
 	return NewClusterTopologyCollector(instance, client)
+}
+
+func RunCollectorTest(t *testing.T, collector ClusterTopologyCollector, expectedCollectorName string) {
+	actualCollectorName := collector.GetName()
+	assert.Equal(t, expectedCollectorName, actualCollectorName)
+
+	// Trigger Collector Function
+	go func() {
+		log.Debugf("Starting cluster topology collector: %s\n", collector.GetName())
+		err := collector.CollectorFunction()
+		// assert no error occurred
+		assert.Nil(t, err)
+		// mark this collector as complete
+		log.Debugf("Finished cluster topology collector: %s\n", collector.GetName())
+	}()
 }

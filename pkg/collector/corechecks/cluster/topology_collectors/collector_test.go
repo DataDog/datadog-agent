@@ -30,9 +30,10 @@ func TestCollectorInterface(t *testing.T) {
 	actualDaemonSetExternalID := testCollector.buildDaemonSetExternalID(daemonSetName)
 	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:daemonset:test-daemonset", actualDaemonSetExternalID)
 
+	deploymentNamespace := "test-namespace"
 	deploymentName := "test-deployment"
-	actualDeploymentExternalID := testCollector.buildDeploymentExternalID(deploymentName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:deployment:test-deployment", actualDeploymentExternalID)
+	actualDeploymentExternalID := testCollector.buildDeploymentExternalID(deploymentNamespace, deploymentName)
+	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:deployment:test-namespace:test-deployment", actualDeploymentExternalID)
 
 	nodeName := "test-node"
 	actualNodeExternalID := testCollector.buildNodeExternalID(nodeName)

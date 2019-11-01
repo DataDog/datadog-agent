@@ -9,7 +9,6 @@ package topology_collectors
 import (
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -19,39 +18,28 @@ func TestClusterCollector(t *testing.T) {
 	defer close(componentChannel)
 
 	cc := NewClusterCollector(componentChannel, NewTestCommonClusterCollector(MockClusterAPICollectorClient{}))
-
 	expectedCollectorName := "Cluster Collector"
-	actualCollectorName := cc.GetName()
-	assert.Equal(t, expectedCollectorName, actualCollectorName)
+	RunCollectorTest(t, cc, expectedCollectorName)
 
-	// Trigger Collector Function
-	go func() {
-		log.Debugf("Starting cluster topology collector: %s\n", cc.GetName())
-		err := cc.CollectorFunction()
-		// assert no error occurred
-		assert.Nil(t, err)
-		// mark this collector as complete
-		log.Debugf("Finished cluster topology collector: %s\n", cc.GetName())
-	}()
-
-	type test struct {
+	for _, tc := range []struct {
+		testCase string
 		expected *topology.Component
-	}
-
-	tests := []test{
-		{expected: &topology.Component{
-			ExternalID: "urn:cluster:kubernetes/test-cluster-name",
-			Type: topology.Type{Name: "cluster"},
-			Data: topology.Data{
-				"name": "test-cluster-name",
-				"tags":map[string]string{"cluster-name":"test-cluster-name"}},
+	}{
+		{
+			testCase: "Test Cluster component creation",
+			expected: &topology.Component{
+				ExternalID: "urn:cluster:kubernetes/test-cluster-name",
+				Type:       topology.Type{Name: "cluster"},
+				Data: topology.Data{
+					"name": "test-cluster-name",
+					"tags": map[string]string{"cluster-name": "test-cluster-name"}},
 			},
 		},
-	}
-
-	for _, tc := range tests {
-		clusterComponent := <- componentChannel
-		assert.EqualValues(t, tc.expected, clusterComponent)
+	} {
+		t.Run(tc.testCase, func(t *testing.T) {
+			clusterComponent := <-componentChannel
+			assert.EqualValues(t, tc.expected, clusterComponent)
+		})
 	}
 }
 

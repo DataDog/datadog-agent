@@ -29,12 +29,16 @@ func (c Component) JSONString() string {
 func (d Data) PutNonEmpty(key string, value interface{}) bool {
 	if value != nil {
 		switch value.(type) {
+		case map[string]string:
+			if len(value.(map[string]string)) != 0 {
+				d[key] = value
+			}
 		case string:
 			if value.(string) != "" {
 				d[key] = value
 			}
 		default:
-			break
+			d[key] = value
 		}
 	}
 

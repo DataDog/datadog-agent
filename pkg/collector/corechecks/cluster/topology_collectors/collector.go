@@ -41,7 +41,7 @@ type ClusterTopologyCollector interface {
 	buildConfigMapExternalID(namespace, configMapID string) string
 	buildContainerExternalID(podName, containerName string) string
 	buildDaemonSetExternalID(daemonSetID string) string
-	buildDeploymentExternalID(deploymentID string) string
+	buildDeploymentExternalID(namespace, deploymentName string) string
 	buildNodeExternalID(nodeName string) string
 	buildPodExternalID(podID string) string
 	buildReplicaSetExternalID(replicaSetID string) string
@@ -152,8 +152,8 @@ func (c *clusterTopologyCollector) buildDaemonSetExternalID(daemonSetId string) 
 
 // buildDeploymentExternalID
 // deploymentID
-func (c *clusterTopologyCollector) buildDeploymentExternalID(deploymentID string) string {
-	return fmt.Sprintf("urn:/%s:%s:deployment:%s", c.Instance.Type, c.Instance.URL, deploymentID)
+func (c *clusterTopologyCollector) buildDeploymentExternalID(namespace, deploymentID string) string {
+	return fmt.Sprintf("urn:/%s:%s:deployment:%s:%s", c.Instance.Type, c.Instance.URL, namespace, deploymentID)
 }
 
 // buildReplicaSetExternalID
