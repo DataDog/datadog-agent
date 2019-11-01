@@ -519,6 +519,11 @@ molecule_tests_secrets:
     - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
     - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s secrets
   when: manual
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
+    expire_in: 1 week
 
 release_deb:
   stage: release
