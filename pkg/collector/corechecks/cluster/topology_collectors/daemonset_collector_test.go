@@ -49,7 +49,7 @@ func TestDaemonSetCollector(t *testing.T) {
 			},
 		},
 		{
-			testCase: "Test DaemonSet 3",
+			testCase: "Test DaemonSet 2",
 			expected: &topology.Component{
 				ExternalID: "urn:/kubernetes:test-cluster-name:daemonset:test-daemonset-2",
 				Type:       topology.Type{Name: "daemonset"},
