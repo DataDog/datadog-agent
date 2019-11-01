@@ -263,6 +263,18 @@ func (d *DockerCheck) Run() error {
 				sender.Gauge("docker.container.size_rootfs", float64(*info.SizeRootFs), "", tags)
 			}
 		}
+
+		// Collect open file descriptor counts
+		fileDescCount := 0
+		for _, pid := range c.Pids {
+			fdCount, err := cmetrics.GetFileDescriptorLen(pid)
+			if err != nil {
+				log.Warnf("Failed to get file desc length for pid %d, container %s: %s", pid, c.ID[:12], err)
+				continue
+			}
+			fileDescCount += fdCount
+		}
+		sender.Gauge("docker.container.open_fds", float64(fileDescCount), "", tags)
 	}
 
 	if d.instance.CollectContainerSize {
