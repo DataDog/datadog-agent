@@ -120,7 +120,7 @@ def test_agent_base_topology(host, common_vars):
             identifiers_assert_fn=lambda identifiers: next(x for x in identifiers if x.startswith("urn:endpoint:/%s:" % cluster_name))
         )
         # 1 config map
-        configmap_match = re.compile("urn:/kubernetes:{}:configmap:aws-auth".format(cluster_name))
+        configmap_match = re.compile("urn:/kubernetes:{}:configmap:kube-system:aws-auth".format(cluster_name))
         assert _find_component(
             json_data=json_data,
             type_name="configmap",
