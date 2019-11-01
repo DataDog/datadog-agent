@@ -226,16 +226,21 @@ func (pc *PodCollector) containerToStackStateComponent(nodeIdentifier string, po
 	log.Tracef("Mapping kubernetes pod container to StackState component: %s", container.String())
 	// create identifier list to merge with StackState components
 
-	identifier := ""
+	var identifiers []string
 	strippedContainerId := extractLastFragment(container.ContainerID)
-	if len(nodeIdentifier) > 0 {
-		identifier = fmt.Sprintf("%s:%s", nodeIdentifier, strippedContainerId)
-	} else {
-		identifier = strippedContainerId
+	// in the case where the container could not be started due to some error
+	if len(strippedContainerId) > 0 {
+		identifier := ""
+		if len(nodeIdentifier) > 0 {
+			identifier = fmt.Sprintf("%s:%s", nodeIdentifier, strippedContainerId)
+		} else {
+			identifier = strippedContainerId
+		}
+		identifiers = []string{
+			fmt.Sprintf("urn:container:/%s", identifier),
+		}
 	}
-	identifiers := []string{
-		fmt.Sprintf("urn:container:/%s", identifier),
-	}
+
 	log.Tracef("Created identifiers for %s: %v", container.Name, identifiers)
 
 	containerExternalID := pc.buildContainerExternalID(pod.Name, container.Name)
@@ -253,7 +258,6 @@ func (pc *PodCollector) containerToStackStateComponent(nodeIdentifier string, po
 		"podIP":          pod.Status.PodIP,
 		"namespace":    pod.Namespace,
 		"restartCount": container.RestartCount,
-		"identifiers":  identifiers,
 		"tags":         tags,
 	}
 
@@ -267,6 +271,10 @@ func (pc *PodCollector) containerToStackStateComponent(nodeIdentifier string, po
 
 	if containerPort.HostPort != 0 {
 		data["hostPort"] = containerPort.HostPort
+	}
+
+	if len(identifiers) > 0 {
+		data["identifiers"] = identifiers
 	}
 
 	component := &topology.Component{
