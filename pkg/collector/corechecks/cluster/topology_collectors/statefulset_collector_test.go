@@ -18,8 +18,6 @@ import (
 	"time"
 )
 
-var replicas int32
-
 func TestStatefulSetCollector(t *testing.T) {
 
 	componentChannel := make(chan *topology.Component)

@@ -16,6 +16,7 @@ import (
 )
 
 var creationTime v1.Time
+var replicas int32
 
 func NewTestCommonClusterCollector(client apiserver.APICollectorClient) ClusterTopologyCollector {
 	instance := topology.Instance{Type: "kubernetes", URL: "test-cluster-name"}
