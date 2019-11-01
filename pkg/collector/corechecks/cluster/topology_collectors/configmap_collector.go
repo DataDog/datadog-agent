@@ -49,6 +49,7 @@ func (cmc *ConfigMapCollector) configMapToStackStateComponent(configMap v1.Confi
 	tags = cmc.addClusterNameTag(tags)
 
 	configMapExternalID := cmc.buildConfigMapExternalID(configMap.Namespace, configMap.Name)
+
 	component := &topology.Component{
 		ExternalID: configMapExternalID,
 		Type:       topology.Type{Name: "configmap"},
@@ -58,6 +59,7 @@ func (cmc *ConfigMapCollector) configMapToStackStateComponent(configMap v1.Confi
 			"tags":              tags,
 			"namespace":         configMap.Namespace,
 			"uid":           configMap.UID,
+			"identifiers": []string{configMapExternalID},
 		},
 	}
 
