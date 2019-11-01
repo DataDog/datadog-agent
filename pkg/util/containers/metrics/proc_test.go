@@ -55,7 +55,7 @@ func TestGetFileDescriptorLen(t *testing.T) {
 
 	for pid, fds := range pidFdsMap {
 		path := pidPathMap[pid]
-		hostProcFunc = func(stuff ...string) string { return path }
+		hostProcFunc = func(combineWith ...string) string { return path }
 		result, err := GetFileDescriptorLen(pid)
 
 		assert.Nil(t, err)

@@ -15,8 +15,8 @@ import (
 )
 
 // Define hostProcFunc for ease of mock testing
-var hostProcFunc func(...string) string = func(stuff ...string) string {
-	return hostProc(stuff...)
+var hostProcFunc func(...string) string = func(combineWith ...string) string {
+	return hostProc(combineWith...)
 }
 
 func GetFileDescriptorLen(pid int) (int, error) {
