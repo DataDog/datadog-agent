@@ -45,6 +45,6 @@ func (c *promCounter) Inc(tags ...string) {
 }
 
 // Delete deletes the value for the counter with the given tags.
-func (g *promCounter) Delete(tags ...string) {
-	g.pc.DeleteLabelValues(tags...)
+func (c *promCounter) Delete(tags ...string) {
+	c.pc.DeleteLabelValues(tags...)
 }
