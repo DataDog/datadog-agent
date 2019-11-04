@@ -8,89 +8,24 @@
 package clusterchecks
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var (
-	nodeAgents = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Subsystem: "cluster_checks",
-			Name:      "nodes_reporting",
-			Help:      "Number of node agents reporting.",
-		},
-	)
-	danglingConfigs = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Subsystem: "cluster_checks",
-			Name:      "configs_dangling",
-			Help:      "Number of check configurations not dispatched.",
-		},
-	)
-	dispatchedConfigs = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Subsystem: "cluster_checks",
-			Name:      "configs_dispatched",
-			Help:      "Number of check configurations dispatched, by node.",
-		},
-		[]string{"node"},
-	)
-	rebalancingDecisions = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Subsystem: "cluster_checks",
-			Name:      "rebalancing_decisions",
-			Help:      "Total number of check rebalancing decisions",
-		},
-	)
-	successfulRebalancing = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Subsystem: "cluster_checks",
-			Name:      "successful_rebalancing_moves",
-			Help:      "Total number of successful check rebalancing decisions",
-		},
-	)
-	rebalancingDuration = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Subsystem: "cluster_checks",
-			Name:      "rebalancing_duration_seconds",
-			Help:      "Duration of the check rebalancing algorithm last execution",
-		},
-	)
-	statsCollectionFails = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Subsystem: "cluster_checks",
-			Name:      "failed_stats_collection",
-			Help:      "Total number of unsuccessful stats collection attempts",
-		},
-		[]string{"node"},
-	)
-	updateStatsDuration = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Subsystem: "cluster_checks",
-			Name:      "updating_stats_duration_seconds",
-			Help:      "Duration of collecting stats from check runners and updating cache",
-		},
-	)
-
-	allMetrics = []prometheus.Collector{
-		nodeAgents,
-		danglingConfigs,
-		dispatchedConfigs,
-		rebalancingDecisions,
-		successfulRebalancing,
-		rebalancingDuration,
-		statsCollectionFails,
-		updateStatsDuration,
-	}
+	nodeAgents = telemetry.NewGauge("cluster_checks", "nodes_reporting",
+		nil, "Number of node agents reporting.")
+	danglingConfigs = telemetry.NewGauge("cluster_checks", "configs_dangling",
+		nil, "Number of check configurations not dispatched.")
+	dispatchedConfigs = telemetry.NewGauge("cluster_checks", "configs_dispatched",
+		[]string{"node"}, "Number of check configurations dispatched, by node.")
+	rebalancingDecisions = telemetry.NewCounter("cluster_checks", "rebalancing_decisions",
+		nil, "Total number of check rebalancing decisions")
+	successfulRebalancing = telemetry.NewCounter("cluster_checks", "successful_rebalancing_moves",
+		nil, "Total number of successful check rebalancing decisions")
+	rebalancingDuration = telemetry.NewGauge("cluster_checks", "rebalancing_duration_seconds",
+		nil, "Duration of the check rebalancing algorithm last execution")
+	statsCollectionFails = telemetry.NewCounter("cluster_checks", "failed_stats_collection",
+		[]string{"node"}, "Total number of unsuccessful stats collection attempts")
+	updateStatsDuration = telemetry.NewGauge("cluster_checks", "updating_stats_duration_seconds",
+		nil, "Duration of collecting stats from check runners and updating cache")
 )
-
-func registerMetrics() {
-	for _, m := range allMetrics {
-		prometheus.Register(m)
-	}
-}
-
-func unregisterMetrics() {
-	for _, m := range allMetrics {
-		prometheus.Unregister(m)
-	}
-}

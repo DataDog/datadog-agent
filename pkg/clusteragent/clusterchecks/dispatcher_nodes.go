@@ -128,8 +128,8 @@ func (d *dispatcher) expireNodes() {
 
 			// Remove metrics linked to this node
 			nodeAgents.Dec()
-			dispatchedConfigs.DeleteLabelValues(name)
-			statsCollectionFails.DeleteLabelValues(name)
+			dispatchedConfigs.Delete(name)
+			statsCollectionFails.Delete(name)
 		}
 		node.RUnlock()
 	}
@@ -162,7 +162,7 @@ func (d *dispatcher) updateRunnersStats() {
 		stats, err := d.clcRunnersClient.GetRunnerStats(ip)
 		if err != nil {
 			log.Debugf("Cannot get CLC Runner stats with IP %s on node %s: %v", node.clientIP, name, err)
-			statsCollectionFails.WithLabelValues(name).Inc()
+			statsCollectionFails.Inc(name)
 			continue
 		}
 		node.Lock()
