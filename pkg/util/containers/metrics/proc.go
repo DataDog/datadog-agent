@@ -10,8 +10,6 @@ package metrics
 import (
 	"os"
 	"strconv"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // hostProcFunc allows hostProc to be overridden for ease of mock testing
