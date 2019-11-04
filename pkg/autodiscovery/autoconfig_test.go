@@ -360,22 +360,27 @@ func TestCheckOverride(t *testing.T) {
 		Provider:      providers.File,
 	}
 
+	// check must be overridden (same check)
 	ac.processNewService(&dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 		CheckNames:    "[\"redis\"]",
 	})
-
-	// check must be overrided
 	assert.Len(t, ac.resolveTemplate(tpl), 0)
 
+	// check must be overridden (empty config)
+	ac.processNewService(&dummyService{
+		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
+		ADIdentifiers: []string{"redis"},
+		CheckNames:    "[\"\"]",
+	})
+	assert.Len(t, ac.resolveTemplate(tpl), 0)
+
+	// check must be scheduled (different checks)
 	ac.processNewService(&dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 		CheckNames:    "[\"tcp_check\"]",
 	})
-
-	// check must be scheduled
 	assert.Len(t, ac.resolveTemplate(tpl), 1)
-
 }

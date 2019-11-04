@@ -96,15 +96,21 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
 
+	// Ignore the config from file if it's overridden by an empty config
+	// or by a different config for the same check
 	if tpl.Provider == fileProvider && svc.GetCheckNames() != "" {
 		checkNames := []string{}
 		err := json.Unmarshal([]byte(svc.GetCheckNames()), &checkNames)
 		if err != nil {
 			log.Debugf("Cannot parse check names: %v", err)
 		} else {
+			lenCheckNames := len(checkNames)
+			if lenCheckNames == 0 || (lenCheckNames == 1 && checkNames[0] == "") {
+				return resolvedConfig, fmt.Errorf("ignoring config from %s: another empty config is defined with the same AD identifier: %v", tpl.Source, tpl.ADIdentifiers)
+			}
 			for _, checkName := range checkNames {
 				if tpl.Name == checkName {
-					return resolvedConfig, fmt.Errorf("ignoring config from file: another config is defined for the check %s via annotations", checkName)
+					return resolvedConfig, fmt.Errorf("ignoring config from %s: another config is defined for the check %s", tpl.Source, tpl.Name)
 				}
 			}
 		}

@@ -46,7 +46,7 @@ func ComputeContainerServiceIDs(entity string, image string, labels map[string]s
 	return ids
 }
 
-// getCheckNamesFromLabels returns json string of check names defined in docker labels
+// getCheckNamesFromLabels returns the json string of check names defined in docker labels
 func getCheckNamesFromLabels(labels map[string]string) string {
 	return labels[dockerADTemplateChechNames]
 }

@@ -445,7 +445,39 @@ func TestResolve(t *testing.T) {
 				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
 				Provider:      "file",
 			},
-			errorString: "ignoring config from file: another config is defined for the check redis via annotations",
+			errorString: "ignoring config from file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml: another config is defined for the check redis",
+		},
+		{
+			testName: "empty check name defined: override check from file",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				CheckNames:    "[\"\"]",
+			},
+			tpl: integration.Config{
+				Name:          "redis",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%")},
+				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
+				Provider:      "file",
+			},
+			errorString: "ignoring config from file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml: another empty config is defined with the same AD identifier: [redis]",
+		},
+		{
+			testName: "empty check names list defined: override check from file",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				CheckNames:    "[]",
+			},
+			tpl: integration.Config{
+				Name:          "redis",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%")},
+				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
+				Provider:      "file",
+			},
+			errorString: "ignoring config from file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml: another empty config is defined with the same AD identifier: [redis]",
 		},
 		{
 			testName: "different checks: don't override check from file",

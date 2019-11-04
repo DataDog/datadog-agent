@@ -216,13 +216,15 @@ func (l *DockerListener) createService(cID string) {
 	if isKube {
 		svc = &DockerKubeletService{
 			DockerService: DockerService{
-				cID: cID,
+				cID:        cID,
+				checkNames: getCheckNamesFromLabels(cInspect.Config.Labels),
 			},
 		}
 	} else {
 		svc = &DockerService{
 			cID:          cID,
 			creationTime: integration.After,
+			checkNames:   getCheckNamesFromLabels(cInspect.Config.Labels),
 		}
 	}
 
@@ -577,5 +579,17 @@ func (s *DockerService) IsReady() bool {
 
 // GetCheckNames returns json string of check names defined in docker labels
 func (s *DockerService) GetCheckNames() string {
+	if s.checkNames == "" {
+		du, err := docker.GetDockerUtil()
+		if err != nil {
+			return ""
+		}
+		cj, err := du.Inspect(s.cID, false)
+		if err != nil {
+			return ""
+		}
+		s.checkNames = getCheckNamesFromLabels(cj.Config.Labels)
+	}
+
 	return s.checkNames
 }

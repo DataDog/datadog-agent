@@ -133,7 +133,8 @@ func getMockedPods() []*kubelet.Pod {
 				UID:  "mock-pod-uid",
 				Name: "mock-pod",
 				Annotations: map[string]string{
-					"ad.datadoghq.com/baz.instances": "[]",
+					"ad.datadoghq.com/baz.check_names": "[\"baz_check\"]",
+					"ad.datadoghq.com/baz.instances":   "[]",
 				},
 			},
 		},
@@ -175,6 +176,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, []ContainerPort{{1337, "footcpport"}, {1339, "fooudpport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
+		assert.Equal(t, "", service.GetCheckNames())
 	default:
 		assert.FailNow(t, "first service not in channel")
 	}
@@ -194,6 +196,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
+		assert.Equal(t, "", service.GetCheckNames())
 	default:
 		assert.FailNow(t, "second service not in channel")
 	}
@@ -213,6 +216,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
+		assert.Equal(t, "[\"baz_check\"]", service.GetCheckNames())
 	default:
 		assert.FailNow(t, "third service not in channel")
 	}
@@ -232,6 +236,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
+		assert.Equal(t, "", service.GetCheckNames())
 	default:
 		assert.FailNow(t, "fourth service not in channel")
 	}
@@ -252,6 +257,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, []ContainerPort{{1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1337, "footcpport"}, {1339, "fooudpport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
+		assert.Equal(t, "", service.GetCheckNames())
 	default:
 		assert.FailNow(t, "pod service not in channel")
 	}

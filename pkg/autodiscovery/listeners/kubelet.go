@@ -44,13 +44,13 @@ type KubeletListener struct {
 
 // KubeContainerService implements and store results from the Service interface for the Kubelet listener
 type KubeContainerService struct {
-	entity              string
-	adIdentifiers       []string
-	hosts               map[string]string
-	ports               []ContainerPort
-	creationTime        integration.CreationTime
-	ready               bool
-	annotatedCheckNames string
+	entity        string
+	adIdentifiers []string
+	hosts         map[string]string
+	ports         []ContainerPort
+	creationTime  integration.CreationTime
+	ready         bool
+	checkNames    string
 }
 
 // KubePodService registers pod as a Service, implements and store results from the Service interface for the Kubelet listener
@@ -221,7 +221,7 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 
 			// Cache check names if the pod template is annotated
 			if podHasADTemplate(pod.Metadata.Annotations, containerName) {
-				svc.annotatedCheckNames = getCheckNames(pod.Metadata.Annotations, containerName)
+				svc.checkNames = getCheckNames(pod.Metadata.Annotations, containerName)
 			}
 
 			// Add other identifiers if no template found
@@ -365,7 +365,7 @@ func (s *KubeContainerService) IsReady() bool {
 
 // GetCheckNames returns names of checks defined in pod annotations as a json string
 func (s *KubeContainerService) GetCheckNames() string {
-	return s.annotatedCheckNames
+	return s.checkNames
 }
 
 // GetEntity returns the unique entity name linked to that service
