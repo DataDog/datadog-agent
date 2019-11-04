@@ -20,7 +20,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -147,7 +149,7 @@ func IsFargateInstance() bool {
 		cacheIsFargateInstance(false)
 		return false
 	}
-	var resp TaskMetadata
+	var resp metadata.TaskMetadata
 	if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
 		log.Debugf("Error decoding response: %s", err)
 		cacheIsFargateInstance(false)
@@ -218,12 +220,12 @@ func detectAgentURL() (string, error) {
 		// List all interfaces for the ecs-agent container
 		agentURLS, err := getAgentContainerURLS()
 		if err != nil {
-			log.Debugf("could inspect ecs-agent container: %s", err)
+			log.Debugf("could not inspect ecs-agent container: %s", err)
 		} else {
 			urls = append(urls, agentURLS...)
 		}
 		// Try the default gateway
-		gw, err := docker.DefaultGateway()
+		gw, err := containers.DefaultGateway()
 		if err != nil {
 			log.Debugf("could not get docker default gateway: %s", err)
 		}

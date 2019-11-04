@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -154,7 +155,7 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.C
 			State:       c.State,
 			Excluded:    excluded,
 			Health:      parseContainerHealth(c.Status),
-			AddressList: parseContainerNetworkAddresses(c.Ports, c.NetworkSettings, c.Names[0]),
+			AddressList: d.parseContainerNetworkAddresses(c.ID, c.Ports, c.NetworkSettings, c.Names[0]),
 		}
 
 		ret = append(ret, container)
@@ -196,10 +197,28 @@ func parseContainerHealth(status string) string {
 
 // parseContainerNetworkAddresses converts docker ports
 // and network settings into a list of NetworkAddress
-func parseContainerNetworkAddresses(ports []types.Port, netSettings *types.SummaryNetworkSettings, container string) []containers.NetworkAddress {
+func (d *DockerUtil) parseContainerNetworkAddresses(cID string, ports []types.Port, netSettings *types.SummaryNetworkSettings, container string) []containers.NetworkAddress {
 	addrList := []containers.NetworkAddress{}
 	tempAddrList := []containers.NetworkAddress{}
 	if netSettings == nil || len(netSettings.Networks) == 0 {
+		networkMode, err := GetContainerNetworkMode(cID)
+		if err != nil {
+			log.Debugf("failed to get network mode for container %s. Network info will be missing. Error: %s", cID, err)
+			return addrList
+		}
+		if networkMode == containers.AwsvpcNetworkMode {
+			ecsContainerMetadataUrl, err := d.getECSMetadataURL(cID)
+			if err != nil {
+				log.Debugf("failed to get the ECS container metadata URI for container %s. Network info will be missing. Error: %s", cID, err)
+				return addrList
+			}
+			res, err := metadata.GetContainerNetworkAddresses(cID, ecsContainerMetadataUrl)
+			if err != nil {
+				log.Errorf("failed to get container network addresses: %s", err)
+				return addrList
+			}
+			return res
+		}
 		log.Debugf("No network settings available from docker")
 		return addrList
 	}
@@ -248,6 +267,24 @@ func parseContainerNetworkAddresses(ports []types.Port, netSettings *types.Summa
 // isExposed returns if a docker port is exposed to the host
 func isExposed(port types.Port) bool {
 	return port.PublicPort > 0 && port.IP != ""
+}
+
+// getECSMetadataURL inspects a given container ID and returns its ECS container metadata URI
+// if found in its environment. It returns an empty string and an error on failure.
+func (d *DockerUtil) getECSMetadataURL(cID string) (string, error) {
+	i, err := d.Inspect(cID, false)
+	if err != nil {
+		return "", err
+	}
+	for _, e := range i.Config.Env {
+		split := strings.Split(e, "=")
+		if len(split) < 2 {
+			continue
+		} else if split[0] == "ECS_CONTAINER_METADATA_URI" {
+			return split[1], nil
+		}
+	}
+	return "", errors.New("ecs container metadata uri not found")
 }
 
 // cleanupCaches removes cache entries for unknown containers and images

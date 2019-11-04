@@ -15,14 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // parseMetadata parses the task metadata and its container list, and returns a list of TagInfo for the new ones.
 // It also updates the lastSeen cache of the ECSFargateCollector and return the list of dead containers to be expired.
-func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool) ([]*TagInfo, error) {
+func (c *ECSFargateCollector) parseMetadata(meta metadata.TaskMetadata, parseAll bool) ([]*TagInfo, error) {
 	var output []*TagInfo
 	now := time.Now()
 
@@ -85,7 +84,7 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool
 			low, orch, high := tags.Compute()
 			info := &TagInfo{
 				Source:               ecsFargateCollectorName,
-				Entity:               docker.ContainerIDToTaggerEntityName(string(ctr.DockerID)),
+				Entity:               containers.BuildTaggerEntityName(string(ctr.DockerID)),
 				HighCardTags:         high,
 				OrchestratorCardTags: orch,
 				LowCardTags:          low,

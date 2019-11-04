@@ -9,13 +9,12 @@ package ecs
 
 import (
 	"encoding/json"
-	"net"
 	"net/http"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -26,18 +25,28 @@ const (
 )
 
 // GetTaskMetadata extracts the metadata payload for the task the agent is in.
-func GetTaskMetadata() (TaskMetadata, error) {
-	return getTaskMetadataWithURL(metadataURL)
+func GetTaskMetadata() (metadata.TaskMetadata, error) {
+	return GetTaskMetadataWithURL(metadataURL)
 }
 
-// getECSContainers returns all containers exposed by the ECS API as plain ECSContainers
-func getECSContainers() ([]Container, error) {
-	meta, err := GetTaskMetadata()
-	if err != nil || len(meta.Containers) == 0 {
-		log.Errorf("unable to retrieve task metadata")
-		return nil, err
+// GetTaskMetadataWithURL extracts the metadata payload for a task given a metadata URL.
+func GetTaskMetadataWithURL(url string) (metadata.TaskMetadata, error) {
+	var meta metadata.TaskMetadata
+	client := http.Client{
+		Timeout: timeout,
 	}
-	return meta.Containers, nil
+	resp, err := client.Get(url)
+	if err != nil {
+		return meta, err
+	}
+	defer resp.Body.Close()
+
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&meta)
+	if err != nil {
+		log.Errorf("Decoding task metadata failed - %s", err)
+	}
+	return meta, err
 }
 
 // ListContainers returns all containers exposed by the ECS API and their metrics
@@ -50,7 +59,7 @@ func ListContainers() ([]*containers.Container, error) {
 		return cList, err
 	}
 	for _, c := range ecsContainers {
-		entityID := docker.ContainerIDToTaggerEntityName(c.DockerID)
+		entityID := containers.BuildTaggerEntityName(c.DockerID)
 		ctr := &containers.Container{
 			Type:        "ECS",
 			ID:          c.DockerID,
@@ -58,7 +67,7 @@ func ListContainers() ([]*containers.Container, error) {
 			Name:        c.DockerName,
 			Image:       c.Image,
 			ImageID:     c.ImageID,
-			AddressList: parseContainerNetworkAddresses(c.Ports, c.Networks, c.DockerName),
+			AddressList: metadata.ParseECSContainerNetworkAddresses(c.Ports, c.Networks, c.DockerName),
 		}
 
 		createdAt, err := time.Parse(time.RFC3339, c.CreatedAt)
@@ -108,6 +117,16 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 		}
 	}
 	return nil
+}
+
+// getECSContainers returns all containers exposed by the ECS API as plain ECSContainers
+func getECSContainers() ([]metadata.Container, error) {
+	meta, err := GetTaskMetadata()
+	if err != nil || len(meta.Containers) == 0 {
+		log.Errorf("unable to retrieve task metadata")
+		return nil, err
+	}
+	return meta.Containers, nil
 }
 
 // getContainerStats retrives stats about a container from the ECS stats endpoint
@@ -162,61 +181,4 @@ func convertECSStats(stats ContainerStats) (metrics.CgroupTimesStat, metrics.Cgr
 		WriteBytes: stats.IO.WriteBytes,
 	}
 	return cpu, mem, io, stats.Memory.Details.Limit
-}
-
-// getTaskMetadataWithURL implements the logic of extracting metadata payload for the task.
-// Separated from GetTaskMetadata so the logic could be tested.
-func getTaskMetadataWithURL(url string) (TaskMetadata, error) {
-	var meta TaskMetadata
-	client := http.Client{
-		Timeout: timeout,
-	}
-	resp, err := client.Get(url)
-	if err != nil {
-		return meta, err
-	}
-	defer resp.Body.Close()
-
-	decoder := json.NewDecoder(resp.Body)
-	err = decoder.Decode(&meta)
-	if err != nil {
-		log.Errorf("Decoding task metadata failed - %s", err)
-	}
-	return meta, err
-}
-
-// parseContainerNetworkAddresses converts ECS container ports
-// and networks into a list of NetworkAddress
-func parseContainerNetworkAddresses(ports []Port, networks []Network, container string) []containers.NetworkAddress {
-	addrList := []containers.NetworkAddress{}
-	if networks == nil {
-		log.Debugf("No network settings available in ECS metadata")
-		return addrList
-	}
-	for _, network := range networks {
-		for _, addr := range network.IPv4Addresses { // one-element list
-			IP := net.ParseIP(addr)
-			if IP == nil {
-				log.Warnf("Unable to parse IP: %v for container: %s", addr, container)
-				continue
-			}
-			if len(ports) > 0 {
-				// Ports is not nil, get ports and protocols
-				for _, port := range ports {
-					addrList = append(addrList, containers.NetworkAddress{
-						IP:       IP,
-						Port:     int(port.ContainerPort),
-						Protocol: port.Protocol,
-					})
-				}
-			} else {
-				// Ports is nil (omitted by the ecs api if there are no ports exposed).
-				// Keep the container IP anyway.
-				addrList = append(addrList, containers.NetworkAddress{
-					IP: IP,
-				})
-			}
-		}
-	}
-	return addrList
 }
