@@ -38,3 +38,18 @@ type promGauge struct {
 func (g *promGauge) Set(value float64, tags ...string) {
 	g.pg.WithLabelValues(tags...).Set(value)
 }
+
+// Inc increments the Gauge value.
+func (g *promGauge) Inc(tags ...string) {
+	g.pg.WithLabelValues(tags...).Inc()
+}
+
+// Dec decrements the Gauge value.
+func (g *promGauge) Dec(tags ...string) {
+	g.pg.WithLabelValues(tags...).Dec()
+}
+
+// Delete deletes the value for the Gauge with the given tags.
+func (g *promGauge) Delete(tags ...string) {
+	g.pg.DeleteLabelValues(tags...)
+}

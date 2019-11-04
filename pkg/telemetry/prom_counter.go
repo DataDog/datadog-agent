@@ -43,3 +43,8 @@ func (c *promCounter) Add(value float64, tags ...string) {
 func (c *promCounter) Inc(tags ...string) {
 	c.pc.WithLabelValues(tags...).Inc()
 }
+
+// Delete deletes the value for the counter with the given tags.
+func (g *promCounter) Delete(tags ...string) {
+	g.pc.DeleteLabelValues(tags...)
+}

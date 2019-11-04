@@ -9,4 +9,10 @@ package telemetry
 type Gauge interface {
 	// Set stores the value for the given tags.
 	Set(value float64, tags ...string)
+	// Inc increments the Gauge value.
+	Inc(tags ...string)
+	// Dec decrements the Gauge value.
+	Dec(tags ...string)
+	// Delete deletes the value for the Gauge with the given tags.
+	Delete(tags ...string)
 }

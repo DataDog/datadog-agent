@@ -11,4 +11,6 @@ type Counter interface {
 	Inc(tags ...string)
 	// Add adds the given value to the counter for the given tags.
 	Add(value float64, tags ...string)
+	// Delete deletes the value for the counter with the given tags.
+	Delete(tags ...string)
 }
