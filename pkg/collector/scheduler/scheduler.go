@@ -25,7 +25,7 @@ var (
 	schedulerChecksEntered = expvar.Int{}
 
 	// TODO(remy): check state? Is the check.ID really interesting?
-	tlmChecksEntered = telemetry.NewCounter("checks", "entered",
+	tlmChecksEntered = telemetry.NewGauge("checks", "entered",
 		[]string{"check_id", "check_name"}, "How many checks entered the scheduler")
 	tlmQueuesCount = telemetry.NewCounter("checks", "queues_count",
 		[]string{"check_id", "check_name"}, "How many queues were opened")
@@ -98,7 +98,7 @@ func (s *Scheduler) Enter(check check.Check) error {
 	s.checkToQueue[check.ID()] = s.jobQueues[check.Interval()]
 
 	schedulerChecksEntered.Add(1)
-	tlmChecksEntered.Inc(string(check.ID()), check.String())
+	tlmChecksEntered.Set(1, string(check.ID()), check.String())
 	schedulerExpvars.Set("Queues", expvar.Func(expQueues(s)))
 	return nil
 }
