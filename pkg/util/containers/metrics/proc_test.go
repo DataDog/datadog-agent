@@ -29,6 +29,9 @@ func setupFS(pidFdsMap map[int][]int) (*tempFolder, map[int]string, error) {
 	// Note: this file path is not exact because TempDir adds a random hash to each layer
 	for pid, fds := range pidFdsMap {
 		g, err := ioutil.TempDir(f.RootPath, strconv.Itoa(pid))
+		if err != nil {
+			return nil, nil, err
+		}
 		p, err := ioutil.TempDir(g, "fd")
 		if err != nil {
 			return nil, nil, err
