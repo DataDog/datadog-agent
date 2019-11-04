@@ -9,6 +9,8 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -58,10 +60,49 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 
 	log.Debugf("Collected %d pods", len(podList))
 
+	scrubbedPodlist := make([]kubelet.ScrubbedPod, len(podList))
+
+	for p := 0; p < len(podList); p++ {
+		for c := 0; c < len(podList[p].Spec.Containers); c++ {
+			// scrub command line
+			scrubbedCmd, _ := cfg.Scrubber.ScrubCommand(podList[p].Spec.Containers[c].Command)
+			podList[p].Spec.Containers[c].Command = scrubbedCmd
+			// scrub env vars
+			for e := 0; e < len(podList[p].Spec.Containers[c].Env); e++ {
+				scrubbedVal, err := log.CredentialsCleanerBytes([]byte(podList[p].Spec.Containers[c].Env[e].Value))
+				if err == nil {
+					podList[p].Spec.Containers[c].Env[e].Value = string(scrubbedVal)
+				}
+			}
+		}
+		for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
+			// scrub command line
+			scrubbedCmd, _ := cfg.Scrubber.ScrubCommand(podList[p].Spec.Containers[c].Command)
+			podList[p].Spec.Containers[c].Command = scrubbedCmd
+			// scrub env vars
+			for e := 0; e < len(podList[p].Spec.Containers[c].Env); e++ {
+				scrubbedVal, err := log.CredentialsCleanerBytes([]byte(podList[p].Spec.Containers[c].Env[e].Value))
+				if err == nil {
+					podList[p].Spec.Containers[c].Env[e].Value = string(scrubbedVal)
+				}
+			}
+		}
+		tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(podList[p].UID)), collectors.HighCardinality)
+		if err != nil {
+			log.Warnf("Could not retrieve tags for pod: %s", err)
+			continue
+		}
+		scrubbedPod := kubelet.ScrubbedPod{
+			Pod:  podList[p],
+			Tags: tags,
+		}
+
+		log.Infof("%v", scrubbedPod)
+		scrubbedPodlist = append(scrubbedPodlist, scrubbedPod)
+	}
+
+	// TODO: payload
+
 	messages := make([]model.MessageBody, 0)
-
-	// todo: call tager for each pod
-	// embed whole pod + add tag list
-
 	return messages, nil
 }
