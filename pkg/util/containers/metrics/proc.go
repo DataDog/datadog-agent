@@ -14,11 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Define hostProcFunc for ease of mock testing
+// hostProcFunc allows hostProc to be overridden for ease of mock testing
 var hostProcFunc func(...string) string = func(combineWith ...string) string {
 	return hostProc(combineWith...)
 }
 
+// GetFileDescriptorLen gets the number of open file descriptors for a given pid
 func GetFileDescriptorLen(pid int) (int, error) {
 	// Open proc file descriptor dir
 	fdPath := hostProcFunc(strconv.Itoa(pid), "fd")
@@ -28,6 +29,7 @@ func GetFileDescriptorLen(pid int) (int, error) {
 	}
 	defer d.Close()
 
+	// Get all file names
 	names, err := d.Readdirnames(-1)
 	if err != nil {
 		return 0, log.Warnf("Could not read %s: %s", d.Name(), err)
