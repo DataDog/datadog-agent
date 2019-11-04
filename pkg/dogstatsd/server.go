@@ -38,20 +38,10 @@ var (
 	dogstatsdMetricPackets           = expvar.Int{}
 	dogstatsdPacketsLastSec          = expvar.Int{}
 
-	tlmServiceChecks = telemetry.NewCounter(
-		"dogstatsd", "service_checks",
-		[]string{"state"},
-		"Service check parsing count",
-	)
-	tlmEvents = telemetry.NewCounter(
-		"dogstatsd", "events",
-		[]string{"state"},
-		"Event parsing count",
-	)
-	tlmMetrics = telemetry.NewCounter(
-		"dogstatsd", "metrics",
-		[]string{"state"},
-		"Metric parsing count",
+	tlmProcessed = telemetry.NewCounter(
+		"dogstatsd", "processed",
+		[]string{"type", "state"},
+		"Count of service checks/events/metrics processed by dogstatsd",
 	)
 )
 
@@ -290,35 +280,35 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 			if err != nil {
 				log.Errorf("Dogstatsd: error parsing service check: %s", err)
 				dogstatsdServiceCheckParseErrors.Add(1)
-				tlmServiceChecks.Inc("error")
+				tlmProcessed.Inc("service_checks", "error")
 				continue
 			}
 			if len(extraTags) > 0 {
 				serviceCheck.Tags = append(serviceCheck.Tags, extraTags...)
 			}
 			dogstatsdServiceCheckPackets.Add(1)
-			tlmServiceChecks.Inc("ok")
+			tlmProcessed.Inc("service_checks", "ok")
 			serviceChecks = append(serviceChecks, serviceCheck)
 		} else if bytes.HasPrefix(message, []byte("_e")) {
 			event, err := parseEventMessage(message, s.defaultHostname)
 			if err != nil {
 				log.Errorf("Dogstatsd: error parsing event: %s", err)
 				dogstatsdEventParseErrors.Add(1)
-				tlmEvents.Inc("error")
+				tlmProcessed.Inc("events", "error")
 				continue
 			}
 			if len(extraTags) > 0 {
 				event.Tags = append(event.Tags, extraTags...)
 			}
 			dogstatsdEventPackets.Add(1)
-			tlmEvents.Inc("ok")
+			tlmProcessed.Inc("events", "ok")
 			events = append(events, event)
 		} else {
 			sample, err := parseMetricMessage(message, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
 			if err != nil {
 				log.Errorf("Dogstatsd: error parsing metrics: %s", err)
 				dogstatsdMetricParseErrors.Add(1)
-				tlmMetrics.Inc("error")
+				tlmProcessed.Inc("metrics", "error")
 				continue
 			}
 			if s.debugMetricsStats {
@@ -328,7 +318,7 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 				sample.Tags = append(sample.Tags, extraTags...)
 			}
 			dogstatsdMetricPackets.Add(1)
-			tlmMetrics.Inc("ok")
+			tlmProcessed.Inc("metrics", "ok")
 			metricSamples = append(metricSamples, sample)
 			if s.histToDist && sample.Mtype == metrics.HistogramType {
 				distSample := sample.Copy()
