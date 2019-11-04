@@ -32,7 +32,7 @@ func GetFileDescriptorLen(pid int) (int, error) {
 	// Get all file names
 	names, err := d.Readdirnames(-1)
 	if err != nil {
-		return 0, log.Warnf("Could not read %s: %s", d.Name(), err)
+		return 0, err
 	}
 
 	return len(names), nil
