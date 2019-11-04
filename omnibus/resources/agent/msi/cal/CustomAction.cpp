@@ -17,6 +17,8 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     ddRegKey regkeybase;
     RegKey keyRollback, keyInstall;
     DWORD nErr = NERR_Success;
+    bool bResetPassword = false;
+
 
     std::wstring waitval;
 
@@ -117,9 +119,8 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             }
             else {
                 if (!ddServiceExists) {
-                    WcaLog(LOGMSG_STANDARD, "Invalid configuration; DD user exists, but no service exists");
-                    er = ERROR_INSTALL_FAILURE;
-                    goto LExit;
+                    WcaLog(LOGMSG_STANDARD, "dd user exists %s, but not service.  Continuing", data.getFullUsernameMbcs().c_str());
+                    bResetPassword = true;
                 }
             }
         }
@@ -132,7 +133,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     // ok.  If we get here, we should be in a sane state (all installation conditions met)
     WcaLog(LOGMSG_STANDARD, "custom action initialization complete.  Processing");
     // first, let's decide if we need to create the dd-agent-user
-    if (!ddUserExists) {
+    if (!ddUserExists || bResetPassword) {
         // that was easy.  Need to create the user.  See if we have a password, or need to
         // generate one
         passbuflen = MAX_PASS_LEN + 2;
@@ -149,20 +150,29 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             }
             passToUse = passbuf;
         }
-        DWORD nErr = 0;
-        DWORD ret = doCreateUser(data.getUsername(), data.getDomainPtr(), ddAgentUserDescription, passToUse);
-        if (ret != 0) {
-            WcaLog(LOGMSG_STANDARD, "Failed to create DD user");
-            er = ERROR_INSTALL_FAILURE;
-            goto LExit;
-        }
-        // store that we created the user, and store the username so we can
-        // delete on rollback/uninstall
-        keyRollback.setStringValue(installCreatedDDUser.c_str(), data.getUserPtr());
-        keyInstall.setStringValue(installCreatedDDUser.c_str(), data.getUserPtr());
-        if (data.getDomainPtr()) {
-            keyRollback.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
-            keyInstall.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
+        if (bResetPassword) {
+            DWORD ret = doSetUserPassword(data.getUsername(), data.getDomainPtr(), passToUse);
+            if(ret != 0){
+                WcaLog(LOGMSG_STANDARD, "Failed to set DD user password");
+                er = ERROR_INSTALL_FAILURE;
+                goto LExit;
+            }
+        } else {
+            DWORD nErr = 0;
+            DWORD ret = doCreateUser(data.getUsername(), data.getDomainPtr(), ddAgentUserDescription, passToUse);
+            if (ret != 0) {
+                WcaLog(LOGMSG_STANDARD, "Failed to create DD user");
+                er = ERROR_INSTALL_FAILURE;
+                goto LExit;
+            }
+            // store that we created the user, and store the username so we can
+            // delete on rollback/uninstall
+            keyRollback.setStringValue(installCreatedDDUser.c_str(), data.getUserPtr());
+            keyInstall.setStringValue(installCreatedDDUser.c_str(), data.getUserPtr());
+            if (data.getDomainPtr()) {
+                keyRollback.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
+                keyInstall.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
+            }
         }
     }
     
