@@ -96,26 +96,10 @@ var (
 	aggregatorEvent                            = expvar.Int{}
 	aggregatorHostnameUpdate                   = expvar.Int{}
 
-	tlmSeriesFlush = telemetry.NewCounter("aggregator", "series_flush",
-		[]string{"state"}, "Count of series flushed")
-	tlmServiceCheckFlush = telemetry.NewCounter("aggregator", "service_check_flush",
-		[]string{"state"}, "Count of service check flushed")
-	tlmSketchesFlush = telemetry.NewCounter("aggregator", "sketches_flush",
-		[]string{"state"}, "Count of sketches flushed")
-	tlmEventsFlush = telemetry.NewCounter("aggregator", "events_flush",
-		[]string{"state"}, "Count of events flushed")
 	tlmFlush = telemetry.NewCounter("aggregator", "flush",
-		nil, "Count of flush")
-	tlmDogstatsdMetricSample = telemetry.NewCounter("aggregator", "dogstatsd_metric_sample",
-		nil, "Count of dogstatsd metric sample")
-	tlmChecksMetricSample = telemetry.NewCounter("aggregator", "checks_metric_sample",
-		nil, "Count of checks metric sample")
-	tlmChecksHistogramBucketMetricSample = telemetry.NewCounter("aggregator", "checks_histogram_bucket_metric_sample",
-		nil, "Count of checks histogram bucket metric sample")
-	tlmServiceChecks = telemetry.NewCounter("aggregator", "service_checks",
-		nil, "Count of service checks")
-	tlmEvents = telemetry.NewCounter("aggregator", "events",
-		nil, "Count of events")
+		[]string{"type", "state"}, "Count of flush")
+	tlmProcessed = telemetry.NewCounter("aggregator", "processed",
+		[]string{"type"}, "Amount of metrics/services_checks/events processed by the aggregator")
 	tlmHostnameUpdate = telemetry.NewCounter("aggregator", "hostname_update",
 		nil, "Count of hostname update")
 
@@ -412,7 +396,7 @@ func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.Sk
 	}
 	addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
 	aggregatorSketchesFlushed.Add(int64(len(sketches)))
-	tlmSketchesFlush.Add(float64(len(sketches)), state)
+	tlmFlush.Add(float64(len(sketches)), "sketches", state)
 }
 
 func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series) {
@@ -426,7 +410,7 @@ func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series
 	}
 	addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
 	aggregatorSeriesFlushed.Add(int64(len(series)))
-	tlmSeriesFlush.Add(float64(len(series)), state)
+	tlmFlush.Add(float64(len(series)), "series", state)
 }
 
 func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series, waitForSerializer bool) {
@@ -538,7 +522,7 @@ func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks 
 	}
 	addFlushTime("ServiceCheckFlushTime", int64(time.Since(start)))
 	aggregatorServiceCheckFlushed.Add(int64(len(serviceChecks)))
-	tlmServiceCheckFlush.Add(float64(len(serviceChecks)), state)
+	tlmFlush.Add(float64(len(serviceChecks)), "service_checks", state)
 }
 
 func (agg *BufferedAggregator) flushServiceChecks(start time.Time, waitForSerializer bool) {
@@ -587,7 +571,7 @@ func (agg *BufferedAggregator) sendEvents(start time.Time, events metrics.Events
 	}
 	addFlushTime("EventFlushTime", int64(time.Since(start)))
 	aggregatorEventsFlushed.Add(int64(len(events)))
-	tlmEventsFlush.Add(float64(len(events)), state)
+	tlmFlush.Add(float64(len(events)), "events", state)
 }
 
 // flushEvents serializes and forwards events in a separate goroutine
@@ -662,45 +646,42 @@ func (agg *BufferedAggregator) run() {
 
 		case checkMetric := <-agg.checkMetricIn:
 			aggregatorChecksMetricSample.Add(1)
-			tlmChecksMetricSample.Inc()
+			tlmProcessed.Inc("metrics")
 			agg.handleSenderSample(checkMetric)
 		case checkHistogramBucket := <-agg.checkHistogramBucketIn:
 			aggregatorCheckHistogramBucketMetricSample.Add(1)
-			tlmChecksHistogramBucketMetricSample.Inc()
+			tlmProcessed.Inc("histogram_bucket")
 			agg.handleSenderBucket(checkHistogramBucket)
-
 		case metric := <-agg.metricIn:
 			aggregatorDogstatsdMetricSample.Add(1)
-			tlmDogstatsdMetricSample.Inc()
+			tlmProcessed.Inc("dogstatsd_metrics")
 			agg.addSample(metric, timeNowNano())
 		case event := <-agg.eventIn:
 			aggregatorEvent.Add(1)
-			tlmEvents.Inc()
+			tlmProcessed.Inc("events")
 			agg.addEvent(event)
 		case serviceCheck := <-agg.serviceCheckIn:
 			aggregatorServiceCheck.Add(1)
-			tlmServiceChecks.Inc()
+			tlmProcessed.Inc("service_checks")
 			agg.addServiceCheck(serviceCheck)
-
 		case metrics := <-agg.bufferedMetricIn:
 			aggregatorDogstatsdMetricSample.Add(int64(len(metrics)))
-			tlmDogstatsdMetricSample.Add(float64(len(metrics)))
+			tlmProcessed.Add(float64(len(metrics)), "dogstatsd_metrics")
 			for _, sample := range metrics {
 				agg.addSample(sample, timeNowNano())
 			}
 		case serviceChecks := <-agg.bufferedServiceCheckIn:
 			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
-			tlmServiceChecks.Add(float64(len(serviceChecks)))
+			tlmProcessed.Add(float64(len(serviceChecks)), "service_checks")
 			for _, serviceCheck := range serviceChecks {
 				agg.addServiceCheck(*serviceCheck)
 			}
 		case events := <-agg.bufferedEventIn:
 			aggregatorEvent.Add(int64(len(events)))
-			tlmEvents.Add(float64(len(events)))
+			tlmProcessed.Add(float64(len(events)), "events")
 			for _, event := range events {
 				agg.addEvent(*event)
 			}
-
 		case h := <-agg.hostnameUpdate:
 			aggregatorHostnameUpdate.Add(1)
 			tlmHostnameUpdate.Inc()
