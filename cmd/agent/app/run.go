@@ -205,6 +205,12 @@ func StartAgent() error {
 	}
 	log.Infof("Hostname is: %s", hostname)
 
+	networkMode, err := util.GetAgentNetworkMode()
+	if err != nil {
+		log.Errorf("Error while getting networkMode %s: %v", networkMode, err)
+	}
+	log.Infof("NetworkMode is: %s", networkMode)
+
 	// HACK: init host metadata module (CPU) early to avoid any
 	//       COM threading model conflict with the python checks
 	err = host.InitHostMetadata()

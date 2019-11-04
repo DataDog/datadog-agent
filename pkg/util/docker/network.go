@@ -46,6 +46,8 @@ func (a dockerNetworks) Less(i, j int) bool { return a[i].dockerName < a[j].dock
 
 var hostNetwork = dockerNetwork{iface: "eth0", dockerName: "bridge"}
 
+const ecsPauseContainerImage = "amazon/amazon-ecs-pause"
+
 func findDockerNetworks(containerID string, pid int, container types.Container) []dockerNetwork {
 	netMode := container.HostConfig.NetworkMode
 	// Check the known network modes that require specific handling.
@@ -179,7 +181,23 @@ func GetAgentContainerNetworkMode() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return parseContainerNetworkMode(agentContainer.HostConfig)
+	mode, err := parseContainerNetworkMode(agentContainer.HostConfig)
+	if err != nil {
+		return mode, err
+	}
+
+	// Try to discover awsvpc mode
+	containerPrefix := "container:"
+	if strings.HasPrefix(mode, containerPrefix) {
+		co, err := du.Inspect(mode[len(containerPrefix):], false)
+		if err != nil {
+			return "", fmt.Errorf("cannot inspect attached container %s: %v", mode, err)
+		}
+		if strings.HasPrefix(co.Config.Image, ecsPauseContainerImage) {
+			mode = containers.AwsvpcNetworkMode
+		}
+	}
+	return mode, nil
 }
 
 // parseContainerNetworkMode returns the network mode of a container
@@ -199,7 +217,7 @@ func parseContainerNetworkMode(hostConfig *container.HostConfig) (string, error)
 		return containers.NoneNetworkMode, nil
 	}
 	if strings.HasPrefix(mode, "container:") {
-		return containers.AwsvpcNetworkMode, nil
+		return mode, nil
 	}
 	return "", fmt.Errorf("unknown network mode: %s", mode)
 }

@@ -275,11 +275,11 @@ func TestParseContainerNetworkMode(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "awsvpc",
+			name: "attached to container",
 			hostConfig: &container.HostConfig{
 				NetworkMode: "container:0a8f83f35f7d0161f29b819d9b533b57acade8d99609bba63664dd3326e4d301",
 			},
-			want:    "awsvpc",
+			want:    "container:0a8f83f35f7d0161f29b819d9b533b57acade8d99609bba63664dd3326e4d301",
 			wantErr: false,
 		},
 		{
