@@ -98,7 +98,7 @@ func (s *Scheduler) Enter(check check.Check) error {
 	s.checkToQueue[check.ID()] = s.jobQueues[check.Interval()]
 
 	schedulerChecksEntered.Add(1)
-	tlmChecksEntered.Set(1, string(check.ID()), check.String())
+	tlmChecksEntered.Inc(string(check.ID()), check.String())
 	schedulerExpvars.Set("Queues", expvar.Func(expQueues(s)))
 	return nil
 }
