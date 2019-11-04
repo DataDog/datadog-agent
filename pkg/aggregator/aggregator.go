@@ -642,8 +642,6 @@ func (agg *BufferedAggregator) run() {
 			agg.flush(start, false)
 			addFlushTime("MainFlushTime", int64(time.Since(start)))
 			aggregatorNumberOfFlush.Add(1)
-			tlmFlush.Inc()
-
 		case checkMetric := <-agg.checkMetricIn:
 			aggregatorChecksMetricSample.Add(1)
 			tlmProcessed.Inc("metrics")
