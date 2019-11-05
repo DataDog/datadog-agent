@@ -364,7 +364,6 @@ cluster_agent-build:
 # build system-probe bin
 system_probe-build:
   stage: binary_build
-  needs: ["run_tests_ebpf"]
   # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
   before_script:
@@ -405,7 +404,6 @@ system_probe-build:
 # check the size of the static dogstatsd binary
 run_dogstatsd_size_test:
   stage: integration_test
-  needs: ["build_dogstatsd_static-deb_x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
   before_script:
@@ -451,7 +449,6 @@ agent_deb-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["run_tests_deb-x64-py2", "run_tests_deb-x64-py3"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     CONDA_ENV: ddpy3
@@ -469,7 +466,6 @@ agent_deb-x64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["run_tests_deb-x64-py3"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     CONDA_ENV: ddpy3
@@ -488,7 +484,6 @@ puppy_deb-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["build_puppy_agent-deb_x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
@@ -1350,6 +1345,7 @@ send_pkg_size-a6:
             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_DOGSTATSD_SIZE]], \"tags\":[\"os:suse\", \"package:dogstatsd\", \"agent:6\"]}
           ]}" \
       "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"
+
 send_pkg_size-a7:
   stage: pkg_metrics
   <<: *run_when_triggered
@@ -1390,6 +1386,8 @@ send_pkg_size-a7:
             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\", \"agent:7\"]},
           ]}" \
       "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"
+
+
 .kitchen_cleanup_s3_common: &kitchen_cleanup_s3_common
   script:
     - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$DD_PIPELINE_ID --recursive
@@ -1488,7 +1486,6 @@ testkitchen_cleanup_azure-a7:
 # build agent6 py2 image
 build_agent6:
   <<: *docker_build_job_definition
-  needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1500,7 +1497,6 @@ build_agent6:
 # build agent6 py2 jmx image
 build_agent6_jmx:
   <<: *docker_build_job_definition
-  needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1513,7 +1509,6 @@ build_agent6_jmx:
 # build agent6 py3 image
 build_agent6_py3:
   <<: *docker_build_job_definition
-  needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1525,7 +1520,6 @@ build_agent6_py3:
 # build agent6 py3 jmx image
 build_agent6_py3_jmx:
   <<: *docker_build_job_definition
-  needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1539,7 +1533,6 @@ build_agent6_py3_jmx:
 # build agent6 jmx unified image (including python3)
 build_agent6_py2py3_jmx:
   <<: *docker_build_job_definition
-  needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1551,7 +1544,6 @@ build_agent6_py2py3_jmx:
 # build agent7 image
 build_agent7:
   <<: *docker_build_job_definition
-  needs: ["agent_deb-x64-a7"]
   <<: *skip_when_unwanted_on_7
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1563,7 +1555,6 @@ build_agent7:
 # build agent7 jmx image
 build_agent7_jmx:
   <<: *docker_build_job_definition
-  needs: ["agent_deb-x64-a7"]
   <<: *skip_when_unwanted_on_7
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1575,7 +1566,6 @@ build_agent7_jmx:
 # build the cluster-agent image
 build_cluster_agent:
   <<: *docker_build_job_definition
-  needs: ["cluster_agent-build"]
   variables:
     IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
@@ -1583,7 +1573,6 @@ build_cluster_agent:
 # build the dogstatsd image
 build_dogstatsd:
   <<: *docker_build_job_definition
-  needs: ["build_dogstatsd_static-deb_x64"]
   variables:
     IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
@@ -1670,9 +1659,6 @@ twistlock_scan-7:
 
 dev_branch_docker_hub:
   <<: *docker_tag_job_definition
-  # FIXME: missing "build_agent7", "build_agent7_jmx", "build_dogstatsd" to
-  # respect the ci_dag_limit_needs, only trigger manually when all are completed
-  needs: ["build_agent6", "build_agent6_jmx", "build_agent6_py3", "build_agent6_py3_jmx", "build_agent6_py2py3_jmx"]
   when: manual
   except:
     - master
@@ -1690,7 +1676,6 @@ dev_branch_docker_hub:
 
 dev_master_docker_hub:
   <<: *docker_tag_job_definition
-  # TODO: add DAG needs when the ci_dag_limit_needs is > 5
   only:
     - master
   variables:
@@ -1706,7 +1691,6 @@ dev_master_docker_hub:
 
 dca_dev_branch_docker_hub:
   <<: *docker_tag_job_definition
-  needs: ["build_cluster_agent"]
   when: manual
   except:
     - master
@@ -1717,7 +1701,6 @@ dca_dev_branch_docker_hub:
 
 dca_dev_master_docker_hub:
   <<: *docker_tag_job_definition
-  needs: ["build_cluster_agent"]
   only:
     - master
   variables:
@@ -1729,7 +1712,6 @@ dca_dev_master_docker_hub:
 dev_nightly_docker_hub:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_nightly
-  # TODO: add DAG needs when the ci_dag_limit_needs is > 5
   variables:
     <<: *docker_hub_variables
   script:
