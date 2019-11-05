@@ -6,6 +6,10 @@
 package logs
 
 import (
+	"context"
+	"fmt"
+	"io/ioutil"
+	"net/http"
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -117,10 +121,36 @@ func (a *Agent) Stop() {
 		// In some situation, the stopper unfortunately never succeed to complete,
 		// we've already reached the grace period, give it some more seconds and
 		// then force quit.
-		timeout := time.NewTimer(10 * time.Second)
+		timeout := time.NewTimer(5 * time.Second)
 		select {
 		case <-c:
 		case <-timeout.C:
+			log.Debug("Force close of the Logs Agent, dumping the stack trace.")
+			if stack, err := getAgentStackTrace(); err != nil {
+				log.Debugf("can't get the stack trace of the Agent: %s\n", err)
+			} else {
+				log.Debug(string(stack))
+			}
 		}
 	}
+}
+
+// getStackTrace returns the stack trace of a running Agent.
+// Used as a best effort to get info while force closing the Logs Agent.
+func getAgentStackTrace() ([]byte, error) {
+	pprofURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
+		coreConfig.Datadog.GetString("expvar_port"))
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	client := http.Client{}
+	req, err := http.NewRequest(http.MethodGet, pprofURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req.WithContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	return ioutil.ReadAll(resp.Body)
 }
