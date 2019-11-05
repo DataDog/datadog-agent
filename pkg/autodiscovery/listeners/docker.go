@@ -55,6 +55,9 @@ type DockerService struct {
 	checkNames    string
 }
 
+// Make sure DockerService implements the Service interface
+var _ Service = &DockerService{}
+
 func init() {
 	Register("docker", NewDockerListener)
 }

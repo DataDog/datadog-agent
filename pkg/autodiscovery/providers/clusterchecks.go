@@ -8,6 +8,8 @@ package providers
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providernames"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -58,7 +60,7 @@ func (c *ClusterChecksConfigProvider) initClient() error {
 
 // String returns a string representation of the ClusterChecksConfigProvider
 func (c *ClusterChecksConfigProvider) String() string {
-	return ClusterChecks
+	return providernames.ClusterChecks
 }
 
 func (c *ClusterChecksConfigProvider) withinGracePeriod() bool {

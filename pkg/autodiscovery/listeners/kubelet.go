@@ -53,6 +53,9 @@ type KubeContainerService struct {
 	checkNames    string
 }
 
+// Make sure KubeContainerService implements the Service interface
+var _ Service = &KubeContainerService{}
+
 // KubePodService registers pod as a Service, implements and store results from the Service interface for the Kubelet listener
 // needed to run checks on pod's endpoints
 type KubePodService struct {
@@ -62,6 +65,9 @@ type KubePodService struct {
 	ports         []ContainerPort
 	creationTime  integration.CreationTime
 }
+
+// Make sure KubePodService implements the Service interface
+var _ Service = &KubePodService{}
 
 func init() {
 	Register("kubelet", NewKubeletListener)

@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/configresolver"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providernames"
 
 	"gopkg.in/yaml.v2"
 
@@ -136,7 +137,7 @@ func (c *FileConfigProvider) IsUpToDate() (bool, error) {
 
 // String returns a string representation of the FileConfigProvider
 func (c *FileConfigProvider) String() string {
-	return File
+	return providernames.File
 }
 
 // collectEntry collects a file entry and return it's configuration if valid

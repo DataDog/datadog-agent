@@ -18,6 +18,7 @@ import (
 	"github.com/samuel/go-zookeeper/zk"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providernames"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -54,7 +55,7 @@ func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (ConfigProvid
 
 // String returns a string representation of the ZookeeperConfigProvider
 func (z *ZookeeperConfigProvider) String() string {
-	return Zookeeper
+	return providernames.Zookeeper
 }
 
 // Collect retrieves templates from Zookeeper, builds Config objects and returns them

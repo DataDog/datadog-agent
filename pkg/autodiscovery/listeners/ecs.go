@@ -48,6 +48,9 @@ type ECSService struct {
 	checkNames    string
 }
 
+// Make sure ECSService implements the Service interface
+var _ Service = &ECSService{}
+
 func init() {
 	Register("ecs", NewECSListener)
 }

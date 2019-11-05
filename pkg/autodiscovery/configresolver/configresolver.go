@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providernames"
 )
 
 type variableGetter func(key []byte, svc listeners.Service) ([]byte, error)
@@ -27,10 +28,6 @@ var templateVariables = map[string]variableGetter{
 	"port":     getPort,
 	"hostname": getHostname,
 }
-
-// fileProvider refers to the file AD config provider
-// redeclared in this module to avoid import cycle
-const fileProvider = "file"
 
 // SubstituteTemplateVariables replaces %%VARIABLES%% using the variableGetters passed in
 func SubstituteTemplateVariables(config *integration.Config, getters map[string]variableGetter, svc listeners.Service) error {
@@ -98,7 +95,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 
 	// Ignore the config from file if it's overridden by an empty config
 	// or by a different config for the same check
-	if tpl.Provider == fileProvider && svc.GetCheckNames() != "" {
+	if tpl.Provider == providernames.File && svc.GetCheckNames() != "" {
 		checkNames := []string{}
 		err := json.Unmarshal([]byte(svc.GetCheckNames()), &checkNames)
 		if err != nil {
@@ -106,10 +103,14 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		} else {
 			lenCheckNames := len(checkNames)
 			if lenCheckNames == 0 || (lenCheckNames == 1 && checkNames[0] == "") {
+				// Empty check names on k8s annotations or docker labels override the check config from file
+				// Used to deactivate unneeded OOTB autodiscovery checks defined in files
+				// The checkNames slice is considered empty also if it contains one single empty string
 				return resolvedConfig, fmt.Errorf("ignoring config from %s: another empty config is defined with the same AD identifier: %v", tpl.Source, tpl.ADIdentifiers)
 			}
 			for _, checkName := range checkNames {
 				if tpl.Name == checkName {
+					// Ignore config from file when the same check is activated on the same service via other config providers (k8s annotations or docker labels)
 					return resolvedConfig, fmt.Errorf("ignoring config from %s: another config is defined for the check %s", tpl.Source, tpl.Name)
 				}
 			}

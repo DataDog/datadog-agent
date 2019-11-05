@@ -18,6 +18,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providernames"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -192,7 +193,7 @@ func (p *EtcdConfigProvider) IsUpToDate() (bool, error) {
 
 // String returns a string representation of the EtcdConfigProvider
 func (p *EtcdConfigProvider) String() string {
-	return Etcd
+	return providernames.Etcd
 }
 
 // hasTemplateFields verifies that a node array contains

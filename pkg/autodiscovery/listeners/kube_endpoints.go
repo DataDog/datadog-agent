@@ -47,6 +47,9 @@ type KubeEndpointService struct {
 	creationTime integration.CreationTime
 }
 
+// Make sure KubeEndpointService implements the Service interface
+var _ Service = &KubeEndpointService{}
+
 func init() {
 	Register("kube_endpoints", NewKubeEndpointsListener)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providernames"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -38,7 +39,7 @@ func NewKubeletConfigProvider(config config.ConfigurationProviders) (ConfigProvi
 
 // String returns a string representation of the KubeletConfigProvider
 func (k *KubeletConfigProvider) String() string {
-	return Kubernetes
+	return providernames.Kubernetes
 }
 
 // Collect retrieves templates from the kubelet's pdolist, builds Config objects and returns them

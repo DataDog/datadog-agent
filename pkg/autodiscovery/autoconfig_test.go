@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providernames"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -357,7 +357,7 @@ func TestCheckOverride(t *testing.T) {
 	tpl := integration.Config{
 		Name:          "redis",
 		ADIdentifiers: []string{"redis"},
-		Provider:      providers.File,
+		Provider:      providernames.File,
 	}
 
 	// check must be overridden (same check)

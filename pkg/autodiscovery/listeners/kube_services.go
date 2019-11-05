@@ -13,7 +13,7 @@ import (
 	"sort"
 	"sync"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	infov1 "k8s.io/client-go/informers/core/v1"
@@ -45,6 +45,9 @@ type KubeServiceService struct {
 	ports        []ContainerPort
 	creationTime integration.CreationTime
 }
+
+// Make sure KubeServiceService implements the Service interface
+var _ Service = &KubeServiceService{}
 
 func init() {
 	Register("kube_services", NewKubeServiceListener)
