@@ -2,6 +2,7 @@
 resource "aws_instance" "bastion" {
   ami                  = "${data.aws_ami.amazonlinux.id}"
   instance_type        = "t2.small"
+  iam_instance_profile = "${aws_iam_instance_profile.bastion-instance-profile.id}"
   subnet_id            = "${aws_subnet.public-subnet.id}"
 
   vpc_security_group_ids = [
