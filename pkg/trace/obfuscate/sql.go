@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -204,9 +206,16 @@ type tableFinderFilter struct {
 // Filter implements tokenFilter.
 func (f *tableFinderFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
 	switch lastToken {
-	case From, Update, Into, Join:
+	case From:
 		// SELECT ... FROM [tableName]
 		// DELETE FROM [tableName]
+		if r, _ := utf8.DecodeRune(buffer); !unicode.IsLetter(r) {
+			// first character in buffer is not a letter; we might have a nested
+			// query like SELECT * FROM (SELECT ...)
+			break
+		}
+		fallthrough
+	case Update, Into, Join:
 		// UPDATE [tableName]
 		// INSERT INTO [tableName]
 		// ... JOIN [tableName]

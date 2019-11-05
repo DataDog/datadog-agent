@@ -142,8 +142,20 @@ func TestSQLTableFinder(t *testing.T) {
 			"users",
 		},
 		{
+			"select * from `backslashes` where id = 42",
+			"backslashes",
+		},
+		{
+			`select * from "double-quotes" where id = 42`,
+			"double-quotes",
+		},
+		{
 			"SELECT host, status FROM ec2_status WHERE org_id = 42",
 			"ec2_status",
+		},
+		{
+			"SELECT * FROM (SELECT * FROM nested_table)",
+			"nested_table",
 		},
 		{
 			"-- get user \n--\n select * \n   from users \n    where\n       id = 214325346",
