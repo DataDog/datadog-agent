@@ -175,6 +175,8 @@ func DefaultGateway() (net.IP, error) {
 }
 
 // GetAgentContainerNetworkMode provides the network mode of the Agent container
+// To get this info in an optimal way, consider calling util.GetAgentNetworkMode
+// instead to benefit from the cache
 func GetAgentContainerNetworkMode() (string, error) {
 	du, err := GetDockerUtil()
 	if err != nil {
