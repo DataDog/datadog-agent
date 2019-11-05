@@ -18,7 +18,7 @@ const (
 
 // IngressCorrelation
 type IngressCorrelation struct {
-	ServiceName string
+	ServiceID string
 	IngressExternalID string
 }
 

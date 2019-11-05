@@ -121,7 +121,6 @@ func (nc *NodeCollector) nodeToStackStateComponent(node v1.Node) *topology.Compo
 		Type:       topology.Type{Name: "node"},
 		Data: map[string]interface{}{
 			"name":              node.Name,
-			"kind":              node.Kind,
 			"creationTimestamp": node.CreationTimestamp,
 			"tags":              tags,
 			"status":            nodeStatus,
@@ -130,9 +129,9 @@ func (nc *NodeCollector) nodeToStackStateComponent(node v1.Node) *topology.Compo
 		},
 	}
 
-	if instanceId != "" {
-		component.Data["instanceId"] = instanceId
-	}
+	component.Data.PutNonEmpty("generateName", node.GenerateName)
+	component.Data.PutNonEmpty("kind", node.Kind)
+	component.Data.PutNonEmpty("instanceId", instanceId)
 
 	log.Tracef("Created StackState node component %s: %v", nodeExternalID, component.JSONString())
 

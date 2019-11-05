@@ -56,16 +56,17 @@ func (jc *JobCollector) jobToStackStateComponent(job v1.Job) *topology.Component
 		Type:       topology.Type{Name: "job"},
 		Data: map[string]interface{}{
 			"name":              job.Name,
-			"kind":              job.Kind,
 			"creationTimestamp": job.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         job.Namespace,
 			"uid":           job.UID,
-			"generateName":  job.GenerateName,
 			"backoffLimit":  job.Spec.BackoffLimit,
 			"parallelism":  job.Spec.Parallelism,
 		},
 	}
+
+	component.Data.PutNonEmpty("generateName", job.GenerateName)
+	component.Data.PutNonEmpty("kind", job.Kind)
 
 	log.Tracef("Created StackState Job component %s: %v", jobExternalID, component.JSONString())
 
