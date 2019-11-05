@@ -6,6 +6,17 @@ import (
 	"strconv"
 )
 
+type metricType int
+
+const (
+	gaugeType metricType = iota
+	countType
+	distributionType
+	histogramType
+	setType
+	timingType
+)
+
 var (
 	gaugeSymbol        = []byte("g")
 	countSymbol        = []byte("c")
