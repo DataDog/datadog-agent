@@ -12,17 +12,6 @@ const (
 	eventType
 )
 
-type metricType int
-
-const (
-	gaugeType metricType = iota
-	countType
-	distributionType
-	histogramType
-	setType
-	timingType
-)
-
 var (
 	eventPrefix        = []byte("_e{")
 	serviceCheckPrefix = []byte("_sc")
