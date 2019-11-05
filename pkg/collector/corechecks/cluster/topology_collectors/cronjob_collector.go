@@ -63,16 +63,17 @@ func (cjc *CronJobCollector) cronJobToStackStateComponent(cronJob v1beta1.CronJo
 		Type:       topology.Type{Name: "cronjob"},
 		Data: map[string]interface{}{
 			"name":              cronJob.Name,
-			"kind":              cronJob.Kind,
 			"creationTimestamp": cronJob.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         cronJob.Namespace,
 			"uid":           cronJob.UID,
-			"generateName":  cronJob.GenerateName,
 			"concurrencyPolicy":  cronJob.Spec.ConcurrencyPolicy,
 			"schedule":  cronJob.Spec.Schedule,
 		},
 	}
+
+	component.Data.PutNonEmpty("generateName", cronJob.GenerateName)
+	component.Data.PutNonEmpty("kind", cronJob.Kind)
 
 	log.Tracef("Created StackState CronJob component %s: %v", cronJobExternalID, component.JSONString())
 

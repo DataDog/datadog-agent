@@ -54,7 +54,6 @@ func (ssc *StatefulSetCollector) statefulSetToStackStateComponent(statefulSet v1
 		Type:       topology.Type{Name: "statefulset"},
 		Data: map[string]interface{}{
 			"name":              statefulSet.Name,
-			"kind":              statefulSet.Kind,
 			"creationTimestamp": statefulSet.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         statefulSet.Namespace,
@@ -63,9 +62,11 @@ func (ssc *StatefulSetCollector) statefulSetToStackStateComponent(statefulSet v1
 			"podManagementPolicy": statefulSet.Spec.PodManagementPolicy,
 			"serviceName": statefulSet.Spec.ServiceName,
 			"uid":           statefulSet.UID,
-			"generateName":  statefulSet.GenerateName,
 		},
 	}
+
+	component.Data.PutNonEmpty("generateName", statefulSet.GenerateName)
+	component.Data.PutNonEmpty("kind", statefulSet.Kind)
 
 	log.Tracef("Created StackState StatefulSet component %s: %v", statefulSetExternalID, component.JSONString())
 

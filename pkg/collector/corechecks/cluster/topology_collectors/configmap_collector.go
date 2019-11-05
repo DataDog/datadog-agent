@@ -11,15 +11,13 @@ import (
 // ConfigMapCollector implements the ClusterTopologyCollector interface.
 type ConfigMapCollector struct {
 	ComponentChan chan<- *topology.Component
-	RelationChan chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
 // NewConfigMapCollector
-func NewConfigMapCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+func NewConfigMapCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &ConfigMapCollector{
 		ComponentChan: componentChannel,
-		RelationChan: relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -51,20 +49,23 @@ func (cmc *ConfigMapCollector) configMapToStackStateComponent(configMap v1.Confi
 	tags = cmc.addClusterNameTag(tags)
 
 	configMapExternalID := cmc.buildConfigMapExternalID(configMap.Namespace, configMap.Name)
+
 	component := &topology.Component{
 		ExternalID: configMapExternalID,
 		Type:       topology.Type{Name: "configmap"},
 		Data: map[string]interface{}{
 			"name":              configMap.Name,
-			"kind":              configMap.Kind,
 			"creationTimestamp": configMap.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         configMap.Namespace,
-			"data": configMap.Data,
 			"uid":           configMap.UID,
-			"generateName":  configMap.GenerateName,
+			"identifiers": []string{configMapExternalID},
 		},
 	}
+
+	component.Data.PutNonEmpty("generateName", configMap.GenerateName)
+	component.Data.PutNonEmpty("kind", configMap.Kind)
+	component.Data.PutNonEmpty("data", configMap.Data)
 
 	log.Tracef("Created StackState ConfigMap component %s: %v", configMapExternalID, component.JSONString())
 

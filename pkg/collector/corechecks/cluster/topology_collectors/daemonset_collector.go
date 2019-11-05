@@ -54,15 +54,16 @@ func (dsc *DaemonSetCollector) daemonSetToStackStateComponent(daemonSet v1.Daemo
 		Type:       topology.Type{Name: "daemonset"},
 		Data: map[string]interface{}{
 			"name":              daemonSet.Name,
-			"kind":              daemonSet.Kind,
 			"creationTimestamp": daemonSet.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         daemonSet.Namespace,
 			"updateStrategy": daemonSet.Spec.UpdateStrategy.Type,
 			"uid":           daemonSet.UID,
-			"generateName":  daemonSet.GenerateName,
 		},
 	}
+
+	component.Data.PutNonEmpty("generateName", daemonSet.GenerateName)
+	component.Data.PutNonEmpty("kind", daemonSet.Kind)
 
 	log.Tracef("Created StackState DaemonSet component %s: %v", daemonSetExternalID, component.JSONString())
 

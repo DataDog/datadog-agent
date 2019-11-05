@@ -41,11 +41,16 @@ func (cc *ClusterCollector) CollectorFunction() error {
 // Creates a StackState component from a Kubernetes / OpenShift Cluster
 func (cc *ClusterCollector) clusterToStackStateComponent() *topology.Component {
 	clusterExternalID := cc.buildClusterExternalID()
+
+	tags := make(map[string]string, 0)
+	tags = cc.addClusterNameTag(tags)
+
 	component := &topology.Component{
 		ExternalID: clusterExternalID,
 		Type:       topology.Type{Name: "cluster"},
 		Data: map[string]interface{}{
 			"name":              cc.GetInstance().URL,
+			"tags":              tags,
 		},
 	}
 

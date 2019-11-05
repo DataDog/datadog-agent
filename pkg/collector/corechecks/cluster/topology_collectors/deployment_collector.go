@@ -48,22 +48,23 @@ func (dmc *DeploymentCollector) deploymentToStackStateComponent(deployment v1.De
 	tags := emptyIfNil(deployment.Labels)
 	tags = dmc.addClusterNameTag(tags)
 
-	deploymentExternalID := dmc.buildDeploymentExternalID(deployment.Name)
+	deploymentExternalID := dmc.buildDeploymentExternalID(deployment.Namespace, deployment.Name)
 	component := &topology.Component{
 		ExternalID: deploymentExternalID,
 		Type:       topology.Type{Name: "deployment"},
 		Data: map[string]interface{}{
 			"name":              deployment.Name,
-			"kind":              deployment.Kind,
 			"creationTimestamp": deployment.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         deployment.Namespace,
 			"deploymentStrategy": deployment.Spec.Strategy.Type,
 			"desiredReplicas": deployment.Spec.Replicas,
 			"uid":           deployment.UID,
-			"generateName":  deployment.GenerateName,
 		},
 	}
+
+	component.Data.PutNonEmpty("generateName", deployment.GenerateName)
+	component.Data.PutNonEmpty("kind", deployment.Kind)
 
 	log.Tracef("Created StackState Deployment component %s: %v", deploymentExternalID, component.JSONString())
 

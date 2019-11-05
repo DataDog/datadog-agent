@@ -64,7 +64,7 @@ func (pc *PodCollector) CollectorFunction() error {
 				dsExternalID := pc.buildDaemonSetExternalID(ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(dsExternalID, component.ExternalID)
 			case Deployment:
-				dmExternalID := pc.buildDeploymentExternalID(ref.Name)
+				dmExternalID := pc.buildDeploymentExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(dmExternalID, component.ExternalID)
 			case ReplicaSet:
 				rsExternalID := pc.buildReplicaSetExternalID(ref.Name)
@@ -96,7 +96,7 @@ func (pc *PodCollector) CollectorFunction() error {
 			// map relations between the container and the volume
 			for _, mount := range c.VolumeMounts {
 				containerExternalID := pc.buildContainerExternalID(pod.Name, c.Name)
-				volumeExternalID :=  pc.buildVolumeExternalID(pod.Name, mount.Name)
+				volumeExternalID :=  pc.buildVolumeExternalID(mount.Name)
 				pc.RelationChan <- pc.containerToVolumeStackStateRelation(containerExternalID, volumeExternalID, mount)
 			}
 
@@ -226,16 +226,21 @@ func (pc *PodCollector) containerToStackStateComponent(nodeIdentifier string, po
 	log.Tracef("Mapping kubernetes pod container to StackState component: %s", container.String())
 	// create identifier list to merge with StackState components
 
-	identifier := ""
+	var identifiers []string
 	strippedContainerId := extractLastFragment(container.ContainerID)
-	if len(nodeIdentifier) > 0 {
-		identifier = fmt.Sprintf("%s:%s", nodeIdentifier, strippedContainerId)
-	} else {
-		identifier = strippedContainerId
+	// in the case where the container could not be started due to some error
+	if len(strippedContainerId) > 0 {
+		identifier := ""
+		if len(nodeIdentifier) > 0 {
+			identifier = fmt.Sprintf("%s:%s", nodeIdentifier, strippedContainerId)
+		} else {
+			identifier = strippedContainerId
+		}
+		identifiers = []string{
+			fmt.Sprintf("urn:container:/%s", identifier),
+		}
 	}
-	identifiers := []string{
-		fmt.Sprintf("urn:container:/%s", identifier),
-	}
+
 	log.Tracef("Created identifiers for %s: %v", container.Name, identifiers)
 
 	containerExternalID := pc.buildContainerExternalID(pod.Name, container.Name)
@@ -253,7 +258,6 @@ func (pc *PodCollector) containerToStackStateComponent(nodeIdentifier string, po
 		"podIP":          pod.Status.PodIP,
 		"namespace":    pod.Namespace,
 		"restartCount": container.RestartCount,
-		"identifiers":  identifiers,
 		"tags":         tags,
 	}
 
@@ -267,6 +271,10 @@ func (pc *PodCollector) containerToStackStateComponent(nodeIdentifier string, po
 
 	if containerPort.HostPort != 0 {
 		data["hostPort"] = containerPort.HostPort
+	}
+
+	if len(identifiers) > 0 {
+		data["identifiers"] = identifiers
 	}
 
 	component := &topology.Component{
@@ -329,26 +337,26 @@ func (pc *PodCollector) volumeToStackStateComponent(pod v1.Pod, volume v1.Volume
 	// creates a StackState component for the kubernetes pod
 	log.Tracef("Mapping kubernetes volume to StackState Component: %s", pod.String())
 
+	volumeExternalID := pc.buildVolumeExternalID(volume.Name)
+
 	identifiers := make([]string, 0)
-	//if volume.EmptyDir != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:volume:/%s:%s:%s", pc.GetInstance().URL, pod.Name, ))
-	//}
-	//if volume.Secret != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:volume:/%s:%s:%s", pc.GetInstance().URL, pod.Name, ))
-	//}
-	//if volume.DownwardAPI != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:volume:/%s:%s:%s", pc.GetInstance().URL, pod.Name, ))
-	//}
-	//if volume.ConfigMap != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:volume:/%s:%s:%s", pc.GetInstance().URL, pod.Name, ))
-	//}
-	//if volume.Projected != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:volume:/%s:%s:%s", pc.GetInstance().URL, pod.Name, ))
-	//}
+	if volume.EmptyDir != nil {
+		identifiers = append(identifiers, fmt.Sprintf("urn:/%s:%s:volume:%s:%s", pc.GetInstance().URL, pc.GetInstance().Type, pod.Spec.NodeName, volume.Name))
+	}
+	if volume.Secret != nil {
+		identifiers = append(identifiers, fmt.Sprintf("urn/%s:%s:secret:%s", pc.GetInstance().URL, pc.GetInstance().Type, volume.Secret.SecretName))
+	}
+	if volume.DownwardAPI != nil {
+		identifiers = append(identifiers, fmt.Sprintf("urn/%s:%s:downardapi:%s", pc.GetInstance().URL, pc.GetInstance().Type, volume.Name))
+	}
+	if volume.ConfigMap != nil {
+		identifiers = append(identifiers, pc.buildConfigMapExternalID(pod.Namespace, volume.ConfigMap.Name))
+	}
+	if volume.Projected != nil {
+		identifiers = append(identifiers, fmt.Sprintf("urn/%s:%s:projected:%s", pc.GetInstance().URL, pc.GetInstance().Type, volume.Name))
+	}
 
-	log.Tracef("Created identifiers for %s: %v", pod.Name, identifiers)
-
-	volumeExternalID := pc.buildVolumeExternalID(pod.Name, volume.Name)
+	log.Tracef("Created identifiers for %s: %v", volume.Name, identifiers)
 
 	tags := make(map[string]string, 0)
 	tags = pc.addClusterNameTag(tags)
@@ -359,6 +367,7 @@ func (pc *PodCollector) volumeToStackStateComponent(pod v1.Pod, volume v1.Volume
 		Data: map[string]interface{}{
 			"name":   volume.Name,
 			"source": volume.VolumeSource,
+			"identifiers": identifiers,
 			"tags":   tags,
 		},
 	}

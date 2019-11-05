@@ -67,8 +67,6 @@ func (jc *JobCollector) jobToStackStateComponent(job v1.Job) *topology.Component
 		},
 	}
 
-	log.Debugf("Job: %s, owner ref: %v", job.Name, job.OwnerReferences)
-
 	log.Tracef("Created StackState Job component %s: %v", jobExternalID, component.JSONString())
 
 	return component
