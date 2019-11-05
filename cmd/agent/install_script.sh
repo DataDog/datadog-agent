@@ -79,6 +79,12 @@ if [ -n "$STS_INSTALL_ONLY" ]; then
     no_start=true
 fi
 
+no_repo=
+if [ -n "$STS_INSTALL_NO_REPO" ]; then
+    no_repo=true
+fi
+
+
 if [ -n "$STS_HOSTNAME" ]; then
     hostname=$STS_HOSTNAME
 fi
@@ -97,6 +103,17 @@ else
     code_name="stable"
 fi
 
+if [ -z "$DEBIAN_REPO"]; then
+    # for offline script remember default production repo address
+    DEBIAN_REPO="https://stackstate-agent-2.s3.amazonaws.com"
+fi
+
+if [ -z "$YUM_REPO"]; then
+    # for offline script remember default production repo address
+    YUM_REPO="https://stackstate-agent-2-rpm.s3.amazonaws.com"
+fi
+
+
 if [ -n "$SKIP_SSL_VALIDATION" ]; then
     skip_ssl_validation=$SKIP_SSL_VALIDATION
 fi
@@ -110,6 +127,15 @@ fi
 if [ ! $sts_url ]; then
     print_red "StackState url not available in STS_URL environment variable.\n"
     exit 1;
+fi
+
+INSTALL_MODE="REPO"
+if [ ! -z "$1" ]; then
+  if test -f "$1"; then
+  print_blu "Trying to install from local package $1"
+  INSTALL_MODE="FILE"
+  LOCAL_PKG_NAME="$1"
+  fi
 fi
 
 # OS/Distro Detection
@@ -149,14 +175,20 @@ fi
 if [ $OS = "RedHat" ]; then
     print_blu "* Installing YUM sources for StackState\n"
     $sudo_cmd sh -c "echo -e '[stackstate]\nname = StackState\nbaseurl = $YUM_REPO/$code_name/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=$YUM_REPO/public.key' > /etc/yum.repos.d/stackstate.repo"
-
     print_blu "* Installing the StackState Agent v2 package\n"
     $sudo_cmd yum -y clean metadata
-    $sudo_cmd yum -y --disablerepo='*' --enablerepo='stackstate' install $PKG_NAME || $sudo_cmd yum -y install $PKG_NAME
+    if [ $INSTALL_MODE = "REPO" ]; then
+      $sudo_cmd yum -y --disablerepo='*' --enablerepo='stackstate' install $PKG_NAME || $sudo_cmd yum -y install $PKG_NAME
+    else
+       $sudo_cmd yum -y  localinstall $LOCAL_PKG_NAME
+    fi
+    if [ ! -z "$no_repo" ]; then
+      $sudo_cmd rm -f /etc/yum.repos.d/stackstate.repo
+    fi
 elif [ $OS = "Debian" ]; then
     print_blu "* Installing apt-transport-https\n"
     $sudo_cmd apt-get update || print_red "'apt-get update' failed, the script will not install the latest version of apt-transport-https."
-    $sudo_cmd apt-get install -y apt-transport-https
+    $sudo_cmd apt-get install -y apt-transport-https || print_red "> 'apt-transport-https' was not installed"
     # Only install dirmngr if it's available in the cache
     # it may not be available on Ubuntu <= 14.04 but it's not required there
     cache_output=`apt-cache search dirmngr`
@@ -166,7 +198,11 @@ elif [ $OS = "Debian" ]; then
 
     print_blu "* Configuring APT package sources for StackState\n"
     $sudo_cmd sh -c "echo 'deb $DEBIAN_REPO $code_name main' > /etc/apt/sources.list.d/stackstate.list"
+    if [[ $INSTALL_MODE = "REPO" ]]; then
     $sudo_cmd apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 B3CC4376
+    else
+    $sudo_cmd apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 B3CC4376 || print_red "> Failed to install apt repo key (no internet connection?). Please install separately for further repo updates"
+    fi
 
     print_blu "* Installing the StackState Agent v2 package\n"
     ERROR_MESSAGE="ERROR
@@ -176,16 +212,25 @@ see the logs above to determine the cause.
 If the failing repository is StackState, please contact StackState support.
 *****
 "
-    $sudo_cmd apt-get update -o Dir::Etc::sourcelist="sources.list.d/stackstate.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
-    ERROR_MESSAGE="ERROR
-Failed to install the StackState package, sometimes it may be
-due to another APT source failing. See the logs above to
-determine the cause.
-If the cause is unclear, please contact StackState support.
-*****
-"
-    $sudo_cmd apt-get install -y --force-yes $PKG_NAME
-    ERROR_MESSAGE=""
+
+    if [[ $INSTALL_MODE = "REPO" ]]; then
+      $sudo_cmd apt-get update -o Dir::Etc::sourcelist="sources.list.d/stackstate.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
+      ERROR_MESSAGE="ERROR
+  Failed to install the StackState package, sometimes it may be
+  due to another APT source failing. See the logs above to
+  determine the cause.
+  If the cause is unclear, please contact StackState support.
+  *****
+  "
+      $sudo_cmd apt-get install -y --force-yes $PKG_NAME
+      ERROR_MESSAGE=""
+    else
+      print_blu "* ($INSTALL_MODE) Installing local deb package $LOCAL_PKG_NAME \n"
+      $sudo_cmd dpkg -i  $LOCAL_PKG_NAME
+    fi
+    if [ ! -z "$no_repo" ]; then
+      $sudo_cmd rm -f /etc/apt/sources.list.d/stackstate.list
+    fi
 else
     print_red "Your OS or distribution is not supported yet.\n"
     exit 1;
