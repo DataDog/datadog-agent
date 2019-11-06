@@ -198,7 +198,6 @@ func (o *Obfuscator) obfuscateSQLString(in string) (*obfuscatedQuery, error) {
 type tableFinderFilter struct {
 	// seen keeps track of unique table names encountered by the filter.
 	seen map[string]struct{}
-
 	// csv specifies a comma-separated list of tables
 	csv strings.Builder
 }
@@ -261,8 +260,8 @@ type obfuscatedQuery struct {
 func attemptObfuscation(tokenizer *SQLTokenizer, filters []tokenFilter) (string, error) {
 	var (
 		out       bytes.Buffer
-		lastToken TokenKind
 		err       error
+		lastToken TokenKind
 	)
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded

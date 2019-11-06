@@ -52,6 +52,30 @@ func TestSQLResourceQuery(t *testing.T) {
 	assert.Equal("SELECT * FROM users WHERE id = 42", span.Meta["sql.query"])
 }
 
+func TestSQLObfuscateTableNames(t *testing.T) {
+	t.Run("on", func(t *testing.T) {
+		os.Setenv("DD_APM_FEATURES", "table_names")
+		defer os.Unsetenv("DD_APM_FEATURES")
+
+		span := &pb.Span{
+			Resource: "SELECT * FROM users WHERE id = 42",
+			Type:     "sql",
+		}
+		NewObfuscator(nil).Obfuscate(span)
+		assert.Equal(t, "users", span.Meta["sql.tables"])
+
+	})
+
+	t.Run("off", func(t *testing.T) {
+		span := &pb.Span{
+			Resource: "SELECT * FROM users WHERE id = 42",
+			Type:     "sql",
+		}
+		NewObfuscator(nil).Obfuscate(span)
+		assert.Empty(t, span.Meta["sql.tables"])
+	})
+}
+
 func TestSQLResourceWithoutQuery(t *testing.T) {
 	assert := assert.New(t)
 	span := &pb.Span{
@@ -130,69 +154,77 @@ func TestSQLUTF8(t *testing.T) {
 }
 
 func TestSQLTableFinder(t *testing.T) {
-	os.Setenv("DD_APM_FEATURES", "table_names")
-	defer os.Unsetenv("DD_APM_FEATURES")
+	t.Run("on", func(t *testing.T) {
+		os.Setenv("DD_APM_FEATURES", "table_names")
+		defer os.Unsetenv("DD_APM_FEATURES")
 
-	for _, tt := range []struct {
-		query  string
-		tables string
-	}{
-		{
-			"select * from users where id = 42",
-			"users",
-		},
-		{
-			"select * from `backslashes` where id = 42",
-			"backslashes",
-		},
-		{
-			`select * from "double-quotes" where id = 42`,
-			"double-quotes",
-		},
-		{
-			"SELECT host, status FROM ec2_status WHERE org_id = 42",
-			"ec2_status",
-		},
-		{
-			"SELECT * FROM (SELECT * FROM nested_table)",
-			"nested_table",
-		},
-		{
-			"-- get user \n--\n select * \n   from users \n    where\n       id = 214325346",
-			"users",
-		},
-		{
-			"SELECT articles.* FROM articles WHERE articles.id = 1 LIMIT 1, 20",
-			"articles",
-		},
-		{
-			"UPDATE user_dash_pref SET json_prefs = %(json_prefs)s, modified = '2015-08-27 22:10:32.492912' WHERE user_id = %(user_id)s AND url = %(url)s",
-			"user_dash_pref",
-		},
-		{
-			"SELECT DISTINCT host.id AS host_id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = %(org_id_1)s AND host.name NOT IN (%(name_1)s) AND host.name IN (%(name_2)s, %(name_3)s, %(name_4)s, %(name_5)s)",
-			"host,host_alias",
-		},
-		{
-			`update Orders set created = "2019-05-24 00:26:17", gross = 30.28, payment_type = "eventbrite", mg_fee = "3.28", fee_collected = "3.28", event = 59366262, status = "10", survey_type = 'direct', tx_time_limit = 480, invite = "", ip_address = "69.215.148.82", currency = 'USD', gross_USD = "30.28", tax_USD = 0.00, journal_activity_id = 4044659812798558774, eb_tax = 0.00, eb_tax_USD = 0.00, cart_uuid = "160b450e7df511e9810e0a0c06de92f8", changed = '2019-05-24 00:26:17' where id = ?`,
-			"Orders",
-		},
-		{
-			"SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ('2011-08-30 05:22:57', 'Andy', 1, NULL, '2011-08-30 05:22:57') COMMIT",
-			"clients,owners",
-		},
-		{
-			"DELETE FROM table WHERE table.a=1",
-			"table",
-		},
-	} {
-		t.Run("", func(t *testing.T) {
-			assert := assert.New(t)
-			oq, err := NewObfuscator(nil).obfuscateSQLString(tt.query)
-			assert.NoError(err)
-			assert.Equal(tt.tables, oq.tablesCSV)
-		})
-	}
+		for _, tt := range []struct {
+			query  string
+			tables string
+		}{
+			{
+				"select * from users where id = 42",
+				"users",
+			},
+			{
+				"select * from `backslashes` where id = 42",
+				"backslashes",
+			},
+			{
+				`select * from "double-quotes" where id = 42`,
+				"double-quotes",
+			},
+			{
+				"SELECT host, status FROM ec2_status WHERE org_id = 42",
+				"ec2_status",
+			},
+			{
+				"SELECT * FROM (SELECT * FROM nested_table)",
+				"nested_table",
+			},
+			{
+				"-- get user \n--\n select * \n   from users \n    where\n       id = 214325346",
+				"users",
+			},
+			{
+				"SELECT articles.* FROM articles WHERE articles.id = 1 LIMIT 1, 20",
+				"articles",
+			},
+			{
+				"UPDATE user_dash_pref SET json_prefs = %(json_prefs)s, modified = '2015-08-27 22:10:32.492912' WHERE user_id = %(user_id)s AND url = %(url)s",
+				"user_dash_pref",
+			},
+			{
+				"SELECT DISTINCT host.id AS host_id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = %(org_id_1)s AND host.name NOT IN (%(name_1)s) AND host.name IN (%(name_2)s, %(name_3)s, %(name_4)s, %(name_5)s)",
+				"host,host_alias",
+			},
+			{
+				`update Orders set created = "2019-05-24 00:26:17", gross = 30.28, payment_type = "eventbrite", mg_fee = "3.28", fee_collected = "3.28", event = 59366262, status = "10", survey_type = 'direct', tx_time_limit = 480, invite = "", ip_address = "69.215.148.82", currency = 'USD', gross_USD = "30.28", tax_USD = 0.00, journal_activity_id = 4044659812798558774, eb_tax = 0.00, eb_tax_USD = 0.00, cart_uuid = "160b450e7df511e9810e0a0c06de92f8", changed = '2019-05-24 00:26:17' where id = ?`,
+				"Orders",
+			},
+			{
+				"SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ('2011-08-30 05:22:57', 'Andy', 1, NULL, '2011-08-30 05:22:57') COMMIT",
+				"clients,owners",
+			},
+			{
+				"DELETE FROM table WHERE table.a=1",
+				"table",
+			},
+		} {
+			t.Run("", func(t *testing.T) {
+				assert := assert.New(t)
+				oq, err := NewObfuscator(nil).obfuscateSQLString(tt.query)
+				assert.NoError(err)
+				assert.Equal(tt.tables, oq.tablesCSV)
+			})
+		}
+	})
+
+	t.Run("off", func(t *testing.T) {
+		oq, err := NewObfuscator(nil).obfuscateSQLString("DELETE FROM table WHERE table.a=1")
+		assert.NoError(t, err)
+		assert.Empty(t, oq.tablesCSV)
+	})
 }
 
 func TestSQLQuantizer(t *testing.T) {
