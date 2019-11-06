@@ -23,7 +23,7 @@ func TestDeploymentCollector(t *testing.T) {
 	componentChannel := make(chan *topology.Component)
 	defer close(componentChannel)
 
-	creationTime = v1.Time{ Time: time.Now().Add(-1*time.Hour) }
+	creationTime = v1.Time{Time: time.Now().Add(-1 * time.Hour)}
 	replicas = int32(1)
 
 	cmc := NewDeploymentCollector(componentChannel, NewTestCommonClusterCollector(MockDeploymentAPICollectorClient{}))
@@ -40,13 +40,13 @@ func TestDeploymentCollector(t *testing.T) {
 				ExternalID: "urn:/kubernetes:test-cluster-name:deployment:test-namespace:test-deployment-1",
 				Type:       topology.Type{Name: "deployment"},
 				Data: topology.Data{
-					"name":              "test-deployment-1",
-					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
-					"uid":               types.UID("test-deployment-1"),
+					"name":               "test-deployment-1",
+					"creationTimestamp":  creationTime,
+					"tags":               map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+					"namespace":          "test-namespace",
+					"uid":                types.UID("test-deployment-1"),
 					"deploymentStrategy": appsV1.RollingUpdateDeploymentStrategyType,
-					"desiredReplicas": &replicas,
+					"desiredReplicas":    &replicas,
 				},
 			},
 		},
@@ -56,13 +56,13 @@ func TestDeploymentCollector(t *testing.T) {
 				ExternalID: "urn:/kubernetes:test-cluster-name:deployment:test-namespace:test-deployment-2",
 				Type:       topology.Type{Name: "deployment"},
 				Data: topology.Data{
-					"name":              "test-deployment-2",
-					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
-					"uid":               types.UID("test-deployment-2"),
+					"name":               "test-deployment-2",
+					"creationTimestamp":  creationTime,
+					"tags":               map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+					"namespace":          "test-namespace",
+					"uid":                types.UID("test-deployment-2"),
 					"deploymentStrategy": appsV1.RollingUpdateDeploymentStrategyType,
-					"desiredReplicas": &replicas,
+					"desiredReplicas":    &replicas,
 				},
 			},
 		},
@@ -72,21 +72,21 @@ func TestDeploymentCollector(t *testing.T) {
 				ExternalID: "urn:/kubernetes:test-cluster-name:deployment:test-namespace:test-deployment-3",
 				Type:       topology.Type{Name: "deployment"},
 				Data: topology.Data{
-					"name":              "test-deployment-3",
-					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
-					"uid":               types.UID("test-deployment-3"),
-					"kind":         "some-specified-kind",
-					"generateName":         "some-specified-generation",
+					"name":               "test-deployment-3",
+					"creationTimestamp":  creationTime,
+					"tags":               map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+					"namespace":          "test-namespace",
+					"uid":                types.UID("test-deployment-3"),
+					"kind":               "some-specified-kind",
+					"generateName":       "some-specified-generation",
 					"deploymentStrategy": appsV1.RollingUpdateDeploymentStrategyType,
-					"desiredReplicas": &replicas,
+					"desiredReplicas":    &replicas,
 				},
 			},
 		},
 	} {
 		t.Run(tc.testCase, func(t *testing.T) {
-			component := <- componentChannel
+			component := <-componentChannel
 			assert.EqualValues(t, tc.expected, component)
 		})
 	}
@@ -113,8 +113,8 @@ func (m MockDeploymentAPICollectorClient) GetDeployments() ([]appsV1.Deployment,
 				UID:          types.UID(fmt.Sprintf("test-deployment-%d", i)),
 				GenerateName: "",
 			},
-			Spec: appsV1.DeploymentSpec {
-				Strategy: appsV1.DeploymentStrategy {
+			Spec: appsV1.DeploymentSpec{
+				Strategy: appsV1.DeploymentStrategy{
 					Type: appsV1.RollingUpdateDeploymentStrategyType,
 				},
 				Replicas: &replicas,

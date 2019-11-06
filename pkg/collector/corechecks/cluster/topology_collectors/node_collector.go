@@ -12,8 +12,8 @@ import (
 
 // NodeCollector implements the ClusterTopologyCollector interface.
 type NodeCollector struct {
-	ComponentChan chan<- *topology.Component
-	RelationChan chan<- *topology.Relation
+	ComponentChan     chan<- *topology.Component
+	RelationChan      chan<- *topology.Relation
 	ContainerCorrChan <-chan *ContainerToNodeCorrelation
 	ClusterTopologyCollector
 }
@@ -22,9 +22,9 @@ type NodeCollector struct {
 func NewNodeCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
 	ContainerToNodeCorrelationChannel <-chan *ContainerToNodeCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &NodeCollector{
-		ComponentChan: componentChannel,
-		RelationChan: relationChannel,
-		ContainerCorrChan: ContainerToNodeCorrelationChannel,
+		ComponentChan:            componentChannel,
+		RelationChan:             relationChannel,
+		ContainerCorrChan:        ContainerToNodeCorrelationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }

@@ -11,8 +11,8 @@ import (
 
 // ServiceCollector implements the ClusterTopologyCollector interface.
 type ServiceCollector struct {
-	ComponentChan chan<- *topology.Component
-	RelationChan chan<- *topology.Relation
+	ComponentChan             chan<- *topology.Component
+	RelationChan              chan<- *topology.Relation
 	ServiceCorrelationChannel <-chan *IngressToServiceCorrelation
 	ClusterTopologyCollector
 }
@@ -27,10 +27,10 @@ type EndpointID struct {
 func NewServiceCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
 	serviceCorrelationChannel <-chan *IngressToServiceCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &ServiceCollector{
-		ComponentChan: componentChannel,
-		RelationChan: relationChannel,
+		ComponentChan:             componentChannel,
+		RelationChan:              relationChannel,
 		ServiceCorrelationChannel: serviceCorrelationChannel,
-		ClusterTopologyCollector: clusterTopologyCollector,
+		ClusterTopologyCollector:  clusterTopologyCollector,
 	}
 }
 
@@ -95,7 +95,8 @@ func (sc *ServiceCollector) CollectorFunction() error {
 			// create the relation between the pod and the service on the endpoint
 			podExternalID := endpoint.RefExternalID
 
-			_, ok := publishedPodRelations[podExternalID]; if !ok && podExternalID != "" {
+			_, ok := publishedPodRelations[podExternalID]
+			if !ok && podExternalID != "" {
 				relation := sc.podToServiceStackStateRelation(podExternalID, component.ExternalID)
 
 				sc.RelationChan <- relation
@@ -117,7 +118,6 @@ func (sc *ServiceCollector) CollectorFunction() error {
 			sc.RelationChan <- relation
 		}
 	}
-
 
 	return nil
 }
@@ -168,7 +168,7 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 			// map all of the node ports for the ip
 			for _, port := range service.Spec.Ports {
 				// map all the node ports
-				if port.NodePort != 0{
+				if port.NodePort != 0 {
 					identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s:%d", sc.GetInstance().URL, service.Spec.ClusterIP, port.NodePort))
 				}
 			}
@@ -206,13 +206,13 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 	component := &topology.Component{
 		ExternalID: serviceExternalID,
 		Type:       topology.Type{Name: "service"},
-		Data:       map[string]interface{}{
+		Data: map[string]interface{}{
 			"name":              service.Name,
 			"namespace":         service.Namespace,
 			"creationTimestamp": service.CreationTimestamp,
 			"tags":              tags,
 			"identifiers":       identifiers,
-			"uid": service.UID,
+			"uid":               service.UID,
 		},
 	}
 

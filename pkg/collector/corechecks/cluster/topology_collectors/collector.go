@@ -10,22 +10,22 @@ import (
 )
 
 const (
-	Deployment = "Deployment"
-	DaemonSet = "DaemonSet"
+	Deployment  = "Deployment"
+	DaemonSet   = "DaemonSet"
 	StatefulSet = "StatefulSet"
-	ReplicaSet = "ReplicaSet"
+	ReplicaSet  = "ReplicaSet"
 )
 
 // IngressToServiceCorrelation
 type IngressToServiceCorrelation struct {
-	ServiceID string
+	ServiceID         string
 	IngressExternalID string
 }
 
 // ContainerToNodeCorrelation
 type ContainerToNodeCorrelation struct {
-	NodeName string
-	MappingFunction func (nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation)
+	NodeName        string
+	MappingFunction func(nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation)
 }
 
 // ClusterTopologyCollector collects cluster components and relations.
@@ -56,13 +56,13 @@ type ClusterTopologyCollector interface {
 }
 
 type clusterTopologyCollector struct {
-	Instance        topology.Instance
-	APICollectorClient                    apiserver.APICollectorClient
+	Instance           topology.Instance
+	APICollectorClient apiserver.APICollectorClient
 }
 
 // NewClusterTopologyCollector
 func NewClusterTopologyCollector(instance topology.Instance, ac apiserver.APICollectorClient) ClusterTopologyCollector {
-	return &clusterTopologyCollector{ Instance:instance, APICollectorClient: ac }
+	return &clusterTopologyCollector{Instance: instance, APICollectorClient: ac}
 }
 
 // GetName

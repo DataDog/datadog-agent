@@ -17,7 +17,7 @@ type StatefulSetCollector struct {
 // NewStatefulSetCollector
 func NewStatefulSetCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &StatefulSetCollector{
-		ComponentChan: componentChannel,
+		ComponentChan:            componentChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -53,15 +53,15 @@ func (ssc *StatefulSetCollector) statefulSetToStackStateComponent(statefulSet v1
 		ExternalID: statefulSetExternalID,
 		Type:       topology.Type{Name: "statefulset"},
 		Data: map[string]interface{}{
-			"name":              statefulSet.Name,
-			"creationTimestamp": statefulSet.CreationTimestamp,
-			"tags":              tags,
-			"namespace":         statefulSet.Namespace,
-			"updateStrategy": statefulSet.Spec.UpdateStrategy.Type,
-			"desiredReplicas": statefulSet.Spec.Replicas,
+			"name":                statefulSet.Name,
+			"creationTimestamp":   statefulSet.CreationTimestamp,
+			"tags":                tags,
+			"namespace":           statefulSet.Namespace,
+			"updateStrategy":      statefulSet.Spec.UpdateStrategy.Type,
+			"desiredReplicas":     statefulSet.Spec.Replicas,
 			"podManagementPolicy": statefulSet.Spec.PodManagementPolicy,
-			"serviceName": statefulSet.Spec.ServiceName,
-			"uid":           statefulSet.UID,
+			"serviceName":         statefulSet.Spec.ServiceName,
+			"uid":                 statefulSet.UID,
 		},
 	}
 

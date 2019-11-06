@@ -23,7 +23,7 @@ func TestStatefulSetCollector(t *testing.T) {
 	componentChannel := make(chan *topology.Component)
 	defer close(componentChannel)
 
-	creationTime = v1.Time{ Time: time.Now().Add(-1*time.Hour) }
+	creationTime = v1.Time{Time: time.Now().Add(-1 * time.Hour)}
 
 	replicas = int32(1)
 
@@ -41,15 +41,15 @@ func TestStatefulSetCollector(t *testing.T) {
 				ExternalID: "urn:/kubernetes:test-cluster-name:statefulset:test-statefulset-1",
 				Type:       topology.Type{Name: "statefulset"},
 				Data: topology.Data{
-					"name":              "test-statefulset-1",
-					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
-					"uid":               types.UID("test-statefulset-1"),
-					"updateStrategy": appsV1.StatefulSetUpdateStrategyType(appsV1.RollingUpdateStatefulSetStrategyType),
-					"desiredReplicas": &replicas,
+					"name":                "test-statefulset-1",
+					"creationTimestamp":   creationTime,
+					"tags":                map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+					"namespace":           "test-namespace",
+					"uid":                 types.UID("test-statefulset-1"),
+					"updateStrategy":      appsV1.StatefulSetUpdateStrategyType(appsV1.RollingUpdateStatefulSetStrategyType),
+					"desiredReplicas":     &replicas,
 					"podManagementPolicy": appsV1.OrderedReadyPodManagement,
-					"serviceName": "statefulset-service-name",
+					"serviceName":         "statefulset-service-name",
 				},
 			},
 		},
@@ -59,15 +59,15 @@ func TestStatefulSetCollector(t *testing.T) {
 				ExternalID: "urn:/kubernetes:test-cluster-name:statefulset:test-statefulset-2",
 				Type:       topology.Type{Name: "statefulset"},
 				Data: topology.Data{
-					"name":              "test-statefulset-2",
-					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
-					"uid":               types.UID("test-statefulset-2"),
-					"updateStrategy": appsV1.StatefulSetUpdateStrategyType(appsV1.RollingUpdateStatefulSetStrategyType),
-					"desiredReplicas": &replicas,
+					"name":                "test-statefulset-2",
+					"creationTimestamp":   creationTime,
+					"tags":                map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+					"namespace":           "test-namespace",
+					"uid":                 types.UID("test-statefulset-2"),
+					"updateStrategy":      appsV1.StatefulSetUpdateStrategyType(appsV1.RollingUpdateStatefulSetStrategyType),
+					"desiredReplicas":     &replicas,
 					"podManagementPolicy": appsV1.OrderedReadyPodManagement,
-					"serviceName": "statefulset-service-name",
+					"serviceName":         "statefulset-service-name",
 				},
 			},
 		},
@@ -77,23 +77,23 @@ func TestStatefulSetCollector(t *testing.T) {
 				ExternalID: "urn:/kubernetes:test-cluster-name:statefulset:test-statefulset-3",
 				Type:       topology.Type{Name: "statefulset"},
 				Data: topology.Data{
-					"name":              "test-statefulset-3",
-					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
-					"uid":               types.UID("test-statefulset-3"),
-					"kind":         "some-specified-kind",
-					"generateName":         "some-specified-generation",
-					"updateStrategy": appsV1.StatefulSetUpdateStrategyType(appsV1.RollingUpdateStatefulSetStrategyType),
-					"desiredReplicas": &replicas,
+					"name":                "test-statefulset-3",
+					"creationTimestamp":   creationTime,
+					"tags":                map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+					"namespace":           "test-namespace",
+					"uid":                 types.UID("test-statefulset-3"),
+					"kind":                "some-specified-kind",
+					"generateName":        "some-specified-generation",
+					"updateStrategy":      appsV1.StatefulSetUpdateStrategyType(appsV1.RollingUpdateStatefulSetStrategyType),
+					"desiredReplicas":     &replicas,
 					"podManagementPolicy": appsV1.OrderedReadyPodManagement,
-					"serviceName": "statefulset-service-name",
+					"serviceName":         "statefulset-service-name",
 				},
 			},
 		},
 	} {
 		t.Run(tc.testCase, func(t *testing.T) {
-			component := <- componentChannel
+			component := <-componentChannel
 			assert.EqualValues(t, tc.expected, component)
 		})
 	}
@@ -120,13 +120,13 @@ func (m MockStatefulSetAPICollectorClient) GetStatefulSets() ([]appsV1.StatefulS
 				UID:          types.UID(fmt.Sprintf("test-statefulset-%d", i)),
 				GenerateName: "",
 			},
-			Spec: appsV1.StatefulSetSpec {
-				UpdateStrategy: appsV1.StatefulSetUpdateStrategy {
+			Spec: appsV1.StatefulSetSpec{
+				UpdateStrategy: appsV1.StatefulSetUpdateStrategy{
 					Type: appsV1.RollingUpdateStatefulSetStrategyType,
 				},
-				Replicas: &replicas,
+				Replicas:            &replicas,
 				PodManagementPolicy: appsV1.OrderedReadyPodManagement,
-				ServiceName: "statefulset-service-name",
+				ServiceName:         "statefulset-service-name",
 			},
 		}
 

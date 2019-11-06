@@ -12,15 +12,15 @@ import (
 // CronJobCollector implements the ClusterTopologyCollector interface.
 type CronJobCollector struct {
 	ComponentChan chan<- *topology.Component
-	RelationChan chan<- *topology.Relation
+	RelationChan  chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
 // NewCronJobCollector
 func NewCronJobCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &CronJobCollector{
-		ComponentChan: componentChannel,
-		RelationChan: relationChannel,
+		ComponentChan:            componentChannel,
+		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -66,9 +66,9 @@ func (cjc *CronJobCollector) cronJobToStackStateComponent(cronJob v1beta1.CronJo
 			"creationTimestamp": cronJob.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         cronJob.Namespace,
-			"uid":           cronJob.UID,
-			"concurrencyPolicy":  cronJob.Spec.ConcurrencyPolicy,
-			"schedule":  cronJob.Spec.Schedule,
+			"uid":               cronJob.UID,
+			"concurrencyPolicy": cronJob.Spec.ConcurrencyPolicy,
+			"schedule":          cronJob.Spec.Schedule,
 		},
 	}
 
@@ -81,7 +81,7 @@ func (cjc *CronJobCollector) cronJobToStackStateComponent(cronJob v1beta1.CronJo
 }
 
 // Creates a StackState relation from a Kubernetes / OpenShift CronJob to Job relation
-func (cjc *CronJobCollector)  cronJobToJobStackStateRelation(job v1.ObjectReference, cronJob v1beta1.CronJob) *topology.Relation {
+func (cjc *CronJobCollector) cronJobToJobStackStateRelation(job v1.ObjectReference, cronJob v1beta1.CronJob) *topology.Relation {
 	jobExternalID := cjc.buildJobExternalID(job.Name)
 	cronJobExternalID := cjc.buildCronJobExternalID(cronJob.Name)
 

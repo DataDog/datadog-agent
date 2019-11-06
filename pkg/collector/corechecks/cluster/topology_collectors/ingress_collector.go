@@ -10,8 +10,8 @@ import (
 
 // IngressCollector implements the ClusterTopologyCollector interface.
 type IngressCollector struct {
-	ComponentChan chan<- *topology.Component
-	RelationChan chan<- *topology.Relation
+	ComponentChan             chan<- *topology.Component
+	RelationChan              chan<- *topology.Relation
 	ServiceCorrelationChannel chan<- *IngressToServiceCorrelation
 	ClusterTopologyCollector
 }
@@ -20,10 +20,10 @@ type IngressCollector struct {
 func NewIngressCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
 	serviceCorrelationChannel chan<- *IngressToServiceCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &IngressCollector{
-		ComponentChan: componentChannel,
-		RelationChan: relationChannel,
+		ComponentChan:             componentChannel,
+		RelationChan:              relationChannel,
 		ServiceCorrelationChannel: serviceCorrelationChannel,
-		ClusterTopologyCollector: clusterTopologyCollector,
+		ClusterTopologyCollector:  clusterTopologyCollector,
 	}
 }
 
@@ -47,8 +47,8 @@ func (ic *IngressCollector) CollectorFunction() error {
 			serviceID := buildServiceID(in.Namespace, in.Spec.Backend.ServiceName)
 
 			ic.ServiceCorrelationChannel <- &IngressToServiceCorrelation{
-				ServiceID: 			serviceID,
-				IngressExternalID: 	component.ExternalID,
+				ServiceID:         serviceID,
+				IngressExternalID: component.ExternalID,
 			}
 		}
 
@@ -58,7 +58,7 @@ func (ic *IngressCollector) CollectorFunction() error {
 				serviceID := buildServiceID(in.Namespace, path.Backend.ServiceName)
 
 				ic.ServiceCorrelationChannel <- &IngressToServiceCorrelation{
-					ServiceID: serviceID,
+					ServiceID:         serviceID,
 					IngressExternalID: component.ExternalID,
 				}
 			}
@@ -99,8 +99,8 @@ func (ic *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress
 			"creationTimestamp": ingress.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         ingress.Namespace,
-			"identifiers": identifiers,
-			"uid":           ingress.UID,
+			"identifiers":       identifiers,
+			"uid":               ingress.UID,
 		},
 	}
 
