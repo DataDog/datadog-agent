@@ -8,7 +8,6 @@ package kubeapi
 
 import (
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
-	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
 	collectors "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/topology_collectors"
@@ -27,6 +26,7 @@ const (
 type TopologyCheck struct {
 	CommonCheck
 	instance *TopologyConfig
+	submitter TopologySubmitter
 }
 
 // Configure parses the check configuration and init the check.
@@ -91,8 +91,11 @@ func (t *TopologyCheck) Run() error {
 	}
 	t.instance.Instance = topology.Instance{Type: string(instanceClusterType), URL: t.instance.ClusterName}
 
+	// set up the batcher for this instance
+	t.submitter = NewBatchTopologySubmitter(t.instance.CheckID, t.instance.Instance)
+
 	// start the topology snapshot with the batch-er
-	batcher.GetBatcher().SubmitStartSnapshot(t.instance.CheckID, t.instance.Instance)
+	t.submitter.SubmitStartSnapshot()
 
 	// create a wait group for all the collectors
 	var waitGroup sync.WaitGroup
@@ -194,8 +197,8 @@ func (t *TopologyCheck) Run() error {
 	// receive all the components, will return once the wait group notifies
 	t.waitForTopology(componentChannel, relationChannel, errChannel, &waitGroup, waitGroupChannel)
 
-	batcher.GetBatcher().SubmitStopSnapshot(t.instance.CheckID, t.instance.Instance)
-	batcher.GetBatcher().SubmitComplete(t.instance.CheckID)
+	t.submitter.SubmitStopSnapshot()
+	t.submitter.SubmitComplete()
 
 	log.Debugf("Topology Check for cluster: %s completed successfully", t.instance.ClusterName)
 	// close all the created channels
@@ -220,13 +223,11 @@ func (t *TopologyCheck) waitForTopology(componentChannel <-chan *topology.Compon
 	for {
 		select {
 		case component := <- componentChannel:
-			log.Debugf("Publishing StackState %s component for %s: %v", component.Type.Name, component.ExternalID, component.JSONString())
-			batcher.GetBatcher().SubmitComponent(t.instance.CheckID, t.instance.Instance, *component)
+			t.submitter.SubmitComponent(component)
 		case relation := <- relationChannel:
-			log.Debugf("Publishing StackState %s relation %s->%s", relation.Type.Name, relation.SourceID, relation.TargetID)
-			batcher.GetBatcher().SubmitRelation(t.instance.CheckID, t.instance.Instance, *relation)
+			t.submitter.SubmitRelation(relation)
 		case err := <- errorChannel:
-			_ = log.Error(err)
+			t.submitter.HandleError(err)
 		case <- waitGroupChannel:
 			log.Debug("All collectors have been finished their work, continuing to publish data to StackState")
 			return

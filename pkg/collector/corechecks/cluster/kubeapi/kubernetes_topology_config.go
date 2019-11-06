@@ -1,9 +1,11 @@
 package kubeapi
 
 import (
+	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
 )
 
@@ -32,4 +34,60 @@ func (c *TopologyConfig) parse(data []byte) error {
 	c.CollectTimeout = config.Datadog.GetInt("collect_kubernetes_timeout")
 
 	return yaml.Unmarshal(data, c)
+}
+
+// TopologySubmitter provides functionality to submit topology data
+type TopologySubmitter interface {
+	SubmitStartSnapshot()
+	SubmitStopSnapshot()
+	SubmitComplete()
+	SubmitComponent(component *topology.Component)
+	SubmitRelation(relation *topology.Relation)
+	HandleError(err error)
+}
+
+// NewBatchTopologySubmitter creates a new instance of BatchTopologySubmitter
+func NewBatchTopologySubmitter(checkID check.ID, instance topology.Instance) TopologySubmitter {
+	return &BatchTopologySubmitter{
+		CheckID: checkID,
+		Instance: instance,
+	}
+}
+
+// BatchTopologySubmitter provides functionality to submit topology data with the Batcher.
+type BatchTopologySubmitter struct {
+	CheckID         check.ID
+	Instance        topology.Instance
+}
+
+// SubmitStartSnapshot submits the start for this Check ID and instance
+func (b *BatchTopologySubmitter) SubmitStartSnapshot() {
+	batcher.GetBatcher().SubmitStartSnapshot(b.CheckID, b.Instance)
+}
+
+// SubmitStopSnapshot submits the stop for this Check ID and instance
+func (b *BatchTopologySubmitter) SubmitStopSnapshot() {
+	batcher.GetBatcher().SubmitStopSnapshot(b.CheckID, b.Instance)
+}
+
+// SubmitComplete submits the completion for this Check ID
+func (b *BatchTopologySubmitter) SubmitComplete() {
+	batcher.GetBatcher().SubmitComplete(b.CheckID)
+}
+
+// SubmitRelation takes a component and submits it with the Batcher
+func (b *BatchTopologySubmitter) SubmitComponent(component *topology.Component) {
+	log.Debugf("Publishing StackState %s component for %s: %v", component.Type.Name, component.ExternalID, component.JSONString())
+	batcher.GetBatcher().SubmitComponent(b.CheckID, b.Instance, *component)
+}
+
+// SubmitRelation takes a relation and submits it with the Batcher
+func (b *BatchTopologySubmitter) SubmitRelation(relation *topology.Relation) {
+	log.Debugf("Publishing StackState %s relation %s->%s", relation.Type.Name, relation.SourceID, relation.TargetID)
+	batcher.GetBatcher().SubmitRelation(b.CheckID, b.Instance, *relation)
+}
+
+// HandleError handles any errors during topology gathering
+func (b *BatchTopologySubmitter) HandleError(err error) {
+	_ = log.Error(err)
 }

@@ -8,6 +8,7 @@ package kubeapi
 
 import (
 	"fmt"
+	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	collectors "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/topology_collectors"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/pkg/errors"
@@ -15,23 +16,27 @@ import (
 	"strconv"
 	"sync"
 	"testing"
-	"time"
 )
 
+var componentID int
+var relationID int
+
 func TestRunClusterCollectors(t *testing.T) {
+	// set the initial id values
+	componentID = 1
+	relationID = 1
 
 	kubernetesTopologyCheck := KubernetesApiTopologyFactory().(*TopologyCheck)
 	instance := topology.Instance{Type: "kubernetes", URL: "test-cluster-name"}
+	// set up the batcher for this instance
+	kubernetesTopologyCheck.instance.CollectTimeout = 5
+	kubernetesTopologyCheck.submitter = NewTestTopologySubmitter(t, "kubernetes_api_topology", instance)
 
 	var waitGroup sync.WaitGroup
 	componentChannel := make(chan *topology.Component)
 	relationChannel := make(chan *topology.Relation)
 	errChannel := make(chan error)
 	waitGroupChannel := make(chan int)
-	defer close(componentChannel)
-	defer close(relationChannel)
-	defer close(errChannel)
-	defer close(waitGroupChannel)
 
 	var clusterCollectors []collectors.ClusterTopologyCollector
 	commonClusterCollector := collectors.NewClusterTopologyCollector(instance, nil)
@@ -40,48 +45,58 @@ func TestRunClusterCollectors(t *testing.T) {
 		NewTestCollector(componentChannel, relationChannel, commonClusterCollector),
 		NewErrorTestCollector(componentChannel, relationChannel, commonClusterCollector),
 	)
+
+	// starts all the cluster collectors
 	kubernetesTopologyCheck.runClusterCollectors(clusterCollectors, &waitGroup, errChannel)
 
-	assertTopology(t, componentChannel, relationChannel, errChannel, &waitGroup, waitGroupChannel)
+	// receive all the components, will return once the wait group notifies
+	kubernetesTopologyCheck.waitForTopology(componentChannel, relationChannel, errChannel, &waitGroup, waitGroupChannel)
 
+	close(componentChannel)
+	close(relationChannel)
+	close(errChannel)
+	close(waitGroupChannel)
 }
 
-// sets up the receiver that handles the component, relation and error channel and asserts the response.
-func assertTopology(t *testing.T , componentChannel <-chan *topology.Component, relationChannel <-chan *topology.Relation,
-	errorChannel <-chan error, waitGroup *sync.WaitGroup, waitGroupChannel chan int) {
-	timeout := 1 * time.Minute
-	go func() {
-		waitGroup.Wait()
-		waitGroupChannel <- 1
-	}()
 
-	componentCount := 1
-	relationCount := 1
-
-	for {
-		select {
-		case component := <-componentChannel:
-			// match the component with the count number that represents the ExternalID
-			assert.Equal(t, strconv.Itoa(componentCount), component.ExternalID)
-			componentCount = componentCount + 1
-		case relation := <-relationChannel:
-			// match the relation with the count number -> +1 that represents the ExternalID
-			assert.Equal(t, fmt.Sprintf("%s->%s", strconv.Itoa(relationCount), strconv.Itoa(relationCount+1)), relation.ExternalID)
-			relationCount = relationCount + 2
-		case err := <-errorChannel:
-			// match the error message
-			assert.Equal(t, "ErrorTestCollector", err.Error())
-		case cnt := <-waitGroupChannel:
-			// match the wait group channel closing message
-			assert.Equal(t, 1, cnt)
-			return
-		case <-time.After(timeout):
-			assert.Fail(t, "Topology Collectors timed out")
-		default:
-			// no message received, continue looping
-		}
+// NewTestTopologySubmitter creates a new instance of TestTopologySubmitter
+func NewTestTopologySubmitter(t *testing.T, checkID check.ID, instance topology.Instance) TopologySubmitter {
+	return &TestTopologySubmitter{
+		t: t,
+		CheckID: checkID,
+		Instance: instance,
 	}
+}
 
+// TestTopologySubmitter provides functionality to submit topology data with the Batcher.
+type TestTopologySubmitter struct {
+	t *testing.T
+	CheckID         check.ID
+	Instance        topology.Instance
+}
+
+func (b *TestTopologySubmitter) SubmitStartSnapshot(){}
+func (b *TestTopologySubmitter) SubmitStopSnapshot(){}
+func (b *TestTopologySubmitter) SubmitComplete(){}
+
+// SubmitRelation takes a component and submits it with the Batcher
+func (b *TestTopologySubmitter) SubmitComponent(component *topology.Component) {
+	// match the component with the count number that represents the ExternalID
+	assert.Equal(b.t, strconv.Itoa(componentID), component.ExternalID)
+	componentID = componentID + 1
+}
+
+// SubmitRelation takes a relation and submits it with the Batcher
+func (b *TestTopologySubmitter) SubmitRelation(relation *topology.Relation) {
+	// match the relation with the count number -> +1 that represents the ExternalID
+	assert.Equal(b.t, fmt.Sprintf("%s->%s", strconv.Itoa(relationID), strconv.Itoa(relationID+1)), relation.ExternalID)
+	relationID = relationID + 2
+}
+
+// HandleError handles any errors during topology gathering
+func (b *TestTopologySubmitter) HandleError(err error) {
+	// match the error message
+	assert.Equal(b.t, "ErrorTestCollector", err.Error())
 }
 
 // TestCollector implements the ClusterTopologyCollector interface.
