@@ -124,7 +124,6 @@ func (pvc *PersistentVolumeCollector) persistentVolumeToStackStateComponent(pers
 		Type:       topology.Type{Name: "persistent-volume"},
 		Data: map[string]interface{}{
 			"name":              persistentVolume.Name,
-			"kind":              persistentVolume.Kind,
 			"creationTimestamp": persistentVolume.CreationTimestamp,
 			"tags":              tags,
 			"status":            persistentVolume,
@@ -134,10 +133,12 @@ func (pvc *PersistentVolumeCollector) persistentVolumeToStackStateComponent(pers
 			"storageClassName": persistentVolume.Spec.StorageClassName,
 			"identifiers":   identifiers,
 			"uid":           persistentVolume.UID,
-			"generateName":  persistentVolume.GenerateName,
 			"source":  persistentVolume.Spec.PersistentVolumeSource,
 		},
 	}
+
+	component.Data.PutNonEmpty("kind", persistentVolume.Kind)
+	component.Data.PutNonEmpty("generateName", persistentVolume.GenerateName)
 
 	log.Tracef("Created StackState persistent volume component %s: %v", persistentVolumeExternalID, component.JSONString())
 

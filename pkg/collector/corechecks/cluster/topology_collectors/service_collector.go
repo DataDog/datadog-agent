@@ -90,23 +90,28 @@ func (sc *ServiceCollector) CollectorFunction() error {
 
 		sc.ComponentChan <- component
 
+		publishedPodRelations := make(map[string]string, 0)
 		for _, endpoint := range serviceEndpoints {
-			// create the relation between the service and pod on the endpoint
-			if endpoint.RefExternalID != "" {
-				relation := sc.podToServiceStackStateRelation(component.ExternalID, endpoint.RefExternalID)
+			// create the relation between the pod and the service on the endpoint
+			podExternalID := endpoint.RefExternalID
+
+			_, ok := publishedPodRelations[podExternalID]; if !ok && podExternalID != "" {
+				relation := sc.podToServiceStackStateRelation(podExternalID, component.ExternalID)
 
 				sc.RelationChan <- relation
+
+				publishedPodRelations[podExternalID] = podExternalID
 			}
 		}
 
-		serviceMap[service.Name] = append(serviceMap[service.Name], component.ExternalID)
+		serviceMap[serviceID] = append(serviceMap[serviceID], component.ExternalID)
 	}
 
 	// map ingresses that require the Service ExternalID
 	for serviceCorrelation := range sc.ServiceCorrelationChannel {
-		log.Tracef("Creating correlation between ingress and target service: %s -> %s", serviceCorrelation.IngressExternalID, serviceCorrelation.ServiceName)
+		log.Tracef("Creating correlation between ingress and target service: %s -> %s", serviceCorrelation.IngressExternalID, serviceCorrelation.ServiceID)
 
-		for _, matchingServiceExternalID := range serviceMap[serviceCorrelation.ServiceName] {
+		for _, matchingServiceExternalID := range serviceMap[serviceCorrelation.ServiceID] {
 			// publish the ingress -> service relations
 			relation := sc.ingressToServiceStackStateRelation(serviceCorrelation.IngressExternalID, matchingServiceExternalID)
 			sc.RelationChan <- relation
@@ -133,6 +138,10 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 		// map all of the ports for the ip
 		for _, port := range service.Spec.Ports {
 			identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%d", ip, port.Port))
+
+			if service.Spec.Type == v1.ServiceTypeNodePort && port.NodePort != 0 {
+				identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%d", ip, port.NodePort))
+			}
 		}
 	}
 
@@ -146,17 +155,45 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 	}
 
 	switch service.Spec.Type {
+	// identifier for
 	case v1.ServiceTypeClusterIP:
 		// verify that the cluster ip is not empty
 		if service.Spec.ClusterIP != "" {
 			identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.ClusterIP))
 		}
+	case v1.ServiceTypeNodePort:
+		// verify that the node port is not empty
+		if service.Spec.ClusterIP != "" {
+			identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.ClusterIP))
+			// map all of the node ports for the ip
+			for _, port := range service.Spec.Ports {
+				// map all the node ports
+				if port.NodePort != 0{
+					identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s:%d", sc.GetInstance().URL, service.Spec.ClusterIP, port.NodePort))
+				}
+			}
+		}
 	case v1.ServiceTypeLoadBalancer:
-		// verify that the loadbalancer ip is not empty
+		// verify that the load balance ip is not empty
 		if service.Spec.LoadBalancerIP != "" {
 			identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.LoadBalancerIP))
 		}
+		// verify that the cluster ip is not empty
+		if service.Spec.ClusterIP != "" {
+			identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.ClusterIP))
+		}
 	default:
+	}
+
+	for _, inpoint := range service.Status.LoadBalancer.Ingress {
+		if inpoint.IP != "" {
+			identifiers = append(identifiers, fmt.Sprintf("urn:ingress-point:/%s", inpoint.IP))
+		}
+
+		if inpoint.Hostname != "" {
+			identifiers = append(identifiers, fmt.Sprintf("urn:ingress-point:/%s", inpoint.Hostname))
+
+		}
 	}
 
 	log.Tracef("Created identifiers for %s: %v", service.Name, identifiers)
@@ -166,23 +203,21 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 	tags := emptyIfNil(service.Labels)
 	tags = sc.addClusterNameTag(tags)
 
-	data := map[string]interface{}{
-		"name":              service.Name,
-		"namespace":         service.Namespace,
-		"creationTimestamp": service.CreationTimestamp,
-		"tags":              tags,
-		"identifiers":       identifiers,
-	}
-
-	if service.Status.LoadBalancer.Ingress != nil {
-		data["ingressPoints"] = service.Status.LoadBalancer.Ingress
-	}
-
 	component := &topology.Component{
 		ExternalID: serviceExternalID,
 		Type:       topology.Type{Name: "service"},
-		Data:       data,
+		Data:       map[string]interface{}{
+			"name":              service.Name,
+			"namespace":         service.Namespace,
+			"creationTimestamp": service.CreationTimestamp,
+			"tags":              tags,
+			"identifiers":       identifiers,
+			"uid": service.UID,
+		},
 	}
+
+	component.Data.PutNonEmpty("kind", service.Kind)
+	component.Data.PutNonEmpty("generateName", service.GenerateName)
 
 	log.Tracef("Created StackState service component %s: %v", serviceExternalID, component.JSONString())
 
@@ -222,7 +257,6 @@ func (sc *ServiceCollector) ingressToServiceStackStateRelation(ingressExternalID
 
 	return relation
 }
-
 
 // buildServiceID - combination of the service namespace and service name
 func buildServiceID(serviceNamespace, serviceName string) string {

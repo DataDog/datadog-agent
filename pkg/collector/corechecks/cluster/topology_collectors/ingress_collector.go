@@ -44,17 +44,21 @@ func (ic *IngressCollector) CollectorFunction() error {
 		ic.ComponentChan <- component
 		// submit relation to service name for correlation
 		if in.Spec.Backend.ServiceName != "" {
+			serviceID := buildServiceID(in.Namespace, in.Spec.Backend.ServiceName)
+
 			ic.ServiceCorrelationChannel <- &IngressCorrelation{
-				ServiceName:       in.Spec.Backend.ServiceName,
-				IngressExternalID: component.ExternalID,
+				ServiceID: 			serviceID,
+				IngressExternalID: 	component.ExternalID,
 			}
 		}
 
 		// submit relation to service name in the ingress rules for correlation
 		for _, rules := range in.Spec.Rules {
 			for _, path := range rules.HTTP.Paths {
+				serviceID := buildServiceID(in.Namespace, path.Backend.ServiceName)
+
 				ic.ServiceCorrelationChannel <- &IngressCorrelation{
-					ServiceName: path.Backend.ServiceName,
+					ServiceID: serviceID,
 					IngressExternalID: component.ExternalID,
 				}
 			}
@@ -92,15 +96,16 @@ func (ic *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress
 		Type:       topology.Type{Name: "ingress"},
 		Data: map[string]interface{}{
 			"name":              ingress.Name,
-			"kind":              ingress.Kind,
 			"creationTimestamp": ingress.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         ingress.Namespace,
 			"identifiers": identifiers,
 			"uid":           ingress.UID,
-			"generateName":  ingress.GenerateName,
 		},
 	}
+
+	component.Data.PutNonEmpty("generateName", ingress.GenerateName)
+	component.Data.PutNonEmpty("kind", ingress.Kind)
 
 	log.Tracef("Created StackState Ingress component %s: %v", ingressExternalID, component.JSONString())
 

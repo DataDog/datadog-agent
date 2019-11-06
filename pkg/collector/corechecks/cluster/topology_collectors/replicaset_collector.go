@@ -67,15 +67,16 @@ func (rsc *ReplicaSetCollector) replicaSetToStackStateComponent(replicaSet v1.Re
 		Type:       topology.Type{Name: "replicaset"},
 		Data: map[string]interface{}{
 			"name":              replicaSet.Name,
-			"kind":              replicaSet.Kind,
 			"creationTimestamp": replicaSet.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         replicaSet.Namespace,
 			"desiredReplicas": replicaSet.Spec.Replicas,
 			"uid":           replicaSet.UID,
-			"generateName":  replicaSet.GenerateName,
 		},
 	}
+
+	component.Data.PutNonEmpty("kind", replicaSet.Kind)
+	component.Data.PutNonEmpty("generateName", replicaSet.GenerateName)
 
 	log.Tracef("Created StackState ReplicaSet component %s: %v", replicaSetExternalID, component.JSONString())
 
