@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providernames"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +25,7 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
 		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
-		Provider:      providernames.Kubernetes,
+		Provider:      names.Kubernetes,
 		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
 		CreationTime:  0,
@@ -70,7 +70,7 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
 		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
-		Provider:      providernames.Kubernetes,
+		Provider:      names.Kubernetes,
 		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
 		CreationTime:  0,

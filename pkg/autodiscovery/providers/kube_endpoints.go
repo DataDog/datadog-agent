@@ -19,7 +19,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providernames"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -85,7 +85,7 @@ func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (Confi
 
 // String returns a string representation of the kubeEndpointsConfigProvider
 func (k *kubeEndpointsConfigProvider) String() string {
-	return providernames.KubeEndpoints
+	return names.KubeEndpoints
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them

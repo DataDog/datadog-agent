@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providernames"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
@@ -42,7 +42,7 @@ func NewECSConfigProvider(config config.ConfigurationProviders) (ConfigProvider,
 
 // String returns a string representation of the ECSConfigProvider
 func (p *ECSConfigProvider) String() string {
-	return providernames.ECS
+	return names.ECS
 }
 
 // IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to ECS' data.

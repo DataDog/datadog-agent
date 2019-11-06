@@ -18,7 +18,7 @@ import (
 	consul "github.com/hashicorp/consul/api"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providernames"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -100,7 +100,7 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 
 // String returns a string representation of the ConsulConfigProvider
 func (p *ConsulConfigProvider) String() string {
-	return providernames.Consul
+	return names.Consul
 }
 
 // Collect retrieves templates from consul, builds Config objects and returns them

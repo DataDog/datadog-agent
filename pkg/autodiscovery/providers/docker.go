@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providernames"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -47,7 +47,7 @@ func NewDockerConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 
 // String returns a string representation of the DockerConfigProvider
 func (d *DockerConfigProvider) String() string {
-	return providernames.Docker
+	return names.Docker
 }
 
 // Collect retrieves all running containers and extract AD templates from their labels.
