@@ -78,6 +78,8 @@ func formatDirection(d ebpf.ConnectionDirection) model.ConnectionDirection {
 		return model.ConnectionDirection_outgoing
 	case ebpf.LOCAL:
 		return model.ConnectionDirection_local
+	case ebpf.NONE:
+		return model.ConnectionDirection_none
 	default:
 		return model.ConnectionDirection_unspecified
 	}
