@@ -37,7 +37,7 @@ def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=N
             env["GOARCH"] = "386"
             windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx)
+        ver = get_version_numeric_only(ctx, env)
         maj_ver, min_ver, patch_ver = ver.split(".")
 
         ctx.run("windmc --target {target_arch}  -r cmd/trace-agent/windows_resources cmd/trace-agent/windows_resources/trace-agent-msg.mc".format(target_arch=windres_target))

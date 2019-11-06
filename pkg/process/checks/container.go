@@ -7,17 +7,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	agentutil "github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	agentutil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	containercollectors "github.com/DataDog/datadog-agent/pkg/util/containers/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Container is a singleton ContainerCheck.
@@ -32,6 +32,8 @@ type ContainerCheck struct {
 	lastRun         time.Time
 	lastCtrIDForPID map[int32]string
 	networkID       string
+
+	containerFailedLogLimit *util.LogLimit
 }
 
 // Init initializes a ContainerCheck instance.
@@ -43,6 +45,8 @@ func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 		log.Infof("no network ID detected: %s", err)
 	}
 	c.networkID = networkID
+
+	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 }
 
 // Name returns the name of the ProcessCheck.
@@ -63,6 +67,10 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	start := time.Now()
 	ctrList, err := util.GetContainers()
 	if err != nil {
+		if err == containercollectors.ErrPermaFail || err == containercollectors.ErrNothingYet && c.containerFailedLogLimit.ShouldLog() {
+			log.Debug("container collector was not detected, container check will not return any data. This message will logged for the first ten occurrences, and then every ten minutes")
+			return nil, nil
+		}
 		return nil, err
 	}
 

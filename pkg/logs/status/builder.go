@@ -143,5 +143,7 @@ func (b *Builder) getMetricsStatus() map[string]int64 {
 	var metrics = make(map[string]int64, 2)
 	metrics["LogsProcessed"] = b.logsExpVars.Get("LogsProcessed").(*expvar.Int).Value()
 	metrics["LogsSent"] = b.logsExpVars.Get("LogsSent").(*expvar.Int).Value()
+	metrics["BytesSent"] = b.logsExpVars.Get("BytesSent").(*expvar.Int).Value()
+	metrics["EncodedBytesSent"] = b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value()
 	return metrics
 }

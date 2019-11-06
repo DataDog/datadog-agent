@@ -25,10 +25,10 @@ EOD
 vagrant up
 
 
-echo "installing tools (invoke, clang format, jq, vim)"
+echo "installing tools (invoke, clang format, jq, vim, python3dev)"
 cat <<EOD | vagrant ssh
 sudo apt-get update
-sudo apt-get install -y python-pip unzip curl jq vim clang-format --fix-missing
+sudo apt-get install -y python-pip unzip curl jq vim clang-format python3-dev libsystemd-dev --fix-missing
 sudo pip install invoke pyyaml
 EOD
 

@@ -209,12 +209,7 @@ func printResults(cfg *config.AgentConfig, ch checks.Check) error {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	if cfg.EnableLocalSystemProbe && ch.Name() == checks.Connections.Name() {
-		fmt.Printf("Waiting 5 seconds to allow for active connections to transmit data\n")
-		time.Sleep(5 * time.Second)
-	} else {
-		time.Sleep(1 * time.Second)
-	}
+	time.Sleep(1 * time.Second)
 
 	fmt.Printf("-----------------------------\n\n")
 	fmt.Printf("\nResults for check %s\n", ch.Name())

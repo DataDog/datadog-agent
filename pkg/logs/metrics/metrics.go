@@ -22,6 +22,10 @@ var (
 	DestinationErrors = expvar.Int{}
 	// DestinationLogsDropped is the total number of logs dropped per Destination
 	DestinationLogsDropped = expvar.Map{}
+	// BytesSent is the total number of sent bytes before encoding if any
+	BytesSent = expvar.Int{}
+	// EncodedBytesSent is the total number of sent bytes after encoding if any
+	EncodedBytesSent = expvar.Int{}
 	// TODO: Add LogsCollected for the total number of collected logs.
 )
 
@@ -32,4 +36,6 @@ func init() {
 	LogsExpvars.Set("LogsSent", &LogsSent)
 	LogsExpvars.Set("DestinationErrors", &DestinationErrors)
 	LogsExpvars.Set("DestinationLogsDropped", &DestinationLogsDropped)
+	LogsExpvars.Set("BytesSent", &BytesSent)
+	LogsExpvars.Set("EncodedBytesSent", &EncodedBytesSent)
 }

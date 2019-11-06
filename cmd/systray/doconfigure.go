@@ -53,7 +53,11 @@ func doConfigure() error {
 
 	// Get the CSRF token from the agent
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/gui/csrf-token", config.Datadog.GetInt("cmd_port"))
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+	urlstr := fmt.Sprintf("https://%v:%v/agent/gui/csrf-token", ipcAddress, config.Datadog.GetInt("cmd_port"))
 	err = util.SetAuthToken()
 	if err != nil {
 		return err

@@ -48,6 +48,10 @@ cmake .
 
 Then just run `make` to build the project.
 
+## Examples
+
+- [Exposing Go functionality to Python](https://github.com/DataDog/datadog-agent/pull/4234)
+
 ## Demo
 
 Examples about how to use RtLoader are provided in form of a C application under `demo`. The application expects to find a

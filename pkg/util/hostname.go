@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -95,6 +96,11 @@ func Fqdn(hostname string) string {
 	return hostname
 }
 
+func setHostnameProvider(name string) {
+	hostnameProvider.Set(name)
+	inventories.SetAgentMetadata("hostname_source", name)
+}
+
 // GetHostname retrieve the host name for the Agent, trying to query these
 // environments/api, in order:
 // * GCE
@@ -117,7 +123,7 @@ func GetHostname() (string, error) {
 	err = ValidHostname(configName)
 	if err == nil {
 		cache.Cache.Set(cacheHostnameKey, configName, cache.NoExpiration)
-		hostnameProvider.Set("configuration")
+		setHostnameProvider("configuration")
 		return configName, err
 	}
 
@@ -140,7 +146,7 @@ func GetHostname() (string, error) {
 		gceName, err := getGCEHostname()
 		if err == nil {
 			cache.Cache.Set(cacheHostnameKey, gceName, cache.NoExpiration)
-			hostnameProvider.Set("gce")
+			setHostnameProvider("gce")
 			return gceName, err
 		}
 		expErr := new(expvar.String)
@@ -244,7 +250,7 @@ func GetHostname() (string, error) {
 	}
 
 	cache.Cache.Set(cacheHostnameKey, hostName, cache.NoExpiration)
-	hostnameProvider.Set(provider)
+	setHostnameProvider(provider)
 	if err != nil {
 		expErr := new(expvar.String)
 		expErr.Set(fmt.Sprintf(err.Error()))

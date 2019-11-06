@@ -1,7 +1,7 @@
 ---
 collapse_pre_releases: true
 no_show_source: true
-release_tag_re: '^([\d.-]|rc)+$'
+release_tag_re: '^6\.([\d.-]|rc)+$'
 pre_release_tag_re: '(?P<pre_release>-rc\.\d+)$'
 template: |
           # Each section from every releasenote are combined when the

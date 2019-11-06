@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // Worker comsumes Transaction (aka transactions) from the Forwarder and
@@ -31,7 +31,7 @@ type Worker struct {
 	// RequeueChan is the channel used to send failed transaction back to the Forwarder.
 	RequeueChan chan<- Transaction
 
-	stopChan    chan bool
+	stopChan    chan struct{}
 	stopped     chan struct{}
 	blockedList *blockedEndpoints
 }
@@ -39,7 +39,7 @@ type Worker struct {
 // NewWorker returns a new worker to consume Transaction from inputChan
 // and push back erroneous ones into requeueChan.
 func NewWorker(highPrioChan <-chan Transaction, lowPrioChan <-chan Transaction, requeueChan chan<- Transaction, blocked *blockedEndpoints) *Worker {
-	transport := util.CreateHTTPTransport()
+	transport := httputils.CreateHTTPTransport()
 
 	httpClient := &http.Client{
 		Timeout:   config.Datadog.GetDuration("forwarder_timeout") * time.Second,
@@ -50,7 +50,7 @@ func NewWorker(highPrioChan <-chan Transaction, lowPrioChan <-chan Transaction, 
 		HighPrio:    highPrioChan,
 		LowPrio:     lowPrioChan,
 		RequeueChan: requeueChan,
-		stopChan:    make(chan bool),
+		stopChan:    make(chan struct{}),
 		stopped:     make(chan struct{}),
 		Client:      httpClient,
 		blockedList: blocked,
@@ -58,9 +58,24 @@ func NewWorker(highPrioChan <-chan Transaction, lowPrioChan <-chan Transaction, 
 }
 
 // Stop stops the worker.
-func (w *Worker) Stop() {
-	w.stopChan <- true
+func (w *Worker) Stop(purgeHighPrio bool) {
+	w.stopChan <- struct{}{}
 	<-w.stopped
+
+	if purgeHighPrio {
+		// purging waiting transactions
+	L:
+		for {
+			select {
+			case t := <-w.HighPrio:
+				log.Debugf("Flushing one new transaction before stopping Worker")
+				w.callProcess(t)
+			default:
+				break L
+			}
+		}
+	}
+
 }
 
 // Start starts a Worker.

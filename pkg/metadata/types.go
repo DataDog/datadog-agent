@@ -13,3 +13,10 @@ import "github.com/DataDog/datadog-agent/pkg/serializer"
 type Collector interface {
 	Send(s *serializer.Serializer) error
 }
+
+// CollectorWithInit is an optional interface that collectors that need to be
+// initialized can implement. If implemented, the Init method will be called
+// when the collector is scheduled
+type CollectorWithInit interface {
+	Init() error
+}

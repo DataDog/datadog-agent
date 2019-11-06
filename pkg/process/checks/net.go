@@ -8,7 +8,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -25,40 +24,18 @@ var (
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
-	// Local system probe
-	useLocalTracer bool
-	localTracer    *ebpf.Tracer
 	tracerClientID string
 	networkID      string
 }
 
 // Init initializes a ConnectionsCheck instance.
 func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemInfo) {
-	// We use the current process PID as the local tracer client ID
+	// We use the current process PID as the system-probe client ID
 	c.tracerClientID = fmt.Sprintf("%d", os.Getpid())
-	if cfg.EnableLocalSystemProbe {
-		log.Info("starting system probe locally")
-		c.useLocalTracer = true
 
-		// Checking whether the current kernel version is supported by the tracer
-		if supported, msg := ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); !supported {
-			// err is always returned when false, so the above catches the !ok case as well
-			log.Warnf("system probe unsupported by OS: %s", msg)
-			return
-		}
-
-		t, err := ebpf.NewTracer(config.SysProbeConfigFromConfig(cfg))
-		if err != nil {
-			log.Errorf("failed to create system probe: %s", err)
-			return
-		}
-
-		c.localTracer = t
-	} else {
-		// Calling the remote tracer will cause it to initialize and check connectivity
-		net.SetSystemProbeSocketPath(cfg.SystemProbeSocketPath)
-		net.GetRemoteSystemProbeUtil()
-	}
+	// Calling the remote tracer will cause it to initialize and check connectivity
+	net.SetSystemProbeSocketPath(cfg.SystemProbeSocketPath)
+	net.GetRemoteSystemProbeUtil()
 
 	networkID, err := util.GetNetworkID()
 	if err != nil {
@@ -85,11 +62,6 @@ func (c *ConnectionsCheck) RealTime() bool { return false }
 // that will be bundled up into a `CollectorConnections`.
 // See agent.proto for the schema of the message and models.
 func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
-	// If local tracer failed to initialize, so we shouldn't be doing any checks
-	if c.useLocalTracer && c.localTracer == nil {
-		return nil, nil
-	}
-
 	start := time.Now()
 
 	conns, err := c.getConnections()
@@ -102,22 +74,10 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	}
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns), c.networkID), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID), nil
 }
 
-func (c *ConnectionsCheck) getConnections() ([]*model.Connection, error) {
-	if c.useLocalTracer { // If local tracer is set up, use that
-		if c.localTracer == nil {
-			return nil, fmt.Errorf("using local system probe, but no tracer was initialized")
-		}
-		cs, err := c.localTracer.GetActiveConnections(c.tracerClientID)
-		conns := make([]*model.Connection, len(cs.Conns))
-		for i, ebpfConn := range cs.Conns {
-			conns[i] = encoding.FormatConnection(ebpfConn)
-		}
-		return conns, err
-	}
-
+func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	tu, err := net.GetRemoteSystemProbeUtil()
 	if err != nil {
 		if net.ShouldLogTracerUtilError() {
@@ -142,23 +102,39 @@ func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model
 	return conns
 }
 
-// Connections are split up into a chunks of at most 100 connections per message to
-// limit the message size on intake.
-func batchConnections(cfg *config.AgentConfig, groupID int32, cxs []*model.Connection, networkID string) []model.MessageBody {
+// Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
+func batchConnections(
+	cfg *config.AgentConfig,
+	groupID int32,
+	cxs []*model.Connection,
+	dns map[string]*model.DNSEntry,
+	networkID string,
+) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
 
 	for len(cxs) > 0 {
 		batchSize := min(cfg.MaxConnsPerMessage, len(cxs))
-		// get the container and process relationship from either process check or container check
-		ctrIDForPID := getCtrIDsByPIDs(connectionPIDs(cxs[:batchSize]))
+		batchConns := cxs[:batchSize] // Connections for this particular batch
+
+		batchDNS := make(map[string]*model.DNSEntry)
+		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+			if entries, ok := dns[c.Raddr.Ip]; ok {
+				batchDNS[c.Raddr.Ip] = entries
+			}
+		}
+
+		// Get the container and process relationship from either the process or container checks
+		ctrIDForPID := getCtrIDsByPIDs(connectionPIDs(batchConns))
+
 		batches = append(batches, &model.CollectorConnections{
 			HostName:        cfg.HostName,
 			NetworkId:       networkID,
-			Connections:     cxs[:batchSize],
+			Connections:     batchConns,
 			GroupId:         groupID,
 			GroupSize:       groupSize,
 			ContainerForPid: ctrIDForPID,
+			Dns:             batchDNS,
 		})
 		cxs = cxs[batchSize:]
 	}

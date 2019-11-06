@@ -14,6 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -149,4 +151,37 @@ func SetExternalTags(hostname *C.char, sourceType *C.char, tags **C.char) {
 	}
 
 	externalhost.SetExternalTags(hname, stype, tagsStrings)
+}
+
+// SetCheckMetadata updates a metadata value for one check instance in the cache.
+// Indirectly used by the C function `set_check_metadata` that's mapped to `datadog_agent.set_check_metadata`.
+//export SetCheckMetadata
+func SetCheckMetadata(checkID, name, value *C.char) {
+	cid := C.GoString(checkID)
+	key := C.GoString(name)
+	val := C.GoString(value)
+
+	inventories.SetCheckMetadata(cid, key, val)
+}
+
+// WritePersistentCache stores a value for one check instance
+// Indirectly used by the C function `write_persistent_cache` that's mapped to `datadog_agent.write_persistent_cache`.
+//export WritePersistentCache
+func WritePersistentCache(key, value *C.char) {
+	keyName := C.GoString(key)
+	val := C.GoString(value)
+	persistentcache.Write(keyName, val)
+}
+
+// ReadPersistentCache retrieves a value for one check instance
+// Indirectly used by the C function `read_persistent_cache` that's mapped to `datadog_agent.read_persistent_cache`.
+//export ReadPersistentCache
+func ReadPersistentCache(key *C.char) *C.char {
+	keyName := C.GoString(key)
+	data, err := persistentcache.Read(keyName)
+	if err != nil {
+		log.Errorf("Failed to read cache %s: %s", keyName, err)
+		return nil
+	}
+	return TrackedCString(data)
 }

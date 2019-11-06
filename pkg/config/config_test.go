@@ -663,3 +663,33 @@ func TestNumWorkers(t *testing.T) {
 	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, 1)
 }
+
+// TestOverrides validates that the config overrides system works well.
+func TestApplyOverrides(t *testing.T) {
+	assert := assert.New(t)
+
+	datadogYaml := `
+dd_url: "https://app.datadoghq.eu"
+api_key: fakeapikey
+
+external_config:
+  external_agent_dd_url: "https://custom.external-agent.datadoghq.eu"
+`
+	AddOverrides(map[string]interface{}{
+		"api_key": "overrided",
+	})
+
+	config := setupConfFromYAML(datadogYaml)
+	applyOverrides(config)
+
+	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
+	assert.Equal(config.GetString("dd_url"), "https://app.datadoghq.eu", "this shouldn't be overrided")
+
+	AddOverrides(map[string]interface{}{
+		"dd_url": "http://localhost",
+	})
+	applyOverrides(config)
+
+	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
+	assert.Equal(config.GetString("dd_url"), "http://localhost", "this dd_url should have been overrided")
+}

@@ -92,86 +92,337 @@ func TestResolveImageName(t *testing.T) {
 }
 
 func TestParseContainerNetworkAddresses(t *testing.T) {
-	ports := []types.Port{
+	for i, tc := range []struct {
+		name        string
+		ports       []types.Port
+		netSettings *types.SummaryNetworkSettings
+		expected    []containers.NetworkAddress
+	}{
 		{
-			IP:          "0.0.0.0",
-			PrivatePort: 80,
-			PublicPort:  8080,
-			Type:        "tcp",
+			name:        "empty input",
+			ports:       []types.Port{},
+			netSettings: nil,
+			expected:    []containers.NetworkAddress{},
 		},
 		{
-			PrivatePort: 80,
-			Type:        "tcp",
-		},
-		{
-			PrivatePort: 7000,
-			Type:        "udp",
-		},
-	}
-	netSettings := &types.SummaryNetworkSettings{
-		Networks: map[string]*network.EndpointSettings{
-			"bridge": {
-				IPAMConfig:          nil,
-				Links:               nil,
-				Aliases:             nil,
-				NetworkID:           "NetworkID",
-				EndpointID:          "EndpointID",
-				Gateway:             "172.17.0.1",
-				IPAddress:           "172.17.0.2",
-				IPPrefixLen:         16,
-				IPv6Gateway:         "",
-				GlobalIPv6Address:   "",
-				GlobalIPv6PrefixLen: 0,
-				MacAddress:          "MacAddress",
+			name: "exposed port",
+			ports: []types.Port{
+				{
+					IP:          "0.0.0.0",
+					PrivatePort: 80,
+					PublicPort:  8080,
+					Type:        "tcp",
+				},
 			},
-			"network1": {
-				IPAMConfig:          nil,
-				Links:               nil,
-				Aliases:             nil,
-				NetworkID:           "NetworkID",
-				EndpointID:          "EndpointID",
-				Gateway:             "172.18.0.1",
-				IPAddress:           "172.18.0.2",
-				IPPrefixLen:         16,
-				IPv6Gateway:         "",
-				GlobalIPv6Address:   "",
-				GlobalIPv6PrefixLen: 0,
-				MacAddress:          "MacAddress",
+			netSettings: &types.SummaryNetworkSettings{
+				Networks: map[string]*network.EndpointSettings{
+					"bridge": {
+						IPAMConfig:          nil,
+						Links:               nil,
+						Aliases:             nil,
+						NetworkID:           "NetworkID",
+						EndpointID:          "EndpointID",
+						Gateway:             "172.17.0.1",
+						IPAddress:           "172.17.0.2",
+						IPPrefixLen:         16,
+						IPv6Gateway:         "",
+						GlobalIPv6Address:   "",
+						GlobalIPv6PrefixLen: 0,
+						MacAddress:          "MacAddress",
+					},
+				},
+			},
+			expected: []containers.NetworkAddress{
+				{
+					IP:       net.ParseIP("0.0.0.0"),
+					Port:     8080,
+					Protocol: "tcp",
+				},
+				{
+					IP:       net.ParseIP("172.17.0.2"),
+					Port:     80,
+					Protocol: "tcp",
+				},
 			},
 		},
-	}
-	expectedOutput := []containers.NetworkAddress{
 		{
-			IP:       net.ParseIP("0.0.0.0"),
-			Port:     8080,
-			Protocol: "tcp",
+			name: "not exposed port",
+			ports: []types.Port{
+				{
+					PrivatePort: 80,
+					Type:        "tcp",
+				},
+			},
+			netSettings: &types.SummaryNetworkSettings{
+				Networks: map[string]*network.EndpointSettings{
+					"bridge": {
+						IPAMConfig:          nil,
+						Links:               nil,
+						Aliases:             nil,
+						NetworkID:           "NetworkID",
+						EndpointID:          "EndpointID",
+						Gateway:             "172.17.0.1",
+						IPAddress:           "172.17.0.2",
+						IPPrefixLen:         16,
+						IPv6Gateway:         "",
+						GlobalIPv6Address:   "",
+						GlobalIPv6PrefixLen: 0,
+						MacAddress:          "MacAddress",
+					},
+				},
+			},
+			expected: []containers.NetworkAddress{
+				{
+					IP:       net.ParseIP("172.17.0.2"),
+					Port:     80,
+					Protocol: "tcp",
+				},
+			},
 		},
 		{
-			IP:       net.ParseIP("172.17.0.2"),
-			Port:     80,
-			Protocol: "tcp",
+			name: "empty address info",
+			ports: []types.Port{
+				{
+					PrivatePort: 80,
+					Type:        "tcp",
+				},
+			},
+			netSettings: &types.SummaryNetworkSettings{
+				Networks: map[string]*network.EndpointSettings{
+					"emptyNetwork": {},
+				},
+			},
+			expected: []containers.NetworkAddress{},
 		},
 		{
-			IP:       net.ParseIP("172.17.0.2"),
-			Port:     7000,
-			Protocol: "udp",
+			name: "host network mode",
+			// Published ports are discarded when using host network mode
+			ports: []types.Port{},
+			netSettings: &types.SummaryNetworkSettings{
+				Networks: map[string]*network.EndpointSettings{
+					"host": {
+						IPAMConfig:          nil,
+						Links:               nil,
+						Aliases:             nil,
+						NetworkID:           "NetworkID",
+						EndpointID:          "EndpointID",
+						Gateway:             "",
+						IPAddress:           "",
+						IPPrefixLen:         0,
+						IPv6Gateway:         "",
+						GlobalIPv6Address:   "",
+						GlobalIPv6PrefixLen: 0,
+						MacAddress:          "",
+					},
+				},
+			},
+			expected: []containers.NetworkAddress{},
 		},
 		{
-			IP:       net.ParseIP("172.18.0.2"),
-			Port:     80,
-			Protocol: "tcp",
+			name: "multiple networks",
+			ports: []types.Port{
+				{
+					PrivatePort: 80,
+					Type:        "tcp",
+				},
+			},
+			netSettings: &types.SummaryNetworkSettings{
+				Networks: map[string]*network.EndpointSettings{
+					"bridge": {
+						IPAMConfig:          nil,
+						Links:               nil,
+						Aliases:             nil,
+						NetworkID:           "NetworkID",
+						EndpointID:          "EndpointID",
+						Gateway:             "172.17.0.1",
+						IPAddress:           "172.17.0.2",
+						IPPrefixLen:         16,
+						IPv6Gateway:         "",
+						GlobalIPv6Address:   "",
+						GlobalIPv6PrefixLen: 0,
+						MacAddress:          "MacAddress",
+					},
+					"extraNetwork": {
+						IPAMConfig:          nil,
+						Links:               nil,
+						Aliases:             nil,
+						NetworkID:           "NetworkID",
+						EndpointID:          "EndpointID",
+						Gateway:             "172.18.0.1",
+						IPAddress:           "172.18.0.2",
+						IPPrefixLen:         16,
+						IPv6Gateway:         "",
+						GlobalIPv6Address:   "",
+						GlobalIPv6PrefixLen: 0,
+						MacAddress:          "MacAddress",
+					},
+				},
+			},
+			expected: []containers.NetworkAddress{
+				{
+					IP:       net.ParseIP("172.17.0.2"),
+					Port:     80,
+					Protocol: "tcp",
+				},
+				{
+					IP:       net.ParseIP("172.18.0.2"),
+					Port:     80,
+					Protocol: "tcp",
+				},
+			},
 		},
 		{
-			IP:       net.ParseIP("172.18.0.2"),
-			Port:     7000,
-			Protocol: "udp",
+			name: "multiple ports",
+			ports: []types.Port{
+				{
+					IP:          "0.0.0.0",
+					PrivatePort: 8080,
+					PublicPort:  8080,
+					Type:        "tcp",
+				},
+				{
+					PrivatePort: 80,
+					Type:        "tcp",
+				},
+				{
+					PrivatePort: 7000,
+					Type:        "udp",
+				},
+			},
+			netSettings: &types.SummaryNetworkSettings{
+				Networks: map[string]*network.EndpointSettings{
+					"bridge": {
+						IPAMConfig:          nil,
+						Links:               nil,
+						Aliases:             nil,
+						NetworkID:           "NetworkID",
+						EndpointID:          "EndpointID",
+						Gateway:             "172.17.0.1",
+						IPAddress:           "172.17.0.2",
+						IPPrefixLen:         16,
+						IPv6Gateway:         "",
+						GlobalIPv6Address:   "",
+						GlobalIPv6PrefixLen: 0,
+						MacAddress:          "MacAddress",
+					},
+				},
+			},
+			expected: []containers.NetworkAddress{
+				{
+					IP:       net.ParseIP("0.0.0.0"),
+					Port:     8080,
+					Protocol: "tcp",
+				},
+				{
+					IP:       net.ParseIP("172.17.0.2"),
+					Port:     8080,
+					Protocol: "tcp",
+				},
+				{
+					IP:       net.ParseIP("172.17.0.2"),
+					Port:     80,
+					Protocol: "tcp",
+				},
+				{
+					IP:       net.ParseIP("172.17.0.2"),
+					Port:     7000,
+					Protocol: "udp",
+				},
+			},
 		},
-	}
-	result := parseContainerNetworkAddresses(ports, netSettings, "mycontainer")
-
-	// Cannot use assert.Equal because the order of elements in result is random
-	assert.Len(t, result, len(expectedOutput))
-	for _, addr := range expectedOutput {
-		assert.Contains(t, result, addr)
+		{
+			name: "multiple ports, multiple networks",
+			ports: []types.Port{
+				{
+					IP:          "0.0.0.0",
+					PrivatePort: 8080,
+					PublicPort:  8080,
+					Type:        "tcp",
+				},
+				{
+					PrivatePort: 80,
+					Type:        "tcp",
+				},
+				{
+					PrivatePort: 7000,
+					Type:        "udp",
+				},
+			},
+			netSettings: &types.SummaryNetworkSettings{
+				Networks: map[string]*network.EndpointSettings{
+					"bridge": {
+						IPAMConfig:          nil,
+						Links:               nil,
+						Aliases:             nil,
+						NetworkID:           "NetworkID",
+						EndpointID:          "EndpointID",
+						Gateway:             "172.17.0.1",
+						IPAddress:           "172.17.0.2",
+						IPPrefixLen:         16,
+						IPv6Gateway:         "",
+						GlobalIPv6Address:   "",
+						GlobalIPv6PrefixLen: 0,
+						MacAddress:          "MacAddress",
+					},
+					"extraNetwork": {
+						IPAMConfig:          nil,
+						Links:               nil,
+						Aliases:             nil,
+						NetworkID:           "NetworkID",
+						EndpointID:          "EndpointID",
+						Gateway:             "172.18.0.1",
+						IPAddress:           "172.18.0.2",
+						IPPrefixLen:         16,
+						IPv6Gateway:         "",
+						GlobalIPv6Address:   "",
+						GlobalIPv6PrefixLen: 0,
+						MacAddress:          "MacAddress",
+					},
+				},
+			},
+			expected: []containers.NetworkAddress{
+				{
+					IP:       net.ParseIP("0.0.0.0"),
+					Port:     8080,
+					Protocol: "tcp",
+				},
+				{
+					IP:       net.ParseIP("172.17.0.2"),
+					Port:     8080,
+					Protocol: "tcp",
+				},
+				{
+					IP:       net.ParseIP("172.18.0.2"),
+					Port:     8080,
+					Protocol: "tcp",
+				},
+				{
+					IP:       net.ParseIP("172.17.0.2"),
+					Port:     80,
+					Protocol: "tcp",
+				},
+				{
+					IP:       net.ParseIP("172.18.0.2"),
+					Port:     80,
+					Protocol: "tcp",
+				},
+				{
+					IP:       net.ParseIP("172.17.0.2"),
+					Port:     7000,
+					Protocol: "udp",
+				},
+				{
+					IP:       net.ParseIP("172.18.0.2"),
+					Port:     7000,
+					Protocol: "udp",
+				},
+			},
+		},
+	} {
+		networkAddresses := parseContainerNetworkAddresses(tc.ports, tc.netSettings, "mycontainer")
+		assert.Len(t, networkAddresses, len(tc.expected), "test %d failed: %s", i, tc.name)
+		for _, addr := range tc.expected {
+			assert.Contains(t, networkAddresses, addr, "test %d failed: %s", i, tc.name)
+		}
 	}
 }

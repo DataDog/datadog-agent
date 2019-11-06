@@ -21,7 +21,7 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 }
 
 // GetConnections is only implemented on linux
-func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]*model.Connection, error) {
+func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 

@@ -689,8 +689,7 @@ func TestWatchdog(t *testing.T) {
 		r.Start()
 		defer r.Stop()
 		go func() {
-			for {
-				<-r.out
+			for range r.out {
 			}
 		}()
 
@@ -771,8 +770,7 @@ func TestOOMKill(t *testing.T) {
 	r.Start()
 	defer r.Stop()
 	go func() {
-		for {
-			<-r.out
+		for range r.out {
 		}
 	}()
 

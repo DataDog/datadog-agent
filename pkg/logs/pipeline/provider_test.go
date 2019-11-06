@@ -28,7 +28,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		numberOfPipelines: 3,
 		auditor:           suite.a,
 		pipelines:         []*Pipeline{},
-		endpoints:         config.NewEndpoints(config.Endpoint{}, nil, true, false),
+		endpoints:         config.NewEndpoints(config.Endpoint{}, nil, true, false, 0),
 	}
 }
 

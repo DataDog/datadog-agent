@@ -339,6 +339,15 @@ public:
     */
     virtual void setLogCb(cb_log_t) = 0;
 
+    //! setCheckMetadataCb member.
+    /*!
+      \param A cb_set_check_metadata_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow adding metadata for
+      specific check instances to the go-land Inventories metadata provider cache.
+    */
+    virtual void setSetCheckMetadataCb(cb_set_check_metadata_t) = 0;
+
     //! setExternalTagsCb member.
     /*!
       \param A cb_set_external_tags_t function pointer to the CGO callback.
@@ -399,6 +408,24 @@ public:
       container name or image is excluded from collection.
     */
     virtual void setIsExcludedCb(cb_is_excluded_t) = 0;
+
+    //! setWritePersistentCacheCb member.
+    /*!
+      \param A cb_write_persistent_cache_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow storing value for
+      specific check instances.
+    */
+    virtual void setWritePersistentCacheCb(cb_write_persistent_cache_t) = 0;
+
+    //! setReadPersistentCacheCb member.
+    /*!
+      \param A cb_read_persistent_cache_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow retrieving value for
+      specific check instances.
+    */
+    virtual void setReadPersistentCacheCb(cb_read_persistent_cache_t) = 0;
 
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */

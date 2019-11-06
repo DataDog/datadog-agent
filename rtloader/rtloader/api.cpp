@@ -421,6 +421,11 @@ void set_log_cb(rtloader_t *rtloader, cb_log_t cb)
     AS_TYPE(RtLoader, rtloader)->setLogCb(cb);
 }
 
+void set_set_check_metadata_cb(rtloader_t *rtloader, cb_set_check_metadata_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSetCheckMetadataCb(cb);
+}
+
 void set_set_external_tags_cb(rtloader_t *rtloader, cb_set_external_tags_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setSetExternalTagsCb(cb);
@@ -434,6 +439,16 @@ char *get_integration_list(rtloader_t *rtloader)
 char *get_interpreter_memory_usage(rtloader_t *rtloader)
 {
     return AS_TYPE(RtLoader, rtloader)->getInterpreterMemoryUsage();
+}
+
+void set_write_persistent_cache_cb(rtloader_t *rtloader, cb_write_persistent_cache_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setWritePersistentCacheCb(cb);
+}
+
+void set_read_persistent_cache_cb(rtloader_t *rtloader, cb_read_persistent_cache_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setReadPersistentCacheCb(cb);
 }
 
 /*

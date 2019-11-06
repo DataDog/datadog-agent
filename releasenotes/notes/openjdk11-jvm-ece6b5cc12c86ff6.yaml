@@ -6,6 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+features:
   - |
-    When uninstalling the agent, remove ddagentuser home folder.
+    Add support for the `XX:+UseContainerSupport` JVM option through the
+    `jmx_use_container_support` configuration option.

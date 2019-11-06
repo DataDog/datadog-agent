@@ -20,6 +20,7 @@ import (
 	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -225,6 +226,9 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
 	defer cancel()
 	container, _, err := d.cli.ContainerInspectWithRaw(ctx, id, withSize)
+	if client.IsErrNotFound(err) {
+		return container, dderrors.NewNotFound(fmt.Sprintf("docker container %s", id))
+	}
 	if err != nil {
 		return container, err
 	}

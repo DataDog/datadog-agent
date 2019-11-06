@@ -50,6 +50,10 @@ func (s *TimeSampler) calculateBucketStart(timestamp float64) int64 {
 	return int64(timestamp) - int64(timestamp)%s.interval
 }
 
+func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) bool {
+	return bucketStartTimestamp+s.interval > timestamp
+}
+
 // Add the metricSample to the correct bucket
 func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp float64) {
 	// Keep track of the context
@@ -103,7 +107,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
 	if len(s.metricsByTimestamp) > 0 {
 		for bucketTimestamp, contextMetrics := range s.metricsByTimestamp {
 			// disregard when the timestamp is too recent
-			if cutoffTime <= bucketTimestamp {
+			if s.isBucketStillOpen(bucketTimestamp, cutoffTime) {
 				continue
 			}
 
