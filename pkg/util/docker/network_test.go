@@ -287,7 +287,7 @@ func TestParseContainerNetworkMode(t *testing.T) {
 			hostConfig: &container.HostConfig{
 				NetworkMode: "unknown network",
 			},
-			want:    "",
+			want:    "unknown",
 			wantErr: true,
 		},
 		{

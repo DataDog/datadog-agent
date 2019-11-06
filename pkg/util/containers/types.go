@@ -44,6 +44,7 @@ const (
 	BridgeNetworkMode         = "bridge"
 	NoneNetworkMode           = "none"
 	AwsvpcNetworkMode         = "awsvpc"
+	UnknownNetworkMode        = "unknown"
 )
 
 // Container represents a single container on a machine

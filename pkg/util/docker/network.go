@@ -225,5 +225,5 @@ func parseContainerNetworkMode(hostConfig *container.HostConfig) (string, error)
 	if strings.HasPrefix(mode, containerModePrefix) {
 		return mode, nil
 	}
-	return "", fmt.Errorf("unknown network mode: %s", mode)
+	return containers.UnknownNetworkMode, fmt.Errorf("unknown network mode: %s", mode)
 }
