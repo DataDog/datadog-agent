@@ -7,7 +7,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// GetDockerHostIP returns the IP address of the host
+// GetDockerHostIP returns the IP address of the host. This is meant to be called
+// only when the agent is running in a dockerized environment.
 func GetDockerHostIP() []string {
 	cacheKey := cache.BuildAgentKey("hostIPs")
 	if cachedIPs, found := cache.Cache.Get(cacheKey); found {
@@ -45,9 +46,9 @@ func getDockerHostIPUncached() []string {
 }
 
 func getHostIPFFromConfig() ([]string, error) {
-	hostIP := config.DataDog.GetString("process_agent_config.host_ip")
-	if hostIP == "" {
-		return nil, fmt.Errorf("no host IP configured")
+	hostIPs := config.DataDog.GetString("process_agent_config.host_ips")
+	if len(hostIPs) == 0 {
+		return nil, fmt.Errorf("no host IPs configured")
 	}
-	return []string{hostIP}
+	return hostIPs
 }
