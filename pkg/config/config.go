@@ -186,6 +186,9 @@ func initConfig(config Config) {
 	// Defaults to safe YAML methods in base and custom checks.
 	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
 
+	// Yaml keys which values are stripped from flare
+	config.BindEnvAndSetDefault("yaml_stripped_keys", []string{"community_string", "authKey", "privKey"})
+
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 	if IsContainerized() {
@@ -724,6 +727,7 @@ func load(config Config, origin string, loadSecret bool) error {
 	loadProxyFromEnv(config)
 	sanitizeAPIKey(config)
 	applyOverrides(config)
+	setLogStrippedKeys(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	setTracemallocEnabled(config)
 	setNumWorkers(config)
@@ -768,6 +772,10 @@ func ResolveSecrets(config Config, origin string) error {
 // Avoid log ingestion breaking because of a newline in the API key
 func sanitizeAPIKey(config Config) {
 	config.Set("api_key", strings.TrimSpace(config.GetString("api_key")))
+}
+
+func setLogStrippedKeys(config Config) {
+	log.SetStrippedKeys(config.GetStringSlice("yaml_stripped_keys"))
 }
 
 // GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`

@@ -23,7 +23,7 @@ type Replacer struct {
 	ReplFunc func(b []byte) []byte
 }
 
-var apiKeyReplacer, uriPasswordReplacer, appKeyReplacer, passwordReplacer, tokenReplacer, snmpReplacer, certReplacer Replacer
+var apiKeyReplacer, uriPasswordReplacer, appKeyReplacer, passwordReplacer, tokenReplacer, configReplacer, certReplacer Replacer
 var commentRegex = regexp.MustCompile(`^\s*#.*$`)
 var blankRegex = regexp.MustCompile(`^\s*$`)
 var singleLineReplacers, multiLineReplacers []Replacer
@@ -51,7 +51,7 @@ func init() {
 		Hints: []string{"token"},
 		Repl:  []byte(`$1 ********`),
 	}
-	snmpReplacer = Replacer{
+	configReplacer = Replacer{
 		Regex: matchYAMLKey(`(community_string|authKey|privKey)`),
 		Hints: []string{"community_string", "authKey", "privKey"},
 		Repl:  []byte(`$1 ********`),
@@ -61,7 +61,7 @@ func init() {
 		Hints: []string{"BEGIN"},
 		Repl:  []byte(`********`),
 	}
-	singleLineReplacers = []Replacer{apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
+	singleLineReplacers = []Replacer{apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, configReplacer}
 	multiLineReplacers = []Replacer{certReplacer}
 }
 
@@ -82,6 +82,13 @@ func matchCert() *regexp.Regexp {
 	return regexp.MustCompile(
 		`-----BEGIN (?:.*)-----[A-Za-z0-9=\+\/\s]*-----END (?:.*)-----`,
 	)
+}
+
+// SetStrippedKeys allows configuration keys cleaned up
+func SetStrippedKeys(strippedKeys []string) {
+	configReplacer.Regex = matchYAMLKey(fmt.Sprintf("(%s)", strings.Join(strippedKeys, "|")))
+	configReplacer.Hints = strippedKeys
+	singleLineReplacers[5] = configReplacer
 }
 
 // CredentialsCleanerFile scrubs credentials from file in path

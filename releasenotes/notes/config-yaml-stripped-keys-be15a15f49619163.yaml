@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Adds a new `yaml_stripped_keys` config setting to clean up additional
+    configuration information from flare.
