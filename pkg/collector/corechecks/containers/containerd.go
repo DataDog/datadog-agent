@@ -249,7 +249,6 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			fileDescCount += fdCount
 		}
 		sender.Gauge("containerd.proc.open_fds", float64(fileDescCount), "", tags)
-
 	}
 }
 

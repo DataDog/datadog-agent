@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Extends the docker check to include an open file descriptors metric.
-    This metric reports the number of open file descriptors per container.
+    Extends the docker and containerd checks to include an open file descriptors
+    metric. This metric reports the number of open file descriptors per container.

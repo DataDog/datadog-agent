@@ -16,7 +16,6 @@ import (
 )
 
 func setupFS(pidFdsMap map[int][]int) (*tempFolder, map[int]string, error) {
-
 	f, err := newTempFolder("")
 	if err != nil {
 		return nil, nil, err
@@ -50,7 +49,6 @@ func setupFS(pidFdsMap map[int][]int) (*tempFolder, map[int]string, error) {
 }
 
 func TestGetFileDescriptorLen(t *testing.T) {
-
 	// Map of pids to file descriptors
 	pidFdsMap := map[int][]int{12345: {1}, 23456: {1, 11}, 34567: {1, 11, 111}}
 	f, pidPathMap, err := setupFS(pidFdsMap)
