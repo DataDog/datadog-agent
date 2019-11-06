@@ -198,7 +198,7 @@ func TestGetLocalIPv4(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	ipv4, err := GetLocalIPv4()
+	ips, err := GetLocalIPv4()
 	require.NoError(t, err)
-	assert.Equal(t, ip, ipv4)
+	assert.Equal(t, []string{ip}, ips)
 }
