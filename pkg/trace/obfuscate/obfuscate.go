@@ -62,7 +62,7 @@ func (o *Obfuscator) SetSQLLiteralEscapes(ok bool) {
 	}
 }
 
-// SQLLiteralEscapes returns whether or not escape characters should be treated literally by the SQL obfuscator.
+// SQLLiteralEscapes reports whether escape characters should be treated literally by the SQL obfuscator.
 func (o *Obfuscator) SQLLiteralEscapes() bool {
 	return atomic.LoadInt32(&o.opts.sqlLiteralEscapes) == 1
 }

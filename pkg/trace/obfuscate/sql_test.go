@@ -52,7 +52,7 @@ func TestSQLResourceQuery(t *testing.T) {
 	assert.Equal("SELECT * FROM users WHERE id = 42", span.Meta["sql.query"])
 }
 
-func TestSQLObfuscateTableNames(t *testing.T) {
+func TestSQLTableNames(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
 		os.Setenv("DD_APM_FEATURES", "table_names")
 		defer os.Unsetenv("DD_APM_FEATURES")

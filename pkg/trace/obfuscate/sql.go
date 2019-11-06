@@ -162,35 +162,25 @@ func (f *groupingFilter) Reset() {
 	f.groupMulti = 0
 }
 
-// Process the given SQL or No-SQL string so that the resulting one is properly altered. This
-// function is generic and the behavior changes according to chosen tokenFilter implementations.
-// The process calls all filters inside the []tokenFilter.
+// obfuscateSQLString quantizes and obfuscates the given input SQL query string. Quantization removes
+// some elements such as comments and aliases and obfuscation attempts to hide sensitive information
+// in strings and numbers by redacting them.
 func (o *Obfuscator) obfuscateSQLString(in string) (*obfuscatedQuery, error) {
-	literalEscapes := o.SQLLiteralEscapes()
-	tokenizer := NewSQLTokenizer(in, literalEscapes)
-	filters := []tokenFilter{&discardFilter{}, &replaceFilter{}, &groupingFilter{}}
-	tableFinder := &tableFinderFilter{}
-	if config.HasFeature("table_names") {
-		filters = append(filters, tableFinder)
-	}
-	out, err := attemptObfuscation(tokenizer, filters)
-	if err != nil && tokenizer.SeenEscape() {
+	lesc := o.SQLLiteralEscapes()
+	tok := NewSQLTokenizer(in, lesc)
+	out, err := attemptObfuscation(tok)
+	if err != nil && tok.SeenEscape() {
 		// If the tokenizer failed, but saw an escape character in the process,
 		// try again treating escapes differently
-		tokenizer = NewSQLTokenizer(in, !literalEscapes)
-		if out, err2 := attemptObfuscation(tokenizer, filters); err2 == nil {
-			// If the second attempt succeeded, change the default behavior
-			o.SetSQLLiteralEscapes(!literalEscapes)
-			return &obfuscatedQuery{
-				query:     out,
-				tablesCSV: tableFinder.CSV(),
-			}, nil
+		tok = NewSQLTokenizer(in, !lesc)
+		if out, err2 := attemptObfuscation(tok); err2 == nil {
+			// If the second attempt succeeded, change the default behavior so that
+			// on the next run we get it right in the first run.
+			o.SetSQLLiteralEscapes(!lesc)
+			return out, nil
 		}
 	}
-	return &obfuscatedQuery{
-		query:     out,
-		tablesCSV: tableFinder.CSV(),
-	}, err
+	return out, err
 }
 
 // tableFinderFilter is a filter which attempts to identify the table name as it goes through each
@@ -255,9 +245,18 @@ type obfuscatedQuery struct {
 	tablesCSV string // comma-separated list of tables that the query addresses
 }
 
-// attemptObfuscation attempts to obfuscate the given SQL string, returning the final value, the table
-// names found in the query and any error.
-func attemptObfuscation(tokenizer *SQLTokenizer, filters []tokenFilter) (string, error) {
+// attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the
+// given set of filters.
+func attemptObfuscation(tokenizer *SQLTokenizer) (*obfuscatedQuery, error) {
+	filters := []tokenFilter{
+		&discardFilter{},
+		&replaceFilter{},
+		&groupingFilter{},
+	}
+	tableFinder := &tableFinderFilter{}
+	if config.HasFeature("table_names") {
+		filters = append(filters, tableFinder)
+	}
 	var (
 		out       bytes.Buffer
 		err       error
@@ -272,11 +271,11 @@ func attemptObfuscation(tokenizer *SQLTokenizer, filters []tokenFilter) (string,
 			break
 		}
 		if token == LexError {
-			return "", fmt.Errorf("%v", tokenizer.Err())
+			return nil, fmt.Errorf("%v", tokenizer.Err())
 		}
 		for _, f := range filters {
 			if token, buff, err = f.Filter(token, lastToken, buff); err != nil {
-				return "", err
+				return nil, err
 			}
 		}
 		if buff != nil {
@@ -299,9 +298,12 @@ func attemptObfuscation(tokenizer *SQLTokenizer, filters []tokenFilter) (string,
 		lastToken = token
 	}
 	if out.Len() == 0 {
-		return "", errors.New("result is empty")
+		return nil, errors.New("result is empty")
 	}
-	return out.String(), nil
+	return &obfuscatedQuery{
+		query:     out.String(),
+		tablesCSV: tableFinder.CSV(),
+	}, nil
 }
 
 func (o *Obfuscator) obfuscateSQL(span *pb.Span) {

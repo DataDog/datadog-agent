@@ -88,7 +88,8 @@ type SQLTokenizer struct {
 	seenEscape     bool // indicates whether this tokenizer has seen an escape character within a string
 }
 
-// NewSQLTokenizer creates a new SQLTokenizer for the given SQL string.
+// NewSQLTokenizer creates a new SQLTokenizer for the given SQL string. The literalEscapes argument specifies
+// whether escape characters should be treated literally or as such.
 func NewSQLTokenizer(sql string, literalEscapes bool) *SQLTokenizer {
 	return &SQLTokenizer{
 		rd:             strings.NewReader(sql),
