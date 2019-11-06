@@ -68,6 +68,8 @@ const (
 	FilteredBracketedIdentifier
 )
 
+const escapeCharacter = '\\'
+
 // SQLTokenizer is the struct used to generate SQL
 // tokens for the parser.
 type SQLTokenizer struct {
@@ -75,11 +77,17 @@ type SQLTokenizer struct {
 	pos      int             // byte offset of lastChar
 	lastChar rune            // last read rune
 	err      error           // any error occurred while reading
+
+	literalEscapes bool // indicates we should not treat backslashes as escape characters
+	seenEscape     bool // indicates whether this tokenizer has seen an escape character within a string
 }
 
 // NewSQLTokenizer creates a new SQLTokenizer for the given SQL string.
-func NewSQLTokenizer(sql string) *SQLTokenizer {
-	return &SQLTokenizer{rd: strings.NewReader(sql)}
+func NewSQLTokenizer(sql string, literalEscapes bool) *SQLTokenizer {
+	return &SQLTokenizer{
+		rd:             strings.NewReader(sql),
+		literalEscapes: literalEscapes,
+	}
 }
 
 // Reset the underlying buffer and positions
@@ -106,6 +114,9 @@ func (tkn *SQLTokenizer) Err() error { return tkn.err }
 func (tkn *SQLTokenizer) setErr(format string, args ...interface{}) {
 	tkn.err = fmt.Errorf("at position %d: %v", tkn.pos, fmt.Errorf(format, args...))
 }
+
+// SeenEscape returns whether or not this tokenizer has seen an escape character within a scanned string
+func (tkn *SQLTokenizer) SeenEscape() bool { return tkn.seenEscape }
 
 // Scan scans the tokenizer for the next token and returns
 // the token type and the token buffer.
@@ -416,18 +427,20 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 		tkn.next()
 		if ch == delim {
 			if tkn.lastChar == delim {
+				// doubling a delimiter is the default way to embed the delimiter within a string
 				tkn.next()
 			} else {
+				// a single delimiter denotes the end of the string
 				break
 			}
-		} else if ch == '\\' {
-			if tkn.lastChar == EOFChar {
-				tkn.setErr("unexpected EOF after escape character in string")
-				return LexError, buffer.Bytes()
-			}
+		} else if ch == escapeCharacter {
+			tkn.seenEscape = true
 
-			ch = tkn.lastChar
-			tkn.next()
+			if !tkn.literalEscapes {
+				// treat as an escape character
+				ch = tkn.lastChar
+				tkn.next()
+			}
 		}
 		if ch == EOFChar {
 			tkn.setErr("unexpected EOF in string")
