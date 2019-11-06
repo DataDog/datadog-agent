@@ -35,6 +35,11 @@ func GetInstanceID() (string, error) {
 	return getMetadataItemWithMaxLength("/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 }
 
+// GetLocalIPv4 gets the local IPv4 for the currently running host using the EC2 metadata API.
+func GetLocalIPv4() (string, error) {
+	return getMetadataItem("/meta-data/local-ipv4")
+}
+
 // IsRunningOn returns true if the agent is running on AWS
 func IsRunningOn() bool {
 	if _, err := GetHostname(); err == nil {
