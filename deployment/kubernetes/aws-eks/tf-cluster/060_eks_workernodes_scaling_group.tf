@@ -97,6 +97,8 @@ resource "aws_autoscaling_group" "eks-autoscaling-group" {
 
 //To output an IAM Role authentication ConfigMap from your Terraform configuration:
 
+data "aws_caller_identity" "current" {}
+
 locals {
   config-map-aws-auth = <<CONFIGMAPAWSAUTH
 apiVersion: v1
@@ -111,8 +113,11 @@ data:
       groups:
         - system:bootstrappers
         - system:nodes
+    - rolearn: arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/Administrator
+      username: administrator
+      groups:
+        - system:masters
 CONFIGMAPAWSAUTH
-
 }
 
 output "config-map-aws-auth" {
