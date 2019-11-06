@@ -49,7 +49,6 @@ users:
         - "-i"
         - "${local.cluster_name}"
 KUBECONFIG
-
 }
 
 output "kubeconfig" {
