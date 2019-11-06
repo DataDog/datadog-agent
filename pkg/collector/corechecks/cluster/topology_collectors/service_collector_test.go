@@ -25,7 +25,7 @@ func TestServiceCollector(t *testing.T) {
 	defer close(componentChannel)
 	relationChannel := make(chan *topology.Relation)
 	defer close(relationChannel)
-	serviceCorrelationChannel := make(chan *IngressCorrelation)
+	serviceCorrelationChannel := make(chan *IngressToServiceCorrelation)
 
 	creationTime = v1.Time{ Time: time.Now().Add(-1*time.Hour) }
 
@@ -35,7 +35,7 @@ func TestServiceCollector(t *testing.T) {
 
 	// send test ingress correlation events
 	go func() {
-		for _, ic := range []*IngressCorrelation{
+		for _, ic := range []*IngressToServiceCorrelation{
 			{ServiceID: "test-namespace:test-service-5", IngressExternalID: "urn:/kubernetes:test-cluster-name:ingress:gcp-ingress"},
 			{ServiceID: "test-namespace:test-service-5", IngressExternalID: "urn:/kubernetes:test-cluster-name:ingress:aws-ingress"},
 		} {

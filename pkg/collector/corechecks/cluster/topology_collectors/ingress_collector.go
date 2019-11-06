@@ -12,13 +12,13 @@ import (
 type IngressCollector struct {
 	ComponentChan chan<- *topology.Component
 	RelationChan chan<- *topology.Relation
-	ServiceCorrelationChannel chan<- *IngressCorrelation
+	ServiceCorrelationChannel chan<- *IngressToServiceCorrelation
 	ClusterTopologyCollector
 }
 
 // NewIngressCollector
 func NewIngressCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
-	serviceCorrelationChannel chan<- *IngressCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+	serviceCorrelationChannel chan<- *IngressToServiceCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &IngressCollector{
 		ComponentChan: componentChannel,
 		RelationChan: relationChannel,
@@ -46,7 +46,7 @@ func (ic *IngressCollector) CollectorFunction() error {
 		if in.Spec.Backend.ServiceName != "" {
 			serviceID := buildServiceID(in.Namespace, in.Spec.Backend.ServiceName)
 
-			ic.ServiceCorrelationChannel <- &IngressCorrelation{
+			ic.ServiceCorrelationChannel <- &IngressToServiceCorrelation{
 				ServiceID: 			serviceID,
 				IngressExternalID: 	component.ExternalID,
 			}
@@ -57,7 +57,7 @@ func (ic *IngressCollector) CollectorFunction() error {
 			for _, path := range rules.HTTP.Paths {
 				serviceID := buildServiceID(in.Namespace, path.Backend.ServiceName)
 
-				ic.ServiceCorrelationChannel <- &IngressCorrelation{
+				ic.ServiceCorrelationChannel <- &IngressToServiceCorrelation{
 					ServiceID: serviceID,
 					IngressExternalID: component.ExternalID,
 				}

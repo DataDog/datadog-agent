@@ -14,17 +14,17 @@ import (
 type NodeCollector struct {
 	ComponentChan chan<- *topology.Component
 	RelationChan chan<- *topology.Relation
-	ContainerCorrChan <-chan *ContainerCorrelation
+	ContainerCorrChan <-chan *ContainerToNodeCorrelation
 	ClusterTopologyCollector
 }
 
 // NewNodeCollector
 func NewNodeCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
-	containerCorrelationChannel <-chan *ContainerCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+	ContainerToNodeCorrelationChannel <-chan *ContainerToNodeCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &NodeCollector{
 		ComponentChan: componentChannel,
 		RelationChan: relationChannel,
-		ContainerCorrChan: containerCorrelationChannel,
+		ContainerCorrChan: ContainerToNodeCorrelationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -56,13 +56,13 @@ func (nc *NodeCollector) CollectorFunction() error {
 	}
 
 	// map containers that require the Node instanceId
-	for containerCorrelation := range nc.ContainerCorrChan {
-		log.Tracef("Creating correlation for containers running on node: %s", containerCorrelation.NodeName)
+	for containerToNodeCorrelation := range nc.ContainerCorrChan {
+		log.Tracef("Creating correlation for containers running on node: %s", containerToNodeCorrelation.NodeName)
 
-		if matchingNodeSpec, ok := nodeSpecMap[containerCorrelation.NodeName]; ok {
+		if matchingNodeSpec, ok := nodeSpecMap[containerToNodeCorrelation.NodeName]; ok {
 			nodeIdentifier := extractInstanceIdFromProviderId(matchingNodeSpec)
 			if nodeIdentifier != "" {
-				containerComponents, containerRelations := containerCorrelation.MappingFunction(nodeIdentifier)
+				containerComponents, containerRelations := containerToNodeCorrelation.MappingFunction(nodeIdentifier)
 				// publish the node components
 				for _, component := range containerComponents {
 					nc.ComponentChan <- component

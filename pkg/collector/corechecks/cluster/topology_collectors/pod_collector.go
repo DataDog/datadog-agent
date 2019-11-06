@@ -13,7 +13,7 @@ import (
 type PodCollector struct {
 	ComponentChan chan<- *topology.Component
 	RelationChan chan<- *topology.Relation
-	ContainerCorrChan chan<- *ContainerCorrelation
+	ContainerCorrChan chan<- *ContainerToNodeCorrelation
 	ClusterTopologyCollector
 }
 
@@ -25,7 +25,7 @@ type ContainerPort struct {
 
 // NewPodCollector
 func NewPodCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
-	containerCorrChannel chan<- *ContainerCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+	containerCorrChannel chan<- *ContainerToNodeCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 
 	return &PodCollector{
 		ComponentChan: componentChannel,
@@ -122,7 +122,7 @@ func (pc *PodCollector) CollectorFunction() error {
 			}
 		}
 
-		pc.ContainerCorrChan <- &ContainerCorrelation{pod.Spec.NodeName, pc.buildContainerMappingFunction(pod, component.ExternalID, containerPorts)}
+		pc.ContainerCorrChan <- &ContainerToNodeCorrelation{pod.Spec.NodeName, pc.buildContainerMappingFunction(pod, component.ExternalID, containerPorts)}
 	}
 
 	// close container correlation channel
@@ -400,7 +400,7 @@ func (pc *PodCollector) containerToVolumeStackStateRelation(containerExternalID,
 		"mountPropagation": mount.MountPropagation,
 	}
 
-	relation := pc.CreateRelationData(containerExternalID, volumeExternalID, "uses", data)
+	relation := pc.CreateRelationData(containerExternalID, volumeExternalID, "mounts", data)
 
 	log.Tracef("Created StackState container -> volume relation %s->%s", relation.SourceID, relation.TargetID)
 

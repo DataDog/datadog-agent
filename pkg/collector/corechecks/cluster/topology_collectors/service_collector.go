@@ -13,7 +13,7 @@ import (
 type ServiceCollector struct {
 	ComponentChan chan<- *topology.Component
 	RelationChan chan<- *topology.Relation
-	ServiceCorrelationChannel <-chan *IngressCorrelation
+	ServiceCorrelationChannel <-chan *IngressToServiceCorrelation
 	ClusterTopologyCollector
 }
 
@@ -25,7 +25,7 @@ type EndpointID struct {
 
 // NewServiceCollector
 func NewServiceCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
-	serviceCorrelationChannel <-chan *IngressCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+	serviceCorrelationChannel <-chan *IngressToServiceCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &ServiceCollector{
 		ComponentChan: componentChannel,
 		RelationChan: relationChannel,

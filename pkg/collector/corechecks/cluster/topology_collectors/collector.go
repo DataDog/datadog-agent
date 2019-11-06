@@ -16,14 +16,14 @@ const (
 	ReplicaSet = "ReplicaSet"
 )
 
-// IngressCorrelation
-type IngressCorrelation struct {
+// IngressToServiceCorrelation
+type IngressToServiceCorrelation struct {
 	ServiceID string
 	IngressExternalID string
 }
 
-// ContainerCorrelation
-type ContainerCorrelation struct {
+// ContainerToNodeCorrelation
+type ContainerToNodeCorrelation struct {
 	NodeName string
 	MappingFunction func (nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation)
 }
