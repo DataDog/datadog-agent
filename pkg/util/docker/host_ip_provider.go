@@ -55,7 +55,7 @@ func getDockerHostIPUncached() []string {
 		log.Debugf("attempting to get host ip from source: %s", attempt.name)
 		ips, err := attempt.provider()
 		if err != nil {
-			log.Debugf("could not deduce host IP from source: %s", err)
+			log.Debugf("could not deduce host IP from source %s: %s", err)
 		} else {
 			return ips
 		}
