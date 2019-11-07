@@ -40,7 +40,7 @@ type legacyKubernetesInstance struct {
 	CollectEvents       bool   `yaml:"collect_events"`
 	CollectMetrics      bool   `yaml:"collect_metrics"`
 	CollectTopology     bool   `yaml:"collect_topology"`
-	CollectTimeout      int   `yaml:"collect_timeout"`
+	CollectTimeout      int    `yaml:"collect_timeout"`
 	LeaderCandidate     bool   `yaml:"leader_candidate"`
 	LeaderLeaseDuration int    `yaml:"leader_lease_duration"`
 	CollectServiceTags  string `yaml:"collect_service_tags"`

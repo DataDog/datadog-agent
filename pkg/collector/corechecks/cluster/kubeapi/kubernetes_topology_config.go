@@ -11,18 +11,19 @@ import (
 
 // ClusterType represents the type of the cluster being monitored - Kubernetes / OpenShift
 type ClusterType string
+
 const (
 	// Kubernetes cluster type
 	Kubernetes ClusterType = "kubernetes"
 	// OpenShift cluster type
-	OpenShift              = "openshift"
+	OpenShift = "openshift"
 )
 
 // TopologyConfig is the config of the API server.
 type TopologyConfig struct {
 	ClusterName     string `yaml:"cluster_name"`
 	CollectTopology bool   `yaml:"collect_topology"`
-	CollectTimeout  int   `yaml:"collect_timeout"`
+	CollectTimeout  int    `yaml:"collect_timeout"`
 	CheckID         check.ID
 	Instance        topology.Instance
 }
@@ -49,15 +50,15 @@ type TopologySubmitter interface {
 // NewBatchTopologySubmitter creates a new instance of BatchTopologySubmitter
 func NewBatchTopologySubmitter(checkID check.ID, instance topology.Instance) TopologySubmitter {
 	return &BatchTopologySubmitter{
-		CheckID: checkID,
+		CheckID:  checkID,
 		Instance: instance,
 	}
 }
 
 // BatchTopologySubmitter provides functionality to submit topology data with the Batcher.
 type BatchTopologySubmitter struct {
-	CheckID         check.ID
-	Instance        topology.Instance
+	CheckID  check.ID
+	Instance topology.Instance
 }
 
 // SubmitStartSnapshot submits the start for this Check ID and instance
@@ -75,7 +76,7 @@ func (b *BatchTopologySubmitter) SubmitComplete() {
 	batcher.GetBatcher().SubmitComplete(b.CheckID)
 }
 
-// SubmitRelation takes a component and submits it with the Batcher
+// SubmitComponent takes a component and submits it with the Batcher
 func (b *BatchTopologySubmitter) SubmitComponent(component *topology.Component) {
 	log.Debugf("Publishing StackState %s component for %s: %v", component.Type.Name, component.ExternalID, component.JSONString())
 	batcher.GetBatcher().SubmitComponent(b.CheckID, b.Instance, *component)

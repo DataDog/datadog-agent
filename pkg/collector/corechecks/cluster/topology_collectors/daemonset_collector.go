@@ -17,7 +17,7 @@ type DaemonSetCollector struct {
 // NewDaemonSetCollector
 func NewDaemonSetCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &DaemonSetCollector{
-		ComponentChan: componentChannel,
+		ComponentChan:            componentChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -57,8 +57,8 @@ func (dsc *DaemonSetCollector) daemonSetToStackStateComponent(daemonSet v1.Daemo
 			"creationTimestamp": daemonSet.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         daemonSet.Namespace,
-			"updateStrategy": daemonSet.Spec.UpdateStrategy.Type,
-			"uid":           daemonSet.UID,
+			"updateStrategy":    daemonSet.Spec.UpdateStrategy.Type,
+			"uid":               daemonSet.UID,
 		},
 	}
 

@@ -11,15 +11,15 @@ import (
 
 // PodCollector implements the ClusterTopologyCollector interface.
 type PodCollector struct {
-	ComponentChan chan<- *topology.Component
-	RelationChan chan<- *topology.Relation
+	ComponentChan     chan<- *topology.Component
+	RelationChan      chan<- *topology.Relation
 	ContainerCorrChan chan<- *ContainerToNodeCorrelation
 	ClusterTopologyCollector
 }
 
 // ContainerPort is used to keep state of the container ports.
 type ContainerPort struct {
-	HostPort int32
+	HostPort      int32
 	ContainerPort int32
 }
 
@@ -28,9 +28,9 @@ func NewPodCollector(componentChannel chan<- *topology.Component, relationChanne
 	containerCorrChannel chan<- *ContainerToNodeCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 
 	return &PodCollector{
-		ComponentChan: componentChannel,
-		RelationChan: relationChannel,
-		ContainerCorrChan: containerCorrChannel,
+		ComponentChan:            componentChannel,
+		RelationChan:             relationChannel,
+		ContainerCorrChan:        containerCorrChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -96,7 +96,7 @@ func (pc *PodCollector) CollectorFunction() error {
 			// map relations between the container and the volume
 			for _, mount := range c.VolumeMounts {
 				containerExternalID := pc.buildContainerExternalID(pod.Name, c.Name)
-				volumeExternalID :=  pc.buildVolumeExternalID(mount.Name)
+				volumeExternalID := pc.buildVolumeExternalID(mount.Name)
 				pc.RelationChan <- pc.containerToVolumeStackStateRelation(containerExternalID, volumeExternalID, mount)
 			}
 
@@ -116,7 +116,7 @@ func (pc *PodCollector) CollectorFunction() error {
 
 			for _, port := range c.Ports {
 				containerPorts[fmt.Sprintf("%s_%s", c.Image, c.Name)] = ContainerPort{
-					HostPort: port.HostPort,
+					HostPort:      port.HostPort,
 					ContainerPort: port.ContainerPort,
 				}
 			}
@@ -144,7 +144,7 @@ func (pc *PodCollector) isPersistentVolume(volume v1.Volume) bool {
 		volume.RBD != nil || volume.FlexVolume != nil || volume.Cinder != nil || volume.CephFS != nil ||
 		volume.Flocker != nil || volume.DownwardAPI != nil || volume.FC != nil || volume.AzureFile != nil ||
 		volume.VsphereVolume != nil || volume.Quobyte != nil || volume.AzureDisk != nil || volume.PhotonPersistentDisk != nil ||
-		volume.Projected != nil || volume.PortworxVolume != nil || volume.ScaleIO != nil || volume.StorageOS != nil{
+		volume.Projected != nil || volume.PortworxVolume != nil || volume.ScaleIO != nil || volume.StorageOS != nil {
 		return true
 	}
 
@@ -155,7 +155,6 @@ func (pc *PodCollector) isPersistentVolume(volume v1.Volume) bool {
 func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component {
 	// creates a StackState component for the kubernetes pod
 	log.Tracef("Mapping kubernetes pod to StackState Component: %s", pod.String())
-
 
 	identifiers := make([]string, 0)
 	// if the pod is using the host network do not map it as a identifier, this will cause all pods to merge.
@@ -198,7 +197,7 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 			"identifiers":   identifiers,
 			"uid":           pod.UID,
 			"generateName":  pod.GenerateName,
-			"qosClass" : pod.Status.QOSClass,
+			"qosClass":      pod.Status.QOSClass,
 		},
 	}
 
@@ -251,11 +250,11 @@ func (pc *PodCollector) containerToStackStateComponent(nodeIdentifier string, po
 	data := map[string]interface{}{
 		"name": container.Name,
 		"docker": map[string]interface{}{
-			"image":        container.Image,
+			"image":       container.Image,
 			"containerId": strippedContainerId,
 		},
 		"pod":          pod.Name,
-		"podIP":          pod.Status.PodIP,
+		"podIP":        pod.Status.PodIP,
 		"namespace":    pod.Namespace,
 		"restartCount": container.RestartCount,
 		"tags":         tags,
@@ -289,7 +288,7 @@ func (pc *PodCollector) containerToStackStateComponent(nodeIdentifier string, po
 }
 
 // Creates a StackState relation from a Kubernetes / OpenShift Container to Pod relation
-func (pc *PodCollector)  containerToPodStackStateRelation(containerExternalID, podExternalID string) *topology.Relation {
+func (pc *PodCollector) containerToPodStackStateRelation(containerExternalID, podExternalID string) *topology.Relation {
 	log.Tracef("Mapping kubernetes container to pod relation: %s -> %s", containerExternalID, podExternalID)
 
 	relation := pc.CreateRelation(containerExternalID, podExternalID, "enclosed_in")
@@ -300,7 +299,7 @@ func (pc *PodCollector)  containerToPodStackStateRelation(containerExternalID, p
 }
 
 // Creates a StackState relation from a Kubernetes / OpenShift Controller Workload to Pod relation
-func (pc *PodCollector)  controllerWorkloadToPodStackStateRelation(controllerExternalID, podExternalID string) *topology.Relation {
+func (pc *PodCollector) controllerWorkloadToPodStackStateRelation(controllerExternalID, podExternalID string) *topology.Relation {
 	log.Tracef("Mapping kubernetes controller workload to pod relation: %s -> %s", controllerExternalID, podExternalID)
 
 	relation := pc.CreateRelation(controllerExternalID, podExternalID, "controls")
@@ -311,7 +310,7 @@ func (pc *PodCollector)  controllerWorkloadToPodStackStateRelation(controllerExt
 }
 
 // Creates a StackState relation from a Kubernetes / OpenShift Pod to ConfigMap relation
-func (pc *PodCollector)  podToConfigMapStackStateRelation(podExternalID, configMapExternalID string) *topology.Relation {
+func (pc *PodCollector) podToConfigMapStackStateRelation(podExternalID, configMapExternalID string) *topology.Relation {
 	log.Tracef("Mapping kubernetes pod to config map relation: %s -> %s", podExternalID, configMapExternalID)
 
 	relation := pc.CreateRelation(podExternalID, configMapExternalID, "uses")
@@ -322,7 +321,7 @@ func (pc *PodCollector)  podToConfigMapStackStateRelation(podExternalID, configM
 }
 
 // Creates a StackState relation from a Kubernetes / OpenShift Pod to ConfigMap variable relation
-func (pc *PodCollector)  podToConfigMapVarStackStateRelation(podExternalID, configMapExternalID string) *topology.Relation {
+func (pc *PodCollector) podToConfigMapVarStackStateRelation(podExternalID, configMapExternalID string) *topology.Relation {
 	log.Tracef("Mapping kubernetes pod to config map var relation: %s -> %s", podExternalID, configMapExternalID)
 
 	relation := pc.CreateRelation(podExternalID, configMapExternalID, "uses_value")
@@ -365,10 +364,10 @@ func (pc *PodCollector) volumeToStackStateComponent(pod v1.Pod, volume v1.Volume
 		ExternalID: volumeExternalID,
 		Type:       topology.Type{Name: "volume"},
 		Data: map[string]interface{}{
-			"name":   volume.Name,
-			"source": volume.VolumeSource,
+			"name":        volume.Name,
+			"source":      volume.VolumeSource,
 			"identifiers": identifiers,
-			"tags":   tags,
+			"tags":        tags,
 		},
 	}
 
@@ -393,10 +392,10 @@ func (pc *PodCollector) containerToVolumeStackStateRelation(containerExternalID,
 	log.Tracef("Mapping kubernetes container to volume relation: %s -> %s", containerExternalID, volumeExternalID)
 
 	data := map[string]interface{}{
-		"name": mount.Name,
-		"readOnly": mount.ReadOnly,
-		"mountPath": mount.MountPath,
-		"subPath" : mount.SubPath,
+		"name":             mount.Name,
+		"readOnly":         mount.ReadOnly,
+		"mountPath":        mount.MountPath,
+		"subPath":          mount.SubPath,
 		"mountPropagation": mount.MountPropagation,
 	}
 
@@ -408,8 +407,8 @@ func (pc *PodCollector) containerToVolumeStackStateRelation(containerExternalID,
 }
 
 // build the function that is used to correlate container to nodes
-func (pc *PodCollector)  buildContainerMappingFunction(pod v1.Pod, podExternalID string, containerPorts map[string]ContainerPort) func (nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation) {
-	return func (nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation) {
+func (pc *PodCollector) buildContainerMappingFunction(pod v1.Pod, podExternalID string, containerPorts map[string]ContainerPort) func(nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation) {
+	return func(nodeIdentifier string) (components []*topology.Component, relations []*topology.Relation) {
 		// creates a StackState component for the kubernetes pod containers + relation to pod
 		for _, container := range pod.Status.ContainerStatuses {
 

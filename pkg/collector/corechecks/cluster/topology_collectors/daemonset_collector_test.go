@@ -23,7 +23,7 @@ func TestDaemonSetCollector(t *testing.T) {
 	componentChannel := make(chan *topology.Component)
 	defer close(componentChannel)
 
-	creationTime = v1.Time{ Time: time.Now().Add(-1*time.Hour) }
+	creationTime = v1.Time{Time: time.Now().Add(-1 * time.Hour)}
 
 	cmc := NewDaemonSetCollector(componentChannel, NewTestCommonClusterCollector(MockDaemonSetAPICollectorClient{}))
 	expectedCollectorName := "DaemonSet Collector"
@@ -44,7 +44,7 @@ func TestDaemonSetCollector(t *testing.T) {
 					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
 					"namespace":         "test-namespace",
 					"uid":               types.UID("test-daemonset-1"),
-					"updateStrategy": appsV1.RollingUpdateDaemonSetStrategyType,
+					"updateStrategy":    appsV1.RollingUpdateDaemonSetStrategyType,
 				},
 			},
 		},
@@ -59,7 +59,7 @@ func TestDaemonSetCollector(t *testing.T) {
 					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
 					"namespace":         "test-namespace",
 					"uid":               types.UID("test-daemonset-2"),
-					"updateStrategy": appsV1.RollingUpdateDaemonSetStrategyType,
+					"updateStrategy":    appsV1.RollingUpdateDaemonSetStrategyType,
 				},
 			},
 		},
@@ -74,15 +74,15 @@ func TestDaemonSetCollector(t *testing.T) {
 					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
 					"namespace":         "test-namespace",
 					"uid":               types.UID("test-daemonset-3"),
-					"updateStrategy": appsV1.RollingUpdateDaemonSetStrategyType,
-					"kind":         "some-specified-kind",
-					"generateName":         "some-specified-generation",
+					"updateStrategy":    appsV1.RollingUpdateDaemonSetStrategyType,
+					"kind":              "some-specified-kind",
+					"generateName":      "some-specified-generation",
 				},
 			},
 		},
 	} {
 		t.Run(tc.testCase, func(t *testing.T) {
-			component := <- componentChannel
+			component := <-componentChannel
 			assert.EqualValues(t, tc.expected, component)
 		})
 	}
@@ -109,8 +109,8 @@ func (m MockDaemonSetAPICollectorClient) GetDaemonSets() ([]appsV1.DaemonSet, er
 				UID:          types.UID(fmt.Sprintf("test-daemonset-%d", i)),
 				GenerateName: "",
 			},
-			Spec: appsV1.DaemonSetSpec {
-				UpdateStrategy: appsV1.DaemonSetUpdateStrategy {
+			Spec: appsV1.DaemonSetSpec{
+				UpdateStrategy: appsV1.DaemonSetUpdateStrategy{
 					Type: appsV1.RollingUpdateDaemonSetStrategyType,
 				},
 			},

@@ -58,26 +58,25 @@ func TestRunClusterCollectors(t *testing.T) {
 	close(waitGroupChannel)
 }
 
-
 // NewTestTopologySubmitter creates a new instance of TestTopologySubmitter
 func NewTestTopologySubmitter(t *testing.T, checkID check.ID, instance topology.Instance) TopologySubmitter {
 	return &TestTopologySubmitter{
-		t: t,
-		CheckID: checkID,
+		t:        t,
+		CheckID:  checkID,
 		Instance: instance,
 	}
 }
 
 // TestTopologySubmitter provides functionality to submit topology data with the Batcher.
 type TestTopologySubmitter struct {
-	t *testing.T
-	CheckID         check.ID
-	Instance        topology.Instance
+	t        *testing.T
+	CheckID  check.ID
+	Instance topology.Instance
 }
 
-func (b *TestTopologySubmitter) SubmitStartSnapshot(){}
-func (b *TestTopologySubmitter) SubmitStopSnapshot(){}
-func (b *TestTopologySubmitter) SubmitComplete(){}
+func (b *TestTopologySubmitter) SubmitStartSnapshot() {}
+func (b *TestTopologySubmitter) SubmitStopSnapshot()  {}
+func (b *TestTopologySubmitter) SubmitComplete()      {}
 
 // SubmitRelation takes a component and submits it with the Batcher
 func (b *TestTopologySubmitter) SubmitComponent(component *topology.Component) {
@@ -102,15 +101,15 @@ func (b *TestTopologySubmitter) HandleError(err error) {
 // TestCollector implements the ClusterTopologyCollector interface.
 type TestCollector struct {
 	ComponentChan chan<- *topology.Component
-	RelationChan chan<- *topology.Relation
+	RelationChan  chan<- *topology.Relation
 	collectors.ClusterTopologyCollector
 }
 
 // NewTestCollector
 func NewTestCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector collectors.ClusterTopologyCollector) collectors.ClusterTopologyCollector {
 	return &TestCollector{
-		ComponentChan: componentChannel,
-		RelationChan: relationChannel,
+		ComponentChan:            componentChannel,
+		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -122,13 +121,13 @@ func (_ *TestCollector) GetName() string {
 
 // Collects and Publishes dummy Components and Relations
 func (tc *TestCollector) CollectorFunction() error {
-	tc.ComponentChan <- &topology.Component{ExternalID: "1", Type: topology.Type{Name: "component-type"} }
-	tc.ComponentChan <- &topology.Component{ExternalID: "2", Type: topology.Type{Name: "component-type"} }
-	tc.ComponentChan <- &topology.Component{ExternalID: "3", Type: topology.Type{Name: "component-type"} }
-	tc.ComponentChan <- &topology.Component{ExternalID: "4", Type: topology.Type{Name: "component-type"} }
+	tc.ComponentChan <- &topology.Component{ExternalID: "1", Type: topology.Type{Name: "component-type"}}
+	tc.ComponentChan <- &topology.Component{ExternalID: "2", Type: topology.Type{Name: "component-type"}}
+	tc.ComponentChan <- &topology.Component{ExternalID: "3", Type: topology.Type{Name: "component-type"}}
+	tc.ComponentChan <- &topology.Component{ExternalID: "4", Type: topology.Type{Name: "component-type"}}
 
-	tc.RelationChan <- &topology.Relation{ ExternalID: "1->2"}
-	tc.RelationChan <- &topology.Relation{ ExternalID: "3->4"}
+	tc.RelationChan <- &topology.Relation{ExternalID: "1->2"}
+	tc.RelationChan <- &topology.Relation{ExternalID: "3->4"}
 
 	return nil
 }
@@ -136,15 +135,15 @@ func (tc *TestCollector) CollectorFunction() error {
 // ErrorTestCollector implements the ClusterTopologyCollector interface.
 type ErrorTestCollector struct {
 	ComponentChan chan<- *topology.Component
-	RelationChan chan<- *topology.Relation
+	RelationChan  chan<- *topology.Relation
 	collectors.ClusterTopologyCollector
 }
 
 // NewErrorTestCollector
 func NewErrorTestCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector collectors.ClusterTopologyCollector) collectors.ClusterTopologyCollector {
 	return &ErrorTestCollector{
-		ComponentChan: componentChannel,
-		RelationChan: relationChannel,
+		ComponentChan:            componentChannel,
+		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }

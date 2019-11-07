@@ -25,7 +25,7 @@ const (
 // TopologyCheck grabs events from the API server.
 type TopologyCheck struct {
 	CommonCheck
-	instance *TopologyConfig
+	instance  *TopologyConfig
 	submitter TopologySubmitter
 }
 
@@ -219,13 +219,13 @@ func (t *TopologyCheck) waitForTopology(componentChannel <-chan *topology.Compon
 
 	for {
 		select {
-		case component := <- componentChannel:
+		case component := <-componentChannel:
 			t.submitter.SubmitComponent(component)
-		case relation := <- relationChannel:
+		case relation := <-relationChannel:
 			t.submitter.SubmitRelation(relation)
-		case err := <- errorChannel:
+		case err := <-errorChannel:
 			t.submitter.HandleError(err)
-		case <- waitGroupChannel:
+		case <-waitGroupChannel:
 			log.Debug("All collectors have been finished their work, continuing to publish data to StackState")
 			return
 		case <-time.After(timeout):
