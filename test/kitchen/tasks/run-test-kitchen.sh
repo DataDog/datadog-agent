@@ -80,7 +80,7 @@ fi
 
 # Generate a password to use for the windows servers
 if [ -z ${SERVER_PASSWORD+x} ]; then
-  export SERVER_PASSWORD=$(< /dev/urandom tr -dc A-Za-z0-9 | head -c32)
+  export SERVER_PASSWORD="$(< /dev/urandom tr -dc A-Za-z0-9 | head -c32)0aZ"
 fi
 
 cp kitchen-azure.yml kitchen.yml
