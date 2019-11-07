@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
 // ErrNotImplemented is the "not implemented" error given by `gopsutil` when an
