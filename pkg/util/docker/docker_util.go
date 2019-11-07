@@ -242,7 +242,7 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 	return container, nil
 }
 
-// Inspect detect the container ID we are running in and returns the inspect contents.
+// InspectSelf detect the container ID we are running in and returns the inspect contents.
 func (d *DockerUtil) InspectSelf() (types.ContainerJSON, error) {
 	prefix := config.Datadog.GetString("container_cgroup_prefix")
 	cID, _, err := metrics.ReadCgroupsForPath("/proc/self/cgroup", prefix)
