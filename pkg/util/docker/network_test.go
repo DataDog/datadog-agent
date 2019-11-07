@@ -72,8 +72,8 @@ ens33	00000000	FEFEA8C0	0003	0	0	100	00000000	0	0	0
 	}
 }
 
-func TestDefaulHostAddrs(t *testing.T) {
-	dummyProcDir, err := newTempFolder("test-default-host-addrs")
+func TestDefaulHostIPs(t *testing.T) {
+	dummyProcDir, err := newTempFolder("test-default-host-ips")
 	require.Nil(t, err)
 	defer dummyProcDir.removeAll()
 	config.Datadog.SetDefault("proc_root", dummyProcDir.RootPath)
@@ -89,19 +89,28 @@ func TestDefaulHostAddrs(t *testing.T) {
 		interfaces, err := net.Interfaces()
 		require.NoError(t, err)
 		require.NotEmpty(t, interfaces)
-
 		netInterface := interfaces[0]
-		netAddrs, err := netInterface.Addrs()
-		require.NoError(t, err)
 		routes = strings.ReplaceAll(routes, "default", netInterface.Name)
 
 		// Populate routing table file
 		err = dummyProcDir.add(filepath.Join("net", "route"), routes)
 		require.NoError(t, err)
 
-		addrs, err := DefaultHostAddrs()
+		// Retrieve IPs bound to the "default" network interface
+		var expectedIPs []string
+		netAddrs, err := netInterface.Addrs()
+		require.NoError(t, err)
+		require.NotEmpty(t, netAddrs)
+		for _, address := range netAddrs {
+			ip := strings.Split(address.String(), "/")[0]
+			require.NotNil(t, net.ParseIP(ip))
+			expectedIPs = append(expectedIPs, ip)
+		}
+
+		// Verify they match the IPs returned by DefaultHostIPs()
+		defaultIPs, err := DefaultHostIPs()
 		assert.Nil(t, err)
-		assert.Equal(t, netAddrs, addrs)
+		assert.Equal(t, expectedIPs, defaultIPs)
 	})
 
 	t.Run("routing table missing a gateway entry", func(t *testing.T) {
@@ -112,7 +121,8 @@ func TestDefaulHostAddrs(t *testing.T) {
 
 		err = dummyProcDir.add(filepath.Join("net", "route"), routes)
 		require.NoError(t, err)
-		_, err := DefaultHostAddrs()
+		ips, err := DefaultHostIPs()
+		assert.Nil(t, ips)
 		assert.NotNil(t, err)
 	})
 }

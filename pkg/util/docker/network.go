@@ -151,10 +151,10 @@ func DefaultGateway() (net.IP, error) {
 	return ip, nil
 }
 
-// DefaultHostAddrs returns the IP addresses bound to the default network interface.
+// DefaultHostIPs returns the IP addresses bound to the default network interface.
 // The default network interface is the one connected to the network gateway, and it is determined
 // by parsing the routing table file in the proc file system.
-func DefaultHostAddrs() ([]net.Addr, error) {
+func DefaultHostIPs() ([]string, error) {
 	fields, err := defaultGatewayFields()
 	if err != nil {
 		return nil, err
@@ -167,7 +167,18 @@ func DefaultHostAddrs() ([]net.Addr, error) {
 		return nil, err
 	}
 
-	return iface.Addrs()
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return nil, err
+	}
+
+	ips := make([]string, len(addrs))
+	for i, addr := range addrs {
+		// Translate CIDR blocks into IPs, if necessary
+		ips[i] = strings.Split(addr.String(), "/")[0]
+	}
+
+	return ips, nil
 }
 
 // defaultGatewayFields extracts the fields associated to the interface connected
