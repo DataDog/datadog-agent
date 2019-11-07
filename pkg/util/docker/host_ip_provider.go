@@ -1,4 +1,4 @@
-package util
+package docker
 
 import (
 	"fmt"
@@ -27,13 +27,19 @@ func GetDockerHostIP() []string {
 }
 
 func getDockerHostIPUncached() []string {
-	for _, attempt := range []struct {
+	type hostIPProvider struct {
 		name     string
 		provider func() ([]string, error)
-	}{
-		{"config", getHostIPFFromConfig},
-		{"ec2 metadata api", ec2.GetLocalIPv4},
-	} {
+	}
+
+	var providers []hostIPProvider
+	providers = append(providers, hostIPProvider{"config", getHostIPFFromConfig})
+	providers = append(providers, hostIPProvider{"ec2 metadata endpoint", ec2.GetLocalIPv4})
+
+	// todo: get the DockerHostNetwork
+	// add DefaultHostIPs if in host mode
+
+	for _, attempt := range providers {
 		log.Debugf("attempting to get host ip from source: %s", attempt.name)
 		ips, err := attempt.provider()
 		if err != nil {
