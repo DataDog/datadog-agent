@@ -32,12 +32,17 @@ func getDockerHostIPUncached() []string {
 		provider func() ([]string, error)
 	}
 
+	var isHostMode bool
+	if mode, err := GetAgentContainerNetworkMode(); err != nil && mode == "host" {
+		isHostMode = true
+	}
+
 	var providers []hostIPProvider
 	providers = append(providers, hostIPProvider{"config", getHostIPFFromConfig})
 	providers = append(providers, hostIPProvider{"ec2 metadata endpoint", ec2.GetLocalIPv4})
-
-	// todo: get the DockerHostNetwork
-	// add DefaultHostIPs if in host mode
+	if isHostMode {
+		providers = append(providers, hostIPProvider{"/proc/net/route", DefaultHostIPs})
+	}
 
 	for _, attempt := range providers {
 		log.Debugf("attempting to get host ip from source: %s", attempt.name)
