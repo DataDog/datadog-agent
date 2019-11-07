@@ -11,6 +11,18 @@ INSTALL_DIR=/opt/datadog-agent
 CONFIG_DIR=/etc/datadog-agent
 SERVICE_NAME=datadog-agent
 
+KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
+DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
+if [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "SUSE" ]; then
+    DISTRIBUTION_FAMILY="SUSE"
+fi
+
+if [ "$DISTRIBUTION_FAMILY" == "SUSE" ] && ! cat /etc/SuSE-release 2>/dev/null | grep VERSION | grep 11; then
+    rm -f /etc/init.d/datadog-agent*
+else
+    SYSVINIT_SUPPORT="yes"
+fi
+
 # Create a symlink to the agent's binary
 ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
 
@@ -20,6 +32,10 @@ if command -v systemctl >/dev/null 2>&1; then
 elif command -v initctl >/dev/null 2>&1; then
     # start/stop policy is already defined in the upstart job file
     :
+elif command -v update-rc.d >/dev/null 2>&1; then
+    update-rc.d $SERVICE_NAME defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME with update-rc.d"
+    update-rc.d $SERVICE_NAME-process defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-process with update-rc.d"
+    update-rc.d $SERVICE_NAME-trace defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-trace with update-rc.d"
 else
     echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
 fi
@@ -32,6 +48,8 @@ if [ -f "$CONFIG_DIR/datadog.yaml" ]; then
         systemctl restart $SERVICE_NAME || true
     elif command -v initctl >/dev/null 2>&1; then
         initctl start $SERVICE_NAME || initctl restart $SERVICE_NAME || true
+    elif [ "$SYSVINIT_SUPPORT" == "yes" ] && command -v service >/dev/null 2>&1; then
+        service $SERVICE_NAME restart || true
     else
         echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
     fi
