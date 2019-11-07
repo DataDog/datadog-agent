@@ -18,3 +18,16 @@ func TestInstanceIdExtractor(t *testing.T) {
 	instanceId := extractInstanceIdFromProviderId(v1.NodeSpec{ProviderID: nodeSpecProviderId})
 	assert.Equal(t, "i-024b28584ed2e6321", instanceId)
 }
+/*
+// send test ingress correlation events
+	go func() {
+		for _, ic := range []*IngressToServiceCorrelation{
+			{ServiceID: "test-namespace:test-service-5", IngressExternalID: "urn:/kubernetes:test-cluster-name:ingress:gcp-ingress"},
+			{ServiceID: "test-namespace:test-service-5", IngressExternalID: "urn:/kubernetes:test-cluster-name:ingress:aws-ingress"},
+		} {
+			serviceCorrelationChannel <- ic
+		}
+
+		close(serviceCorrelationChannel)
+	}()
+ */

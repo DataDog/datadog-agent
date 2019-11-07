@@ -102,7 +102,6 @@ func (t *TopologyCheck) Run() error {
 
 	// Make a channel for each of the relations to avoid passing data down into all the functions
 	containerToNodeCorrelationChannel := make(chan *collectors.ContainerToNodeCorrelation)
-	ingressToServiceCorrelationChannel := make(chan *collectors.IngressToServiceCorrelation)
 
 	// make a channel that is responsible for publishing components and relations
 	componentChannel := make(chan *topology.Component)
@@ -142,7 +141,6 @@ func (t *TopologyCheck) Run() error {
 		collectors.NewIngressCollector(
 			componentChannel,
 			relationChannel,
-			ingressToServiceCorrelationChannel,
 			commonClusterCollector,
 		),
 		// Register Job Component Collector
@@ -181,7 +179,6 @@ func (t *TopologyCheck) Run() error {
 		collectors.NewServiceCollector(
 			componentChannel,
 			relationChannel,
-			ingressToServiceCorrelationChannel,
 			commonClusterCollector,
 		),
 		// Register StatefulSet Component Collector

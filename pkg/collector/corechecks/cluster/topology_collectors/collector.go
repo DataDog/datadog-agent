@@ -16,12 +16,6 @@ const (
 	ReplicaSet = "ReplicaSet"
 )
 
-// IngressToServiceCorrelation
-type IngressToServiceCorrelation struct {
-	ServiceID string
-	IngressExternalID string
-}
-
 // ContainerToNodeCorrelation
 type ContainerToNodeCorrelation struct {
 	NodeName string

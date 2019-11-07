@@ -25,25 +25,12 @@ func TestServiceCollector(t *testing.T) {
 	defer close(componentChannel)
 	relationChannel := make(chan *topology.Relation)
 	defer close(relationChannel)
-	serviceCorrelationChannel := make(chan *IngressToServiceCorrelation)
 
 	creationTime = v1.Time{ Time: time.Now().Add(-1*time.Hour) }
 
-	cjc := NewServiceCollector(componentChannel, relationChannel, serviceCorrelationChannel, NewTestCommonClusterCollector(MockServiceAPICollectorClient{}))
+	cjc := NewServiceCollector(componentChannel, relationChannel, NewTestCommonClusterCollector(MockServiceAPICollectorClient{}))
 	expectedCollectorName := "Service Collector"
 	RunCollectorTest(t, cjc, expectedCollectorName)
-
-	// send test ingress correlation events
-	go func() {
-		for _, ic := range []*IngressToServiceCorrelation{
-			{ServiceID: "test-namespace:test-service-5", IngressExternalID: "urn:/kubernetes:test-cluster-name:ingress:gcp-ingress"},
-			{ServiceID: "test-namespace:test-service-5", IngressExternalID: "urn:/kubernetes:test-cluster-name:ingress:aws-ingress"},
-		} {
-			serviceCorrelationChannel <- ic
-		}
-
-		close(serviceCorrelationChannel)
-	}()
 
 	for _, tc := range []struct {
 		testCase string
@@ -143,20 +130,6 @@ func TestServiceCollector(t *testing.T) {
 					ExternalID: "urn:/kubernetes:test-cluster-name:pod:some-pod-name->urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-5",
 					Type:       topology.Type{Name: "exposes"},
 					SourceID:   "urn:/kubernetes:test-cluster-name:pod:some-pod-name",
-					TargetID:   "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-5",
-					Data: map[string]interface {}{},
-				},
-				{
-					ExternalID: "urn:/kubernetes:test-cluster-name:ingress:gcp-ingress->urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-5",
-					Type:       topology.Type{Name: "routes"},
-					SourceID:   "urn:/kubernetes:test-cluster-name:ingress:gcp-ingress",
-					TargetID:   "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-5",
-					Data: map[string]interface {}{},
-				},
-				{
-					ExternalID: "urn:/kubernetes:test-cluster-name:ingress:aws-ingress->urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-5",
-					Type:       topology.Type{Name: "routes"},
-					SourceID:   "urn:/kubernetes:test-cluster-name:ingress:aws-ingress",
 					TargetID:   "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-5",
 					Data: map[string]interface {}{},
 				},
