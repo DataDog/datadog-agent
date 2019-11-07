@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	dockernetwork "github.com/docker/docker/api/types/network"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -230,6 +231,82 @@ func TestFindDockerNetworks(t *testing.T) {
 			resolveDockerNetworks(containerNetworks)
 			networks = containerNetworks[tc.container.ID]
 			assert.Equal(t, tc.networks, networks)
+		})
+	}
+}
+
+func TestParseContainerNetworkMode(t *testing.T) {
+	tests := []struct {
+		name       string
+		hostConfig *container.HostConfig
+		want       string
+		wantErr    bool
+	}{
+		{
+			name: "default",
+			hostConfig: &container.HostConfig{
+				NetworkMode: "default",
+			},
+			want:    "default",
+			wantErr: false,
+		},
+		{
+			name: "host",
+			hostConfig: &container.HostConfig{
+				NetworkMode: "host",
+			},
+			want:    "host",
+			wantErr: false,
+		},
+		{
+			name: "bridge",
+			hostConfig: &container.HostConfig{
+				NetworkMode: "bridge",
+			},
+			want:    "bridge",
+			wantErr: false,
+		},
+		{
+			name: "none",
+			hostConfig: &container.HostConfig{
+				NetworkMode: "none",
+			},
+			want:    "none",
+			wantErr: false,
+		},
+		{
+			name: "attached to container",
+			hostConfig: &container.HostConfig{
+				NetworkMode: "container:0a8f83f35f7d0161f29b819d9b533b57acade8d99609bba63664dd3326e4d301",
+			},
+			want:    "container:0a8f83f35f7d0161f29b819d9b533b57acade8d99609bba63664dd3326e4d301",
+			wantErr: false,
+		},
+		{
+			name: "unknown",
+			hostConfig: &container.HostConfig{
+				NetworkMode: "unknown network",
+			},
+			want:    "unknown",
+			wantErr: true,
+		},
+		{
+			name:       "nil hostConfig",
+			hostConfig: nil,
+			want:       "",
+			wantErr:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseContainerNetworkMode(tt.hostConfig)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseContainerNetworkMode() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("parseContainerNetworkMode() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }
