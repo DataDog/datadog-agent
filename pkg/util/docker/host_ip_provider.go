@@ -9,6 +9,7 @@ package docker
 
 import (
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -55,7 +56,7 @@ func getDockerHostIPUncached() []string {
 		log.Debugf("attempting to get host ip from source: %s", attempt.name)
 		ips, err := attempt.provider()
 		if err != nil {
-			log.Debugf("could not deduce host IP from source %s: %s", attempt.name, err)
+			log.Infof("could not deduce host IP from source %s: %s", attempt.name, err)
 		} else {
 			return ips
 		}
@@ -65,8 +66,12 @@ func getDockerHostIPUncached() []string {
 
 func getHostIPFFromConfig() ([]string, error) {
 	hostIPs := config.Datadog.GetStringSlice("process_agent_config.host_ips")
-	if len(hostIPs) == 0 {
-		return nil, fmt.Errorf("no host IPs configured")
+
+	for _, ipStr := range hostIPs {
+		if net.ParseIP(ipStr) == nil {
+			return nil, fmt.Errorf("could not parse IP: %s", ipStr)
+		}
 	}
+
 	return hostIPs, nil
 }
