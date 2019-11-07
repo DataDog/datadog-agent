@@ -18,6 +18,7 @@ func TestInstanceIdExtractor(t *testing.T) {
 	instanceId := extractInstanceIdFromProviderId(v1.NodeSpec{ProviderID: nodeSpecProviderId})
 	assert.Equal(t, "i-024b28584ed2e6321", instanceId)
 }
+
 /*
 // send test ingress correlation events
 	go func() {
@@ -30,4 +31,4 @@ func TestInstanceIdExtractor(t *testing.T) {
 
 		close(serviceCorrelationChannel)
 	}()
- */
+*/

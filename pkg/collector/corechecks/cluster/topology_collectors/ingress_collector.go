@@ -12,7 +12,7 @@ import (
 // IngressCollector implements the ClusterTopologyCollector interface.
 type IngressCollector struct {
 	ComponentChan chan<- *topology.Component
-	RelationChan chan<- *topology.Relation
+	RelationChan  chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
@@ -20,8 +20,8 @@ type IngressCollector struct {
 func NewIngressCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
 	clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &IngressCollector{
-		ComponentChan: componentChannel,
-		RelationChan: relationChannel,
+		ComponentChan:            componentChannel,
+		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -93,8 +93,8 @@ func (ic *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress
 			"creationTimestamp": ingress.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         ingress.Namespace,
-			"identifiers": identifiers,
-			"uid":           ingress.UID,
+			"identifiers":       identifiers,
+			"uid":               ingress.UID,
 		},
 	}
 
