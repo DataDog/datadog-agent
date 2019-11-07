@@ -11,15 +11,13 @@ import (
 // JobCollector implements the ClusterTopologyCollector interface.
 type JobCollector struct {
 	ComponentChan chan<- *topology.Component
-	RelationChan  chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
 // NewJobCollector
-func NewJobCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+func NewJobCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &JobCollector{
 		ComponentChan:            componentChannel,
-		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }

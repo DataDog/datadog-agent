@@ -146,7 +146,6 @@ func (t *TopologyCheck) Run() error {
 		// Register Job Component Collector
 		collectors.NewJobCollector(
 			componentChannel,
-			relationChannel,
 			commonClusterCollector,
 		),
 		// Register Node Component Collector
