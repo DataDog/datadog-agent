@@ -9,10 +9,12 @@ package docker
 
 import (
 	"io/ioutil"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/docker/docker/api/types"
@@ -69,6 +71,61 @@ ens33	00000000	FEFEA8C0	0003	0	0	100	00000000	0	0	0
 			require.Nil(t, ip)
 		})
 	}
+}
+
+func TestDefaulHostIPs(t *testing.T) {
+	dummyProcDir, err := newTempFolder("test-default-host-ips")
+	require.Nil(t, err)
+	defer dummyProcDir.removeAll()
+	config.Datadog.SetDefault("proc_root", dummyProcDir.RootPath)
+
+	t.Run("routing table contains a gateway entry", func(t *testing.T) {
+		routes := `
+		    Iface    Destination Gateway  Flags RefCnt Use Metric Mask     MTU Window IRTT
+		    default  00000000    010011AC 0003  0      0   0      00000000 0   0      0
+		    default  000011AC    00000000 0001  0      0   0      0000FFFF 0   0      0
+		    eth1     000012AC    00000000 0001  0      0   0      0000FFFF 0   0      0 `
+
+		// Pick an existing device and replace the "default" placeholder by its name
+		interfaces, err := net.Interfaces()
+		require.NoError(t, err)
+		require.NotEmpty(t, interfaces)
+		netInterface := interfaces[0]
+		routes = strings.ReplaceAll(routes, "default", netInterface.Name)
+
+		// Populate routing table file
+		err = dummyProcDir.add(filepath.Join("net", "route"), routes)
+		require.NoError(t, err)
+
+		// Retrieve IPs bound to the "default" network interface
+		var expectedIPs []string
+		netAddrs, err := netInterface.Addrs()
+		require.NoError(t, err)
+		require.NotEmpty(t, netAddrs)
+		for _, address := range netAddrs {
+			ip := strings.Split(address.String(), "/")[0]
+			require.NotNil(t, net.ParseIP(ip))
+			expectedIPs = append(expectedIPs, ip)
+		}
+
+		// Verify they match the IPs returned by DefaultHostIPs()
+		defaultIPs, err := DefaultHostIPs()
+		assert.Nil(t, err)
+		assert.Equal(t, expectedIPs, defaultIPs)
+	})
+
+	t.Run("routing table missing a gateway entry", func(t *testing.T) {
+		routes := `
+	        Iface    Destination Gateway  Flags RefCnt Use Metric Mask     MTU Window IRTT
+	        eth0     000011AC    00000000 0001  0      0   0      0000FFFF 0   0      0
+	        eth1     000012AC    00000000 0001  0      0   0      0000FFFF 0   0      0 `
+
+		err = dummyProcDir.add(filepath.Join("net", "route"), routes)
+		require.NoError(t, err)
+		ips, err := DefaultHostIPs()
+		assert.Nil(t, ips)
+		assert.NotNil(t, err)
+	})
 }
 
 func TestFindDockerNetworks(t *testing.T) {
