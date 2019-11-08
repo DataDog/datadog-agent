@@ -1,10 +1,10 @@
 
-Secrets configuring
+# Secrets configuring
 
-You need to specify path to the decrypting program by specifying `secret_backend_command`
+You need to specify the path of the decrypting program by specifying `secret_backend_command`
 command.
 
-All sensitive secrets should follow pattern "ENC[keyname]" 
+All secrets should follow pattern "ENC[keyname]" 
 
 ```
 secret_backend_command: /etc/stackstate-agent/dummy_secret_feeder.sh
@@ -14,8 +14,8 @@ api_key: "ENC[api_key]"
 
 ```
 
-stackstate-agent will pass following json request to stdin of the decrypting program,
-where `secrets` contains array of the secrets to be returned
+stackstate-agent will pass the following json request to stdin of the decrypting program,
+where `secrets` contains the array of the secrets to be returned
 
 ```
 {

@@ -518,7 +518,10 @@ molecule_tests_secrets:
     - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
     - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s secrets
-#  when: manual
+  only:
+    - master
+    - tags
+    - encrypted-secrets
   artifacts:
     when: always
     paths:

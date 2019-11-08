@@ -16,15 +16,15 @@ def test_stackstate_agent_secret_output_no_datadog(host, common_vars):
     assert "Datadog" not in secret_cmd.stdout
 
 
-def test_stackstate_agent_was_successfully(host):
+def test_stackstate_agent_running_and_enabled(host):
     assert not host.ansible("service", "name=stackstate-agent enabled=true state=started")['changed']
 
 
-def test_stackstate_agentprocess_restartable(host):
+def test_stackstate_process_agent_running_and_enabled(host):
     assert not host.ansible("service", "name=stackstate-agent-process state=started", become=True)['changed']
 
 
-def test_stackstate_agenttrace_restartable(host):
+def test_stackstate_trace_agent_running_and_enabled(host):
     assert not host.ansible("service", "name=stackstate-agent-trace state=started", become=True)['changed']
 
 
