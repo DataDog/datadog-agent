@@ -16,8 +16,33 @@ import (
 )
 
 func TestIsMissingIP(t *testing.T) {
+	t.Run("one IP is missing", func(t *testing.T) {
+		addrs := []containers.NetworkAddress{{IP: net.ParseIP("0.0.0.0")}}
+		assert.True(t, isMissingIP(addrs))
+	})
 
-	addrs := []containers.NetworkAddress{{IP: net.ParseIP("0.0.0.0")}}
+	t.Run("no IPs are missing", func(t *testing.T) {
+		addrs := []containers.NetworkAddress{{IP: net.ParseIP("192.168.123.132")}}
+		assert.False(t, isMissingIP(addrs))
+	})
 
-	assert.True(t, isMissingIP(addrs))
+	t.Run("some IPs are missing", func(t *testing.T) {
+		addrs := []containers.NetworkAddress{{IP: net.ParseIP("0.0.0.0")}, {IP: net.ParseIP("192.168.123.132")}}
+		assert.True(t, isMissingIP(addrs))
+	})
+}
+
+func TestCorrectMissingIPs(t *testing.T) {
+	hostIPs := []string{"192.168.100.100", "192.168.200.200"}
+
+	corrected := correctMissingIPs([]containers.NetworkAddress{
+		{IP: net.ParseIP("0.0.0.0")},
+		{IP: net.ParseIP("10.0.0.1")},
+	}, hostIPs)
+
+	assert.Equal(t, []containers.NetworkAddress{
+		{IP: net.ParseIP("192.168.100.100")},
+		{IP: net.ParseIP("192.168.200.200")},
+		{IP: net.ParseIP("10.0.0.1")},
+	}, corrected)
 }

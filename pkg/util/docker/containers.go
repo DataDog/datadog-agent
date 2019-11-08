@@ -66,9 +66,6 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 		}
 	}
 
-	// go through containers
-	// iff 0.0.0.0
-
 	err = d.UpdateContainerMetrics(cList)
 	return cList, err
 }
@@ -277,17 +274,15 @@ func (d *DockerUtil) cleanupCaches(containers []types.Container) {
 
 var missingIP = net.ParseIP("0.0.0.0")
 
-// TODO: test
 func isMissingIP(addrs []containers.NetworkAddress) bool {
 	for _, addr := range addrs {
-		if addr.IP == missingIP { // TODO: object equals
+		if addr.IP.Equal(missingIP) {
 			return true
 		}
 	}
 	return false
 }
 
-// TODO: test
 func correctMissingIPs(addrs []containers.NetworkAddress, hostIPs []string) []containers.NetworkAddress {
 	if len(hostIPs) == 0 {
 		return addrs // cannot detect host list, will return the addresses as is
@@ -296,7 +291,7 @@ func correctMissingIPs(addrs []containers.NetworkAddress, hostIPs []string) []co
 	var correctedAddrs []containers.NetworkAddress
 
 	for _, addr := range addrs {
-		if addr.IP == missingIP { // TODO: object equals
+		if addr.IP.Equal(missingIP) {
 			for _, hip := range hostIPs {
 				correctedAddr := addr // this will copy addr
 				correctedAddr.IP = net.ParseIP(hip)
