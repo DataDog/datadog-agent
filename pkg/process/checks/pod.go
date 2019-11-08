@@ -13,6 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	yaml "gopkg.in/yaml.v2"
+	v1 "k8s.io/api/core/v1"
 )
 
 // Pod is a singleton PodCheck.
@@ -36,7 +39,7 @@ func (c *PodCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 func (c *PodCheck) Name() string { return "pod" }
 
 // Endpoint returns the endpoint where this check is submitted.
-func (c *PodCheck) Endpoint() string { return "/api/v1/pod" }
+func (c *PodCheck) Endpoint() string { return "/api/v1/orchestrator" }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (c *PodCheck) RealTime() bool { return false }
@@ -45,8 +48,6 @@ func (c *PodCheck) RealTime() bool { return false }
 func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
 	c.Lock()
 	defer c.Unlock()
-
-	log.Info("Running pod check")
 
 	util, err := kubelet.GetKubeUtil()
 	if err != nil {
@@ -60,49 +61,53 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 
 	log.Debugf("Collected %d pods", len(podList))
 
-	scrubbedPodlist := make([]kubelet.ScrubbedPod, len(podList))
+	podMsgs := []*model.Pod{}
 
 	for p := 0; p < len(podList); p++ {
 		for c := 0; c < len(podList[p].Spec.Containers); c++ {
-			// scrub command line
-			scrubbedCmd, _ := cfg.Scrubber.ScrubCommand(podList[p].Spec.Containers[c].Command)
-			podList[p].Spec.Containers[c].Command = scrubbedCmd
-			// scrub env vars
-			for e := 0; e < len(podList[p].Spec.Containers[c].Env); e++ {
-				scrubbedVal, err := log.CredentialsCleanerBytes([]byte(podList[p].Spec.Containers[c].Env[e].Value))
-				if err == nil {
-					podList[p].Spec.Containers[c].Env[e].Value = string(scrubbedVal)
-				}
-			}
+			scrubContainer(&podList[p].Spec.Containers[c], cfg)
 		}
 		for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
-			// scrub command line
-			scrubbedCmd, _ := cfg.Scrubber.ScrubCommand(podList[p].Spec.Containers[c].Command)
-			podList[p].Spec.Containers[c].Command = scrubbedCmd
-			// scrub env vars
-			for e := 0; e < len(podList[p].Spec.Containers[c].Env); e++ {
-				scrubbedVal, err := log.CredentialsCleanerBytes([]byte(podList[p].Spec.Containers[c].Env[e].Value))
-				if err == nil {
-					podList[p].Spec.Containers[c].Env[e].Value = string(scrubbedVal)
-				}
-			}
+			scrubContainer(&podList[p].Spec.Containers[c], cfg)
 		}
 		tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(podList[p].UID)), collectors.HighCardinality)
 		if err != nil {
 			log.Warnf("Could not retrieve tags for pod: %s", err)
 			continue
 		}
-		scrubbedPod := kubelet.ScrubbedPod{
-			Pod:  podList[p],
+		yamlPod, _ := yaml.Marshal(podList[p])
+		log.Info(string(yamlPod))
+		// TODO: add more fields
+		podModel := model.Pod{
+			Name: podList[p].Name,
 			Tags: tags,
+			Yaml: yamlPod,
 		}
 
-		log.Infof("%v", scrubbedPod)
-		scrubbedPodlist = append(scrubbedPodlist, scrubbedPod)
+		podMsgs = append(podMsgs, &podModel)
 	}
 
-	// TODO: payload
+	message := model.CollectorPod{
+		HostName: cfg.HostName,
+		Pods:     podMsgs,
+	}
 
-	messages := make([]model.MessageBody, 0)
+	messages := []model.MessageBody{
+		&message,
+	}
+
 	return messages, nil
+}
+
+func scrubContainer(c *v1.Container, cfg *config.AgentConfig) {
+	// scrub command line
+	scrubbedCmd, _ := cfg.Scrubber.ScrubCommand(c.Command)
+	c.Command = scrubbedCmd
+	// scrub env vars
+	for e := 0; e < len(c.Env); e++ {
+		scrubbedVal, err := log.CredentialsCleanerBytes([]byte(c.Env[e].Value))
+		if err == nil {
+			c.Env[e].Value = string(scrubbedVal)
+		}
+	}
 }

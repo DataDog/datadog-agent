@@ -9,15 +9,7 @@ package kubelet
 
 import (
 	"time"
-
-	v1 "k8s.io/api/core/v1"
 )
-
-// ScrubbedPod holds the scrubbed info a pod and tags
-type ScrubbedPod struct {
-	Tags []string
-	v1.Pod
-}
 
 // Pod contains fields for unmarshalling a Pod
 type Pod struct {
