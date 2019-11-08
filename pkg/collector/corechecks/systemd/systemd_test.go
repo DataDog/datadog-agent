@@ -138,6 +138,7 @@ private_socket: /tmp/foo/private_socket
 
 func TestDefaultPrivateSocketConnection(t *testing.T) {
 	stats := &mockSystemdStats{}
+	stats.On("SystemBusSocketConnection").Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
 	stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
 
 	rawInstanceConfig := []byte(`
@@ -150,13 +151,12 @@ unit_names:
 
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
+	stats.AssertCalled(t, "SystemBusSocketConnection")
 	stats.AssertCalled(t, "PrivateSocketConnection", "/run/systemd/private")
-	stats.AssertNotCalled(t, "SystemBusSocketConnection")
 }
 
 func TestDefaultSystemBusSocketConnection(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
 	stats.On("SystemBusSocketConnection").Return(&dbus.Conn{}, nil)
 
 	rawInstanceConfig := []byte(`
@@ -169,8 +169,8 @@ unit_names:
 
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
-	stats.AssertCalled(t, "PrivateSocketConnection", "/run/systemd/private")
 	stats.AssertCalled(t, "SystemBusSocketConnection")
+	stats.AssertNotCalled(t, "PrivateSocketConnection", "/run/systemd/private")
 }
 
 func TestDefaultDockerAgentPrivateSocketConnection(t *testing.T) {
@@ -236,7 +236,7 @@ func TestDbusConnectionErr(t *testing.T) {
 
 func TestSystemStateCallErr(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+	stats.On("SystemBusSocketConnection").Return(&dbus.Conn{}, nil)
 	stats.On("SystemState", mock.Anything).Return((*dbus.Property)(nil), fmt.Errorf("some error"))
 
 	check := SystemdCheck{stats: stats}
@@ -534,7 +534,7 @@ func TestServiceCheckSystemStateAndCanConnect(t *testing.T) {
 	for _, d := range data {
 		t.Run(fmt.Sprintf("state %s should be mapped to %s", d.systemStatus, d.expectedServiceCheckStatus.String()), func(t *testing.T) {
 			stats := &mockSystemdStats{}
-			stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
+			stats.On("SystemBusSocketConnection").Return(&dbus.Conn{}, nil)
 			stats.On("SystemState", mock.Anything).Return(&dbus.Property{Name: "SystemState", Value: godbus.MakeVariant(d.systemStatus)}, nil)
 			stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{}, nil)
 
