@@ -13,6 +13,7 @@ $admin.PSBase.Invoke("SetPassword", "Bionic!")
 
 net user test 'Bionic!' /add /y
 net localgroup administrators test /add
+net accounts /maxpwage:unlimited
 
 # Disable Internet Explorer Security
 # http://stackoverflow.com/a/9368555/2067999
