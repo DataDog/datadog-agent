@@ -89,7 +89,7 @@ func testUDSOriginDetection(t *testing.T) {
 		packet := packets[0]
 		require.NotNil(t, packet)
 		require.Equal(t, "custom_counter1:1|c", string(packet.Contents))
-		require.Equal(t, fmt.Sprintf("docker://%s", containerId), packet.Origin)
+		require.Equal(t, fmt.Sprintf("containerd://%s", containerId), packet.Origin)
 		packetPool.Put(packet)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
