@@ -11,15 +11,13 @@ import (
 // PersistentVolumeCollector implements the ClusterTopologyCollector interface.
 type PersistentVolumeCollector struct {
 	ComponentChan chan<- *topology.Component
-	RelationChan  chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
 // NewPersistentVolumeCollector
-func NewPersistentVolumeCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+func NewPersistentVolumeCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &PersistentVolumeCollector{
 		ComponentChan:            componentChannel,
-		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -125,13 +123,12 @@ func (pvc *PersistentVolumeCollector) persistentVolumeToStackStateComponent(pers
 			"name":              persistentVolume.Name,
 			"creationTimestamp": persistentVolume.CreationTimestamp,
 			"tags":              tags,
-			"status":            persistentVolume,
 			"namespace":         persistentVolume.Namespace,
-			"phase":             persistentVolume.Status.Phase,
-			"phaseMessage":      persistentVolume.Status.Message,
-			"storageClassName":  persistentVolume.Spec.StorageClassName,
-			"identifiers":       identifiers,
 			"uid":               persistentVolume.UID,
+			"identifiers":       identifiers,
+			"status":             persistentVolume.Status.Phase,
+			"statusMessage":      persistentVolume.Status.Message,
+			"storageClassName":  persistentVolume.Spec.StorageClassName,
 			"source":            persistentVolume.Spec.PersistentVolumeSource,
 		},
 	}

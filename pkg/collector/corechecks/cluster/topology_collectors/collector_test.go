@@ -19,7 +19,7 @@ func TestCollectorInterface(t *testing.T) {
 	testCollector := NewTestCollector(NewClusterTopologyCollector(instance, nil))
 
 	actualClusterExternalID := testCollector.buildClusterExternalID()
-	assert.Equal(t, "urn:cluster:kubernetes/Test-Cluster-Name", actualClusterExternalID)
+	assert.Equal(t, "urn:cluster:/kubernetes:Test-Cluster-Name", actualClusterExternalID)
 
 	podName := "test-pod-name"
 	containerName := "test-container-name"

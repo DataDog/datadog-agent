@@ -18,6 +18,13 @@ type NodeCollector struct {
 	ClusterTopologyCollector
 }
 
+// NodeStatus is the StackState representation of a Kubernetes / Openshift Node Status
+type NodeStatus struct {
+	Phase v1.NodePhase `json:"phase,omitempty"`
+	NodeInfo v1.NodeSystemInfo `json:"nodeInfo,omitempty"`
+	KubeletEndpoint v1.DaemonEndpoint `json:"kubeletEndpoint,omitempty"`
+}
+
 // NewNodeCollector
 func NewNodeCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
 	ContainerToNodeCorrelationChannel <-chan *ContainerToNodeCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
@@ -91,6 +98,10 @@ func (nc *NodeCollector) nodeToStackStateComponent(node v1.Node) *topology.Compo
 			identifiers = append(identifiers, fmt.Sprintf("urn:ip:/%s:%s:%s", nc.GetInstance().URL, node.Name, address.Address))
 		case v1.NodeExternalIP:
 			identifiers = append(identifiers, fmt.Sprintf("urn:ip:/%s:%s", nc.GetInstance().URL, address.Address))
+		case v1.NodeInternalDNS:
+			identifiers = append(identifiers, fmt.Sprintf("urn:host:/%s:%s", nc.GetInstance().URL, address.Address))
+		case v1.NodeExternalDNS:
+			identifiers = append(identifiers, fmt.Sprintf("urn:host:/%s", address.Address))
 		case v1.NodeHostName:
 			//do nothing with it
 		default:
@@ -108,11 +119,6 @@ func (nc *NodeCollector) nodeToStackStateComponent(node v1.Node) *topology.Compo
 
 	nodeExternalID := nc.buildNodeExternalID(node.Name)
 
-	// clear out the unnecessary status array values
-	nodeStatus := node.Status
-	nodeStatus.Conditions = make([]v1.NodeCondition, 0)
-	nodeStatus.Images = make([]v1.ContainerImage, 0)
-
 	tags := emptyIfNil(node.Labels)
 	tags = nc.addClusterNameTag(tags)
 
@@ -121,10 +127,16 @@ func (nc *NodeCollector) nodeToStackStateComponent(node v1.Node) *topology.Compo
 		Type:       topology.Type{Name: "node"},
 		Data: map[string]interface{}{
 			"name":              node.Name,
+			"namespace": node.Namespace,
 			"creationTimestamp": node.CreationTimestamp,
 			"tags":              tags,
-			"status":            nodeStatus,
+			"status":            NodeStatus{
+				Phase: node.Status.Phase,
+				NodeInfo: node.Status.NodeInfo,
+				KubeletEndpoint: node.Status.DaemonEndpoints.KubeletEndpoint,
+			},
 			"identifiers":       identifiers,
+			"uid":       node.UID,
 			//"taints": node.Spec.Taints,
 		},
 	}

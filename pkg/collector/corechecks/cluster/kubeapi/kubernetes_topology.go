@@ -158,7 +158,6 @@ func (t *TopologyCheck) Run() error {
 		// Register Persistent Volume Component Collector
 		collectors.NewPersistentVolumeCollector(
 			componentChannel,
-			relationChannel,
 			commonClusterCollector,
 		),
 		// Register Pod Component Collector

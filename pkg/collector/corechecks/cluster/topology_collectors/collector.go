@@ -111,7 +111,7 @@ func (c *clusterTopologyCollector) CreateRelation(sourceExternalID, targetExtern
 
 // buildClusterExternalID
 func (c *clusterTopologyCollector) buildClusterExternalID() string {
-	return fmt.Sprintf("urn:cluster:%s/%s", c.Instance.Type, c.Instance.URL)
+	return fmt.Sprintf("urn:cluster:/%s:%s", c.Instance.Type, c.Instance.URL)
 }
 
 // buildNodeExternalID

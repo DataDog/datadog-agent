@@ -28,7 +28,7 @@ func TestClusterCollector(t *testing.T) {
 		{
 			testCase: "Test Cluster component creation",
 			expected: &topology.Component{
-				ExternalID: "urn:cluster:kubernetes/test-cluster-name",
+				ExternalID: "urn:cluster:/kubernetes:test-cluster-name",
 				Type:       topology.Type{Name: "cluster"},
 				Data: topology.Data{
 					"name": "test-cluster-name",
