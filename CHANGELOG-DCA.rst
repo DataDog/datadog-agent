@@ -2,6 +2,43 @@
 Release Notes
 =============
 
+
+.. _Release Notes_1.4.0:
+
+1.4.0
+=====
+
+.. _Release Notes_1.4.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2019-11-06
+
+This version contains the changes released with the version 6.15.0 of the core agent.
+Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#6150>`_.
+
+New Features
+------------
+
+- Introducing the Advanced dispatching logic to rebalancing Cluster Level Checks [#4068, #4226, #4344
+- Enable the Endpoint check logic [#3853, #3704]
+- HTTP proxy support for the external metrics provider #4191
+- Improve the External Metrics Provider resiliency [#4285, #3727]
+- Revamp Kubernetes event collection check [#4259, #4346, #4342, #4337, #4314]
+
+Enhancement Notes
+-----------------
+
+- Update Gopkg.lock with new import  #3837
+- Fix kubernetes_apiserver default config file #3854
+- Fix registering of the External Metrics Server's API #4233
+- Fixing status of the Cluster Agent if the External Metrics Provider is not enabled #4277
+- Fix the how endpoints check source is displayed in agent command outputs  #4357
+- Fix how we invalidate changed Endpoints config #4363
+- Get Cluster Level Checks runner IPs from headers #4386
+- Fixing output of `agent status` #4352
+
 1.3.2
 =====
 2019-07-09
