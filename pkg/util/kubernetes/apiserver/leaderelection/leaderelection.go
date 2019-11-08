@@ -31,7 +31,7 @@ import (
 const (
 	defaultLeaderLeaseDuration = 60 * time.Second
 	defaultLeaseName           = "datadog-leader-election"
-	clientTimeout              = 2 * time.Second
+	getLeaderTimeout           = 30 * time.Second
 )
 
 var (
@@ -162,9 +162,9 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 		},
 	)
 
-	timeoutDuration := clientTimeout * 2
+	timeoutDuration := getLeaderTimeout
 	timeout := time.After(timeoutDuration)
-	tick := time.NewTicker(time.Millisecond * 500)
+	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 	for {
 		log.Tracef("Waiting for new leader identity...")
