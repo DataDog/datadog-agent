@@ -61,7 +61,7 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 		}
 
 		if isMissingIP(container.AddressList) {
-			hostIPs := GetDockerHostIP()
+			hostIPs := GetDockerHostIPs()
 			container.AddressList = correctMissingIPs(container.AddressList, hostIPs)
 		}
 	}
