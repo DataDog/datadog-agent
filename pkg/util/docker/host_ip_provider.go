@@ -18,15 +18,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// GetDockerHostIP returns the IP address of the host. This is meant to be called
+// GetDockerHostIPs returns the IP address of the host. This is meant to be called
 // only when the agent is running in a dockerized environment.
-func GetDockerHostIP() []string {
+func GetDockerHostIPs() []string {
 	cacheKey := cache.BuildAgentKey("hostIPs")
 	if cachedIPs, found := cache.Cache.Get(cacheKey); found {
 		return cachedIPs.([]string)
 	}
 
-	ips := getDockerHostIPUncached()
+	ips := getDockerHostIPsUncached()
 	if len(ips) == 0 {
 		log.Warnf("could not get host IP")
 	}
@@ -34,7 +34,7 @@ func GetDockerHostIP() []string {
 	return ips
 }
 
-func getDockerHostIPUncached() []string {
+func getDockerHostIPsUncached() []string {
 	type hostIPProvider struct {
 		name     string
 		provider func() ([]string, error)
@@ -46,7 +46,7 @@ func getDockerHostIPUncached() []string {
 	}
 
 	var providers []hostIPProvider
-	providers = append(providers, hostIPProvider{"config", getHostIPFFromConfig})
+	providers = append(providers, hostIPProvider{"config", getHostIPsFromConfig})
 	providers = append(providers, hostIPProvider{"ec2 metadata endpoint", ec2.GetLocalIPv4})
 	if isHostMode {
 		providers = append(providers, hostIPProvider{"/proc/net/route", DefaultHostIPs})
@@ -64,7 +64,7 @@ func getDockerHostIPUncached() []string {
 	return nil
 }
 
-func getHostIPFFromConfig() ([]string, error) {
+func getHostIPsFromConfig() ([]string, error) {
 	hostIPs := config.Datadog.GetStringSlice("process_agent_config.host_ips")
 
 	for _, ipStr := range hostIPs {
