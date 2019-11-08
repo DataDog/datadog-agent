@@ -1,0 +1,49 @@
+---
+version: '2.4'
+
+services:
+  kafka:
+    image: spotify/kafka:latest
+    environment:
+      ADVERTISED_HOST: kafka
+      ADVERTISED_PORT: 9092
+  receiver:
+    image: "quay.io/stackstate/stackstate-receiver:${STACKSTATE_BRANCH}"
+    command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
+    ports:
+      - 7077:7077
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    mem_limit: 1G
+  correlate:
+    image: "quay.io/stackstate/stackstate-correlate:${STACKSTATE_BRANCH}"
+    entrypoint: "bin/stackstate-correlate -J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
+    depends_on:
+      - receiver
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    mem_limit: 1G
+  topic-api:
+    image: "quay.io/stackstate/stackstate-topic-api:${STACKSTATE_BRANCH}"
+    command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
+    ports:
+      - 7070:7070
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      ZOOKEEPER_QUORUM: kafka
+    mem_limit: 1G
+  nginx:
+    image: nginx:1.14.2
+    ports:
+      - 443:443
+    depends_on:
+      - receiver
+    volumes:
+      - ./docker.nginx:/etc/nginx/nginx.conf:ro
+      - ./nginx-signed.crt:/etc/ssl/certs/nginx-signed.crt:ro
+      - ./nginx-signed.key:/etc/ssl/private/nginx-signed.key:ro
+    mem_limit: 64M
