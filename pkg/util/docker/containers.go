@@ -59,7 +59,13 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 			log.Debugf("Cannot get limits for container %s: %s, skipping", container.ID[:12], err)
 			continue
 		}
+
+		if isMissingIP(container.AddressList) {
+			hostIPs := GetDockerHostIPs()
+			container.AddressList = correctMissingIPs(container.AddressList, hostIPs)
+		}
 	}
+
 	err = d.UpdateContainerMetrics(cList)
 	return cList, err
 }
@@ -264,4 +270,36 @@ func (d *DockerUtil) cleanupCaches(containers []types.Container) {
 		}
 	}
 	d.Unlock()
+}
+
+var missingIP = net.ParseIP("0.0.0.0")
+
+func isMissingIP(addrs []containers.NetworkAddress) bool {
+	for _, addr := range addrs {
+		if addr.IP.Equal(missingIP) {
+			return true
+		}
+	}
+	return false
+}
+
+func correctMissingIPs(addrs []containers.NetworkAddress, hostIPs []string) []containers.NetworkAddress {
+	if len(hostIPs) == 0 {
+		return addrs // cannot detect host list, will return the addresses as is
+	}
+
+	var correctedAddrs []containers.NetworkAddress
+
+	for _, addr := range addrs {
+		if addr.IP.Equal(missingIP) {
+			for _, hip := range hostIPs {
+				correctedAddr := addr // this will copy addr
+				correctedAddr.IP = net.ParseIP(hip)
+				correctedAddrs = append(correctedAddrs, correctedAddr)
+			}
+		} else {
+			correctedAddrs = append(correctedAddrs, addr)
+		}
+	}
+	return correctedAddrs
 }
