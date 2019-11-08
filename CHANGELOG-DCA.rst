@@ -16,62 +16,7 @@ Prelude
 Released on: 2019-11-06
 
 This version contains the changes released with the version 6.15.0 of the core agent.
-Please refer to the [CHANGELOG](https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#6150).
-
-1.4.0-rc.7
-==========
-2019-10-31
-
-Bug Fixes
----------
-- Get clc runner IPs from headers #4386
-
-1.4.0-rc.6
-==========
-Unreleased
-
-Bug Fixes
----------
-- Add kube_endpoints check source #4357
-- Invalidate changed Endpoints config #4363
-
-1.4.0-rc.5
-==========
-2019-10-22
-
-Bug Fixes
----------
-- Adding default for read timeout in the event collection #4346
-- Fixing hostTags nil in header.tmpl & Collector.tmpl format #4352
-- Add toleration margin for the Cluster Level Check advanced dispatching #4344
-
-1.4.0-rc.4
-==========
-2019-10-21
-
-Bug Fixes
----------
-- Fix EventToken configmap update #4342
-
-1.4.0-rc.3
-==========
-2019-10-18
-
-Bug Fixes
----------
-- Fix bug in the event confimap store #4337
-
-1.4.0-rc.2
-==========
-2019-10-17
-
-Bug Fixes
----------
-- Fix panic in GetTokenFromConfigmap() with nil map #4314
-
-1.4.0-rc.1
-==========
-2019-10-15
+Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#6150>`_.
 
 New Features
 ------------
