@@ -55,7 +55,7 @@ func ListContainers() ([]*containers.Container, error) {
 
 	ecsContainers, err := getECSContainers()
 	if err != nil {
-		log.Error("unable to get the container list from ecs")
+		log.Error("Unable to get the container list from ecs")
 		return cList, err
 	}
 	for _, c := range ecsContainers {
@@ -72,13 +72,13 @@ func ListContainers() ([]*containers.Container, error) {
 
 		createdAt, err := time.Parse(time.RFC3339, c.CreatedAt)
 		if err != nil {
-			log.Errorf("unable to determine creation time for container %s - %s", c.DockerID, err)
+			log.Errorf("Unable to determine creation time for container %s - %s", c.DockerID, err)
 		} else {
 			ctr.Created = createdAt.Unix()
 		}
 		startedAt, err := time.Parse(time.RFC3339, c.StartedAt)
 		if err != nil {
-			log.Errorf("unable to determine creation time for container %s - %s", c.DockerID, err)
+			log.Errorf("Unable to determine creation time for container %s - %s", c.DockerID, err)
 		} else {
 			ctr.StartedAt = startedAt.Unix()
 		}
@@ -102,7 +102,7 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 	for _, ctr := range cList {
 		stats, err := getContainerStats(ctr.ID)
 		if err != nil {
-			log.Debugf("unable to get stats from ECS for container %s: %s", ctr.ID, err)
+			log.Debugf("Unable to get stats from ECS for container %s: %s", ctr.ID, err)
 			continue
 		}
 		// TODO: add metrics - complete for https://github.com/DataDog/datadog-process-agent/blob/970729924e6b2b6fe3a912b62657c297621723cc/checks/container_rt.go#L110-L128
@@ -123,7 +123,7 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 func getECSContainers() ([]metadata.Container, error) {
 	meta, err := GetTaskMetadata()
 	if err != nil || len(meta.Containers) == 0 {
-		log.Errorf("unable to retrieve task metadata")
+		log.Errorf("Unable to retrieve task metadata")
 		return nil, err
 	}
 	return meta.Containers, nil

@@ -64,6 +64,35 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 		if isMissingIP(container.AddressList) {
 			hostIPs := GetDockerHostIPs()
 			container.AddressList = correctMissingIPs(container.AddressList, hostIPs)
+		} else if len(container.AddressList) == 0 {
+			// the inspect should be in the cache already so this is not a problem
+			inspect, err := d.Inspect(container.ID, false)
+			if err != nil {
+				log.Debugf("Error inspecting container %s: %s", container.ID, err)
+				continue
+			}
+			// empty network settings or empty network can indicate
+			// the container is in awsvpc networking mode so we try that
+			if inspect.NetworkSettings == nil || len(inspect.NetworkSettings.Networks) == 0 {
+				networkMode, err := GetContainerNetworkMode(container.ID)
+				if err != nil {
+					log.Debugf("Failed to get network mode for container %s. Network info will be missing. Error: %s", container.ID, err)
+					continue
+				}
+				if networkMode == containers.AwsvpcNetworkMode {
+					ecsContainerMetadataUrl, err := d.getECSMetadataURL(container.ID)
+					if err != nil {
+						log.Debugf("Failed to get the ECS container metadata URI for container %s. Network info will be missing. Error: %s", container.ID, err)
+						continue
+					}
+					res, err := metadata.GetContainerNetworkAddresses(container.ID, ecsContainerMetadataUrl)
+					if err != nil {
+						log.Errorf("Failed to get container network addresses: %s", err)
+						continue
+					}
+					container.AddressList = res
+				}
+			}
 		}
 	}
 
@@ -201,24 +230,6 @@ func (d *DockerUtil) parseContainerNetworkAddresses(cID string, ports []types.Po
 	addrList := []containers.NetworkAddress{}
 	tempAddrList := []containers.NetworkAddress{}
 	if netSettings == nil || len(netSettings.Networks) == 0 {
-		networkMode, err := GetContainerNetworkMode(cID)
-		if err != nil {
-			log.Debugf("failed to get network mode for container %s. Network info will be missing. Error: %s", cID, err)
-			return addrList
-		}
-		if networkMode == containers.AwsvpcNetworkMode {
-			ecsContainerMetadataUrl, err := d.getECSMetadataURL(cID)
-			if err != nil {
-				log.Debugf("failed to get the ECS container metadata URI for container %s. Network info will be missing. Error: %s", cID, err)
-				return addrList
-			}
-			res, err := metadata.GetContainerNetworkAddresses(cID, ecsContainerMetadataUrl)
-			if err != nil {
-				log.Errorf("failed to get container network addresses: %s", err)
-				return addrList
-			}
-			return res
-		}
 		log.Debugf("No network settings available from docker")
 		return addrList
 	}

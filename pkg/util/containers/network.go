@@ -80,7 +80,7 @@ func defaultGatewayFields() ([]string, error) {
 	f, err := os.Open(netRouteFile)
 	if err != nil {
 		if os.IsNotExist(err) || os.IsPermission(err) {
-			log.Errorf("unable to open %s: %s", netRouteFile, err)
+			log.Errorf("Unable to open %s: %s", netRouteFile, err)
 			return nil, nil
 		}
 		// Unknown error types will bubble up for handling.

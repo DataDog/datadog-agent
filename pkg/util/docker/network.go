@@ -131,7 +131,7 @@ func resolveDockerNetworks(containerNetworks map[string][]dockerNetwork) {
 			if cnw, ok := containerNetworks[nw.routingContainerID]; ok {
 				containerNetworks[cid] = cnw
 			} else {
-				log.Debugf("unable to resolve network for c:%s that uses namespace of c:%s", cid, nw.routingContainerID)
+				log.Debugf("Unable to resolve network for c:%s that uses namespace of c:%s", cid, nw.routingContainerID)
 				containerNetworks[cid] = nil
 			}
 		}
@@ -139,6 +139,8 @@ func resolveDockerNetworks(containerNetworks map[string][]dockerNetwork) {
 }
 
 // GetAgentContainerNetworkMode provides the network mode of the Agent container
+// To get this info in an optimal way, consider calling util.GetAgentNetworkMode	func GetContainerNetworkMode(cid string) (string, error) {
+// instead to benefit from the cache
 func GetAgentContainerNetworkMode() (string, error) {
 	du, err := GetDockerUtil()
 	if err != nil {
