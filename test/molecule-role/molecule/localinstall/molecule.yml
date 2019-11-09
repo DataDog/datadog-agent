@@ -63,7 +63,7 @@ provisioner:
   lint:
     name: ansible-lint
 scenario:
-  name: secrets
+  name: localinstall
 verifier:
   name: testinfra
   lint:
