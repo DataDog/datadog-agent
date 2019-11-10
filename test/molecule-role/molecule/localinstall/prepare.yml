@@ -223,12 +223,16 @@
         owner: "{{ ansible_user_id }}"
         group: root
         mode: u=rwx,g=rx,o=rx
+      become: yes
     - block:
         - name: Predownload deb
           get_url:
             url: https://stackstate-agent-2.s3.amazonaws.com/pool/stable/s/st/stackstate-agent_2.0.5-1_amd64.deb
             dest: /tmp/current.deb
             mode: 'u=rw,g=rw,o=r'
+            owner: "{{ ansible_user_id }}"
+            group: root
+          become: yes 
 
         - name: Set installation path
           set_fact:
@@ -240,6 +244,8 @@
             url: https://stackstate-agent-2-rpm.s3.amazonaws.com/stable/stackstate-agent-2.0.5-1.x86_64.rpm
             dest: /tmp/current.rpm
             mode: 'u=rw,g=rw,o=r'
+            owner: "{{ ansible_user_id }}"
+            group: root
 
         - name: Set installation path
           set_fact:
