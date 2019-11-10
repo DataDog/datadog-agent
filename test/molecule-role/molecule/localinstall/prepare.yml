@@ -232,7 +232,7 @@
             mode: 'u=rw,g=rw,o=r'
             owner: "{{ ansible_user_id }}"
             group: root
-          become: yes 
+          become: yes
 
         - name: Set installation path
           set_fact:
@@ -246,6 +246,7 @@
             mode: 'u=rw,g=rw,o=r'
             owner: "{{ ansible_user_id }}"
             group: root
+          become: yes
 
         - name: Set installation path
           set_fact:

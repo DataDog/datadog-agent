@@ -80,7 +80,7 @@ if [ -n "$STS_INSTALL_ONLY" ]; then
 fi
 
 no_repo=
-if [ -n "$STS_INSTALL_NO_REPO" ]; then
+if [ ! -z "$STS_INSTALL_NO_REPO" ]; then
     no_repo=true
 fi
 
@@ -170,8 +170,10 @@ fi
 
 # Install the necessary package sources
 if [ $OS = "RedHat" ]; then
+    if [ -z "$no_repo" ]; then
     print_blu "* Installing YUM sources for StackState\n"
     $sudo_cmd sh -c "echo -e '[stackstate]\nname = StackState\nbaseurl = $YUM_REPO/$code_name/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=$YUM_REPO/public.key' > /etc/yum.repos.d/stackstate.repo"
+    fi
     print_blu "* Installing the StackState Agent v2 package\n"
     $sudo_cmd yum -y clean metadata
     if [ $INSTALL_MODE = "REPO" ]; then
@@ -179,9 +181,7 @@ if [ $OS = "RedHat" ]; then
     else
         $sudo_cmd yum -y localinstall $LOCAL_PKG_NAME
     fi
-    if [ ! -z "$no_repo" ]; then
-        $sudo_cmd rm -f /etc/yum.repos.d/stackstate.repo
-    fi
+
 elif [ $OS = "Debian" ]; then
     print_blu "* Installing apt-transport-https\n"
     $sudo_cmd apt-get update || print_red "'apt-get update' failed, the script will not install the latest version of apt-transport-https."
