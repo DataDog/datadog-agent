@@ -9,7 +9,9 @@ def test_stackstate_agent_secret_output_no_datadog(host, common_vars):
     print(secret_cmd)
     # assert that the status command ran successfully and that datadog is not contained in the output
     assert secret_cmd.rc == 0
-    assert "Number of secrets decrypted: 1" in secret_cmd.stdout
+    assert "Number of secrets decrypted: 2" in secret_cmd.stdout
+    assert "api_key: from stackstate.yaml" in secret_cmd.stdout
+    assert "url: from dummy_check" in secret_cmd.stdout
     assert "datadog" not in secret_cmd.stdout
     assert "Datadog" not in secret_cmd.stdout
 
