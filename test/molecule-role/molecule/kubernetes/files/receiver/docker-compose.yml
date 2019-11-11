@@ -17,7 +17,7 @@ services:
       KAFKA_ADVERTISED_HOST_NAME: kafka
       KAFKA_ADVERTISED_PORT: 9092
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_CREATE_TOPICS: "sts_multi_metrics:1:1,sts_topo_process_agents:1:1,sts_topo_kubernetes_${CLUSTER_NAME}:1:1"
+      KAFKA_CREATE_TOPICS: "sts_generic_events:1:1,sts_state_events:1:1,sts_multi_metrics:1:1,sts_correlate_endpoints:1:1,sts_topo_process_agents:1:1,sts_topo_kubernetes_${CLUSTER_NAME}:1:1"
     mem_limit: 1G
   receiver:
     image: "quay.io/stackstate/stackstate-receiver:${STACKSTATE_BRANCH}"
