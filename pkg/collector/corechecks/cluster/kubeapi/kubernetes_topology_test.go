@@ -36,7 +36,7 @@ func TestRunClusterCollectors(t *testing.T) {
 	componentChannel := make(chan *topology.Component)
 	relationChannel := make(chan *topology.Relation)
 	errChannel := make(chan error)
-	waitGroupChannel := make(chan int)
+	waitGroupChannel := make(chan bool)
 
 	clusterTopologyCommon := collectors.NewclusterTopologyCommon(instance, nil)
 	commonClusterCollector := collectors.NewClusterTopologyCollector(clusterTopologyCommon)

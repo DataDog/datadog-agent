@@ -113,7 +113,7 @@ func (t *TopologyCheck) Run() error {
 	componentChannel := make(chan *topology.Component)
 	relationChannel := make(chan *topology.Relation)
 	errChannel := make(chan error)
-	waitGroupChannel := make(chan int)
+	waitGroupChannel := make(chan bool)
 
 	clusterTopologyCommon := collectors.NewclusterTopologyCommon(t.instance.Instance, t.ac)
 	commonClusterCollector := collectors.NewClusterTopologyCollector(clusterTopologyCommon)
@@ -226,31 +226,50 @@ func (t *TopologyCheck) Run() error {
 
 // sets up the receiver that handles the component and relation channel and publishes it to StackState, returns when all the collectors have finished or the timeout was reached.
 func (t *TopologyCheck) WaitForTopology(componentChannel <-chan *topology.Component, relationChannel <-chan *topology.Relation,
-	errorChannel <-chan error, waitGroup *sync.WaitGroup, waitGroupChannel chan int) {
-	timeout := time.Duration(t.instance.CollectTimeout) * time.Minute
+	errorChannel <-chan error, waitGroup *sync.WaitGroup, waitGroupChannel chan bool) {
 	log.Debugf("Waiting for Cluster Collectors to Finish")
 	go func() {
-		waitGroup.Wait()
-		waitGroupChannel <- 1
+	loop:
+		for {
+			select {
+			case component := <-componentChannel:
+				t.submitter.SubmitComponent(component)
+			case relation := <-relationChannel:
+				t.submitter.SubmitRelation(relation)
+			case err := <-errorChannel:
+				t.submitter.HandleError(err)
+			case complete := <-waitGroupChannel:
+				if complete {
+					log.Debug("All collectors have been finished their work, continuing to publish data to StackState")
+				} else {
+					_ = log.Warn("WaitGroup for Cluster Collectors did not finish in time, stopping topology publish loop")
+				}
+
+				break loop // timed out
+			default:
+				// no message received, continue looping
+			}
+		}
 	}()
 
-	for {
-		select {
-		case component := <-componentChannel:
-			t.submitter.SubmitComponent(component)
-		case relation := <-relationChannel:
-			t.submitter.SubmitRelation(relation)
-		case err := <-errorChannel:
-			t.submitter.HandleError(err)
-		case <-waitGroupChannel:
-			log.Debug("All collectors have been finished their work, continuing to publish data to StackState")
-			return
-		case <-time.After(timeout):
-			_ = log.Warn("WaitGroup for Cluster Collectors did not finish in time, stopping topology publish loop")
-			return // timed out
-		default:
-			// no message received, continue looping
-		}
+	timeout := time.Duration(t.instance.CollectTimeout) * time.Minute
+	log.Debugf("Waiting for Cluster Collectors to Finish")
+	waitGroupChannel <- waitTimeout(waitGroup, timeout)
+}
+
+// waitTimeout waits for the waitgroup for the specified max timeout.
+// Returns true if waiting timed out.
+func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	wgChan := make(chan struct{})
+	go func() {
+		defer close(wgChan)
+		wg.Wait()
+	}()
+	select {
+	case <-wgChan:
+		return false // completed normally
+	case <-time.After(timeout):
+		return true // timed out
 	}
 }
 
@@ -258,22 +277,19 @@ func (t *TopologyCheck) WaitForTopology(componentChannel <-chan *topology.Compon
 func (t *TopologyCheck) RunClusterCollectors(clusterCollectors []collectors.ClusterTopologyCollector, clusterCorrelators []collectors.ClusterTopologyCorrelator, waitGroup *sync.WaitGroup, errorChannel chan<- error) {
 	waitGroup.Add(len(clusterCollectors))
 	waitGroup.Add(len(clusterCorrelators))
-	go func() {
-		for _, collector := range clusterCollectors {
-			// add this collector to the wait group
-			runCollector(collector, errorChannel, waitGroup)
-		}
-		for _, correlator := range clusterCorrelators {
-			// add this collector to the wait group
-			runCorrelator(correlator, errorChannel, waitGroup)
-		}
-	}()
+	for _, collector := range clusterCollectors {
+		// add this collector to the wait group
+		runCollector(collector, errorChannel, waitGroup)
+	}
+	for _, correlator := range clusterCorrelators {
+		// add this collector to the wait group
+		runCorrelator(correlator, errorChannel, waitGroup)
+	}
 }
 
 // runCollector
 func runCollector(collector collectors.ClusterTopologyCollector, errorChannel chan<- error, wg *sync.WaitGroup) {
-	// disable parallelism to reduce memory consumption
-	//go func() {
+	go func() {
 		log.Debugf("Starting cluster topology collector: %s\n", collector.GetName())
 		err := collector.CollectorFunction()
 		if err != nil {
@@ -282,22 +298,21 @@ func runCollector(collector collectors.ClusterTopologyCollector, errorChannel ch
 		// mark this collector as complete
 		log.Debugf("Finished cluster topology collector: %s\n", collector.GetName())
 		wg.Done()
-	//}()
+	}()
 }
 
 // runCorrelator
 func runCorrelator(correlator collectors.ClusterTopologyCorrelator, errorChannel chan<- error, wg *sync.WaitGroup) {
-	// disable parallelism to reduce memory consumption
-	//go func() {
-	log.Debugf("Starting cluster topology correlator: %s\n", correlator.GetName())
-	err := correlator.CorrelateFunction()
-	if err != nil {
-		errorChannel <- err
-	}
-	// mark this collector as complete
-	log.Debugf("Finished cluster topology correlator: %s\n", correlator.GetName())
-	wg.Done()
-	//}()
+	go func() {
+		log.Debugf("Starting cluster topology correlator: %s\n", correlator.GetName())
+		err := correlator.CorrelateFunction()
+		if err != nil {
+			errorChannel <- err
+		}
+		// mark this collector as complete
+		log.Debugf("Finished cluster topology correlator: %s\n", correlator.GetName())
+		wg.Done()
+	}()
 }
 
 // KubernetesASFactory is exported for integration testing.
