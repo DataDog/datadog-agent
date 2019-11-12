@@ -2,11 +2,23 @@
 version: '2.4'
 
 services:
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - 2181:2181
+    mem_limit: 1G
   kafka:
-    image: spotify/kafka:latest
+    image: wurstmeister/kafka:2.12-2.1.1
+    ports:
+      - 9092:9092
+    depends_on:
+      - zookeeper
     environment:
-      ADVERTISED_HOST: kafka
-      ADVERTISED_PORT: 9092
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+      KAFKA_ADVERTISED_PORT: 9092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CREATE_TOPICS: "sts_generic_events:1:1,sts_state_events:1:1,sts_multi_metrics:1:1,sts_correlate_endpoints:1:1,sts_topo_process_agents:1:1,sts_topo_kubernetes_${CLUSTER_NAME}:1:1"
+    mem_limit: 1G
   receiver:
     image: "quay.io/stackstate/stackstate-receiver:${STACKSTATE_BRANCH}"
     command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
