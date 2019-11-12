@@ -17,14 +17,37 @@ new-module -name StsAgentInstaller -scriptblock {
             [string]$hostTags = "",
             [string]$codeName = "stable",
             [string]$skipSSLValidation = "false",
-            [string]$agentVersion = "latest"
+            [string]$agentVersion = "latest",
+            [string]$f
         )
 
         $stsDownloadBase = "$env:WIN_REPO"
+        If ( [string]::IsNullOrEmpty($stsDownloadBase) ) {
+          $stsDownloadBase = "https://stackstate-agent-2.s3.amazonaws.com/windows"
+        }
+        $DirectFileExists = $False
+
+        If (! [string]::IsNullOrEmpty($f)) {
+
+        $DirectFileExists = Test-Path $f -IsValid
+        If ($DirectFileExists -eq $False) {
+          Write-Error "File $f doesn't exists - failed to download or corrupted. Please check." -ErrorAction Stop
+          exit 1
+        }
+
+        $out = $f
+
+        Write-Host "Script will take $out, and execute passing params $stsApiKey ; $stsUrl ; $hostname ; $hostTags ; $codeName ; $skipSSLValidation ; $agentVersion ;"
+
+        } Else {
 
         Write-Host "Building download uri from $stsDownloadBase/$codeName/stackstate-agent-$agentVersion-1-x86_64.msi"
         $uri = "$stsDownloadBase/$codeName/stackstate-agent-$agentVersion-1-x86_64.msi"
         $out = "c:\stackstate-agent.msi"
+
+        Write-Host "Script will download installer from $uri to $out, and execute passing params $stsApiKey ; $stsUrl ; $hostname ; $hostTags ; $codeName ; $skipSSLValidation ; $agentVersion ;"
+
+        }
 
         $defaultHostTags = "os:windows"
         If ([string]::IsNullOrEmpty($hostTags)) {
@@ -33,7 +56,7 @@ new-module -name StsAgentInstaller -scriptblock {
             $hostTags = "$defaultHostTags,$hostTags"
         }
 
-        Write-Host "Script will download installer from $uri to $out, and execute passing params $stsApiKey ; $stsUrl ; $hostname ; $hostTags ; $codeName ; $skipSSLValidation ; $agentVersion ;"
+
 
         Function Download_MSI_STS_Installer {
             Write-Host "About to download $uri to $out"
@@ -71,7 +94,9 @@ new-module -name StsAgentInstaller -scriptblock {
         $ErrorActionPreference = "Stop"
         $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
+        If ($DirectFileExists -eq $False) {
         Download_MSI_STS_Installer
+        }
         Install_STS
     }
 
