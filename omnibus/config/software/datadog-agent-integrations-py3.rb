@@ -264,14 +264,6 @@ build do
         command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
       end
     end
-
-    # Patch applies to only one file: set it explicitly as a target, no need for -p
-    if windows?
-      patch :source => "jpype_0_7.patch", :target => "#{python_3_embedded}/Lib/site-packages/jaydebeapi/__init__.py"
-    else
-      patch :source => "jpype_0_7.patch", :target => "#{install_dir}/embedded/lib/python3.7/site-packages/jaydebeapi/__init__.py"
-    end
-
   end
 
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
