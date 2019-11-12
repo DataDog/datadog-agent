@@ -103,6 +103,7 @@
         chdir: /home/ubuntu/receiver
       environment:
         STACKSTATE_BRANCH: "{{ stackstate_branch }}"
+        CLUSTER_NAME: "{{ cluster_name }}"
     - name: Download and unarchive Terraform
       become: true
       unarchive:
