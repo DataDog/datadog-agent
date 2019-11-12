@@ -1,5 +1,6 @@
+# Secrets 
 
-# Secrets configuring
+## Configuring
 
 You need to specify the path of the decrypting program by specifying `secret_backend_command`
 command.
@@ -24,7 +25,7 @@ where `secrets` contains the array of the secrets to be returned
 }
 ```
 
-stackstate-agent expects, that decrypting program will return json output with
+stackstate-agent expects that the decrypting program will return the json output with
 decoded secrets
 
 ```
@@ -40,9 +41,9 @@ decoded secrets
 }
 ```
 
-Secrets troubleshouting
+## Troubleshouting
 
-Decrypting program should be exclusively owned by user stackstate-agent runs under,
+The decrypting program should be exclusively owned by user stackstate-agent runs under,
 in other case you will get error like
 
 ```
@@ -70,12 +71,12 @@ Secrets handle decrypted:
 
 ```
 
-You can debug your decoding script from console using approach below
+You can debug your decoding script from console using the approach below:
 
 ```
 sudo su stackstate-agent - bash -c "echo '{\"version\": \"1.0\", \"secrets\": [\"secret1\", \"secret2\"]}' | /path/to/the/secret_backend_command"
 ```
 
-You can show decrypted config
+You can show decrypted config with:
 
-sudo -u stackstate-agent -- stackstate-agent configcheck
+    sudo -u stackstate-agent -- stackstate-agent configcheck
