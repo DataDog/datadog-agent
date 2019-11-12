@@ -18,7 +18,7 @@
 name "python2"
 
 if ohai["platform"] != "windows"
-  default_version "2.7.16"
+  default_version "2.7.17"
 
   dependency "ncurses"
   dependency "zlib"
@@ -28,7 +28,7 @@ if ohai["platform"] != "windows"
   dependency "libyaml"
 
   source :url => "http://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "01da813a3600876f03f46db11cc5c408175e99f03af2ba942ef324389a83bad5"
+         :sha256 => "f22059d09cdf9625e0a7284d24a13062044f5bf59d93a7f3382190dfa94cecde"
 
   relative_path "Python-#{version}"
 
