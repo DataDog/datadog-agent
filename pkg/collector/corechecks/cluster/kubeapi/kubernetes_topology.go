@@ -187,10 +187,10 @@ func (t *TopologyCheck) Run() error {
 	}
 
 	// starts all the cluster collectors
-	t.runClusterCollectors(clusterCollectors, &waitGroup, errChannel)
+	t.RunClusterCollectors(clusterCollectors, &waitGroup, errChannel)
 
 	// receive all the components, will return once the wait group notifies
-	t.waitForTopology(componentChannel, relationChannel, errChannel, &waitGroup, waitGroupChannel)
+	t.WaitForTopology(componentChannel, relationChannel, errChannel, &waitGroup, waitGroupChannel)
 
 	t.submitter.SubmitStopSnapshot()
 	t.submitter.SubmitComplete()
@@ -206,7 +206,7 @@ func (t *TopologyCheck) Run() error {
 }
 
 // sets up the receiver that handles the component and relation channel and publishes it to StackState, returns when all the collectors have finished or the timeout was reached.
-func (t *TopologyCheck) waitForTopology(componentChannel <-chan *topology.Component, relationChannel <-chan *topology.Relation,
+func (t *TopologyCheck) WaitForTopology(componentChannel <-chan *topology.Component, relationChannel <-chan *topology.Relation,
 	errorChannel <-chan error, waitGroup *sync.WaitGroup, waitGroupChannel chan int) {
 	timeout := time.Duration(t.instance.CollectTimeout) * time.Minute
 	log.Debugf("Waiting for Cluster Collectors to Finish")
@@ -236,7 +236,7 @@ func (t *TopologyCheck) waitForTopology(componentChannel <-chan *topology.Compon
 }
 
 // runs all of the cluster collectors, notify the wait groups and submit errors to the error channel
-func (t *TopologyCheck) runClusterCollectors(clusterCollectors []collectors.ClusterTopologyCollector, waitGroup *sync.WaitGroup, errorChannel chan<- error) {
+func (t *TopologyCheck) RunClusterCollectors(clusterCollectors []collectors.ClusterTopologyCollector, waitGroup *sync.WaitGroup, errorChannel chan<- error) {
 	for _, collector := range clusterCollectors {
 		// add this collector to the wait group
 		runCollector(collector, errorChannel, waitGroup)

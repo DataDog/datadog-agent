@@ -47,10 +47,10 @@ func TestRunClusterCollectors(t *testing.T) {
 	)
 
 	// starts all the cluster collectors
-	kubernetesTopologyCheck.runClusterCollectors(clusterCollectors, &waitGroup, errChannel)
+	kubernetesTopologyCheck.RunClusterCollectors(clusterCollectors, &waitGroup, errChannel)
 
 	// receive all the components, will return once the wait group notifies
-	kubernetesTopologyCheck.waitForTopology(componentChannel, relationChannel, errChannel, &waitGroup, waitGroupChannel)
+	kubernetesTopologyCheck.WaitForTopology(componentChannel, relationChannel, errChannel, &waitGroup, waitGroupChannel)
 
 	close(componentChannel)
 	close(relationChannel)

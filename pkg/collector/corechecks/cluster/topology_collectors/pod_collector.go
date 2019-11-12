@@ -55,7 +55,10 @@ func (pc *PodCollector) CollectorFunction() error {
 		// creates and publishes StackState pod component with relations
 		component := pc.podToStackStateComponent(pod)
 		pc.ComponentChan <- component
-		pc.RelationChan <- pc.podToNodeStackStateRelation(pod)
+		// pod could not be scheduled for some reason
+		if pod.Spec.NodeName != "" {
+			pc.RelationChan <- pc.podToNodeStackStateRelation(pod)
+		}
 
 		// check to see if this pod is "managed" by a kubernetes controller
 		for _, ref := range pod.OwnerReferences {
@@ -122,7 +125,10 @@ func (pc *PodCollector) CollectorFunction() error {
 			}
 		}
 
-		pc.ContainerCorrChan <- &ContainerToNodeCorrelation{pod.Spec.NodeName, pc.buildContainerMappingFunction(pod, component.ExternalID, containerPorts)}
+		// check to see if we have container statuses
+		if len(pod.Status.ContainerStatuses) > 0 {
+			pc.ContainerCorrChan <- &ContainerToNodeCorrelation{pod.Spec.NodeName, pc.buildContainerMappingFunction(pod, component.ExternalID, containerPorts)}
+		}
 	}
 
 	// close container correlation channel
@@ -158,10 +164,12 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 
 	identifiers := make([]string, 0)
 	// if the pod is using the host network do not map it as a identifier, this will cause all pods to merge.
-	if !pod.Spec.HostNetwork {
-		// create identifier list to merge with StackState components
-		identifiers = append(identifiers, fmt.Sprintf("urn:ip:/%s:%s", pc.GetInstance().URL, pod.Status.PodIP))
-	} else {
+	if pod.Status.PodIP != "" {
+		if pod.Spec.HostNetwork {
+			// create identifier list to merge with StackState components
+			identifiers = append(identifiers, fmt.Sprintf("urn:ip:/%s:%s", pc.GetInstance().URL, pod.Status.PodIP))
+		}
+
 		// map the pod ip (which is the host ip) with the pod name
 		identifiers = append(identifiers, fmt.Sprintf("urn:ip:/%s:%s:%s", pc.GetInstance().URL, pod.Name, pod.Status.PodIP))
 	}
@@ -173,6 +181,7 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 	// clear out the unnecessary status array values
 	podStatus := pod.Status
 	podStatus.Conditions = make([]v1.PodCondition, 0)
+	podStatus.InitContainerStatuses = make([]v1.ContainerStatus, 0)
 	podStatus.ContainerStatuses = make([]v1.ContainerStatus, 0)
 
 	tags := emptyIfNil(pod.Labels)
@@ -187,19 +196,18 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 		Type:       topology.Type{Name: "pod"},
 		Data: map[string]interface{}{
 			"name":              pod.Name,
-			"kind":              pod.Kind,
 			"creationTimestamp": pod.CreationTimestamp,
 			"tags":              tags,
 			"status":            podStatus,
 			"namespace":         pod.Namespace,
-			//"tolerations": pod.Spec.Tolerations,
-			"restartPolicy": pod.Spec.RestartPolicy,
 			"identifiers":   identifiers,
 			"uid":           pod.UID,
-			"generateName":  pod.GenerateName,
-			"qosClass":      pod.Status.QOSClass,
 		},
 	}
+
+	component.Data.PutNonEmpty("generateName", pod.GenerateName)
+	component.Data.PutNonEmpty("kind", pod.Kind)
+	component.Data.PutNonEmpty("restartPolicy", pod.Spec.RestartPolicy)
 
 	log.Tracef("Created StackState pod component %s: %v", podExternalID, component.JSONString())
 
