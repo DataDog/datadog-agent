@@ -257,8 +257,10 @@ build do
     # Patch applies to only one file: set it explicitly as a target, no need for -p
     if windows?
       patch :source => "create-regex-at-runtime.patch", :target => "#{python_2_embedded}/Lib/site-packages/yaml/reader.py"
+      patch :source => "jpype_0_7.patch", :target => "#{python_2_embedded}/Lib/site-packages/jaydebeapi/__init__.py"
     else
       patch :source => "create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml/reader.py"
+      patch :source => "jpype_0_7.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/jaydebeapi/__init__.py"
     end
 
   end
