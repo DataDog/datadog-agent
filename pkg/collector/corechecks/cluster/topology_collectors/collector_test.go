@@ -16,7 +16,8 @@ import (
 func TestCollectorInterface(t *testing.T) {
 
 	instance := topology.Instance{Type: "kubernetes", URL: "Test-Cluster-Name"}
-	testCollector := NewTestCollector(NewClusterTopologyCollector(instance, nil))
+	clusterTopologyCommon := NewclusterTopologyCommon(instance, nil)
+	testCollector := NewTestCollector(NewClusterTopologyCollector(clusterTopologyCommon))
 
 	actualClusterExternalID := testCollector.buildClusterExternalID()
 	assert.Equal(t, "urn:cluster:/kubernetes:Test-Cluster-Name", actualClusterExternalID)

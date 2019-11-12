@@ -23,11 +23,11 @@ func TestPodCollector(t *testing.T) {
 	defer close(componentChannel)
 	relationChannel := make(chan *topology.Relation)
 	defer close(relationChannel)
-	containerToNodeCorrelationChannel := make(chan *ContainerToNodeCorrelation)
+	containerCorrelationChannel := make(chan *ContainerCorrelation)
 
 	creationTime = v1.Time{Time: time.Now().Add(-1 * time.Hour)}
 
-	ic := NewPodCollector(componentChannel, relationChannel, containerToNodeCorrelationChannel, NewTestCommonClusterCollector(MockPodAPICollectorClient{}))
+	ic := NewPodCollector(componentChannel, relationChannel, containerCorrelationChannel, NewTestCommonClusterCollector(MockPodAPICollectorClient{}))
 	expectedCollectorName := "Pod Collector"
 	RunCollectorTest(t, ic, expectedCollectorName)
 
@@ -213,23 +213,7 @@ func TestPodCollector(t *testing.T) {
 
 		},
 		{
-			testCase: "Test Pod 5 - Containers + Node Correlation",
-
-		},
-		{
-			testCase: "Test Pod 6 - Containers + Config Map",
-
-		},
-		{
-			testCase: "Test Pod 7 - Containers + Config Map Key",
-
-		},
-		{
-			testCase: "Test Pod 8 - Containers + Port Mappings",
-
-		},
-		{
-			testCase: "Test Pod 9 - Containers + Volume Mounts",
+			testCase: "Test Pod 5 - Containers + Container Correlation",
 
 		},
 	} {
@@ -299,22 +283,6 @@ func (m MockPodAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 		}
 
 		if i == 5 {
-
-		}
-
-		if i == 6 {
-
-		}
-
-		if i == 7 {
-
-		}
-
-		if i == 8 {
-
-		}
-
-		if i == 9 {
 
 		}
 

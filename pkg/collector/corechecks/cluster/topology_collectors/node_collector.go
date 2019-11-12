@@ -14,7 +14,7 @@ import (
 type NodeCollector struct {
 	ComponentChan     chan<- *topology.Component
 	RelationChan      chan<- *topology.Relation
-	ContainerCorrChan <-chan *ContainerToNodeCorrelation
+	NodeIdentifierCorrChan chan<- *NodeIdentifierCorrelation
 	ClusterTopologyCollector
 }
 
@@ -27,11 +27,11 @@ type NodeStatus struct {
 
 // NewNodeCollector
 func NewNodeCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
-	ContainerToNodeCorrelationChannel <-chan *ContainerToNodeCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+	nodeIdentifierCorrChan chan<- *NodeIdentifierCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &NodeCollector{
 		ComponentChan:            componentChannel,
 		RelationChan:             relationChannel,
-		ContainerCorrChan:        ContainerToNodeCorrelationChannel,
+		NodeIdentifierCorrChan:        nodeIdentifierCorrChan,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -49,8 +49,6 @@ func (nc *NodeCollector) CollectorFunction() error {
 		return err
 	}
 
-	nodeSpecMap := make(map[string]v1.NodeSpec)
-
 	for _, node := range nodes {
 		// creates and publishes StackState node component
 		component := nc.nodeToStackStateComponent(node)
@@ -59,28 +57,17 @@ func (nc *NodeCollector) CollectorFunction() error {
 
 		nc.ComponentChan <- component
 		nc.RelationChan <- relation
-		nodeSpecMap[node.Name] = node.Spec
-	}
 
-	// map containers that require the Node instanceId
-	for containerToNodeCorrelation := range nc.ContainerCorrChan {
-		log.Tracef("Creating correlation for containers running on node: %s", containerToNodeCorrelation.NodeName)
-
-		if matchingNodeSpec, ok := nodeSpecMap[containerToNodeCorrelation.NodeName]; ok {
-			nodeIdentifier := extractInstanceIdFromProviderId(matchingNodeSpec)
+		// send the node identifier to be correlated
+		if node.Spec.ProviderID != "" {
+			nodeIdentifier := extractInstanceIdFromProviderId(node.Spec)
 			if nodeIdentifier != "" {
-				containerComponents, containerRelations := containerToNodeCorrelation.MappingFunction(nodeIdentifier)
-				// publish the node components
-				for _, component := range containerComponents {
-					nc.ComponentChan <- component
-				}
-				// publish the node relations
-				for _, relation := range containerRelations {
-					nc.RelationChan <- relation
-				}
+				nc.NodeIdentifierCorrChan <- &NodeIdentifierCorrelation{node.Name, nodeIdentifier}
 			}
 		}
 	}
+
+	close(nc.NodeIdentifierCorrChan)
 
 	return nil
 }

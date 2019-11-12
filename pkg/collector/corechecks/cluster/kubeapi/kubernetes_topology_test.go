@@ -38,16 +38,17 @@ func TestRunClusterCollectors(t *testing.T) {
 	errChannel := make(chan error)
 	waitGroupChannel := make(chan int)
 
-	var clusterCollectors []collectors.ClusterTopologyCollector
-	commonClusterCollector := collectors.NewClusterTopologyCollector(instance, nil)
+	clusterTopologyCommon := collectors.NewclusterTopologyCommon(instance, nil)
+	commonClusterCollector := collectors.NewClusterTopologyCollector(clusterTopologyCommon)
 
-	clusterCollectors = append(clusterCollectors,
+	clusterCollectors := []collectors.ClusterTopologyCollector{
 		NewTestCollector(componentChannel, relationChannel, commonClusterCollector),
 		NewErrorTestCollector(componentChannel, relationChannel, commonClusterCollector),
-	)
+	}
+	clusterCorrelators := make([]collectors.ClusterTopologyCorrelator, 0)
 
 	// starts all the cluster collectors
-	kubernetesTopologyCheck.RunClusterCollectors(clusterCollectors, &waitGroup, errChannel)
+	kubernetesTopologyCheck.RunClusterCollectors(clusterCollectors, clusterCorrelators, &waitGroup, errChannel)
 
 	// receive all the components, will return once the wait group notifies
 	kubernetesTopologyCheck.WaitForTopology(componentChannel, relationChannel, errChannel, &waitGroup, waitGroupChannel)

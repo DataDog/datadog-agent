@@ -46,6 +46,11 @@ func (t *TopologyCheck) Configure(config, initConfig integration.Data) error {
 	return nil
 }
 
+// SetSubmitter sets the topology submitter for the Topology Check
+func (t *TopologyCheck) SetSubmitter(submitter TopologySubmitter) {
+	t.submitter = submitter
+}
+
 /*
 	cluster -> map cluster -> component
 
@@ -101,7 +106,8 @@ func (t *TopologyCheck) Run() error {
 	var waitGroup sync.WaitGroup
 
 	// Make a channel for each of the relations to avoid passing data down into all the functions
-	containerToNodeCorrelationChannel := make(chan *collectors.ContainerToNodeCorrelation)
+	nodeIdentifierCorrelationChannel := make(chan *collectors.NodeIdentifierCorrelation)
+	containerCorrelationChannel := make(chan *collectors.ContainerCorrelation)
 
 	// make a channel that is responsible for publishing components and relations
 	componentChannel := make(chan *topology.Component)
@@ -109,11 +115,19 @@ func (t *TopologyCheck) Run() error {
 	errChannel := make(chan error)
 	waitGroupChannel := make(chan int)
 
-	commonClusterCollector := collectors.NewClusterTopologyCollector(t.instance.Instance, t.ac)
+	clusterTopologyCommon := collectors.NewclusterTopologyCommon(t.instance.Instance, t.ac)
+	commonClusterCollector := collectors.NewClusterTopologyCollector(clusterTopologyCommon)
 	clusterCollectors := []collectors.ClusterTopologyCollector{
 		// Register Cluster Component Collector
 		collectors.NewClusterCollector(
 			componentChannel,
+			commonClusterCollector,
+		),
+		// Register Node Component Collector
+		collectors.NewNodeCollector(
+			componentChannel,
+			relationChannel,
+			nodeIdentifierCorrelationChannel,
 			commonClusterCollector,
 		),
 		// Register ConfigMap Component Collector
@@ -148,13 +162,6 @@ func (t *TopologyCheck) Run() error {
 			componentChannel,
 			commonClusterCollector,
 		),
-		// Register Node Component Collector
-		collectors.NewNodeCollector(
-			componentChannel,
-			relationChannel,
-			containerToNodeCorrelationChannel,
-			commonClusterCollector,
-		),
 		// Register Persistent Volume Component Collector
 		collectors.NewPersistentVolumeCollector(
 			componentChannel,
@@ -164,7 +171,7 @@ func (t *TopologyCheck) Run() error {
 		collectors.NewPodCollector(
 			componentChannel,
 			relationChannel,
-			containerToNodeCorrelationChannel,
+			containerCorrelationChannel,
 			commonClusterCollector,
 		),
 		// Register ReplicaSet Component Collector
@@ -186,8 +193,20 @@ func (t *TopologyCheck) Run() error {
 		),
 	}
 
-	// starts all the cluster collectors
-	t.RunClusterCollectors(clusterCollectors, &waitGroup, errChannel)
+	commonClusterCorrelator := collectors.NewClusterTopologyCorrelator(clusterTopologyCommon)
+	clusterCorrelators := []collectors.ClusterTopologyCorrelator{
+		// Register Container -> Node Identifier Correlator
+		collectors.NewContainerCorrelator(
+			componentChannel,
+			relationChannel,
+			nodeIdentifierCorrelationChannel,
+			containerCorrelationChannel,
+			commonClusterCorrelator,
+		),
+	}
+
+	// starts all the cluster collectors and correlators
+	t.RunClusterCollectors(clusterCollectors, clusterCorrelators, &waitGroup, errChannel)
 
 	// receive all the components, will return once the wait group notifies
 	t.WaitForTopology(componentChannel, relationChannel, errChannel, &waitGroup, waitGroupChannel)
@@ -236,17 +255,25 @@ func (t *TopologyCheck) WaitForTopology(componentChannel <-chan *topology.Compon
 }
 
 // runs all of the cluster collectors, notify the wait groups and submit errors to the error channel
-func (t *TopologyCheck) RunClusterCollectors(clusterCollectors []collectors.ClusterTopologyCollector, waitGroup *sync.WaitGroup, errorChannel chan<- error) {
-	for _, collector := range clusterCollectors {
-		// add this collector to the wait group
-		runCollector(collector, errorChannel, waitGroup)
-	}
+func (t *TopologyCheck) RunClusterCollectors(clusterCollectors []collectors.ClusterTopologyCollector, clusterCorrelators []collectors.ClusterTopologyCorrelator, waitGroup *sync.WaitGroup, errorChannel chan<- error) {
+	waitGroup.Add(len(clusterCollectors))
+	waitGroup.Add(len(clusterCorrelators))
+	go func() {
+		for _, collector := range clusterCollectors {
+			// add this collector to the wait group
+			runCollector(collector, errorChannel, waitGroup)
+		}
+		for _, correlator := range clusterCorrelators {
+			// add this collector to the wait group
+			runCorrelator(correlator, errorChannel, waitGroup)
+		}
+	}()
 }
 
 // runCollector
 func runCollector(collector collectors.ClusterTopologyCollector, errorChannel chan<- error, wg *sync.WaitGroup) {
-	wg.Add(1)
-	go func() {
+	// disable parallelism to reduce memory consumption
+	//go func() {
 		log.Debugf("Starting cluster topology collector: %s\n", collector.GetName())
 		err := collector.CollectorFunction()
 		if err != nil {
@@ -255,7 +282,22 @@ func runCollector(collector collectors.ClusterTopologyCollector, errorChannel ch
 		// mark this collector as complete
 		log.Debugf("Finished cluster topology collector: %s\n", collector.GetName())
 		wg.Done()
-	}()
+	//}()
+}
+
+// runCorrelator
+func runCorrelator(correlator collectors.ClusterTopologyCorrelator, errorChannel chan<- error, wg *sync.WaitGroup) {
+	// disable parallelism to reduce memory consumption
+	//go func() {
+	log.Debugf("Starting cluster topology correlator: %s\n", correlator.GetName())
+	err := correlator.CorrelateFunction()
+	if err != nil {
+		errorChannel <- err
+	}
+	// mark this collector as complete
+	log.Debugf("Finished cluster topology correlator: %s\n", correlator.GetName())
+	wg.Done()
+	//}()
 }
 
 // KubernetesASFactory is exported for integration testing.

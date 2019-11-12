@@ -34,11 +34,11 @@ spec:
                 key: token
         resources:
           requests:
-            memory: "64Mi"
-            cpu: "50m"
+            memory: "256Mi"
+            cpu: "200m"
           limits:
-            memory: "128Mi"
-            cpu: "100m"
+            memory: "256Mi"
+            cpu: "200m"
 ---
 apiVersion: v1
 kind: Service
