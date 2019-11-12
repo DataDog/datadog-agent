@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-package docker
+package testutil
 
 import (
 	"io/ioutil"
@@ -12,22 +12,27 @@ import (
 	"strings"
 )
 
-type tempFolder struct {
+// TempFolder is a temporary folder used for testing
+type TempFolder struct {
 	RootPath string
 }
 
-func newTempFolder(namePrefix string) (*tempFolder, error) {
+// NewTempFolder creates a new temporary folder
+func NewTempFolder(namePrefix string) (*TempFolder, error) {
 	path, err := ioutil.TempDir("", namePrefix)
 	if err != nil {
 		return nil, err
 	}
-	return &tempFolder{path}, nil
+	return &TempFolder{path}, nil
 }
-func (f *tempFolder) removeAll() error {
+
+// RemoveAll purges a TempFolder
+func (f *TempFolder) RemoveAll() error {
 	return os.RemoveAll(f.RootPath)
 }
 
-func (f *tempFolder) add(fileName string, contents string) error {
+// Add adds a file to a temp folder
+func (f *TempFolder) Add(fileName string, contents string) error {
 	filePath := filepath.Join(f.RootPath, fileName)
 	dirPath := filepath.Dir(filePath)
 	err := os.MkdirAll(dirPath, 0777)
@@ -43,12 +48,12 @@ func (f *tempFolder) add(fileName string, contents string) error {
 	return err
 }
 
-func (f *tempFolder) delete(fileName string) error {
+func (f *TempFolder) delete(fileName string) error {
 	return os.Remove(filepath.Join(f.RootPath, fileName))
 }
 
-// detab removes whitespace from the front of a string on every line
-func detab(str string) string {
+// Detab removes whitespace from the front of a string on every line
+func Detab(str string) string {
 	detabbed := make([]string, 0)
 	for _, l := range strings.Split(str, "\n") {
 		s := strings.TrimSpace(l)

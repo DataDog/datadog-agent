@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 )
 
 func TestParseECSClusterName(t *testing.T) {
@@ -47,7 +47,7 @@ func TestParseFargateRegion(t *testing.T) {
 func TestParseMetadata(t *testing.T) {
 	raw, err := ioutil.ReadFile("./testdata/fargate_meta.json")
 	require.NoError(t, err)
-	var meta ecs.TaskMetadata
+	var meta metadata.TaskMetadata
 	err = json.Unmarshal(raw, &meta)
 	require.NoError(t, err)
 	require.Len(t, meta.Containers, 3)
@@ -225,7 +225,7 @@ func TestParseMetadata(t *testing.T) {
 func TestParseMetadataV10(t *testing.T) {
 	raw, err := ioutil.ReadFile("./testdata/fargate_meta_v1.0.json")
 	require.NoError(t, err)
-	var meta ecs.TaskMetadata
+	var meta metadata.TaskMetadata
 	err = json.Unmarshal(raw, &meta)
 	require.NoError(t, err)
 	require.Len(t, meta.Containers, 3)

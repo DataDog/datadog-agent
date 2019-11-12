@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -49,7 +50,7 @@ func getDockerHostIPsUncached() []string {
 	providers = append(providers, hostIPProvider{"config", getHostIPsFromConfig})
 	providers = append(providers, hostIPProvider{"ec2 metadata endpoint", ec2.GetLocalIPv4})
 	if isHostMode {
-		providers = append(providers, hostIPProvider{"/proc/net/route", DefaultHostIPs})
+		providers = append(providers, hostIPProvider{"/proc/net/route", containers.DefaultHostIPs})
 	}
 
 	for _, attempt := range providers {
