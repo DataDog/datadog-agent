@@ -9,7 +9,7 @@ lint:
     config-file: .yamllint
 platforms:
   - name: kubernetes-cluster-agent
-    image: ami-0da760e590e7de0e8    # Ubuntu 18.04 (EBS-Backed x86_64)
+    image: ami-0b387aea6983a6882    # Our Packer image based on Ubuntu 18.04 (EBS-Backed x86_64)
     instance_type: t3.large
     vpc_subnet_id: subnet-fa36adb2  # eu-west-1a
     region: eu-west-1
