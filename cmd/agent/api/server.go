@@ -11,6 +11,7 @@ sending commands and receiving infos.
 package api
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -20,8 +21,11 @@ import (
 	"net/http"
 	"time"
 
+	"google.golang.org/grpc"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
+	pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -31,6 +35,14 @@ import (
 var (
 	listener net.Listener
 )
+
+type server struct {
+	pb.UnimplementedAgentServer
+}
+
+func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
+	return &pb.HostnameReply{Hostname: "random-hostname"}, nil
+}
 
 // StartServer creates the router and starts the HTTP server
 func StartServer() error {
@@ -62,6 +74,17 @@ func StartServer() error {
 	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
 	if err != nil {
 		return fmt.Errorf("unable to start TLS server")
+	}
+
+	// grpc server
+	lis, err := net.Listen("tcp", ":50051")
+	if err != nil {
+		return err
+	}
+	s := grpc.NewServer()
+	pb.RegisterAgentServer(s, &server{})
+	if err := s.Serve(lis); err != nil {
+		return err
 	}
 
 	// PEM encode the private key

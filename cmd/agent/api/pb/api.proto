@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package pb;
+
+// The greeting service definition.
+service Agent {
+  // get the hostname
+  rpc GetHostname (HostnameRequest) returns (HostnameReply) {}
+  rpc GetTags (TagRequest) returns (TagReply) {}
+}
+
+message HostnameRequest {}
+
+// The response message containing the greetings
+message HostnameReply {
+    string hostname = 1;
+  }
+
+// The request message containing the user's name.
+message TagRequest {
+  string entity = 1;
+}
+
+// The response message containing the greetings
+message TagReply {
+  repeated string tags = 1;
+}
