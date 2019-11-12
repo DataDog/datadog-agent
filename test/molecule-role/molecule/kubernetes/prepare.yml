@@ -5,55 +5,6 @@
   vars_files:
     - common_vars.yml
   tasks:
-    - name: Install python for Ansible
-      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream)
-      become: true
-      changed_when: false
-    - name: Install python-pip
-      become: true
-      apt:
-        name: [python-pip, virtualenv, libyajl2]  # venv and yajl2 if you wanna run the simulator
-        state: present
-        update_cache: yes
-      retries: 15
-      delay: 25
-      register: pip_result
-      until: pip_result is not failed
-    - name: Installing python packages
-      pip:
-        name: boto,boto3,docker
-    - name: Add Docker GPG APT key
-      become: true
-      apt_key: url=https://download.docker.com/linux/ubuntu/gpg
-    - name: Add Docker APT repository
-      become: true
-      apt_repository:
-        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable
-    - name: Install APT packages
-      become: true
-      apt:
-        name: [apt-transport-https, ca-certificates, curl, software-properties-common, docker-ce, awscli, postgresql-client-10, unzip]
-        state: present
-        update_cache: yes
-      register: apt_res
-      retries: 5
-      delay: 5
-      until: apt_res is success
-    - name: Add user to docker group
-      become: true
-      user:
-        name: ubuntu
-        groups: docker
-        append: True
-    - name: Restart sshd to apply group change
-      shell: sleep 1; pkill -u {{ ansible_ssh_user }} sshd
-      async: 3
-      poll: 2
-    - name: Ensure .aws config directory exists
-      file:
-        path: /home/ubuntu/.aws/
-        recurse: yes
-        state: directory
     - name: Configure aws credentials
       copy:
         content: |
@@ -61,26 +12,12 @@
           aws_access_key_id = {{ lookup("env", "AWS_ACCESS_KEY_ID")}}
           aws_secret_access_key = {{ lookup("env", "AWS_SECRET_ACCESS_KEY")}}
         dest: /home/ubuntu/.aws/credentials
-    - name: Configure aws config
-      copy:
-        content: |
-          [default]
-          region=eu-west-1
-          output=json
-        dest: /home/ubuntu/.aws/config
-    - name: Run Docker login
+    - name: Docker login
       docker_login:
         registry: quay.io
         username: "{{ quay_user }}"
         password: "{{ quay_password }}"
         reauthorize: yes
-    - name: Install Docker Compose
-      become: true
-      get_url:
-        url: "https://github.com/docker/compose/releases/download/1.22.0/docker-compose-Linux-x86_64"
-        dest: "/usr/local/bin/docker-compose"
-        force: True
-        mode: "0755"
     - name: Copy Terraform Files and Manifests
       copy:
         src: "../../../../deployment/kubernetes/"
@@ -103,27 +40,7 @@
         chdir: /home/ubuntu/receiver
       environment:
         STACKSTATE_BRANCH: "{{ stackstate_branch }}"
-    - name: Download and unarchive Terraform
-      become: true
-      unarchive:
-        src: "https://releases.hashicorp.com/terraform/0.12.8/terraform_0.12.8_linux_amd64.zip"
-        dest: "/usr/local/bin/"
-        remote_src: yes
-        mode: "0755"
-    - name: Install AWS authenticator
-      become: true
-      get_url:
-        url: "https://amazon-eks.s3-us-west-2.amazonaws.com/1.10.3/2018-06-05/bin/linux/amd64/heptio-authenticator-aws"
-        dest: "/usr/local/bin/"
-        force: True
-        mode: "0755"
-    - name: Install kubectl
-      become: true
-      get_url:
-        url: "https://storage.googleapis.com/kubernetes-release/release/v1.15.3/bin/linux/amd64/kubectl"
-        dest: "/usr/local/bin/"
-        force: True
-        mode: "0755"
+        CLUSTER_NAME: "{{ cluster_name }}"
     - name: Removing existing config files if exists
       file:
         path: "/home/ubuntu/deployment/aws-eks/tf-cluster/{{ item }}"

@@ -1,0 +1,29 @@
+{
+    "builders": [
+        {
+            "type": "amazon-ebs",
+            "region": "eu-west-1",
+            "instance_type": "m3.medium",
+            "source_ami": "ami-0da760e590e7de0e8",
+            "ami_name": "molecule-receiver-{{timestamp}}",
+            "communicator": "ssh",
+            "ssh_username": "ubuntu",
+            "tags": {
+                "OS_Version": "Ubuntu 18.04",
+                "Team": "Lupulus",
+                "Product": "stackstate-agent-2",
+                "Base_AMI_Name": "{{ .SourceAMIName }}",
+                "Extra": "{{ .SourceAMITags.TagName }}"
+            }
+        }
+    ],
+    "provisioners": [
+        {
+            "type": "ansible",
+            "playbook_file": "./receiver.yml",
+            "extra_arguments": [
+                "-vvv"
+            ]
+        }
+    ]
+}

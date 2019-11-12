@@ -1,0 +1,1 @@
+../../../../../../cmd/agent/install_script.sh
