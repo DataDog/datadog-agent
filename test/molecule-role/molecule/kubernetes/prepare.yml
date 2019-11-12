@@ -40,6 +40,7 @@
         chdir: /home/ubuntu/receiver
       environment:
         STACKSTATE_BRANCH: "{{ stackstate_branch }}"
+        CLUSTER_NAME: "{{ cluster_name }}"
     - name: Removing existing config files if exists
       file:
         path: "/home/ubuntu/deployment/aws-eks/tf-cluster/{{ item }}"
