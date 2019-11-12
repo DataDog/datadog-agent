@@ -25,7 +25,7 @@
     "provisioners": [
         {
             "type": "ansible",
-            "playbook_file": "./playbook.yml",
+            "playbook_file": "./windows_ping.yml",
             "extra_arguments": [
                 "--connection",
                 "packer",
