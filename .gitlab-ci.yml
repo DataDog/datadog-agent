@@ -64,7 +64,7 @@ variables:
   RELEASE_VERSION_7: nightly
   DATADOG_AGENT_BUILDIMAGES: v1709713-2adac2a
   DATADOG_AGENT_BUILDERS: v1793959-4e4c346
-  DATADOG_AGENT_WINBUILDIMAGES: v1782031-7bc5447
+  DATADOG_AGENT_WINBUILDIMAGES: v1876043-a759bdd
 
 
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
