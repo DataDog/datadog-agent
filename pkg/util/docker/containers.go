@@ -288,11 +288,8 @@ func (d *DockerUtil) getECSMetadataURL(cID string) (string, error) {
 		return "", err
 	}
 	for _, e := range i.Config.Env {
-		split := strings.Split(e, "=")
-		if len(split) < 2 {
-			continue
-		} else if split[0] == "ECS_CONTAINER_METADATA_URI" {
-			return split[1], nil
+		if strings.HasPrefix(e, "ECS_CONTAINER_METADATA_URI=") {
+			return strings.Split(e, "=")[1], nil
 		}
 	}
 	return "", errors.New("ecs container metadata uri not found")
