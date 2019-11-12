@@ -8,6 +8,7 @@
 package ecs
 
 import "github.com/DataDog/datadog-agent/pkg/util/docker"
+import "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 
 const (
 	// CloudProviderName contains the inventory name of for ECS
@@ -36,7 +37,7 @@ func IsFargateInstance() bool {
 }
 
 // GetTaskMetadata extracts the metadata payload for the task the agent is in.
-func GetTaskMetadata() (TaskMetadata, error) {
-	var meta TaskMetadata
+func GetTaskMetadata() (metadata.TaskMetadata, error) {
+	var meta metadata.TaskMetadata
 	return meta, nil
 }
