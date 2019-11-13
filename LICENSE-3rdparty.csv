@@ -159,5 +159,3 @@ network,github.com/iovisor/gobpf,Apache-2.0
 network,github.com/florianl/go-conntrack,MIT
 network,github.com/mdlayher/netlink,MIT
 network,github.com/google/gopacket,BSD-3-Clause
-devenv,github.com/StefanScherer/packer-windows,MIT
-devenv,github.com/luciusbono/Packer-Windows10,MIT
