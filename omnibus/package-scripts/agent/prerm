@@ -89,7 +89,7 @@ remove_downloader_data()
         rm -rf $DOWNLOADER_DATA
     fi
 
-    DOWNLOADER_DATA3="$INSTALL_DIR/embedded/lib/python3.7/site-packages/datadog_checks/downloader/data"
+    DOWNLOADER_DATA3="$INSTALL_DIR/embedded/lib/python3.8/site-packages/datadog_checks/downloader/data"
     if [ -d $DOWNLOADER_DATA3 ]; then
         rm -rf $DOWNLOADER_DATA3
     fi
