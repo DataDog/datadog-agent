@@ -53,3 +53,13 @@ func (g *promGauge) Dec(tags ...string) {
 func (g *promGauge) Delete(tags ...string) {
 	g.pg.DeleteLabelValues(tags...)
 }
+
+// Add adds the value to the Gauge value.
+func (g *promGauge) Add(value float64, tags ...string) {
+	g.pg.WithLabelValues(tags...).Add(value)
+}
+
+// Sub subtracts the value to the Gauge value.
+func (g *promGauge) Sub(value float64, tags ...string) {
+	g.pg.WithLabelValues(tags...).Sub(value)
+}

@@ -13,6 +13,10 @@ type Gauge interface {
 	Inc(tags ...string)
 	// Dec decrements the Gauge value.
 	Dec(tags ...string)
+	// Add adds the value to the Gauge value.
+	Add(value float64, tags ...string)
+	// Sub subtracts the value to the Gauge value.
+	Sub(value float64, tags ...string)
 	// Delete deletes the value for the Gauge with the given tags.
 	Delete(tags ...string)
 }
