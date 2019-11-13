@@ -41,6 +41,8 @@ const (
 	UDPSendMsgRHEL KProbeName = "kprobe/udp_sendmsg/rhel"
 	// UDPRecvMsg traces the udp_recvmsg() system call
 	UDPRecvMsg KProbeName = "kprobe/udp_recvmsg"
+	// UDPRecvMsgRHEL traces the udp_recvmsg() system call on RHEL and CentOS.
+	UDPRecvMsgRHEL KProbeName = "kprobe/udp_recvmsg/rhel"
 	// UDPRecvMsgReturn traces the return value for the udp_recvmsg() system call
 	UDPRecvMsgReturn KProbeName = "kretprobe/udp_recvmsg"
 
@@ -75,5 +77,6 @@ var (
 	kprobeOverrides = map[KProbeName]KProbeName{
 		TCPSendMsgRHEL: TCPSendMsg,
 		UDPSendMsgRHEL: UDPSendMsg,
+		UDPRecvMsgRHEL: UDPRecvMsg,
 	}
 )
