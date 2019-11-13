@@ -17,7 +17,7 @@ type ClusterCollector struct {
 // NewClusterTopologyCollector
 func NewClusterCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &ClusterCollector{
-		ComponentChan: componentChannel,
+		ComponentChan:            componentChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -49,8 +49,8 @@ func (cc *ClusterCollector) clusterToStackStateComponent() *topology.Component {
 		ExternalID: clusterExternalID,
 		Type:       topology.Type{Name: "cluster"},
 		Data: map[string]interface{}{
-			"name":              cc.GetInstance().URL,
-			"tags":              tags,
+			"name": cc.GetInstance().URL,
+			"tags": tags,
 		},
 	}
 

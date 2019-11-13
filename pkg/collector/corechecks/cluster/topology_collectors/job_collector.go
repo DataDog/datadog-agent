@@ -11,15 +11,13 @@ import (
 // JobCollector implements the ClusterTopologyCollector interface.
 type JobCollector struct {
 	ComponentChan chan<- *topology.Component
-	RelationChan chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
 // NewJobCollector
-func NewJobCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+func NewJobCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &JobCollector{
-		ComponentChan: componentChannel,
-		RelationChan: relationChannel,
+		ComponentChan:            componentChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -59,9 +57,9 @@ func (jc *JobCollector) jobToStackStateComponent(job v1.Job) *topology.Component
 			"creationTimestamp": job.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         job.Namespace,
-			"uid":           job.UID,
-			"backoffLimit":  job.Spec.BackoffLimit,
-			"parallelism":  job.Spec.Parallelism,
+			"uid":               job.UID,
+			"backoffLimit":      job.Spec.BackoffLimit,
+			"parallelism":       job.Spec.Parallelism,
 		},
 	}
 

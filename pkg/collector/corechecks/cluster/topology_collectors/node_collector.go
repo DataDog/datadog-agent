@@ -12,19 +12,26 @@ import (
 
 // NodeCollector implements the ClusterTopologyCollector interface.
 type NodeCollector struct {
-	ComponentChan chan<- *topology.Component
-	RelationChan chan<- *topology.Relation
-	ContainerCorrChan <-chan *ContainerCorrelation
+	ComponentChan     chan<- *topology.Component
+	RelationChan      chan<- *topology.Relation
+	NodeIdentifierCorrChan chan<- *NodeIdentifierCorrelation
 	ClusterTopologyCollector
+}
+
+// NodeStatus is the StackState representation of a Kubernetes / Openshift Node Status
+type NodeStatus struct {
+	Phase v1.NodePhase `json:"phase,omitempty"`
+	NodeInfo v1.NodeSystemInfo `json:"nodeInfo,omitempty"`
+	KubeletEndpoint v1.DaemonEndpoint `json:"kubeletEndpoint,omitempty"`
 }
 
 // NewNodeCollector
 func NewNodeCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
-	containerCorrelationChannel <-chan *ContainerCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+	nodeIdentifierCorrChan chan<- *NodeIdentifierCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &NodeCollector{
-		ComponentChan: componentChannel,
-		RelationChan: relationChannel,
-		ContainerCorrChan: containerCorrelationChannel,
+		ComponentChan:            componentChannel,
+		RelationChan:             relationChannel,
+		NodeIdentifierCorrChan:        nodeIdentifierCorrChan,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -42,8 +49,6 @@ func (nc *NodeCollector) CollectorFunction() error {
 		return err
 	}
 
-	nodeSpecMap := make(map[string]v1.NodeSpec)
-
 	for _, node := range nodes {
 		// creates and publishes StackState node component
 		component := nc.nodeToStackStateComponent(node)
@@ -52,28 +57,17 @@ func (nc *NodeCollector) CollectorFunction() error {
 
 		nc.ComponentChan <- component
 		nc.RelationChan <- relation
-		nodeSpecMap[node.Name] = node.Spec
-	}
 
-	// map containers that require the Node instanceId
-	for containerCorrelation := range nc.ContainerCorrChan {
-		log.Tracef("Creating correlation for containers running on node: %s", containerCorrelation.NodeName)
-
-		if matchingNodeSpec, ok := nodeSpecMap[containerCorrelation.NodeName]; ok {
-			nodeIdentifier := extractInstanceIdFromProviderId(matchingNodeSpec)
+		// send the node identifier to be correlated
+		if node.Spec.ProviderID != "" {
+			nodeIdentifier := extractInstanceIdFromProviderId(node.Spec)
 			if nodeIdentifier != "" {
-				containerComponents, containerRelations := containerCorrelation.MappingFunction(nodeIdentifier)
-				// publish the node components
-				for _, component := range containerComponents {
-					nc.ComponentChan <- component
-				}
-				// publish the node relations
-				for _, relation := range containerRelations {
-					nc.RelationChan <- relation
-				}
+				nc.NodeIdentifierCorrChan <- &NodeIdentifierCorrelation{node.Name, nodeIdentifier}
 			}
 		}
 	}
+
+	close(nc.NodeIdentifierCorrChan)
 
 	return nil
 }
@@ -91,6 +85,10 @@ func (nc *NodeCollector) nodeToStackStateComponent(node v1.Node) *topology.Compo
 			identifiers = append(identifiers, fmt.Sprintf("urn:ip:/%s:%s:%s", nc.GetInstance().URL, node.Name, address.Address))
 		case v1.NodeExternalIP:
 			identifiers = append(identifiers, fmt.Sprintf("urn:ip:/%s:%s", nc.GetInstance().URL, address.Address))
+		case v1.NodeInternalDNS:
+			identifiers = append(identifiers, fmt.Sprintf("urn:host:/%s:%s", nc.GetInstance().URL, address.Address))
+		case v1.NodeExternalDNS:
+			identifiers = append(identifiers, fmt.Sprintf("urn:host:/%s", address.Address))
 		case v1.NodeHostName:
 			//do nothing with it
 		default:
@@ -108,11 +106,6 @@ func (nc *NodeCollector) nodeToStackStateComponent(node v1.Node) *topology.Compo
 
 	nodeExternalID := nc.buildNodeExternalID(node.Name)
 
-	// clear out the unnecessary status array values
-	nodeStatus := node.Status
-	nodeStatus.Conditions = make([]v1.NodeCondition, 0)
-	nodeStatus.Images = make([]v1.ContainerImage, 0)
-
 	tags := emptyIfNil(node.Labels)
 	tags = nc.addClusterNameTag(tags)
 
@@ -121,10 +114,16 @@ func (nc *NodeCollector) nodeToStackStateComponent(node v1.Node) *topology.Compo
 		Type:       topology.Type{Name: "node"},
 		Data: map[string]interface{}{
 			"name":              node.Name,
+			"namespace": node.Namespace,
 			"creationTimestamp": node.CreationTimestamp,
 			"tags":              tags,
-			"status":            nodeStatus,
+			"status":            NodeStatus{
+				Phase: node.Status.Phase,
+				NodeInfo: node.Status.NodeInfo,
+				KubeletEndpoint: node.Status.DaemonEndpoints.KubeletEndpoint,
+			},
 			"identifiers":       identifiers,
+			"uid":       node.UID,
 			//"taints": node.Spec.Taints,
 		},
 	}

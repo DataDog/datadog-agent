@@ -17,7 +17,7 @@ type DeploymentCollector struct {
 // NewDeploymentCollector
 func NewDeploymentCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &DeploymentCollector{
-		ComponentChan: componentChannel,
+		ComponentChan:            componentChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -53,13 +53,13 @@ func (dmc *DeploymentCollector) deploymentToStackStateComponent(deployment v1.De
 		ExternalID: deploymentExternalID,
 		Type:       topology.Type{Name: "deployment"},
 		Data: map[string]interface{}{
-			"name":              deployment.Name,
-			"creationTimestamp": deployment.CreationTimestamp,
-			"tags":              tags,
-			"namespace":         deployment.Namespace,
+			"name":               deployment.Name,
+			"creationTimestamp":  deployment.CreationTimestamp,
+			"tags":               tags,
+			"namespace":          deployment.Namespace,
 			"deploymentStrategy": deployment.Spec.Strategy.Type,
-			"desiredReplicas": deployment.Spec.Replicas,
-			"uid":           deployment.UID,
+			"desiredReplicas":    deployment.Spec.Replicas,
+			"uid":                deployment.UID,
 		},
 	}
 

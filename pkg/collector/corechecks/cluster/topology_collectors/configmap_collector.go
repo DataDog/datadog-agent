@@ -17,7 +17,7 @@ type ConfigMapCollector struct {
 // NewConfigMapCollector
 func NewConfigMapCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &ConfigMapCollector{
-		ComponentChan: componentChannel,
+		ComponentChan:            componentChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -58,8 +58,8 @@ func (cmc *ConfigMapCollector) configMapToStackStateComponent(configMap v1.Confi
 			"creationTimestamp": configMap.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         configMap.Namespace,
-			"uid":           configMap.UID,
-			"identifiers": []string{configMapExternalID},
+			"uid":               configMap.UID,
+			"identifiers":       []string{configMapExternalID},
 		},
 	}
 

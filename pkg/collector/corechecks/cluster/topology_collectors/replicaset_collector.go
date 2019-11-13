@@ -11,7 +11,7 @@ import (
 // ReplicaSetCollector implements the ClusterTopologyCollector interface.
 type ReplicaSetCollector struct {
 	ComponentChan chan<- *topology.Component
-	RelationChan chan<- *topology.Relation
+	RelationChan  chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
@@ -23,8 +23,8 @@ func (rsc *ReplicaSetCollector) GetName() string {
 // NewReplicaSetCollector
 func NewReplicaSetCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &ReplicaSetCollector{
-		ComponentChan: componentChannel,
-		RelationChan: relationChannel,
+		ComponentChan:            componentChannel,
+		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -70,8 +70,8 @@ func (rsc *ReplicaSetCollector) replicaSetToStackStateComponent(replicaSet v1.Re
 			"creationTimestamp": replicaSet.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         replicaSet.Namespace,
-			"desiredReplicas": replicaSet.Spec.Replicas,
-			"uid":           replicaSet.UID,
+			"desiredReplicas":   replicaSet.Spec.Replicas,
+			"uid":               replicaSet.UID,
 		},
 	}
 
@@ -84,7 +84,7 @@ func (rsc *ReplicaSetCollector) replicaSetToStackStateComponent(replicaSet v1.Re
 }
 
 // Creates a StackState relation from a Kubernetes / OpenShift Controller Workload to Pod relation
-func (rsc *ReplicaSetCollector)  deploymentToReplicaSetStackStateRelation(deploymentExternalID, replicaSetExternalID string) *topology.Relation {
+func (rsc *ReplicaSetCollector) deploymentToReplicaSetStackStateRelation(deploymentExternalID, replicaSetExternalID string) *topology.Relation {
 	log.Tracef("Mapping kubernetes deployment to replica set relation: %s -> %s", deploymentExternalID, replicaSetExternalID)
 
 	relation := rsc.CreateRelation(deploymentExternalID, replicaSetExternalID, "controls")

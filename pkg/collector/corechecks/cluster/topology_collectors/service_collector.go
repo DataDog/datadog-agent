@@ -12,8 +12,7 @@ import (
 // ServiceCollector implements the ClusterTopologyCollector interface.
 type ServiceCollector struct {
 	ComponentChan chan<- *topology.Component
-	RelationChan chan<- *topology.Relation
-	ServiceCorrelationChannel <-chan *IngressCorrelation
+	RelationChan  chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
@@ -25,11 +24,10 @@ type EndpointID struct {
 
 // NewServiceCollector
 func NewServiceCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
-	serviceCorrelationChannel <-chan *IngressCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+	clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &ServiceCollector{
-		ComponentChan: componentChannel,
-		RelationChan: relationChannel,
-		ServiceCorrelationChannel: serviceCorrelationChannel,
+		ComponentChan:            componentChannel,
+		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -95,7 +93,8 @@ func (sc *ServiceCollector) CollectorFunction() error {
 			// create the relation between the pod and the service on the endpoint
 			podExternalID := endpoint.RefExternalID
 
-			_, ok := publishedPodRelations[podExternalID]; if !ok && podExternalID != "" {
+			_, ok := publishedPodRelations[podExternalID]
+			if !ok && podExternalID != "" {
 				relation := sc.podToServiceStackStateRelation(podExternalID, component.ExternalID)
 
 				sc.RelationChan <- relation
@@ -106,18 +105,6 @@ func (sc *ServiceCollector) CollectorFunction() error {
 
 		serviceMap[serviceID] = append(serviceMap[serviceID], component.ExternalID)
 	}
-
-	// map ingresses that require the Service ExternalID
-	for serviceCorrelation := range sc.ServiceCorrelationChannel {
-		log.Tracef("Creating correlation between ingress and target service: %s -> %s", serviceCorrelation.IngressExternalID, serviceCorrelation.ServiceID)
-
-		for _, matchingServiceExternalID := range serviceMap[serviceCorrelation.ServiceID] {
-			// publish the ingress -> service relations
-			relation := sc.ingressToServiceStackStateRelation(serviceCorrelation.IngressExternalID, matchingServiceExternalID)
-			sc.RelationChan <- relation
-		}
-	}
-
 
 	return nil
 }
@@ -168,7 +155,7 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 			// map all of the node ports for the ip
 			for _, port := range service.Spec.Ports {
 				// map all the node ports
-				if port.NodePort != 0{
+				if port.NodePort != 0 {
 					identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s:%d", sc.GetInstance().URL, service.Spec.ClusterIP, port.NodePort))
 				}
 			}
@@ -206,13 +193,13 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 	component := &topology.Component{
 		ExternalID: serviceExternalID,
 		Type:       topology.Type{Name: "service"},
-		Data:       map[string]interface{}{
+		Data: map[string]interface{}{
 			"name":              service.Name,
 			"namespace":         service.Namespace,
 			"creationTimestamp": service.CreationTimestamp,
 			"tags":              tags,
 			"identifiers":       identifiers,
-			"uid": service.UID,
+			"uid":               service.UID,
 		},
 	}
 
@@ -237,23 +224,6 @@ func (sc *ServiceCollector) podToServiceStackStateRelation(refExternalID, servic
 	}
 
 	log.Tracef("Created StackState pod -> service relation %s->%s", relation.SourceID, relation.TargetID)
-
-	return relation
-}
-
-// Creates a StackState component from a Kubernetes / OpenShift Ingress to Service
-func (sc *ServiceCollector) ingressToServiceStackStateRelation(ingressExternalID, serviceExternalID string) *topology.Relation {
-	log.Tracef("Mapping kubernetes ingress to service relation: %s -> %s", ingressExternalID, serviceExternalID)
-
-	relation := &topology.Relation{
-		ExternalID: fmt.Sprintf("%s->%s", ingressExternalID, serviceExternalID),
-		SourceID:   ingressExternalID,
-		TargetID:   serviceExternalID,
-		Type:       topology.Type{Name: "routes"},
-		Data:       map[string]interface{}{},
-	}
-
-	log.Tracef("Created StackState ingress -> service relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
 }

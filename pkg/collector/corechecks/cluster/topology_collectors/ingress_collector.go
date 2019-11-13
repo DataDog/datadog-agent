@@ -3,6 +3,7 @@
 package topology_collectors
 
 import (
+	"fmt"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"k8s.io/api/extensions/v1beta1"
@@ -11,18 +12,16 @@ import (
 // IngressCollector implements the ClusterTopologyCollector interface.
 type IngressCollector struct {
 	ComponentChan chan<- *topology.Component
-	RelationChan chan<- *topology.Relation
-	ServiceCorrelationChannel chan<- *IngressCorrelation
+	RelationChan  chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
 // NewIngressCollector
 func NewIngressCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
-	serviceCorrelationChannel chan<- *IngressCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+	clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &IngressCollector{
-		ComponentChan: componentChannel,
-		RelationChan: relationChannel,
-		ServiceCorrelationChannel: serviceCorrelationChannel,
+		ComponentChan:            componentChannel,
+		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -43,31 +42,26 @@ func (ic *IngressCollector) CollectorFunction() error {
 		component := ic.ingressToStackStateComponent(in)
 		ic.ComponentChan <- component
 		// submit relation to service name for correlation
-		if in.Spec.Backend.ServiceName != "" {
-			serviceID := buildServiceID(in.Namespace, in.Spec.Backend.ServiceName)
+		if in.Spec.Backend != nil && in.Spec.Backend.ServiceName != "" {
+			serviceExternalID := ic.buildServiceExternalID(buildServiceID(in.Namespace, in.Spec.Backend.ServiceName))
 
-			ic.ServiceCorrelationChannel <- &IngressCorrelation{
-				ServiceID: 			serviceID,
-				IngressExternalID: 	component.ExternalID,
-			}
+			// publish the ingress -> service relation
+			relation := ic.ingressToServiceStackStateRelation(component.ExternalID, serviceExternalID)
+			ic.RelationChan <- relation
 		}
 
 		// submit relation to service name in the ingress rules for correlation
 		for _, rules := range in.Spec.Rules {
 			for _, path := range rules.HTTP.Paths {
-				serviceID := buildServiceID(in.Namespace, path.Backend.ServiceName)
+				serviceExternalID := ic.buildServiceExternalID(buildServiceID(in.Namespace, path.Backend.ServiceName))
 
-				ic.ServiceCorrelationChannel <- &IngressCorrelation{
-					ServiceID: serviceID,
-					IngressExternalID: component.ExternalID,
-				}
+				// publish the ingress -> service relation
+				relation := ic.ingressToServiceStackStateRelation(component.ExternalID, serviceExternalID)
+				ic.RelationChan <- relation
 			}
 		}
 
 	}
-
-	// close the service correlation channel
-	close(ic.ServiceCorrelationChannel)
 
 	return nil
 }
@@ -90,7 +84,7 @@ func (ic *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress
 		}
 	}
 
-	ingressExternalID := ic.buildIngressExternalID(ingress.Name)
+	ingressExternalID := ic.buildIngressExternalID(buildIngressID(ingress.Namespace, ingress.Name))
 	component := &topology.Component{
 		ExternalID: ingressExternalID,
 		Type:       topology.Type{Name: "ingress"},
@@ -99,8 +93,8 @@ func (ic *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress
 			"creationTimestamp": ingress.CreationTimestamp,
 			"tags":              tags,
 			"namespace":         ingress.Namespace,
-			"identifiers": identifiers,
-			"uid":           ingress.UID,
+			"identifiers":       identifiers,
+			"uid":               ingress.UID,
 		},
 	}
 
@@ -110,4 +104,20 @@ func (ic *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress
 	log.Tracef("Created StackState Ingress component %s: %v", ingressExternalID, component.JSONString())
 
 	return component
+}
+
+// Creates a StackState component from a Kubernetes / OpenShift Ingress to Service
+func (ic *IngressCollector) ingressToServiceStackStateRelation(ingressExternalID, serviceExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes ingress to service relation: %s -> %s", ingressExternalID, serviceExternalID)
+
+	relation := ic.CreateRelation(ingressExternalID, serviceExternalID, "routes")
+
+	log.Tracef("Created StackState ingress -> service relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
+// buildIngressID - combination of the ingress namespace and ingress name
+func buildIngressID(ingressNamespace, ingressName string) string {
+	return fmt.Sprintf("%s:%s", ingressNamespace, ingressName)
 }

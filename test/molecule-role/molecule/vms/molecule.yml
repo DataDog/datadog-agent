@@ -16,7 +16,6 @@ platforms:
     groups:
       - agent_linux_vm
     ssh_user: ubuntu
-    user_data: files/agent/none.txt
 
   - name: agent-fedora
     image: ami-420d213b             # Fedora-Cloud-Base-28-1.1.x86_64-hvm-eu-west-1-standard-0
@@ -26,7 +25,6 @@ platforms:
     groups:
       - agent_linux_vm
     ssh_user: fedora
-    user_data: files/agent/none.txt
 
   - name: agent-centos
     image: ami-0451e9d3427711cb1    # CentOS Linux 6.10 x86_64 HVM EBS ENA 1901_01
@@ -36,10 +34,9 @@ platforms:
     groups:
       - agent_linux_vm
     ssh_user: centos
-    user_data: files/agent/none.txt
 
   - name: agent-win
-    image: ami-0f39e4434caa6abaa  #  Windows Server 2016 preconfigured for ansible (EBS-Backed)
+    image: ami-044597ab9209135b1  #  Our Packer image based on Windows Server 2016 preconfigured for ansible (EBS-Backed)
     instance_type: t3.small
     vpc_subnet_id: subnet-fa36adb2  # eu-west-1a
     region: eu-west-1
@@ -48,7 +45,6 @@ platforms:
     ssh_user: test
     test_user: test
     test_user_pwd: Bionic!
-    user_data: files/agent/winrm_advanced.txt
 
   - name: agent-connection-namespaces
     image: ami-0da760e590e7de0e8    # Ubuntu 18.04 (EBS-Backed x86_64)
@@ -58,17 +54,15 @@ platforms:
     groups:
       - agent_linux_vm
     ssh_user: ubuntu
-    user_data: files/agent/none.txt
 
   - name: receiver
-    image: ami-0da760e590e7de0e8    # Ubuntu 18.04 (EBS-Backed x86_64)
+    image: ami-0b387aea6983a6882    # Our Packer image based on Ubuntu 18.04 (EBS-Backed x86_64)
     instance_type: t3.medium
     vpc_subnet_id: subnet-fa36adb2  # eu-west-1a
     region: eu-west-1
     groups:
       - receiver_vm
     ssh_user: ubuntu
-    user_data: files/agent/none.txt
 provisioner:
   name: ansible
   config_options:

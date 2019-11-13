@@ -32,6 +32,13 @@ spec:
               secretKeyRef:
                 name: stackstate-auth-token
                 key: token
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
 ---
 apiVersion: v1
 kind: Service

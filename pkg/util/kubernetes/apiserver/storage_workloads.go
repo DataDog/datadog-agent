@@ -11,6 +11,7 @@ import (
 	coreV1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
 // GetConfigMaps() retrieves all the ConfigMaps in the Kubernetes / OpenShift cluster across all namespaces.
 func (c *APIClient) GetConfigMaps() ([]coreV1.ConfigMap, error) {
 	cmList, err := c.Cl.CoreV1().ConfigMaps(metaV1.NamespaceAll).List(metaV1.ListOptions{})

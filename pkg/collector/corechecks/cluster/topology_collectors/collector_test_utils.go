@@ -21,7 +21,8 @@ var replicas int32
 func NewTestCommonClusterCollector(client apiserver.APICollectorClient) ClusterTopologyCollector {
 	instance := topology.Instance{Type: "kubernetes", URL: "test-cluster-name"}
 
-	return NewClusterTopologyCollector(instance, client)
+	clusterTopologyCommon := NewclusterTopologyCommon(instance, client)
+	return NewClusterTopologyCollector(clusterTopologyCommon)
 }
 
 func RunCollectorTest(t *testing.T, collector ClusterTopologyCollector, expectedCollectorName string) {
