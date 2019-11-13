@@ -214,7 +214,7 @@ func (t *TopologyCheck) Run() error {
 	t.submitter.SubmitStopSnapshot()
 	t.submitter.SubmitComplete()
 
-	log.Debugf("Topology Check for cluster: %s completed successfully", t.instance.ClusterName)
+	log.Infof("Topology Check for cluster: %s completed successfully", t.instance.ClusterName)
 	// close all the created channels
 	close(componentChannel)
 	close(relationChannel)
@@ -277,42 +277,42 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 func (t *TopologyCheck) RunClusterCollectors(clusterCollectors []collectors.ClusterTopologyCollector, clusterCorrelators []collectors.ClusterTopologyCorrelator, waitGroup *sync.WaitGroup, errorChannel chan<- error) {
 	waitGroup.Add(len(clusterCollectors))
 	waitGroup.Add(len(clusterCorrelators))
-	for _, collector := range clusterCollectors {
-		// add this collector to the wait group
-		runCollector(collector, errorChannel, waitGroup)
-	}
-	for _, correlator := range clusterCorrelators {
-		// add this collector to the wait group
-		runCorrelator(correlator, errorChannel, waitGroup)
-	}
+	go func() {
+		for _, collector := range clusterCollectors {
+			// add this collector to the wait group
+			runCollector(collector, errorChannel, waitGroup)
+		}
+	}()
+	go func() {
+		for _, correlator := range clusterCorrelators {
+			// add this collector to the wait group
+			runCorrelator(correlator, errorChannel, waitGroup)
+		}
+	}()
 }
 
 // runCollector
 func runCollector(collector collectors.ClusterTopologyCollector, errorChannel chan<- error, wg *sync.WaitGroup) {
-	go func() {
-		log.Debugf("Starting cluster topology collector: %s\n", collector.GetName())
-		err := collector.CollectorFunction()
-		if err != nil {
-			errorChannel <- err
-		}
-		// mark this collector as complete
-		log.Debugf("Finished cluster topology collector: %s\n", collector.GetName())
-		wg.Done()
-	}()
+	log.Debugf("Starting cluster topology collector: %s\n", collector.GetName())
+	err := collector.CollectorFunction()
+	if err != nil {
+		errorChannel <- err
+	}
+	// mark this collector as complete
+	log.Debugf("Finished cluster topology collector: %s\n", collector.GetName())
+	wg.Done()
 }
 
 // runCorrelator
 func runCorrelator(correlator collectors.ClusterTopologyCorrelator, errorChannel chan<- error, wg *sync.WaitGroup) {
-	go func() {
-		log.Debugf("Starting cluster topology correlator: %s\n", correlator.GetName())
-		err := correlator.CorrelateFunction()
-		if err != nil {
-			errorChannel <- err
-		}
-		// mark this collector as complete
-		log.Debugf("Finished cluster topology correlator: %s\n", correlator.GetName())
-		wg.Done()
-	}()
+	log.Debugf("Starting cluster topology correlator: %s\n", correlator.GetName())
+	err := correlator.CorrelateFunction()
+	if err != nil {
+		errorChannel <- err
+	}
+	// mark this collector as complete
+	log.Debugf("Finished cluster topology correlator: %s\n", correlator.GetName())
+	wg.Done()
 }
 
 // KubernetesASFactory is exported for integration testing.
