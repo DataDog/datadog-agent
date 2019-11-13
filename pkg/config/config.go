@@ -565,7 +565,10 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.receiver_timeout")
 	config.SetKnown("apm_config.watchdog_check_delay")
 
+	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
+	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
+	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
 
 	setAssetFs(config)
 }
