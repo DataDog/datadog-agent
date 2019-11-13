@@ -135,12 +135,6 @@ func (t *TopologyCheck) Run() error {
 			componentChannel,
 			commonClusterCollector,
 		),
-		// Register CronJob Component Collector
-		collectors.NewCronJobCollector(
-			componentChannel,
-			relationChannel,
-			commonClusterCollector,
-		),
 		// Register DaemonSet Component Collector
 		collectors.NewDaemonSetCollector(
 			componentChannel,
@@ -151,14 +145,14 @@ func (t *TopologyCheck) Run() error {
 			componentChannel,
 			commonClusterCollector,
 		),
-		// Register Ingress Component Collector
-		collectors.NewIngressCollector(
+		// Register ReplicaSet Component Collector
+		collectors.NewReplicaSetCollector(
 			componentChannel,
 			relationChannel,
 			commonClusterCollector,
 		),
-		// Register Job Component Collector
-		collectors.NewJobCollector(
+		// Register StatefulSet Component Collector
+		collectors.NewStatefulSetCollector(
 			componentChannel,
 			commonClusterCollector,
 		),
@@ -174,21 +168,27 @@ func (t *TopologyCheck) Run() error {
 			containerCorrelationChannel,
 			commonClusterCollector,
 		),
-		// Register ReplicaSet Component Collector
-		collectors.NewReplicaSetCollector(
-			componentChannel,
-			relationChannel,
-			commonClusterCollector,
-		),
 		// Register Service Component Collector
 		collectors.NewServiceCollector(
 			componentChannel,
 			relationChannel,
 			commonClusterCollector,
 		),
-		// Register StatefulSet Component Collector
-		collectors.NewStatefulSetCollector(
+		// Register Ingress Component Collector
+		collectors.NewIngressCollector(
 			componentChannel,
+			relationChannel,
+			commonClusterCollector,
+		),
+		// Register Job Component Collector
+		collectors.NewJobCollector(
+			componentChannel,
+			commonClusterCollector,
+		),
+		// Register CronJob Component Collector
+		collectors.NewCronJobCollector(
+			componentChannel,
+			relationChannel,
 			commonClusterCollector,
 		),
 	}
