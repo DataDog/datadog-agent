@@ -35,12 +35,12 @@ func GetDockerHostIPs() []string {
 	return ips
 }
 
-func getDockerHostIPsUncached() []string {
-	type hostIPProvider struct {
-		name     string
-		provider func() ([]string, error)
-	}
+type hostIPProvider struct {
+	name     string
+	provider func() ([]string, error)
+}
 
+func getDockerHostIPsUncached() []string {
 	var isHostMode bool
 	if mode, err := GetAgentContainerNetworkMode(); err != nil && mode == "host" {
 		isHostMode = true
@@ -53,6 +53,10 @@ func getDockerHostIPsUncached() []string {
 		providers = append(providers, hostIPProvider{"/proc/net/route", containers.DefaultHostIPs})
 	}
 
+	return tryProviders(providers)
+}
+
+func tryProviders(providers []hostIPProvider) []string {
 	for _, attempt := range providers {
 		log.Debugf("attempting to get host ip from source: %s", attempt.name)
 		ips, err := attempt.provider()
@@ -67,6 +71,10 @@ func getDockerHostIPsUncached() []string {
 
 func getHostIPsFromConfig() ([]string, error) {
 	hostIPs := config.Datadog.GetStringSlice("process_agent_config.host_ips")
+
+	if len(hostIPs) == 0 {
+		return nil, fmt.Errorf("no hostIPs were configured")
+	}
 
 	for _, ipStr := range hostIPs {
 		if net.ParseIP(ipStr) == nil {
