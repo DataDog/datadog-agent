@@ -71,16 +71,6 @@ if arm?
   blacklist_packages.push(/^pymqi==/)
 end
 
-if windows? && windows_arch_i386?
-  blacklist_folders.push('oracle')
-  blacklist_packages.push(/^cx-Oracle==/)
-  blacklist_packages.push(/^jpype1==/)
-  blacklist_packages.push(/^Jpype1==/)
-  blacklist_packages.push(/^JayDeBeApi==/)
-  blacklist_packages.push(/^jaydebeapi==/)
-
-end
-
 final_constraints_file = 'final_constraints-py3.txt'
 agent_requirements_file = 'agent_requirements-py3.txt'
 filtered_agent_requirements_in = 'agent_requirements-py3.in'
