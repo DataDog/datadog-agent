@@ -53,10 +53,6 @@ func (pc *PodCollector) CollectorFunction() error {
 	var controllerExternalID string
 	var volumeExternalID string
 	for _, pod := range pods {
-		if pod.Spec.NodeName == "" {
-			return fmt.Errorf("could not find node for pod %s", pod.Name)
-		}
-
 		// creates and publishes StackState pod component with relations
 		component = pc.podToStackStateComponent(pod)
 		pc.ComponentChan <- component

@@ -90,5 +90,5 @@ func (b *BatchTopologySubmitter) SubmitRelation(relation *topology.Relation) {
 
 // HandleError handles any errors during topology gathering
 func (b *BatchTopologySubmitter) HandleError(err error) {
-	_ = log.Error(err)
+	_ = log.Errorf("Error occurred in during topology collection: %s", err.Error())
 }
