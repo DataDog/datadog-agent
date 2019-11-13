@@ -742,7 +742,8 @@ int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *p
     SC_HANDLE hService = NULL;
     int retval = 0;
     // Get a handle to the SCM database. 
-#define NUM_SERVICES 3
+#ifdef __REGISTER_ALL_SERVICES
+  #define NUM_SERVICES 3
     serviceDef services[NUM_SERVICES] = {
         serviceDef(agentService.c_str(), L"DataDog Agent", L"Send metrics to DataDog",
                    agent_exe.c_str(),
@@ -755,6 +756,14 @@ int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *p
                    L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL)
 
     };
+#else
+  #define NUM_SERVICES 1
+    serviceDef services[NUM_SERVICES] = {
+        serviceDef(agentService.c_str(), L"DataDog Agent", L"Send metrics to DataDog",
+                   agent_exe.c_str(),
+                   NULL, SERVICE_AUTO_START, data.getFullUsername().c_str(), password),
+    };
+#endif
     WcaLog(LOGMSG_STANDARD, "Installing services");
     hScManager = OpenSCManager(
         NULL,                    // local computer
@@ -805,7 +814,8 @@ int uninstallServices(MSIHANDLE hInstall, CustomActionData& data) {
     SC_HANDLE hService = NULL;
     int retval = 0;
     // Get a handle to the SCM database. 
-#define NUM_SERVICES 3
+#ifdef __REGISTER_ALL_SERVICES
+  #define NUM_SERVICES 3
     serviceDef services[NUM_SERVICES] = {
         serviceDef(agentService.c_str(), L"DataDog Agent", L"Send metrics to DataDog",
                    agent_exe.c_str(),
@@ -818,6 +828,14 @@ int uninstallServices(MSIHANDLE hInstall, CustomActionData& data) {
                    L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL)
 
     };
+#else 
+  #define NUM_SERVICES 1
+    serviceDef services[NUM_SERVICES] = {
+        serviceDef(agentService.c_str(), L"DataDog Agent", L"Send metrics to DataDog",
+                   agent_exe.c_str(),
+                   L"winmgmt\0\0", SERVICE_AUTO_START, data.getFullUsername().c_str(), NULL),
+    };
+#endif
     WcaLog(LOGMSG_STANDARD, "Installing services");
     hScManager = OpenSCManager(
         NULL,                    // local computer
@@ -846,7 +864,8 @@ int verifyServices(MSIHANDLE hInstall, CustomActionData& data)
     SC_HANDLE hService = NULL;
     int retval = 0;
     // Get a handle to the SCM database. 
-#define NUM_SERVICES 3
+#ifdef __REGISTER_ALL_SERVICES
+  #define NUM_SERVICES 3
     serviceDef services[NUM_SERVICES] = {
         serviceDef(agentService.c_str(), L"DataDog Agent", L"Send metrics to DataDog",
                    agent_exe.c_str(),
@@ -859,6 +878,14 @@ int verifyServices(MSIHANDLE hInstall, CustomActionData& data)
                    L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL)
 
     };
+#else
+  #define NUM_SERVICES 1
+    serviceDef services[NUM_SERVICES] = {
+        serviceDef(agentService.c_str(), L"DataDog Agent", L"Send metrics to DataDog",
+                   agent_exe.c_str(),
+                   L"winmgmt\0\0", SERVICE_AUTO_START, data.getFullUsername().c_str(), NULL),
+    };
+#endif
     WcaLog(LOGMSG_STANDARD, "Installing services");
     hScManager = OpenSCManager(
         NULL,                    // local computer
