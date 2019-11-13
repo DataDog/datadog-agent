@@ -33,7 +33,7 @@ var (
 	ntpQuery = ntp.QueryWithOptions
 
 	tlmNtpOffset = telemetry.NewGauge("check", "ntp_offset",
-		[]string{"check_id"}, "Ntp offset")
+		nil, "Ntp offset")
 )
 
 // NTPCheck only has sender and config
@@ -171,7 +171,7 @@ func (c *NTPCheck) Run() error {
 
 		sender.Gauge("ntp.offset", clockOffset, "", nil)
 		ntpExpVar.Set(clockOffset)
-		tlmNtpOffset.Set(clockOffset, string(c.CheckBase.ID()))
+		tlmNtpOffset.Set(clockOffset)
 	}
 
 	sender.ServiceCheck("ntp.in_sync", serviceCheckStatus, "", nil, serviceCheckMessage)
