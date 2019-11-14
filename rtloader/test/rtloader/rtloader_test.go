@@ -196,3 +196,31 @@ with open(r'%s', 'w') as f:
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
 }
+
+func TestRunDeprecatedCheck(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	res := runDeprecatedCheck()
+
+	if res != "" {
+		t.Fatal(res)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestRunTestCheck(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	res := runTestCheck()
+
+	if res != "" {
+		t.Fatal(res)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}

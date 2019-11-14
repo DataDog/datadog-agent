@@ -399,7 +399,8 @@ done:
 bool Two::isCheckInitDeprecated(RtLoaderPyObject *py_class)
 {
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
-    PyObject *init, *func, *func_code, *co_varnames, *elt;
+    PyObject *init, *func, *func_code, *co_varnames, *co_argcount, *elt;
+    Py_ssize_t idx;
     bool result = false;
 
     // AgentCheck.__init__.im_func.func_code.co_varnames
@@ -419,11 +420,16 @@ bool Two::isCheckInitDeprecated(RtLoaderPyObject *py_class)
     if (co_varnames == NULL) {
         goto done;
     }
+    co_argcount = PyObject_GetAttrString(func_code, "co_argcount");
+    if (co_argcount == NULL) {
+        goto done;
+    }
     elt = PyString_FromString("agentConfig");
     if (elt == NULL) {
         goto done;
     }
-    if (PySequence_Contains(co_varnames, elt) == 1) {
+    idx = PySequence_Index(co_varnames, elt);
+    if (idx != -1 && idx < PyLong_AsSsize_t(co_argcount)) {
         result = true;
     }
 done:
@@ -431,6 +437,7 @@ done:
     Py_XDECREF(func);
     Py_XDECREF(func_code);
     Py_XDECREF(co_varnames);
+    Py_XDECREF(co_argcount);
     Py_XDECREF(elt);
     return result;
 }

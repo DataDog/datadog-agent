@@ -398,10 +398,11 @@ done:
 bool Three::isCheckInitDeprecated(RtLoaderPyObject *py_class)
 {
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
-    PyObject *init, *func_code, *co_varnames, *elt;
+    PyObject *init, *func_code, *co_varnames, *co_argcount, *elt;
+    Py_ssize_t idx;
     bool result = false;
 
-    // AgentCheck.__init__.__code__.co_varnames
+    // AgentCheck.__init__.__code__.co_varnames[:AgentCheck.__init__.__code__.co_argcount]
     //
     init = PyObject_GetAttrString(klass, "__init__");
     if (init == NULL) {
@@ -415,17 +416,23 @@ bool Three::isCheckInitDeprecated(RtLoaderPyObject *py_class)
     if (co_varnames == NULL) {
         goto done;
     }
+    co_argcount = PyObject_GetAttrString(func_code, "co_argcount");
+    if (co_argcount == NULL) {
+        goto done;
+    }
     elt = PyUnicode_FromString("agentConfig");
     if (elt == NULL) {
         goto done;
     }
-    if (PySequence_Contains(co_varnames, elt) == 1) {
+    idx = PySequence_Index(co_varnames, elt);
+    if (idx != -1 && idx < PyLong_AsSize_t(co_argcount)) {
         result = true;
     }
 done:
     Py_XDECREF(init);
     Py_XDECREF(func_code);
     Py_XDECREF(co_varnames);
+    Py_XDECREF(co_argcount);
     Py_XDECREF(elt);
     return result;
 }
