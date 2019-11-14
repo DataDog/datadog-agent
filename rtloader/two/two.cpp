@@ -400,7 +400,7 @@ bool Two::isCheckInitDeprecated(RtLoaderPyObject *py_class)
 {
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
     PyObject *init, *func, *func_code, *co_varnames, *co_argcount, *elt = NULL;
-    Py_ssize_t idx = -1;
+    long idx = -1;
     bool result = false;
 
     // AgentCheck.__init__.__code__.co_varnames[:AgentCheck.__init__.__code__.co_argcount]
@@ -429,7 +429,7 @@ bool Two::isCheckInitDeprecated(RtLoaderPyObject *py_class)
         goto done;
     }
     idx = PySequence_Index(co_varnames, elt);
-    if (idx != -1 && idx < PyLong_AsSsize_t(co_argcount)) {
+    if (idx != -1 && idx < PyLong_AsLong(co_argcount)) {
         result = true;
     }
 done:
