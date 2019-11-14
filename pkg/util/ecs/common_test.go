@@ -118,7 +118,7 @@ func TestGetTaskMetadata(t *testing.T) {
 			  }`,
 			expected: metadata.TaskMetadata{
 				ClusterName: "default",
-				Containers: []metadata.Container{
+				Containers: []metadata.ContainerMetadata{
 					{
 						Name: "~internal~ecs~pause",
 						Limits: map[string]uint64{

@@ -9,7 +9,6 @@ package metadata
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -42,18 +41,33 @@ func GetTaskMetadataWithURL(url string) (TaskMetadata, error) {
 	return meta, err
 }
 
-// GetContainerNetworkAddresses returns the network addresses for a given container ID and task metadata URL.
-func GetContainerNetworkAddresses(cID, metadataURL string) ([]containers.NetworkAddress, error) {
-	meta, err := GetTaskMetadataWithURL(metadataURL)
-	if err != nil || len(meta.Containers) == 0 {
+// GetTaskMetadataWithURL extracts the metadata payload for a container given a metadata URL.
+func GetContainerMetadataWithURL(url string) (ContainerMetadata, error) {
+	var meta ContainerMetadata
+	client := http.Client{
+		Timeout: timeout,
+	}
+	resp, err := client.Get(url)
+	if err != nil {
+		return meta, err
+	}
+	defer resp.Body.Close()
+
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&meta)
+	if err != nil {
+		log.Errorf("Decoding container metadata failed - %s", err)
+	}
+	return meta, err
+}
+
+// GetContainerNetworkAddresses returns the network addresses for a given container ID and container metadata URL.
+func GetContainerNetworkAddresses(metadataURL string) ([]containers.NetworkAddress, error) {
+	meta, err := GetContainerMetadataWithURL(metadataURL)
+	if err != nil {
 		return nil, err
 	}
-	for _, c := range meta.Containers {
-		if c.DockerID == cID {
-			return ParseECSContainerNetworkAddresses(c.Ports, c.Networks, c.DockerName), nil
-		}
-	}
-	return nil, fmt.Errorf("couldn't find container %s in task metadata at %s. Network data will be missing", cID, metadataURL)
+	return ParseECSContainerNetworkAddresses(meta.Ports, meta.Networks, meta.DockerName), nil
 }
 
 // ParseECSContainerNetworkAddresses converts ECS container ports and networks into a list of NetworkAddress

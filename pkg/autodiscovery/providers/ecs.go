@@ -80,7 +80,7 @@ func (p *ECSConfigProvider) getTaskMetadata() (metadata.TaskMetadata, error) {
 
 // parseECSContainers loops through ecs containers found in the ecs metadata response
 // and extracts configuration templates out of their labels.
-func parseECSContainers(containers []metadata.Container) ([]integration.Config, error) {
+func parseECSContainers(containers []metadata.ContainerMetadata) ([]integration.Config, error) {
 	var templates []integration.Config
 	for _, c := range containers {
 		dockerEntityName := docker.ContainerIDToEntityName(c.DockerID)
