@@ -20,7 +20,7 @@ spec:
     spec:
       serviceAccountName: stackstate-cluster-agent
       containers:
-      - image: docker.io/stackstate/stackstate-cluster-agent-test:stac-5372-kubernetes-workloads
+      - image: docker.io/stackstate/stackstate-cluster-agent-test:master
         imagePullPolicy: Always
         name: stackstate-cluster-agent
         envFrom:
@@ -34,11 +34,11 @@ spec:
                 key: token
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "200m"
+            memory: "64Mi"
+            cpu: "50m"
           limits:
-            memory: "256Mi"
-            cpu: "200m"
+            memory: "64Mi"
+            cpu: "50m"
 ---
 apiVersion: v1
 kind: Service
