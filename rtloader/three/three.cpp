@@ -403,7 +403,6 @@ bool Three::isCheckInitDeprecated(RtLoaderPyObject *py_class)
     bool result = false;
 
     // AgentCheck.__init__.__code__.co_varnames[:AgentCheck.__init__.__code__.co_argcount]
-    //
     init = PyObject_GetAttrString(klass, "__init__");
     if (init == NULL) {
         goto done;
@@ -429,6 +428,7 @@ bool Three::isCheckInitDeprecated(RtLoaderPyObject *py_class)
         result = true;
     }
 done:
+    PyErr_Clear();
     Py_XDECREF(init);
     Py_XDECREF(func_code);
     Py_XDECREF(co_varnames);
