@@ -115,7 +115,7 @@ func (pc *PodCollector) CollectorFunction() error {
 				Containers:        pod.Spec.Containers,
 				ContainerStatuses: pod.Status.ContainerStatuses,
 			}
-			log.Debugf("publishing container correlation for Pod: %v", containerCorrelation.Pod.Name, containerCorrelation)
+			log.Debugf("publishing container correlation for Pod: %v", containerCorrelation)
 			pc.ContainerCorrChan <- containerCorrelation
 		}
 	}
