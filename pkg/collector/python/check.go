@@ -196,8 +196,8 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 	defer C._free(unsafe.Pointer(cCheckName))
 
 	var check *C.rtloader_pyobject_t
-	verify := C.is_check_init_deprecated(rtloader, c.class)
-	if verify == 1 {
+	deprecated := C.is_check_init_deprecated(rtloader, c.class)
+	if deprecated == 1 {
 		log.Warnf("passing `agentConfig` to the constructor is deprecated, please use the `get_config` function from the 'datadog_agent' package (%s).", c.ModuleName)
 		allSettings := config.Datadog.AllSettings()
 		agentConfig, err := yaml.Marshal(allSettings)
