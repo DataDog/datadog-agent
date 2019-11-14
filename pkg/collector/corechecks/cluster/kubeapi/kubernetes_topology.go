@@ -10,7 +10,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
-	collectors "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/topology_collectors"
+	collectors "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/topologycollectors"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
@@ -115,7 +115,7 @@ func (t *TopologyCheck) Run() error {
 	errChannel := make(chan error)
 	waitGroupChannel := make(chan bool)
 
-	clusterTopologyCommon := collectors.NewclusterTopologyCommon(t.instance.Instance, t.ac)
+	clusterTopologyCommon := collectors.NewClusterTopologyCommon(t.instance.Instance, t.ac)
 	commonClusterCollector := collectors.NewClusterTopologyCollector(clusterTopologyCommon)
 	clusterCollectors := []collectors.ClusterTopologyCollector{
 		// Register Cluster Component Collector

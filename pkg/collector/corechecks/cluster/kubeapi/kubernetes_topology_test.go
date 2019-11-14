@@ -9,7 +9,7 @@ package kubeapi
 import (
 	"fmt"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
-	collectors "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/topology_collectors"
+	collectors "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/topologycollectors"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -38,7 +38,7 @@ func TestRunClusterCollectors(t *testing.T) {
 	errChannel := make(chan error)
 	waitGroupChannel := make(chan bool)
 
-	clusterTopologyCommon := collectors.NewclusterTopologyCommon(instance, nil)
+	clusterTopologyCommon := collectors.NewClusterTopologyCommon(instance, nil)
 	commonClusterCollector := collectors.NewClusterTopologyCollector(clusterTopologyCommon)
 
 	clusterCollectors := []collectors.ClusterTopologyCollector{

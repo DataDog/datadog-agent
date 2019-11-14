@@ -14,13 +14,13 @@ import (
 	"time"
 )
 
-func NewMockBenchmarkAPICollectorClient() apiserver.APICollectorClient{
+func NewMockBenchmarkAPICollectorClient() apiserver.APICollectorClient {
 	volumeLocation := coreV1.HostPathFileOrCreate
 	return MockBenchmarkAPICollectorClient{
-		creationTime: v1.Time{Time: time.Now().Add(-1 * time.Hour)},
-		replicas: 1,
-		parralelism: 2,
-		backoffLimit: 5,
+		creationTime:   v1.Time{Time: time.Now().Add(-1 * time.Hour)},
+		replicas:       1,
+		parralelism:    2,
+		backoffLimit:   5,
 		volumeLocation: volumeLocation,
 		gcePersistentDisk: coreV1.GCEPersistentDiskVolumeSource{
 			PDName: "name-of-the-gce-persistent-disk",
@@ -34,16 +34,17 @@ func NewMockBenchmarkAPICollectorClient() apiserver.APICollectorClient{
 		},
 	}
 }
+
 //
 type MockBenchmarkAPICollectorClient struct {
-	creationTime v1.Time
-	replicas int32
-	parralelism int32
-	backoffLimit int32
-	volumeLocation coreV1.HostPathType
-	gcePersistentDisk coreV1.GCEPersistentDiskVolumeSource
+	creationTime         v1.Time
+	replicas             int32
+	parralelism          int32
+	backoffLimit         int32
+	volumeLocation       coreV1.HostPathType
+	gcePersistentDisk    coreV1.GCEPersistentDiskVolumeSource
 	awsElasticBlockStore coreV1.AWSElasticBlockStoreVolumeSource
-	hostPath coreV1.HostPathVolumeSource
+	hostPath             coreV1.HostPathVolumeSource
 	apiserver.APICollectorClient
 }
 
@@ -82,7 +83,6 @@ func (m MockBenchmarkAPICollectorClient) GetConfigMaps() ([]coreV1.ConfigMap, er
 
 	return configMaps, nil
 }
-
 
 func (m MockBenchmarkAPICollectorClient) GetCronJobs() ([]batchV1B1.CronJob, error) {
 	cronJobs := make([]batchV1B1.CronJob, 0)
@@ -124,7 +124,6 @@ func (m MockBenchmarkAPICollectorClient) GetCronJobs() ([]batchV1B1.CronJob, err
 
 	return cronJobs, nil
 }
-
 
 func (m MockBenchmarkAPICollectorClient) GetDaemonSets() ([]appsV1.DaemonSet, error) {
 	daemonSets := make([]appsV1.DaemonSet, 0)
@@ -280,7 +279,7 @@ func (m MockBenchmarkAPICollectorClient) GetJobs() ([]batchV1.Job, error) {
 				GenerateName: "",
 			},
 			Spec: batchV1.JobSpec{
-				Parallelism: &m.parralelism,
+				Parallelism:  &m.parralelism,
 				BackoffLimit: &m.backoffLimit,
 			},
 		}
@@ -295,8 +294,6 @@ func (m MockBenchmarkAPICollectorClient) GetJobs() ([]batchV1.Job, error) {
 
 	return jobs, nil
 }
-
-
 
 func (m MockBenchmarkAPICollectorClient) GetNodes() ([]coreV1.Node, error) {
 	nodes := make([]coreV1.Node, 0)
@@ -318,11 +315,11 @@ func (m MockBenchmarkAPICollectorClient) GetNodes() ([]coreV1.Node, error) {
 			Status: coreV1.NodeStatus{
 				Phase: coreV1.NodeRunning,
 				NodeInfo: coreV1.NodeSystemInfo{
-					MachineID: fmt.Sprintf("test-machine-id-%d", i),
+					MachineID:     fmt.Sprintf("test-machine-id-%d", i),
 					KernelVersion: "4.19.0",
-					Architecture: "x86_64",
+					Architecture:  "x86_64",
 				},
-				DaemonEndpoints: coreV1.NodeDaemonEndpoints{ KubeletEndpoint: coreV1.DaemonEndpoint{ Port: 5000 }},
+				DaemonEndpoints: coreV1.NodeDaemonEndpoints{KubeletEndpoint: coreV1.DaemonEndpoint{Port: 5000}},
 			},
 		}
 
@@ -360,7 +357,6 @@ func (m MockBenchmarkAPICollectorClient) GetNodes() ([]coreV1.Node, error) {
 	return nodes, nil
 }
 
-
 func (m MockBenchmarkAPICollectorClient) GetPersistentVolumes() ([]coreV1.PersistentVolume, error) {
 	persistentVolumes := make([]coreV1.PersistentVolume, 0)
 	for i := 1; i <= 3; i++ {
@@ -382,12 +378,10 @@ func (m MockBenchmarkAPICollectorClient) GetPersistentVolumes() ([]coreV1.Persis
 				StorageClassName: "Storage-Class-Name",
 			},
 			Status: coreV1.PersistentVolumeStatus{
-				Phase: coreV1.VolumeAvailable,
+				Phase:   coreV1.VolumeAvailable,
 				Message: "Volume is available for use",
 			},
 		}
-
-
 
 		if i == 1 {
 			persistentVolume.Spec.PersistentVolumeSource = coreV1.PersistentVolumeSource{
@@ -415,7 +409,6 @@ func (m MockBenchmarkAPICollectorClient) GetPersistentVolumes() ([]coreV1.Persis
 	return persistentVolumes, nil
 }
 
-
 func (m MockBenchmarkAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 	pods := make([]coreV1.Pod, 0)
 	for i := 1; i <= 3; i++ {
@@ -434,13 +427,13 @@ func (m MockBenchmarkAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 				GenerateName: "",
 			},
 			Status: coreV1.PodStatus{
-				Phase: coreV1.PodRunning,
-				PodIP: "10.0.0.1",
+				Phase:     coreV1.PodRunning,
+				PodIP:     "10.0.0.1",
 				StartTime: &m.creationTime,
 			},
 			Spec: coreV1.PodSpec{
 				RestartPolicy: coreV1.RestartPolicyAlways,
-				NodeName: "test-node",
+				NodeName:      "test-node",
 			},
 		}
 
@@ -458,10 +451,10 @@ func (m MockBenchmarkAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 
 		if i == 3 {
 			pod.OwnerReferences = []v1.OwnerReference{
-				{Kind: "DaemonSet", Name: "daemonset-w" },
-				{Kind: "Deployment", Name: "deployment-x" },
-				{Kind: "ReplicaSet", Name: "replicaset-y" },
-				{Kind: "StatefulSet", Name: "statefulset-z" },
+				{Kind: "DaemonSet", Name: "daemonset-w"},
+				{Kind: "Deployment", Name: "deployment-x"},
+				{Kind: "ReplicaSet", Name: "replicaset-y"},
+				{Kind: "StatefulSet", Name: "statefulset-z"},
 			}
 		}
 
@@ -494,7 +487,6 @@ func (m MockBenchmarkAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 
 	return pods, nil
 }
-
 
 func (m MockBenchmarkAPICollectorClient) GetReplicaSets() ([]appsV1.ReplicaSet, error) {
 	replicaSets := make([]appsV1.ReplicaSet, 0)
@@ -534,7 +526,6 @@ func (m MockBenchmarkAPICollectorClient) GetReplicaSets() ([]appsV1.ReplicaSet, 
 
 	return replicaSets, nil
 }
-
 
 func (m MockBenchmarkAPICollectorClient) GetServices() ([]coreV1.Service, error) {
 	services := make([]coreV1.Service, 0)
@@ -712,5 +703,3 @@ func (m MockBenchmarkAPICollectorClient) GetStatefulSets() ([]appsV1.StatefulSet
 
 	return statefulSets, nil
 }
-
-
