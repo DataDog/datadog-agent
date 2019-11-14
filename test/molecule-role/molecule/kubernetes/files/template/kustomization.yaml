@@ -22,9 +22,9 @@ configMapGenerator:
 
 images:
   - name: docker.io/stackstate/stackstate-agent-2-test
-    newTag: stac-5372-kubernetes-workloads
+    newTag: {{ agent_current_branch }}
   - name: docker.io/stackstate/stackstate-cluster-agent-test
-    newTag: stac-5372-kubernetes-workloads
+    newTag: {{ agent_current_branch }}
 
 secretGenerator:
   - name: stackstate-auth-token
