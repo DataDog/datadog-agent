@@ -154,10 +154,6 @@ build do
           dest: "#{install_dir}/scripts/datadog-agent-process",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.sysprobe.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-sysprobe",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.trace.erb",
           dest: "#{install_dir}/scripts/datadog-agent-trace",
           mode: 0755,
