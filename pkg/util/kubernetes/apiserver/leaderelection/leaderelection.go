@@ -31,7 +31,7 @@ import (
 const (
 	defaultLeaderLeaseDuration = 60 * time.Second
 	defaultLeaseName           = "datadog-leader-election"
-	getLeaderTimeout           = 30 * time.Second
+	getLeaderTimeout           = 10 * time.Second
 )
 
 var (
