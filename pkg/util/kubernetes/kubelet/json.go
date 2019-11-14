@@ -101,3 +101,18 @@ func (pu *podUnmarshaller) filteringDecoder(ptr unsafe.Pointer, iter *jsoniter.I
 		return true
 	})
 }
+
+type kubeletSpecUnmarshaller struct {
+	jsonConfig jsoniter.API
+}
+
+func newKubeletSpecUnmarshaller() *kubeletSpecUnmarshaller {
+	return &kubeletSpecUnmarshaller{
+		jsonConfig: jsonConfig.Froze(),
+	}
+}
+
+// unmarshal is a drop-in replacement for json.Unmarshall
+func (ksu *kubeletSpecUnmarshaller) unmarshal(data []byte, v interface{}) error {
+	return ksu.jsonConfig.Unmarshal(data, v)
+}

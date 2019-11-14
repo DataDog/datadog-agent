@@ -1,0 +1,24 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Make the agent able to find the instance-id of the node through the kubelet API when the metadata server is unreachable.
+    This is needed to allow the agent to run without ``hostNetwork: true`` on setups where the metadata server (http://169.254.169.254) is blocked from inside PODs.
+
+    This change addresses the issue only on AWS.
+
+    +=====+============================================================================================+=========================+
+    |     | Before the change                                                                          | After the change        |
+    |     +=================================================================+==========================+=========================+
+    |     | ``hostNetwork: true``                                           | ``hostNetwork: false``   | ``hostNetwork: false``  |
+    +-----+=================================================================+==========================+=========================+
+    | AWS | ``i-036684b9df3b1464f``                                         | ``datadog-884wv``        | ``i-036684b9df3b1464f`` |
+    +-----+-----------------------------------------------------------------+--------------------------+-------------------------+
+    | GCE | ``0gke-lenaic-pool-1-1c8b424c-v5tl.c.datadog-sandbox.internal`` | ``datadog-8ztnf``        | ``datadog-8ztnf``       |
+    +-----+-----------------------------------------------------------------+--------------------------+-------------------------+
