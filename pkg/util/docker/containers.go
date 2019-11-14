@@ -64,6 +64,8 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 		if isMissingIP(container.AddressList) {
 			hostIPs := GetDockerHostIPs()
 			container.AddressList = correctMissingIPs(container.AddressList, hostIPs)
+			// this can mean one of two things: the container is in host mode, or in awsvpc
+			// in both cases we can't get the IP address in parseContainerNetworkAddresses
 		} else if len(container.AddressList) == 0 {
 			// the inspect should be in the cache already so this is not a problem
 			inspect, err := d.Inspect(container.ID, false)
@@ -71,31 +73,46 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 				log.Debugf("Error inspecting container %s: %s", container.ID, err)
 				continue
 			}
-			// empty network settings or empty network can indicate
-			// the container is in awsvpc networking mode so we try that
-			if inspect.NetworkSettings == nil || len(inspect.NetworkSettings.Networks) == 0 {
-				networkMode, err := GetContainerNetworkMode(container.ID)
-				log.Tracef("container %s network mode: %s", container.Name, networkMode)
+			networkMode, err := GetContainerNetworkMode(container.ID)
+			log.Tracef("container %s network mode: %s", container.Name, networkMode)
+			if err != nil {
+				log.Debugf("Failed to get network mode for container %s. Network info will be missing. Error: %s", container.ID, err)
+				continue
+			}
+			// in awsvpc, and host mode, we assume that those ports are listening to all ip addresses
+			// which means to the task IPs, and to the host IPs respectively.
+			// If this turns out to not be the case (it was in our tests)
+			// we'll need to inspect the PortSet more deeply.
+			exposedPorts := inspect.Config.ExposedPorts
+			// in awsvpc networking mode so we try getting IP address from the
+			// ECS container metadata endpoint and port from inspect.Config.ExposedPorts
+			if networkMode == containers.AwsvpcNetworkMode {
+				ecsContainerMetadataUrl, err := d.getECSMetadataURL(container.ID)
 				if err != nil {
-					log.Debugf("Failed to get network mode for container %s. Network info will be missing. Error: %s", container.ID, err)
+					log.Debugf("Failed to get the ECS container metadata URI for container %s. Network info will be missing. Error: %s", container.ID, err)
 					continue
 				}
-				if networkMode == containers.AwsvpcNetworkMode {
-					ecsContainerMetadataUrl, err := d.getECSMetadataURL(container.ID)
 
-					if err != nil {
-						log.Debugf("Failed to get the ECS container metadata URI for container %s. Network info will be missing. Error: %s", container.ID, err)
-						continue
-					}
-
-					res, err := metadata.GetContainerNetworkAddresses(ecsContainerMetadataUrl)
-
-					if err != nil {
-						log.Errorf("Failed to get container network addresses: %s", err)
-						continue
-					}
-					container.AddressList = res
+				addresses, err := metadata.GetContainerNetworkAddresses(ecsContainerMetadataUrl)
+				if err != nil {
+					log.Errorf("Failed to get container network addresses: %s", err)
+					continue
 				}
+				container.AddressList = crossIPsWithPorts(addresses, exposedPorts)
+				// in host mode we return the host IPs, with port info from inspect.Config.ExposedPorts
+			} else if networkMode == containers.HostNetworkMode {
+				ips, err := containers.DefaultHostIPs()
+				if err != nil {
+					log.Errorf("Failed to get host IPs. Container %s will be missing network info: %s", container.Name, err)
+					continue
+				}
+				ipAddr := []containers.NetworkAddress{}
+				for _, ip := range ips {
+					ipAddr = append(ipAddr, containers.NetworkAddress{
+						IP: ip,
+					})
+				}
+				container.AddressList = crossIPsWithPorts(ipAddr, exposedPorts)
 			}
 		}
 	}
@@ -351,4 +368,30 @@ func correctMissingIPs(addrs []containers.NetworkAddress, hostIPs []string) []co
 		}
 	}
 	return correctedAddrs
+}
+
+// cross IP addresses with ports
+func crossIPsWithPorts(addrs []containers.NetworkAddress, ports []types.Port) []containers.NetworkAddress {
+	res := []containers.NetworkAddress{}
+
+	for _, addr := range addrs {
+		if len(exposedPorts) == 0 {
+			res = append(res, addr)
+		}
+		for _, port := range ports {
+			if !strings.Contains(port, "/") {
+				log.Errorf("Couldn't recognize port format: %s, some network info will be missing for address %v", port, addr)
+				continue
+			}
+			split := strings.Split(port, "/")
+			res = append(
+				res,
+				containers.NetworkAddress{
+					IP:       addr,
+					Port:     split[0],
+					Protocol: split[1],
+				})
+		}
+	}
+	return res
 }
