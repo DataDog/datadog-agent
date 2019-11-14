@@ -7,10 +7,17 @@
   vars_files:
     - common_vars.yml
   tasks:
+    - name: Delete kubernetes test workloads
+      command: kubectl delete -f test_workloads
+      args:
+        chdir: /home/ubuntu/deployment
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
     - name: Delete kubernetes stackstate objects
       command: kubectl delete -k overlays
       args:
-        chdir: /home/ubuntu/deployment/k8s
+        chdir: /home/ubuntu/deployment/agents
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
