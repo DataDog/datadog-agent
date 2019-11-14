@@ -56,6 +56,7 @@ def stop
   if os == :windows
     # forces the trace agent (and other dependent services) to stop
     result = system 'net stop /y datadogagent 2>&1'
+    sleep 5
   else
     if has_systemctl
       result = system 'sudo systemctl stop datadog-agent.service'
@@ -70,6 +71,7 @@ end
 def start
   if os == :windows
     result = system 'net start datadogagent 2>&1'
+    sleep 5
   else
     if has_systemctl
       result = system 'sudo systemctl start datadog-agent.service'
@@ -86,9 +88,11 @@ def restart
     # forces the trace agent (and other dependent services) to stop
     if is_running?
       result = system 'net stop /y datadogagent 2>&1'
+      sleep 5
       wait_until_stopped
     end
     result = system 'net start datadogagent 2>&1'
+    sleep 5
     wait_until_started
   else
     if has_systemctl
