@@ -15,11 +15,9 @@ import (
 var (
 	tlmRuns = telemetry.NewCounter("checks", "runs",
 		[]string{"check_name"}, "Check runs")
-	tlmErrors = telemetry.NewCounter("checks", "errors",
-		[]string{"check_name"}, "Check errors")
 	tlmWarnings = telemetry.NewCounter("checks", "warnings",
 		[]string{"check_name"}, "Check warnings")
-	tlmMetricsSamples = telemetry.NewCounter("checks", "metrics_samples",
+	tlmMetricsSamples = telemetry.NewGauge("checks", "metrics_samples",
 		[]string{"check_name"}, "Metrics count")
 	tlmEvents = telemetry.NewCounter("checks", "events",
 		[]string{"check_name"}, "Events count")
@@ -73,7 +71,6 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 	cs.LastExecutionTime = tms
 	cs.ExecutionTimes[cs.TotalRuns%uint64(len(cs.ExecutionTimes))] = tms
 	cs.TotalRuns++
-	tlmRuns.Inc(cs.CheckName)
 	tlmExecutionTime.Set(float64(tms), cs.CheckName)
 	var totalExecutionTime int64
 	ringSize := cs.TotalRuns
@@ -86,16 +83,17 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 	cs.AverageExecutionTime = totalExecutionTime / int64(ringSize)
 	if err != nil {
 		cs.TotalErrors++
-		tlmErrors.Inc(cs.CheckName)
+		tlmRuns.Inc(cs.CheckName, "fail")
 		cs.LastError = err.Error()
 	} else {
+		tlmRuns.Inc(cs.CheckName, "ok")
 		cs.LastError = ""
 	}
 	cs.LastWarnings = []string{}
 	if len(warnings) != 0 {
+		tlmWarnings.Add(float64(len(warnings)), cs.CheckName)
 		for _, w := range warnings {
 			cs.TotalWarnings++
-			tlmWarnings.Inc(cs.CheckName)
 			cs.LastWarnings = append(cs.LastWarnings, w.Error())
 		}
 	}
