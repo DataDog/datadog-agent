@@ -133,7 +133,7 @@ def test_agent_base_topology(host, common_vars):
             type_name="configmap",
             external_id_assert_fn=lambda v: agent_configmap_match.findall(v)
         )
-         # 1 cluster agent config map sts-clusteragent-config
+        # 1 cluster agent config map sts-clusteragent-config
         cluster_agent_configmap_match = re.compile("urn:/kubernetes:{}:configmap:{}:sts-clusteragent-config".format(cluster_name, namespace))
         assert _find_component(
             json_data=json_data,
@@ -298,14 +298,14 @@ def test_agent_base_topology(host, common_vars):
             type_name="controls",
             external_id_assert_fn=lambda eid:  statefulset_controls_match.findall(eid)
         ).startswith("urn:/kubernetes:%s:statefulset:mehdb" % (cluster_name))
-         #  cronjob creates job
+        #  cronjob creates job
         cronjob_creates_match = re.compile("urn:/kubernetes:%s:cronjob:hello->urn:/kubernetes:%s:job:hello-.*" % (cluster_name, cluster_name))
         assert _relation_data(
             json_data=json_data,
             type_name="creates",
             external_id_assert_fn=lambda eid:  cronjob_creates_match.findall(eid)
         ).startswith("urn:/kubernetes:%s:cronjob:hello" % (cluster_name))
-         #  pod claims volume
+        #  pod claims volume
         pod_claims_volume_match = re.compile("urn:/kubernetes:%s:pod:mehdb-1->urn:/kubernetes:%s:volume:data" % (cluster_name, cluster_name))
         assert _relation_data(
             json_data=json_data,
