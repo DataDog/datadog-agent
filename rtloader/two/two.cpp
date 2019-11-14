@@ -399,8 +399,8 @@ done:
 bool Two::isCheckInitDeprecated(RtLoaderPyObject *py_class)
 {
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
-    PyObject *init, *func, *func_code, *co_varnames, *co_argcount, *elt;
-    Py_ssize_t idx;
+    PyObject *init, *func, *func_code, *co_varnames, *co_argcount, *elt = NULL;
+    Py_ssize_t idx = -1;
     bool result = false;
 
     // AgentCheck.__init__.__code__.co_varnames[:AgentCheck.__init__.__code__.co_argcount]
