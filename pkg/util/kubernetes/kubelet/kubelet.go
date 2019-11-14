@@ -172,7 +172,7 @@ func (ku *KubeUtil) GetNodename() (string, error) {
 }
 
 // GetRawLocalPodList returns the unfiltered pod list from the kubelet
-func (ku KubeUtil) GetRawLocalPodList() ([]v1.Pod, error) {
+func (ku *KubeUtil) GetRawLocalPodList() ([]v1.Pod, error) {
 	data, code, err := ku.QueryKubelet(kubeletPodPath)
 
 	if err != nil {

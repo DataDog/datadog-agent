@@ -87,18 +87,27 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 		podMsgs = append(podMsgs, &podModel)
 	}
 
-	message := model.CollectorPod{
-		HostName: cfg.HostName,
-		Pods:     podMsgs,
+	groupSize := len(podMsgs) / cfg.MaxPerMessage
+	if len(podMsgs)%cfg.MaxPerMessage != 0 {
+		groupSize++
 	}
-
-	messages := []model.MessageBody{
-		&message,
+	chunked := chunkPods(podMsgs, groupSize, cfg.MaxPerMessage)
+	messages := make([]model.MessageBody, 0, groupSize)
+	totalContainers := float64(0)
+	for i := 0; i < groupSize; i++ {
+		totalContainers += float64(len(chunked[i]))
+		messages = append(messages, &model.CollectorPod{
+			HostName:  cfg.HostName,
+			Pods:      chunked[i],
+			GroupId:   groupID,
+			GroupSize: int32(groupSize),
+		})
 	}
 
 	return messages, nil
 }
 
+// scrubContainer scrubs sensitive information in the command line & env vars
 func scrubContainer(c *v1.Container, cfg *config.AgentConfig) {
 	// scrub command line
 	scrubbedCmd, _ := cfg.Scrubber.ScrubCommand(c.Command)
@@ -110,4 +119,22 @@ func scrubContainer(c *v1.Container, cfg *config.AgentConfig) {
 			c.Env[e].Value = string(scrubbedVal)
 		}
 	}
+}
+
+// chunkPods formats and chunks the ctrList into a slice of chunks using a specific number of chunks.
+func chunkPods(pods []*model.Pod, chunks, perChunk int) [][]*model.Pod {
+	chunked := make([][]*model.Pod, 0, chunks)
+	chunk := make([]*model.Pod, 0, perChunk)
+
+	for _, p := range pods {
+		chunk = append(chunk, p)
+		if len(chunk) == perChunk {
+			chunked = append(chunked, chunk)
+			chunk = make([]*model.Pod, 0, perChunk)
+		}
+	}
+	if len(chunk) > 0 {
+		chunked = append(chunked, chunk)
+	}
+	return chunked
 }
