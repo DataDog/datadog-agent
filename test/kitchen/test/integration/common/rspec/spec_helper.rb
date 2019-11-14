@@ -409,7 +409,6 @@ end
 
 shared_examples_for 'an Agent that stops' do
   it 'stops' do
-    skip if os == :windows
     output = stop
     if os != :windows
       expect(output).to be_truthy
@@ -418,7 +417,6 @@ shared_examples_for 'an Agent that stops' do
   end
 
   it 'has connection refuse in the info command' do
-    skip if os == :windows
     if os == :windows
       expect(info).to include 'No connection could be made'
     else
@@ -427,12 +425,10 @@ shared_examples_for 'an Agent that stops' do
   end
 
   it 'is not running any agent processes' do
-    skip if os == :windows
     expect(agent_processes_running?).to be_falsey
   end
 
   it 'starts after being stopped' do
-    skip if os == :windows
     output = start
     if os != :windows
       expect(output).to be_truthy
@@ -467,7 +463,6 @@ end
 
 shared_examples_for 'an Agent with python3 enabled' do
   it 'restarts after python_version is set to 3' do
-    skip if os == :windows
     conf_path = ""
     if os != :windows
       conf_path = "/etc/datadog-agent/datadog.yaml"
@@ -484,7 +479,6 @@ shared_examples_for 'an Agent with python3 enabled' do
   end
 
   it 'runs Python 3 after python_version is set to 3' do
-    skip if os == :windows
     result = false
     python_version = fetch_python_version
     if ! python_version.nil? && Gem::Version.new('3.0.0') <= Gem::Version.new(python_version)
@@ -494,7 +488,6 @@ shared_examples_for 'an Agent with python3 enabled' do
   end
 
   it 'restarts after python_version is set back to 2' do
-    skip if os == :windows
     skip if info.include? "v7."
     conf_path = ""
     if os != :windows
@@ -512,7 +505,6 @@ shared_examples_for 'an Agent with python3 enabled' do
   end
 
   it 'runs Python 2 after python_version is set back to 2' do
-    skip if os == :windows
     skip if info.include? "v7."
     result = false
     python_version = fetch_python_version
