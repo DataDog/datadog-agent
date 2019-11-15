@@ -439,6 +439,7 @@ run_dogstatsd_size_test:
 
 .agent_build_common_arm:
   stage: package_build
+  needs: ["run_dep_check_lock"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/$PKG_TARGET:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
 
