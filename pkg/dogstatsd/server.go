@@ -334,7 +334,6 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 					sample.Name = m.Name
 					sample.Tags = append(sample.Tags, labels...)
 				}
-				log.Info("Dogstatsd: error parsing metrics: %v, %v, %v", m, labels, present)
 			}
 
 			if err != nil {

@@ -14,7 +14,6 @@
 package mapper
 
 import (
-	"fmt"
 	"github.com/hashicorp/golang-lru"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -59,7 +58,7 @@ func NewMetricMapperCache(size int) (*MetricMapperLRUCache, error) {
 }
 
 func (m *MetricMapperLRUCache) Get(metricString string, metricType MetricType) (*MetricMapperCacheResult, bool) {
-	if result, ok := m.cache.Get(formatKey(metricString, metricType)); ok {
+	if result, ok := m.cache.Get(metricString); ok {
 		return result.(*MetricMapperCacheResult), true
 	} else {
 		return nil, false
@@ -68,21 +67,22 @@ func (m *MetricMapperLRUCache) Get(metricString string, metricType MetricType) (
 
 func (m *MetricMapperLRUCache) AddMatch(metricString string, metricType MetricType, mapping *MetricMapping, labels []string) {
 	go m.trackCacheLength()
-	m.cache.Add(formatKey(metricString, metricType), &MetricMapperCacheResult{Mapping: mapping, Matched: true, Labels: labels})
+	m.cache.Add(metricString, &MetricMapperCacheResult{Mapping: mapping, Matched: true, Labels: labels})
 }
 
 func (m *MetricMapperLRUCache) AddMiss(metricString string, metricType MetricType) {
 	go m.trackCacheLength()
-	m.cache.Add(formatKey(metricString, metricType), &MetricMapperCacheResult{Matched: false})
+	m.cache.Add(metricString, &MetricMapperCacheResult{Matched: false})
 }
 
 func (m *MetricMapperLRUCache) trackCacheLength() {
 	cacheLength.Set(float64(m.cache.Len()))
 }
 
-func formatKey(metricString string, metricType MetricType) string {
-	return fmt.Sprintf("%s.%s", string(metricType), metricString)
-}
+//func formatKey(metricString string, metricType MetricType) string {
+//	return metricString
+//	//return fmt.Sprintf("%s.%s", string(metricType), metricString)
+//}
 
 func NewMetricMapperNoopCache() *MetricMapperNoopCache {
 	cacheLength.Set(0)
