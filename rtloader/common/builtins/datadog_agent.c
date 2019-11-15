@@ -570,6 +570,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         Py_ssize_t pos = 0;
         PyObject *key = NULL, *value = NULL;
         if (!PyDict_Next(dict, &pos, &key, &value)) {
+            _free(hostname);
             continue;
         }
 

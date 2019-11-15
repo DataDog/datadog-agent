@@ -16,6 +16,7 @@ import (
 )
 
 const sqlQueryTag = "sql.query"
+const nonParsableResource = "Non-parsable SQL query"
 
 // tokenFilter is a generic interface that a sqlObfuscator expects. It defines
 // the Filter() function used to filter or replace given tokens.
@@ -151,9 +152,26 @@ func (f *groupingFilter) Reset() {
 // Process the given SQL or No-SQL string so that the resulting one is properly altered. This
 // function is generic and the behavior changes according to chosen tokenFilter implementations.
 // The process calls all filters inside the []tokenFilter.
-func obfuscateSQLString(in string) (string, error) {
-	tokenizer := NewSQLTokenizer(in)
+func (o *Obfuscator) obfuscateSQLString(in string) (string, error) {
+	literalEscapes := o.SQLLiteralEscapes()
+	tokenizer := NewSQLTokenizer(in, literalEscapes)
 	filters := []tokenFilter{&discardFilter{}, &replaceFilter{}, &groupingFilter{}}
+
+	out, err := attemptObfuscation(tokenizer, filters)
+	if err != nil && tokenizer.SeenEscape() {
+		// If the tokenizer failed, but saw an escape character in the process,
+		// try again treating escapes differently
+		tokenizer = NewSQLTokenizer(in, !literalEscapes)
+		if out, err2 := attemptObfuscation(tokenizer, filters); err2 == nil {
+			// If the second attempt succeeded, change the default behavior
+			o.SetSQLLiteralEscapes(!literalEscapes)
+			return out, nil
+		}
+	}
+	return out, err
+}
+
+func attemptObfuscation(tokenizer *SQLTokenizer, filters []tokenFilter) (string, error) {
 	var (
 		out       bytes.Buffer
 		err       error
@@ -162,11 +180,15 @@ func obfuscateSQLString(in string) (string, error) {
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded
 	// or replaced.
-	token, buff := tokenizer.Scan()
-	for ; token != EOFChar; token, buff = tokenizer.Scan() {
+	for {
+		token, buff := tokenizer.Scan()
+		if token == EOFChar {
+			break
+		}
 		if token == LexError {
 			return "", tokenizer.Err()
 		}
+
 		for _, f := range filters {
 			if token, buff, err = f.Filter(token, lastToken, buff); err != nil {
 				return "", err
@@ -205,7 +227,7 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 		tags = append(tags, "outcome:empty-resource")
 		return
 	}
-	result, err := obfuscateSQLString(span.Resource)
+	result, err := o.obfuscateSQLString(span.Resource)
 	if err != nil {
 		// we have an error, discard the SQL to avoid polluting user resources.
 		log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
@@ -215,7 +237,7 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 		if _, ok := span.Meta[sqlQueryTag]; !ok {
 			span.Meta[sqlQueryTag] = span.Resource
 		}
-		span.Resource = "Non-parsable SQL query"
+		span.Resource = nonParsableResource
 		tags = append(tags, "outcome:error")
 		return
 	}

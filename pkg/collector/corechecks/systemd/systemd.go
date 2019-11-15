@@ -233,9 +233,9 @@ func (c *SystemdCheck) getDbusConnection() (*dbus.Conn, error) {
 		if config.IsContainerized() {
 			conn, err = c.getPrivateSocketConnection("/host" + defaultPrivateSocket)
 		} else {
-			conn, err = c.getPrivateSocketConnection(defaultPrivateSocket)
+			conn, err = c.getSystemBusSocketConnection()
 			if err != nil {
-				conn, err = c.getSystemBusSocketConnection()
+				conn, err = c.getPrivateSocketConnection(defaultPrivateSocket)
 			}
 		}
 	}

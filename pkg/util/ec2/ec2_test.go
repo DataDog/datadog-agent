@@ -182,3 +182,23 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "too many mac addresses returned")
 }
+
+func TestGetLocalIPv4(t *testing.T) {
+	ip := "10.0.0.2"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.RequestURI {
+		case "/meta-data/local-ipv4":
+			io.WriteString(w, ip)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	ips, err := GetLocalIPv4()
+	require.NoError(t, err)
+	assert.Equal(t, []string{ip}, ips)
+}

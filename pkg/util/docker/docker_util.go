@@ -242,15 +242,24 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 	return container, nil
 }
 
-// Inspect detect the container ID we are running in and returns the inspect contents.
+// InspectSelf returns the inspect content of the container the current agent is running in
 func (d *DockerUtil) InspectSelf() (types.ContainerJSON, error) {
-	prefix := config.Datadog.GetString("container_cgroup_prefix")
-	cID, _, err := metrics.ReadCgroupsForPath("/proc/self/cgroup", prefix)
+	cID, err := d.GetAgentCID()
 	if err != nil {
 		return types.ContainerJSON{}, err
 	}
 
 	return d.Inspect(cID, false)
+}
+
+// GetAgentCID returns the container ID where the current agent is running
+func (d *DockerUtil) GetAgentCID() (string, error) {
+	prefix := config.Datadog.GetString("container_cgroup_prefix")
+	cID, _, err := metrics.ReadCgroupsForPath("/proc/self/cgroup", prefix)
+	if err != nil {
+		return "", err
+	}
+	return cID, err
 }
 
 // AllContainerLabels retrieves all running containers (`docker ps`) and returns
