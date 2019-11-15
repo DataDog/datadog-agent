@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/go-connections/nat"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -83,7 +84,10 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 			// which means to the task IPs, and to the host IPs respectively.
 			// If this turns out to not be the case (it was in our tests)
 			// we'll need to inspect the PortSet more deeply.
-			exposedPorts := inspect.Config.ExposedPorts
+			exposedPorts := []nat.Port{}
+			for p := range inspect.Config.ExposedPorts {
+				exposedPorts = append(exposedPorts, p)
+			}
 			// in awsvpc networking mode so we try getting IP address from the
 			// ECS container metadata endpoint and port from inspect.Config.ExposedPorts
 			if networkMode == containers.AwsvpcNetworkMode {
@@ -109,7 +113,7 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 				ipAddr := []containers.NetworkAddress{}
 				for _, ip := range ips {
 					ipAddr = append(ipAddr, containers.NetworkAddress{
-						IP: ip,
+						IP: net.ParseIP(ip),
 					})
 				}
 				container.AddressList = crossIPsWithPorts(ipAddr, exposedPorts)
@@ -371,25 +375,20 @@ func correctMissingIPs(addrs []containers.NetworkAddress, hostIPs []string) []co
 }
 
 // cross IP addresses with ports
-func crossIPsWithPorts(addrs []containers.NetworkAddress, ports []types.Port) []containers.NetworkAddress {
+func crossIPsWithPorts(addrs []containers.NetworkAddress, ports []nat.Port) []containers.NetworkAddress {
 	res := []containers.NetworkAddress{}
 
 	for _, addr := range addrs {
-		if len(exposedPorts) == 0 {
+		if len(ports) == 0 {
 			res = append(res, addr)
 		}
 		for _, port := range ports {
-			if !strings.Contains(port, "/") {
-				log.Errorf("Couldn't recognize port format: %s, some network info will be missing for address %v", port, addr)
-				continue
-			}
-			split := strings.Split(port, "/")
 			res = append(
 				res,
 				containers.NetworkAddress{
-					IP:       addr,
-					Port:     split[0],
-					Protocol: split[1],
+					IP:       addr.IP,
+					Port:     port.Int(),
+					Protocol: port.Proto(),
 				})
 		}
 	}

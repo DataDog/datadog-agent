@@ -46,3 +46,7 @@ func TestCorrectMissingIPs(t *testing.T) {
 		{IP: net.ParseIP("10.0.0.1")},
 	}, corrected)
 }
+
+func TestCrossIPsWithPorts(t *testing.T) {
+	TODO
+}
