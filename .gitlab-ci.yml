@@ -40,7 +40,6 @@ variables:
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
-  SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
   DEB_S3_BUCKET: apt.datad0g.com
   RPM_S3_BUCKET: yum.datad0g.com
   WIN_S3_BUCKET: dd-agent-mstesting
@@ -395,6 +394,7 @@ cluster_agent-build:
 # check the size of the static dogstatsd binary
 run_dogstatsd_size_test:
   stage: integration_test
+  needs: ["build_dogstatsd_static-deb_x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
   before_script:
@@ -438,6 +438,7 @@ agent_deb-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
+  needs: ["run_tests_deb-x64-py2", "run_tests_deb-x64-py3"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     CONDA_ENV: ddpy3
@@ -455,6 +456,7 @@ agent_deb-x64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
+  needs: ["run_tests_deb-x64-py3"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     CONDA_ENV: ddpy3
@@ -473,6 +475,7 @@ puppy_deb-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
+  needs: ["build_puppy_agent-deb_x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
@@ -1133,7 +1136,7 @@ kitchen_windows_upgrade6-a6:
 
 kitchen_windows_upgrade6-a7:
   allow_failure: false
-  <<: *skip_when_unwanted_on_7  
+  <<: *skip_when_unwanted_on_7
   <<: *kitchen_windows_a7_common
   <<: *kitchen_upgrade6_common
 
@@ -1349,7 +1352,7 @@ kitchen_suse_upgrade6-a7:
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_suse_common
   <<: *kitchen_a7_common
-  <<: *kitchen_upgrade6_common 
+  <<: *kitchen_upgrade6_common
 
 # run dd-agent-testing on debian
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
@@ -1620,6 +1623,7 @@ testkitchen_cleanup_azure-a7:
 # build agent6 py2 image
 build_agent6:
   <<: *docker_build_job_definition
+  needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1631,6 +1635,7 @@ build_agent6:
 # build agent6 py2 jmx image
 build_agent6_jmx:
   <<: *docker_build_job_definition
+  needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1643,6 +1648,7 @@ build_agent6_jmx:
 # build agent6 py3 image
 build_agent6_py3:
   <<: *docker_build_job_definition
+  needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1654,6 +1660,7 @@ build_agent6_py3:
 # build agent6 py3 jmx image
 build_agent6_py3_jmx:
   <<: *docker_build_job_definition
+  needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1667,6 +1674,7 @@ build_agent6_py3_jmx:
 # build agent6 jmx unified image (including python3)
 build_agent6_py2py3_jmx:
   <<: *docker_build_job_definition
+  needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1678,6 +1686,7 @@ build_agent6_py2py3_jmx:
 # build agent7 image
 build_agent7:
   <<: *docker_build_job_definition
+  needs: ["agent_deb-x64-a7"]
   <<: *skip_when_unwanted_on_7
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1689,6 +1698,7 @@ build_agent7:
 # build agent7 jmx image
 build_agent7_jmx:
   <<: *docker_build_job_definition
+  needs: ["agent_deb-x64-a7"]
   <<: *skip_when_unwanted_on_7
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1700,6 +1710,7 @@ build_agent7_jmx:
 # build the cluster-agent image
 build_cluster_agent:
   <<: *docker_build_job_definition
+  needs: ["cluster_agent-build"]
   variables:
     IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
@@ -1707,6 +1718,7 @@ build_cluster_agent:
 # build the dogstatsd image
 build_dogstatsd:
   <<: *docker_build_job_definition
+  needs: ["build_dogstatsd_static-deb_x64"]
   variables:
     IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
@@ -1793,6 +1805,7 @@ twistlock_scan-7:
 
 dev_branch_docker_hub:
   <<: *docker_tag_job_definition
+  needs: ["build_agent6", "build_agent6_jmx", "build_agent6_py3", "build_agent6_py3_jmx", "build_agent6_py2py3_jmx", "build_agent7", "build_agent7_jmx", "build_dogstatsd"]
   when: manual
   except:
     - master
@@ -1810,6 +1823,7 @@ dev_branch_docker_hub:
 
 dev_master_docker_hub:
   <<: *docker_tag_job_definition
+  needs: ["build_agent6", "build_agent6_jmx", "build_agent6_py3", "build_agent6_py3_jmx", "build_agent6_py2py3_jmx", "build_agent7", "build_agent7_jmx", "build_dogstatsd"]
   only:
     - master
   variables:
@@ -1825,6 +1839,7 @@ dev_master_docker_hub:
 
 dca_dev_branch_docker_hub:
   <<: *docker_tag_job_definition
+  needs: ["build_cluster_agent"]
   when: manual
   except:
     - master
@@ -1835,6 +1850,7 @@ dca_dev_branch_docker_hub:
 
 dca_dev_master_docker_hub:
   <<: *docker_tag_job_definition
+  needs: ["build_cluster_agent"]
   only:
     - master
   variables:
@@ -1846,6 +1862,7 @@ dca_dev_master_docker_hub:
 dev_nightly_docker_hub:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_nightly
+  needs: ["build_agent6", "build_agent6_jmx", "build_agent6_py3", "build_agent6_py3_jmx", "build_agent6_py2py3_jmx", "build_agent7", "build_agent7_jmx", "build_dogstatsd"]
   variables:
     <<: *docker_hub_variables
   script:
