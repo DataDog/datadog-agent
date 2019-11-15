@@ -97,6 +97,10 @@ build.out/
 # dev VM
 .vagrant
 Vagrantfile
+packer.json
+*.box
+devenv/iso
+devenv/packer_cache
 
 # doxygen doc & error log
 rtloader/doc

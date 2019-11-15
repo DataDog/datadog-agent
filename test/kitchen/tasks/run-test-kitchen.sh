@@ -83,15 +83,36 @@ if [ -z ${SERVER_PASSWORD+x} ]; then
   export SERVER_PASSWORD="$(< /dev/urandom tr -dc A-Za-z0-9 | head -c32)0aZ"
 fi
 
-cp kitchen-azure.yml kitchen.yml
-
-## check to see if we want the windows-installer tester instead
-if [[ $#  != 0 && $1 == "windows-install-test" ]]; then
-  cp kitchen-azure-winstall.yml kitchen.yml
+if [[ $# == 0 ]]; then
+  echo "Missing run suite argument. Exiting."
+  exit 1
 fi
 
-if [[ $#  != 0 && $1 == "windows-upgrade5-test" ]]; then
-  cp kitchen-azure-wupgrade5.yml kitchen.yml
+cp kitchen-azure-common.yml kitchen.yml
+
+## check to see if we want the windows-installer tester instead
+if [[ $1 == "windows-install-test" ]]; then
+  cat kitchen-azure-winstall.yml >> kitchen.yml
+fi
+
+if [[ $1 == "chef-test" ]]; then
+  cat kitchen-azure-chef-test.yml >> kitchen.yml
+fi
+
+if [[ $1 == "step-by-step-test" ]]; then
+  cat kitchen-azure-step-by-step-test.yml >> kitchen.yml
+fi
+
+if [[ $1 == "install-script-test" ]]; then
+  cat kitchen-azure-install-script-test.yml >> kitchen.yml
+fi
+
+if [[ $1 == "upgrade5-test" ]]; then
+  cat kitchen-azure-upgrade5-test.yml >> kitchen.yml
+fi
+
+if [[ $1 == "upgrade6-test" ]]; then
+  cat kitchen-azure-upgrade6-test.yml >> kitchen.yml
 fi
 
 kitchen diagnose --no-instances --loader
