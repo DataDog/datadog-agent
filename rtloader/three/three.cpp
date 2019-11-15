@@ -398,7 +398,8 @@ done:
 bool Three::isCheckInitDeprecated(RtLoaderPyObject *py_class)
 {
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
-    PyObject *init, *func_code, *co_varnames, *co_argcount, *elt = NULL;
+    PyObject *init, *func_code, *co_varnames, *co_argcount, *co_flags, *elt;
+    init = func_code = co_varnames = co_argcount = co_flags = elt = NULL;
     Py_ssize_t idx = -1;
     bool result = false;
 
@@ -409,6 +410,11 @@ bool Three::isCheckInitDeprecated(RtLoaderPyObject *py_class)
     }
     func_code = PyObject_GetAttrString(init, "__code__");
     if (func_code == NULL) {
+        goto done;
+    }
+    co_flags = PyObject_GetAttrString(func_code, "co_flags");
+    if (PyLong_AsSize_t(co_flags) & CO_VARKEYWORDS) {
+        result = true;
         goto done;
     }
     co_varnames = PyObject_GetAttrString(func_code, "co_varnames");
@@ -430,9 +436,10 @@ bool Three::isCheckInitDeprecated(RtLoaderPyObject *py_class)
 done:
     PyErr_Clear();
     Py_XDECREF(init);
-    Py_XDECREF(func_code);
+    Py_XDECREF(co_flags);
     Py_XDECREF(co_varnames);
     Py_XDECREF(co_argcount);
+    Py_XDECREF(func_code);
     Py_XDECREF(elt);
     return result;
 }

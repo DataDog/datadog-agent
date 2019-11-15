@@ -224,3 +224,17 @@ func TestRunTestCheck(t *testing.T) {
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
 }
+
+func TestRunTestCheck2(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	res := runTestCheck2()
+
+	if res != "" {
+		t.Fatal(res)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
