@@ -65,12 +65,12 @@ else
     dependency "vc_ucrt_redist"
 
     source :url => "http://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-x86.zip",
-            :sha256 => "c9ccf9cd81c06e49cb3186bef1e769a6b9da58d00dbb780f0185fbb2e8efba91"
+            :sha256 => "9025c61891afeeb0c06a84c5776f9fab76517377b1e9b96e1e381d057df2afa5"
   else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
     source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-         :sha256 => "ce1782db64be81aa81e8a38102b4850ee03a0b30bf152a7d2b4b36a7a6e0c381"
+         :sha256 => "84e817bbdc6d2721f404f879d4e266d49806a8dc566b17779f1fcb5b4237d53c"
 
   end
   build do
