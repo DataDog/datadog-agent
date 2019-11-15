@@ -25,22 +25,25 @@ func TestJobCollector(t *testing.T) {
 
 	componentChannel := make(chan *topology.Component)
 	defer close(componentChannel)
+	relationChannel := make(chan *topology.Relation)
+	defer close(relationChannel)
 
 	creationTime = v1.Time{Time: time.Now().Add(-1 * time.Hour)}
 	parralelism = int32(2)
 	backoffLimit = int32(5)
 
-	jc := NewJobCollector(componentChannel, NewTestCommonClusterCollector(MockJobAPICollectorClient{}))
+	jc := NewJobCollector(componentChannel, relationChannel, NewTestCommonClusterCollector(MockJobAPICollectorClient{}))
 	expectedCollectorName := "Job Collector"
 	RunCollectorTest(t, jc, expectedCollectorName)
 
 	for _, tc := range []struct {
-		testCase string
-		expected *topology.Component
+		testCase          string
+		expectedComponent *topology.Component
+		expectedRelations []*topology.Relation
 	}{
 		{
-			testCase: "Test Job 1",
-			expected: &topology.Component{
+			testCase: "Test Job 1 + Cron Job Relations",
+			expectedComponent: &topology.Component{
 				ExternalID: "urn:/kubernetes:test-cluster-name:job:test-job-1",
 				Type:       topology.Type{Name: "job"},
 				Data: topology.Data{
@@ -53,10 +56,19 @@ func TestJobCollector(t *testing.T) {
 					"parallelism":       &parralelism,
 				},
 			},
+			expectedRelations: []*topology.Relation{
+				{
+					ExternalID: "urn:/kubernetes:test-cluster-name:cronjob:test-cronjob-1->urn:/kubernetes:test-cluster-name:job:test-job-1",
+					Type:       topology.Type{Name: "creates"},
+					SourceID:   "urn:/kubernetes:test-cluster-name:cronjob:test-cronjob-1",
+					TargetID:   "urn:/kubernetes:test-cluster-name:job:test-job-1",
+					Data:       map[string]interface{}{},
+				},
+			},
 		},
 		{
 			testCase: "Test Job 2",
-			expected: &topology.Component{
+			expectedComponent: &topology.Component{
 				ExternalID: "urn:/kubernetes:test-cluster-name:job:test-job-2",
 				Type:       topology.Type{Name: "job"},
 				Data: topology.Data{
@@ -72,7 +84,7 @@ func TestJobCollector(t *testing.T) {
 		},
 		{
 			testCase: "Test Job 3 - Kind + Generate Name",
-			expected: &topology.Component{
+			expectedComponent: &topology.Component{
 				ExternalID: "urn:/kubernetes:test-cluster-name:job:test-job-3",
 				Type:       topology.Type{Name: "job"},
 				Data: topology.Data{
@@ -91,7 +103,13 @@ func TestJobCollector(t *testing.T) {
 	} {
 		t.Run(tc.testCase, func(t *testing.T) {
 			component := <-componentChannel
-			assert.EqualValues(t, tc.expected, component)
+			assert.EqualValues(t, tc.expectedComponent, component)
+
+			for _, expectedRelation := range tc.expectedRelations {
+				cronJobRelation := <-relationChannel
+				assert.EqualValues(t, expectedRelation, cronJobRelation)
+			}
+
 		})
 	}
 }
@@ -121,6 +139,12 @@ func (m MockJobAPICollectorClient) GetJobs() ([]batchV1.Job, error) {
 				Parallelism:  &parralelism,
 				BackoffLimit: &backoffLimit,
 			},
+		}
+
+		if i == 1 {
+			job.OwnerReferences = []v1.OwnerReference{
+				{Kind: CronJob, Name: "test-cronjob-1"},
+			}
 		}
 
 		if i == 3 {

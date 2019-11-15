@@ -124,7 +124,7 @@ func TestPodCollector(t *testing.T) {
 			},
 		},
 		{
-			testCase: "Test Pod 3 - All Controllers: Daemonset, Deployment, ReplicaSet, StatefulSet",
+			testCase: "Test Pod 3 - All Controllers: Daemonset, Deployment, Job, ReplicaSet, StatefulSet",
 			assertions: []func(){
 				func() {
 					component := <-componentChannel
@@ -165,9 +165,9 @@ func TestPodCollector(t *testing.T) {
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
-						ExternalID: "urn:/kubernetes:test-cluster-name:daemonset:daemonset-w->urn:/kubernetes:test-cluster-name:pod:test-pod-3",
+						ExternalID: "urn:/kubernetes:test-cluster-name:daemonset:daemonset-v->urn:/kubernetes:test-cluster-name:pod:test-pod-3",
 						Type:       topology.Type{Name: "controls"},
-						SourceID:   "urn:/kubernetes:test-cluster-name:daemonset:daemonset-w",
+						SourceID:   "urn:/kubernetes:test-cluster-name:daemonset:daemonset-v",
 						TargetID:   "urn:/kubernetes:test-cluster-name:pod:test-pod-3",
 						Data:       map[string]interface{}{},
 					}
@@ -176,9 +176,20 @@ func TestPodCollector(t *testing.T) {
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
-						ExternalID: "urn:/kubernetes:test-cluster-name:deployment:test-namespace:deployment-x->urn:/kubernetes:test-cluster-name:pod:test-pod-3",
+						ExternalID: "urn:/kubernetes:test-cluster-name:deployment:test-namespace:deployment-w->urn:/kubernetes:test-cluster-name:pod:test-pod-3",
 						Type:       topology.Type{Name: "controls"},
-						SourceID:   "urn:/kubernetes:test-cluster-name:deployment:test-namespace:deployment-x",
+						SourceID:   "urn:/kubernetes:test-cluster-name:deployment:test-namespace:deployment-w",
+						TargetID:   "urn:/kubernetes:test-cluster-name:pod:test-pod-3",
+						Data:       map[string]interface{}{},
+					}
+					assert.EqualValues(t, expectedRelation, relation)
+				},
+				func() {
+					relation := <-relationChannel
+					expectedRelation := &topology.Relation{
+						ExternalID: "urn:/kubernetes:test-cluster-name:job:job-x->urn:/kubernetes:test-cluster-name:pod:test-pod-3",
+						Type:       topology.Type{Name: "controls"},
+						SourceID:   "urn:/kubernetes:test-cluster-name:job:job-x",
 						TargetID:   "urn:/kubernetes:test-cluster-name:pod:test-pod-3",
 						Data:       map[string]interface{}{},
 					}
@@ -269,8 +280,9 @@ func (m MockPodAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 
 		if i == 3 {
 			pod.OwnerReferences = []v1.OwnerReference{
-				{Kind: "DaemonSet", Name: "daemonset-w"},
-				{Kind: "Deployment", Name: "deployment-x"},
+				{Kind: "DaemonSet", Name: "daemonset-v"},
+				{Kind: "Deployment", Name: "deployment-w"},
+				{Kind: "Job", Name: "job-x"},
 				{Kind: "ReplicaSet", Name: "replicaset-y"},
 				{Kind: "StatefulSet", Name: "statefulset-z"},
 			}

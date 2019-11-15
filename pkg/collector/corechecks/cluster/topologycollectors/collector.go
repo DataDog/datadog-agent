@@ -11,6 +11,8 @@ const (
 	DaemonSet   = "DaemonSet"
 	StatefulSet = "StatefulSet"
 	ReplicaSet  = "ReplicaSet"
+	CronJob     = "CronJob"
+	Job         = "Job"
 )
 
 // ClusterTopologyCollector collects cluster components and relations.

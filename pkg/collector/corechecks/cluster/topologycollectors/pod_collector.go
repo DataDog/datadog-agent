@@ -76,6 +76,9 @@ func (pc *PodCollector) CollectorFunction() error {
 			case StatefulSet:
 				controllerExternalID = pc.buildStatefulSetExternalID(ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
+			case Job:
+				controllerExternalID = pc.buildJobExternalID(ref.Name)
+				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
 			}
 		}
 

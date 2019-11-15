@@ -92,14 +92,15 @@ func (sc *ServiceCollector) CollectorFunction() error {
 		for _, endpoint := range serviceEndpoints {
 			// create the relation between the pod and the service on the endpoint
 			podExternalID := endpoint.RefExternalID
+			relationExternalID := fmt.Sprintf("%s->%s", component.ExternalID, podExternalID)
 
-			_, ok := publishedPodRelations[podExternalID]
+			_, ok := publishedPodRelations[relationExternalID]
 			if !ok && podExternalID != "" {
-				relation := sc.podToServiceStackStateRelation(podExternalID, component.ExternalID)
+				relation := sc.serviceToPodStackStateRelation(component.ExternalID, podExternalID)
 
 				sc.RelationChan <- relation
 
-				publishedPodRelations[podExternalID] = podExternalID
+				publishedPodRelations[relationExternalID] = relationExternalID
 			}
 		}
 
@@ -211,19 +212,13 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 	return component
 }
 
-// Creates a StackState relation from a Kubernetes / OpenShift Pod to Service
-func (sc *ServiceCollector) podToServiceStackStateRelation(refExternalID, serviceExternalID string) *topology.Relation {
-	log.Tracef("Mapping kubernetes pod to service relation: %s -> %s", refExternalID, serviceExternalID)
+// Creates a StackState relation from a Kubernetes / OpenShift Service to Pod
+func (sc *ServiceCollector) serviceToPodStackStateRelation(serviceExternalID, podExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes pod to service relation: %s -> %s", podExternalID, serviceExternalID)
 
-	relation := &topology.Relation{
-		ExternalID: fmt.Sprintf("%s->%s", refExternalID, serviceExternalID),
-		SourceID:   refExternalID,
-		TargetID:   serviceExternalID,
-		Type:       topology.Type{Name: "exposes"},
-		Data:       map[string]interface{}{},
-	}
+	relation := sc.CreateRelation(serviceExternalID, podExternalID, "exposes")
 
-	log.Tracef("Created StackState pod -> service relation %s->%s", relation.SourceID, relation.TargetID)
+	log.Tracef("Created StackState service -> pod relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
 }

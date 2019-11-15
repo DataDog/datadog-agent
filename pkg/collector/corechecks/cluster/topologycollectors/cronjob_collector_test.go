@@ -12,7 +12,6 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/api/batch/v1beta1"
-	coreV1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"testing"
@@ -23,23 +22,20 @@ func TestCronJobCollector(t *testing.T) {
 
 	componentChannel := make(chan *topology.Component)
 	defer close(componentChannel)
-	relationChannel := make(chan *topology.Relation)
-	defer close(relationChannel)
 
 	creationTime = v1.Time{Time: time.Now().Add(-1 * time.Hour)}
 
-	cjc := NewCronJobCollector(componentChannel, relationChannel, NewTestCommonClusterCollector(MockCronJobAPICollectorClient{}))
+	cjc := NewCronJobCollector(componentChannel, NewTestCommonClusterCollector(MockCronJobAPICollectorClient{}))
 	expectedCollectorName := "CronJob Collector"
 	RunCollectorTest(t, cjc, expectedCollectorName)
 
 	for _, tc := range []struct {
-		testCase          string
-		expectedComponent *topology.Component
-		expectedRelations []*topology.Relation
+		testCase string
+		expected *topology.Component
 	}{
 		{
-			testCase: "Test Cron Job 1 - CronJob + Job Relations",
-			expectedComponent: &topology.Component{
+			testCase: "Test Cron Job 1 - Kind + Generate Name",
+			expected: &topology.Component{
 				ExternalID: "urn:/kubernetes:test-cluster-name:cronjob:test-cronjob-1",
 				Type:       topology.Type{Name: "cronjob"},
 				Data: topology.Data{
@@ -50,28 +46,14 @@ func TestCronJobCollector(t *testing.T) {
 					"namespace":         "test-namespace",
 					"uid":               types.UID("test-cronjob-1"),
 					"concurrencyPolicy": v1beta1.AllowConcurrent,
-				},
-			},
-			expectedRelations: []*topology.Relation{
-				{
-					ExternalID: "urn:/kubernetes:test-cluster-name:cronjob:test-cronjob-1->urn:/kubernetes:test-cluster-name:job:job-1",
-					Type:       topology.Type{Name: "creates"},
-					SourceID:   "urn:/kubernetes:test-cluster-name:cronjob:test-cronjob-1",
-					TargetID:   "urn:/kubernetes:test-cluster-name:job:job-1",
-					Data:       map[string]interface{}{},
-				},
-				{
-					ExternalID: "urn:/kubernetes:test-cluster-name:cronjob:test-cronjob-1->urn:/kubernetes:test-cluster-name:job:job-2",
-					Type:       topology.Type{Name: "creates"},
-					SourceID:   "urn:/kubernetes:test-cluster-name:cronjob:test-cronjob-1",
-					TargetID:   "urn:/kubernetes:test-cluster-name:job:job-2",
-					Data:       map[string]interface{}{},
+					"kind":              "some-specified-kind",
+					"generateName":      "some-specified-generation",
 				},
 			},
 		},
 		{
 			testCase: "Test Cron Job 2 - Minimal",
-			expectedComponent: &topology.Component{
+			expected: &topology.Component{
 				ExternalID: "urn:/kubernetes:test-cluster-name:cronjob:test-cronjob-2",
 				Type:       topology.Type{Name: "cronjob"},
 				Data: topology.Data{
@@ -84,17 +66,11 @@ func TestCronJobCollector(t *testing.T) {
 					"concurrencyPolicy": v1beta1.AllowConcurrent,
 				},
 			},
-			expectedRelations: []*topology.Relation{},
 		},
 	} {
 		t.Run(tc.testCase, func(t *testing.T) {
 			cronJob := <-componentChannel
-			assert.EqualValues(t, tc.expectedComponent, cronJob)
-
-			for _, expectedRelation := range tc.expectedRelations {
-				jobRelation := <-relationChannel
-				assert.EqualValues(t, expectedRelation, jobRelation)
-			}
+			assert.EqualValues(t, tc.expected, cronJob)
 		})
 	}
 }
@@ -106,18 +82,7 @@ type MockCronJobAPICollectorClient struct {
 func (m MockCronJobAPICollectorClient) GetCronJobs() ([]v1beta1.CronJob, error) {
 	cronJobs := make([]v1beta1.CronJob, 0)
 	for i := 1; i <= 2; i++ {
-
-		var jobLinks []coreV1.ObjectReference
-		if i == 1 {
-			jobLinks = []coreV1.ObjectReference{
-				{Name: "job-1", Namespace: "test-namespace-1"},
-				{Name: "job-2", Namespace: "test-namespace-2"},
-			}
-		} else {
-			jobLinks = []coreV1.ObjectReference{}
-		}
-
-		cronJobs = append(cronJobs, v1beta1.CronJob{
+		job := v1beta1.CronJob{
 			TypeMeta: v1.TypeMeta{
 				Kind: "",
 			},
@@ -135,10 +100,14 @@ func (m MockCronJobAPICollectorClient) GetCronJobs() ([]v1beta1.CronJob, error) 
 				Schedule:          "0 0 * * *",
 				ConcurrencyPolicy: v1beta1.AllowConcurrent,
 			},
-			Status: v1beta1.CronJobStatus{
-				Active: jobLinks,
-			},
-		})
+		}
+
+		if i == 1 {
+			job.TypeMeta.Kind = "some-specified-kind"
+			job.ObjectMeta.GenerateName = "some-specified-generation"
+		}
+
+		cronJobs = append(cronJobs, job)
 	}
 
 	return cronJobs, nil

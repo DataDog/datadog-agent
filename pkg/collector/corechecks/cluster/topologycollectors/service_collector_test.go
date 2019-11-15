@@ -53,10 +53,10 @@ func TestServiceCollector(t *testing.T) {
 			},
 			expectedRelations: []*topology.Relation{
 				{
-					ExternalID: "urn:/kubernetes:test-cluster-name:pod:some-pod-name->urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-1",
+					ExternalID: "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-1->urn:/kubernetes:test-cluster-name:pod:some-pod-name",
 					Type:       topology.Type{Name: "exposes"},
-					SourceID:   "urn:/kubernetes:test-cluster-name:pod:some-pod-name",
-					TargetID:   "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-1",
+					SourceID:   "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-1",
+					TargetID:   "urn:/kubernetes:test-cluster-name:pod:some-pod-name",
 					Data:       map[string]interface{}{},
 				},
 			},
@@ -127,10 +127,10 @@ func TestServiceCollector(t *testing.T) {
 			},
 			expectedRelations: []*topology.Relation{
 				{
-					ExternalID: "urn:/kubernetes:test-cluster-name:pod:some-pod-name->urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-5",
+					ExternalID: "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-5->urn:/kubernetes:test-cluster-name:pod:some-pod-name",
 					Type:       topology.Type{Name: "exposes"},
-					SourceID:   "urn:/kubernetes:test-cluster-name:pod:some-pod-name",
-					TargetID:   "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-5",
+					SourceID:   "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-5",
+					TargetID:   "urn:/kubernetes:test-cluster-name:pod:some-pod-name",
 					Data:       map[string]interface{}{},
 				},
 			},

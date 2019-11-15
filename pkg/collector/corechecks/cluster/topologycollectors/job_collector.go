@@ -11,13 +11,15 @@ import (
 // JobCollector implements the ClusterTopologyCollector interface.
 type JobCollector struct {
 	ComponentChan chan<- *topology.Component
+	RelationChan  chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
 // NewJobCollector
-func NewJobCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+func NewJobCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &JobCollector{
 		ComponentChan:            componentChannel,
+		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -34,8 +36,18 @@ func (jc *JobCollector) CollectorFunction() error {
 		return err
 	}
 
-	for _, j := range jobs {
-		jc.ComponentChan <- jc.jobToStackStateComponent(j)
+	for _, job := range jobs {
+		component := jc.jobToStackStateComponent(job)
+		jc.ComponentChan <- component
+
+		// Create relation to the cron job
+		for _, ref := range job.OwnerReferences {
+			switch kind := ref.Kind; kind {
+			case CronJob:
+				cronJobExternalID := jc.buildCronJobExternalID(ref.Name)
+				jc.RelationChan <- jc.cronJobToJobStackStateRelation(cronJobExternalID, component.ExternalID)
+			}
+		}
 	}
 
 	return nil
@@ -69,4 +81,15 @@ func (jc *JobCollector) jobToStackStateComponent(job v1.Job) *topology.Component
 	log.Tracef("Created StackState Job component %s: %v", jobExternalID, component.JSONString())
 
 	return component
+}
+
+// Creates a StackState relation from a Kubernetes / OpenShift Job to CronJob relation
+func (jc *JobCollector) cronJobToJobStackStateRelation(cronJobExternalID, jobExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes cron job to job relation: %s -> %s", cronJobExternalID, jobExternalID)
+
+	relation := jc.CreateRelation(cronJobExternalID, jobExternalID, "creates")
+
+	log.Tracef("Created StackState cron job -> job relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
 }

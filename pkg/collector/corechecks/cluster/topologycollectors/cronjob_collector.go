@@ -6,21 +6,18 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"k8s.io/api/batch/v1beta1"
-	v1 "k8s.io/api/core/v1"
 )
 
 // CronJobCollector implements the ClusterTopologyCollector interface.
 type CronJobCollector struct {
 	ComponentChan chan<- *topology.Component
-	RelationChan  chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
 // NewCronJobCollector
-func NewCronJobCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+func NewCronJobCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &CronJobCollector{
 		ComponentChan:            componentChannel,
-		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -40,11 +37,6 @@ func (cjc *CronJobCollector) CollectorFunction() error {
 	for _, cj := range cronJobs {
 		component := cjc.cronJobToStackStateComponent(cj)
 		cjc.ComponentChan <- component
-
-		// Create relation to the job
-		for _, job := range cj.Status.Active {
-			cjc.RelationChan <- cjc.cronJobToJobStackStateRelation(job, cj)
-		}
 	}
 
 	return nil
@@ -78,18 +70,4 @@ func (cjc *CronJobCollector) cronJobToStackStateComponent(cronJob v1beta1.CronJo
 	log.Tracef("Created StackState CronJob component %s: %v", cronJobExternalID, component.JSONString())
 
 	return component
-}
-
-// Creates a StackState relation from a Kubernetes / OpenShift CronJob to Job relation
-func (cjc *CronJobCollector) cronJobToJobStackStateRelation(job v1.ObjectReference, cronJob v1beta1.CronJob) *topology.Relation {
-	jobExternalID := cjc.buildJobExternalID(job.Name)
-	cronJobExternalID := cjc.buildCronJobExternalID(cronJob.Name)
-
-	log.Tracef("Mapping kubernetes cron job to job relation: %s -> %s", cronJobExternalID, jobExternalID)
-
-	relation := cjc.CreateRelation(cronJobExternalID, jobExternalID, "creates")
-
-	log.Tracef("Created StackState cron job -> job relation %s->%s", relation.SourceID, relation.TargetID)
-
-	return relation
 }
