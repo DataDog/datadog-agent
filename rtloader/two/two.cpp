@@ -399,12 +399,14 @@ done:
 int Two::isCheckInitDeprecated(RtLoaderPyObject *py_class)
 {
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
-    PyObject *init, *func, *func_code, *co_varnames, *co_argcount, *co_flags, *elt;
-    init = func_code = co_varnames = co_argcount = co_flags = elt = NULL;
+    PyObject *init, *func, *elt;
+    PyCodeObject *co;
+    init = elt = NULL;
+    co = NULL;
     long idx = -1;
     int result = 0;
 
-    // AgentCheck.__init__.__code__.co_varnames[:AgentCheck.__init__.__code__.co_argcount]
+    // AgentCheck.__init__.im_func.func_code.co_varnames[:AgentCheck.__init__.__code__.co_argcount]
     init = PyObject_GetAttrString(klass, "__init__");
     if (init == NULL) {
         goto done;
@@ -413,38 +415,26 @@ int Two::isCheckInitDeprecated(RtLoaderPyObject *py_class)
     if (func == NULL) {
         goto done;
     }
-    func_code = PyObject_GetAttrString(func, "func_code");
-    if (func_code == NULL) {
+    co = (PyCodeObject *)PyFunction_GET_CODE(func);
+    if (co == NULL) {
         goto done;
     }
-    co_flags = PyObject_GetAttrString(func_code, "co_flags");
-    if (PyLong_AsLong(co_flags) & CO_VARKEYWORDS) {
+    if (co->co_flags & CO_VARKEYWORDS) {
         result = 2;
-        goto done;
-    }
-    co_varnames = PyObject_GetAttrString(func_code, "co_varnames");
-    if (co_varnames == NULL) {
-        goto done;
-    }
-    co_argcount = PyObject_GetAttrString(func_code, "co_argcount");
-    if (co_argcount == NULL) {
         goto done;
     }
     elt = PyString_FromString("agentConfig");
     if (elt == NULL) {
         goto done;
     }
-    idx = PySequence_Index(co_varnames, elt);
-    if (idx != -1 && idx < PyLong_AsLong(co_argcount)) {
+    idx = PySequence_Index(co->co_varnames, elt);
+    if (idx != -1 && idx < co->co_argcount) {
         result = 1;
     }
 done:
     PyErr_Clear();
     Py_XDECREF(init);
     Py_XDECREF(func);
-    Py_XDECREF(func_code);
-    Py_XDECREF(co_varnames);
-    Py_XDECREF(co_argcount);
     Py_XDECREF(elt);
     return result;
 }
