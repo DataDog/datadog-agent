@@ -101,8 +101,8 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 				container.AddressList = crossIPsWithPorts(addresses, exposedPorts)
 				// in host mode we return the host IPs, with port info from inspect.Config.ExposedPorts
 			} else if networkMode == containers.HostNetworkMode {
-				ips, err := containers.DefaultHostIPs()
-				if err != nil {
+				ips := GetDockerHostIPs()
+				if len(ips) == 0 {
 					log.Errorf("Failed to get host IPs. Container %s will be missing network info: %s", container.Name, err)
 					continue
 				}
