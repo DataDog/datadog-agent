@@ -2,6 +2,6 @@
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
 # Copyright 2016-2019 Datadog, Inc.
-from datadog_checks.checks.win.wmi import (
+from datadog_checks.base.checks.win.wmi import (
     WinWMICheck, WMIMetric, MissingTagBy, from_time, to_time
 )

@@ -8,5 +8,5 @@
 # As long as we do not properly deprecate the legacy import path, they
 # should not be removed. For more details, see #4032 and #4421.
 
-from datadog_checks.checks import AgentCheck
-from datadog_checks.errors import CheckException
+from datadog_checks.base.checks import AgentCheck
+from datadog_checks.base.errors import CheckException
