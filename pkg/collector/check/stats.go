@@ -14,7 +14,7 @@ import (
 
 var (
 	tlmRuns = telemetry.NewCounter("checks", "runs",
-		[]string{"check_name"}, "Check runs")
+		[]string{"check_name", "state"}, "Check runs")
 	tlmWarnings = telemetry.NewCounter("checks", "warnings",
 		[]string{"check_name"}, "Check warnings")
 	tlmMetricsSamples = telemetry.NewGauge("checks", "metrics_samples",
