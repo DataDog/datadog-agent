@@ -259,7 +259,7 @@ build do
     if windows?
       patch :source => "jpype_0_7.patch", :target => "#{python_3_embedded}/Lib/site-packages/jaydebeapi/__init__.py"
     else
-      patch :source => "jpype_0_7.patch", :target => "#{install_dir}/embedded/lib/python3.7/site-packages/jaydebeapi/__init__.py"
+      patch :source => "jpype_0_7.patch", :target => "#{install_dir}/embedded/lib/python3.8/site-packages/jaydebeapi/__init__.py"
     end
 
   end
