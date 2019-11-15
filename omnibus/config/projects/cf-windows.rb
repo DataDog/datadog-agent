@@ -47,10 +47,14 @@ package :msi do
   skip_packager true
 end
 package :zip do
+<<<<<<< HEAD
   extra_package_dirs [
     "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
     "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin"
     ]
+=======
+  extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
+>>>>>>> WIP - Do Not Merge
 
   additional_sign_files [
       #"#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
@@ -91,7 +95,10 @@ dependency 'preparation'
 
 # Datadog agent
 dependency 'datadog-puppy'
+<<<<<<< HEAD
 dependency 'datadog-dogstatsd'
+=======
+>>>>>>> WIP - Do Not Merge
 
 # version manifest file
 dependency 'version-manifest'
