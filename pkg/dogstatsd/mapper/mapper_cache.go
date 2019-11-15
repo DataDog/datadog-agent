@@ -31,12 +31,12 @@ var (
 type MetricMapperCacheResult struct {
 	Mapping *MetricMapping
 	Matched bool
-	Labels  prometheus.Labels
+	Labels  []string
 }
 
 type MetricMapperCache interface {
 	Get(metricString string, metricType MetricType) (*MetricMapperCacheResult, bool)
-	AddMatch(metricString string, metricType MetricType, mapping *MetricMapping, labels prometheus.Labels)
+	AddMatch(metricString string, metricType MetricType, mapping *MetricMapping, labels []string)
 	AddMiss(metricString string, metricType MetricType)
 }
 
@@ -66,7 +66,7 @@ func (m *MetricMapperLRUCache) Get(metricString string, metricType MetricType) (
 	}
 }
 
-func (m *MetricMapperLRUCache) AddMatch(metricString string, metricType MetricType, mapping *MetricMapping, labels prometheus.Labels) {
+func (m *MetricMapperLRUCache) AddMatch(metricString string, metricType MetricType, mapping *MetricMapping, labels []string) {
 	go m.trackCacheLength()
 	m.cache.Add(formatKey(metricString, metricType), &MetricMapperCacheResult{Mapping: mapping, Matched: true, Labels: labels})
 }
@@ -93,7 +93,7 @@ func (m *MetricMapperNoopCache) Get(metricString string, metricType MetricType) 
 	return nil, false
 }
 
-func (m *MetricMapperNoopCache) AddMatch(metricString string, metricType MetricType, mapping *MetricMapping, labels prometheus.Labels) {
+func (m *MetricMapperNoopCache) AddMatch(metricString string, metricType MetricType, mapping *MetricMapping, labels []string) {
 	return
 }
 

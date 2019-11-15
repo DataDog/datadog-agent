@@ -234,7 +234,7 @@ func (m *MetricMapper) InitCache(cacheSize int) {
 	}
 }
 
-func (m *MetricMapper) GetMapping(statsdMetric string, statsdMetricType MetricType) (*MetricMapping, prometheus.Labels, bool) {
+func (m *MetricMapper) GetMapping(statsdMetric string, statsdMetricType MetricType) (*MetricMapping, []string, bool) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	result, cached := m.cache.Get(statsdMetric, statsdMetricType)
@@ -248,9 +248,9 @@ func (m *MetricMapper) GetMapping(statsdMetric string, statsdMetricType MetricTy
 			result := finalState.Result.(*MetricMapping)
 			result.Name = result.nameFormatter.Format(captures)
 
-			labels := prometheus.Labels{}
+			var labels []string
 			for index, formatter := range result.labelFormatters {
-				labels[result.labelKeys[index]] = formatter.Format(captures)
+				labels = append(labels, result.labelKeys[index] + ":" + formatter.Format(captures))
 			}
 
 			m.cache.AddMatch(statsdMetric, statsdMetricType, result, labels)
@@ -285,10 +285,10 @@ func (m *MetricMapper) GetMapping(statsdMetric string, statsdMetricType MetricTy
 			continue
 		}
 
-		labels := prometheus.Labels{}
+		var labels []string
 		for label, valueExpr := range mapping.Labels {
 			value := mapping.regex.ExpandString([]byte{}, valueExpr, statsdMetric, matches)
-			labels[label] = string(value)
+			labels = append(labels, label + ":" + string(value))
 		}
 
 		m.cache.AddMatch(statsdMetric, statsdMetricType, &mapping, labels)
