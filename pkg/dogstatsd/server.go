@@ -6,11 +6,14 @@
 package dogstatsd
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"net"
+	"os"
 	"runtime"
 	"sort"
 	"strings"
@@ -65,6 +68,7 @@ type Server struct {
 	debugMetricsStats     bool
 	metricsStats          map[string]metricStat
 	statsLock             sync.Mutex
+	mapper   				*mapper.MetricMapper
 }
 
 // metricStat holds how many times a metric has been
@@ -173,7 +177,35 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 
 	s.handleMessages(metricOut, eventOut, serviceCheckOut)
 
+	mappingYaml := config.Datadog.GetString("mapping_yaml")
+	if mappingYaml != "" {
+		s.mapper = &mapper.MetricMapper{}
+		err := s.mapper.InitFromYAMLString(mappingYaml, 100)
+		if err != nil {
+			log.Error("Error loading config:", err)
+		}
+		err = dumpFSM(s.mapper, "/tmp/fsm.txt")
+		if err != nil {
+			log.Error("Error dumping FSM:", err)
+		}
+	}
+
 	return s, nil
+}
+
+
+func dumpFSM(mapper *mapper.MetricMapper, dumpFilename string) error {
+	f, err := os.Create(dumpFilename)
+	if err != nil {
+		return err
+	}
+	log.Info("Start dumping FSM to", dumpFilename)
+	w := bufio.NewWriter(f)
+	mapper.FSM.DumpFSM(w)
+	w.Flush()
+	f.Close()
+	log.Info("Finish dumping FSM")
+	return nil
 }
 
 func (s *Server) handleMessages(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metrics.Event, serviceCheckOut chan<- []*metrics.ServiceCheck) {
@@ -294,6 +326,19 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 			events = append(events, event)
 		} else {
 			sample, err := parseMetricMessage(message, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
+
+			if s.mapper != nil {
+				m, labels, present := s.mapper.GetMapping(sample.Name, mapper.MetricTypeGauge)
+
+				if present {
+					sample.Name = m.Name
+					for key, value := range labels {
+						sample.Tags = append(sample.Tags, key + ":" + value)
+					}
+				}
+				log.Info("Dogstatsd: error parsing metrics: %v, %v, %v", m, labels, present)
+			}
+
 			if err != nil {
 				log.Errorf("Dogstatsd: error parsing metrics: %s", err)
 				dogstatsdMetricParseErrors.Add(1)

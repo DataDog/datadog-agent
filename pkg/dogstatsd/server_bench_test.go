@@ -6,6 +6,7 @@
 package dogstatsd
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
@@ -18,7 +19,110 @@ func BenchmarkParsePacket(b *testing.B) {
 
 	for n := 0; n < b.N; n++ {
 		packet := listeners.Packet{
-			Contents: []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"),
+			Contents: []byte("test.dispatcher.a.b.c:666|g"),
+			Origin:   listeners.NoOrigin,
+		}
+		s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
+	}
+}
+
+func BenchmarkMapperOneMapping(b *testing.B) {
+
+	mappingYaml := `---
+mappings:
+- match: test.dispatcher.*.*.*
+  name: "dispatch_events"
+  labels: 
+    processor: "$1"
+    action: "$2"
+    result: "$3"
+    job: "test_dispatcher"
+`
+	config.Datadog.SetDefault("mapping_yaml", mappingYaml)
+
+	s, _ := NewServer(nil, nil, nil)
+	defer s.Stop()
+
+	for n := 0; n < b.N; n++ {
+		packet := listeners.Packet{
+			Contents: []byte("test.dispatcher.a.b.c:666|g"),
+			Origin:   listeners.NoOrigin,
+		}
+		s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
+	}
+}
+
+func BenchmarkMapperManyMapping(b *testing.B) {
+
+	mappingYaml := `---
+mappings:
+- match: test.dispatcher.*.*.*
+  name: "dispatch_events"
+  labels: 
+    processor: "$1"
+    action: "$2"
+    result: "$3"
+    job: "test_dispatcher"
+- match: test.dispatcher1.*.*.*
+  name: "dispatch_events"
+  labels: 
+    processor: "$1"
+    action: "$2"
+    result: "$3"
+    job: "test_dispatcher"
+- match: test.dispatcher2.*.*.*
+  name: "dispatch_events"
+  labels: 
+    processor: "$1"
+    action: "$2"
+    result: "$3"
+    job: "test_dispatcher"
+- match: test.dispatcher3.*.*.*
+  name: "dispatch_events"
+  labels: 
+    processor: "$1"
+    action: "$2"
+    result: "$3"
+    job: "test_dispatcher"
+- match: test.dispatcher4.*.*.*
+  name: "dispatch_events"
+  labels: 
+    processor: "$1"
+    action: "$2"
+    result: "$3"
+    job: "test_dispatcher"
+`
+	config.Datadog.SetDefault("mapping_yaml", mappingYaml)
+
+	s, _ := NewServer(nil, nil, nil)
+	defer s.Stop()
+
+	for n := 0; n < b.N; n++ {
+		packet := listeners.Packet{
+			Contents: []byte("test.dispatcher.a.b.c:666|g"),
+			Origin:   listeners.NoOrigin,
+		}
+		s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
+	}
+}
+
+func BenchmarkMapperNoMapping(b *testing.B) {
+
+	mappingYaml := `---
+mappings:
+- match: yyy.dispatcher
+  name: "dispatch_events"
+  labels: 
+    job: "test_dispatcher"
+`
+	config.Datadog.SetDefault("mapping_yaml", mappingYaml)
+
+	s, _ := NewServer(nil, nil, nil)
+	defer s.Stop()
+
+	for n := 0; n < b.N; n++ {
+		packet := listeners.Packet{
+			Contents: []byte("test.dispatcher.a.b.c:666|g"),
 			Origin:   listeners.NoOrigin,
 		}
 		s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})

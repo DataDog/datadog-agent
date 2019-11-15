@@ -138,6 +138,25 @@
   revision = "5d049714c4a64225c3c79a7cf7d02f7fb5b96338"
 
 [[projects]]
+  branch = "master"
+  digest = "1:a7f619ffc7b99687f9444bd0a07509fec8ae708a7175d234878129896c0918a8"
+  name = "github.com/alecthomas/template"
+  packages = [
+    ".",
+    "parse",
+  ]
+  pruneopts = ""
+  revision = "fb15b899a75114aa79cc930e33c46b577cc664b1"
+
+[[projects]]
+  branch = "master"
+  digest = "1:9d943843b71c5d44f184893fcdbe419bf639fee8647ceeca4c7d4fd95923721c"
+  name = "github.com/alecthomas/units"
+  packages = ["."]
+  pruneopts = ""
+  revision = "f65c72e2690dc4b403c8bd637baf4611cd4c069b"
+
+[[projects]]
   digest = "1:63776251fbaa60062742412a9d2fa1e4b7cd24bcf5527fa9656b314ea8d60913"
   name = "github.com/aws/aws-sdk-go"
   packages = [
@@ -287,7 +306,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:423ea89c6936c81ad8346cbabb92be187a36df7fcf2931f0acab4abbb945b1ee"
+  digest = "1:5903e2d04a5f1be5ddc400fd2c3471c6301d142d1be496a9127087f47ead3c3a"
   name = "github.com/containerd/continuity"
   packages = [
     "fs",
@@ -295,7 +314,7 @@
     "sysx",
   ]
   pruneopts = ""
-  revision = "c7c5070e6f6e090ab93b0a61eb921f2196fc3383"
+  revision = "75bee3e2ccb6402e3a986ab8bd3b17003fc0fdec"
 
 [[projects]]
   digest = "1:3bc276f1f7b8b1ec876ddaad0aba0671003c47feac2cdf6c74554c9d1631a4b1"
@@ -1136,16 +1155,17 @@
   revision = "99fa1f4be8e564e8a6b613da7fa6f46c9edafc6c"
 
 [[projects]]
-  branch = "addlog"
-  digest = "1:4151395b9f0f4ccec0e9cbe624c4b28faa8848f76ede4f07377ad12b6f046c04"
+  digest = "1:8904acfa3ef080005c1fc0670ed0471739d1e211be5638cfa6af536b701942ae"
   name = "github.com/prometheus/common"
   packages = [
     "expfmt",
     "internal/bitbucket.org/ww/goautoneg",
+    "log",
     "model",
   ]
   pruneopts = ""
-  revision = "89d80287644767070914e30199b4d959e491bd3d"
+  revision = "287d3e634a1e550c9e463dd7e5a75a422c614505"
+  version = "v0.7.0"
 
 [[projects]]
   branch = "master"
@@ -1159,6 +1179,14 @@
   ]
   pruneopts = ""
   revision = "7d6f385de8bea29190f15ba9931442a0eaef9af7"
+
+[[projects]]
+  digest = "1:d774c0ff4fbec2346ab752b82e0e5157fc10aa92234ebc68d1ca64d55a4dc158"
+  name = "github.com/prometheus/statsd_exporter"
+  packages = ["pkg/mapper/fsm"]
+  pruneopts = ""
+  revision = "d308796e97674ae29ddc85aa046725d21d8766e9"
+  version = "v0.12.2"
 
 [[projects]]
   branch = "master"
@@ -1465,6 +1493,14 @@
   pruneopts = ""
   revision = "d216395917cc49052c7c7094cf57f09657ca08a8"
   version = "v3.0.0"
+
+[[projects]]
+  digest = "1:15d017551627c8bb091bde628215b2861bed128855343fdd570c62d08871f6e1"
+  name = "gopkg.in/alecthomas/kingpin.v2"
+  packages = ["."]
+  pruneopts = ""
+  revision = "947dcec5ba9c011838740e680966fd7087a71d0d"
+  version = "v2.2.6"
 
 [[projects]]
   digest = "1:75fb3fcfc73a8c723efde7777b40e8e8ff9babf30d8c56160d01beffea8a95a6"
@@ -2052,6 +2088,7 @@
     "github.com/google/gopacket/layers",
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
+    "github.com/hashicorp/golang-lru",
     "github.com/hectane/go-acl",
     "github.com/iovisor/gobpf/elf",
     "github.com/json-iterator/go",
@@ -2067,6 +2104,8 @@
     "github.com/pkg/errors",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
+    "github.com/prometheus/common/log",
+    "github.com/prometheus/statsd_exporter/pkg/mapper/fsm",
     "github.com/samuel/go-zookeeper/zk",
     "github.com/shirou/gopsutil/cpu",
     "github.com/shirou/gopsutil/disk",
