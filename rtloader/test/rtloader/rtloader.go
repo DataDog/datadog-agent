@@ -212,7 +212,7 @@ func runFakeCheck() (string, error) {
 	defer C._free(unsafe.Pointer(classStr))
 
 	ret := C.is_check_init_deprecated(rtloader, class)
-	if ret != 1 {
+	if ret != 2 {
 		return "", fmt.Errorf(C.GoString(C.get_error(rtloader)))
 	}
 	C.get_check(rtloader, class, emptyStr, configStr, checkIdStr, classStr, &check)
@@ -375,7 +375,7 @@ func runTestCheck2() string {
 	C.get_class(rtloader, classStr, &module, &class)
 
 	ret := C.is_check_init_deprecated(rtloader, class)
-	if ret != 1 {
+	if ret != 2 {
 		return "Failed to test check"
 	}
 	C.release_gil(rtloader, state)

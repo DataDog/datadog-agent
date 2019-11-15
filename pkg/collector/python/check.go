@@ -194,11 +194,20 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 	defer C._free(unsafe.Pointer(cInstance))
 	defer C._free(unsafe.Pointer(cCheckID))
 	defer C._free(unsafe.Pointer(cCheckName))
+	errorCheck := ""
 
 	var check *C.rtloader_pyobject_t
 	deprecated := C.is_check_init_deprecated(rtloader, c.class)
-	if deprecated == 1 {
-		log.Warnf("passing `agentConfig` to the constructor is deprecated, please use the `get_config` function from the 'datadog_agent' package (%s).", c.ModuleName)
+	if deprecated != 1 {
+		res := C.get_check(rtloader, c.class, cInitConfig, cInstance, cCheckID, cCheckName, &check)
+		if res == 0 {
+			errorCheck := getRtLoaderError()
+			if deprecated == 0 {
+				return fmt.Errorf("could not invoke '%s' python check constructor: %s", c.ModuleName, errorCheck)
+			}
+		}
+	}
+	if deprecated == 1 || (deprecated == 2 && errorCheck != "") {
 		allSettings := config.Datadog.AllSettings()
 		agentConfig, err := yaml.Marshal(allSettings)
 		if err != nil {
@@ -211,13 +220,11 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
 		res := C.get_check_deprecated(rtloader, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, &check)
 		if res == 0 {
-			return fmt.Errorf("could not invoke '%s' python check deprecated constructor: %s", c.ModuleName, getRtLoaderError())
+			return fmt.Errorf("could not invoke '%s' python check constructor: first failed with %s, then %s", c.ModuleName, errorCheck, getRtLoaderError())
+		} else {
+			log.Warnf("passing `agentConfig` to the constructor is deprecated, please use the `get_config` function from the 'datadog_agent' package (%s).", c.ModuleName)
 		}
-	} else {
-		res := C.get_check(rtloader, c.class, cInitConfig, cInstance, cCheckID, cCheckName, &check)
-		if res == 0 {
-			return fmt.Errorf("could not invoke '%s' python check constructor: %s", c.ModuleName, getRtLoaderError())
-		}
+
 	}
 	c.instance = check
 	c.source = source

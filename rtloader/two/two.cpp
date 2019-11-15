@@ -396,12 +396,13 @@ done:
     return true;
 }
 
-bool Two::isCheckInitDeprecated(RtLoaderPyObject *py_class)
+int Two::isCheckInitDeprecated(RtLoaderPyObject *py_class)
 {
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
-    PyObject *init, *func, *func_code, *co_varnames, *co_argcount, *elt = NULL;
+    PyObject *init, *func, *func_code, *co_varnames, *co_argcount, *co_flags, *elt;
+    init = func_code = co_varnames = co_argcount = co_flags = elt = NULL;
     long idx = -1;
-    bool result = false;
+    int result = 0;
 
     // AgentCheck.__init__.__code__.co_varnames[:AgentCheck.__init__.__code__.co_argcount]
     init = PyObject_GetAttrString(klass, "__init__");
@@ -414,6 +415,11 @@ bool Two::isCheckInitDeprecated(RtLoaderPyObject *py_class)
     }
     func_code = PyObject_GetAttrString(func, "func_code");
     if (func_code == NULL) {
+        goto done;
+    }
+    co_flags = PyObject_GetAttrString(func_code, "co_flags");
+    if (PyLong_AsLong(co_flags) & CO_VARKEYWORDS) {
+        result = 2;
         goto done;
     }
     co_varnames = PyObject_GetAttrString(func_code, "co_varnames");
@@ -430,7 +436,7 @@ bool Two::isCheckInitDeprecated(RtLoaderPyObject *py_class)
     }
     idx = PySequence_Index(co_varnames, elt);
     if (idx != -1 && idx < PyLong_AsLong(co_argcount)) {
-        result = true;
+        result = 1;
     }
 done:
     PyErr_Clear();
