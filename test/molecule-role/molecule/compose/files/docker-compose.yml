@@ -82,6 +82,7 @@ services:
       - "traefik.backend=stackstate-books-app"
     environment:
       MAVEN_OPTS: "-Dsts.service.name=stackstate-books-app -Dsts.agent.host=${DOCKER_HOST_IP} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
+    mem_limit: 1G
   stackstate-authors-app:
     image: "quay.io/stackstate/stackstate-trace-java-demo:authors-app-master"
     ports:
@@ -96,6 +97,7 @@ services:
       - "traefik.backend=stackstate-authors-app"
     environment:
       MAVEN_OPTS: "-Dsts.service.name=stackstate-authors-app -Dsts.agent.host=${DOCKER_HOST_IP} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
+    mem_limit: 1G
   traefik:
     image: traefik:v1.7.12
     command: --api --docker --loglevel=INFO --tracing=TRUE --tracing.backend="datadog" --tracing.datadog.debug=TRUE --tracing.datadog.localagenthostport="${DOCKER_HOST_IP}:8126" --tracing.datadog.globaltag="source:traefik"  # Enables the web UI and tells Traefik to listen to docker
