@@ -95,11 +95,11 @@ start_and_wait() {
       log_failure_msg
       return 1
       ;;
-    *) 
-    # Report an error if the Agent didn't manage to start
-    log_failure_msg
-    return 1 
-    ;;
+    *)
+      # Report an error if the Agent didn't manage to start
+      log_failure_msg
+      return 1
+      ;;
   esac
 }
 
@@ -165,7 +165,7 @@ case "$1" in
   status)
     echo -n "Checking for $DESC:"
 
-    # Status codes are slightly different for the status command:
+    # Status codes are slightly different for the checkproc command:
     # 0 - service running
     # 1 - service dead, but /var/run/  pid  file exists
     # 2 - service dead, but /var/lock/ lock file exists

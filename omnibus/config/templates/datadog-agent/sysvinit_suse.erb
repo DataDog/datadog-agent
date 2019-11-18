@@ -75,8 +75,8 @@ do_start() {
 start_and_wait() {
   # Start the Agent
   do_start
-    case "$?" in
-    0) 
+  case "$?" in
+    0)
       # Wait until the Agent is running
       retries=5
       while [ $retries -gt 1 ]; do
@@ -101,7 +101,7 @@ start_and_wait() {
       log_failure_msg
       return 1
       ;;
-    esac
+  esac
 }
 
 do_stop() {
@@ -110,6 +110,7 @@ do_stop() {
   if [ "$?" -eq "3" ]; then
     return 0
   fi
+
   killproc -TERM -p $PIDFILE $AGENTPATH
   RETVAL="$?"
   rm -f $PIDFILE
@@ -171,6 +172,7 @@ case "$1" in
     ;;
   status)
     echo -n "Checking for $DESC:"
+
     # Status codes are slightly different for the checkproc command:
     # 0 - service running
     # 1 - service dead, but /var/run/  pid  file exists
