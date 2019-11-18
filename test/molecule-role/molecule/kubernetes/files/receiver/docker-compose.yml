@@ -18,20 +18,24 @@ services:
       KAFKA_ADVERTISED_PORT: 9092
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_CREATE_TOPICS: "sts_generic_events:1:1,sts_state_events:1:1,sts_multi_metrics:1:1,sts_correlate_endpoints:1:1,sts_topo_process_agents:1:1,sts_topo_kubernetes_${CLUSTER_NAME}:1:1"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper"]
+      interval: 1s
+      timeout: 10s
+      retries: 10
     mem_limit: 1G
   receiver:
     image: "quay.io/stackstate/stackstate-receiver:${STACKSTATE_BRANCH}"
-    command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
     ports:
       - 7077:7077
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     environment:
       KAFKA_BROKERS: kafka:9092
     mem_limit: 1G
   correlate:
     image: "quay.io/stackstate/stackstate-correlate:${STACKSTATE_BRANCH}"
-    entrypoint: "bin/stackstate-correlate -J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
     depends_on:
       - receiver
     environment:
@@ -39,11 +43,11 @@ services:
     mem_limit: 1G
   topic-api:
     image: "quay.io/stackstate/stackstate-topic-api:${STACKSTATE_BRANCH}"
-    command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
     ports:
       - 7070:7070
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     environment:
       KAFKA_BROKERS: kafka:9092
       ZOOKEEPER_QUORUM: kafka
