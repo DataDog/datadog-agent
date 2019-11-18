@@ -180,7 +180,7 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 	mappingYaml := config.Datadog.GetString("mapping_yaml")
 	if mappingYaml != "" {
 		s.mapper = &mapper.MetricMapper{}
-		err := s.mapper.InitFromYAMLString(mappingYaml, 1000)
+		err := s.mapper.InitFromYAMLString(mappingYaml, 5000)
 		if err != nil {
 			log.Error("Error loading config:", err)
 		}
