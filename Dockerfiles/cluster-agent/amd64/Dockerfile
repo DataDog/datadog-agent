@@ -6,7 +6,7 @@ FROM debian:buster-slim as builder
 
 WORKDIR /output
 
-COPY datadog-cluster-agent opt/datadog-agent/bin/datadog-cluster-agent
+COPY datadog-cluster-agent.amd64 opt/datadog-agent/bin/datadog-cluster-agent
 COPY ./conf.d etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
 COPY ./dist/templates opt/datadog-agent/bin/dist/templates
