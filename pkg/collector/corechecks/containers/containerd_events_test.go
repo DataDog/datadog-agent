@@ -31,6 +31,7 @@ type mockItf struct {
 	mockMetadata    func() (containerd.Version, error)
 	mockImageSize   func(ctn containerd.Container) (int64, error)
 	mockTaskMetrics func(ctn containerd.Container) (*types.Metric, error)
+	mockTaskPids    func(ctn containerd.Container) ([]containerd.ProcessInfo, error)
 	mockInfo        func(ctn containerd.Container) (containers.Container, error)
 	mockNamespace   func() string
 }
@@ -45,6 +46,10 @@ func (m *mockItf) Info(ctn containerd.Container) (containers.Container, error) {
 
 func (m *mockItf) TaskMetrics(ctn containerd.Container) (*types.Metric, error) {
 	return m.mockTaskMetrics(ctn)
+}
+
+func (m *mockItf) TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+	return m.mockTaskPids(ctn)
 }
 
 func (m *mockItf) Metadata() (containerd.Version, error) {

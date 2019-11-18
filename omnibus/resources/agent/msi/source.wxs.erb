@@ -285,37 +285,40 @@
         
         </Component>
         <?endif ?>
+        
         <Directory Id="AGENT" Name="agent">
-          <!-- Windows service declaration for APM agent -->
-          <Component Id="DATADOGAPMSERVICE" Guid="a8e611fa-aedb-4c16-969c-bb827af0bd53">
-            <File Id="trace_agent.exe"
-                Name="trace-agent.exe"
-                Vital="yes"
-                KeyPath="yes"
-                DiskId="1"
-                Source="$(var.BinFiles)/trace-agent.exe"/>
-            <!-- The "Name" field must match the argument to eventlog.Open() -->
-            <util:EventSource Log="Application" Name="datadog-trace-agent"
-                    EventMessageFile="[AGENT]trace-agent.exe"
-                    SupportsErrors="yes"
-                    SupportsInformationals="yes"
-                    SupportsWarnings="yes"/>
-          </Component>
-          <!-- Windows service declaration for Process agent -->
-          <Component Id="DATADOGPROCESSSERVICE" Guid="3b119795-ddf8-44eb-9d53-301f7186e2f3">
-            <File Id="process_agent.exe"
-                Name="process-agent.exe"
-                Vital="yes"
-                KeyPath="yes"
-                DiskId="1"
-                Source="$(var.BinFiles)/process-agent.exe"/>
-            <!-- The "Name" field must match the argument to eventlog.Open() -->
-            <util:EventSource Log="Application" Name="datadog-process-agent"
-                    EventMessageFile="[AGENT]process-agent.exe"
-                    SupportsErrors="yes"
-                    SupportsInformationals="yes"
-                    SupportsWarnings="yes"/>
-          </Component>
+          <?if $(var.Platform) = x64 ?>
+            <!-- Windows service declaration for APM agent -->
+            <Component Id="DATADOGAPMSERVICE" Guid="a8e611fa-aedb-4c16-969c-bb827af0bd53">
+                <File Id="trace_agent.exe"
+                    Name="trace-agent.exe"
+                    Vital="yes"
+                    KeyPath="yes"
+                    DiskId="1"
+                    Source="$(var.BinFiles)/trace-agent.exe"/>
+                <!-- The "Name" field must match the argument to eventlog.Open() -->
+                <util:EventSource Log="Application" Name="datadog-trace-agent"
+                        EventMessageFile="[AGENT]trace-agent.exe"
+                        SupportsErrors="yes"
+                        SupportsInformationals="yes"
+                        SupportsWarnings="yes"/>
+            </Component>
+            <!-- Windows service declaration for Process agent -->
+            <Component Id="DATADOGPROCESSSERVICE" Guid="3b119795-ddf8-44eb-9d53-301f7186e2f3">
+                <File Id="process_agent.exe"
+                    Name="process-agent.exe"
+                    Vital="yes"
+                    KeyPath="yes"
+                    DiskId="1"
+                    Source="$(var.BinFiles)/process-agent.exe"/>
+                <!-- The "Name" field must match the argument to eventlog.Open() -->
+                <util:EventSource Log="Application" Name="datadog-process-agent"
+                        EventMessageFile="[AGENT]process-agent.exe"
+                        SupportsErrors="yes"
+                        SupportsInformationals="yes"
+                        SupportsWarnings="yes"/>
+            </Component>
+          <?endif ?>
         </Directory>
       </Directory>
     </DirectoryRef>
@@ -454,8 +457,10 @@
       <ComponentRef Id="ApplicationShortcut" />
       <ComponentRef Id="DATADOGAGENTSERVICE" />
       <ComponentRef Id="RTLOADERDLLS" />
-      <ComponentRef Id="DATADOGAPMSERVICE" />
-      <ComponentRef Id="DATADOGPROCESSSERVICE" />
+      <?if $(var.Platform) = x64 ?>
+        <ComponentRef Id="DATADOGAPMSERVICE" />
+        <ComponentRef Id="DATADOGPROCESSSERVICE" />
+      <?endif ?>
       <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />
       <ComponentRef Id="CleanupMainApplicationFolder" />
       <ComponentRef Id="RegisterConfVariables" />

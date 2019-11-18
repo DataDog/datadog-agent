@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -59,7 +60,42 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 			log.Debugf("Cannot get limits for container %s: %s, skipping", container.ID[:12], err)
 			continue
 		}
+
+		if isMissingIP(container.AddressList) {
+			hostIPs := GetDockerHostIPs()
+			container.AddressList = correctMissingIPs(container.AddressList, hostIPs)
+		} else if len(container.AddressList) == 0 {
+			// the inspect should be in the cache already so this is not a problem
+			inspect, err := d.Inspect(container.ID, false)
+			if err != nil {
+				log.Debugf("Error inspecting container %s: %s", container.ID, err)
+				continue
+			}
+			// empty network settings or empty network can indicate
+			// the container is in awsvpc networking mode so we try that
+			if inspect.NetworkSettings == nil || len(inspect.NetworkSettings.Networks) == 0 {
+				networkMode, err := GetContainerNetworkMode(container.ID)
+				if err != nil {
+					log.Debugf("Failed to get network mode for container %s. Network info will be missing. Error: %s", container.ID, err)
+					continue
+				}
+				if networkMode == containers.AwsvpcNetworkMode {
+					ecsContainerMetadataUrl, err := d.getECSMetadataURL(container.ID)
+					if err != nil {
+						log.Debugf("Failed to get the ECS container metadata URI for container %s. Network info will be missing. Error: %s", container.ID, err)
+						continue
+					}
+					res, err := metadata.GetContainerNetworkAddresses(container.ID, ecsContainerMetadataUrl)
+					if err != nil {
+						log.Errorf("Failed to get container network addresses: %s", err)
+						continue
+					}
+					container.AddressList = res
+				}
+			}
+		}
 	}
+
 	err = d.UpdateContainerMetrics(cList)
 	return cList, err
 }
@@ -148,7 +184,7 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.C
 			State:       c.State,
 			Excluded:    excluded,
 			Health:      parseContainerHealth(c.Status),
-			AddressList: parseContainerNetworkAddresses(c.Ports, c.NetworkSettings, c.Names[0]),
+			AddressList: d.parseContainerNetworkAddresses(c.ID, c.Ports, c.NetworkSettings, c.Names[0]),
 		}
 
 		ret = append(ret, container)
@@ -190,7 +226,7 @@ func parseContainerHealth(status string) string {
 
 // parseContainerNetworkAddresses converts docker ports
 // and network settings into a list of NetworkAddress
-func parseContainerNetworkAddresses(ports []types.Port, netSettings *types.SummaryNetworkSettings, container string) []containers.NetworkAddress {
+func (d *DockerUtil) parseContainerNetworkAddresses(cID string, ports []types.Port, netSettings *types.SummaryNetworkSettings, container string) []containers.NetworkAddress {
 	addrList := []containers.NetworkAddress{}
 	tempAddrList := []containers.NetworkAddress{}
 	if netSettings == nil || len(netSettings.Networks) == 0 {
@@ -244,6 +280,21 @@ func isExposed(port types.Port) bool {
 	return port.PublicPort > 0 && port.IP != ""
 }
 
+// getECSMetadataURL inspects a given container ID and returns its ECS container metadata URI
+// if found in its environment. It returns an empty string and an error on failure.
+func (d *DockerUtil) getECSMetadataURL(cID string) (string, error) {
+	i, err := d.Inspect(cID, false)
+	if err != nil {
+		return "", err
+	}
+	for _, e := range i.Config.Env {
+		if strings.HasPrefix(e, "ECS_CONTAINER_METADATA_URI=") {
+			return strings.Split(e, "=")[1], nil
+		}
+	}
+	return "", errors.New("ecs container metadata uri not found")
+}
+
 // cleanupCaches removes cache entries for unknown containers and images
 func (d *DockerUtil) cleanupCaches(containers []types.Container) {
 	liveContainers := make(map[string]struct{})
@@ -264,4 +315,36 @@ func (d *DockerUtil) cleanupCaches(containers []types.Container) {
 		}
 	}
 	d.Unlock()
+}
+
+var missingIP = net.ParseIP("0.0.0.0")
+
+func isMissingIP(addrs []containers.NetworkAddress) bool {
+	for _, addr := range addrs {
+		if addr.IP.Equal(missingIP) {
+			return true
+		}
+	}
+	return false
+}
+
+func correctMissingIPs(addrs []containers.NetworkAddress, hostIPs []string) []containers.NetworkAddress {
+	if len(hostIPs) == 0 {
+		return addrs // cannot detect host list, will return the addresses as is
+	}
+
+	var correctedAddrs []containers.NetworkAddress
+
+	for _, addr := range addrs {
+		if addr.IP.Equal(missingIP) {
+			for _, hip := range hostIPs {
+				correctedAddr := addr // this will copy addr
+				correctedAddr.IP = net.ParseIP(hip)
+				correctedAddrs = append(correctedAddrs, correctedAddr)
+			}
+		} else {
+			correctedAddrs = append(correctedAddrs, addr)
+		}
+	}
+	return correctedAddrs
 }

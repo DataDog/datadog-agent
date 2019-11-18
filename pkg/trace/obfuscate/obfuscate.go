@@ -9,6 +9,7 @@ package obfuscate
 
 import (
 	"bytes"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
@@ -44,6 +45,26 @@ type Config struct {
 
 	// Redis enables obfuscatiion of the "memcached.command" tag for spans of type "memcached".
 	Memcached bool
+
+	// sqlLiteralEscapes reports whether we should treat escape characters literally or as escape characters.
+	// A non-zero value means 'yes'. Different SQL engines behave in different ways and the tokenizer needs
+	// to be generic.
+	// Not safe for concurrent use.
+	sqlLiteralEscapes int32
+}
+
+// SetSQLLiteralEscapes sets whether or not escape characters should be treated literally by the SQL obfuscator.
+func (o *Obfuscator) SetSQLLiteralEscapes(ok bool) {
+	if ok {
+		atomic.StoreInt32(&o.opts.sqlLiteralEscapes, 1)
+	} else {
+		atomic.StoreInt32(&o.opts.sqlLiteralEscapes, 0)
+	}
+}
+
+// SQLLiteralEscapes returns whether or not escape characters should be treated literally by the SQL obfuscator.
+func (o *Obfuscator) SQLLiteralEscapes() bool {
+	return atomic.LoadInt32(&o.opts.sqlLiteralEscapes) == 1
 }
 
 // NewObfuscator creates a new Obfuscator.

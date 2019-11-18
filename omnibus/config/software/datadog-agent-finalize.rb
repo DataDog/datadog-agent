@@ -75,7 +75,6 @@ build do
                 move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-sysprobe", "/etc/init.d"
             end
             mkdir systemd_directory
             move "#{install_dir}/scripts/datadog-agent.service", systemd_directory

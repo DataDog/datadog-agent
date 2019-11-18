@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	ddContainers "github.com/DataDog/datadog-agent/pkg/util/containers"
+	cmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -230,6 +231,24 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			continue
 		}
 		sender.Gauge("containerd.image.size", float64(size), "", tags)
+
+		// Collect open file descriptor counts
+		processes, err := cu.TaskPids(ctn)
+		if err != nil {
+			log.Tracef("Could not retrieve pids from task %s: %s", ctn.ID()[:12], errTask.Error())
+			continue
+		}
+		fileDescCount := 0
+		for _, p := range processes {
+			pid := p.Pid
+			fdCount, err := cmetrics.GetFileDescriptorLen(int(pid))
+			if err != nil {
+				log.Warnf("Failed to get file desc length for pid %d, container %s: %s", pid, ctn.ID()[:12], err)
+				continue
+			}
+			fileDescCount += fdCount
+		}
+		sender.Gauge("containerd.proc.open_fds", float64(fileDescCount), "", tags)
 	}
 }
 

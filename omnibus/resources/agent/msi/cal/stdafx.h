@@ -39,3 +39,9 @@
 #include "ddreg.h"
 
 #include "resource.h"
+
+#ifdef _WIN64
+// define __REGISTER_ALL_SERVICES to have the custom action install APM & process
+// agent.  Otherwise, only the core service will be installed.
+#define __REGISTER_ALL_SERVICES
+#endif

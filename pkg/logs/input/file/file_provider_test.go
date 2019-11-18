@@ -109,6 +109,30 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	)
 }
 
+func (suite *ProviderTestSuite) TestCollectFilesWildcardFlag() {
+	// with wildcard
+
+	path := fmt.Sprintf("%s/1/*.log", suite.testDir)
+	fileProvider := NewProvider(suite.filesLimit)
+	logSources := suite.newLogSources(path)
+	files, err := fileProvider.CollectFiles(logSources[0])
+	suite.NoError(err, "searching for files in this directory shouldn't fail")
+	for _, file := range files {
+		suite.True(file.IsWildcardPath, "this file has been found with a wildcard pattern.")
+	}
+
+	// without wildcard
+
+	path = fmt.Sprintf("%s/1/1.log", suite.testDir)
+	fileProvider = NewProvider(suite.filesLimit)
+	logSources = suite.newLogSources(path)
+	files, err = fileProvider.CollectFiles(logSources[0])
+	suite.NoError(err, "searching for files in this directory shouldn't fail")
+	for _, file := range files {
+		suite.False(file.IsWildcardPath, "this file has not been found using a wildcard pattern.")
+	}
+}
+
 func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWithRightPermissions() {
 	path := fmt.Sprintf("%s/*/*1.log", suite.testDir)
 	fileProvider := NewProvider(suite.filesLimit)

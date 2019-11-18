@@ -38,6 +38,7 @@ func TestContainerMetricsTagging(t *testing.T) {
 			"docker.mem.limit",
 			"docker.mem.failed_count",
 			"docker.mem.soft_limit",
+			"docker.container.open_fds",
 			"docker.container.size_rw",
 			"docker.container.size_rootfs",
 			"docker.thread.count",

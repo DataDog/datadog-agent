@@ -14,15 +14,16 @@ import (
 )
 
 type schedulerInterface interface {
-	AddCollector(name string, interval time.Duration) error
 	TriggerAndResetCollectorTimer(name string, delay time.Duration)
 }
 
-type autoConfigInterface interface {
+// AutoConfigInterface is an interface for the GetLoadedConfigs method of autodiscovery
+type AutoConfigInterface interface {
 	GetLoadedConfigs() map[string]integration.Config
 }
 
-type collectorInterface interface {
+// CollectorInterface is an interface for the GetAllInstanceIDs method of the collector
+type CollectorInterface interface {
 	GetAllInstanceIDs(checkName string) []check.ID
 }
 
@@ -116,12 +117,8 @@ func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMeta
 	return &checkInstanceMetadata
 }
 
-// GetPayload fills and returns the check metadata payload
-func GetPayload(hostname string, ac autoConfigInterface, coll collectorInterface) *Payload {
-	lastGetPayloadMutex.Lock()
-	lastGetPayload = timeNow()
-	lastGetPayloadMutex.Unlock()
-
+// CreatePayload fills and returns the inventory metadata payload
+func CreatePayload(hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
 	checkCacheMutex.Lock()
 	defer checkCacheMutex.Unlock()
 
@@ -149,13 +146,27 @@ func GetPayload(hostname string, ac autoConfigInterface, coll collectorInterface
 
 	agentCacheMutex.Lock()
 	defer agentCacheMutex.Unlock()
+	// Creating a copy of agentMetadataCache
+	agentMetadata := make(AgentMetadata)
+	for k, v := range agentMetadataCache {
+		agentMetadata[k] = v
+	}
 
 	return &Payload{
 		Hostname:      hostname,
 		Timestamp:     timeNow().UnixNano(),
 		CheckMetadata: &checkMetadata,
-		AgentMetadata: &agentMetadataCache,
+		AgentMetadata: &agentMetadata,
 	}
+}
+
+// GetPayload returns a new inventory metadata payload and updates lastGetPayload
+func GetPayload(hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
+	lastGetPayloadMutex.Lock()
+	defer lastGetPayloadMutex.Unlock()
+	lastGetPayload = timeNow()
+
+	return CreatePayload(hostname, ac, coll)
 }
 
 // StartMetadataUpdatedGoroutine starts a routine that listens to the metadataUpdatedC

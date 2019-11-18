@@ -7,49 +7,63 @@
 
 package v1
 
-import "testing"
+import (
+	"testing"
+)
 
-func TestParseClientIP(t *testing.T) {
+func Test_validateClientIP(t *testing.T) {
 	tests := []struct {
-		name     string
-		args     string
-		expected string
+		name    string
+		addr    string
+		want    string
+		wantErr bool
 	}{
 		{
-			name:     "valid ipv4",
-			args:     "127.0.0.1:1337",
-			expected: "127.0.0.1",
+			name:    "valid ipv4",
+			addr:    "127.0.0.1",
+			want:    "127.0.0.1",
+			wantErr: false,
 		},
 		{
-			name:     "ipv4 no port",
-			args:     "127.0.0.1:",
-			expected: "127.0.0.1",
+			name:    "invalid ipv4",
+			addr:    "127.0.0.1.1",
+			want:    "",
+			wantErr: true,
 		},
 		{
-			name:     "ipv6",
-			args:     "[2001:db8:1f70::999:de8:7648:6e8]:1337",
-			expected: "2001:db8:1f70::999:de8:7648:6e8",
+			name:    "valid ipv6",
+			addr:    "2001:db8:1f70::999:de8:7648:6e8",
+			want:    "2001:db8:1f70::999:de8:7648:6e8",
+			wantErr: false,
 		},
 		{
-			name:     "valid ipv6 localhost",
-			args:     "[::1]:1337",
-			expected: "::1",
+			name:    "invalid ipv6",
+			addr:    "::1:",
+			want:    "",
+			wantErr: true,
 		},
 		{
-			name:     "ipv6 no port",
-			args:     "[::1]:",
-			expected: "::1",
+			name:    "invalidate localhost",
+			addr:    "localhost",
+			want:    "",
+			wantErr: true,
 		},
 		{
-			name:     "localhost",
-			args:     "localhost:1337",
-			expected: "localhost",
+			name:    "validate empty",
+			addr:    "",
+			want:    "",
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, _ := parseClientIP(tt.args); got != tt.expected {
-				t.Errorf("parseClientIP() == %v, expected %v", got, tt.expected)
+			got, err := validateClientIP(tt.addr)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateClientIP() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("validateClientIP() = %v, want %v", got, tt.want)
 			}
 		})
 	}
