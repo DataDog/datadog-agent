@@ -374,22 +374,22 @@ func correctMissingIPs(addrs []containers.NetworkAddress, hostIPs []string) []co
 	return correctedAddrs
 }
 
-// cross IP addresses with ports
+// crossIPsWithPorts returns the product of a list of IP addresses and a list of ports
 func crossIPsWithPorts(addrs []containers.NetworkAddress, ports []nat.Port) []containers.NetworkAddress {
-	res := []containers.NetworkAddress{}
+	res := make([]containers.NetworkAddress, len(addrs)*len(ports))
+	c := 0
 
 	for _, addr := range addrs {
 		if len(ports) == 0 {
 			res = append(res, addr)
 		}
 		for _, port := range ports {
-			res = append(
-				res,
-				containers.NetworkAddress{
-					IP:       addr.IP,
-					Port:     port.Int(),
-					Protocol: port.Proto(),
-				})
+			res[c] = containers.NetworkAddress{
+				IP:       addr.IP,
+				Port:     port.Int(),
+				Protocol: port.Proto(),
+			}
+			c++
 		}
 	}
 	return res
