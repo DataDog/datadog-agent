@@ -136,11 +136,6 @@ stop_and_wait() {
   esac
 }
 
-if [ ! -x $AGENTPATH ]; then
-  echo "$AGENTPATH not found. Exiting."
-  exit 1
-fi
-
 case "$1" in
   start)
     if [ "$DATADOG_ENABLED" = "no" ]; then
