@@ -5,6 +5,11 @@
 
 package telemetry
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/prometheus/client_golang/prometheus"
+)
+
 // Gauge tracks the value of one health metric of the Agent.
 type Gauge interface {
 	// Set stores the value for the given tags.
@@ -19,4 +24,25 @@ type Gauge interface {
 	Sub(value float64, tags ...string)
 	// Delete deletes the value for the Gauge with the given tags.
 	Delete(tags ...string)
+}
+
+// NewGauge creates a Gauge for telemetry purpose.
+// If the telemetry's not enabled, returns a noop Gauge.
+func NewGauge(subsystem, name string, tags []string, help string) Gauge {
+	if !config.Datadog.GetBool("telemetry.enabled") {
+		return &noopGauge{}
+	}
+	g := &promGauge{
+		pg: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      name,
+				Help:      help,
+			},
+			tags,
+		),
+	}
+	prometheus.MustRegister(g.pg)
+	return g
 }

@@ -5,6 +5,11 @@
 
 package telemetry
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/prometheus/client_golang/prometheus"
+)
+
 // Counter tracks how many times something is happening.
 type Counter interface {
 	// Inc increments the counter for the given tags.
@@ -13,4 +18,25 @@ type Counter interface {
 	Add(value float64, tags ...string)
 	// Delete deletes the value for the counter with the given tags.
 	Delete(tags ...string)
+}
+
+// NewCounter creates a Counter for telemetry purpose.
+// If the telemetry's not enabled, returns a noop Counter.
+func NewCounter(subsystem, name string, tags []string, help string) Counter {
+	if !config.Datadog.GetBool("telemetry.enabled") {
+		return &noopCounter{}
+	}
+	c := &promCounter{
+		pc: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      name,
+				Help:      help,
+			},
+			tags,
+		),
+	}
+	prometheus.MustRegister(c.pc)
+	return c
 }

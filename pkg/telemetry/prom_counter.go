@@ -11,23 +11,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// NewCounter creates a Counter for telemetry purpose.
-func NewCounter(subsystem, name string, tags []string, help string) Counter {
-	c := &promCounter{
-		pc: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      name,
-				Help:      help,
-			},
-			tags,
-		),
-	}
-	prometheus.MustRegister(c.pc)
-	return c
-}
-
 // Counter implementation using Prometheus.
 type promCounter struct {
 	pc   *prometheus.CounterVec

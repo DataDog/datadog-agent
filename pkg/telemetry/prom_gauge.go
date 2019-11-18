@@ -11,23 +11,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// NewGauge creates a Gauge for telemetry purpose.
-func NewGauge(subsystem, name string, tags []string, help string) Gauge {
-	g := &promGauge{
-		pg: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      name,
-				Help:      help,
-			},
-			tags,
-		),
-	}
-	prometheus.MustRegister(g.pg)
-	return g
-}
-
 // Gauge implementation using Prometheus.
 type promGauge struct {
 	pg   *prometheus.GaugeVec
