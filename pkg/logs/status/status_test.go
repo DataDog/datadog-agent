@@ -16,17 +16,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
-func createSources() *config.LogSources {
-	return CreateSources([]*config.LogSource{
+func initStatus() {
+	InitStatus(config.CreateSources([]*config.LogSource{
 		config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
 		config.NewLogSource("bar", &config.LogsConfig{Type: "foo"}),
 		config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
-	})
+	}))
 }
 
 func TestSourceAreGroupedByIntegrations(t *testing.T) {
 	defer Clear()
-	createSources()
+	initStatus()
 
 	status := Get()
 	assert.Equal(t, true, status.IsRunning)
@@ -46,7 +46,7 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 
 func TestStatusDeduplicateWarnings(t *testing.T) {
 	defer Clear()
-	createSources()
+	initStatus()
 
 	AddGlobalWarning("bar", "Unique Warning")
 	AddGlobalWarning("foo", "Identical Warning")
@@ -63,7 +63,7 @@ func TestStatusDeduplicateWarnings(t *testing.T) {
 
 func TestStatusDeduplicateErrors(t *testing.T) {
 	defer Clear()
-	createSources()
+	initStatus()
 
 	AddGlobalError("bar", "Unique Error")
 	AddGlobalError("foo", "Identical Error")
@@ -75,7 +75,7 @@ func TestStatusDeduplicateErrors(t *testing.T) {
 
 func TestStatusDeduplicateErrorsAndWarnings(t *testing.T) {
 	defer Clear()
-	createSources()
+	initStatus()
 
 	AddGlobalWarning("bar", "Unique Warning")
 	AddGlobalWarning("foo", "Identical Warning")
@@ -95,7 +95,7 @@ func TestMetrics(t *testing.T) {
 	var expected = `{"BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "", "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": ""}`
 	assert.Equal(t, expected, metrics.LogsExpvars.String())
 
-	createSources()
+	initStatus()
 	AddGlobalWarning("bar", "Unique Warning")
 	AddGlobalError("bar", "I am an error")
 	expected = `{"BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "I am an error", "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": "Unique Warning"}`
@@ -104,7 +104,7 @@ func TestMetrics(t *testing.T) {
 
 func TestStatusMetrics(t *testing.T) {
 	defer Clear()
-	createSources()
+	initStatus()
 
 	status := Get()
 	assert.Equal(t, int64(0), status.StatusMetrics["LogsProcessed"])
