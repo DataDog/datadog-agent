@@ -17,10 +17,19 @@ if [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIB
     DISTRIBUTION_FAMILY="SUSE"
 fi
 
-if [ "$DISTRIBUTION_FAMILY" == "SUSE" ] && ! cat /etc/SuSE-release 2>/dev/null | grep VERSION | grep 11; then
-    rm -f /etc/init.d/datadog-agent*
-else
-    SYSVINIT_SUPPORT="yes"
+if [ "$DISTRIBUTION_FAMILY" == "SUSE" ]; then
+    # HACK: Check if we're running on SUSE 11. In that case, we support SysVInit scripts.
+    # Otherwise, remove the SysVInit files.
+    # This is necessary because, at least on SLES 15, the presence of these files makes systemd crash
+    # (even if they're not used) as it cannot process them (a package necessary to process them
+    # was removed from the base distribution).
+    if cat /etc/SuSE-release 2>/dev/null | grep VERSION | grep 11; then
+        SYSVINIT_SUPPORT="yes"
+    else
+        rm -f /etc/init.d/datadog-agent
+        rm -f /etc/init.d/datadog-agent-process
+        rm -f /etc/init.d/datadog-agent-trace
+    fi
 fi
 
 # Create a symlink to the agent's binary
