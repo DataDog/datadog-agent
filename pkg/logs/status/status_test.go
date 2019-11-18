@@ -128,3 +128,11 @@ func TestStatusMetrics(t *testing.T) {
 	status = Get()
 	assert.Equal(t, int64(math.MinInt64), status.StatusMetrics["LogsProcessed"])
 }
+
+func TestStatusEndpoints(t *testing.T) {
+	defer Clear()
+	initStatus()
+
+	status := Get()
+	assert.Equal(t, "Sending uncompressed logs in SSL encrypted TCP to agent-intake.logs.datadoghq.com on port 10516", status.Endpoints[0])
+}
