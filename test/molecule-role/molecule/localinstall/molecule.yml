@@ -27,7 +27,6 @@ platforms:
       - agent_linux_vm
     ssh_user: centos
     user_data: files/agent/none.txt
-
 provisioner:
   name: ansible
   config_options:

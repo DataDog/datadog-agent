@@ -1,6 +1,5 @@
 ---
-
-- name: Prepare Linux Agents (pre)
+- name: Prepare Linux Agents
   hosts: agent_linux_vm
   gather_facts: false
   vars_files:
@@ -21,13 +20,6 @@
       ignore_errors: true
       become: true
       when: ansible_distribution == "Ubuntu"
-
-- name: Prepare Linux Agents (post)
-  hosts: agent_linux_vm
-  gather_facts: false
-  vars_files:
-    - common_vars.yml
-  tasks:
     - name: Prepare installation script
       copy:
         src: files/agent/install_script.sh
@@ -45,7 +37,6 @@
             owner: "{{ ansible_user_id }}"
             group: root
           become: yes
-
         - name: Set installation path
           set_fact:
             custom_installer: /tmp/current.deb
@@ -59,12 +50,10 @@
             owner: "{{ ansible_user_id }}"
             group: root
           become: yes
-
         - name: Set installation path
           set_fact:
             custom_installer: /tmp/current.rpm
       when: ansible_distribution != "Ubuntu"
-
     - name: Install stackstate-agent
       shell: "/tmp/install_script.sh {{ custom_installer }}"
       environment:
