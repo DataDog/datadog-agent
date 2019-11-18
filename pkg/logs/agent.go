@@ -138,8 +138,13 @@ func (a *Agent) Stop() {
 // getStackTrace returns the stack trace of a running Agent.
 // Used as a best effort to get info while force closing the Logs Agent.
 func getAgentStackTrace() ([]byte, error) {
-	pprofURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
-		coreConfig.Datadog.GetString("expvar_port"))
+	ipcAddress, err := coreConfig.GetIPCAddress()
+	if err != nil {
+		return nil, err
+	}
+
+	pprofURL := fmt.Sprintf("http://%v:%s/debug/pprof/goroutine?debug=2",
+		ipcAddress, coreConfig.Datadog.GetString("expvar_port"))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	client := http.Client{}
