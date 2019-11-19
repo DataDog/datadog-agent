@@ -22,26 +22,30 @@ func TestGenerateReproductible(t *testing.T) {
 	hostname := "hostname"
 	tags := []string{"bar", "foo", "key:value", "key:value2"}
 
-	firstKey := Generate(name, hostname, tags)
-	assert.Equal(t, "10c490eb35462b5a1e39489fe3944be7", firstKey.String())
+	generator := NewKeyGenerator()
+
+	firstKey := generator.Generate(name, hostname, tags)
+	assert.Equal(t, uint64(0x5a2b4635eb90c410), firstKey[0])
+	assert.Equal(t, uint64(0xe74b94e39f48391e), firstKey[1])
 
 	for n := 0; n < 10; n++ {
 		t.Run(fmt.Sprintf("iteration %d:", n), func(t *testing.T) {
-			key := Generate(name, hostname, tags)
+			key := generator.Generate(name, hostname, tags)
 			assert.Equal(t, firstKey, key)
 		})
 	}
 
-	otherKey := Generate("othername", hostname, tags)
+	otherKey := generator.Generate("othername", hostname, tags)
 	assert.NotEqual(t, firstKey, otherKey)
-	assert.Equal(t, "cd3bca32c0520309fbb533e63ac0d40f", otherKey.String())
+	assert.Equal(t, uint64(0xcd3bca32c0520309), otherKey[0])
+	assert.Equal(t, uint64(0xfbb533e63ac0d40f), otherKey[1])
 }
 
 func TestCompare(t *testing.T) {
-	base, _ := Parse("cd3bca32c0520309fbb533e63ac0d40f")
-	veryHigh, _ := Parse("ff3bca32c0520309fbb533e63ac0d40f")
-	littleHigh, _ := Parse("ff3bca32c0520309fbb533e63ac0d4ff")
-	veryLow, _ := Parse("003bca32c0520309fbb533e63ac0d40f")
+	base := ContextKey{uint64(0xcd3bca32c0520309), uint64(0xfbb533e63ac0d40f)}
+	veryHigh := ContextKey{uint64(0xff3bca32c0520309), uint64(0xfbb533e63ac0d40f)}
+	littleHigh := ContextKey{uint64(0xff3bca32c0520309), uint64(0xfbb533e63ac0d4ff)}
+	veryLow := ContextKey{uint64(0x003bca32c0520309), uint64(0xfbb533e63ac0d40f)}
 
 	assert.Equal(t, 0, Compare(base, base))
 	assert.Equal(t, 1, Compare(veryHigh, base))
@@ -57,7 +61,8 @@ func BenchmarkGenerateNoAlloc(b *testing.B) {
 	name := "testname"
 	host := "myhost"
 	tags := []string{"foo", "bar"}
+	generator := NewKeyGenerator()
 	for n := 0; n < b.N; n++ {
-		Generate(name, host, tags)
+		generator.Generate(name, host, tags)
 	}
 }
