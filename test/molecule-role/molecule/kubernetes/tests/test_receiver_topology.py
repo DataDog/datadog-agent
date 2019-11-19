@@ -340,5 +340,5 @@ def test_agent_base_topology(host, common_vars):
             type_name="routes",
             external_id_assert_fn=lambda eid:  ingress_routes_service_match.findall(eid)
         ).startswith("urn:/kubernetes:%s:ingress:%s:example-ingress" % (cluster_name, namespace))
-    util.wait_until(wait_for_components, 120, 3)
-    util.wait_until(wait_for_components, 120, 3)
+    util.wait_until(wait_for_components, 240, 3)
+   
