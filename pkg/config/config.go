@@ -272,6 +272,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
 	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
+	config.BindEnvAndSetDefault("dogstatsd_mapper_cache_size", 1000)
+	config.SetKnown("dogstatsd_mappings")
+
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")

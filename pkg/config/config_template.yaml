@@ -735,6 +735,39 @@ api_key:
 # dogstatsd_tags:
 #   - <TAG_KEY>:<TAG_VALUE>
 
+## @param dogstatsd_mappings - List of custom object - optional
+## The list mappings will be used to convert parts of metrics names into tags.
+## For each mapping, following fields are available:
+##  match (required): pattern for matching the incoming metric name e.g. `test.job.duration.*`
+##  match_type (optional): pattern type can be `glob` (default) or `regex` e.g. `test\.job\.(\w+)\.(.*)`
+##  name (required): the metric name the metric should be mapped to e.g. `test.job.duration`
+##  tags (optional): list of key:value pair of tag key and tag value
+##    The value can use $1, $2, etc, that will be replaced by the corresponding element capture by `match` pattern
+##    The value can also use alternative syntax: ${1}, ${2}, etc
+#
+# dogstatsd_mappings:
+#   - match: <METRIC_TO_MATCH>                # e.g. `test.job.duration.*` to match `test.job.duration.my_job_name`
+#     match_type: <MATCH_TYPE>                # e.g. `glob` or `regex`
+#     name: <MAPPED_METRIC_NAME>              # e.g. `test.job.duration`
+#     tags:
+#       <TAG_KEY>: <TAG_VALUE_TO_EXPAND>      # e.g. `job_name: "$1"`, $1 is replaced by value capture by *
+#   - match: 'test.worker.*.*.start_time'     # to match `test.worker.<worker_type>.<worker_name>.start_time`
+#     name: 'test.worker.start_time'
+#     tags:
+#       worker_type: '$1'
+#       worker_name: '$2'
+#   - match: 'test\.task\.duration\.(\w+)\.(.*)'     # no need to escape in yaml context using single quote
+#     match_type: regex
+#     name: 'test.task'
+#     tags:
+#       task_type: '$1'
+#       task_name: '$2'
+
+## @param dogstatsd_mapper_cache_size - integer - optional - default: 1000
+## Dogstatsd mapping feature uses a cache to speed up matching.
+#
+# dogstatsd_mapper_cache_size: 1000
+
 ## @param statsd_forward_host - string - optional - default: ""
 ## Forward every packet received by the DogStatsD server to another statsd server.
 ## WARNING: Make sure that forwarded packets are regular statsd packets and not "DogStatsD" packets,

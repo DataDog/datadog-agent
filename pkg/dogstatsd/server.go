@@ -37,6 +37,7 @@ var (
 	dogstatsdMetricParseErrors       = expvar.Int{}
 	dogstatsdMetricPackets           = expvar.Int{}
 	dogstatsdPacketsLastSec          = expvar.Int{}
+	defaultMapperCacheSize           = 1000
 )
 
 func init() {
@@ -66,6 +67,7 @@ type Server struct {
 	debugMetricsStats     bool
 	metricsStats          map[string]metricStat
 	statsLock             sync.Mutex
+	mapper                *metricMapper
 }
 
 // metricStat holds how many times a metric has been
@@ -173,6 +175,24 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 	}
 
 	s.handleMessages(metricOut, eventOut, serviceCheckOut)
+
+	cacheSize := config.Datadog.GetInt("dogstatsd_mapper_cache_size")
+
+	if config.Datadog.IsSet("dogstatsd_mappings") {
+		var mappings []metricMapping
+		config.Datadog.SetConfigType("yaml")
+		err = config.Datadog.UnmarshalKey("dogstatsd_mappings", &mappings)
+		if err != nil {
+			log.Warnf("Could not parse dogstatsd_mapping_config.mappings for logs: %v", err)
+		} else {
+			mapper, err := newMetricMapper(mappings, cacheSize)
+			if err != nil {
+				log.Warnf("Could not create metric mapper: %v", err)
+			} else {
+				s.mapper = &mapper
+			}
+		}
+	}
 
 	return s, nil
 }
@@ -314,6 +334,16 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 				dogstatsdMetricParseErrors.Add(1)
 				continue
 			}
+
+			if s.mapper != nil && len(sample.Tags) == 0 {
+				name, tags, matched := s.mapper.getMapping(sample.Name)
+
+				if matched {
+					sample.Name = name
+					sample.Tags = tags // sample.Tags is empty, so we can be assigned directly
+				}
+			}
+
 			if s.debugMetricsStats {
 				s.storeMetricStats(sample.Name)
 			}
