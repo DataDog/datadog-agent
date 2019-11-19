@@ -14,6 +14,7 @@ import (
 )
 
 func BenchmarkParsePacketNoMapping(b *testing.B) {
+	b.ReportAllocs()
 	s, _ := NewServer(nil, nil, nil)
 	defer s.Stop()
 
@@ -27,6 +28,7 @@ func BenchmarkParsePacketNoMapping(b *testing.B) {
 }
 
 func BenchmarkMapperMatchingPrefix(b *testing.B) {
+	b.ReportAllocs()
 	mappingYaml := `---
 mappings:
 - match: y1.dispatcher
@@ -69,6 +71,7 @@ mappings:
 }
 
 func BenchmarkMapperOneMatchingMapping(b *testing.B) {
+	b.ReportAllocs()
 	mappingYaml := `---
 mappings:
 - match: test.dispatcher.*.*.*
@@ -94,6 +97,7 @@ mappings:
 }
 
 func BenchmarkMapperManyMapping(b *testing.B) {
+	b.ReportAllocs()
 	mappingYaml := `---
 mappings:
 - match: test.dispatcher.*.*.*
@@ -246,6 +250,7 @@ var airflowMetrics = []string{
 }
 
 func BenchmarkMapperAirflowWithoutMapping(b *testing.B) {
+	b.ReportAllocs()
 	config.Datadog.SetDefault("mapping_yaml", nil)
 
 	s, _ := NewServer(nil, nil, nil)
@@ -260,11 +265,11 @@ func BenchmarkMapperAirflowWithoutMapping(b *testing.B) {
 		}
 
 	}
-	b.ReportAllocs()
 }
 
 
 func BenchmarkMapperAirflowWithMapping(b *testing.B) {
+	b.ReportAllocs()
 	config.Datadog.SetDefault("mapping_yaml", airflowMappingYaml)
 
 	s, _ := NewServer(nil, nil, nil)
@@ -279,7 +284,6 @@ func BenchmarkMapperAirflowWithMapping(b *testing.B) {
 		}
 
 	}
-	b.ReportAllocs()
 }
 
 
