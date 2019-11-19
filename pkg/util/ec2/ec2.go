@@ -38,7 +38,7 @@ func GetInstanceID() (string, error) {
 // GetLocalIPv4 gets the local IPv4 for the currently running host using the EC2 metadata API.
 // Returns a []string to implement the HostIPProvider interface expected in pkg/process/util
 func GetLocalIPv4() ([]string, error) {
-	ip, err := getMetadataItem("/meta-data/local-ipv4")
+	ip, err := getMetadataItem("/local-ipv4")
 	if err != nil {
 		return nil, err
 	}
