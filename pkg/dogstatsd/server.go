@@ -6,14 +6,12 @@
 package dogstatsd
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"expvar"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"net"
-	"os"
 	"runtime"
 	"sort"
 	"strings"
@@ -184,28 +182,9 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 		if err != nil {
 			log.Error("Error loading config:", err)
 		}
-		err = dumpFSM(s.mapper, "/tmp/fsm.txt")
-		if err != nil {
-			log.Error("Error dumping FSM:", err)
-		}
 	}
 
 	return s, nil
-}
-
-
-func dumpFSM(mapper *mapper.MetricMapper, dumpFilename string) error {
-	f, err := os.Create(dumpFilename)
-	if err != nil {
-		return err
-	}
-	log.Info("Start dumping FSM to", dumpFilename)
-	w := bufio.NewWriter(f)
-	mapper.FSM.DumpFSM(w)
-	w.Flush()
-	f.Close()
-	log.Info("Finish dumping FSM")
-	return nil
 }
 
 func (s *Server) handleMessages(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metrics.Event, serviceCheckOut chan<- []*metrics.ServiceCheck) {
