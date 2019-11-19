@@ -122,7 +122,7 @@ func (a *Agent) Stop() {
 		select {
 		case <-c:
 		case <-timeout.C:
-			log.Debug("Force close of the Logs Agent, dumping the stack trace.")
+			log.Debug("Force close of the Logs Agent, dumping the Go routines.")
 			if stack, err := util.GetGoRoutinesDump(); err != nil {
 				log.Debugf("can't get the stack trace of the Agent: %s\n", err)
 			} else {
