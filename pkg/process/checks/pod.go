@@ -3,6 +3,7 @@
 package checks
 
 import (
+	"strconv"
 	"sync"
 	"time"
 
@@ -64,27 +65,28 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 	podMsgs := []*model.Pod{}
 
 	for p := 0; p < len(podList); p++ {
+		// extract pod info
+		podModel := extractPodMessage(&podList[p])
+
+		// insert tags & scrubbed yaml
+		tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(podList[p].UID)), collectors.HighCardinality)
+		if err != nil {
+			log.Warnf("Could not retrieve tags for pod: %s", err)
+			continue
+		}
+		podModel.Tags = tags
+
+		// scrub & generate YAML
 		for c := 0; c < len(podList[p].Spec.Containers); c++ {
 			scrubContainer(&podList[p].Spec.Containers[c], cfg)
 		}
 		for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
 			scrubContainer(&podList[p].Spec.Containers[c], cfg)
 		}
-		tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(podList[p].UID)), collectors.HighCardinality)
-		if err != nil {
-			log.Warnf("Could not retrieve tags for pod: %s", err)
-			continue
-		}
 		yamlPod, _ := yaml.Marshal(podList[p])
-		log.Info(string(yamlPod))
-		// TODO: add more fields
-		podModel := model.Pod{
-			Name: podList[p].Name,
-			Tags: tags,
-			Yaml: yamlPod,
-		}
+		podModel.Yaml = yamlPod
 
-		podMsgs = append(podMsgs, &podModel)
+		podMsgs = append(podMsgs, podModel)
 	}
 
 	groupSize := len(podMsgs) / cfg.MaxPerMessage
@@ -137,4 +139,60 @@ func chunkPods(pods []*model.Pod, chunks, perChunk int) [][]*model.Pod {
 		chunked = append(chunked, chunk)
 	}
 	return chunked
+}
+
+func extractPodMessage(p *v1.Pod) *model.Pod {
+	// Medatadata
+	podModel := model.Pod{
+		Name:      p.Name,
+		Namespace: p.Namespace,
+		// TODO: flatten
+		Annotations: []string{},
+		Labels:      []string{},
+	}
+	for k, v := range p.Annotations {
+		podModel.Annotations = append(podModel.Annotations, k+":"+v)
+	}
+	for k, v := range p.Labels {
+		podModel.Labels = append(podModel.Labels, k+":"+v)
+	}
+	for _, o := range p.OwnerReferences {
+		owner := model.OwnerReference{
+			Name: o.Name,
+			Uid:  string(o.UID),
+			Kind: o.Kind,
+		}
+		podModel.OwnerReferences = append(podModel.OwnerReferences, &owner)
+	}
+	// Spec
+	podModel.NodeName = p.Spec.NodeName
+	// Status
+	podModel.Phase = string(p.Status.Phase)
+	podModel.NominatedNodeName = p.Status.NominatedNodeName
+	podModel.IP = p.Status.PodIP
+	podModel.CreationTimestamp = p.CreationTimestamp.Unix()
+	podModel.RestartCount = 0
+	for _, cs := range p.Status.ContainerStatuses {
+		podModel.RestartCount += cs.RestartCount
+		cStatus := model.ContainerStatus{
+			Name:         cs.Name,
+			ContainerID:  cs.ContainerID,
+			Ready:        cs.Ready,
+			RestartCount: cs.RestartCount,
+		}
+		// detecting the current state
+		if cs.State.Waiting != nil {
+			cStatus.State = "Waiting"
+			cStatus.Message = cs.State.Waiting.Reason + " " + cs.State.Waiting.Message
+		} else if cs.State.Running != nil {
+			cStatus.State = "Running"
+		} else if cs.State.Terminated != nil {
+			cStatus.State = "Terminated"
+			exitString := "(exit: " + strconv.Itoa(int(cs.State.Terminated.ExitCode)) + ")"
+			cStatus.Message = cs.State.Terminated.Reason + " " + cs.State.Terminated.Message + " " + exitString
+		}
+		podModel.ContainerStatuses = append(podModel.ContainerStatuses, &cStatus)
+	}
+
+	return &podModel
 }
