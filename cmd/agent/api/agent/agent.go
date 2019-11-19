@@ -56,6 +56,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/config/{setting}", setRuntimeConfig).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
+	r.HandleFunc("/tags", getTags).Methods("GET")
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -364,6 +365,23 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(jsonTags)
+}
+
+type tagRequest struct {
+	Entity string
+}
+
+func getTags(w http.ResponseWriter, r *http.Request) {
+	// tagger should be init
+	request := tagRequest{}
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	tags, _ := tagger.Tag(request.Entity, collectors.HighCardinality)
+	body, _ := json.Marshal(tags)
+	w.Write(body)
 }
 
 func secretInfo(w http.ResponseWriter, r *http.Request) {
