@@ -96,18 +96,19 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not read bpf module: %s", err)
 	}
 
-	// check if current platform is RHEL or CentOS because it affects what kprobe are we going to enable
-	isRHELOrCentos, err := isRHELOrCentOS()
+	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
+	currKernelVersion, err := CurrentKernelVersion()
 	if err != nil {
-		// if the platform couldn't be determined, treat it as non RHEL case
-		log.Warn("could not detect the platform, will use kprobes from kernel version > 4.1.x")
+		// if the platform couldn't be determined, treat it as new kernel case
+		log.Warn("could not detect the platform, will use kprobes from kernel version >= 4.1.0")
 	}
 
-	if isRHELOrCentos {
-		log.Info("detected platform as RHEL/CentOS, switch to use kprobes from kernel version 3.3.x")
+	isOldKernel := hasOldKernelAPI(currKernelVersion)
+	if isOldKernel {
+		log.Infof("detected old platform %s, switch to use kprobes from kernel version < 4.1.0", kernelCodeToString(currKernelVersion))
 	}
 
-	enableSocketFilter := config.DNSInspection && !isRHELOrCentos
+	enableSocketFilter := config.DNSInspection && !isOldKernel
 	err = m.Load(SectionsFromConfig(config, enableSocketFilter))
 	if err != nil {
 		return nil, fmt.Errorf("could not load bpf module: %s", err)
@@ -132,7 +133,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
 
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes := config.EnabledKProbes(isRHELOrCentos)
+	enabledProbes := config.EnabledKProbes(isOldKernel)
 
 	for k := range m.IterKprobes() {
 		probeName := KProbeName(k.Name)

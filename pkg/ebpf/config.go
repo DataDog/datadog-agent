@@ -97,12 +97,12 @@ func NewDefaultConfig() *Config {
 
 // EnabledKProbes returns a map of kprobes that are enabled per config settings.
 // This map does not include the probes used exclusively in the offset guessing process.
-func (c *Config) EnabledKProbes(isRHELOrCentOS bool) map[KProbeName]struct{} {
+func (c *Config) EnabledKProbes(isOldKernel bool) map[KProbeName]struct{} {
 	enabled := make(map[KProbeName]struct{}, 0)
 
 	if c.CollectTCPConns {
-		if isRHELOrCentOS {
-			enabled[TCPSendMsgRHEL] = struct{}{}
+		if isOldKernel {
+			enabled[TCPSendMsgOld] = struct{}{}
 		} else {
 			enabled[TCPSendMsg] = struct{}{}
 		}
@@ -119,9 +119,9 @@ func (c *Config) EnabledKProbes(isRHELOrCentOS bool) map[KProbeName]struct{} {
 
 	if c.CollectUDPConns {
 		enabled[UDPRecvMsgReturn] = struct{}{}
-		if isRHELOrCentOS {
-			enabled[UDPSendMsgRHEL] = struct{}{}
-			enabled[UDPRecvMsgRHEL] = struct{}{}
+		if isOldKernel {
+			enabled[UDPSendMsgOld] = struct{}{}
+			enabled[UDPRecvMsgOld] = struct{}{}
 		} else {
 			enabled[UDPRecvMsg] = struct{}{}
 			enabled[UDPSendMsg] = struct{}{}

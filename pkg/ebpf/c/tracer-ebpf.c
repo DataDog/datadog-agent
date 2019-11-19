@@ -522,8 +522,8 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     return handle_message(&t, size, 0);
 }
 
-SEC("kprobe/tcp_sendmsg/rhel")
-int kprobe__tcp_sendmsg__rhel(struct pt_regs* ctx) {
+SEC("kprobe/tcp_sendmsg/old")
+int kprobe__tcp_sendmsg__old(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
     size_t size = (size_t)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -533,7 +533,7 @@ int kprobe__tcp_sendmsg__rhel(struct pt_regs* ctx) {
     if (status == NULL) {
         return 0;
     }
-    log_debug("kprobe/tcp_sendmsg/rhel: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    log_debug("kprobe/tcp_sendmsg/old: pid_tgid: %d, size: %d\n", pid_tgid, size);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -663,8 +663,8 @@ int kprobe__udp_sendmsg(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kprobe/udp_sendmsg/rhel")
-int kprobe__udp_sendmsg__rhel(struct pt_regs* ctx) {
+SEC("kprobe/udp_sendmsg/old")
+int kprobe__udp_sendmsg__old(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
     size_t size = (size_t)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -680,7 +680,7 @@ int kprobe__udp_sendmsg__rhel(struct pt_regs* ctx) {
         return 0;
     }
 
-    log_debug("kprobe/udp_sendmsg/rhel: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    log_debug("kprobe/udp_sendmsg/old: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0);
 
     return 0;
@@ -705,14 +705,14 @@ int kprobe__udp_recvmsg(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kprobe/udp_recvmsg/rhel")
-int kprobe__udp_recvmsg_rhel(struct pt_regs* ctx) {
+SEC("kprobe/udp_recvmsg/old")
+int kprobe__udp_recvmsg_old(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // Store pointer to the socket using the pid/tgid
     bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &sk, BPF_ANY);
-    log_debug("kprobe/udp_recvmsg/rhel: pid_tgid: %d\n", pid_tgid);
+    log_debug("kprobe/udp_recvmsg/old: pid_tgid: %d\n", pid_tgid);
 
     return 0;
 }
