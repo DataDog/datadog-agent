@@ -32,9 +32,6 @@ var (
 	ErrNotImplemented = errors.New("BPF-based system probe not implemented on non-linux systems")
 
 	nativeEndian binary.ByteOrder
-	// newAPIKernelVersion indicates the minimum version of kernel that uses the new API signature
-	// the affected APIs are kprobe/tcp_sendmsg, kprobe/udp_sendmsg, kprobe/udp_recvmsg
-	newAPIKernelVersion = "4.1.0"
 )
 
 func kernelCodeToString(code uint32) string {
@@ -185,8 +182,7 @@ func isRHELOrCentOS() (bool, error) {
 	return isCentOS(platform) || isRHEL(platform), nil
 }
 
-// hasOldKernelAPI compares current kernel version to the minimum kernel version that uses the new API
-func hasOldKernelAPI(currentKernelCode uint32) bool {
-	code := stringToKernelCode(newAPIKernelVersion)
-	return currentKernelCode < code
+// isPre410Kernel compares current kernel version to the minimum kernel version(4.1.0) and see if it's older
+func isPre410Kernel(currentKernelCode uint32) bool {
+	return currentKernelCode < stringToKernelCode("4.1.0")
 }

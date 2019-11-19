@@ -103,12 +103,13 @@ func NewTracer(config *Config) (*Tracer, error) {
 		log.Warn("could not detect the platform, will use kprobes from kernel version >= 4.1.0")
 	}
 
-	isOldKernel := hasOldKernelAPI(currKernelVersion)
-	if isOldKernel {
-		log.Infof("detected old platform %s, switch to use kprobes from kernel version < 4.1.0", kernelCodeToString(currKernelVersion))
+	// check to see if current kernel is earlier than version 4.1.0
+	pre410Kernel := isPre410Kernel(currKernelVersion)
+	if pre410Kernel {
+		log.Infof("detected platform %s, switch to use kprobes from kernel version < 4.1.0", kernelCodeToString(currKernelVersion))
 	}
 
-	enableSocketFilter := config.DNSInspection && !isOldKernel
+	enableSocketFilter := config.DNSInspection && !pre410Kernel
 	err = m.Load(SectionsFromConfig(config, enableSocketFilter))
 	if err != nil {
 		return nil, fmt.Errorf("could not load bpf module: %s", err)
@@ -133,7 +134,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
 
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes := config.EnabledKProbes(isOldKernel)
+	enabledProbes := config.EnabledKProbes(pre410Kernel)
 
 	for k := range m.IterKprobes() {
 		probeName := KProbeName(k.Name)

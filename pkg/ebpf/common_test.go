@@ -85,14 +85,14 @@ func TestVerifyKernelFuncs(t *testing.T) {
 	assert.NotEmpty(t, err)
 }
 
-func TestHasOldKernelAPI(t *testing.T) {
+func TestHasPre410Kernel(t *testing.T) {
 	oldKernels := []string{"3.10.0", "2.5.0", "4.0.10", "4.0"}
 	for _, kernel := range oldKernels {
-		assert.True(t, hasOldKernelAPI(stringToKernelCode(kernel)))
+		assert.True(t, isPre410Kernel(stringToKernelCode(kernel)))
 	}
 	newKernels := []string{"4.1.0", "4.10.2", "4.1", "5.1"}
 	for _, kernel := range newKernels {
-		assert.False(t, hasOldKernelAPI(stringToKernelCode(kernel)))
+		assert.False(t, isPre410Kernel(stringToKernelCode(kernel)))
 	}
 }
 
