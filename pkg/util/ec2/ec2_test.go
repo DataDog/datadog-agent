@@ -188,7 +188,7 @@ func TestGetLocalIPv4(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		switch r.RequestURI {
-		case "/meta-data/local-ipv4":
+		case "/local-ipv4":
 			io.WriteString(w, ip)
 		default:
 			w.WriteHeader(http.StatusNotFound)
