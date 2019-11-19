@@ -77,7 +77,7 @@
 /pkg/quantile                           @DataDog/metrics-aggregation
 
 /releasenotes/                          @DataDog/agent-all
-/releasenotes-dca/                      @DataDog/agent-all
+/releasenotes-dca/                      @DataDog/container-integrations
 
 /rtloader/                              @DataDog/agent-core
 
