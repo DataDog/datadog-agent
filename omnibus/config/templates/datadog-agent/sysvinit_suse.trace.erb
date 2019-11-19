@@ -10,8 +10,8 @@
 # Default-Stop: 0 1 6
 ### END INIT INFO
 
-ETC_DIR="/etc/datadog-agent"
-INSTALL_DIR="/opt/datadog-agent"
+ETC_DIR="<%= etc_dir %>"
+INSTALL_DIR="<%= install_dir %>"
 AGENTPATH="$INSTALL_DIR/embedded/bin/trace-agent"
 PIDFILE="$INSTALL_DIR/run/trace-agent.pid"
 AGENT_ARGS="--config=$ETC_DIR/datadog.yaml --pid=$PIDFILE"
