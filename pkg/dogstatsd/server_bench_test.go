@@ -260,6 +260,7 @@ func BenchmarkMapperAirflowWithoutMapping(b *testing.B) {
 		}
 
 	}
+	b.ReportAllocs()
 }
 
 
@@ -278,6 +279,7 @@ func BenchmarkMapperAirflowWithMapping(b *testing.B) {
 		}
 
 	}
+	b.ReportAllocs()
 }
 
 
