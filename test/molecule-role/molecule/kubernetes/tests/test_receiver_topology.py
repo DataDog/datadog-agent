@@ -257,12 +257,12 @@ def test_agent_base_topology(host, common_vars):
             external_id_assert_fn=lambda eid:  node_agent_service_match.findall(eid)
         ).startswith("urn:/kubernetes:%s:service:%s:stackstate-cluster-agent" % (cluster_name, namespace))
         # stackstate-cluster-agent exposes stackstate-cluster-agent pod (1 time)
-        cluster_agent_service_match = re.compile("urn:/kubernetes:%s:pod:stackstate-cluster-agent-.*->urn:/kubernetes:%s:service:%s:stackstate-cluster-agent" % (cluster_name, cluster_name, namespace))
+        cluster_agent_service_match = re.compile("urn:/kubernetes:%s:service:%s:stackstate-cluster-agent->urn:/kubernetes:%s:pod:stackstate-cluster-agent-.*" % (cluster_name, namespace, cluster_name))
         assert _relation_data(
             json_data=json_data,
             type_name="exposes",
             external_id_assert_fn=lambda eid:  cluster_agent_service_match.findall(eid)
-        ).startswith("urn:/kubernetes:%s:pod:stackstate-cluster-agent" % (cluster_name))
+        ).startswith("urn:/kubernetes:%s:service:%s:stackstate-cluster-agent" % (cluster_name, namespace))
         # pod-server  exposes pod-service(1 time)
         pod_service_match = re.compile("urn:/kubernetes:%s:service:%s:pod-service->urn:/kubernetes:%s:pod:pod-server" % (cluster_name, namespace, cluster_name))
         assert _relation_data(
@@ -340,21 +340,24 @@ def test_agent_base_topology(host, common_vars):
             type_name="routes",
             external_id_assert_fn=lambda eid:  ingress_routes_service_match.findall(eid)
         ).startswith("urn:/kubernetes:%s:ingress:%s:example-ingress" % (cluster_name, namespace))
-        # stackstate-cluster-agent Container mounts Volume  stackstate-cluster-agent-token  
-        container_mounts_volume_match = re.compile("urn:/kubernetes:%s:pod:stackstate-cluster-agent-.*:container:stackstate-cluster-agent->urn:/kubernetes:%s:volume:stackstate-cluster-agent-token-.*" % (cluster_name, cluster_name))
+        # stackstate-cluster-agent Container mounts Volume  stackstate-cluster-agent-token
+        container_mounts_volume_match = re.compile(
+            "urn:/kubernetes:%s:pod:stackstate-cluster-agent-.*:container:stackstate-cluster-agent->urn:/kubernetes:%s:volume:stackstate-cluster-agent-token-.*"
+            % (cluster_name, cluster_name)
+        )
         assert _relation_data(
             json_data=json_data,
             type_name="mounts",
             external_id_assert_fn=lambda eid:  container_mounts_volume_match.findall(eid)
         ).startswith("urn:/kubernetes:%s:pod:stackstate-cluster-agent" % (cluster_name))
-         # stackstate-cluster-agent Container mounts Volume  stackstate-cluster-agent-token  
+        # stackstate-cluster-agent Container mounts Volume  stackstate-cluster-agent-token
         agent_container_mounts_volume_match = re.compile("urn:/kubernetes:%s:pod:stackstate-agent-.*:container:stackstate-agent->urn:/kubernetes:%s:volume:stackstate-agent-token-.*" % (cluster_name, cluster_name))
         assert _relation_data(
             json_data=json_data,
             type_name="mounts",
             external_id_assert_fn=lambda eid:  agent_container_mounts_volume_match.findall(eid)
         ).startswith("urn:/kubernetes:%s:pod:stackstate-agent" % (cluster_name))
-         # hello job controls hello pod
+        # hello job controls hello pod
         job_controls_match = re.compile("urn:/kubernetes:%s:job:hello-.*->urn:/kubernetes:%s:pod:hello-.*" % (cluster_name, cluster_name))
         assert _relation_data(
             json_data=json_data,
@@ -363,4 +366,3 @@ def test_agent_base_topology(host, common_vars):
         ).startswith("urn:/kubernetes:%s:job:hello" % (cluster_name))
 
     util.wait_until(wait_for_components, 240, 3)
-   
