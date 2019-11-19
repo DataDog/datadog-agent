@@ -5,13 +5,6 @@
   vars_files:
     - common_vars.yml
   tasks:
-    - name: Configure aws credentials
-      copy:
-        content: |
-          [default]
-          aws_access_key_id = {{ lookup("env", "AWS_ACCESS_KEY_ID")}}
-          aws_secret_access_key = {{ lookup("env", "AWS_SECRET_ACCESS_KEY")}}
-        dest: /home/ubuntu/.aws/credentials
     - name: Docker login
       docker_login:
         registry: quay.io
