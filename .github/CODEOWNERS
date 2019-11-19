@@ -76,6 +76,9 @@
 /pkg/procmatch/                         @DataDog/burrito
 /pkg/quantile                           @DataDog/metrics-aggregation
 
+/releasenotes/                          @DataDog/agent-all
+/releasenotes-dca/                      @DataDog/agent-all
+
 /rtloader/                              @DataDog/agent-core
 
 /tasks/                                 @DataDog/agent-platform
