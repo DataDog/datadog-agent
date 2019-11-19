@@ -2146,6 +2146,7 @@
     "github.com/google/gopacket/layers",
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
+    "github.com/hashicorp/golang-lru",
     "github.com/hectane/go-acl",
     "github.com/iovisor/gobpf/elf",
     "github.com/json-iterator/go",
