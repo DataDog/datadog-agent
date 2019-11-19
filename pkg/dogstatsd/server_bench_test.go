@@ -216,33 +216,7 @@ mappings:
 `
 
 var airflowMetrics = []string{
-"airflow.ti_failures:666|g",
-"airflow.ti_successes:666|g",
-"airflow.zombies_killed:666|g",
-"airflow.scheduler_heartbeat:666|g",
-"airflow.dag_processing.processes:666|g",
-"airflow.dagbag_size:666|g",
-"airflow.dag_processing.import_errors:666|g",
-"airflow.dag_processing.total_parse_time:666|g",
-"airflow.dag_processing.processor_timeouts:666|g",
-"airflow.executor.open_slots:666|g",
-"airflow.executor.queued_tasks:666|g",
-"airflow.executor.running_tasks:666|g",
-"airflow.XXX_start:666|g",
-"airflow.XXX_end:666|g",
-"airflow.operator_failures_XXX:666|g",
-"airflow.operator_successes_XXX:666|g",
-"airflow.dag_processing.last_runtime.XXX:666|g",
-"airflow.dag_processing.last_run.seconds_ago.XXX:666|g",
-"airflow.pool.open_slots.XXX:666|g",
-"airflow.pool.used_slots.XXX:666|g",
-"airflow.pool.starving_tasks.XXX:666|g",
-"airflow.dagrun.dependency-check.XXX:666|g",
-"airflow.dag.XXX.XXX.duration:666|g",
-"airflow.dag_processing.last_duration.XXX:666|g",
-"airflow.dagrun.duration.success.XXX:666|g",
-"airflow.dagrun.duration.failed.XXX:666|g",
-"airflow.dagrun.schedule_delay.XXX:666|g",
+"airflow.ti_failures:666|g|#sometag1:somevalue1",
 }
 
 func BenchmarkMapperAirflowWithoutMapping(b *testing.B) {

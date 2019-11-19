@@ -327,19 +327,18 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 		} else {
 			sample, err := parseMetricMessage(message, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
 
-			if s.mapper != nil {
-				m, labels, present := s.mapper.GetMapping(sample.Name, mapper.MetricTypeGauge)
-
-				if present {
-					sample.Name = m.Name
-					sample.Tags = append(sample.Tags, labels...)
-				}
-			}
-
 			if err != nil {
 				log.Errorf("Dogstatsd: error parsing metrics: %s", err)
 				dogstatsdMetricParseErrors.Add(1)
 				continue
+			}
+			// Let's skip mapping if there are already Tags, meaning that's a Dogstatsd metric, not a Statsd metric
+			if len(sample.Tags) == 0 && s.mapper != nil {
+				m, labels, present := s.mapper.GetMapping(sample.Name, mapper.MetricTypeGauge)
+				if present {
+					sample.Name = m.Name
+					sample.Tags = append(sample.Tags, labels...)
+				}
 			}
 			if s.debugMetricsStats {
 				s.storeMetricStats(sample.Name)

@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -138,7 +139,7 @@ func (m *MetricMapper) InitFromYAMLString(fileContents string, cacheSize int) er
 		}
 
 		if currentMapping.MatchType == MatchTypeGlob {
-			n.doFSM = true
+			n.doFSM = false
 			if !metricLineRE.MatchString(currentMapping.Match) {
 				return fmt.Errorf("invalid match: %s", currentMapping.Match)
 			}
@@ -158,6 +159,19 @@ func (m *MetricMapper) InitFromYAMLString(fileContents string, cacheSize int) er
 			}
 			currentMapping.labelFormatters = labelFormatters
 			currentMapping.labelKeys = labelKeys
+
+			if !metricLineRE.MatchString(currentMapping.Match) {
+				return fmt.Errorf("invalid match: %s", currentMapping.Match)
+			}
+			// Translate the glob-style metric match line into a proper regex that we
+			// can use to match metrics later on.
+			metricRe := strings.Replace(currentMapping.Match, ".", "\\.", -1)
+			metricRe = strings.Replace(metricRe, "*", "([^.]*)", -1)
+			if regex, err := regexp.Compile("^" + metricRe + "$"); err != nil {
+				return fmt.Errorf("invalid match %s. cannot compile regex in mapping: %v", currentMapping.Match, err)
+			} else {
+				currentMapping.regex = regex
+			}
 
 		} else {
 			if regex, err := regexp.Compile(currentMapping.Match); err != nil {
@@ -241,27 +255,27 @@ func (m *MetricMapper) GetMapping(statsdMetric string, statsdMetricType MetricTy
 	if cached {
 		return result.Mapping, result.Labels, result.Matched
 	}
-	// glob matching
-	if m.doFSM {
-		finalState, captures := m.FSM.GetMapping(statsdMetric, string(statsdMetricType))
-		if finalState != nil && finalState.Result != nil {
-			result := finalState.Result.(*MetricMapping)
-			result.Name = result.nameFormatter.Format(captures)
-
-			var labels []string
-			for index, formatter := range result.labelFormatters {
-				labels = append(labels, result.labelKeys[index] + ":" + formatter.Format(captures))
-			}
-
-			m.cache.AddMatch(statsdMetric, statsdMetricType, result, labels)
-
-			return result, labels, true
-		} else if !m.doRegex {
-			// if there's no regex match type, return immediately
-			m.cache.AddMiss(statsdMetric, statsdMetricType)
-			return nil, nil, false
-		}
-	}
+	//// glob matching
+	//if m.doFSM {
+	//	finalState, captures := m.FSM.GetMapping(statsdMetric, string(statsdMetricType))
+	//	if finalState != nil && finalState.Result != nil {
+	//		result := finalState.Result.(*MetricMapping)
+	//		result.Name = result.nameFormatter.Format(captures)
+	//
+	//		var labels []string
+	//		for index, formatter := range result.labelFormatters {
+	//			labels = append(labels, result.labelKeys[index] + ":" + formatter.Format(captures))
+	//		}
+	//
+	//		m.cache.AddMatch(statsdMetric, statsdMetricType, result, labels)
+	//
+	//		return result, labels, true
+	//	} else if !m.doRegex {
+	//		// if there's no regex match type, return immediately
+	//		m.cache.AddMiss(statsdMetric, statsdMetricType)
+	//		return nil, nil, false
+	//	}
+	//}
 
 	// regex matching
 	for _, mapping := range m.Mappings {
