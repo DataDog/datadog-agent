@@ -181,3 +181,8 @@ func isRHELOrCentOS() (bool, error) {
 	}
 	return isCentOS(platform) || isRHEL(platform), nil
 }
+
+// isPre410Kernel compares current kernel version to the minimum kernel version(4.1.0) and see if it's older
+func isPre410Kernel(currentKernelCode uint32) bool {
+	return currentKernelCode < stringToKernelCode("4.1.0")
+}
