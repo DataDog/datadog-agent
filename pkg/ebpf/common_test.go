@@ -85,6 +85,17 @@ func TestVerifyKernelFuncs(t *testing.T) {
 	assert.NotEmpty(t, err)
 }
 
+func TestHasOldKernelAPI(t *testing.T) {
+	oldKernels := []string{"3.10.0", "2.5.0", "4.0.10", "4.0"}
+	for _, kernel := range oldKernels {
+		assert.True(t, hasOldKernelAPI(stringToKernelCode(kernel)))
+	}
+	newKernels := []string{"4.1.0", "4.10.2", "4.1", "5.1"}
+	for _, kernel := range newKernels {
+		assert.False(t, hasOldKernelAPI(stringToKernelCode(kernel)))
+	}
+}
+
 func TestIsCentOS(t *testing.T) {
 	// python -m platform
 	assert.True(t, isCentOS("Linux-3.10.0-957.21.3.el7.x86_64-x86_64-with-centos-7.6.1810-Core"))
