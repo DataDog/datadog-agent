@@ -392,6 +392,7 @@ func TestSetExternalTagEmptyDict(t *testing.T) {
 	tags = [
 		('hostname', {}),
 		('hostname2', {'source_type2': ['tag3', 'tag4']}),
+		('hostname', {}),
 	]
 	datadog_agent.set_external_tags(tags)
 	`
