@@ -60,8 +60,7 @@ rules:
   resources:
   - configmaps
   resourceNames:
-  - datadogtoken             # Kubernetes event collection state
-  - datadog-leader-election  # Leader election token
+  - stackstatetoken             # Kubernetes event collection state
   verbs:
   - get
   - update

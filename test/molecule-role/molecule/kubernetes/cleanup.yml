@@ -14,6 +14,11 @@
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
+    - name: Delete kubernetes test persistent volumes
+      command: kubectl delete pvc --all
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
     - name: Delete kubernetes stackstate objects
       command: kubectl delete -k overlays
       args:
