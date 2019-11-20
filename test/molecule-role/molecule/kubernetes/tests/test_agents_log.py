@@ -49,6 +49,7 @@ def _check_logs(host, controller_name, success_regex, ignored_errors):
 
 def test_stackstate_agent_log_no_errors(host):
     ignored_errors = [
+        "No such container: ecs-agent",
         "No handler function named",
         "error querying the ntp"
     ]
@@ -57,6 +58,7 @@ def test_stackstate_agent_log_no_errors(host):
 
 def test_stackstate_cluster_agent_log_no_errors(host):
     ignored_errors = [
+        "is not RFC1123 compliant",
         "configmap:kube-system:coredns"  # this configmap container the word `errors`
     ]
     _check_logs(host, "stackstate-cluster-agent", "Sent processes metadata payload", ignored_errors)
