@@ -17,7 +17,11 @@ func (self *Network) Collect() (result interface{}, err error) {
 	result, err = getNetworkInfo()
 	interfaces := getMultiNetworkInfo()
 	if interfaces != nil {
-		result["interfaces"] = interfaces
+		interfaceMap, ok := result.(map[string]interface{})
+		if !ok {
+			return
+		}
+		interfaceMap["interfaces"] = interfaces
 	}
 	return
 }
@@ -28,8 +32,8 @@ func getMultiNetworkInfo() (multiNetworkInfo []map[string]interface{}) {
 	if err != nil {
 		return nil
 	}
-	_iface := make(map[string]interface{})
 	for _, iface := range ifaces {
+		_iface := make(map[string]interface{})
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			// interface down or loopback interface
 			continue
