@@ -39,6 +39,9 @@ func GetRoot(t pb.Trace) *pb.Span {
 		// Common case optimization: check for span with ParentID == 0, starting from the end,
 		// since some clients report the root last
 		j := len(t) - 1 - i
+		if _, ok := t[j].Meta["_dd.root"]; ok {
+			return t[j]
+		}
 		if t[j].ParentID == 0 {
 			return t[j]
 		}

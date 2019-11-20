@@ -30,6 +30,9 @@ import (
 // pairs representing information about the container (Docker, EC2, etc).
 const tagContainersTags = "_dd.tags.container"
 
+// tagContainerID specifies the tag that will hold the container ID.
+const tagContainerID = "_dd.container_id"
+
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
 	Receiver           *api.HTTPReceiver
@@ -200,6 +203,9 @@ func (a *Agent) Process(t *api.Trace) {
 		}
 		if t.ContainerTags != "" {
 			traceutil.SetMeta(root, tagContainersTags, t.ContainerTags)
+		} else if id, ok := root.Meta[tagContainerID]; ok {
+			// TODO: test this
+			traceutil.SetMeta(root, tagContainersTags, traceutil.GetContainerTags(id))
 		}
 	}
 

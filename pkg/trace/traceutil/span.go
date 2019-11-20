@@ -5,7 +5,14 @@
 
 package traceutil
 
-import "github.com/DataDog/datadog-agent/pkg/trace/pb"
+import (
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
 const (
 	// TraceMetricsKey is a tag key which, if set to true,
@@ -46,6 +53,18 @@ func setMetric(s *pb.Span, key string, val float64) {
 		s.Metrics = make(map[string]float64)
 	}
 	s.Metrics[key] = val
+}
+
+// GetContainerTags returns container and orchestrator tags belonging to containerID. If containerID
+// is empty or no tags are found, an empty string is returned.
+func GetContainerTags(containerID string) string {
+	list, err := tagger.Tag("container_id://"+containerID, collectors.HighCardinality)
+	if err != nil {
+		log.Tracef("Getting container tags for ID %q: %v", containerID, err)
+		return ""
+	}
+	log.Tracef("Getting container tags for ID %q: %v", containerID, list)
+	return strings.Join(list, ",")
 }
 
 // SetMeta sets the metadata at key to the val on the span s.
