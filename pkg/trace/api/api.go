@@ -29,8 +29,6 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -38,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -68,6 +67,8 @@ const (
 	// Traces: msgpack/JSON (Content-Type) slice of traces + returns service sampling ratios
 	// Services: deprecated
 	v04 Version = "v0.4"
+	// v1 accepts a set of msgpack encoded spans.
+	v1 Version = "v1"
 )
 
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
@@ -84,6 +85,7 @@ type HTTPReceiver struct {
 	maxRequestBodyLength int64
 	debug                bool
 	rateLimiterResponse  int // HTTP status code when refusing
+	stoppers             []interface{ Stop() }
 
 	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
@@ -127,6 +129,10 @@ func (r *HTTPReceiver) Start() {
 	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
 	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
 	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
+
+	spanFunnel := r.newSpanFunnel()
+	mux.Handle("/x/v1/spans", spanFunnel)
+	r.stoppers = append(r.stoppers, spanFunnel)
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
@@ -243,7 +249,9 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 func (r *HTTPReceiver) Stop() error {
 	r.exit <- struct{}{}
 	<-r.exit
-
+	for _, stopper := range r.stoppers {
+		stopper.Stop()
+	}
 	r.RateLimiter.Stop()
 
 	expiry := time.Now().Add(5 * time.Second) // give it 5 seconds
@@ -412,7 +420,7 @@ type Trace struct {
 func (r *HTTPReceiver) processTraces(ts *info.TagStats, containerID string, traces pb.Traces) {
 	defer timing.Since("datadog.trace_agent.internal.normalize_ms", time.Now())
 
-	containerTags := getContainerTags(containerID)
+	containerTags := traceutil.GetContainerTags(containerID)
 	for _, trace := range traces {
 		spans := len(trace)
 
@@ -588,18 +596,6 @@ func tracesFromSpans(spans []pb.Span) pb.Traces {
 	}
 
 	return traces
-}
-
-// getContainerTag returns container and orchestrator tags belonging to containerID. If containerID
-// is empty or no tags are found, an empty string is returned.
-func getContainerTags(containerID string) string {
-	list, err := tagger.Tag("container_id://"+containerID, collectors.HighCardinality)
-	if err != nil {
-		log.Tracef("Getting container tags for ID %q: %v", containerID, err)
-		return ""
-	}
-	log.Tracef("Getting container tags for ID %q: %v", containerID, list)
-	return strings.Join(list, ",")
 }
 
 // getMediaType attempts to return the media type from the Content-Type MIME header. If it fails
