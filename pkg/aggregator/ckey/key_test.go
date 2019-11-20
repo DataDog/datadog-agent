@@ -53,16 +53,26 @@ func TestCompare(t *testing.T) {
 	assert.Equal(t, -1, Compare(veryLow, base))
 }
 
-// This benchmark is here to make sure we have
-// zero heap allocation for ContextKey generation
-//
-// run with `go test -bench=. -benchmem ./pkg/aggregator/ckey/`
-func BenchmarkGenerateNoAlloc(b *testing.B) {
+func genTags(count int) []string {
+	var tags []string
+	for i := 0; i < count; i++ {
+		tags = append(tags, fmt.Sprintf("tag%d:value%d", i, i))
+	}
+	return tags
+}
+
+func BenchmarkKeyGeneration(b *testing.B) {
 	name := "testname"
 	host := "myhost"
-	tags := []string{"foo", "bar"}
-	generator := NewKeyGenerator()
-	for n := 0; n < b.N; n++ {
-		generator.Generate(name, host, tags)
+	for i := 1; i < 256; i *= 2 {
+		b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
+			generator := NewKeyGenerator()
+			tags := genTags(i)
+			b.ResetTimer()
+			for n := 0; n < b.N; n++ {
+				generator.Generate(name, host, tags)
+			}
+		})
+
 	}
 }

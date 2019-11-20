@@ -29,20 +29,20 @@ type ContextKey [byteSize8]uint64
 // KeyGenerator generates key
 // Not safe for concurrent usage
 type KeyGenerator struct {
-	tmpBuf []byte
+	buf []byte
 }
 
 // NewKeyGenerator creates a new key generator
 func NewKeyGenerator() *KeyGenerator {
 	return &KeyGenerator{
-		tmpBuf: make([]byte, 0, 1024),
+		buf: make([]byte, 0, 1024),
 	}
 }
 
 // Generate returns the ContextKey hash for the given parameters.
 // The tags array is sorted in place to avoid heap allocations.
 func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey {
-	data := g.tmpBuf[:0]
+	g.buf = g.buf[:0]
 
 	// Sort the tags in place. For typical tag slices, we use
 	// the in-place section sort to avoid heap allocations.
@@ -53,16 +53,16 @@ func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey
 		sort.Strings(tags)
 	}
 
-	data = append(data, name...)
-	data = append(data, ',')
+	g.buf = append(g.buf, name...)
+	g.buf = append(g.buf, ',')
 	for i := 0; i < len(tags); i++ {
-		data = append(data, tags[i]...)
-		data = append(data, ',')
+		g.buf = append(g.buf, tags[i]...)
+		g.buf = append(g.buf, ',')
 	}
-	data = append(data, hostname...)
+	g.buf = append(g.buf, hostname...)
 
 	var hash ContextKey
-	hash[0], hash[1] = murmur3.Sum128(data)
+	hash[0], hash[1] = murmur3.Sum128(g.buf)
 	return hash
 }
 
