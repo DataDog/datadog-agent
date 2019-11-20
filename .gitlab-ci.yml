@@ -1164,7 +1164,8 @@ deploy_windows_testing-a7:
   needs: ["deploy_suse_rpm_testing-a6", "deploy_suse_rpm_testing-a7"]
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP4:2019.06.17"
+    - export TEST_PLATFORMS="sles-11,SUSE:SLES-BYOS:11-SP4:2019.07.01"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-12,SUSE:SLES:12-SP4:2019.06.17"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,SUSE:SLES-Standard:15:2019.06.17"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh

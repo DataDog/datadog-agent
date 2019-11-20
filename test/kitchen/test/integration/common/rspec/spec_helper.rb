@@ -86,8 +86,10 @@ def stop
   else
     if has_systemctl
       result = system 'sudo systemctl stop datadog-agent.service'
-    else
+    elsif has_upstart
       result = system 'sudo initctl stop datadog-agent'
+    else
+      result = system 'sudo service datadog-agent stop'
     end
   end
   wait_until_stopped
@@ -101,8 +103,10 @@ def start
   else
     if has_systemctl
       result = system 'sudo systemctl start datadog-agent.service'
-    else
+    elsif has_upstart
       result = system 'sudo initctl start datadog-agent'
+    else
+      result = system 'sudo service datadog-agent start'
     end
   end
   wait_until_started
@@ -127,9 +131,13 @@ def restart
       # and we lose 5 seconds.
       wait_until_stopped 5
       wait_until_started 5
-    else
+    elsif has_upstart
       # initctl can't restart
       result = system '(sudo initctl restart datadog-agent || sudo initctl start datadog-agent)'
+      wait_until_stopped 5
+      wait_until_started 5
+    else
+      result = system 'sudo service datadog-agent restart'
       wait_until_stopped 5
       wait_until_started 5
     end
@@ -139,6 +147,10 @@ end
 
 def has_systemctl
   system('command -v systemctl 2>&1 > /dev/null')
+end
+
+def has_upstart
+  system('/sbin/init --version 2>&1 | grep -q upstart >/dev/null')
 end
 
 def info
@@ -163,8 +175,10 @@ def status
   else
     if has_systemctl
       system('sudo systemctl status --no-pager datadog-agent.service')
-    else
+    elsif has_upstart
       system('sudo initctl status datadog-agent')
+    else
+      system('sudo service datadog-agent status')
     end
   end
 end
@@ -175,9 +189,12 @@ def is_service_running?(svcname)
   else
     if has_systemctl
         system("sudo systemctl status --no-pager #{svcname}.service")
+    elsif has_upstart
+      status = `sudo initctl status #{svcname}`
+      status.include?('start/running')
     else
-        status = `sudo initctl status #{svcname}`
-        status.include?('start/running')
+      status = `sudo service #{svcname} status`
+      status.include?('running')
     end
   end
 end
