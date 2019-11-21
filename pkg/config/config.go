@@ -187,7 +187,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
 
 	// Yaml keys which values are stripped from flare
-	config.BindEnvAndSetDefault("yaml_stripped_keys", []string{"community_string", "authKey", "privKey"})
+	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
@@ -775,7 +775,7 @@ func sanitizeAPIKey(config Config) {
 }
 
 func setLogStrippedKeys(config Config) {
-	log.SetStrippedKeys(config.GetStringSlice("yaml_stripped_keys"))
+	log.SetStrippedKeys(config.GetStringSlice("flare_stripped_keys"))
 }
 
 // GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`

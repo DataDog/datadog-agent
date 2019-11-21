@@ -250,9 +250,7 @@ func TestYamlConfig(t *testing.T) {
 	// Sanity check
 	assert.Equal(t, contents, cleanedString)
 
-	SetStrippedKeys([]string{"community_string", "authKey", "privKey", "foobar"})
-	// Restore default value
-	defer SetStrippedKeys([]string{"community_string", "authKey", "privKey"})
+	SetStrippedKeys([]string{"foobar"})
 
 	assertClean(t, contents, `foobar: ********`)
 }
