@@ -22,6 +22,8 @@ import (
 // Pod is a singleton PodCheck.
 var Pod = &PodCheck{}
 
+const redactedValue = "********"
+
 // PodCheck is a check that returns container metadata and stats.
 type PodCheck struct {
 	sync.Mutex
@@ -68,10 +70,10 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 		// extract pod info
 		podModel := extractPodMessage(&podList[p])
 
-		// insert tags & scrubbed yaml
+		// insert tags
 		tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(podList[p].UID)), collectors.HighCardinality)
 		if err != nil {
-			log.Warnf("Could not retrieve tags for pod: %s", err)
+			log.Debugf("Could not retrieve tags for pod: %s", err)
 			continue
 		}
 		podModel.Tags = tags
@@ -81,7 +83,7 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 			scrubContainer(&podList[p].Spec.Containers[c], cfg)
 		}
 		for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
-			scrubContainer(&podList[p].Spec.Containers[c], cfg)
+			scrubContainer(&podList[p].Spec.InitContainers[c], cfg)
 		}
 		yamlPod, _ := yaml.Marshal(podList[p])
 		podModel.Yaml = yamlPod
@@ -116,9 +118,11 @@ func scrubContainer(c *v1.Container, cfg *config.AgentConfig) {
 	c.Command = scrubbedCmd
 	// scrub env vars
 	for e := 0; e < len(c.Env); e++ {
-		scrubbedVal, err := log.CredentialsCleanerBytes([]byte(c.Env[e].Value))
-		if err == nil {
-			c.Env[e].Value = string(scrubbedVal)
+		// use the "key: value" format to work with the regular credential cleaner
+		combination := c.Env[e].Name + ": " + c.Env[e].Value
+		scrubbedVal, err := log.CredentialsCleanerBytes([]byte(combination))
+		if err == nil && combination != string(scrubbedVal) {
+			c.Env[e].Value = redactedValue
 		}
 	}
 }
@@ -141,20 +145,28 @@ func chunkPods(pods []*model.Pod, chunks, perChunk int) [][]*model.Pod {
 	return chunked
 }
 
+// extractPodMessage extracts pod info into the proto model
 func extractPodMessage(p *v1.Pod) *model.Pod {
-	// Medatadata
+	// pod medatadata
 	podModel := model.Pod{
 		Name:      p.Name,
 		Namespace: p.Namespace,
-		// TODO: flatten
-		Annotations: []string{},
-		Labels:      []string{},
 	}
-	for k, v := range p.Annotations {
-		podModel.Annotations = append(podModel.Annotations, k+":"+v)
+	if len(p.Annotations) > 0 {
+		podModel.Annotations = make([]string, len(p.Annotations))
+		i := 0
+		for k, v := range p.Annotations {
+			podModel.Annotations[i] = k + ":" + v
+			i++
+		}
 	}
-	for k, v := range p.Labels {
-		podModel.Labels = append(podModel.Labels, k+":"+v)
+	if len(p.Labels) > 0 {
+		podModel.Labels = make([]string, len(p.Labels))
+		i := 0
+		for k, v := range p.Labels {
+			podModel.Labels[i] = k + ":" + v
+			i++
+		}
 	}
 	for _, o := range p.OwnerReferences {
 		owner := model.OwnerReference{
@@ -164,13 +176,15 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 		}
 		podModel.OwnerReferences = append(podModel.OwnerReferences, &owner)
 	}
-	// Spec
+	// pod spec
 	podModel.NodeName = p.Spec.NodeName
-	// Status
+	// pod status
 	podModel.Phase = string(p.Status.Phase)
 	podModel.NominatedNodeName = p.Status.NominatedNodeName
 	podModel.IP = p.Status.PodIP
-	podModel.CreationTimestamp = p.CreationTimestamp.Unix()
+	if p.Status.StartTime != nil {
+		podModel.CreationTimestamp = p.Status.StartTime.Unix()
+	}
 	podModel.RestartCount = 0
 	for _, cs := range p.Status.ContainerStatuses {
 		podModel.RestartCount += cs.RestartCount
