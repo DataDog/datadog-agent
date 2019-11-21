@@ -12,28 +12,49 @@ rules:
   - pods
   - nodes
   - componentstatuses
+  - configmaps
+  - persistentvolumes
+  - persistentvolumeclaims
   verbs:
   - get
   - list
   - watch
 - apiGroups:
-  - ""
+  - "storage.k8s.io"
   resources:
-  - configmaps
-  resourceNames:
-  - datadogtoken             # Kubernetes event collection state
-  - datadog-leader-election  # Leader election token
+  - volumeattachments
   verbs:
   - get
-  - update
-- apiGroups:  # To create the leader election token
-  - ""
+  - list
+  - watch
+- apiGroups:
+  - "apps"
   resources:
-  - configmaps
+  - statefulsets
+  - daemonsets
+  - replicasets
+  - deployments
   verbs:
-  - create
   - get
-  - update
+  - list
+  - watch
+- apiGroups:
+  - "extensions"
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - "batch"
+  resources:
+  - jobs
+  - cronjobs
+  verbs:
+  - get
+  - list
+  - watch
 - nonResourceURLs:
   - "/version"
   - "/healthz"

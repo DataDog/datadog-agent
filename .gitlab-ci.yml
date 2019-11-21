@@ -145,7 +145,7 @@ unit_tests:
     #TODO: check why formatting rules differ from previous step
     - gofmt -l -w -s ./pkg ./cmd
 
-    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubeapiserver,kubelet
+    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubelet
 
 integration_tests:
   stage: build_and_test

@@ -29,11 +29,11 @@
     - name: Generate env token
       shell: echo token=$(cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1) > env.txt
       args:
-        chdir: /home/ubuntu/deployment/k8s/overlays
+        chdir: /home/ubuntu/deployment/agents/overlays
     - name: Kustomization template
       template:
         src: files/template/kustomization.yaml
-        dest: /home/ubuntu/deployment/k8s/overlays
+        dest: /home/ubuntu/deployment/agents/overlays
     - name: Run Docker compose
       command: docker-compose up -d
       args:
@@ -78,9 +78,15 @@
       shell: kubectl get secret docker-registry-key || kubectl create secret generic docker-registry-key --from-file=.dockerconfigjson=/home/ubuntu/.docker/config.json --type=kubernetes.io/dockerconfigjson
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    - name: Apply manifests for test workloads
+      command: kubectl apply -f test_workloads
+      args:
+        chdir: /home/ubuntu/deployment
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
     - name: Apply manifests for stackstate node agent and cluster agent
       command: kubectl apply -k overlays
       args:
-        chdir: /home/ubuntu/deployment/k8s
+        chdir: /home/ubuntu/deployment/agents
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
