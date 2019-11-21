@@ -104,6 +104,16 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
                 goto LExit;
             }
         }
+        if(!ddUserExists &&
+            (_wcsicmp(data.Domain().c_str(), domainname.c_str())))
+        {
+            // on a domaion controller, we can only create a user in this controller's domain.
+            // check and reject an attempt to create a user not in this domain
+            WcaLog(LOGMSG_STANDARD, "Can't create a user that's not in this domain: %S (asked for %S)",
+                domainname.c_str(), data.Domain().c_str());
+                er = ERROR_INSTALL_FAILURE;
+                goto LExit;
+        }
     }
     else {
         if(!ddUserExists && data.isUserDomainUser()) {
