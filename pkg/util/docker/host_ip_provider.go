@@ -42,7 +42,7 @@ type hostIPProvider struct {
 
 func getDockerHostIPsUncached() []string {
 	var isHostMode bool
-	if mode, err := GetAgentContainerNetworkMode(); err == nil && mode == "host" {
+	if mode, err := GetAgentContainerNetworkMode(); err == nil && mode == containers.HostNetworkMode {
 		isHostMode = true
 	}
 
