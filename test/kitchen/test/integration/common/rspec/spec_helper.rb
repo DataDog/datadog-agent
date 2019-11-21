@@ -34,6 +34,10 @@ def agent_command
   end
 end
 
+def service_command
+  `sudo which service`
+end
+
 def wait_until_stopped(timeout = 60)
   # Check if the agent has stopped every second
   # Timeout after the given number of seconds
@@ -89,7 +93,7 @@ def stop
     elsif has_upstart
       result = system 'sudo initctl stop datadog-agent'
     else
-      result = system 'sudo service datadog-agent stop'
+      result = system `sudo #{service} datadog-agent stop`
     end
   end
   wait_until_stopped
@@ -106,7 +110,7 @@ def start
     elsif has_upstart
       result = system 'sudo initctl start datadog-agent'
     else
-      result = system 'sudo service datadog-agent start'
+      result = system "sudo #{service} datadog-agent start"
     end
   end
   wait_until_started
@@ -137,7 +141,7 @@ def restart
       wait_until_stopped 5
       wait_until_started 5
     else
-      result = system 'sudo service datadog-agent restart'
+      result = system "sudo #{service} datadog-agent restart"
       wait_until_stopped 5
       wait_until_started 5
     end
@@ -178,7 +182,7 @@ def status
     elsif has_upstart
       system('sudo initctl status datadog-agent')
     else
-      system('sudo service datadog-agent status')
+      system("sudo #{service} datadog-agent status")
     end
   end
 end
@@ -193,7 +197,7 @@ def is_service_running?(svcname)
       status = `sudo initctl status #{svcname}`
       status.include?('start/running')
     else
-      status = `sudo service #{svcname} status`
+      status = `sudo #{service} #{svcname} status`
       status.include?('running')
     end
   end
