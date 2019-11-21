@@ -271,7 +271,7 @@ int EnableServiceForUser(CustomActionData& data, const std::wstring& service)
 		WcaLog(LOGMSG_STANDARD,"Failed to query security info %d\n", GetLastError());
 		goto cleanAndReturn;
 	}
-	if ((sid = GetSidForUser(NULL, data.getQualifiedUsername().c_str())) == NULL) {
+	if ((sid = GetSidForUser(NULL, data.Username().c_str())) == NULL) {
 		WcaLog(LOGMSG_STANDARD,"Failed to get sid\n");
 		goto cleanAndReturn;
 	}

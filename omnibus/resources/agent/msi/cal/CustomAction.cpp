@@ -104,11 +104,27 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
                 goto LExit;
             }
         }
+        if(!ddUserExists &&
+            (_wcsicmp(data.Domain().c_str(), domainname.c_str())))
+        {
+            // on a domaion controller, we can only create a user in this controller's domain.
+            // check and reject an attempt to create a user not in this domain
+            WcaLog(LOGMSG_STANDARD, "Can't create a user that's not in this domain: %S (asked for %S)",
+                domainname.c_str(), data.Domain().c_str());
+                er = ERROR_INSTALL_FAILURE;
+                goto LExit;
+        }
     }
     else {
+        if(!ddUserExists && data.isUserDomainUser()) {
+            WcaLog(LOGMSG_STANDARD, "Can't create a domain user when not on a domain controller");
+            WcaLog(LOGMSG_STANDARD, "Install Datadog Agent on the domain controller for the %S domain", data.Domain().c_str());
+            er = ERROR_INSTALL_FAILURE;
+            goto LExit;
+        }
         if (ddUserExists)
         {
-            if (data.getDomainPtr() != NULL) {
+            if (data.isUserDomainUser()) {
                 // if it's a domain user. We need the password if the service isn't here
                 if (!ddServiceExists && !data.present(propertyDDAgentUserPassword))
                 {
@@ -119,7 +135,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             }
             else {
                 if (!ddServiceExists) {
-                    WcaLog(LOGMSG_STANDARD, "dd user exists %s, but not service.  Continuing", data.getFullUsernameMbcs().c_str());
+                    WcaLog(LOGMSG_STANDARD, "dd user exists %S, but not service.  Continuing", data.Username().c_str());
                     bResetPassword = true;
                 }
             }
@@ -151,7 +167,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             passToUse = passbuf;
         }
         if (bResetPassword) {
-            DWORD ret = doSetUserPassword(data.getUsername(), data.getDomainPtr(), passToUse);
+            DWORD ret = doSetUserPassword(data.UnqualifiedUsername(), passToUse);
             if(ret != 0){
                 WcaLog(LOGMSG_STANDARD, "Failed to set DD user password");
                 er = ERROR_INSTALL_FAILURE;
@@ -159,7 +175,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             }
         } else {
             DWORD nErr = 0;
-            DWORD ret = doCreateUser(data.getUsername(), data.getDomainPtr(), ddAgentUserDescription, passToUse);
+            DWORD ret = doCreateUser(data.UnqualifiedUsername(), ddAgentUserDescription, passToUse);
             if (ret != 0) {
                 WcaLog(LOGMSG_STANDARD, "Failed to create DD user");
                 er = ERROR_INSTALL_FAILURE;
@@ -167,22 +183,22 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             }
             // store that we created the user, and store the username so we can
             // delete on rollback/uninstall
-            keyRollback.setStringValue(installCreatedDDUser.c_str(), data.getUserPtr());
-            keyInstall.setStringValue(installCreatedDDUser.c_str(), data.getUserPtr());
-            if (data.getDomainPtr()) {
-                keyRollback.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
-                keyInstall.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
+            keyRollback.setStringValue(installCreatedDDUser.c_str(), data.Username().c_str());
+            keyInstall.setStringValue(installCreatedDDUser.c_str(), data.Username().c_str());
+            if (data.isUserDomainUser()) {
+                keyRollback.setStringValue(installCreatedDDDomain.c_str(), data.Domain().c_str());
+                keyInstall.setStringValue(installCreatedDDDomain.c_str(), data.Domain().c_str());
             }
         }
     }
     hr = -1;
-    sid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
+    sid = GetSidForUser(NULL, data.Username().c_str());
     if (!sid) {
-        WcaLog(LOGMSG_STANDARD, "Failed to get SID for %s", data.getFullUsernameMbcs().c_str());
+        WcaLog(LOGMSG_STANDARD, "Failed to get SID for %S", data.Username().c_str());
         goto LExit;
     }
     if ((hLsa = GetPolicyHandle()) == NULL) {
-        WcaLog(LOGMSG_STANDARD, "Failed to get policy handle for %s", data.getFullUsernameMbcs().c_str());
+        WcaLog(LOGMSG_STANDARD, "Failed to get policy handle for %S", data.Username().c_str());
         goto LExit;
     }
     if (!AddPrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
@@ -430,22 +446,25 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
     const wchar_t* installedDomainPtr = NULL;
     if (installState.getStringValue(installCreatedDDUser.c_str(), installedUser))
     {
-        std::string usershort;
-        toMbcs(usershort, installedUser.c_str());
-        WcaLog(LOGMSG_STANDARD, "This install installed user %s", usershort.c_str());
-        installedUserPtr = installedUser.c_str();
+        WcaLog(LOGMSG_STANDARD, "This install installed user %S", installedUser.c_str());
+        size_t ndx;
+        if((ndx = installedUser.find(L'\\')) != std::string::npos)
+        {
+            installedUser = installedUser.substr(ndx + 1);
+        }
+        // username is now stored fully qualified (<domain>\<user>).  However, removal
+        // code expects the unqualified name. Split it out here.
         if (installState.getStringValue(installCreatedDDDomain.c_str(), installedDomain)) {
             installedDomainPtr = installedDomain.c_str();
-            toMbcs(usershort, installedDomainPtr);
-            WcaLog(LOGMSG_STANDARD, "NOT Removing user from domain %s", usershort.c_str());
+            WcaLog(LOGMSG_STANDARD, "NOT Removing user from domain %S", installedDomain.c_str());
             WcaLog(LOGMSG_STANDARD, "Domain user can be removed.");
             installedComplete = installedDomain + L"\\";
         } else if (isDC) {
-            WcaLog(LOGMSG_STANDARD, "NOT Removing user %s from domain controller", usershort.c_str());
+            WcaLog(LOGMSG_STANDARD, "NOT Removing user %S from domain controller", installedUser.c_str());
             WcaLog(LOGMSG_STANDARD, "Domain user can be removed.");
     
         } else {
-            WcaLog(LOGMSG_STANDARD, "Will delete user %s from local user store", usershort.c_str());
+            WcaLog(LOGMSG_STANDARD, "Will delete user %S from local user store", installedUser.c_str());
             willDeleteUser = true;
         }
         installedComplete += installedUser;
