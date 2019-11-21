@@ -238,11 +238,11 @@ func (t *TopologyCheck) WaitForTopology(componentChannel <-chan *topology.Compon
 				t.submitter.SubmitRelation(relation)
 			case err := <-errorChannel:
 				t.submitter.HandleError(err)
-			case complete := <-waitGroupChannel:
-				if complete {
-					log.Debug("All collectors have been finished their work, continuing to publish data to StackState")
-				} else {
+			case timedOut := <-waitGroupChannel:
+				if timedOut {
 					_ = log.Warn("WaitGroup for Cluster Collectors did not finish in time, stopping topology publish loop")
+				} else {
+					log.Debug("All collectors have been finished their work, continuing to publish data to StackState")
 				}
 
 				break loop // timed out
