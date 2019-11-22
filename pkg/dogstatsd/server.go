@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"net"
 	"runtime"
 	"sort"
@@ -67,7 +68,7 @@ type Server struct {
 	debugMetricsStats     bool
 	metricsStats          map[string]metricStat
 	statsLock             sync.Mutex
-	mapper                *metricMapper
+	mapper                *mapper.MetricMapper
 }
 
 // metricStat holds how many times a metric has been
@@ -179,13 +180,13 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 	cacheSize := config.Datadog.GetInt("dogstatsd_mapper_cache_size")
 
 	if config.Datadog.IsSet("dogstatsd_mappings") {
-		var mappings []metricMapping
+		var mappings []mapper.MetricMapping
 		config.Datadog.SetConfigType("yaml")
 		err = config.Datadog.UnmarshalKey("dogstatsd_mappings", &mappings)
 		if err != nil {
 			log.Warnf("Could not parse dogstatsd_mapping_config.mappings for logs: %v", err)
 		} else {
-			mapper, err := newMetricMapper(mappings, cacheSize)
+			mapper, err := mapper.NewMetricMapper(mappings, cacheSize)
 			if err != nil {
 				log.Warnf("Could not create metric mapper: %v", err)
 			} else {
@@ -336,7 +337,7 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 			}
 
 			if s.mapper != nil && len(sample.Tags) == 0 {
-				name, tags, matched := s.mapper.getMapping(sample.Name)
+				name, tags, matched := s.mapper.GetMapping(sample.Name)
 
 				if matched {
 					sample.Name = name
