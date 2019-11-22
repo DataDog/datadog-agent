@@ -1,12 +1,12 @@
 default['dd-agent-install']['api_key'] = nil
 default['dd-agent-install']['version'] = nil # => install the latest available version
-default['dd-agent-upgrade']['windows_version'] = nil # => install the latest available version
+default['dd-agent-install']['windows_version'] = nil # => install the latest available version
 default['dd-agent-install']['add_new_repo'] = false # If set to true, be sure to set aptrepo and yumrepo
 default['dd-agent-install']['aptrepo'] =  nil
 default['dd-agent-install']['yumrepo'] = nil
 default['dd-agent-install']['package_name'] = 'datadog-agent'
 default['dd-agent-install']['version'] = nil
-default['dd-agent-install']['agent6'] = nil
+default['dd-agent-install']['agent_major_version'] = nil
 default['dd-agent-install']['windows_agent_checksum'] = nil
 default['dd-agent-install']['windows_agent_url'] = 'https://s3.amazonaws.com/ddagent-windows-stable/'
 
