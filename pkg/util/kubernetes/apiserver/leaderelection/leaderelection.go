@@ -9,7 +9,6 @@ package leaderelection
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"sync"
@@ -21,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
+	"context"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -191,7 +191,7 @@ func (le *LeaderEngine) runLeaderElection() {
 	for {
 		log.Infof("Starting leader election process for %q...", le.HolderIdentity)
 
-		le.leaderElector.Run()
+		le.leaderElector.Run(context.Background())
 		log.Info("Leader election lost")
 	}
 }
@@ -255,12 +255,4 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 		return led, err
 	}
 	return led, nil
-}
-
-func init() {
-	// Avoid logging glog from the k8s.io package
-	flag.Lookup("stderrthreshold").Value.Set("FATAL")
-	//Convinces goflags that we have called Parse() to avoid noisy logs.
-	//OSS Issue: kubernetes/kubernetes#17162.
-	flag.CommandLine.Parse([]string{})
 }

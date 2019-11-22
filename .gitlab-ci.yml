@@ -40,7 +40,6 @@ variables:
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
-  SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
   DEB_S3_BUCKET: apt.datad0g.com
   RPM_S3_BUCKET: yum.datad0g.com
   WIN_S3_BUCKET: dd-agent-mstesting
@@ -58,13 +57,17 @@ variables:
   S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
   S3_ARTIFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+## comment out both lines below (S3_OMNIBUS_CACHE_BUCKET and USE_S3_CACHING) to allow
+## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
+  USE_S3_CACHING: --omnibus-s3-cache
   S3_DSD6_URI: s3://dsd6-staging/linux
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly
   DATADOG_AGENT_BUILDIMAGES: v1709713-2adac2a
   DATADOG_AGENT_BUILDERS: v1793959-4e4c346
-  DATADOG_AGENT_WINBUILDIMAGES: v1782031-7bc5447
+  DATADOG_AGENT_WINBUILDIMAGES: v1876043-a759bdd
+  DATADOG_AGENT_ARMBUILDIMAGES: v1897460-9b1848b
 
 
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
@@ -249,7 +252,11 @@ run_tests_rpm-x64-py3:
 run_tests_ebpf:
   allow_failure: true
   stage: source_test
-  # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
+  # TODO(processes): change this to use the generic builder image when we use the same version of Go in the 
+  # system-probe and the agent, or when `system-probe.test` can receive which Go version to use as an argument.
+  # Currently this is using the ebpf image so system-probe tests run in the same  Go version used to build it (1.10).
+  # Note that this image isn't used to build the system-probe: when building it, we specify Go version to use 
+  # through an argument to the system-probe.build invoke task.
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
   before_script:
     - cd $SRC_PATH
@@ -361,19 +368,6 @@ cluster_agent-build:
     - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTIFACTS_URI/datadog-cluster.yaml
     - $S3_CP_CMD --recursive $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/dist/templates $S3_ARTIFACTS_URI/dist/templates
 
-# build system-probe bin
-system_probe-build:
-  stage: binary_build
-  # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
-  before_script:
-    - cd $SRC_PATH
-    - inv -e deps --verbose --dep-vendor-only
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - inv -e system-probe.build
-    - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe
-
 #
 # integration_test
 #
@@ -404,6 +398,7 @@ system_probe-build:
 # check the size of the static dogstatsd binary
 run_dogstatsd_size_test:
   stage: integration_test
+  needs: ["build_dogstatsd_static-deb_x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
   before_script:
@@ -423,16 +418,14 @@ run_dogstatsd_size_test:
     - echo "About to build for $RELEASE_VERSION"
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    # Retrieve the system-probe from S3
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
-    - find $OMNIBUS_BASE_DIR/pkg -name "datadog-agent*_amd64.deb" -exec dpkg -c {} \;
-    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent_*_amd64.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
-    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent-dbg_*_amd64.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
-    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-agent*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps
+    - find $OMNIBUS_BASE_DIR/pkg -name "datadog-agent*_${PACKAGE_ARCH}.deb" -exec dpkg -c {} \;
+    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
+    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
+    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-agent*_${PACKAGE_ARCH}.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
   #   # cache per branch
@@ -444,15 +437,23 @@ run_dogstatsd_size_test:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
+.agent_build_common_arm:
+  stage: package_build
+  needs: ["run_dep_check_lock"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/$PKG_TARGET:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+
 # build Agent package for deb-x64
 agent_deb-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
+  needs: ["run_tests_deb-x64-py2", "run_tests_deb-x64-py3"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     CONDA_ENV: ddpy3
     PYTHON_RUNTIMES: '2,3'
+    PACKAGE_ARCH: amd64
     DESTINATION_DEB: 'datadog-agent_6_amd64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_amd64.deb'
   before_script:
@@ -466,10 +467,12 @@ agent_deb-x64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
+  needs: ["run_tests_deb-x64-py3"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     CONDA_ENV: ddpy3
     PYTHON_RUNTIMES: '3'
+    PACKAGE_ARCH: amd64
     DESTINATION_DEB: 'datadog-agent_7_amd64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_amd64.deb'
   before_script:
@@ -479,11 +482,42 @@ agent_deb-x64-a7:
   <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_deb
 
+agent_deb-arm-a6:
+  extends: .agent_build_common_arm
+  variables:
+    PKG_TARGET: deb_arm_x64
+    PYTHON_RUNTIMES: '2,3'
+    PACKAGE_ARCH: arm64
+    DESTINATION_DEB: 'datadog-agent_6_arm64.deb'
+    DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_arm64.deb'
+  before_script:
+    - source /root/.bashrc
+    - inv -e deps --verbose --dep-vendor-only
+    - export RELEASE_VERSION=$RELEASE_VERSION_6
+  <<: *skip_when_unwanted_on_6
+  <<: *agent_build_common_deb
+
+agent_deb-arm-a7:
+  extends: .agent_build_common_arm
+  variables:
+    PKG_TARGET: deb_arm_x64
+    PYTHON_RUNTIMES: '3'
+    PACKAGE_ARCH: arm64
+    DESTINATION_DEB: 'datadog-agent_7_arm64.deb'
+    DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_arm64.deb'
+  before_script:
+    - source /root/.bashrc 
+    - inv -e deps --verbose --dep-vendor-only
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+  <<: *skip_when_unwanted_on_6
+  <<: *agent_build_common_deb
+
 # build Agent package for deb-x64
 puppy_deb-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
+  needs: ["build_puppy_agent-deb_x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
@@ -523,10 +557,8 @@ puppy_deb-x64:
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
     - set -x
-    # Retrieve the system-probe from S3
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
     # use --skip-deps since the deps are installed by `before_script`
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
@@ -573,6 +605,33 @@ agent_rpm-x64-a7:
   <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_rpm
 
+  # build Agent package for rpm-x64
+agent_rpm-arm-a6:
+  extends: .agent_build_common_arm
+  variables:
+    PKG_TARGET: rpm_arm_x64
+    PYTHON_RUNTIMES: '2,3'
+  before_script:
+    - source /root/.bashrc
+    - inv -e deps --verbose --dep-vendor-only
+    - export RELEASE_VERSION=$RELEASE_VERSION_6
+  <<: *skip_when_unwanted_on_6
+  <<: *agent_build_common_rpm
+
+# build Agent package for rpm-x64
+agent_rpm-arm-a7:
+  extends: .agent_build_common_arm
+  variables:
+    PKG_TARGET: rpm_arm_x64
+    PYTHON_RUNTIMES: '3'
+  before_script:
+    - source /root/.bashrc
+    - inv -e deps --verbose --dep-vendor-only
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+  <<: *skip_when_unwanted_on_7
+  <<: *agent_build_common_rpm
+
+
 .agent_build_common_suse_rpm: &agent_build_common_suse_rpm
   script:
     - echo "About to build for $RELEASE_VERSION"
@@ -585,10 +644,8 @@ agent_rpm-x64-a7:
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
     - set -x
-    # Retrieve the system-probe from S3
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
     # use --skip-deps since the deps are installed by `before_script`
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache --skip-deps
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
     - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR_SUSE/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR_SUSE
@@ -645,6 +702,8 @@ agent_suse-x64-a7:
   # Unavailable on gitlab < 12.3
   # timeout: 2h 00m
   script:
+    - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
+    - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - mkdir .omnibus\pkg
     - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e WINDOWS_BUILDER=true -e PYTHON_RUNTIMES=${PYTHON_RUNTIMES} -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES \build-agent6.bat --release-version %RELEASE_VERSION%
     - copy build-out\*.msi .omnibus\pkg
@@ -740,7 +799,7 @@ dogstatsd_deb-x64:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_6" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
+    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_6" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -name "datadog-dogstatsd*_amd64.deb" -exec dpkg -c {} \;
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-dogstatsd*_amd64.deb $S3_ARTIFACTS_URI/datadog-dogstatsd_amd64.deb
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-dogstatsd*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
@@ -778,7 +837,7 @@ dogstatsd_rpm-x64:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_6" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache --skip-deps
+    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_6" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' -print0 | sort -z | xargs -0 -I '{}' rpm -i '{}'
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
@@ -813,7 +872,7 @@ dogstatsd_suse-x64:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_6" --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache --skip-deps
+    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_6" --base-dir $OMNIBUS_BASE_DIR_SUSE ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*.rpm' -print0 | sort -z | xargs -0 -I '{}' rpm -i '{}'
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR_SUSE/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR_SUSE
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
@@ -972,82 +1031,78 @@ deploy_windows_testing-a7:
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET_A7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-
 #
 # Kitchen Test Common templates
 #
 
 .kitchen_common: &kitchen_common
-  script:
-    - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - bash -l tasks/run-test-kitchen.sh
+  <<: *run_when_testkitchen_triggered
+  stage: testkitchen_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   artifacts:
     expire_in: 2 weeks
     when: always
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
+  tags: [ "runner:main", "size:large" ]
+  retry: 1
+
+.kitchen_a6_common: &kitchen_a6_common
+  variables:
+    PYTHON_RUNTIMES: '2,3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+
+.kitchen_a7_common: &kitchen_a7_common
+  variables:
+    PYTHON_RUNTIMES: '3'
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+
+.kitchen_chef_common: &kitchen_chef_common
+  script:
+    - bash -l tasks/run-test-kitchen.sh chef-test
+
+.kitchen_step_by_step_common: &kitchen_step_by_step_common
+  script:
+    - bash -l tasks/run-test-kitchen.sh step-by-step-test
+
+.kitchen_install_script_common: &kitchen_install_script_common
+  script:
+    - bash -l tasks/run-test-kitchen.sh install-script-test
+
+.kitchen_upgrade5_common: &kitchen_upgrade5_common
+  script:
+    - bash -l tasks/run-test-kitchen.sh upgrade5-test
+
+.kitchen_upgrade6_common: &kitchen_upgrade6_common
+  script:
+    - bash -l tasks/run-test-kitchen.sh upgrade6-test
 
 .kitchen_windows_installer_common: &kitchen_windows_installer_common
+  <<: *kitchen_common
   script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
     - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - bash -l tasks/kitchen_setup.sh
     - bash -l tasks/run-test-kitchen.sh windows-install-test
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
 
-.kitchen_windows_upgrade_common: &kitchen_windows_upgrade_common
-  script:
+.kitchen_windows_a6_common: &kitchen_windows_a6_common
+  <<: *kitchen_common
+  <<: *kitchen_a6_common
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
+    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
     - cd $DD_AGENT_TESTING_DIR
-    - rm -rf $CI_PROJECT_DIR/kitchen_logs
-    - rm -rf $DD_AGENT_TESTING_DIR/.kitchen
-    - mkdir $CI_PROJECT_DIR/kitchen_logs
-    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - bash -l tasks/run-test-kitchen.sh windows-upgrade5-test
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+    - bash -l tasks/kitchen_setup.sh
 
-kitchen_windows_upgrade5to6:
-  stage: testkitchen_testing
-  allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
-  <<: *skip_when_unwanted_on_6
-  variables:
-    PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
-    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_windows_upgrade_common
-
-kitchen_windows_upgrade5to7:
-  stage: testkitchen_testing
-  allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
-  <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+.kitchen_windows_a7_common: &kitchen_windows_a7_common
+  <<: *kitchen_common
+  <<: *kitchen_a7_common
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
@@ -1056,238 +1111,389 @@ kitchen_windows_upgrade5to7:
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_windows_upgrade_common
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
 
-# run dd-agent-testing on windows
-kitchen_windows-a6:
-  stage: testkitchen_testing
-  allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
-  <<: *skip_when_unwanted_on_6
-  variables:
-    PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+.kitchen_centos_common: &kitchen_centos_common
+  <<: *kitchen_common
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
-    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+    - export TEST_PLATFORMS="centos-69,OpenLogic:CentOS:6.9:6.9.20180530"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-80,RedHat:RHEL:8:8.0.2019062020"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
 
-kitchen_windows-a7:
-  stage: testkitchen_testing
-  allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
-  <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+.kitchen_ubuntu_common: &kitchen_ubuntu_common
+  <<: *kitchen_common
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
-    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+    - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,Canonical:UbuntuServer:16.04.0-LTS:16.04.201906170"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-18-04,Canonical:UbuntuServer:18.04-LTS:18.04.201906040"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
 
-kitchen_windows-a7-2008:
-  stage: testkitchen_testing
-  allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
-  <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+.kitchen_suse_common: &kitchen_suse_common
+  <<: *kitchen_common
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
-    - export TEST_PLATFORMS="win2008r2,MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20190603"
-  tags: [ "runner:main", "size:large" ]
+    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP4:2019.06.17"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,SUSE:SLES-Standard:15:2019.06.17"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+.kitchen_debian_common: &kitchen_debian_common
   <<: *kitchen_common
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.20190313.0"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,credativ:Debian:9:9.20190515.0"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-10,Debian:debian-10:10:0.20190709.401"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
 
-
+# run dd-agent-testing for the windows installer
 kitchen_windows_installer-a6:
-  stage: testkitchen_testing
   allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
-  variables:
-    PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
-    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
-  tags: [ "runner:main", "size:large" ]
   <<: *kitchen_windows_installer_common
+  <<: *kitchen_a6_common
+  before_script:
+    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
+  retry: 0
 
 kitchen_windows_installer-a7:
-  stage: testkitchen_testing
   allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
-    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
-  tags: [ "runner:main", "size:large" ]
   <<: *kitchen_windows_installer_common
+  <<: *kitchen_a7_common
+  before_script:
+    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
+  retry: 0
 
+# run dd-agent-testing on windows
+kitchen_windows_chef-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_windows_a6_common
+  <<: *kitchen_chef_common
+
+kitchen_windows_chef-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_windows_a7_common
+  <<: *kitchen_chef_common
+
+kitchen_windows_upgrade5-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_windows_a6_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_windows_upgrade5-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_windows_a7_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_windows_upgrade6-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_windows_a6_common
+  <<: *kitchen_upgrade6_common
+
+kitchen_windows_upgrade6-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_windows_a7_common
+  <<: *kitchen_upgrade6_common
 
 # run dd-agent-testing on centos
-kitchen_centos-a6:
-  stage: testkitchen_testing
+kitchen_centos_chef-a6:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
-  variables:
-    PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="centos-69,OpenLogic:CentOS:6.9:6.9.20180530"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-80,RedHat:RHEL:8:8.0.2019062020"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_centos_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_chef_common
 
-kitchen_centos-a7:
-  stage: testkitchen_testing
+kitchen_centos_chef-a7:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="centos-69,OpenLogic:CentOS:6.9:6.9.20180530"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-76,OpenLogic:CentOS:7.6:7.6.20190402"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-80,RedHat:RHEL:8:8.0.2019062020"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_centos_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_chef_common
+
+kitchen_centos_install_script-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_centos_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_install_script_common
+
+kitchen_centos_install_script-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_centos_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_install_script_common
+
+kitchen_centos_step_by_step-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_centos_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_centos_step_by_step-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_centos_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_centos_upgrade5-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_centos_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_centos_upgrade5-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_centos_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_centos_upgrade6-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_centos_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade6_common
+
+kitchen_centos_upgrade6-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_centos_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade6_common
 
 # run dd-agent-testing on ubuntu
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
-kitchen_ubuntu-a6:
-  stage: testkitchen_testing
+kitchen_ubuntu_chef-a6:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
-  variables:
-    PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,Canonical:UbuntuServer:16.04.0-LTS:16.04.201906170"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-18-04,Canonical:UbuntuServer:18.04-LTS:18.04.201906040"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_chef_common
 
-kitchen_ubuntu-a7:
-  stage: testkitchen_testing
+kitchen_ubuntu_chef-a7:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,Canonical:UbuntuServer:16.04.0-LTS:16.04.201906170"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-18-04,Canonical:UbuntuServer:18.04-LTS:18.04.201906040"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_chef_common
+
+kitchen_ubuntu_install_script-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_install_script_common
+
+kitchen_ubuntu_install_script-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_install_script_common
+
+kitchen_ubuntu_step_by_step-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_ubuntu_step_by_step-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_ubuntu_upgrade5-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_ubuntu_upgrade5-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_ubuntu_upgrade6-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade6_common
+
+kitchen_ubuntu_upgrade6-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_ubuntu_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade6_common
 
 # run dd-agent-testing on suse
-kitchen_suse-a6:
-  stage: testkitchen_testing
+kitchen_suse_chef-a6:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
-  variables:
-    PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP4:2019.06.17"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,SUSE:SLES-Standard:15:2019.06.17"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_suse_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_chef_common
 
-kitchen_suse-a7:
-  stage: testkitchen_testing
+kitchen_suse_chef-a7:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP4:2019.06.17"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,SUSE:SLES-Standard:15:2019.06.17"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_suse_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_chef_common
+
+kitchen_suse_install_script-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_suse_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_install_script_common
+
+kitchen_suse_install_script-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_suse_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_install_script_common
+
+kitchen_suse_step_by_step-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_suse_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_suse_step_by_step-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_suse_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_suse_upgrade5-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_suse_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_suse_upgrade5-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_suse_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_suse_upgrade6-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_suse_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade6_common
+
+kitchen_suse_upgrade6-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_suse_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade6_common
 
 # run dd-agent-testing on debian
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
-kitchen_debian-a6:
-  stage: testkitchen_testing
+kitchen_debian_chef-a6:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
-  variables:
-    PYTHON_RUNTIMES: '2,3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.20190313.0"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,credativ:Debian:9:9.20190515.0"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-10,Debian:debian-10:10:0.20190709.401"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_debian_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_chef_common
 
-kitchen_debian-a7:
-  stage: testkitchen_testing
+kitchen_debian_chef-a7:
   allow_failure: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
-  variables:
-    PYTHON_RUNTIMES: '3'
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.20190313.0"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,credativ:Debian:9:9.20190515.0"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-10,Debian:debian-10:10:0.20190709.401"
-  tags: [ "runner:main", "size:large" ]
-  <<: *kitchen_common
+  <<: *kitchen_debian_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_chef_common
+
+kitchen_debian_install_script-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_debian_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_install_script_common
+
+kitchen_debian_install_script-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_debian_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_install_script_common
+
+kitchen_debian_step_by_step-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_debian_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_debian_step_by_step-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_debian_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_step_by_step_common
+
+kitchen_debian_upgrade5-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_debian_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_debian_upgrade5-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_debian_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade5_common
+
+kitchen_debian_upgrade6-a6:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_6
+  <<: *kitchen_debian_common
+  <<: *kitchen_a6_common
+  <<: *kitchen_upgrade6_common
+
+kitchen_debian_upgrade6-a7:
+  allow_failure: false
+  <<: *skip_when_unwanted_on_7
+  <<: *kitchen_debian_common
+  <<: *kitchen_a7_common
+  <<: *kitchen_upgrade6_common
 
 #
 # pkg_metrics: send metrics about packages
@@ -1486,6 +1692,7 @@ testkitchen_cleanup_azure-a7:
 # build agent6 py2 image
 build_agent6:
   <<: *docker_build_job_definition
+  needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1497,6 +1704,7 @@ build_agent6:
 # build agent6 py2 jmx image
 build_agent6_jmx:
   <<: *docker_build_job_definition
+  needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1509,6 +1717,7 @@ build_agent6_jmx:
 # build agent6 py3 image
 build_agent6_py3:
   <<: *docker_build_job_definition
+  needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1520,6 +1729,7 @@ build_agent6_py3:
 # build agent6 py3 jmx image
 build_agent6_py3_jmx:
   <<: *docker_build_job_definition
+  needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1533,6 +1743,7 @@ build_agent6_py3_jmx:
 # build agent6 jmx unified image (including python3)
 build_agent6_py2py3_jmx:
   <<: *docker_build_job_definition
+  needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1544,6 +1755,7 @@ build_agent6_py2py3_jmx:
 # build agent7 image
 build_agent7:
   <<: *docker_build_job_definition
+  needs: ["agent_deb-x64-a7"]
   <<: *skip_when_unwanted_on_7
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1555,6 +1767,7 @@ build_agent7:
 # build agent7 jmx image
 build_agent7_jmx:
   <<: *docker_build_job_definition
+  needs: ["agent_deb-x64-a7"]
   <<: *skip_when_unwanted_on_7
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1566,6 +1779,7 @@ build_agent7_jmx:
 # build the cluster-agent image
 build_cluster_agent:
   <<: *docker_build_job_definition
+  needs: ["cluster_agent-build"]
   variables:
     IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
@@ -1573,6 +1787,7 @@ build_cluster_agent:
 # build the dogstatsd image
 build_dogstatsd:
   <<: *docker_build_job_definition
+  needs: ["build_dogstatsd_static-deb_x64"]
   variables:
     IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
@@ -1659,6 +1874,7 @@ twistlock_scan-7:
 
 dev_branch_docker_hub:
   <<: *docker_tag_job_definition
+  needs: ["build_agent6", "build_agent6_jmx", "build_agent6_py3", "build_agent6_py3_jmx", "build_agent6_py2py3_jmx", "build_agent7", "build_agent7_jmx", "build_dogstatsd"]
   when: manual
   except:
     - master
@@ -1676,6 +1892,7 @@ dev_branch_docker_hub:
 
 dev_master_docker_hub:
   <<: *docker_tag_job_definition
+  needs: ["build_agent6", "build_agent6_jmx", "build_agent6_py3", "build_agent6_py3_jmx", "build_agent6_py2py3_jmx", "build_agent7", "build_agent7_jmx", "build_dogstatsd"]
   only:
     - master
   variables:
@@ -1691,6 +1908,7 @@ dev_master_docker_hub:
 
 dca_dev_branch_docker_hub:
   <<: *docker_tag_job_definition
+  needs: ["build_cluster_agent"]
   when: manual
   except:
     - master
@@ -1701,6 +1919,7 @@ dca_dev_branch_docker_hub:
 
 dca_dev_master_docker_hub:
   <<: *docker_tag_job_definition
+  needs: ["build_cluster_agent"]
   only:
     - master
   variables:
@@ -1712,6 +1931,7 @@ dca_dev_master_docker_hub:
 dev_nightly_docker_hub:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_nightly
+  needs: ["build_agent6", "build_agent6_jmx", "build_agent6_py3", "build_agent6_py3_jmx", "build_agent6_py2py3_jmx", "build_agent7", "build_agent7_jmx", "build_dogstatsd"]
   variables:
     <<: *docker_hub_variables
   script:

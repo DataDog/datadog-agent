@@ -18,7 +18,7 @@
 name "python2"
 
 if ohai["platform"] != "windows"
-  default_version "2.7.16"
+  default_version "2.7.17"
 
   dependency "ncurses"
   dependency "zlib"
@@ -28,7 +28,7 @@ if ohai["platform"] != "windows"
   dependency "libyaml"
 
   source :url => "http://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "01da813a3600876f03f46db11cc5c408175e99f03af2ba942ef324389a83bad5"
+         :sha256 => "f22059d09cdf9625e0a7284d24a13062044f5bf59d93a7f3382190dfa94cecde"
 
   relative_path "Python-#{version}"
 
@@ -74,16 +74,16 @@ if ohai["platform"] != "windows"
   end
 
 else
-  default_version "2.7.16"
+  default_version "2.7.17"
   dependency "vc_redist"
 
   if windows_arch_i386?
     source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-x86.zip",
-           :sha256 => "575093fd5748ccc22be6577fff15ae9ffe525b627888342bd43826053183e9da",
+           :sha256 => "a2c5c5736356f7264a7412cdca050cf2ae924c703c47a27b8f0d8f62ce2d6181",
            :extract => :seven_zip
   else
-    source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-nopip-2-amd64.zip",
-         :sha256 => "0849a12f9a162636c1f4a561110ecb481cbb13bc54b558015b23559146bb5e26",
+    source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
+         :sha256 => "557ea6690c5927360656c003d3114b73adbd755b712a2911975dde813d6d7afb",
          :extract => :seven_zip
   end
   build do

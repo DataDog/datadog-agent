@@ -10,11 +10,15 @@ package docker
 import (
 	"net"
 	"testing"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 func TestContainerIDToEntityName(t *testing.T) {
@@ -91,21 +95,32 @@ func TestResolveImageName(t *testing.T) {
 	}
 }
 
-func TestParseContainerNetworkAddresses(t *testing.T) {
+func TestParseECSContainerNetworkAddresses(t *testing.T) {
+
 	for i, tc := range []struct {
-		name        string
-		ports       []types.Port
-		netSettings *types.SummaryNetworkSettings
-		expected    []containers.NetworkAddress
+		name         string
+		containerID  string
+		ports        []types.Port
+		netSettings  *types.SummaryNetworkSettings
+		cacheContent types.ContainerJSON
+		expected     []containers.NetworkAddress
 	}{
 		{
 			name:        "empty input",
+			containerID: "foo",
 			ports:       []types.Port{},
 			netSettings: nil,
-			expected:    []containers.NetworkAddress{},
+			cacheContent: types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{ID: "foo", Image: "org/test"},
+				Mounts:            make([]types.MountPoint, 0),
+				Config:            &container.Config{},
+				NetworkSettings:   &types.NetworkSettings{},
+			},
+			expected: []containers.NetworkAddress{},
 		},
 		{
-			name: "exposed port",
+			name:        "exposed port",
+			containerID: "foo",
 			ports: []types.Port{
 				{
 					IP:          "0.0.0.0",
@@ -132,6 +147,7 @@ func TestParseContainerNetworkAddresses(t *testing.T) {
 					},
 				},
 			},
+			cacheContent: types.ContainerJSON{},
 			expected: []containers.NetworkAddress{
 				{
 					IP:       net.ParseIP("0.0.0.0"),
@@ -146,7 +162,8 @@ func TestParseContainerNetworkAddresses(t *testing.T) {
 			},
 		},
 		{
-			name: "not exposed port",
+			name:        "not exposed port",
+			containerID: "foo",
 			ports: []types.Port{
 				{
 					PrivatePort: 80,
@@ -171,6 +188,7 @@ func TestParseContainerNetworkAddresses(t *testing.T) {
 					},
 				},
 			},
+			cacheContent: types.ContainerJSON{},
 			expected: []containers.NetworkAddress{
 				{
 					IP:       net.ParseIP("172.17.0.2"),
@@ -180,7 +198,8 @@ func TestParseContainerNetworkAddresses(t *testing.T) {
 			},
 		},
 		{
-			name: "empty address info",
+			name:        "empty address info",
+			containerID: "foo",
 			ports: []types.Port{
 				{
 					PrivatePort: 80,
@@ -192,10 +211,12 @@ func TestParseContainerNetworkAddresses(t *testing.T) {
 					"emptyNetwork": {},
 				},
 			},
-			expected: []containers.NetworkAddress{},
+			cacheContent: types.ContainerJSON{},
+			expected:     []containers.NetworkAddress{},
 		},
 		{
-			name: "host network mode",
+			name:        "host network mode",
+			containerID: "foo",
 			// Published ports are discarded when using host network mode
 			ports: []types.Port{},
 			netSettings: &types.SummaryNetworkSettings{
@@ -216,10 +237,12 @@ func TestParseContainerNetworkAddresses(t *testing.T) {
 					},
 				},
 			},
-			expected: []containers.NetworkAddress{},
+			cacheContent: types.ContainerJSON{},
+			expected:     []containers.NetworkAddress{},
 		},
 		{
-			name: "multiple networks",
+			name:        "multiple networks",
+			containerID: "foo",
 			ports: []types.Port{
 				{
 					PrivatePort: 80,
@@ -258,6 +281,7 @@ func TestParseContainerNetworkAddresses(t *testing.T) {
 					},
 				},
 			},
+			cacheContent: types.ContainerJSON{},
 			expected: []containers.NetworkAddress{
 				{
 					IP:       net.ParseIP("172.17.0.2"),
@@ -272,7 +296,8 @@ func TestParseContainerNetworkAddresses(t *testing.T) {
 			},
 		},
 		{
-			name: "multiple ports",
+			name:        "multiple ports",
+			containerID: "foo",
 			ports: []types.Port{
 				{
 					IP:          "0.0.0.0",
@@ -307,6 +332,7 @@ func TestParseContainerNetworkAddresses(t *testing.T) {
 					},
 				},
 			},
+			cacheContent: types.ContainerJSON{},
 			expected: []containers.NetworkAddress{
 				{
 					IP:       net.ParseIP("0.0.0.0"),
@@ -331,7 +357,8 @@ func TestParseContainerNetworkAddresses(t *testing.T) {
 			},
 		},
 		{
-			name: "multiple ports, multiple networks",
+			name:        "multiple ports, multiple networks",
+			containerID: "foo",
 			ports: []types.Port{
 				{
 					IP:          "0.0.0.0",
@@ -380,6 +407,7 @@ func TestParseContainerNetworkAddresses(t *testing.T) {
 					},
 				},
 			},
+			cacheContent: types.ContainerJSON{},
 			expected: []containers.NetworkAddress{
 				{
 					IP:       net.ParseIP("0.0.0.0"),
@@ -419,7 +447,14 @@ func TestParseContainerNetworkAddresses(t *testing.T) {
 			},
 		},
 	} {
-		networkAddresses := parseContainerNetworkAddresses(tc.ports, tc.netSettings, "mycontainer")
+		cacheKey := GetInspectCacheKey(tc.containerID, false)
+		cache.Cache.Set(cacheKey, tc.cacheContent, 10*time.Second)
+		d := &DockerUtil{
+			cfg:            &Config{CollectNetwork: false},
+			cli:            nil,
+			imageNameBySha: make(map[string]string),
+		}
+		networkAddresses := d.parseContainerNetworkAddresses(tc.containerID, tc.ports, tc.netSettings, "mycontainer")
 		assert.Len(t, networkAddresses, len(tc.expected), "test %d failed: %s", i, tc.name)
 		for _, addr := range tc.expected {
 			assert.Contains(t, networkAddresses, addr, "test %d failed: %s", i, tc.name)
