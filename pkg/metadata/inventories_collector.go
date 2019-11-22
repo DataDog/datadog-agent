@@ -5,16 +5,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
-)
-
-const (
-	minSendInterval = 5 * time.Minute
-	maxSendInterval = 10 * time.Minute
 )
 
 type inventoriesCollector struct {
@@ -51,7 +47,7 @@ func (c inventoriesCollector) Send(s *serializer.Serializer) error {
 
 // Init initializes the inventory metadata collection
 func (c inventoriesCollector) Init() error {
-	return inventories.StartMetadataUpdatedGoroutine(c.sc, minSendInterval)
+	return inventories.StartMetadataUpdatedGoroutine(c.sc, config.Datadog.GetDuration("inventories_min_interval")*time.Second)
 }
 
 // SetupInventories registers the inventories collector into the Scheduler and, if configured, schedules it
@@ -63,7 +59,7 @@ func SetupInventories(sc *Scheduler, ac inventories.AutoConfigInterface, coll in
 	}
 	RegisterCollector("inventories", ic)
 
-	if err := sc.AddCollector("inventories", maxSendInterval); err != nil {
+	if err := sc.AddCollector("inventories", config.Datadog.GetDuration("inventories_max_interval")*time.Second); err != nil {
 		return err
 	}
 

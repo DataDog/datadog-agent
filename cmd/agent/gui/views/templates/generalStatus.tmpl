@@ -206,6 +206,12 @@
 
         Logs Agent is not running </br>
       {{- end }}
+      {{- if .endpoints }}
+
+        {{- range $endpoint := .endpoints }}
+          {{ $endpoint }}
+        {{- end }}
+      {{- end }}
       {{- if .metrics }}
 
         {{- range $metric_name, $metric_value := .metrics }}
