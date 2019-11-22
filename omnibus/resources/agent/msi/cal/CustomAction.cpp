@@ -449,8 +449,6 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
     }
     // check to see if we created the user, and if so, what the user's name was
     std::wstring installedUser, installedDomain, installedComplete;
-    const wchar_t* installedUserPtr = NULL;
-    const wchar_t* installedDomainPtr = NULL;
     if (installState.getStringValue(installCreatedDDUser.c_str(), installedUser))
     {
         WcaLog(LOGMSG_STANDARD, "This install installed user %S", installedUser.c_str());
@@ -462,7 +460,6 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
         // username is now stored fully qualified (<domain>\<user>).  However, removal
         // code expects the unqualified name. Split it out here.
         if (installState.getStringValue(installCreatedDDDomain.c_str(), installedDomain)) {
-            installedDomainPtr = installedDomain.c_str();
             WcaLog(LOGMSG_STANDARD, "NOT Removing user from domain %S", installedDomain.c_str());
             WcaLog(LOGMSG_STANDARD, "Domain user can be removed.");
             installedComplete = installedDomain + L"\\";
