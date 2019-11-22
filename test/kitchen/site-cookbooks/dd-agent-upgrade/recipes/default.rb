@@ -94,11 +94,9 @@ if node['platform_family'] == 'windows'
   dd_agent_version = node['dd-agent-upgrade']['windows_version']
   dd_agent_filename = node['dd-agent-upgrade']['windows_agent_filename']
 
-  dd_agent_installer_basename = "datadog-agent-6.14.1-1-x86_64"
-
   temp_file_basename = ::File.join(Chef::Config[:file_cache_path], 'ddagent-up').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
 
-  dd_agent_installer = "#{dd_agent_installer_basename}.msi"
+  dd_agent_installer = "ddagent-cli-6.14.1.msi"
   temp_file = "#{temp_file_basename}.msi"
   installer_type = :msi
   # Agent >= 5.12.0 installs per-machine by default, but specifying ALLUSERS=1 shouldn't affect the install
