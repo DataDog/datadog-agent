@@ -226,10 +226,14 @@ suites:
       agent6_yumrepo: http://yum.datadoghq.com/stable/6/x86_64/
       agent6_yumrepo_suse: http://yum.datadoghq.com/suse/stable/6/x86_64/
       windows_agent_url: https://s3.amazonaws.com/ddagent-windows-stable/
+      agent_version:
+        debian: '1:6.14.1-1'
+        rhel: '6.14.1-1'
+        suse: '1:6.14.1-1'
     dd-agent-install:
       agent6: true
       windows_agent_url: https://s3.amazonaws.com/ddagent-windows-stable/
-      windows_agent_filename: datadog-agent-6-latest.amd64
+      windows_agent_filename: ddagent-cli-6.14.2.msi
     dd-agent-upgrade:
       add_new_repo: true
       aptrepo: <%= aptrepo %>
