@@ -66,18 +66,24 @@ if node['dd-agent-upgrade']['add_new_repo']
 end
 
 if node['platform_family'] != 'windows'
-  package node['dd-agent-upgrade']['package_name'] do
-    action :upgrade
-    version node['dd-agent-upgrade']['version']
-  end
-  # the :upgrade method seems broken for sles: https://github.com/chef/chef/issues/4863
-  if node['platform_family'] == 'suse'
+
+  if node['platform_family'] == 'rhel'
+    package node['dd-agent-upgrade']['package_name'] do
+      action :upgrade
+      version '6.14.1-1'
+    end
+  elsif node['platform_family'] == 'suse'
     package node['dd-agent-upgrade']['package_name'] do
       action :remove
     end
     package node['dd-agent-upgrade']['package_name'] do
       action :install
-      version node['dd-agent-upgrade']['version']
+      version '1:6.14.1-1'
+    end
+  else
+    package node['dd-agent-upgrade']['package_name'] do
+      action :upgrade
+      version '1:6.14.1-1'
     end
   end
 end
@@ -88,15 +94,7 @@ if node['platform_family'] == 'windows'
   dd_agent_version = node['dd-agent-upgrade']['windows_version']
   dd_agent_filename = node['dd-agent-upgrade']['windows_agent_filename']
 
-  if dd_agent_filename
-    dd_agent_installer_basename = dd_agent_filename
-  else
-    if dd_agent_version
-      dd_agent_installer_basename = "datadog-agent-#{dd_agent_version}-1-x86_64"
-    else
-      dd_agent_installer_basename = "datadog-agent-6.0.0-beta.latest.amd64"
-    end
-  end
+  dd_agent_installer_basename = "datadog-agent-6.14.1-1-x86_64"
 
   temp_file_basename = ::File.join(Chef::Config[:file_cache_path], 'ddagent-up').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
 
