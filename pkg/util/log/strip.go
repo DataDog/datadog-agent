@@ -84,8 +84,8 @@ func matchCert() *regexp.Regexp {
 	)
 }
 
-// SetStrippedKeys allows configuration keys cleaned up
-func SetStrippedKeys(strippedKeys []string) {
+// AddStrippedKeys allows configuration keys cleaned up
+func AddStrippedKeys(strippedKeys []string) {
 	configReplacer := Replacer{
 		Regex: matchYAMLKey(fmt.Sprintf("(%s)", strings.Join(strippedKeys, "|"))),
 		Hints: strippedKeys,

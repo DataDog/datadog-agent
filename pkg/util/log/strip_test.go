@@ -250,7 +250,7 @@ func TestYamlConfig(t *testing.T) {
 	// Sanity check
 	assert.Equal(t, contents, cleanedString)
 
-	SetStrippedKeys([]string{"foobar"})
+	AddStrippedKeys([]string{"foobar"})
 
 	assertClean(t, contents, `foobar: ********`)
 }
