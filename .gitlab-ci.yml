@@ -752,7 +752,7 @@ kitchen_windows_installer:
 # run dd-agent-testing on centos
 kitchen_centos:
   stage: testkitchen_testing
-  allow_failure: false
+  allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
   before_script:
@@ -778,7 +778,7 @@ kitchen_centos:
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 kitchen_ubuntu:
   stage: testkitchen_testing
-  allow_failure: false
+  allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
   before_script:
@@ -804,7 +804,7 @@ kitchen_ubuntu:
 # run dd-agent-testing on suse
 kitchen_suse:
   stage: testkitchen_testing
-  allow_failure: false
+  allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
   before_script:
@@ -830,7 +830,7 @@ kitchen_suse:
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 kitchen_debian:
   stage: testkitchen_testing
-  allow_failure: false
+  allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   <<: *run_when_testkitchen_triggered
   before_script:
