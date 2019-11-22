@@ -186,11 +186,11 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 		if err != nil {
 			log.Warnf("Could not parse dogstatsd_mapping_config.mappings for logs: %v", err)
 		} else {
-			mapper, err := mapper.NewMetricMapper(mappings, cacheSize)
+			mapperInstance, err := mapper.NewMetricMapper(mappings, cacheSize)
 			if err != nil {
 				log.Warnf("Could not create metric mapper: %v", err)
 			} else {
-				s.mapper = &mapper
+				s.mapper = &mapperInstance
 			}
 		}
 	}

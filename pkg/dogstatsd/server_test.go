@@ -394,6 +394,30 @@ func TestDebugStats(t *testing.T) {
 	require.Equal(t, metric3.Count, uint64(1))
 }
 
+func TestNoMappingsConfig(t *testing.T) {
+	datadogYaml := ``
+
+	port, err := getAvailableUDPPort()
+	require.NoError(t, err)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+
+	config.Datadog.SetConfigType("yaml")
+	err = config.Datadog.ReadConfig(strings.NewReader(datadogYaml))
+	require.NoError(t, err)
+
+	s, err := NewServer(nil, nil, nil)
+	require.NoError(t, err, "cannot start DSD")
+
+	assert.Nil(t, s.mapper)
+
+	packet := listeners.Packet{
+		Contents: []byte("test.metric:666|g"),
+		Origin:   listeners.NoOrigin,
+	}
+	sample, _, _ := s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
+	assert.Equal(t, 1, len(sample))
+}
+
 type mappingTest struct {
 	Match     string
 	MatchType string
