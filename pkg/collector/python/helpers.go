@@ -72,7 +72,7 @@ const (
 )
 
 var (
-	// implements a string set of non-intergrations with an empty stuct map
+	// implements a string set of non-integrations with an empty struct map
 	nonIntegrationsWheelSet = map[string]struct{}{
 		"checks_base":        {},
 		"checks_dev":         {},
@@ -81,7 +81,7 @@ var (
 	}
 )
 
-// newStickyLock register the current thread with the interpreter and locks
+// newStickyLock registers the current thread with the interpreter and locks
 // the GIL. It also sticks the goroutine to the current thread so that a
 // subsequent call to `Unlock` will unregister the very same thread.
 func newStickyLock() *stickyLock {

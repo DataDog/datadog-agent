@@ -16,6 +16,9 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     std::wstring propval;
     ddRegKey regkeybase;
     RegKey keyRollback, keyInstall;
+    DWORD nErr = NERR_Success;
+    bool bResetPassword = false;
+
 
     std::wstring waitval;
 
@@ -116,9 +119,8 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             }
             else {
                 if (!ddServiceExists) {
-                    WcaLog(LOGMSG_STANDARD, "Invalid configuration; DD user exists, but no service exists");
-                    er = ERROR_INSTALL_FAILURE;
-                    goto LExit;
+                    WcaLog(LOGMSG_STANDARD, "dd user exists %s, but not service.  Continuing", data.getFullUsernameMbcs().c_str());
+                    bResetPassword = true;
                 }
             }
         }
@@ -131,7 +133,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     // ok.  If we get here, we should be in a sane state (all installation conditions met)
     WcaLog(LOGMSG_STANDARD, "custom action initialization complete.  Processing");
     // first, let's decide if we need to create the dd-agent-user
-    if (!ddUserExists) {
+    if (!ddUserExists || bResetPassword) {
         // that was easy.  Need to create the user.  See if we have a password, or need to
         // generate one
         passbuflen = MAX_PASS_LEN + 2;
@@ -148,53 +150,68 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             }
             passToUse = passbuf;
         }
-        DWORD nErr = 0;
-        DWORD ret = doCreateUser(data.getUsername(), data.getDomainPtr(), ddAgentUserDescription, passToUse);
-        if (ret != 0) {
-            WcaLog(LOGMSG_STANDARD, "Failed to create DD user");
-            er = ERROR_INSTALL_FAILURE;
-            goto LExit;
-        }
-        // store that we created the user, and store the username so we can
-        // delete on rollback/uninstall
-        keyRollback.setStringValue(installCreatedDDUser.c_str(), data.getUserPtr());
-        keyInstall.setStringValue(installCreatedDDUser.c_str(), data.getUserPtr());
-        if (data.getDomainPtr()) {
-            keyRollback.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
-            keyInstall.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
+        if (bResetPassword) {
+            DWORD ret = doSetUserPassword(data.getUsername(), data.getDomainPtr(), passToUse);
+            if(ret != 0){
+                WcaLog(LOGMSG_STANDARD, "Failed to set DD user password");
+                er = ERROR_INSTALL_FAILURE;
+                goto LExit;
+            }
+        } else {
+            DWORD nErr = 0;
+            DWORD ret = doCreateUser(data.getUsername(), data.getDomainPtr(), ddAgentUserDescription, passToUse);
+            if (ret != 0) {
+                WcaLog(LOGMSG_STANDARD, "Failed to create DD user");
+                er = ERROR_INSTALL_FAILURE;
+                goto LExit;
+            }
+            // store that we created the user, and store the username so we can
+            // delete on rollback/uninstall
+            keyRollback.setStringValue(installCreatedDDUser.c_str(), data.getUserPtr());
+            keyInstall.setStringValue(installCreatedDDUser.c_str(), data.getUserPtr());
+            if (data.getDomainPtr()) {
+                keyRollback.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
+                keyInstall.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
+            }
         }
     }
+    
+    // add all the rights we want to the user (either existing or newly created)
+
+    // set the account privileges regardless; if they're already set the OS will silently
+    // ignore the request.    
+    hr = -1;
+    sid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
+    if (!sid) {
+        WcaLog(LOGMSG_STANDARD, "Failed to get SID for %s", data.getFullUsernameMbcs().c_str());
+        goto LExit;
+    }
+    if ((hLsa = GetPolicyHandle()) == NULL) {
+        WcaLog(LOGMSG_STANDARD, "Failed to get policy handle for %s", data.getFullUsernameMbcs().c_str());
+        goto LExit;
+    }
+    if (!AddPrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to add deny interactive login right");
+        goto LExit;
+    }
+
+    if (!AddPrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to add deny network login right");
+        goto LExit;
+    }
+    if (!AddPrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to add deny remote interactive login right");
+        goto LExit;
+    }
+    if (!AddPrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to add service login right");
+        goto LExit;
+    }
+    hr = 0;
+
     if(!ddUserExists)
     {
-        // since we just created the user, fix up all the rights we want
-        DWORD nErr = NERR_Success;
         hr = -1;
-        sid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
-        if (!sid) {
-            WcaLog(LOGMSG_STANDARD, "Failed to get SID for %s", data.getFullUsernameMbcs().c_str());
-            goto LExit;
-        }
-        if ((hLsa = GetPolicyHandle()) == NULL) {
-            WcaLog(LOGMSG_STANDARD, "Failed to get policy handle for %s", data.getFullUsernameMbcs().c_str());
-            goto LExit;
-        }
-        if (!AddPrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
-            WcaLog(LOGMSG_STANDARD, "failed to add deny interactive login right");
-            goto LExit;
-        }
-
-        if (!AddPrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
-            WcaLog(LOGMSG_STANDARD, "failed to add deny network login right");
-            goto LExit;
-        }
-        if (!AddPrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
-            WcaLog(LOGMSG_STANDARD, "failed to add deny remote interactive login right");
-            goto LExit;
-        }
-        if (!AddPrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
-            WcaLog(LOGMSG_STANDARD, "failed to add service login right");
-            goto LExit;
-        }
         nErr = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
         if (nErr != NERR_Success) {
             WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
@@ -205,10 +222,6 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
             goto LExit;
         }
-		if (!setUserProfileFolder(data.getUsername(), nullptr, passToUse)) {
-			WcaLog(LOGMSG_STANDARD, "Failed to set the user profile folder. Uninstall will not remove it");
-			// Continue as this error should not prevent the user for installing the agent.
-		}
         hr = 0;
     }
     if (!ddServiceExists) {
@@ -244,9 +257,10 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     }
     er = addDdUserPermsToFile(data, programdataroot);
     WcaLog(LOGMSG_STANDARD, "%d setting programdata dir perms", er);
-    er = addDdUserPermsToFile(data, installdir);
-    WcaLog(LOGMSG_STANDARD, "%d setting installdir dir perms", er);
-
+    er = addDdUserPermsToFile(data, embedded2Dir);
+    WcaLog(LOGMSG_STANDARD, "%d setting embedded2Dir dir perms", er);
+    er = addDdUserPermsToFile(data, embedded3Dir);
+    WcaLog(LOGMSG_STANDARD, "%d setting embedded3Dir dir perms", er);
     er = addDdUserPermsToFile(data, logfilename);
     WcaLog(LOGMSG_STANDARD, "%d setting log file perms", er);
     er = addDdUserPermsToFile(data, authtokenfilename);
@@ -485,25 +499,9 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
                 WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
             }
         }
-
-		std::wstring userProfileFolder;
-		if (!getUserProfileFolder(installedUser.c_str(), userProfileFolder)) {
-			WcaLog(LOGMSG_STANDARD, "Error when retrieving the user profile folder. User profile folder will not be removed.");
-			return false;
-		}
-
         // delete the user
         er = DeleteUser(NULL, installedUser.c_str());
-        if (0 == er) {
-			auto userSid = GetSidString(sid);
-			if (userSid && RemoveUserProfile(installedUser, userProfileFolder, *userSid)) {
-				WcaLog(LOGMSG_STANDARD, "User profile removed.");
-			}
-			else {
-				WcaLog(LOGMSG_STANDARD, "Cannot remove user profile.");
-			}
-        }
-        else {
+        if (0 != er) {
             // don't actually fail on failure.  We're doing an uninstall,
             // and failing will just leave the system in a more confused state
             WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog user %d", er);
@@ -535,7 +533,7 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
     if (hLsa) {
         LsaClose(hLsa);
     }
-    return er;
+    return 0;
 
 }
 HMODULE hDllModule;

@@ -21,6 +21,8 @@ type reverseDNSCache struct {
 	length   int64
 	lookups  int64
 	resolved int64
+	added    int64
+	expired  int64
 }
 
 func newReverseDNSCache(size int, ttl, expirationPeriod time.Duration) *reverseDNSCache {
@@ -65,6 +67,7 @@ func (c *reverseDNSCache) Add(translation *translation, now time.Time) bool {
 			continue
 		}
 
+		atomic.AddInt64(&c.added, 1)
 		c.data[addr] = &dnsCacheVal{names: []string{translation.name}, expiration: exp}
 	}
 
@@ -124,12 +127,16 @@ func (c *reverseDNSCache) Stats() map[string]int64 {
 	var (
 		lookups  = atomic.SwapInt64(&c.lookups, 0)
 		resolved = atomic.SwapInt64(&c.resolved, 0)
+		added    = atomic.SwapInt64(&c.added, 0)
+		expired  = atomic.SwapInt64(&c.expired, 0)
 		ips      = int64(c.Len())
 	)
 
 	return map[string]int64{
 		"lookups":  lookups,
 		"resolved": resolved,
+		"added":    added,
+		"expired":  expired,
 		"ips":      ips,
 	}
 }
@@ -153,6 +160,7 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 	total := len(c.data)
 	c.mux.Unlock()
 
+	atomic.StoreInt64(&c.expired, int64(expired))
 	atomic.StoreInt64(&c.length, int64(total))
 	log.Debugf(
 		"dns entries expired. took=%s total=%d expired=%d\n",

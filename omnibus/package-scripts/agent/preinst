@@ -73,11 +73,11 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # Uninstall every datadog integration
         # Starting with 6.10, integrations are also uninstalled on package removal
         # See https://github.com/DataDog/datadog-agent/pull/3066 for more details
-        PIP_PATH=$INSTALL_DIR/embedded/bin/pip
+        PIP2_PATH=$INSTALL_DIR/embedded/bin/pip2
         PIP3_PATH=$INSTALL_DIR/embedded/bin/pip3
-        if [ -x $PIP_PATH ]; then
+        if [ -x $PIP2_PATH ]; then
             echo "Uninstalling Python 2 integrations..."
-            $PIP_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP_PATH uninstall -y -q --no-cache-dir || true
+            $PIP2_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP2_PATH uninstall -y -q --no-cache-dir || true
         fi
         if [ -x $PIP3_PATH ]; then
             echo "Uninstalling Python 3 integrations..."
@@ -94,6 +94,11 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         DOWNLOADER_DATA="$INSTALL_DIR/embedded/lib/python2.7/site-packages/datadog_checks/downloader/data"
         if [ -f $DOWNLOADER_DATA ]; then
             rm -rf $DOWNLOADER_DATA
+        fi
+
+        DOWNLOADER_DATA3="$INSTALL_DIR/embedded/lib/python3.7/site-packages/datadog_checks/downloader/data"
+        if [ -d $DOWNLOADER_DATA3 ]; then
+            rm -rf $DOWNLOADER_DATA3
         fi
     else
         echo "[ FAILED ]\tYour system is currently not supported by this script.";

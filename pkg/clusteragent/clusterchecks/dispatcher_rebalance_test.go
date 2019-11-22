@@ -123,7 +123,7 @@ func TestRebalance(t *testing.T) {
 							MetricSamples:        10,
 						},
 						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
+							AverageExecutionTime: 200,
 							MetricSamples:        10,
 						},
 					},
@@ -168,7 +168,7 @@ func TestRebalance(t *testing.T) {
 					name: "B",
 					clcRunnerStats: types.CLCRunnersStats{
 						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
+							AverageExecutionTime: 200,
 							MetricSamples:        10,
 						},
 						"checkB0": types.CLCRunnerStats{
@@ -357,7 +357,7 @@ func TestRebalance(t *testing.T) {
 							MetricSamples:        10,
 						},
 						"checkB3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
+							AverageExecutionTime: 200,
 							MetricSamples:        10,
 						},
 						"checkB4": types.CLCRunnerStats{
@@ -459,7 +459,7 @@ func TestRebalance(t *testing.T) {
 							MetricSamples:        10,
 						},
 						"checkB3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
+							AverageExecutionTime: 200,
 							MetricSamples:        10,
 						},
 					},
@@ -699,12 +699,7 @@ func TestRebalance(t *testing.T) {
 			},
 			out: map[string]*nodeStore{
 				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC1": types.CLCRunnerStats{
-							AverageExecutionTime: 500,
-							MetricSamples:        10,
-						},
-					},
+					clcRunnerStats: types.CLCRunnersStats{},
 				},
 				"B": {
 					clcRunnerStats: types.CLCRunnersStats{},
@@ -713,6 +708,10 @@ func TestRebalance(t *testing.T) {
 					clcRunnerStats: types.CLCRunnersStats{
 						"checkC0": types.CLCRunnerStats{
 							AverageExecutionTime: 20,
+							MetricSamples:        10,
+						},
+						"checkC1": types.CLCRunnerStats{
+							AverageExecutionTime: 500,
 							MetricSamples:        10,
 						},
 					},
@@ -935,10 +934,6 @@ func TestRebalance(t *testing.T) {
 							AverageExecutionTime: 100,
 							MetricSamples:        20,
 						},
-						"checkD2": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        600,
-						},
 					},
 				},
 				"D": {
@@ -950,6 +945,10 @@ func TestRebalance(t *testing.T) {
 						"checkD1": types.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        50,
+						},
+						"checkD2": types.CLCRunnerStats{
+							AverageExecutionTime: 300,
+							MetricSamples:        600,
 						},
 					},
 				},

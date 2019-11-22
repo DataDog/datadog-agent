@@ -53,6 +53,9 @@ const (
 
 	// LOCAL represents connections that don't leave the host
 	LOCAL ConnectionDirection = 3
+
+	// NONE represents connections that have no direction (udp, for example)
+	NONE ConnectionDirection = 4
 )
 
 func (d ConnectionDirection) String() string {
@@ -61,6 +64,8 @@ func (d ConnectionDirection) String() string {
 		return "outgoing"
 	case LOCAL:
 		return "local"
+	case NONE:
+		return "none"
 	default:
 		return "incoming"
 	}
@@ -68,7 +73,7 @@ func (d ConnectionDirection) String() string {
 
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
-	Names map[util.Address][]string
+	DNS   map[util.Address][]string
 	Conns []ConnectionStats
 }
 

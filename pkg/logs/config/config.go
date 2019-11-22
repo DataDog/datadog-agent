@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -131,12 +132,14 @@ func buildTCPEndpoints() (*Endpoints, error) {
 		additionals[i].ProxyAddress = proxyAddress
 	}
 
-	return NewEndpoints(main, additionals, useProto, false), nil
+	return NewEndpoints(main, additionals, useProto, false, 0), nil
 }
 
 func buildHTTPEndpoints() (*Endpoints, error) {
 	main := Endpoint{
-		APIKey: getLogsAPIKey(coreConfig.Datadog),
+		APIKey:           getLogsAPIKey(coreConfig.Datadog),
+		UseCompression:   coreConfig.Datadog.GetBool("logs_config.use_compression"),
+		CompressionLevel: coreConfig.Datadog.GetInt("logs_config.compression_level"),
 	}
 
 	switch {
@@ -162,7 +165,9 @@ func buildHTTPEndpoints() (*Endpoints, error) {
 		additionals[i].UseSSL = main.UseSSL
 	}
 
-	return NewEndpoints(main, additionals, false, true), nil
+	batchWait := batchWait(coreConfig.Datadog)
+
+	return NewEndpoints(main, additionals, false, true, batchWait), nil
 }
 
 func isSetAndNotEmpty(config coreConfig.Config, key string) bool {
@@ -188,4 +193,13 @@ func parseAddress(address string) (string, int, error) {
 		return "", 0, err
 	}
 	return host, port, nil
+}
+
+func batchWait(config coreConfig.Config) time.Duration {
+	batchWait := coreConfig.Datadog.GetInt("logs_config.batch_wait")
+	if batchWait < 1 || 10 < batchWait {
+		log.Warnf("Invalid batch_wait: %v should be in [1, 10], fallback on %v", batchWait, coreConfig.DefaultBatchWait)
+		return coreConfig.DefaultBatchWait * time.Second
+	}
+	return (time.Duration(batchWait) * time.Second)
 }

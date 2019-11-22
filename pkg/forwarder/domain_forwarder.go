@@ -164,7 +164,7 @@ func (f *domainForwarder) Start() error {
 }
 
 // Stop stops a domainForwarder, all transactions not yet flushed will be lost.
-func (f *domainForwarder) Stop() {
+func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	// Lock so we can't start a Forwarder while is stopping
 	f.m.Lock()
 	defer f.m.Unlock()
@@ -176,7 +176,7 @@ func (f *domainForwarder) Stop() {
 
 	f.stopRetry <- true
 	for _, w := range f.workers {
-		w.Stop()
+		w.Stop(purgeHighPrio)
 	}
 	f.workers = []*Worker{}
 	f.retryQueue = []Transaction{}

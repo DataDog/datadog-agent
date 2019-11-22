@@ -13,7 +13,7 @@ environment:
   # Give hints to CMake to find Pythons
   Python2_ROOT_DIR: C:\Python27-x64
   Python3_ROOT_DIR: C:\Python37-x64
-  PIP2: pip -q
+  PIP2: pip2 -q
   PIP3: pip3 -q
   MSYS_ROOT: C:\msys64
 

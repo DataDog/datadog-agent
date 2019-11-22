@@ -44,7 +44,7 @@ func main() {
 			fmt.Println(err)
 		}
 		for _, c := range cs.Conns {
-			fmt.Println(ebpf.ConnectionSummary(c, cs.Names))
+			fmt.Println(ebpf.ConnectionSummary(c, cs.DNS))
 		}
 	}
 

@@ -383,3 +383,55 @@ func TestSetExternalTagInvalidTagsList(t *testing.T) {
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
 }
+
+func TestSetExternalTagEmptyDict(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := `
+	tags = [
+		('hostname', {}),
+		('hostname2', {'source_type2': ['tag3', 'tag4']}),
+	]
+	datadog_agent.set_external_tags(tags)
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "hostname2,source_type2,tag3,tag4" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestWritePersistentCache(t *testing.T) {
+	code := `
+	datadog_agent.write_persistent_cache("12345", "someothervalue")
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "12345someothervalue" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
+
+func TestReadPersistentCache(t *testing.T) {
+	code := fmt.Sprintf(`
+	with open(r'%s', 'w') as f:
+		data = datadog_agent.read_persistent_cache("12345")
+		assert type(data) == type("")
+		f.write(data)
+	`, tmpfile.Name())
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "somevalue" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}

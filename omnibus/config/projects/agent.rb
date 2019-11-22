@@ -144,7 +144,7 @@ else
 end
 
 if with_python_runtime? "2"
-  dependency 'datadog-a7-py2'
+  dependency 'pylint2'
   dependency 'datadog-agent-integrations-py2'
 end
 
@@ -179,6 +179,11 @@ if linux?
   if debian?
     systemd_directory = "/lib/systemd/system"
 
+    extra_package_file "/etc/init.d/datadog-agent"
+    extra_package_file "/etc/init.d/datadog-agent-process"
+    extra_package_file "/etc/init.d/datadog-agent-trace"
+  end
+  if suse?
     extra_package_file "/etc/init.d/datadog-agent"
     extra_package_file "/etc/init.d/datadog-agent-process"
     extra_package_file "/etc/init.d/datadog-agent-trace"

@@ -23,12 +23,34 @@ var (
 	metadataURL         = "http://169.254.169.254/latest/meta-data"
 	instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
 	timeout             = 100 * time.Millisecond
-	defaultPrefixes     = []string{"ip-", "domu"}
+	oldDefaultPrefixes  = []string{"ip-", "domu"}
+	defaultPrefixes     = []string{"ip-", "domu", "ec2amaz-"}
+
+	// CloudProviderName contains the inventory name of for EC2
+	CloudProviderName = "AWS"
 )
 
 // GetInstanceID fetches the instance id for current host from the EC2 metadata API
 func GetInstanceID() (string, error) {
 	return getMetadataItemWithMaxLength("/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+}
+
+// GetLocalIPv4 gets the local IPv4 for the currently running host using the EC2 metadata API.
+// Returns a []string to implement the HostIPProvider interface expected in pkg/process/util
+func GetLocalIPv4() ([]string, error) {
+	ip, err := getMetadataItem("/local-ipv4")
+	if err != nil {
+		return nil, err
+	}
+	return []string{ip}, nil
+}
+
+// IsRunningOn returns true if the agent is running on AWS
+func IsRunningOn() bool {
+	if _, err := GetHostname(); err == nil {
+		return true
+	}
+	return false
 }
 
 // GetHostname fetches the hostname for current host from the EC2 metadata API
@@ -149,7 +171,16 @@ func getResponse(url string) (*http.Response, error) {
 func IsDefaultHostname(hostname string) bool {
 	hostname = strings.ToLower(hostname)
 	isDefault := false
-	for _, val := range defaultPrefixes {
+
+	var prefixes []string
+
+	if config.Datadog.GetBool("ec2_use_windows_prefix_detection") {
+		prefixes = defaultPrefixes
+	} else {
+		prefixes = oldDefaultPrefixes
+	}
+
+	for _, val := range prefixes {
 		isDefault = isDefault || strings.HasPrefix(hostname, val)
 	}
 	return isDefault

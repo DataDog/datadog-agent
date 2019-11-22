@@ -30,6 +30,8 @@ extern void getVersion(char **);
 extern void headers(char **);
 extern void setCheckMetadata(char*, char*, char*);
 extern void setExternalHostTags(char*, char*, char**);
+extern void writePersistentCache(char*, char*);
+extern char* readPersistentCache(char*);
 
 
 static void initDatadogAgentTests(rtloader_t *rtloader) {
@@ -43,6 +45,8 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_log_cb(rtloader, doLog);
    set_set_check_metadata_cb(rtloader, setCheckMetadata);
    set_set_external_tags_cb(rtloader, setExternalHostTags);
+   set_write_persistent_cache_cb(rtloader, writePersistentCache);
+   set_read_persistent_cache_cb(rtloader, readPersistentCache);
 }
 */
 import "C"
@@ -211,4 +215,21 @@ func setExternalHostTags(hostname *C.char, sourceType *C.char, tags **C.char) {
 	f.WriteString(",")
 	f.WriteString(strings.Join(tagsStrings, ","))
 	f.WriteString("\n")
+}
+
+//export writePersistentCache
+func writePersistentCache(key, value *C.char) {
+	keyName := C.GoString(key)
+	val := C.GoString(value)
+
+	f, _ := os.OpenFile(tmpfile.Name(), os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
+	defer f.Close()
+
+	f.WriteString(keyName)
+	f.WriteString(val)
+}
+
+//export readPersistentCache
+func readPersistentCache(key *C.char) *C.char {
+	return (*C.char)(helpers.TrackedCString("somevalue"))
 }

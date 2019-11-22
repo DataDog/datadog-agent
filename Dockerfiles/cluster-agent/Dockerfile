@@ -35,6 +35,17 @@ RUN apt-get update \
 
 COPY --from=builder /output /
 
+# We need to set the NET_BIND_SERVICE capability to allow the cluster-agent to bind
+# port 443 for metrics provider.
+# And we need to do it here because capabilities set in `builder` stage are not kept
+# by the `COPY --from=builder`.
+RUN apt-get update \
+ && apt-get install -y libcap2-bin \
+ && setcap cap_net_bind_service+ep /opt/datadog-agent/bin/datadog-cluster-agent \
+ && apt-get remove -y libcap2-bin \
+ && apt-get autoremove -y \
+ && apt-get clean
+
 # Allow running as an unprivileged user:
 # - General case is the dd-agent user
 # - OpenShift uses a random UID in the root group

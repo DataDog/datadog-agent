@@ -25,6 +25,7 @@ type CheckInstanceMetadata map[string]interface{}
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
+	Hostname      string         `json:"hostname"`
 	Timestamp     int64          `json:"timestamp"`
 	CheckMetadata *CheckMetadata `json:"check_metadata"`
 	AgentMetadata *AgentMetadata `json:"agent_metadata"`

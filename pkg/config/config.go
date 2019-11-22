@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -39,14 +40,27 @@ const (
 	DefaultForwarderRecoveryInterval = 2
 
 	megaByte = 1024 * 1024
+
+	// DefaultBatchWait is the default HTTP batch wait in second for logs
+	DefaultBatchWait = 5
 )
 
-var overrideVars = map[string]interface{}{}
+var overrideVars = make(map[string]interface{})
 
 // Datadog is the global configuration object
 var (
 	Datadog Config
 	proxies *Proxy
+)
+
+// Variables to initialize at build time
+var (
+	DefaultPython string
+
+	// ForceDefaultPython has its value set to true at compile time if we should ignore
+	// the Python version set in the configuration and use `DefaultPython` instead.
+	// We use this to force Python 3 in the Agent 7 as it's the only one available.
+	ForceDefaultPython string
 )
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
@@ -133,7 +147,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("ipc_address", "localhost")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
-	config.BindEnvAndSetDefault("python_version", "2")
+	config.BindEnvAndSetDefault("python_version", DefaultPython)
 	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
 	config.BindEnvAndSetDefault("c_core_dump", false)
@@ -141,6 +155,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("tracemalloc_debug", false)
 	config.BindEnvAndSetDefault("tracemalloc_whitelist", "")
 	config.BindEnvAndSetDefault("tracemalloc_blacklist", "")
+	config.BindEnvAndSetDefault("run_path", defaultRunPath)
 
 	// Python 3 linter timeout, in seconds
 	// NOTE: linter is notoriously slow, in the absence of a better solution we
@@ -158,13 +173,6 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", 1024)
 	config.BindEnvAndSetDefault("secret_backend_timeout", 5)
-
-	// Retry settings
-	config.BindEnvAndSetDefault("forwarder_backoff_factor", 2)
-	config.BindEnvAndSetDefault("forwarder_backoff_base", 2)
-	config.BindEnvAndSetDefault("forwarder_backoff_max", 64)
-	config.BindEnvAndSetDefault("forwarder_recovery_interval", DefaultForwarderRecoveryInterval)
-	config.BindEnvAndSetDefault("forwarder_recovery_reset", false)
 
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
@@ -202,6 +210,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("proc_root", "/proc")
 	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
+	config.BindEnvAndSetDefault("aggregator_stop_timeout", 2)
 	// Serializer
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
@@ -223,6 +232,14 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
 	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 30)
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
+	config.BindEnvAndSetDefault("forwarder_stop_timeout", 2)
+	// Forwarder retry settings
+	config.BindEnvAndSetDefault("forwarder_backoff_factor", 2)
+	config.BindEnvAndSetDefault("forwarder_backoff_base", 2)
+	config.BindEnvAndSetDefault("forwarder_backoff_max", 64)
+	config.BindEnvAndSetDefault("forwarder_recovery_interval", DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("forwarder_recovery_reset", false)
+
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
 	config.BindEnvAndSetDefault("dogstatsd_port", 8125) // Notice: 0 means UDP port closed
@@ -321,6 +338,9 @@ func initConfig(config Config) {
 	// Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.
 	config.BindEnvAndSetDefault("metadata_endpoints_max_hostname_size", 255)
 
+	// EC2
+	config.BindEnvAndSetDefault("ec2_use_windows_prefix_detection", false)
+
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
 	config.BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")
@@ -353,7 +373,13 @@ func initConfig(config Config) {
 	// Note that trace-agent environment variables are parsed in pkg/trace/config/env.go
 	// since some of them require custom parsing algorithms. DO NOT add environment variable
 	// bindings here, add them there instead.
-	config.BindEnvAndSetDefault("apm_config.enabled", true)
+	if runtime.GOARCH == "386" {
+		// on Windows-32 bit, the trace agent isn't installed.  Set the default to disabled
+		// so that there aren't messages in the log about failing to start.
+		config.BindEnvAndSetDefault("apm_config.enabled", false)
+	} else {
+		config.BindEnvAndSetDefault("apm_config.enabled", true)
+	}
 
 	// Process agent
 	config.SetDefault("process_config.enabled", "false")
@@ -389,6 +415,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	config.BindEnv("logs_config.dd_url")
 	config.BindEnvAndSetDefault("logs_config.use_http", false)
+	config.BindEnvAndSetDefault("logs_config.use_compression", false)
+	config.BindEnvAndSetDefault("logs_config.compression_level", 6) // Default level for the gzip/deflate algorithm
+	config.BindEnvAndSetDefault("logs_config.batch_wait", DefaultBatchWait)
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
@@ -535,6 +564,8 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.receiver_timeout")
 	config.SetKnown("apm_config.watchdog_check_delay")
 
+	config.BindEnvAndSetDefault("inventories_enabled", true)
+
 	setAssetFs(config)
 }
 
@@ -670,6 +701,20 @@ func load(config Config, origin string, loadSecret bool) error {
 		if err := ResolveSecrets(config, origin); err != nil {
 			return err
 		}
+	}
+
+	// If this variable is set to true, we'll use DefaultPython for the Python version,
+	// ignoring the python_version configuration value.
+	if ForceDefaultPython == "true" {
+		override := make(map[string]interface{})
+		override["python_version"] = DefaultPython
+
+		pv := config.GetString("python_version")
+		if pv != DefaultPython {
+			log.Warnf("Python version has been forced to %s", DefaultPython)
+		}
+
+		AddOverrides(override)
 	}
 
 	loadProxyFromEnv(config)
@@ -902,11 +947,13 @@ func IsKubernetes() bool {
 	return false
 }
 
-// SetOverrides provides an externally accessible method for
+// AddOverrides provides an externally accessible method for
 // overriding config variables.
 // This method must be called before Load() to be effective.
-func SetOverrides(vars map[string]interface{}) {
-	overrideVars = vars
+func AddOverrides(vars map[string]interface{}) {
+	for k, v := range vars {
+		overrideVars[k] = v
+	}
 }
 
 // applyOverrides overrides config variables.

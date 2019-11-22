@@ -6,11 +6,12 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	containercollectors "github.com/DataDog/datadog-agent/pkg/util/containers/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RTContainer is a singleton RTContainerCheck.
@@ -40,6 +41,12 @@ func (r *RTContainerCheck) RealTime() bool { return true }
 // Run runs the real-time container check getting container-level stats from the Cgroups and Docker APIs.
 func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
 	ctrList, err := util.GetContainers()
+
+	if err == containercollectors.ErrPermaFail || err == containercollectors.ErrNothingYet {
+		log.Trace("container collector was not detected, container check will not return any data")
+		return nil, nil
+	}
+
 	if err != nil {
 		return nil, err
 	}

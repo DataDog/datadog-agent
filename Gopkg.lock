@@ -10,15 +10,15 @@
   source = "github.com/adjust/goautoneg"
 
 [[projects]]
-  digest = "1:2a1277418c550089fd8b8d82a7d636a01d94c6c12e86dafe6b8b5dc9b2814b1c"
+  digest = "1:c4e071eb2f960b14286f0fe2057d4f87dfd83c840c059377f01c37b5112595ed"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "997110e4ab87b03a1457ab0532c4b1745e543e54"
-  version = "4.12.0"
+  revision = "8cebd5a06a08dc27a4d822940f5275b0fa41aa34"
+  version = "4.15.0"
 
 [[projects]]
   digest = "1:e64fddc819e2abc68792a743dd857c379449a56f2b9eaf030c03fb0ec19de884"
@@ -522,11 +522,11 @@
   version = "v1.7.0"
 
 [[projects]]
-  digest = "1:011900e7ee97686e7817937becc3bbeb9b9aa919d0a8c99e770710d9edee6230"
+  digest = "1:31ce89581517f1d39a7486caca6e689b44f6ada079f23ce8f15cd7876174ced7"
   name = "github.com/florianl/go-conntrack"
   packages = ["."]
   pruneopts = ""
-  revision = "6d50e184fe3ef7ba0640303db5e6a5610bf4a297"
+  revision = "06743d3a59db658e0e9aaddc9acff6d01ce643fb"
 
 [[projects]]
   digest = "1:eb53021a8aa3f599d29c7102e65026242bdedce998a54837dc67f14b6a97c5fd"
@@ -828,7 +828,7 @@
   version = "v1.0"
 
 [[projects]]
-  digest = "1:3e7518df4c30983b334eeefd02d4c8a97788a1ea44c48e44eacd509b1623af7e"
+  digest = "1:1b6f213327a9343809b0328f41d7f2835a8750438292ab0898dbff1d6a60b7ad"
   name = "github.com/iovisor/gobpf"
   packages = [
     "elf",
@@ -836,7 +836,7 @@
     "pkg/cpuonline",
   ]
   pruneopts = ""
-  revision = "42285a7409f87cb399476b132e726aacfc63fbdc"
+  revision = "a14c39bf99c7539b5578baf2449ff2e37dd35901"
   source = "github.com/DataDog/gobpf"
 
 [[projects]]
@@ -2108,6 +2108,7 @@
     "k8s.io/apimachinery/pkg/apis/meta/v1",
     "k8s.io/apimachinery/pkg/labels",
     "k8s.io/apimachinery/pkg/runtime",
+    "k8s.io/apimachinery/pkg/runtime/schema",
     "k8s.io/apimachinery/pkg/runtime/serializer",
     "k8s.io/apimachinery/pkg/types",
     "k8s.io/apimachinery/pkg/util/sets",

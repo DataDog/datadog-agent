@@ -13,23 +13,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
-type checkMetadataCacheEntry struct {
-	LastUpdated           int64
-	CheckInstanceMetadata CheckInstanceMetadata
+type schedulerInterface interface {
+	TriggerAndResetCollectorTimer(name string, delay time.Duration)
 }
 
-type getAllInstanceIDsInterface interface {
-	GetAllInstanceIDs(checkName string) []check.ID
-}
-
-type getLoadedConfigsInterface interface {
+// AutoConfigInterface is an interface for the GetLoadedConfigs method of autodiscovery
+type AutoConfigInterface interface {
 	GetLoadedConfigs() map[string]integration.Config
 }
 
-var (
-	// For testing purposes
-	nowNano = func() int64 { return time.Now().UnixNano() }
-)
+// CollectorInterface is an interface for the GetAllInstanceIDs method of the collector
+type CollectorInterface interface {
+	GetAllInstanceIDs(checkName string) []check.ID
+}
+
+type checkMetadataCacheEntry struct {
+	LastUpdated           time.Time
+	CheckInstanceMetadata CheckInstanceMetadata
+}
 
 var (
 	checkMetadataCache = make(map[string]*checkMetadataCacheEntry) // by check ID
@@ -37,7 +38,24 @@ var (
 	agentMetadataCache = make(AgentMetadata)
 	agentCacheMutex    = &sync.Mutex{}
 
-	agentStartupTime = nowNano()
+	agentStartupTime = timeNow()
+
+	lastGetPayload      = timeNow()
+	lastGetPayloadMutex = &sync.Mutex{}
+
+	metadataUpdatedC = make(chan interface{}, 1)
+)
+
+var (
+	// For testing purposes
+	timeNow   = time.Now
+	timeSince = time.Since
+)
+
+const (
+	// CloudProviderMetatadaName is the field name to use to set the cloud
+	// provider name in the agent metadata.
+	CloudProviderMetatadaName = "cloud_provider"
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
@@ -45,7 +63,14 @@ func SetAgentMetadata(name string, value interface{}) {
 	agentCacheMutex.Lock()
 	defer agentCacheMutex.Unlock()
 
-	agentMetadataCache[name] = value
+	if agentMetadataCache[name] != value {
+		agentMetadataCache[name] = value
+
+		select {
+		case metadataUpdatedC <- nil:
+		default: // To make sure this call is not blocking
+		}
+	}
 }
 
 // SetCheckMetadata updates a metadata value for one check instance in the cache.
@@ -61,8 +86,15 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 		checkMetadataCache[checkID] = entry
 	}
 
-	entry.LastUpdated = nowNano()
-	entry.CheckInstanceMetadata[key] = value
+	if entry.CheckInstanceMetadata[key] != value {
+		entry.LastUpdated = timeNow()
+		entry.CheckInstanceMetadata[key] = value
+
+		select {
+		case metadataUpdatedC <- nil:
+		default: // To make sure this call is not blocking
+		}
+	}
 }
 
 func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMetadata {
@@ -78,15 +110,15 @@ func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMeta
 		checkInstanceMetadata = make(CheckInstanceMetadata)
 	}
 
-	checkInstanceMetadata["last_updated"] = lastUpdated
+	checkInstanceMetadata["last_updated"] = lastUpdated.UnixNano()
 	checkInstanceMetadata["config.hash"] = checkID
 	checkInstanceMetadata["config.provider"] = configProvider
 
 	return &checkInstanceMetadata
 }
 
-// GetPayload fills and returns the check metadata payload
-func GetPayload(ac getLoadedConfigsInterface, coll getAllInstanceIDsInterface) *Payload {
+// CreatePayload fills and returns the inventory metadata payload
+func CreatePayload(hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
 	checkCacheMutex.Lock()
 	defer checkCacheMutex.Unlock()
 
@@ -94,15 +126,17 @@ func GetPayload(ac getLoadedConfigsInterface, coll getAllInstanceIDsInterface) *
 
 	newCheckMetadataCache := make(map[string]*checkMetadataCacheEntry)
 
-	configs := ac.GetLoadedConfigs()
-	for _, config := range configs {
-		checkMetadata[config.Name] = make([]*CheckInstanceMetadata, 0)
-		instanceIDs := coll.GetAllInstanceIDs(config.Name)
-		for _, id := range instanceIDs {
-			checkInstanceMetadata := getCheckInstanceMetadata(string(id), config.Provider)
-			checkMetadata[config.Name] = append(checkMetadata[config.Name], checkInstanceMetadata)
-			if entry, found := checkMetadataCache[string(id)]; found {
-				newCheckMetadataCache[string(id)] = entry
+	if ac != nil {
+		configs := ac.GetLoadedConfigs()
+		for _, config := range configs {
+			checkMetadata[config.Name] = make([]*CheckInstanceMetadata, 0)
+			instanceIDs := coll.GetAllInstanceIDs(config.Name)
+			for _, id := range instanceIDs {
+				checkInstanceMetadata := getCheckInstanceMetadata(string(id), config.Provider)
+				checkMetadata[config.Name] = append(checkMetadata[config.Name], checkInstanceMetadata)
+				if entry, found := checkMetadataCache[string(id)]; found {
+					newCheckMetadataCache[string(id)] = entry
+				}
 			}
 		}
 	}
@@ -112,10 +146,43 @@ func GetPayload(ac getLoadedConfigsInterface, coll getAllInstanceIDsInterface) *
 
 	agentCacheMutex.Lock()
 	defer agentCacheMutex.Unlock()
+	// Creating a copy of agentMetadataCache
+	agentMetadata := make(AgentMetadata)
+	for k, v := range agentMetadataCache {
+		agentMetadata[k] = v
+	}
 
 	return &Payload{
-		Timestamp:     nowNano(),
+		Hostname:      hostname,
+		Timestamp:     timeNow().UnixNano(),
 		CheckMetadata: &checkMetadata,
-		AgentMetadata: &agentMetadataCache,
+		AgentMetadata: &agentMetadata,
 	}
+}
+
+// GetPayload returns a new inventory metadata payload and updates lastGetPayload
+func GetPayload(hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
+	lastGetPayloadMutex.Lock()
+	defer lastGetPayloadMutex.Unlock()
+	lastGetPayload = timeNow()
+
+	return CreatePayload(hostname, ac, coll)
+}
+
+// StartMetadataUpdatedGoroutine starts a routine that listens to the metadataUpdatedC
+// signal to run the collector out of its regular interval.
+func StartMetadataUpdatedGoroutine(sc schedulerInterface, minSendInterval time.Duration) error {
+	go func() {
+		for {
+			<-metadataUpdatedC
+			lastGetPayloadMutex.Lock()
+			delay := minSendInterval - timeSince(lastGetPayload)
+			if delay < 0 {
+				delay = 0
+			}
+			sc.TriggerAndResetCollectorTimer("inventories", delay)
+			lastGetPayloadMutex.Unlock()
+		}
+	}()
+	return nil
 }

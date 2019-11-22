@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -192,9 +193,11 @@ func (l *Collector) postMessage(checkPath string, m model.MessageBody) {
 		log.Errorf("Unable to encode message: %s", err)
 	}
 
+	containerCount := getContainerCount(m)
+
 	responses := make(chan postResponse)
 	for _, ep := range l.cfg.APIEndpoints {
-		go l.postToAPI(ep, checkPath, body, responses)
+		go l.postToAPI(ep, checkPath, body, responses, containerCount)
 	}
 
 	// Wait for all responses to come back before moving on.
@@ -273,7 +276,7 @@ func errResponse(format string, a ...interface{}) postResponse {
 	return postResponse{err: fmt.Errorf(format, a...)}
 }
 
-func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, body []byte, responses chan postResponse) {
+func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, body []byte, responses chan postResponse, containerCount int) {
 	endpoint.Endpoint.Path = checkPath
 	url := endpoint.Endpoint.String()
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
@@ -285,6 +288,7 @@ func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, bod
 	req.Header.Add("X-Dd-APIKey", endpoint.APIKey)
 	req.Header.Add("X-Dd-Hostname", l.cfg.HostName)
 	req.Header.Add("X-Dd-Processagentversion", Version)
+	req.Header.Add("X-Dd-ContainerCount", strconv.Itoa(containerCount))
 
 	ctx, cancel := context.WithTimeout(context.Background(), ReqCtxTimeout)
 	defer cancel()
@@ -335,4 +339,21 @@ func isHTTPTimeout(err error) bool {
 		return true
 	}
 	return false
+}
+
+// getContainerCount returns the number of containers in the message body
+func getContainerCount(mb model.MessageBody) int {
+	switch v := mb.(type) {
+	case *model.CollectorProc:
+		return len(v.GetContainers())
+	case *model.CollectorRealTime:
+		return len(v.GetContainerStats())
+	case *model.CollectorContainer:
+		return len(v.GetContainers())
+	case *model.CollectorContainerRealTime:
+		return len(v.GetStats())
+	case *model.CollectorConnections:
+		return 0
+	}
+	return 0
 }

@@ -13,6 +13,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -72,8 +73,8 @@ type Tracer struct {
 	buf *bytes.Buffer
 
 	// Connections for the tracer to blacklist
-	sourceExcludes []*util.ConnectionFilter
-	destExcludes   []*util.ConnectionFilter
+	sourceExcludes []*ConnectionFilter
+	destExcludes   []*ConnectionFilter
 }
 
 const (
@@ -95,7 +96,19 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not read bpf module: %s", err)
 	}
 
-	err = m.Load(SectionsFromConfig(config))
+	// check if current platform is RHEL or CentOS because it affects what kprobe are we going to enable
+	isRHELOrCentos, err := isRHELOrCentOS()
+	if err != nil {
+		// if the platform couldn't be determined, treat it as non RHEL case
+		log.Warn("could not detect the platform, will use kprobes from kernel version > 4.1.x")
+	}
+
+	if isRHELOrCentos {
+		log.Info("detected platform as RHEL/CentOS, switch to use kprobes from kernel version 3.3.x")
+	}
+
+	enableSocketFilter := config.DNSInspection && !isRHELOrCentos
+	err = m.Load(SectionsFromConfig(config, enableSocketFilter))
 	if err != nil {
 		return nil, fmt.Errorf("could not load bpf module: %s", err)
 	}
@@ -118,17 +131,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
 
-	// check if current platform is RHEL or CentOS because it affects what kprobe are we going to enable
-	isRHELOrCentos, err := isRHELOrCentOS()
-	if err != nil {
-		// if the platform couldn't be determined, treat it as non RHEL case
-		log.Warn("could not detect the platform, will use kprobes from kernel version > 4.1.x")
-	}
-
-	if isRHELOrCentos {
-		log.Info("detected platform as RHEL/CentOS, switch to use kprobes from kernel version 3.3.x")
-	}
-
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes := config.EnabledKProbes(isRHELOrCentos)
 
@@ -148,7 +150,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 
 	var reverseDNS ReverseDNS = nullReverseDNS{}
-	if config.DNSInspection {
+	if enableSocketFilter {
 		filter := m.SocketFilter("socket/dns_filter")
 		if filter == nil {
 			return nil, fmt.Errorf("error retrieving socket filter")
@@ -187,8 +189,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 		buffer:         make([]ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
 		conntracker:    conntracker,
-		sourceExcludes: util.ParseConnectionFilters(config.ExcludedSourceConnections),
-		destExcludes:   util.ParseConnectionFilters(config.ExcludedDestinationConnections),
+		sourceExcludes: ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:   ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
 
 	tr.perfMap, err = tr.initPerfPolling()
@@ -277,7 +279,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				if t.shouldSkipConnection(&cs) {
 					atomic.AddInt64(&t.skippedConns, 1)
 				} else {
-					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort)
+					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort, process.ConnectionType(cs.Type))
 					t.state.StoreClosedConnection(cs)
 				}
 			case lostCount, ok := <-lostChannel:
@@ -306,7 +308,7 @@ func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 	isDNSConnection := conn.DPort == 53 || conn.SPort == 53
 	if !t.config.CollectLocalDNS && isDNSConnection && conn.Direction == LOCAL {
 		return true
-	} else if util.IsBlacklistedConnection(t.sourceExcludes, conn.Source, conn.SPort) || util.IsBlacklistedConnection(t.destExcludes, conn.Dest, conn.DPort) {
+	} else if IsBlacklistedConnection(t.sourceExcludes, t.destExcludes, conn) {
 		return true
 	}
 	return false
@@ -337,7 +339,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 
 	conns := t.state.Connections(clientID, latestTime, latestConns)
 	names := t.reverseDNS.Resolve(conns)
-	return &Connections{Conns: conns, Names: names}, nil
+	return &Connections{Conns: conns, DNS: names}, nil
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
@@ -393,7 +395,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
 				// lookup conntrack in for active
-				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.Source, conn.SPort)
+				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.Source, conn.SPort, process.ConnectionType(conn.Type))
 				active = append(active, conn)
 			}
 		}
@@ -645,6 +647,9 @@ func (t *Tracer) populatePortMapping(mp *bpflib.Map) ([]uint16, error) {
 }
 
 func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionDirection {
+	if conn.Type == UDP {
+		return NONE
+	}
 	sourceLocal := t.isLocalAddress(conn.Source)
 	destLocal := t.isLocalAddress(conn.Dest)
 
@@ -696,7 +701,7 @@ func readLocalAddresses() map[util.Address]struct{} {
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)
-func SectionsFromConfig(c *Config) map[string]bpflib.SectionParams {
+func SectionsFromConfig(c *Config, enableSocketFilter bool) map[string]bpflib.SectionParams {
 	return map[string]bpflib.SectionParams{
 		connMap.sectionName(): {
 			MapMaxEntries: int(c.MaxTrackedConnections),
@@ -710,6 +715,8 @@ func SectionsFromConfig(c *Config) map[string]bpflib.SectionParams {
 		tcpCloseEventMap.sectionName(): {
 			MapMaxEntries: 1024,
 		},
-		"socket/dns_filter": {},
+		"socket/dns_filter": {
+			Disabled: !enableSocketFilter,
+		},
 	}
 }

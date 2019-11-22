@@ -35,14 +35,14 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     # This generates the manifest resource. The manifest resource is necessary for
     # being able to load the ancient C-runtime that comes along with Python 2.7
     # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
-    ver = get_version_numeric_only(ctx)
+    ver = get_version_numeric_only(ctx, env=os.environ)
     build_maj, build_min, build_patch = ver.split(".")
     env = {}
     windres_target = "pe-x86-64"
     if arch == "x86":
         env["GOARCH"] = "386"
         windres_target = "pe-i386"
-    
+
     command = "windres -v  --target {target_arch} --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
         build_maj=build_maj,
         build_min=build_min,

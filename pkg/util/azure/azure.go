@@ -20,7 +20,18 @@ import (
 var (
 	metadataURL = "http://169.254.169.254"
 	timeout     = 300 * time.Millisecond
+
+	// CloudProviderName contains the inventory name of for EC2
+	CloudProviderName = "Azure"
 )
+
+// IsRunningOn returns true if the agent is running on Azure
+func IsRunningOn() bool {
+	if _, err := GetHostAlias(); err == nil {
+		return true
+	}
+	return false
+}
 
 // GetHostAlias returns the VM ID from the Azure Metadata api
 func GetHostAlias() (string, error) {
@@ -29,7 +40,6 @@ func GetHostAlias() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
 	}
-
 	return res, nil
 }
 

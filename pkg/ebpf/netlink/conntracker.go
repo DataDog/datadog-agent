@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	ct "github.com/florianl/go-conntrack"
 	"github.com/pkg/errors"
 )
@@ -29,7 +28,7 @@ const (
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
-	GetTranslationForConn(ip util.Address, port uint16) *IPTranslation
+	GetTranslationForConn(ip util.Address, port uint16, transport process.ConnectionType) *IPTranslation
 	ClearShortLived()
 	GetStats() map[string]int64
 	Close()
@@ -38,6 +37,9 @@ type Conntracker interface {
 type connKey struct {
 	ip   util.Address
 	port uint16
+
+	// the transport protocol of the connection, using the same values as specified in the agent payload.
+	transport process.ConnectionType
 }
 
 type connValue struct {
@@ -159,13 +161,13 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	return ctr, nil
 }
 
-func (ctr *realConntracker) GetTranslationForConn(ip util.Address, port uint16) *IPTranslation {
+func (ctr *realConntracker) GetTranslationForConn(ip util.Address, port uint16, transport process.ConnectionType) *IPTranslation {
 	then := time.Now().UnixNano()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
-	k := connKey{ip, port}
+	k := connKey{ip, port, transport}
 	var result *IPTranslation
 	value, ok := ctr.state[k]
 	if !ok {
@@ -227,7 +229,9 @@ func (ctr *realConntracker) loadInitialState(sessions []ct.Con) {
 	gen := getNthGeneration(generationLength, time.Now().UnixNano(), 3)
 	for _, c := range sessions {
 		if isNAT(c) {
-			ctr.state[formatKey(c)] = formatIPTranslation(c, gen)
+			if k, ok := formatKey(c); ok {
+				ctr.state[k] = formatIPTranslation(c, gen)
+			}
 		}
 	}
 }
@@ -237,6 +241,11 @@ func (ctr *realConntracker) loadInitialState(sessions []ct.Con) {
 func (ctr *realConntracker) register(c ct.Con) int {
 	// don't both storing if the connection is not NAT
 	if !isNAT(c) {
+		return 0
+	}
+
+	key, ok := formatKey(c)
+	if !ok {
 		return 0
 	}
 
@@ -250,7 +259,7 @@ func (ctr *realConntracker) register(c ct.Con) int {
 	}
 
 	generation := getNthGeneration(generationLength, now, 3)
-	ctr.state[formatKey(c)] = formatIPTranslation(c, generation)
+	ctr.state[key] = formatIPTranslation(c, generation)
 
 	then := time.Now().UnixNano()
 	atomic.AddInt64(&ctr.stats.registers, 1)
@@ -272,18 +281,22 @@ func (ctr *realConntracker) unregister(c ct.Con) int {
 		return 0
 	}
 
+	key, ok := formatKey(c)
+	if !ok {
+		return 0
+	}
+
 	now := time.Now().UnixNano()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
 	// move the mapping from the permanent to "short lived" connection
-	k := formatKey(c)
-	translation, ok := ctr.state[k]
+	translation, ok := ctr.state[key]
 
-	delete(ctr.state, k)
+	delete(ctr.state, key)
 	if len(ctr.shortLivedBuffer) < ctr.maxShortLivedBuffer && ok {
-		ctr.shortLivedBuffer[k] = translation.IPTranslation
+		ctr.shortLivedBuffer[key] = translation.IPTranslation
 	} else {
 		log.Warn("exceeded maximum tracked short lived connections")
 	}
