@@ -1,13 +1,21 @@
 #include "stdafx.h"
 #include <io.h>
 BOOL IsDots(const TCHAR* str) {
-    if (wcscmp(str, L".") && wcscmp(str, L"..")) return FALSE;
+    if (wcscmp(str, L".") && wcscmp(str, L"..")) {
+        return FALSE;
+    }
     return TRUE;
 }
-BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext) {
+BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext, bool dirs) {
     HANDLE hFind;
     WIN32_FIND_DATA FindFileData;
 
+    if(!isPathAbsolute(dirname)){
+        // don't allow this.   If the path is not absolute, assume we didn't mean
+        // to delete it
+        WcaLog(LOGMSG_STANDARD, "Not deleting directory %S, not absolute", dirname);
+        return false;
+    }
     std::wstring DirPath = dirname;
     DirPath += L"\\";
     DirPath += ext;
@@ -28,15 +36,19 @@ BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext) {
             std::wstring FileName = dirname;
             FileName += L"\\";
             FileName += FindFileData.cFileName;
+            WcaLog(LOGMSG_STANDARD, "checking %S %x", FindFileData.cFileName, FindFileData.dwFileAttributes);
             if ((FindFileData.dwFileAttributes &
                 FILE_ATTRIBUTE_DIRECTORY))
             {
 
                 // we have found a directory, recurse
-                if (!DeleteFilesInDirectory(FileName.c_str(), ext))
+                if (!DeleteFilesInDirectory(FileName.c_str(), ext, dirs))
                 {
                     FindClose(hFind);
                     return FALSE;    // directory couldn't be deleted
+                }
+                if(dirs) {
+                    RemoveDirectory(FileName.c_str());
                 }
             }
             else {
@@ -47,7 +59,7 @@ BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext) {
                     _wchmod(FileName.c_str(), _S_IWRITE);
                 }
                 if (!DeleteFile(FileName.c_str())) {    // delete the file
-                    WcaLog(LOGMSG_STANDARD, "Failed to delete pyc file");
+                    WcaLog(LOGMSG_STANDARD, "Failed to delete file %S", FileName.c_str());
                 }
             }
         }
@@ -81,7 +93,7 @@ BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext) {
                 FileName += FindFileData.cFileName;
 
                 // we have found a directory, recurse
-                if (!DeleteFilesInDirectory(FileName.c_str(), ext))
+                if (!DeleteFilesInDirectory(FileName.c_str(), ext, dirs))
                 {
                     FindClose(hFind);
                     return FALSE;    // directory couldn't be deleted

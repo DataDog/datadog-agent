@@ -241,3 +241,30 @@ bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst,
 bool loadDdAgentPassword(MSIHANDLE hInstall, wchar_t **pass, DWORD *len) {
     return loadPropertyString(hInstall, propertyDDAgentUserPassword.c_str(), pass, len);
 }
+
+
+bool isPathAbsolute(const wchar_t * path) {
+    // path is absolute if it's <driveletter>:\ or
+    // \\.\<driveletter>:\ or
+    // \\?\<driveletter>:\
+
+    if(wcslen(path) <= 7) {
+        // can't fit anything in there 
+        // theoretically, the path could be absolute in 7 chars.  But 
+        // it's so short for our purposes that it's not a valid path.
+        return false;
+    }
+    if(path[1] == L':') {
+        // could be standard DOS path
+        if(path[2] == L'\\') {
+            // looks good
+            return true;
+        }
+    }
+    if(path[2] == L'.' || path[2] == L'?'){
+        if(path[5] == L':' && path[6] == L'\\'){
+            return true;
+        }
+    }
+    return false;
+}
