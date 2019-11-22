@@ -145,6 +145,15 @@ func (le *LeaderEngine) init() error {
 	return nil
 }
 
+// StartLeaderElectionRun starts the runLeaderElection once
+func (le *LeaderEngine) StartLeaderElectionRun() {
+	le.once.Do(
+		func() {
+			go le.runLeaderElection()
+		},
+	)
+}
+
 // EnsureLeaderElectionRuns start the Leader election process if not already running,
 // return nil if the process is effectively running
 func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
@@ -156,11 +165,7 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 		return nil
 	}
 
-	le.once.Do(
-		func() {
-			go le.runLeaderElection()
-		},
-	)
+	le.StartLeaderElectionRun()
 
 	timeoutDuration := getLeaderTimeout
 	timeout := time.After(timeoutDuration)

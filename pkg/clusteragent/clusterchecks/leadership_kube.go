@@ -19,5 +19,7 @@ func getLeaderIPCallback() (types.LeaderIPCallback, error) {
 		return nil, err
 	}
 
-	return engine.GetLeaderIP, engine.EnsureLeaderElectionRuns()
+	engine.StartLeaderElectionRun()
+
+	return engine.GetLeaderIP, nil
 }

@@ -195,11 +195,11 @@ func start(cmd *cobra.Command, args []string) error {
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
-	if !config.Datadog.GetBool("cluster_checks.enabled") {
+	if config.Datadog.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
 		clusterCheckHandler, err := setupClusterCheck(mainCtx)
 		if err != nil {
-			return log.Errorf("Error while setting up cluster check Autodiscovery, exiting: %v", err)
+			log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
 		}
 		// Start the cmd HTTPS server
 		sc := clusteragent.ServerContext{
