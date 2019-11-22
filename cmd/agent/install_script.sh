@@ -293,22 +293,13 @@ else
   $sudo_cmd chmod 640 $CONF
 fi
 
-# On SUSE 11, sudo service datadog-agent start fails (seemingly because /sbin is not in a base user's path?)
+# On SUSE 11, sudo service datadog-agent start fails (because /sbin is not in a base user's path)
 # However, sudo /sbin/service datadog-agent does work.
 # Use which (from root user) to find the absolute path to service
 
-service_cmd="service"
-echo "sudo command:"
-echo $sudo_cmd
-echo "end sudo command"
-
 if [ "$SUSE11" == "yes" ]; then
-  service_cmd=`sudo which service`
+  service_cmd=`$sudo_cmd which service`
 fi
-
-echo "service command:"
-echo $service_cmd
-echo "end service command"
 
 # Use /usr/sbin/service by default.
 # Some distros usually include compatibility scripts with Upstart or Systemd. Check with: `command -v service | xargs grep -E "(upstart|systemd)"`
