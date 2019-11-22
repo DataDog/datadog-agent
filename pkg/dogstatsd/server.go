@@ -341,7 +341,7 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 
 				if matched {
 					sample.Name = name
-					sample.Tags = tags // sample.Tags is empty, so we can be assigned directly
+					sample.Tags = append(sample.Tags, tags...)
 				}
 			}
 
