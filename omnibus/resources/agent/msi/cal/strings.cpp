@@ -48,6 +48,11 @@ std::wstring agent_exe;
 std::wstring trace_exe;
 std::wstring process_exe;
 
+std::wstring computername;
+std::wstring domainname; // if domain joined, workgroup name otherwise
+bool isDomainJoined = false;
+
+
 std::wstring* loadStrings[] = {
     &datadog_path,
     &datadog_key_root_base,
@@ -116,6 +121,101 @@ void loadStringToWstring(int id, std::wstring *target)
 }
 static bool initialized = false;
 
+
+
+bool wrapGetComputerNameExW(COMPUTER_NAME_FORMAT fmt, std::wstring& result)
+{
+    wchar_t * buffer = NULL;
+    DWORD sz = 0;
+    BOOL res = GetComputerNameExW(fmt, buffer, &sz);
+    if(res) {
+        // this should never succeed
+        WcaLog(LOGMSG_STANDARD, "Unexpected.  Didn't get buffer size for computer name %d", (int)fmt);
+        return false;
+    }
+    DWORD err = GetLastError();
+    if(ERROR_MORE_DATA != err){
+        WcaLog(LOGMSG_STANDARD, "Unable to get computername info %d", err);
+        return false;
+    }
+    buffer = new wchar_t[sz + 1];
+    sz = sz + 1;
+    res = GetComputerNameExW(fmt, buffer, &sz);
+    if(res){
+        result = _wcslwr(buffer);
+    } else {
+        err = GetLastError();
+        WcaLog(LOGMSG_STANDARD, "Unable to get computername info %d", err);
+    }
+    if(buffer){
+        delete [] buffer;
+    }
+    return res;
+}
+void getHostInformation() {
+    wchar_t buf[MAX_COMPUTERNAME_LENGTH + 1];
+    DWORD sz = MAX_COMPUTERNAME_LENGTH+1;
+    if(!GetComputerNameW(buf, &sz)){
+        WcaLog(LOGMSG_STANDARD, "Failed to get computername %d", GetLastError());
+    } else {
+        computername = _wcslwr(buf);
+        WcaLog(LOGMSG_STANDARD, "Computername is %S (%d)", computername.c_str(), sz);
+    }
+    // get the computername again and compare, just to make sure
+    std::wstring compare_computer;
+    if(wrapGetComputerNameExW(ComputerNameDnsHostname, compare_computer)) {
+        if(computername != compare_computer){
+            WcaLog(LOGMSG_STANDARD, "Got two different computer names %S %S", computername.c_str(), compare_computer.c_str());
+        }
+    }
+    std::wstring domain; 
+    if(wrapGetComputerNameExW(ComputerNameDnsDomain, domain))
+    {
+        // newer domains will look like DNS domains.  (i.e. domain.local)
+        // just take the domain portion, which is all we're interested in.
+        size_t pos = domain.find(L'.');
+        if(pos != std::wstring::npos){
+            domain = domain.substr(0, pos);
+        }
+    }
+
+    // check if it's actually domain joined or not
+    std::wstring joined_domain;
+    LPWSTR name = NULL;
+    NETSETUP_JOIN_STATUS st;
+    int nErr = NetGetJoinInformation(NULL, &name, &st);
+    if(nErr == NERR_Success) {
+        joined_domain = _wcslwr(name);
+        NetApiBufferFree(name);
+    } else {
+        WcaLog(LOGMSG_STANDARD, "Error getting domain joining information %d", GetLastError());
+    }
+    switch(st){
+        case NetSetupUnknownStatus:
+            WcaLog(LOGMSG_STANDARD, "Unknown domain joining status, assuming not joined");
+            isDomainJoined = false;
+            break;
+        case NetSetupUnjoined:
+            WcaLog(LOGMSG_STANDARD, "Computer explicitly not joined to domain");
+            isDomainJoined = false;
+            break;
+        case NetSetupWorkgroupName:
+            WcaLog(LOGMSG_STANDARD, "Computer is joined to a workgroup");
+            isDomainJoined = false;
+            break;
+        case NetSetupDomainName:
+            WcaLog(LOGMSG_STANDARD, "Computer is domain-joined");
+            isDomainJoined = true;
+            break;
+    }
+    if(isDomainJoined) {
+        if(domain != joined_domain) {
+            WcaLog(LOGMSG_STANDARD, "Computed domains don't match (%S %S)", domain.c_str(), joined_domain.c_str());
+        }
+        domainname = domain;
+    }
+}
+
 void getOsStrings()
 {
     PWSTR outstr = NULL;
@@ -158,6 +258,8 @@ void getOsStrings()
 
     datadog_acl_key_datadog = datadog_acl_key_datadog_base + datadog_path;
 
+    getHostInformation();
+
 }
 void initializeStringsFromStringTable()
 {
@@ -185,6 +287,9 @@ void toMbcs(std::string& target, LPCWSTR src) {
     return;
 }
 
+void toMbcs(std::string& target, std::wstring& src){
+    return toMbcs(target, src.c_str());
+}
 bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, std::wstring& dststr)
 {
     wchar_t *dst = NULL;

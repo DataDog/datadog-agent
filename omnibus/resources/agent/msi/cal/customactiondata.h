@@ -12,39 +12,34 @@ class CustomActionData
         bool present(const std::wstring& key) const;
         bool value( std::wstring& key, std::wstring &val) ;
 
-        const std::wstring& getUsername() const{
+        bool isUserDomainUser() const {
+            return domainUser;
+        }
+        bool isUserLocalUser() const {
+            return !domainUser;
+        }
+
+        const std::wstring& Username() const {
             return this->username;
         }
-        const std::wstring& getUserdomain() const{
-            return this->userdomain;
+        const std::wstring& UnqualifiedUsername() const {
+            return this->uqusername;
         }
-        const std::wstring& getFullUsername() const{
-            return this->fullusername;
+        const std::wstring& Domain() const {
+            return this->domain;
         }
-        const wchar_t* getDomainPtr() const{
-            return this->domainPtr;
-        }
-        const wchar_t* getUserPtr() const{
-            return this->userPtr;
-        }
-        const std::string& getFullUsernameMbcs() const {
-            return this->fullusermbcs;
-        }
-        const std::wstring& getQualifiedUsername() const {
-            return this->qualifieduser;
+        const std::wstring& Hostname() const {
+            return this->hostname;
         }
     private:
         MSIHANDLE hInstall;
+        bool domainUser;
         std::map< std::wstring, std::wstring> values;
-        std::wstring username; // unqualified
-        std::wstring userdomain;
-        std::wstring fullusername; // userdomain\username
-        std::string fullusermbcs;
-        // if it's a local account, it's just the username.
-        // otherwise, the full name.
-        std::wstring qualifieduser;
-        const wchar_t * domainPtr;
-        const wchar_t * userPtr;
+        std::wstring username; // qualified
+        std::wstring uqusername;// unqualified
+        std::wstring domain;
+        std::wstring hostname;
+
 
         bool parseUsernameData();
 };
