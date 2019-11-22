@@ -38,7 +38,6 @@ var (
 	dogstatsdMetricParseErrors       = expvar.Int{}
 	dogstatsdMetricPackets           = expvar.Int{}
 	dogstatsdPacketsLastSec          = expvar.Int{}
-	defaultMapperCacheSize           = 1000
 )
 
 func init() {
