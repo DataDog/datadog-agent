@@ -1,4 +1,9 @@
-package dogstatsd
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
+package mapper
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -203,7 +208,7 @@ dogstatsd_mappings:
 
 			var actualResults []MappingResult
 			for _, packet := range scenario.packets {
-				name, tags, matched := mapper.getMapping(packet)
+				name, tags, matched := mapper.GetMapping(packet)
 				actualResults = append(actualResults, MappingResult{Name: name, Tags: tags, Matched: matched})
 			}
 			for _, sample := range scenario.expectedResults {
@@ -327,8 +332,8 @@ dogstatsd_mappings:
 	}
 }
 
-func getMapper(configString string) (*metricMapper, error) {
-	var mappings []metricMapping
+func getMapper(configString string) (*MetricMapper, error) {
+	var mappings []MetricMapping
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.ReadConfig(strings.NewReader(configString))
 	if err != nil {
@@ -338,7 +343,7 @@ func getMapper(configString string) (*metricMapper, error) {
 	if err != nil {
 		return nil, err
 	}
-	mapper, err := newMetricMapper(mappings, 1000)
+	mapper, err := NewMetricMapper(mappings, 1000)
 	if err != nil {
 		return nil, err
 	}

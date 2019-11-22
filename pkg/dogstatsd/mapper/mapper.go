@@ -1,4 +1,11 @@
-package dogstatsd
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
+// Mapping feature is inspired by https://github.com/prometheus/statsd_exporter
+
+package mapper
 
 import (
 	"fmt"
@@ -15,12 +22,14 @@ const (
 	matchTypeRegex = "regex"
 )
 
-type metricMapper struct {
-	Mappings []metricMapping
+// MetricMapper contains mappings and cache instance
+type MetricMapper struct {
+	Mappings []MetricMapping
 	cache    *mapperCache
 }
 
-type metricMapping struct {
+// MetricMapping represent one mapping rule
+type MetricMapping struct {
 	Match     string            `mapstructure:"match"`
 	MatchType string            `mapstructure:"match_type"`
 	Name      string            `mapstructure:"name"`
@@ -28,38 +37,38 @@ type metricMapping struct {
 	regex     *regexp.Regexp
 }
 
-// newMetricMapper creates a new metricMapper
-func newMetricMapper(configMappings []metricMapping, cacheSize int) (metricMapper, error) {
-	var mappings []metricMapping
+// NewMetricMapper creates, validates, prepares a new MetricMapper
+func NewMetricMapper(configMappings []MetricMapping, cacheSize int) (MetricMapper, error) {
+	var mappings []MetricMapping
 	for i := range configMappings {
 		currentMapping := configMappings[i]
 		if currentMapping.MatchType == "" {
 			currentMapping.MatchType = matchTypeGlob
 		}
 		if currentMapping.MatchType != matchTypeGlob && currentMapping.MatchType != matchTypeRegex {
-			return metricMapper{}, fmt.Errorf("mapping num %d: invalid match type, must be `glob` or `regex`", i)
+			return MetricMapper{}, fmt.Errorf("mapping num %d: invalid match type, must be `glob` or `regex`", i)
 		}
 		if currentMapping.Name == "" {
-			return metricMapper{}, fmt.Errorf("mapping num %d: name is required", i)
+			return MetricMapper{}, fmt.Errorf("mapping num %d: name is required", i)
 		}
 		if currentMapping.Match == "" {
-			return metricMapper{}, fmt.Errorf("mapping num %d: match is required", i)
+			return MetricMapper{}, fmt.Errorf("mapping num %d: match is required", i)
 		}
 		err := currentMapping.prepare()
 		if err != nil {
-			return metricMapper{}, err
+			return MetricMapper{}, err
 		}
 		mappings = append(mappings, currentMapping)
 	}
 	cache, err := newMapperCache(cacheSize)
 	if err != nil {
-		return metricMapper{}, err
+		return MetricMapper{}, err
 	}
-	return metricMapper{Mappings: mappings, cache: cache}, nil
+	return MetricMapper{Mappings: mappings, cache: cache}, nil
 }
 
 // prepare compiles the match patterns into regexes
-func (m *metricMapping) prepare() error {
+func (m *MetricMapping) prepare() error {
 	metricRe := m.Match
 	if m.MatchType == matchTypeGlob {
 		if !allowedGlobMatchPattern.MatchString(m.Match) {
@@ -79,11 +88,11 @@ func (m *metricMapping) prepare() error {
 	return nil
 }
 
-// getMapping returns:
+// GetMapping returns:
 // - name: the mapped expanded name
 // - tags: the tags extracted from the metric name and expanded
 // - matched: weather we found a match or not
-func (m *metricMapper) getMapping(metricName string) (string, []string, bool) {
+func (m *MetricMapper) GetMapping(metricName string) (string, []string, bool) {
 	result, cached := m.cache.get(metricName)
 	if cached {
 		return result.Name, result.Tags, result.Matched

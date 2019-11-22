@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"net"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -395,6 +394,13 @@ func TestDebugStats(t *testing.T) {
 	require.Equal(t, metric3.Count, uint64(1))
 }
 
+type mappingTest struct {
+	Match     string
+	MatchType string
+	Name      string
+	Tags      map[string]string
+}
+
 func TestMappingsConfig(t *testing.T) {
 	datadogYaml := `
 dogstatsd_mappings:
@@ -421,14 +427,17 @@ dogstatsd_mappings:
 	s, err := NewServer(nil, nil, nil)
 	require.NoError(t, err, "cannot start DSD")
 
-	regex1, _ := regexp.Compile("^airflow\\.job\\.duration_sec\\.([^.]*)\\.([^.]*)$")
-	regex2, _ := regexp.Compile("^airflow\\.job\\.size\\.([^.]*)\\.([^.]*)$")
-	expectedMappings := []metricMapping{
-		{Match: "airflow.job.duration_sec.*.*", Name: "airflow.job.duration", Tags: map[string]string{"job_type": "$1", "job_name": "$2"}, regex: regex1, MatchType: "glob"},
-		{Match: "airflow.job.size.*.*", Name: "airflow.job.size", Tags: map[string]string{"foo": "$1", "bar": "$2"}, regex: regex2, MatchType: "glob"},
+	expectedMappings := []mappingTest{
+		{Match: "airflow.job.duration_sec.*.*", Name: "airflow.job.duration", Tags: map[string]string{"job_type": "$1", "job_name": "$2"}, MatchType: "glob"},
+		{Match: "airflow.job.size.*.*", Name: "airflow.job.size", Tags: map[string]string{"foo": "$1", "bar": "$2"}, MatchType: "glob"},
 	}
 
-	assert.Equal(t, expectedMappings, s.mapper.Mappings)
+	var actualMappings []mappingTest
+	for _, m := range s.mapper.Mappings {
+		actualMappings = append(actualMappings, mappingTest{Match: m.Match, Name: m.Name, Tags: m.Tags, MatchType: m.MatchType})
+	}
+
+	assert.Equal(t, expectedMappings, actualMappings)
 }
 
 type MetricSample struct {
