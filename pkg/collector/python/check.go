@@ -197,8 +197,10 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 
 	var check *C.rtloader_pyobject_t
 	res := C.get_check(rtloader, c.class, cInitConfig, cInstance, cCheckID, cCheckName, &check)
+	var rtLoaderError error
 	if res == 0 {
-		log.Warnf("could not get a '%s' check instance with the new api: %s", c.ModuleName, getRtLoaderError())
+		rtLoaderError = getRtLoaderError()
+		log.Warnf("could not get a '%s' check instance with the new api: %s", c.ModuleName, rtLoaderError)
 		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
 
 		allSettings := config.Datadog.AllSettings()
@@ -212,6 +214,9 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 
 		res := C.get_check_deprecated(rtloader, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, &check)
 		if res == 0 {
+			if rtLoaderError != nil {
+				return fmt.Errorf("could not invoke '%s' python check constructor. First got:\n%sthen:\n%s", c.ModuleName, rtLoaderError, getRtLoaderError())
+			}
 			return fmt.Errorf("could not invoke '%s' python check constructor: %s", c.ModuleName, getRtLoaderError())
 		}
 		log.Warnf("passing `agentConfig` to the constructor is deprecated, please use the `get_config` function from the 'datadog_agent' package (%s).", c.ModuleName)
