@@ -215,7 +215,7 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 		res := C.get_check_deprecated(rtloader, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, &check)
 		if res == 0 {
 			if rtLoaderError != nil {
-				return fmt.Errorf("could not invoke '%s' python check constructor. First got:\n%sthen:\n%s", c.ModuleName, rtLoaderError, getRtLoaderError())
+				return fmt.Errorf("could not invoke '%s' python check constructor. New constructor API returned:\n%sDeprecated constructor API returned:\n%s", c.ModuleName, rtLoaderError, getRtLoaderError())
 			}
 			return fmt.Errorf("could not invoke '%s' python check constructor: %s", c.ModuleName, getRtLoaderError())
 		}
