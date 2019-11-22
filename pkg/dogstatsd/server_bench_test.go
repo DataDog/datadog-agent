@@ -27,13 +27,7 @@ func BenchmarkParsePacket(b *testing.B) {
 	}
 }
 
-// Benchmark result without cache:
-// 	BenchmarkMapper-8   	  500000	      2010 ns/op
-//
-// Benchmark with cache:
-//  BenchmarkMapper-8   	 2000000	       885 ns/op
-
-func BenchmarkMapper(b *testing.B) {
+func BenchmarkWithMapper(b *testing.B) {
 	datadogYaml := `
 dogstatsd_mappings:
   - match: "airflow.job.duration.*.*"       # metric format: airflow.job.duration.<job_type>.<job_name>
@@ -50,6 +44,10 @@ dogstatsd_mappings:
 	config.Datadog.SetConfigType("yaml")
 	config.Datadog.ReadConfig(strings.NewReader(datadogYaml))
 
+	BenchmarkMapperControl(b)
+}
+
+func BenchmarkMapperControl(b *testing.B) {
 	s, _ := NewServer(nil, nil, nil)
 	defer s.Stop()
 
