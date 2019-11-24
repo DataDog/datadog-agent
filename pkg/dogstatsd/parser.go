@@ -274,7 +274,7 @@ func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, 
 	return &event, nil
 }
 
-func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (*metrics.MetricSample, error) {
+func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string, extraTags []string, cache *metricCache) (*metrics.MetricSample, error) {
 	// daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2
 	// daemon:666|g|@0.1|#sometag:somevalue"
 
@@ -290,64 +290,88 @@ func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []s
 		return nil, fmt.Errorf("invalid field format for %q", message)
 	}
 
-	rawType, remainder := nextField(remainder, fieldSeparator)
-	if len(rawName) == 0 || len(rawValue) == 0 || len(rawType) == 0 {
-		return nil, fmt.Errorf("invalid metric message format: empty 'name', 'value' or 'text' field")
-	}
-
 	// Metadata
 	var metricTags []string
 	host := defaultHostname
 	var rawMetadataField []byte
 	sampleRate := 1.0
 
-	for {
-		rawMetadataField, remainder = nextField(remainder, fieldSeparator)
+	var cacheSample *MetricCacheItem
+	var cacheKey string
 
-		if bytes.HasPrefix(rawMetadataField, []byte("#")) {
-			metricTags, host = parseTags(rawMetadataField[1:], defaultHostname)
-		} else if bytes.HasPrefix(rawMetadataField, []byte("@")) {
-			rawSampleRate := rawMetadataField[1:]
-			var err error
-			sampleRate, err = strconv.ParseFloat(string(rawSampleRate), 64)
-			if err != nil {
-				return nil, fmt.Errorf("invalid sample value for %q", message)
+	if cache != nil {
+		cacheKey = string(rawName) + "|" + string(remainder)
+		cacheSample = cache.get(cacheKey)
+	}
+	if cacheSample == nil {
+		rawType, remainder := nextField(remainder, fieldSeparator)
+		if len(rawName) == 0 || len(rawValue) == 0 || len(rawType) == 0 {
+			return nil, fmt.Errorf("invalid metric message format: empty 'name', 'value' or 'text' field")
+		}
+
+		for {
+			rawMetadataField, remainder = nextField(remainder, fieldSeparator)
+
+			if bytes.HasPrefix(rawMetadataField, []byte("#")) {
+				metricTags, host = parseTags(rawMetadataField[1:], defaultHostname)
+			} else if bytes.HasPrefix(rawMetadataField, []byte("@")) {
+				rawSampleRate := rawMetadataField[1:]
+				var err error
+				sampleRate, err = strconv.ParseFloat(string(rawSampleRate), 64)
+				if err != nil {
+					return nil, fmt.Errorf("invalid sample value for %q", message)
+				}
+			}
+
+			if remainder == nil {
+				break
 			}
 		}
 
-		if remainder == nil {
-			break
-		}
-	}
-
-	metricName := string(rawName)
-	if namespace != "" {
-		blacklisted := false
-		for _, prefix := range namespaceBlacklist {
-			if strings.HasPrefix(metricName, prefix) {
-				blacklisted = true
+		metricName := string(rawName)
+		if namespace != "" {
+			blacklisted := false
+			for _, prefix := range namespaceBlacklist {
+				if strings.HasPrefix(metricName, prefix) {
+					blacklisted = true
+				}
+			}
+			if !blacklisted {
+				metricName = namespace + metricName
 			}
 		}
-		if !blacklisted {
-			metricName = namespace + metricName
-		}
-	}
 
-	metricType, ok := metricTypes[string(rawType)]
-	if !ok {
-		return nil, fmt.Errorf("invalid metric type for %q", message)
+		metricType, ok := metricTypes[string(rawType)]
+		if !ok {
+			return nil, fmt.Errorf("invalid metric type for %q", message)
+		}
+
+		if len(extraTags) > 0 {
+			metricTags = append(metricTags, extraTags...)
+		}
+		cacheSample = &MetricCacheItem{
+			Name:      metricName,
+			Mtype:      metricType,
+			Tags:       metricTags,
+			Host:       host,
+			SampleRate: sampleRate,
+		}
+
+		if cache != nil {
+			cache.add(cacheKey, cacheSample)
+		}
 	}
 
 	sample := &metrics.MetricSample{
-		Name:       metricName,
-		Mtype:      metricType,
-		Tags:       metricTags,
-		Host:       host,
-		SampleRate: sampleRate,
+		Name:       cacheSample.Name,
+		Mtype:      cacheSample.Mtype,
+		Tags:       cacheSample.Tags,
+		Host:       cacheSample.Host,
+		SampleRate: cacheSample.SampleRate,
 		Timestamp:  0,
 	}
 
-	if metricType == metrics.SetType {
+	if sample.Mtype == metrics.SetType {
 		sample.RawValue = string(rawValue)
 	} else {
 		metricValue, err := strconv.ParseFloat(string(rawValue), 64)

@@ -65,6 +65,8 @@ type Server struct {
 	debugMetricsStats     bool
 	metricsStats          map[string]metricStat
 	statsLock             sync.Mutex
+	metricCache           *metricCache
+	metricCacheSize       int
 }
 
 // metricStat holds how many times a metric has been
@@ -172,6 +174,12 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 	}
 
 	s.handleMessages(metricOut, eventOut, serviceCheckOut)
+
+	metricCacheSize := config.Datadog.GetInt("dogstatsd_metric_cache_size")
+	s.metricCache, err = newMetricCache(metricCacheSize)
+	if err != nil {
+		return nil, err
+	}
 
 	return s, nil
 }
@@ -293,17 +301,15 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 			dogstatsdEventPackets.Add(1)
 			events = append(events, event)
 		} else {
-			sample, err := parseMetricMessage(message, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
+			sample, err := parseMetricMessage(message, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, extraTags, s.metricCache)
 			if err != nil {
 				log.Errorf("Dogstatsd: error parsing metrics: %s", err)
 				dogstatsdMetricParseErrors.Add(1)
 				continue
 			}
+
 			if s.debugMetricsStats {
 				s.storeMetricStats(sample.Name)
-			}
-			if len(extraTags) > 0 {
-				sample.Tags = append(sample.Tags, extraTags...)
 			}
 			dogstatsdMetricPackets.Add(1)
 			metricSamples = append(metricSamples, sample)

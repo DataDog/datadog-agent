@@ -2,14 +2,6 @@
 
 
 [[projects]]
-  digest = "1:db5c4e7a9516334fb1e9d5951fb9943d0f13e4f415a77c22b97e60f4d10a62a7"
-  name = "bitbucket.org/ww/goautoneg"
-  packages = ["."]
-  pruneopts = ""
-  revision = "d788f35a0315672bc90f50a6145d1252a230ee0d"
-  source = "github.com/adjust/goautoneg"
-
-[[projects]]
   digest = "1:c4e071eb2f960b14286f0fe2057d4f87dfd83c840c059377f01c37b5112595ed"
   name = "github.com/DataDog/agent-payload"
   packages = [
@@ -2007,7 +1999,7 @@
   revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[projects]]
-  digest = "0:"
+  digest = "1:f27698f7ae7864893ebcfb843e44d821263ac1dcf0ba1d5c2353f9d319a2f28d"
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/kubelet/remote/fake",
@@ -2154,6 +2146,7 @@
     "github.com/google/gopacket/layers",
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
+    "github.com/hashicorp/golang-lru",
     "github.com/hectane/go-acl",
     "github.com/iovisor/gobpf/elf",
     "github.com/json-iterator/go",
