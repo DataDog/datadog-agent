@@ -3,7 +3,6 @@
 package ebpf
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -16,9 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/google/gopacket"
 	"github.com/google/gopacket/afpacket"
-	"github.com/google/gopacket/layers"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
 
@@ -33,8 +30,8 @@ var _ ReverseDNS = &SocketFilterSnooper{}
 
 // SocketFilterSnooper is a DNS traffic snooper built on top of an eBPF SOCKET_FILTER
 type SocketFilterSnooper struct {
-	tpacket      *afpacket.TPacket
-	source       *gopacket.PacketSource
+	parser       *dnsParser
+	source       *afpacket.TPacket
 	socketFilter *bpflib.SocketFilter
 	socketFD     int
 	cache        *reverseDNSCache
@@ -47,21 +44,20 @@ type SocketFilterSnooper struct {
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
 func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, error) {
-	tpacket, err := afpacket.NewTPacket(afpacket.OptPollTimeout(1 * time.Second))
+	packetSrc, err := afpacket.NewTPacket(afpacket.OptPollTimeout(1 * time.Second))
 	if err != nil {
 		return nil, fmt.Errorf("error creating raw socket: %s", err)
 	}
-	packetSrc := gopacket.NewPacketSource(tpacket, layers.LayerTypeEthernet)
 
 	// The underlying socket file descriptor is private, hence the use of reflection
-	socketFD := int(reflect.ValueOf(tpacket).Elem().FieldByName("fd").Int())
+	socketFD := int(reflect.ValueOf(packetSrc).Elem().FieldByName("fd").Int())
 	if err := bpflib.AttachSocketFilter(filter, socketFD); err != nil {
 		return nil, fmt.Errorf("error attaching filter to socket: %s", err)
 	}
 
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
 	snooper := &SocketFilterSnooper{
-		tpacket:      tpacket,
+		parser:       newDNSParser(),
 		source:       packetSrc,
 		socketFilter: filter,
 		socketFD:     socketFD,
@@ -70,10 +66,9 @@ func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, 
 	}
 
 	// Start consuming packets
-	packetChan := snooper.createPacketStream(1000)
 	snooper.wg.Add(1)
 	go func() {
-		snooper.run(packetChan)
+		snooper.poll()
 		snooper.wg.Done()
 	}()
 
@@ -100,116 +95,53 @@ func (s *SocketFilterSnooper) Close() {
 		log.Errorf("error detaching socket filter: %s", err)
 	}
 
-	s.tpacket.Close()
+	s.source.Close()
 	s.cache.Close()
 }
 
-func (s *SocketFilterSnooper) run(packets <-chan gopacket.Packet) {
-	for packet := range packets {
-		layer := packet.Layer(layers.LayerTypeDNS)
-		if layer == nil {
-			continue
-		}
-		dns, ok := layer.(*layers.DNS)
-		if !ok {
-			continue
-		}
-
-		translation := parseAnswer(dns)
-		if translation == nil {
-			continue
-		}
-
+// processPacket retrieves DNS information from the received packet data and adds it to
+// the reverse DNS cache. The underlying packet data can't be referenced after this method
+// call since gopacket re-uses it.
+func (s *SocketFilterSnooper) processPacket(data []byte) {
+	if translation := s.parser.Parse(data); translation != nil {
 		s.cache.Add(translation, time.Now())
 	}
 }
 
-func (s *SocketFilterSnooper) createPacketStream(chanSize int) <-chan gopacket.Packet {
-	packetChan := make(chan gopacket.Packet, packetBufferSize)
-	go func() {
-		defer close(packetChan)
-		for {
-			packet, err := s.source.NextPacket()
-			if err == nil {
-				atomic.AddInt64(&s.packets, 1)
-				packetChan <- packet
-				continue
-			}
-
-			// Properly synchronizes termination process
-			select {
-			case <-s.exit:
-				return
-			default:
-			}
-
-			// Immediately retry for temporary network errors
-			if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
-				continue
-			}
-
-			// Immediately retry for EAGAIN
-			if err == syscall.EAGAIN {
-				continue
-			}
-
-			// Immediately break for known unrecoverable errors
-			if err == io.EOF || err == io.ErrUnexpectedEOF ||
-				err == io.ErrNoProgress || err == io.ErrClosedPipe || err == io.ErrShortBuffer ||
-				err == syscall.EBADF ||
-				strings.Contains(err.Error(), "use of closed file") {
-				break
-			}
-
-			// Sleep briefly and try again
-			time.Sleep(5 * time.Millisecond)
-		}
-	}()
-	return packetChan
-}
-
-// source: https://github.com/weaveworks/scope/blob/c5ac315b383fdf47c57cebb30bb2b7edd437ec74/probe/endpoint/dns_snooper_linux_amd64.go
-func parseAnswer(dns *layers.DNS) *translation {
-	// Only consider responses to singleton, A-record questions
-	if !dns.QR || dns.ResponseCode != 0 || len(dns.Questions) != 1 {
-		return nil
-	}
-	question := dns.Questions[0]
-	if question.Type != layers.DNSTypeA || question.Class != layers.DNSClassIN {
-		return nil
-	}
-
-	var (
-		domainQueried = question.Name
-		records       = append(dns.Answers, dns.Additionals...)
-		aliases       = [][]byte{}
-		translation   = newTranslation(domainQueried)
-	)
-
-	// Traverse all the CNAME records and the get the aliases. There are when the A record is for only one of the aliases.
-	// We traverse CNAME records first because there is no guarantee that the A records will be the first ones.
-	for _, record := range records {
-		if record.Type == layers.DNSTypeCNAME && record.Class == layers.DNSClassIN {
-			aliases = append(aliases, record.CNAME)
-		}
-	}
-
-	// Finally, get the answer
-	for _, record := range records {
-		if record.Type != layers.DNSTypeA || record.Class != layers.DNSClassIN {
+func (s *SocketFilterSnooper) poll() {
+	for {
+		data, _, err := s.source.ZeroCopyReadPacketData()
+		if err == nil {
+			atomic.AddInt64(&s.packets, 1)
+			s.processPacket(data)
 			continue
 		}
-		if bytes.Equal(domainQueried, record.Name) {
-			translation.add(util.AddressFromNetIP(record.IP))
+
+		// Properly synchronizes termination process
+		select {
+		case <-s.exit:
+			return
+		default:
+		}
+
+		// Immediately retry for temporary network errors
+		if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
 			continue
 		}
-		for _, alias := range aliases {
-			if bytes.Equal(alias, record.Name) {
-				translation.add(util.AddressFromNetIP(record.IP))
-				break
-			}
-		}
-	}
 
-	return translation
+		// Immediately retry for EAGAIN
+		if err == syscall.EAGAIN {
+			continue
+		}
+
+		// Immediately break for known unrecoverable errors
+		if err == io.EOF || err == io.ErrUnexpectedEOF || err == io.ErrNoProgress ||
+			err == io.ErrClosedPipe || err == io.ErrShortBuffer || err == syscall.EBADF ||
+			strings.Contains(err.Error(), "use of closed file") {
+			return
+		}
+
+		// Sleep briefly and try again
+		time.Sleep(5 * time.Millisecond)
+	}
 }
